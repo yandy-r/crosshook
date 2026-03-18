@@ -1,0 +1,187 @@
+{
+  // JSON Schema for IDE autocomplete
+  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint/main/schema/markdownlint-config-schema.json",
+
+  // Default state for all rules
+  "default": true,
+
+  // ========================================
+  // Heading Rules (Relaxed for flexibility)
+  // ========================================
+
+  // MD001: Heading levels should only increment by one level at a time
+  "MD001": true,
+
+  // MD002: First heading should be a top-level heading (disabled - not always needed)
+  "MD002": false,
+
+  // MD003: Heading style (disabled - allow mixed styles)
+  "MD003": false,
+
+  // MD041: First line in file should be a top-level heading (disabled)
+  "MD041": false,
+
+  // MD025: Multiple top-level headings in the same document
+  "MD025": true,
+
+  // ========================================
+  // Line Length (Disabled for long URLs/tables)
+  // ========================================
+
+  // MD013: Line length (disabled - modern editors handle wrapping)
+  "MD013": false,
+
+  // ========================================
+  // List Rules
+  // ========================================
+
+  // MD004: Unordered list style (consistent)
+  "MD004": {
+    "style": "consistent"
+  },
+
+  // MD005: Inconsistent indentation for list items at the same level
+  "MD005": true,
+
+  // MD007: Unordered list indentation (2 spaces)
+  "MD007": {
+    "indent": 2
+  },
+
+  // MD029: Ordered list item prefix (allow any style)
+  "MD029": false,
+
+  // MD030: Spaces after list markers
+  "MD030": true,
+
+  // MD032: Lists should be surrounded by blank lines
+  "MD032": true,
+
+  // ========================================
+  // Code Block Rules
+  // ========================================
+
+  // MD014: Dollar signs used before commands without showing output
+  "MD014": true,
+
+  // MD031: Fenced code blocks should be surrounded by blank lines
+  "MD031": true,
+
+  // MD033: Allow inline HTML (disabled for flexibility)
+  "MD033": false,
+
+  // MD040: Fenced code blocks should have a language specified (disabled)
+  "MD040": false,
+
+  // MD046: Code block style (prefer fenced)
+  "MD046": {
+    "style": "fenced"
+  },
+
+  // ========================================
+  // Link and Image Rules
+  // ========================================
+
+  // MD042: No empty links (disabled - sometimes needed for templates)
+  "MD042": false,
+
+  // MD051: Link fragments should be valid (disabled)
+  "MD051": false,
+
+  // MD034: Bare URL used
+  "MD034": true,
+
+  // ========================================
+  // Emphasis and Formatting
+  // ========================================
+
+  // MD036: Emphasis used instead of a heading (disabled)
+  "MD036": false,
+
+  // MD037: Spaces inside emphasis markers
+  "MD037": true,
+
+  // MD049: Emphasis style preference (underscore for italics)
+  "MD049": {
+    "style": "underscore"
+  },
+
+  // MD050: Strong style preference (asterisk for bold)
+  "MD050": {
+    "style": "asterisk"
+  },
+
+  // ========================================
+  // Whitespace Rules
+  // ========================================
+
+  // MD009: Trailing spaces (allow 2 for hard breaks)
+  "MD009": {
+    "br_spaces": 2,
+    "list_item_empty_lines": false,
+    "strict": false
+  },
+
+  // MD010: Hard tabs
+  "MD010": true,
+
+  // MD012: Multiple consecutive blank lines (max 2)
+  "MD012": {
+    "maximum": 2
+  },
+
+  // MD022: Headings should be surrounded by blank lines
+  "MD022": true,
+
+  // MD023: Headings must start at the beginning of the line
+  "MD023": true,
+
+  // MD027: Multiple spaces after blockquote symbol
+  "MD027": true,
+
+  // MD028: Blank line inside blockquote
+  "MD028": true,
+
+  // MD047: Files should end with a single newline character
+  "MD047": true,
+
+  // ========================================
+  // Other Formatting Rules
+  // ========================================
+
+  // MD011: Reversed link syntax
+  "MD011": true,
+
+  // MD018: No space after hash on atx style heading
+  "MD018": true,
+
+  // MD019: Multiple spaces after hash on atx style heading
+  "MD019": true,
+
+  // MD024: Multiple headings with the same content (allow siblings)
+  "MD024": {
+    "siblings_only": true
+  },
+
+  // MD026: Trailing punctuation in heading
+  "MD026": true,
+
+  // MD035: Horizontal rule style
+  "MD035": true,
+
+  // MD038: Spaces inside code span elements
+  "MD038": true,
+
+  // MD039: Spaces inside link text
+  "MD039": true,
+
+  // ========================================
+  // Rarely Used / Experimental Rules
+  // ========================================
+
+  // MD056: Table of contents (disabled)
+  "MD056": false,
+
+  // MD059: Linting (disabled)
+  "MD059": false
+}
