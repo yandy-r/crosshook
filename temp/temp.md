@@ -10,16 +10,16 @@ Make this based on industry best practices and also fits the projects purpose.
 
 Go through the @docs/plans/theming plan and lets create github issues to track the feature implementation.
 
-- group tasks together that logically fit (no need for an issue per task)
+- Group tasks together that logically fit (no need for an issue per task)
 - Make sure the issues are properly labeled
 - Create the necessary labels as needed for the issue
 - Labels must include feat:{feature-name} additive of any other labels
-- make sure the issues are properly prioritized
-- make them detailed and include which tasks they cover in title and/or body.
-- the task must include the numbers, such as 1.1, 1.2, 2.1 - 2.4, etc.
-- this will be read by AI agents so make it consumable and actionable for them to execute
-- no relative http(s) links, as those break inside the issue pointing to /issue/{#}/{link}
-- only relative directory links to files
+- Make sure the issues are properly prioritized
+- Make them detailed and include which tasks they cover in title and/or body.
+- The task must include the numbers, such as 1.1, 1.2, 2.1 - 2.4, etc.
+- This will be read by AI agents so make it consumable and actionable for them to execute
+- No relative http(s) links, as those break inside the issue pointing to /issue/{#}/{link}
+- Only relative directory links to files
   - such as [@docs/plans/{feature-name}/parallel-plan.md](file:///home/yandy/Projects/github.com/yandy-r/choochoo-loader/docs/plans/{feature-name}/parallel-plan.md)
 
 ## Issue Creation Template - Single
@@ -28,12 +28,12 @@ Go through the @docs/plans/progressive-disclosure plan and lets create a github 
 
 - Make sure the issue is properly labeled
 - Labels must include feat:{feature-name} additive of any other labels
-- make sure the issue is properly prioritized
-- make it detailed and include tasks details the body
-- the task must include the numbers, such as 1.1, 1.2, 2.1 - 2.4, etc.
-- this will be read by AI agents so make it consumable and actionable for them to execute
-- no relative http(s) links, as those break inside the issue pointing to /issue/{#}/{link}
-- only relative directory links to files
+- Make sure the issue is properly prioritized
+- Make it detailed and include tasks details the body
+- The task must include the numbers, such as 1.1, 1.2, 2.1 - 2.4, etc.
+- This will be read by AI agents so make it consumable and actionable for them to execute
+- No relative http(s) links, as those break inside the issue pointing to /issue/{#}/{link}
+- Only relative directory links to files
   - such as [@docs/plans/{feature-name}/parallel-plan.md](file:///home/yandy/Projects/github.com/yandy-r/choochoo-loader/docs/plans/{feature-name}/parallel-plan.md)
 
 ## PR Review Correction
