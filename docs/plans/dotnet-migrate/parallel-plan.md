@@ -23,13 +23,12 @@ This plan is intentionally narrower than the original package. It treats the mig
 
 Depends on: none
 
-Decide whether the migration release supports:
+The migration release supports dual artifacts:
 
 - `win-x64`
 - `win-x86`
-- dual artifacts
 
-Do not keep `win-x64` hard-coded in the plan unless the project intentionally drops 32-bit compatibility. The current codebase is `AnyCPU`, and `InjectionManager.ValidateDll()` depends on the loader process bitness.
+This is the explicit release policy for the migration because the current codebase is `AnyCPU` and `InjectionManager.ValidateDll()` depends on the loader process bitness. Do not collapse this to `win-x64` unless 32-bit compatibility is intentionally being dropped in a separate decision.
 
 ### Task 0.2: Freeze CLI Compatibility Policy
 

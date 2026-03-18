@@ -38,6 +38,12 @@ ScaffoldingReadMe.txt
 *.nupkg
 # NuGet Symbol Packages
 *.snupkg
+.nuget/
+
+# Local SDK and CLI state
+.dotnet/
+.dotnet-cli-home/
+.home/
 
 # dotenv environment variables file
 .env

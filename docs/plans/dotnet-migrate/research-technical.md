@@ -13,9 +13,9 @@ The migration target for this plan is `net9.0-windows` with WinForms retained. T
 - target framework: `net9.0-windows`
 - UI: WinForms
 - project style: SDK-style
-- publish architecture: to be decided explicitly (`win-x64`, `win-x86`, or dual)
+- publish architecture: dual artifacts (`win-x64` and `win-x86`)
 
-Do not hard-code `win-x64` into the plan unless 32-bit support is intentionally dropped.
+Do not hard-code `win-x64` into the plan because the current codebase is `AnyCPU` and the injection validation path depends on loader-process bitness.
 
 ## SDK-Style Conversion Requirements
 

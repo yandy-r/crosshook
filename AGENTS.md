@@ -6,9 +6,9 @@ ChooChoo is a Proton/WINE Trainer & DLL Loader — a Windows Forms application t
 
 ## Tech Stack
 
-- **Language**: C# (.NET Framework 4.8)
+- **Language**: C# (`net9.0-windows`)
 - **UI**: Windows Forms (WinForms)
-- **Build System**: MSBuild (classic `.csproj`, NOT SDK-style)
+- **Build System**: `dotnet build` / `dotnet publish` with SDK-style `.csproj`
 - **Solution**: `src/ChooChooEngine.sln`
 - **Project**: `src/ChooChooEngine.App/ChooChooEngine.App.csproj`
 - **Output**: `choochoo.exe` (WinExe)
@@ -16,12 +16,16 @@ ChooChoo is a Proton/WINE Trainer & DLL Loader — a Windows Forms application t
 ## Build Commands
 
 ```bash
-# Build with MSBuild (NOT dotnet CLI — this is .NET Framework 4.8)
-msbuild src/ChooChooEngine.sln /p:Configuration=Release
-msbuild src/ChooChooEngine.sln /p:Configuration=Debug
+# Build with the .NET 9 SDK
+dotnet build src/ChooChooEngine.sln -c Debug
+dotnet build src/ChooChooEngine.sln -c Release
+
+# Publish the migration release as dual artifacts
+dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x64 --self-contained true
+dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x86 --self-contained true
 ```
 
-> **Important**: `dotnet build` will NOT work. This project uses classic .NET Framework 4.8, not .NET Core/5+.
+> **Important**: this repo now targets `net9.0-windows`, so contributors need a .NET 9 SDK that can publish Windows desktop apps.
 
 ## Architecture
 
@@ -56,6 +60,7 @@ src/ChooChooEngine.App/
 - The `AllowUnsafeBlocks` and P/Invoke usage is intentional for process manipulation
 - `MainForm.cs` is the largest file — it contains the full WinForms UI with designer-generated code
 - No test framework is currently configured
+- Migration releases publish both `win-x64` and `win-x86` artifacts to preserve the current AnyCPU/bitness-sensitive injection behavior.
 - Environment management uses `direnv` with `.envrc` and `dotenvx` for encrypted env vars
 - Never commit `.env`, `.env.encrypted`, or `.env.keys` files
 
@@ -83,7 +88,7 @@ PRs auto-populate from `.github/pull_request_template.md`. The template includes
 
 - `Closes #` issue linkage (always link the related issue)
 - Type of Change checkboxes
-- MSBuild verification checklist (`msbuild`, NOT `dotnet`)
+- Build verification checklist (`dotnet build` / `dotnet publish`)
 - Conditional checks for Injection/, Memory/, Core/, and UI/ changes
 
 CLI completion note:

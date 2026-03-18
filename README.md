@@ -26,6 +26,18 @@ A loader for SteamOS/Linux/macOS that handles launches of games with trainers/mo
 
 ---
 
+## **Build & Publish**
+
+The migration now uses the SDK-style `net9.0-windows` project. Build and publish with the .NET 9 SDK:
+
+```bash
+dotnet build src/ChooChooEngine.sln -c Release
+dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x64 --self-contained true
+dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x86 --self-contained true
+```
+
+The release policy is dual artifacts, `win-x64` and `win-x86`, so the migration keeps the current AnyCPU and bitness-sensitive injection behavior intact.
+
 ### **Why is this Needed for Proton/WINE?**
 
 Running game trainers, patches, and DLL injectors in **Proton** or **WINE** can be problematic due to compatibility issues, anti-cheat false positives, and differences in Windows API implementations. Many game trainers and mods rely on system calls that work natively on Windows but fail under Proton/WINE.
@@ -211,12 +223,10 @@ Scoped controller input: no more unintentional global actions when certain popup
 Properly interprets dpad vs. thumbstick movements, ignoring slight joystick drifts.
 Enhanced button mappings for easy menu navigation (e.g., A = Enter, B = Cancel, etc.).
 
-📜 Command-Line Enhancements
+📜 Command-Line Status
 
 -p "ProfileName": Loads a saved profile (paths, DLLs, etc.) on startup.
 -autolaunch: Starts the configured game automatically after a short delay.
--dllinject [Dll1.dll] [Dll2.dll] ...: Injects specified DLLs (up to five), either absolute or relative paths.
-Logs a clear message if any specified DLL doesn't exist or if the limit of five is exceeded.
 
 🖥️ UI & Stability Improvements
 

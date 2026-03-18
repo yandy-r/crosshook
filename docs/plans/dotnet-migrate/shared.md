@@ -8,7 +8,7 @@ This plan now assumes a behavior-preserving migration, not a broad product redes
 - UI framework: keep WinForms.
 - Project structure: keep a single app project for the migration. Large structural moves such as a new `ChooChooEngine.Core` project or Avalonia rewrite are follow-up work.
 - File formats: keep `.profile`, `settings.ini`, and `Settings/AppSettings.ini` unchanged.
-- Publish architecture: not frozen to `win-x64`. The codebase is currently `AnyCPU`, so the release plan must explicitly decide between `win-x64`, `win-x86`, or dual artifacts before release.
+- Publish architecture: dual artifacts (`win-x64` and `win-x86`). The codebase is currently `AnyCPU`, and `InjectionManager.ValidateDll()` depends on loader-process bitness, so this migration release must preserve 32-bit compatibility rather than collapsing to `win-x64`.
 - Launch method compatibility: preserve serialized `LaunchMethod` values during the migration. Do not remove `CreateThreadInjection` or `RemoteThreadInjection` as part of the base migration without a compatibility story.
 - CLI contract: the repo currently implements `-p` and `-autolaunch`; the README also claims `-dllinject`, which is not implemented. The migration release must either implement it or correct the docs.
 
