@@ -38,6 +38,17 @@ dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r wi
 
 The release policy is dual artifacts, `win-x64` and `win-x86`, so the migration keeps the current AnyCPU and bitness-sensitive injection behavior intact.
 
+Published executables land at:
+
+- `src/ChooChooEngine.App/bin/Release/net9.0-windows/win-x64/publish/choochoo.exe`
+- `src/ChooChooEngine.App/bin/Release/net9.0-windows/win-x86/publish/choochoo.exe`
+
+The repo-root `choochoo.exe` is a legacy checked-in file. `dotnet publish` does not overwrite it.
+
+Use `win-x64` by default for modern 64-bit game/trainer flows. Keep `win-x86` for 32-bit compatibility cases.
+
+For the full local workflow, including the optional repo-local SDK path and exact step-by-step commands, see [`docs/internal-docs/local-build-publish.md`](docs/internal-docs/local-build-publish.md).
+
 ### **Why is this Needed for Proton/WINE?**
 
 Running game trainers, patches, and DLL injectors in **Proton** or **WINE** can be problematic due to compatibility issues, anti-cheat false positives, and differences in Windows API implementations. Many game trainers and mods rely on system calls that work natively on Windows but fail under Proton/WINE.
