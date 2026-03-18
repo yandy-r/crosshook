@@ -269,25 +269,14 @@ namespace ChooChooEngine.App.Forms
             _injectionManager = new InjectionManager(_processManager);
             _memoryManager = new MemoryManager(_processManager);
             _resumePanel = new ResumePanel();
-            
-            // Subscribe to manager events
-            _processManager.ProcessStarted += ProcessManager_ProcessStarted;
-            _processManager.ProcessStopped += ProcessManager_ProcessStopped;
-            _processManager.ProcessAttached += ProcessManager_ProcessAttached;
-            _processManager.ProcessDetached += ProcessManager_ProcessDetached;
-            
-            _injectionManager.InjectionSucceeded += InjectionManager_InjectionSucceeded;
-            _injectionManager.InjectionFailed += InjectionManager_InjectionFailed;
-            
-            _memoryManager.MemoryOperationSucceeded += MemoryManager_MemoryOperationSucceeded;
-            _memoryManager.MemoryOperationFailed += MemoryManager_MemoryOperationFailed;
-            
-            _resumePanel.Resumed += ResumePanel_Resumed;
         }
         
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            base.OnFormClosing(e);
+	    base.OnFormClosing(e);
+
+	    if (e.Cancel)
+		return;
 
             // Save settings and recent files
             SaveAppSettings();
@@ -296,17 +285,28 @@ namespace ChooChooEngine.App.Forms
             // Clean up resources
             if (_injectionManager != null)
             {
-                _injectionManager.StopMonitoring();
+		_injectionManager.Dispose();
+		_injectionManager = null;
             }
 
             if (_processManager != null)
             {
                 _processManager.DetachFromProcess();
+		_processManager.Dispose();
+		_processManager = null;
             }
+
+	    if (resizeTimer != null)
+	    {
+		resizeTimer.Stop();
+		resizeTimer.Dispose();
+		resizeTimer = null;
+	    }
 
             if (_resumePanel != null)
             {
                 _resumePanel.Dispose();
+		_resumePanel = null;
             }
         }
         
@@ -544,8 +544,6 @@ namespace ChooChooEngine.App.Forms
             btnRefreshProcesses.ForeColor = Color.White;
             btnRefreshProcesses.Font = new Font("Segoe UI", 9, FontStyle.Regular);
             btnRefreshProcesses.Dock = DockStyle.Fill;
-            btnRefreshProcesses.Click += (s, e) => RefreshProcessList();
-            
             headerContent.Controls.Add(headerLabel, 0, 0);
             headerContent.Controls.Add(btnRefreshProcesses, 1, 0);
             headerPanel.Controls.Add(headerContent);
@@ -1363,7 +1361,6 @@ namespace ChooChooEngine.App.Forms
         private void RegisterEventHandlers()
         {
             // Form events
-            FormClosing += (s, e) => OnFormClosing(e);
             KeyDown += OnFormKeyDown;
             
             // Process Manager events
@@ -2798,4 +2795,4 @@ namespace ChooChooEngine.App.Forms
                 LogToConsole("Auto-load last profile disabled");
         }
     }
-} 
+}

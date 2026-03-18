@@ -10,7 +10,7 @@ using ChooChooEngine.App.Core;
 
 namespace ChooChooEngine.App.Injection
 {
-    public class InjectionManager
+    public class InjectionManager : IDisposable
     {
         #region Win32 API
 
@@ -68,6 +68,7 @@ namespace ChooChooEngine.App.Injection
         private System.Timers.Timer _monitoringTimer;
         private Dictionary<string, bool> _validatedDlls = new Dictionary<string, bool>();
         private readonly object _injectionLock = new object();
+	private bool _disposed;
         
         public event EventHandler<InjectionEventArgs> InjectionSucceeded;
         public event EventHandler<InjectionEventArgs> InjectionFailed;
@@ -104,6 +105,23 @@ namespace ChooChooEngine.App.Injection
                 IsMonitoring = false;
             }
         }
+
+	public void Dispose()
+	{
+		if (_disposed)
+			return;
+
+		StopMonitoring();
+
+		if (_monitoringTimer != null)
+		{
+			_monitoringTimer.Elapsed -= OnMonitoringTimerElapsed;
+			_monitoringTimer.Dispose();
+			_monitoringTimer = null;
+		}
+
+		_disposed = true;
+	}
 
         public bool InjectDll(string dllPath)
         {
@@ -351,4 +369,4 @@ namespace ChooChooEngine.App.Injection
             Message = message;
         }
     }
-} 
+}

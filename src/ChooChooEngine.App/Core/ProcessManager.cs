@@ -8,7 +8,7 @@ using System.Threading;
 
 namespace ChooChooEngine.App.Core
 {
-    public class ProcessManager
+    public class ProcessManager : IDisposable
     {
         #region Win32 API
 
@@ -114,6 +114,7 @@ namespace ChooChooEngine.App.Core
         private Process _process;
         private IntPtr _processHandle;
         private bool _processHandleOpen = false;
+	private bool _disposed;
 
         public event EventHandler<ProcessEventArgs> ProcessStarted;
         public event EventHandler<ProcessEventArgs> ProcessStopped;
@@ -186,6 +187,7 @@ namespace ChooChooEngine.App.Core
 
             CloseProcessHandle();
             OnProcessDetached(new ProcessEventArgs(_process));
+	    _process.Dispose();
             _process = null;
             return true;
         }
@@ -198,7 +200,9 @@ namespace ChooChooEngine.App.Core
             try
             {
                 _process.Kill();
+		CloseProcessHandle();
                 OnProcessStopped(new ProcessEventArgs(_process));
+		_process.Dispose();
                 _process = null;
                 return true;
             }
@@ -341,6 +345,7 @@ namespace ChooChooEngine.App.Core
 
             try
             {
+		CloseProcessHandle();
                 _processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, _process.Id);
                 _processHandleOpen = _processHandle != IntPtr.Zero;
                 return _processHandleOpen;
@@ -361,6 +366,28 @@ namespace ChooChooEngine.App.Core
                 _processHandleOpen = false;
             }
         }
+
+	public void Dispose()
+	{
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
+	protected virtual void Dispose(bool disposing)
+	{
+		if (_disposed)
+			return;
+
+		CloseProcessHandle();
+
+		if (disposing && _process != null)
+		{
+			_process.Dispose();
+			_process = null;
+		}
+
+		_disposed = true;
+	}
 
         #region Launch Methods
 
@@ -503,4 +530,4 @@ namespace ChooChooEngine.App.Core
             Process = process;
         }
     }
-} 
+}
