@@ -58,3 +58,35 @@ src/ChooChooEngine.App/
 - No test framework is currently configured
 - Environment management uses `direnv` with `.envrc` and `dotenvx` for encrypted env vars
 - Never commit `.env`, `.env.encrypted`, or `.env.keys` files
+
+## GitHub Workflow
+
+### Issue Templates
+
+All issues MUST use the YAML form templates in `.github/ISSUE_TEMPLATE/`:
+
+- **Bug Report** (`bug_report.yml`): Use `gh issue create --template bug_report.yml`
+- **Feature Request** (`feature_request.yml`): Use `gh issue create --template feature_request.yml`
+- **Compatibility Report** (`compatibility_report.yml`): Use `gh issue create --template compatibility_report.yml`
+
+Blank issues are disabled via `config.yml`. Never bypass templates with `--title`-only issue creation.
+
+### Pull Requests
+
+PRs auto-populate from `.github/pull_request_template.md`. The template includes:
+
+- `Closes #` issue linkage (always link the related issue)
+- Type of Change checkboxes
+- MSBuild verification checklist (`msbuild`, NOT `dotnet`)
+- Conditional checks for Injection/, Memory/, Core/, and UI/ changes
+
+### Labels
+
+Use the colon-prefixed label taxonomy — never create ad-hoc labels:
+
+- `type:` bug, feature, docs, refactor, compatibility, build, migration
+- `area:` injection, memory, process, ui, build, profiles, cli
+- `platform:` steam-deck, linux, macos, wine, proton
+- `priority:` critical, high, medium, low
+- `status:` needs-triage, in-progress, blocked, needs-info
+- Standalone: `good first issue`, `help wanted`, `duplicate`, `wontfix`
