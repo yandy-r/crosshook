@@ -1,4 +1,32 @@
 {
   "dotnet.preferCSharpExtension": true,
+  "workbench.colorCustomizations": {
+    "activityBar.activeBackground": "#8f0d4c",
+    "activityBar.background": "#8f0d4c",
+    "activityBar.foreground": "#e7e7e7",
+    "activityBar.inactiveForeground": "#e7e7e799",
+    "activityBarBadge.background": "#000000",
+    "activityBarBadge.foreground": "#e7e7e7",
+    "commandCenter.border": "#e7e7e799",
+    "editorGroup.border": "#8f0d4c",
+    "panel.border": "#8f0d4c",
+    "sash.hoverBorder": "#8f0d4c",
+    "sideBar.border": "#8f0d4c",
+    "statusBar.background": "#600933",
+    "statusBar.border": "#600933",
+    "statusBar.debuggingBackground": "#096036",
+    "statusBar.debuggingBorder": "#096036",
+    "statusBar.debuggingForeground": "#e7e7e7",
+    "statusBar.foreground": "#e7e7e7",
+    "statusBarItem.hoverBackground": "#8f0d4c",
+    "statusBarItem.remoteBackground": "#600933",
+    "statusBarItem.remoteForeground": "#e7e7e7",
+    "tab.activeBorder": "#8f0d4c",
+    "titleBar.activeBackground": "#600933",
+    "titleBar.activeForeground": "#e7e7e7",
+    "titleBar.border": "#600933",
+    "titleBar.inactiveBackground": "#60093399",
+    "titleBar.inactiveForeground": "#e7e7e799"
+  },
   "peacock.color": "#600933"
 }
