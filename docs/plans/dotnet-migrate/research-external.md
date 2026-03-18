@@ -1,5 +1,7 @@
 # External API Research: dotnet-migrate
 
+> Background research only. If this file conflicts with `feature-spec.md` or `parallel-plan.md`, follow those newer plan documents.
+
 ## Executive Summary
 
 Migrating ChooChoo Loader from .NET Framework 4.8 to .NET 9 (LTS: .NET 8) is technically feasible but requires careful handling of three areas: (1) converting the classic .csproj to SDK-style with `net9.0-windows` target and `UseWindowsForms`, (2) migrating ~20 Win32 P/Invoke declarations from `[DllImport]` to the modern `[LibraryImport]` source generator or adopting CsWin32 for type-safe generated bindings, and (3) validating that the self-contained Windows executable continues to function under WINE/Proton -- particularly the DLL injection flow using `CreateRemoteThread`/`VirtualAllocEx`/`WriteProcessMemory`, which has known reliability issues under WINE regardless of .NET version. The migration itself is straightforward for the codebase's size; the WINE/Proton runtime compatibility is the highest-risk dimension.
@@ -974,3 +976,7 @@ dotnet publish -c Release -r win-x64 --self-contained false
 4. **Wine 9.x / Proton 9.x improvements**: WINE and Proton are actively developed. Recent versions may have improved kernel32 compatibility, but specific changelogs for these APIs were not found. **Confidence: Low.**
 
 5. **PublishReadyToRun under WINE**: ReadyToRun (R2R) pre-compilation may or may not work correctly under WINE's PE loader. If issues arise, disabling R2R is a safe fallback. **Confidence: Medium.**
+
+# Note
+
+This is background research, not the source of truth for the active migration plan. Where it conflicts with `feature-spec.md` or `parallel-plan.md`, follow those newer documents.

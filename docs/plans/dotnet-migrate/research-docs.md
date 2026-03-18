@@ -1,5 +1,7 @@
 # Documentation Research: dotnet-migrate
 
+> Background inventory only. The active migration decisions now live in `feature-spec.md`, `parallel-plan.md`, and the refreshed `analysis-*` docs. Older exploratory documents in this directory still contain alternatives that were intentionally deferred from the current plan.
+
 ChooChoo Loader has thorough documentation for the .NET Framework 4.8 to .NET 9 migration. The project contains 6 detailed research documents in `docs/plans/dotnet-migrate/`, 3 AI-agent instruction files (CLAUDE.md, AGENTS.md, .cursorrules -- all identical), a comprehensive README, release notes, and a full suite of environment/tooling configuration files. The research phase is complete and covers business logic, external APIs, technical specifications, UX/framework options, and strategic recommendations. No additional architecture docs or internal wikis exist outside these files.
 
 ## Feature Research Docs
@@ -90,3 +92,7 @@ Nice-to-have reading:
 8. **No changelog or version history**: The release_notes.md covers v5.0 only. No historical changelog exists for prior versions.
 9. **.env.example is boilerplate**: The .env.example file contains generic database/API key placeholders that are not relevant to this C# WinForms application. No project-specific environment variables are documented.
 10. **Conflicting .NET version recommendations**: The feature-spec.md recommends .NET 9 (STS), while research-recommendations.md recommends .NET 8 (LTS). The feature-spec.md resolves this by noting self-contained deployment makes lifecycle irrelevant, but the disagreement between research files may confuse implementers. The feature-spec.md is the authoritative answer: target .NET 9, plan to retarget to .NET 10 LTS.
+
+# Note
+
+This file catalogs the research set, but the active migration decisions now live in `feature-spec.md`, `parallel-plan.md`, and the refreshed `analysis-*` docs. Older exploratory documents in this directory still contain alternatives that were intentionally deferred from the current plan.

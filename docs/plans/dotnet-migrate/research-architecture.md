@@ -1,5 +1,7 @@
 # Architecture Research: dotnet-migrate
 
+> Background architecture analysis. Use `feature-spec.md` and `parallel-plan.md` for the actual in-scope execution plan.
+
 ## System Overview
 
 ChooChoo Loader is a 4,264-line C# WinForms application (.NET Framework 4.8) that serves as a game trainer launcher and DLL injector, designed to run under Proton/WINE on Linux/Steam Deck. The architecture is a single-project solution (`ChooChooEngine.App`) with four distinct layers -- Core (process management), Injection (DLL injection via LoadLibraryA/CreateRemoteThread), Memory (process memory read/write), and Forms/UI -- all orchestrated by a 2,800-line MainForm monolith that owns UI construction, state management, profile persistence, settings I/O, command-line parsing, and launch orchestration. Component communication is event-driven via `EventHandler<T>` delegates, with all Win32 interop implemented through 29 `[DllImport]` declaration sites covering 19 unique kernel32.dll/Dbghelp.dll APIs.
@@ -217,3 +219,7 @@ The 6 shared APIs between ProcessManager and InjectionManager (10 duplicate decl
 - [Microsoft: Upgrade WinForms to .NET](https://learn.microsoft.com/en-us/dotnet/desktop/winforms/migration/)
 - [Microsoft: P/Invoke Source Generation](https://learn.microsoft.com/en-us/dotnet/standard/native-interop/pinvoke-source-generation)
 - [Microsoft: Single-File Deployment](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview)
+
+# Note
+
+This architecture research includes extraction ideas that are broader than the active migration scope. Use `feature-spec.md` and `parallel-plan.md` for the actual in-scope execution plan.

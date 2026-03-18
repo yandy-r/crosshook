@@ -1,5 +1,7 @@
 # Pattern Research: dotnet-migrate
 
+> Background pattern analysis. The active migration decisions are frozen in `feature-spec.md` and `parallel-plan.md`.
+
 This document catalogs the coding patterns, conventions, and architectural decisions in the ChooChoo Loader codebase that are relevant to the .NET Framework 4.8 to .NET 9 migration. The codebase consists of 6 C# source files (~2800 lines in MainForm.cs, ~500 in ProcessManager.cs, ~350 in InjectionManager.cs, ~370 in MemoryManager.cs, ~110 in ResumePanel.cs, ~45 in Program.cs) with heavy Win32 P/Invoke usage, an event-driven manager architecture, and a monolithic WinForms UI.
 
 ## Relevant Files
@@ -272,3 +274,7 @@ This pattern is used before any Win32 API call to avoid passing invalid handles.
 - [Microsoft: P/Invoke Source Generation](https://learn.microsoft.com/en-us/dotnet/standard/native-interop/pinvoke-source-generation)
 - [Microsoft: Upgrade WinForms to .NET](https://learn.microsoft.com/en-us/dotnet/desktop/winforms/migration/)
 - [Microsoft: Single-File Deployment](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview)
+
+# Note
+
+This file remains useful for code-shape observations and interop patterns, but current migration decisions are frozen in `feature-spec.md` and `parallel-plan.md`.

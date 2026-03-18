@@ -6,12 +6,12 @@ Evaluation of the 14-task parallel implementation plan against the actual codeba
 
 ## Task Quality Summary
 
-| Metric                      | Count |
-| --------------------------- | ----- |
-| **Total Tasks**             | 14    |
-| **High Quality**            | 9     |
-| **Needs Minor Improvements**| 4     |
-| **Needs Significant Work**  | 1     |
+| Metric                       | Count |
+| ---------------------------- | ----- |
+| **Total Tasks**              | 14    |
+| **High Quality**             | 9     |
+| **Needs Minor Improvements** | 4     |
+| **Needs Significant Work**   | 1     |
 
 ---
 
@@ -116,6 +116,7 @@ Evaluation of the 14-task parallel implementation plan against the actual codeba
 - **Appropriate Scope**: Borderline. Combining both services into one task is reasonable but the scope is larger than stated -- the task touches `LoadRecentFiles` (lines 1483-1549), `SaveRecentFiles` (lines 1551-1584), `LoadAppSettings` (lines 2734-2788), `SaveAppSettings` (lines 2704-2732), plus creating the service class. That is 4 methods extracted + 1 new file + MainForm rewiring.
 
 **Issues**:
+
 1. Title says "SettingsService" but no `SettingsService.cs` file is listed to create. Either the title should match (just "RecentFilesService") or a second file should be listed.
 2. The `LoadRecentFiles` method in MainForm currently writes directly to combo boxes (lines 1520, 1528, 1536-1537). The plan correctly notes "MainForm populates combo boxes from the returned data objects" but does not mention that the current implementation interleaves list-population with UI-population. The implementer needs to know that the service should only return data, and MainForm must add a separate loop to populate combo boxes.
 3. The two INI file formats are different (section-based for settings.ini vs flat key=value for AppSettings.ini). This is documented but the single-class approach may be confusing.
@@ -133,6 +134,7 @@ Evaluation of the 14-task parallel implementation plan against the actual codeba
 - **Appropriate Scope**: Yes. 3 files, well-scoped.
 
 **Issues**:
+
 1. **Line number accuracy for ProcessManager**: The plan says "lines 416-428 stub methods" -- verified: `LaunchWithCreateThreadInjection` at line 416, `LaunchWithRemoteThreadInjection` at line 423. Correct. "Lines 487-495 LaunchMethod enum" -- verified at line 487. Correct.
 2. **Line number accuracy for InjectionManager**: The plan says "lines 297-302 ManualMapping stub" -- verified at line 297. Correct. "Lines 337-341 InjectionMethod enum" -- verified at line 337. Correct.
 3. **Missing gotcha about radio buttons**: The plan says to remove `radCreateThreadInjection` and `radRemoteThreadInjection` from MainForm's UI construction. These are declared at MainForm lines 71-72 and wired up in `ConfigureUILayout()` and `RegisterEventHandlers()`. The plan does not specify which lines in ConfigureUILayout() contain these radio buttons, making it harder to locate them in the 1,400-line method. A line reference or search hint would help.
@@ -168,6 +170,7 @@ Evaluation of the 14-task parallel implementation plan against the actual codeba
 - **Appropriate Scope**: Yes. Single file.
 
 **Issues**:
+
 1. **Line number for "additional region"**: The plan says "lines 312-318 additional region". Verified: the `#region Additional P/Invoke for thread handling` starts at line 312 and contains `WaitForSingleObject` (line 314-315) and `GetExitCodeThread` (line 317-318). Correct.
 2. **Line number for "LoadLibrary validation call"**: The plan says "line 176" for the LoadLibrary validation call. Verified at line 176: `IntPtr moduleHandle = LoadLibrary(dllPath)`. Correct.
 3. **Line number for "InjectDllStandard"**: The plan says "line 243" for the `GetProcAddress` call and "line 248" for `Encoding.ASCII.GetBytes`. Verified: line 243 is `IntPtr loadLibraryAddr = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA")` and line 248 is `byte[] dllPathBytes = Encoding.ASCII.GetBytes(dllPath)`. Correct.
@@ -201,6 +204,7 @@ Evaluation of the 14-task parallel implementation plan against the actual codeba
 - **Appropriate Scope**: Borderline larger (5 files) but logically cohesive.
 
 **Duplication Verified**: The following 6 APIs are confirmed duplicated between ProcessManager and InjectionManager:
+
 - `OpenProcess` (PM line 15, IM line 17)
 - `CloseHandle` (PM line 18, IM line 41)
 - `CreateRemoteThread` (PM line 21, IM line 37)
@@ -225,6 +229,7 @@ All 6 match. Additionally, `WriteProcessMemory` is also declared in MemoryManage
 - **Appropriate Scope**: No. This task touches potentially all 8 .cs files plus 3 documentation files = 11+ files. It should be split into at least 2-3 subtasks.
 
 **Issues**:
+
 1. **Scope is too large**: Nullable annotation across 8 files + file-scoped namespace conversion + C# 12 syntax + CLAUDE.md update + README.md update + AGENTS.md update + .cursorrules update. This is 4 distinct work items crammed into one task.
 2. **"All .cs files" is not specific**: Should list: `Program.cs`, `ProcessManager.cs`, `InjectionManager.cs`, `MemoryManager.cs`, `MainForm.cs`, `MainForm.Designer.cs`, `ResumePanel.cs`, plus the new files from Phase 2 and 3 (`ProfileService.cs`, `CommandLineParser.cs`, `RecentFilesService.cs`, `Kernel32.cs`, `Dbghelp.cs`). That is 12 files.
 3. **Missing gotcha: file-scoped namespaces and nested classes**: MainForm.cs contains a nested `ProfileInputDialog` class (lines 104-209). File-scoped namespaces (`namespace Foo;`) do not support nesting -- you cannot have a namespace-scoped class contain a nested class definition. This is fine for the nested class itself (it is inside the MainForm class, not a nested namespace), but the implementer should be aware that file-scoped namespace conversion is mechanical and does not affect class nesting.
@@ -234,6 +239,7 @@ All 6 match. Additionally, `WriteProcessMemory` is also declared in MemoryManage
 7. **Missing ordering concern**: Task 3.5 depends on [3.4], but the file-scoped namespace conversion and nullable annotations affect ALL files modified in every prior task. If this task is done last (as the dependency chain requires), that is fine. But if any earlier task is re-done or amended after 3.5, conflicts will arise. This is an implicit dependency that should be noted.
 
 **Recommendation**: Split into three subtasks:
+
 - 3.5a: Enable nullable reference types and resolve warnings across all .cs files
 - 3.5b: Convert to file-scoped namespaces and apply C# 12 syntax
 - 3.5c: Update documentation (CLAUDE.md, README.md, AGENTS.md, .cursorrules)
@@ -265,6 +271,7 @@ Ordered by impact on implementation success:
 The parallel plan is well above average for implementation readiness. 9 of 14 tasks can be picked up and implemented immediately without guessing. The plan demonstrates deep familiarity with the codebase: line number references were verified against the actual source and are overwhelmingly accurate, file paths are all valid, technical claims about duplication and bugs are confirmed by the code, and the critical LoadLibraryA ANSI encoding gotcha is prominently highlighted.
 
 **Key Strengths**:
+
 - Every task has a "READ THESE BEFORE TASK" section pointing to specific source files and documentation, which is an excellent pattern for reducing context-switching
 - Line number references are precise -- all verified within 1-2 lines of the stated locations
 - The Advice section contains genuinely useful implementation wisdom (MainForm merge bottleneck, LoadLibraryA sensitivity, exe size expectations, Application.StartupPath behavior)
@@ -272,6 +279,7 @@ The parallel plan is well above average for implementation readiness. 9 of 14 ta
 - Gotchas are documented where they matter most (ANSI encoding, profile file format, event double-subscription)
 
 **Key Weaknesses**:
+
 - Task 3.5 is overloaded and should be decomposed
 - One backwards-compatibility risk (LaunchMethod enum serialization in Task 2.6) is undocumented
 - Task 2.5 has a title/content mismatch

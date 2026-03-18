@@ -1,5 +1,7 @@
 # UX Research: dotnet-migrate
 
+> Exploratory UX/background document. The active migration plan keeps WinForms and treats Avalonia as follow-up work.
+
 ## Executive Summary
 
 Migrating ChooChoo Loader from .NET Framework 4.8 to modern .NET (8/9) presents a critical UX crossroads: WinForms on modern .NET cannot reliably run under WINE/Proton without installing the .NET Desktop Runtime into the WINE prefix (a notoriously fragile process), while .NET Framework 4.8 WinForms is reasonably supported by wine-mono. The strongest path forward for cross-platform Linux/Steam Deck users is migrating to **Avalonia UI**, which renders natively on Linux without WINE, supports MVVM architecture, and has proven itself in production game-modding tools (NexusMods.App uses Avalonia). A phased migration -- first porting to .NET 8/9 while keeping WinForms functional under WINE, then incrementally rewriting the UI in Avalonia -- balances risk and delivers the best long-term UX.
@@ -427,3 +429,7 @@ The current code uses a `System.Timers.Timer` with 1000ms interval for injection
 - [.NET Migration Guide - wojciechowski.app](https://wojciechowski.app/en/articles/dotnet-migration-guide)
 - [.NET Cross-Platform Showdown: MAUI vs Uno vs Avalonia](https://dev.to/biozal/the-net-cross-platform-showdown-maui-vs-uno-vs-avalonia-and-why-avalonia-won-ian)
 - [Vortex on Lutris](https://lutris.net/games/vortex-mod-manager/)
+
+# Note
+
+This file explores future UX and framework directions, including Avalonia. It is intentionally broader than the active migration plan. The current plan keeps WinForms and treats Avalonia as follow-up work.
