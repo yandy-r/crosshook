@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(plan-workflow:feature-research)",
+      "Skill(plan-workflow:plan-workflow)",
+      "Bash(source /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/_shared/scripts/resolve-plans-dir.sh)",
+      "Bash(get_feature_plan_dir \"dotnet-migrate\")",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/_shared/scripts/resolve-plans-dir.sh dotnet-migrate)",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/plan-workflow/scripts/check-state.sh dotnet-migrate)",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/shared-context/scripts/validate-research-artifacts.sh \"/home/yandy/Projects/github.com/yandy-r/choochoo-loader/docs/plans/dotnet-migrate\")"
+    ]
+  }
+}
