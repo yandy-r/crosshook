@@ -71,6 +71,12 @@ All issues MUST use the YAML form templates in `.github/ISSUE_TEMPLATE/`:
 
 Blank issues are disabled via `config.yml`. Never bypass templates with `--title`-only issue creation.
 
+Practical CLI limitation:
+
+- `gh issue create` does not support combining `--template` with `--body` or `--body-file`.
+- In this repo, `gh issue create --template ...` currently reports `no templates found` for the YAML issue forms, so the CLI is not discovering these form templates reliably.
+- If this limitation blocks issue creation, use the GitHub API/tooling to create a fully structured issue body that mirrors the intended form fields, then apply the correct labels. Do not fall back to a vague or title-only issue.
+
 ### Pull Requests
 
 PRs auto-populate from `.github/pull_request_template.md`. The template includes:
@@ -79,6 +85,11 @@ PRs auto-populate from `.github/pull_request_template.md`. The template includes
 - Type of Change checkboxes
 - MSBuild verification checklist (`msbuild`, NOT `dotnet`)
 - Conditional checks for Injection/, Memory/, Core/, and UI/ changes
+
+CLI completion note:
+
+- Zsh completion for `gh` may be loaded correctly while `gh` itself still returns no positional completions for PR or issue numbers.
+- If `gh pr merge <TAB>` does not fill in PR identifiers, verify with `gh __complete pr merge \"\"`. If it returns only `:0`, that is a `gh` completion limitation, not necessarily a shell setup problem.
 
 ### Labels
 
