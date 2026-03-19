@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChooChooEngine.App", "ChooChooEngine.App\ChooChooEngine.App.csproj", "{DE4E9A9B-C2D7-4F0C-AE5B-3B8F48F4AE7A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChooChooEngine.App.Tests", "..\tests\ChooChooEngine.App.Tests\ChooChooEngine.App.Tests.csproj", "{3D375DE2-BE2E-4F1C-965B-3B699B837B53}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,6 +16,10 @@ Global
 		{DE4E9A9B-C2D7-4F0C-AE5B-3B8F48F4AE7A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DE4E9A9B-C2D7-4F0C-AE5B-3B8F48F4AE7A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DE4E9A9B-C2D7-4F0C-AE5B-3B8F48F4AE7A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D375DE2-BE2E-4F1C-965B-3B699B837B53}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D375DE2-BE2E-4F1C-965B-3B699B837B53}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D375DE2-BE2E-4F1C-965B-3B699B837B53}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D375DE2-BE2E-4F1C-965B-3B699B837B53}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -21,4 +27,4 @@ Global
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F1CA645B-B9C4-4FB1-8EAA-89D7F6FE2F30}
 	EndGlobalSection
-EndGlobal 
+EndGlobal

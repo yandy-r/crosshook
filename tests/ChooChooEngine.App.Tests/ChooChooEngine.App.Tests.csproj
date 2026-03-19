@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>ChooChooEngine.App.Tests</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../../src/ChooChooEngine.App/Services/ProfileService.cs" Link="Services/ProfileService.cs" />
+    <Compile Include="../../src/ChooChooEngine.App/Services/AppSettingsService.cs" Link="Services/AppSettingsService.cs" />
+    <Compile Include="../../src/ChooChooEngine.App/Services/RecentFilesService.cs" Link="Services/RecentFilesService.cs" />
+    <Compile Include="../../src/ChooChooEngine.App/Services/CommandLineParser.cs" Link="Services/CommandLineParser.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

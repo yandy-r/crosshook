@@ -70,7 +70,6 @@
 
 - `-p "ProfileName"`: Load saved profiles
 - `-autolaunch`: Start games automatically
-- `-dllinject [Dll1.dll] [Dll2.dll]`: Inject up to five DLLs
 - Clear error messaging for invalid configurations
 
 ### 💻 UI & Stability

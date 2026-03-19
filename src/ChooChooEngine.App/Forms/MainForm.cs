@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using ChooChooEngine.App.Core;
 using ChooChooEngine.App.Injection;
 using ChooChooEngine.App.Memory;
+using ChooChooEngine.App.Services;
 using ChooChooEngine.App.UI;
 
 namespace ChooChooEngine.App.Forms
@@ -18,6 +19,9 @@ namespace ChooChooEngine.App.Forms
         private InjectionManager _injectionManager;
         private MemoryManager _memoryManager;
         private ResumePanel _resumePanel;
+        private ProfileService _profileService;
+        private RecentFilesService _recentFilesService;
+        private AppSettingsService _appSettingsService;
         
         // Tab control components
         private TabControl tabControl = new TabControl();
@@ -269,6 +273,9 @@ namespace ChooChooEngine.App.Forms
             _injectionManager = new InjectionManager(_processManager);
             _memoryManager = new MemoryManager(_processManager);
             _resumePanel = new ResumePanel();
+            _profileService = new ProfileService(Application.StartupPath);
+            _recentFilesService = new RecentFilesService(Application.StartupPath);
+            _appSettingsService = new AppSettingsService(Application.StartupPath);
         }
         
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -1484,57 +1491,27 @@ namespace ChooChooEngine.App.Forms
                 _recentGamePaths.Clear();
                 _recentTrainerPaths.Clear();
                 _recentDllPaths.Clear();
-                
-                string settingsPath = Path.Combine(Application.StartupPath, "settings.ini");
-                
-                if (!File.Exists(settingsPath))
+
+                RecentFilesData recentFiles = _recentFilesService.LoadRecentFiles();
+
+                _recentGamePaths.AddRange(recentFiles.GamePaths);
+                _recentTrainerPaths.AddRange(recentFiles.TrainerPaths);
+                _recentDllPaths.AddRange(recentFiles.DllPaths);
+
+                foreach (string path in _recentGamePaths)
                 {
-                    return;
+                    cmbGamePath.Items.Add(path);
                 }
-                
-                string[] lines = File.ReadAllLines(settingsPath);
-                string section = string.Empty;
-                
-                foreach (string line in lines)
+
+                foreach (string path in _recentTrainerPaths)
                 {
-                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith(";"))
-                    {
-                        continue;
-                    }
-                    
-                    if (line.StartsWith("[") && line.EndsWith("]"))
-                    {
-                        section = line.Substring(1, line.Length - 2);
-                        continue;
-                    }
-                    
-                    switch (section)
-                    {
-                        case "RecentGamePaths":
-                            if (File.Exists(line))
-                            {
-                                _recentGamePaths.Add(line);
-                                cmbGamePath.Items.Add(line);
-                            }
-                            break;
-                            
-                        case "RecentTrainerPaths":
-                            if (File.Exists(line))
-                            {
-                                _recentTrainerPaths.Add(line);
-                                cmbTrainerPath.Items.Add(line);
-                            }
-                            break;
-                            
-                        case "RecentDllPaths":
-                            if (File.Exists(line))
-                            {
-                                _recentDllPaths.Add(line);
-                                cmbDll1.Items.Add(line);
-                                cmbDll2.Items.Add(line);
-                            }
-                            break;
-                    }
+                    cmbTrainerPath.Items.Add(path);
+                }
+
+                foreach (string path in _recentDllPaths)
+                {
+                    cmbDll1.Items.Add(path);
+                    cmbDll2.Items.Add(path);
                 }
                 
                 LogToConsole($"Loaded recent files - Games: {_recentGamePaths.Count}, Trainers: {_recentTrainerPaths.Count}, DLLs: {_recentDllPaths.Count}");
@@ -1549,30 +1526,7 @@ namespace ChooChooEngine.App.Forms
         {
             try
             {
-                string settingsPath = Path.Combine(Application.StartupPath, "settings.ini");
-                
-                using (StreamWriter writer = new StreamWriter(settingsPath))
-                {
-                    writer.WriteLine("[RecentGamePaths]");
-                    foreach (string path in _recentGamePaths)
-                    {
-                        writer.WriteLine(path);
-                    }
-                    
-                    writer.WriteLine();
-                    writer.WriteLine("[RecentTrainerPaths]");
-                    foreach (string path in _recentTrainerPaths)
-                    {
-                        writer.WriteLine(path);
-                    }
-                    
-                    writer.WriteLine();
-                    writer.WriteLine("[RecentDllPaths]");
-                    foreach (string path in _recentDllPaths)
-                    {
-                        writer.WriteLine(path);
-                    }
-                }
+                _recentFilesService.SaveRecentFiles(new RecentFilesData(_recentGamePaths, _recentTrainerPaths, _recentDllPaths));
             }
             catch (Exception ex)
             {
@@ -1586,25 +1540,16 @@ namespace ChooChooEngine.App.Forms
             {
                 cmbProfiles.Items.Clear();
                 _profiles.Clear();
-                
-                string profilesDir = Path.Combine(Application.StartupPath, "Profiles");
-                
-                if (!Directory.Exists(profilesDir))
+
+                List<string> profileNames = _profileService.GetProfileNames();
+
+                foreach (string profileName in profileNames)
                 {
-                    Directory.CreateDirectory(profilesDir);
-                    return;
-                }
-                
-                string[] profileFiles = Directory.GetFiles(profilesDir, "*.profile");
-                
-                foreach (string profileFile in profileFiles)
-                {
-                    string profileName = Path.GetFileNameWithoutExtension(profileFile);
-                    _profiles.Add(profileName); // Store just the name
+                    _profiles.Add(profileName);
                     cmbProfiles.Items.Add(profileName);
                 }
                 
-                UpdateStatus($"Loaded {profileFiles.Length} profiles");
+                UpdateStatus($"Loaded {profileNames.Count} profiles");
                 
                 // Select the last used profile if available
                 if (!string.IsNullOrEmpty(_lastUsedProfile) && cmbProfiles.Items.Contains(_lastUsedProfile))
@@ -1622,34 +1567,18 @@ namespace ChooChooEngine.App.Forms
         {
             try
             {
-                string profilesDir = Path.Combine(Application.StartupPath, "Profiles");
-                
-                if (!Directory.Exists(profilesDir))
+                ProfileData profile = new ProfileData
                 {
-                    Directory.CreateDirectory(profilesDir);
-                }
-                
-                string profilePath = Path.Combine(profilesDir, $"{profileName}.profile");
-                
-                using (StreamWriter writer = new StreamWriter(profilePath))
-                {
-                    // Save selected game path
-                    writer.WriteLine($"GamePath={_selectedGamePath}");
-                    
-                    // Save selected trainer path
-                    writer.WriteLine($"TrainerPath={_selectedTrainerPath}");
-                    
-                    // Save DLL paths
-                    writer.WriteLine($"Dll1Path={_selectedDll1Path}");
-                    writer.WriteLine($"Dll2Path={_selectedDll2Path}");
-                    
-                    // Save checkbox states
-                    writer.WriteLine($"LaunchInject1={chkLaunchInject1.Checked}");
-                    writer.WriteLine($"LaunchInject2={chkLaunchInject2.Checked}");
-                    
-                    // Save launch method
-                    writer.WriteLine($"LaunchMethod={_launchMethod}");
-                }
+                    GamePath = _selectedGamePath,
+                    TrainerPath = _selectedTrainerPath,
+                    Dll1Path = _selectedDll1Path,
+                    Dll2Path = _selectedDll2Path,
+                    LaunchInject1 = chkLaunchInject1.Checked,
+                    LaunchInject2 = chkLaunchInject2.Checked,
+                    LaunchMethod = _launchMethod.ToString()
+                };
+
+                _profileService.SaveProfile(profileName, profile);
                 
                 if (!_profiles.Contains(profileName))
                 {
@@ -1672,72 +1601,36 @@ namespace ChooChooEngine.App.Forms
         {
             try
             {
-                string profilesDir = Path.Combine(Application.StartupPath, "Profiles");
-                string profilePath = Path.Combine(profilesDir, $"{profileName}.profile");
-                
-                if (!File.Exists(profilePath))
+                ProfileData profile = _profileService.LoadProfile(profileName);
+
+                _selectedGamePath = profile.GamePath;
+                SetComboBoxValue(cmbGamePath, profile.GamePath);
+
+                _selectedTrainerPath = profile.TrainerPath;
+                SetComboBoxValue(cmbTrainerPath, profile.TrainerPath);
+
+                _selectedDll1Path = profile.Dll1Path;
+                SetComboBoxValue(cmbDll1, profile.Dll1Path);
+
+                _selectedDll2Path = profile.Dll2Path;
+                SetComboBoxValue(cmbDll2, profile.Dll2Path);
+
+                chkLaunchInject1.Checked = profile.LaunchInject1;
+                chkLaunchInject2.Checked = profile.LaunchInject2;
+
+                if (Enum.TryParse<LaunchMethod>(profile.LaunchMethod, out LaunchMethod method))
                 {
-                    MessageBox.Show($"Profile file not found: {profilePath}", "Error", 
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-                
-                string[] lines = File.ReadAllLines(profilePath);
-                
-                foreach (string line in lines)
-                {
-                    string[] parts = line.Split(new char[] { '=' }, 2);
-                    
-                    if (parts.Length != 2)
-                    {
-                        continue;
-                    }
-                    
-                    string key = parts[0];
-                    string value = parts[1];
-                    
-                    switch (key)
-                    {
-                        case "GamePath":
-                            _selectedGamePath = value;
-                            SetComboBoxValue(cmbGamePath, value);
-                            break;
-                            
-                        case "TrainerPath":
-                            _selectedTrainerPath = value;
-                            SetComboBoxValue(cmbTrainerPath, value);
-                            break;
-                            
-                        case "Dll1Path":
-                            _selectedDll1Path = value;
-                            SetComboBoxValue(cmbDll1, value);
-                            break;
-                            
-                        case "Dll2Path":
-                            _selectedDll2Path = value;
-                            SetComboBoxValue(cmbDll2, value);
-                            break;
-                            
-                        case "LaunchInject1":
-                            chkLaunchInject1.Checked = bool.Parse(value);
-                            break;
-                            
-                        case "LaunchInject2":
-                            chkLaunchInject2.Checked = bool.Parse(value);
-                            break;
-                            
-                        case "LaunchMethod":
-                            if (Enum.TryParse<LaunchMethod>(value, out LaunchMethod method))
-                            {
-                                _launchMethod = method;
-                                UpdateLaunchMethodRadioButtons();
-                            }
-                            break;
-                    }
+                    _launchMethod = method;
+                    UpdateLaunchMethodRadioButtons();
                 }
                 
                 LogToConsole($"Profile loaded: {profileName}");
                 UpdateStatus($"Profile loaded: {profileName}");
+            }
+            catch (FileNotFoundException ex)
+            {
+                MessageBox.Show($"Profile file not found: {ex.FileName}", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             catch (Exception ex)
             {
@@ -2064,32 +1957,26 @@ namespace ChooChooEngine.App.Forms
             
             try
             {
-                string profilesDir = Path.Combine(Application.StartupPath, "Profiles");
-                string profilePath = Path.Combine(profilesDir, $"{profileName}.profile");
-                
-                if (File.Exists(profilePath))
+                _profileService.DeleteProfile(profileName);
+
+                // Remove from list
+                _profiles.Remove(profileName);
+                cmbProfiles.Items.Remove(profileName);
+
+                // If we deleted the last used profile, clear it
+                if (_lastUsedProfile == profileName)
                 {
-                    File.Delete(profilePath);
-                    
-                    // Remove from list
-                    _profiles.Remove(profileName);
-                    cmbProfiles.Items.Remove(profileName);
-                    
-                    // If we deleted the last used profile, clear it
-                    if (_lastUsedProfile == profileName)
-                    {
-                        _lastUsedProfile = string.Empty;
-                        SaveAppSettings();
-                    }
-                    
-                    LogToConsole($"Profile deleted: {profileName}");
-                    UpdateStatus($"Profile deleted: {profileName}");
+                    _lastUsedProfile = string.Empty;
+                    SaveAppSettings();
                 }
-                else
-                {
-                    MessageBox.Show($"Profile file not found: {profilePath}", "Error", 
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+
+                LogToConsole($"Profile deleted: {profileName}");
+                UpdateStatus($"Profile deleted: {profileName}");
+            }
+            catch (FileNotFoundException ex)
+            {
+                MessageBox.Show($"Profile file not found: {ex.FileName}", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             catch (Exception ex)
             {
@@ -2602,70 +2489,52 @@ namespace ChooChooEngine.App.Forms
                 return;
                 
             LogToConsole("Processing command line arguments: " + string.Join(" ", _args));
-            
-            // Parse arguments
-            for (int i = 0; i < _args.Length; i++)
+
+            CommandLineOptions options = new CommandLineParser().Parse(_args);
+
+            foreach (string profileToLoad in options.ProfilesToLoad)
             {
-                string arg = _args[i].ToLower();
-                
-                // Profile parameter
-                if (arg == "-p" && i + 1 < _args.Length)
+                _profileToLoad = profileToLoad;
+                LogToConsole($"Profile requested: {_profileToLoad}");
+
+                // Load the profile
+                if (!string.IsNullOrEmpty(_profileToLoad))
                 {
-                    _profileToLoad = _args[++i].Trim('"');
-                    LogToConsole($"Profile requested: {_profileToLoad}");
-                    
-                    // Load the profile
-                    if (!string.IsNullOrEmpty(_profileToLoad))
+                    // First, ensure profiles are loaded
+                    LoadProfiles();
+
+                    if (cmbProfiles.Items.Contains(_profileToLoad))
                     {
-                        // First, ensure profiles are loaded
-                        LoadProfiles();
-                        
-                        if (cmbProfiles.Items.Contains(_profileToLoad))
-                        {
-                            // Select the profile in the combo box
-                            cmbProfiles.SelectedItem = _profileToLoad;
-                            
-                            // Load the profile
-                            LoadProfile(_profileToLoad);
-                            
-                            // Save as last used profile
-                            _lastUsedProfile = _profileToLoad;
-                            SaveAppSettings();
-                            
-                            LogToConsole($"Profile '{_profileToLoad}' loaded");
-                        }
-                        else
-                        {
-                            LogToConsole($"Error: Profile '{_profileToLoad}' not found");
-                        }
+                        // Select the profile in the combo box
+                        cmbProfiles.SelectedItem = _profileToLoad;
+
+                        // Load the profile
+                        LoadProfile(_profileToLoad);
+
+                        // Save as last used profile
+                        _lastUsedProfile = _profileToLoad;
+                        SaveAppSettings();
+
+                        LogToConsole($"Profile '{_profileToLoad}' loaded");
+                    }
+                    else
+                    {
+                        LogToConsole($"Error: Profile '{_profileToLoad}' not found");
                     }
                 }
-                // Auto-launch parameter - everything after -autolaunch is considered part of the path
-                else if (arg == "-autolaunch" && i + 1 < _args.Length)
-                {
-                    // Collect all remaining arguments as part of the command
-                    List<string> commandParts = new List<string>();
-                    for (int j = i + 1; j < _args.Length; j++)
-                    {
-                        commandParts.Add(_args[j]);
-                    }
-                    
-                    // Join all parts into a single path/command
-                    _autoLaunchPath = string.Join(" ", commandParts);
-                    // Remove any surrounding quotes
-                    _autoLaunchPath = _autoLaunchPath.Trim('"', '\'');
-                    
-                    _autoLaunchRequested = true;
-                    LogToConsole($"Auto-launch requested for: {_autoLaunchPath}");
-                    
-                    // Set the game path
-                    _selectedGamePath = _autoLaunchPath;
-                    SetComboBoxValue(cmbGamePath, _selectedGamePath);
-                    LogToConsole($"Game path set to: {_selectedGamePath}");
-                    
-                    // Break the loop as we've processed all remaining arguments
-                    break;
-                }
+            }
+
+            _autoLaunchPath = options.AutoLaunchPath;
+            _autoLaunchRequested = options.AutoLaunchRequested;
+
+            if (_autoLaunchRequested)
+            {
+                LogToConsole($"Auto-launch requested for: {_autoLaunchPath}");
+
+                // Set the game path
+                _selectedGamePath = _autoLaunchPath;
+                SetComboBoxValue(cmbGamePath, _selectedGamePath);
+                LogToConsole($"Game path set to: {_selectedGamePath}");
             }
             
             // If auto-launch was requested, perform the launch
@@ -2702,23 +2571,13 @@ namespace ChooChooEngine.App.Forms
         {
             try
             {
-                string settingsDir = Path.Combine(Application.StartupPath, "Settings");
-                
-                if (!Directory.Exists(settingsDir))
+                AppSettingsData settings = new AppSettingsData
                 {
-                    Directory.CreateDirectory(settingsDir);
-                }
-                
-                string settingsPath = Path.Combine(settingsDir, "AppSettings.ini");
-                
-                using (StreamWriter writer = new StreamWriter(settingsPath))
-                {
-                    // Save auto-load preference
-                    writer.WriteLine($"AutoLoadLastProfile={_autoLoadLastProfile}");
-                    
-                    // Save last used profile
-                    writer.WriteLine($"LastUsedProfile={_lastUsedProfile}");
-                }
+                    AutoLoadLastProfile = _autoLoadLastProfile,
+                    LastUsedProfile = _lastUsedProfile
+                };
+
+                _appSettingsService.SaveAppSettings(settings);
                 
                 LogToConsole("Application settings saved");
             }
@@ -2732,48 +2591,14 @@ namespace ChooChooEngine.App.Forms
         {
             try
             {
-                string settingsDir = Path.Combine(Application.StartupPath, "Settings");
-                string settingsPath = Path.Combine(settingsDir, "AppSettings.ini");
-                
-                if (!Directory.Exists(settingsDir))
+                AppSettingsData settings = _appSettingsService.LoadAppSettings();
+
+                _autoLoadLastProfile = settings.AutoLoadLastProfile;
+                _lastUsedProfile = settings.LastUsedProfile;
+
+                if (chkAutoLoadLastProfile != null)
                 {
-                    Directory.CreateDirectory(settingsDir);
-                }
-                
-                if (!File.Exists(settingsPath))
-                {
-                    // Default settings
-                    _autoLoadLastProfile = false;
-                    _lastUsedProfile = string.Empty;
-                    return;
-                }
-                
-                string[] lines = File.ReadAllLines(settingsPath);
-                
-                foreach (string line in lines)
-                {
-                    string[] parts = line.Split(new char[] { '=' }, 2);
-                    
-                    if (parts.Length != 2)
-                    {
-                        continue;
-                    }
-                    
-                    string key = parts[0];
-                    string value = parts[1];
-                    
-                    switch (key)
-                    {
-                        case "AutoLoadLastProfile":
-                            _autoLoadLastProfile = bool.Parse(value);
-                            if (chkAutoLoadLastProfile != null)
-                                chkAutoLoadLastProfile.Checked = _autoLoadLastProfile;
-                            break;
-                            
-                        case "LastUsedProfile":
-                            _lastUsedProfile = value;
-                            break;
-                    }
+                    chkAutoLoadLastProfile.Checked = _autoLoadLastProfile;
                 }
                 
                 LogToConsole("Application settings loaded");
