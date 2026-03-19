@@ -15,7 +15,15 @@
       "Bash(dotnet test:*)",
       "Bash(dotnet --version)",
       "Bash(dotnet build:*)",
-      "Bash(bash -n /home/yandy/Projects/github.com/yandy-r/crosshook-loader/scripts/publish-dist.sh)"
+      "Bash(bash -n /home/yandy/Projects/github.com/yandy-r/crosshook-loader/scripts/publish-dist.sh)",
+      "Bash(find /home/yandy/Projects/github.com/yandy-r/crosshook -name *.ico -o -name *.png -o -name *.jpg)",
+      "Bash(ls:*)",
+      "Bash(grep -r \"crosshook.png\\\\|crosshook.gif\\\\|choochoo\" /home/yandy/Projects/github.com/yandy-r/crosshook --include=*.md --include=*.yml --include=*.cs)",
+      "Bash(find /home/yandy/Projects/github.com/yandy-r/crosshook -type f -name *.resources)",
+      "Bash(grep -rn \"StartupIcon\\\\|ApplicationIcon\\\\|Icon\\\\|icon\" /home/yandy/Projects/github.com/yandy-r/crosshook/src/CrossHookEngine.App/obj --include=*.cs)",
+      "Bash(git -C /home/yandy/Projects/github.com/yandy-r/crosshook log --oneline --all -- *.png *.gif *.ico *.svg)",
+      "Bash(dpkg -l)",
+      "Bash(pacman -Q)"
     ]
   }
 }
