@@ -8,20 +8,22 @@ using ChooChooEngine.App.Core;
 
 namespace ChooChooEngine.App.Memory
 {
-    public class MemoryManager
+    public partial class MemoryManager
     {
         #region Win32 API
 
-        [DllImport("kernel32.dll")]
-        private static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, 
+        [LibraryImport("kernel32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer,
             uint nSize, out UIntPtr lpNumberOfBytesRead);
 
-        [DllImport("kernel32.dll")]
-        private static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, 
+        [LibraryImport("kernel32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer,
             uint nSize, out UIntPtr lpNumberOfBytesWritten);
 
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr VirtualQueryEx(IntPtr hProcess, IntPtr lpAddress, 
+        [LibraryImport("kernel32.dll")]
+        private static partial IntPtr VirtualQueryEx(IntPtr hProcess, IntPtr lpAddress,
             out MEMORY_BASIC_INFORMATION lpBuffer, uint dwLength);
 
         [StructLayout(LayoutKind.Sequential)]
