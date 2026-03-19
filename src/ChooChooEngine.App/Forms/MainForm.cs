@@ -28,8 +28,6 @@ namespace ChooChooEngine.App.Forms
         private TabPage tabMain = new TabPage("Main");
         private TabPage tabHelp = new TabPage("Help");
         private TabPage tabTools = new TabPage("Tools");
-        private Label lblHelpContent;
-        private Label lblToolsContent;
         
         // Paths/Process Selection panel components
         private Panel panelPathsProcessSelection = new Panel();
