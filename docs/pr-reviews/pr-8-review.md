@@ -207,8 +207,8 @@ Two competing timer strategies: the constructor creates a timer at 100ms (never 
 
 **Validation for IM-1 through IM-4**
 
-- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" dotnet build src/CrossHookEngine.sln -c Debug`
-- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~MainFormStartupCoordinatorTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~CommandLineParserTests"`
+- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet:$PATH" dotnet build src/CrossHookEngine.sln -c Debug`
+- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet:$PATH" dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~MainFormStartupCoordinatorTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~CommandLineParserTests"`
 
 ---
 
@@ -260,8 +260,8 @@ Both silently delegate to `LaunchWithCreateProcess`. The user's explicit launch 
 
 **Validation for IM-5 through IM-8**
 
-- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
-- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~InjectionManagerTests|FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProcessManagerThreadOperationTests|FullyQualifiedName~ProcessManagerLaunchMethodTests"`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~InjectionManagerTests|FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProcessManagerThreadOperationTests|FullyQualifiedName~ProcessManagerLaunchMethodTests"`
 
 ---
 
@@ -323,8 +323,8 @@ Callers can `Kill()` the process directly, bypassing the manager's cleanup logic
 
 **Validation for IM-9 through IM-12**
 
-- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
-- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~AppDiagnosticsTests|FullyQualifiedName~ProcessManagerDiagnosticsTests|FullyQualifiedName~ProcessManagerLaunchMethodTests|FullyQualifiedName~InjectionManagerTests"`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~AppDiagnosticsTests|FullyQualifiedName~ProcessManagerDiagnosticsTests|FullyQualifiedName~ProcessManagerLaunchMethodTests|FullyQualifiedName~InjectionManagerTests"`
 
 ---
 
@@ -358,8 +358,8 @@ Passing `"../../etc/passwd"` as a profile name constructs a path outside the int
 
 **Validation for IM-13 through IM-14**
 
-- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
-- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProfileServiceTests"`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProfileServiceTests"`
 
 ---
 
@@ -431,7 +431,7 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 
 **Validation for TC-1 through TC-8**
 
-- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~RecentFilesServiceTests|FullyQualifiedName~CommandLineParserTests"`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~RecentFilesServiceTests|FullyQualifiedName~CommandLineParserTests"`
 
 ---
 

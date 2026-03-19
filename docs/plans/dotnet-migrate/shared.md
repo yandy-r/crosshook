@@ -34,11 +34,11 @@ This plan now assumes a behavior-preserving migration, not a broad product redes
 
 ## Critical Files
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/CrossHookEngine.App.csproj`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Properties/AssemblyInfo.cs`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Core/ProcessManager.cs`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Injection/InjectionManager.cs`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Memory/MemoryManager.cs`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Forms/MainForm.cs`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/README.md`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/CLAUDE.md`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/CrossHookEngine.App/CrossHookEngine.App.csproj`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/CrossHookEngine.App/Properties/AssemblyInfo.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/CrossHookEngine.App/Core/ProcessManager.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/CrossHookEngine.App/Injection/InjectionManager.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/CrossHookEngine.App/Memory/MemoryManager.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/CrossHookEngine.App/Forms/MainForm.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/README.md`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/CLAUDE.md`
