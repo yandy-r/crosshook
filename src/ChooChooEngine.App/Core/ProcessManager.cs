@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using System.IO;
 using System.Threading;
+using ChooChooEngine.App.Diagnostics;
 using ChooChooEngine.App.Interop;
 
 namespace ChooChooEngine.App.Core
@@ -103,7 +104,7 @@ namespace ChooChooEngine.App.Core
         public event EventHandler<ProcessEventArgs> ProcessAttached;
         public event EventHandler<ProcessEventArgs> ProcessDetached;
 
-        public Process CurrentProcess => _process;
+        public Process CurrentProcess => CreateProcessSnapshot(_process);
         public bool IsProcessRunning => _process != null && !_process.HasExited;
         public int ProcessId => _process?.Id ?? -1;
 
@@ -141,7 +142,7 @@ namespace ChooChooEngine.App.Core
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error launching process: {ex.Message}");
+                AppDiagnostics.LogError($"Error launching process: {ex}");
                 return false;
             }
         }
@@ -157,7 +158,7 @@ namespace ChooChooEngine.App.Core
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error attaching to process: {ex.Message}");
+                AppDiagnostics.LogError($"Error attaching to process: {ex}");
                 return false;
             }
         }
@@ -190,7 +191,7 @@ namespace ChooChooEngine.App.Core
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error killing process: {ex.Message}");
+                AppDiagnostics.LogError($"Error killing process: {ex}");
                 return false;
             }
         }
@@ -207,13 +208,13 @@ namespace ChooChooEngine.App.Core
                 foreach (ProcessThread thread in _process.Threads)
                 {
 			if (!TryExecuteThreadOperation(
-					thread.Id,
-					"SuspendThread",
-					() => OpenThread(THREAD_SUSPEND_RESUME, false, (uint)thread.Id),
-					SuspendThread,
-					handle => _ = Kernel32Interop.CloseHandle(handle),
-					Marshal.GetLastWin32Error,
-					message => Debug.WriteLine(message)))
+						thread.Id,
+						"SuspendThread",
+						() => OpenThread(THREAD_SUSPEND_RESUME, false, (uint)thread.Id),
+						SuspendThread,
+						handle => _ = Kernel32Interop.CloseHandle(handle),
+						Marshal.GetLastWin32Error,
+						AppDiagnostics.LogError))
                     {
 				success = false;
                     }
@@ -223,7 +224,7 @@ namespace ChooChooEngine.App.Core
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error suspending process: {ex.Message}");
+                AppDiagnostics.LogError($"Error suspending process: {ex}");
                 return false;
             }
         }
@@ -240,13 +241,13 @@ namespace ChooChooEngine.App.Core
                 foreach (ProcessThread thread in _process.Threads)
                 {
 			if (!TryExecuteThreadOperation(
-					thread.Id,
-					"ResumeThread",
-					() => OpenThread(THREAD_SUSPEND_RESUME, false, (uint)thread.Id),
-					ResumeThread,
-					handle => _ = Kernel32Interop.CloseHandle(handle),
-					Marshal.GetLastWin32Error,
-					message => Debug.WriteLine(message)))
+						thread.Id,
+						"ResumeThread",
+						() => OpenThread(THREAD_SUSPEND_RESUME, false, (uint)thread.Id),
+						ResumeThread,
+						handle => _ = Kernel32Interop.CloseHandle(handle),
+						Marshal.GetLastWin32Error,
+						AppDiagnostics.LogError))
                     {
 				success = false;
                     }
@@ -256,7 +257,7 @@ namespace ChooChooEngine.App.Core
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error resuming process: {ex.Message}");
+                AppDiagnostics.LogError($"Error resuming process: {ex}");
                 return false;
             }
         }
@@ -268,17 +269,31 @@ namespace ChooChooEngine.App.Core
 
             try
             {
+                IntPtr processHandle = GetProcessHandle();
+                if (processHandle == IntPtr.Zero)
+                    return false;
+
                 using (FileStream fs = new FileStream(outputPath, FileMode.Create, FileAccess.ReadWrite, FileShare.Write))
                 {
                     int dumpType = fullMemory ? MiniDumpWithFullMemory : MiniDumpNormal;
-                    MiniDumpWriteDump(_processHandle, _process.Id, fs.SafeFileHandle.DangerousGetHandle(), 
+                    bool writeDumpResult = MiniDumpWriteDump(processHandle, _process.Id, fs.SafeFileHandle.DangerousGetHandle(),
                         dumpType, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+
+                    string failureMessage = GetMiniDumpFailureMessage(writeDumpResult, Marshal.GetLastWin32Error);
+                    if (!string.IsNullOrEmpty(failureMessage))
+                    {
+                        AppDiagnostics.LogError(failureMessage);
+                        fs.Close();
+                        File.Delete(outputPath);
+                        return false;
+                    }
                 }
+
                 return true;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error creating minidump: {ex.Message}");
+                AppDiagnostics.LogError($"Error creating minidump: {ex}");
                 return false;
             }
         }
@@ -299,7 +314,7 @@ namespace ChooChooEngine.App.Core
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error getting process modules: {ex.Message}");
+                AppDiagnostics.LogError($"Error getting process modules: {ex}");
                 return new List<ProcessModule>();
             }
         }
@@ -320,7 +335,7 @@ namespace ChooChooEngine.App.Core
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error getting process threads: {ex.Message}");
+                AppDiagnostics.LogError($"Error getting process threads: {ex}");
                 return new List<ProcessThread>();
             }
         }
@@ -347,17 +362,17 @@ namespace ChooChooEngine.App.Core
                 _processHandle = Kernel32Interop.OpenProcess(PROCESS_ALL_ACCESS, false, _process.Id);
                 _processHandleOpen = _processHandle != IntPtr.Zero;
 
-		if (!_processHandleOpen)
-		{
-			int errorCode = Marshal.GetLastWin32Error();
-			Debug.WriteLine(Win32ErrorHelper.FormatError($"OpenProcess for process {_process.Id}", errorCode));
-		}
+			if (!_processHandleOpen)
+			{
+				int errorCode = Marshal.GetLastWin32Error();
+				AppDiagnostics.LogError(Win32ErrorHelper.FormatError($"OpenProcess for process {_process.Id}", errorCode));
+			}
 
                 return _processHandleOpen;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error opening process handle: {ex.Message}");
+                AppDiagnostics.LogError($"Error opening process handle: {ex}");
                 return false;
             }
         }
@@ -454,6 +469,40 @@ namespace ChooChooEngine.App.Core
 		return true;
 	}
 
+	internal static string GetMiniDumpFailureMessage(bool writeDumpResult, Func<int> getLastError)
+	{
+		if (writeDumpResult)
+			return null;
+
+		return Win32ErrorHelper.FormatError("MiniDumpWriteDump", getLastError());
+	}
+
+	internal static Process CreateProcessSnapshot(Process process)
+	{
+		if (process is null)
+			return null;
+
+		try
+		{
+			if (process.HasExited)
+				return null;
+
+			return Process.GetProcessById(process.Id);
+		}
+		catch (ArgumentException)
+		{
+			return null;
+		}
+		catch (InvalidOperationException)
+		{
+			return null;
+		}
+		catch (Win32Exception)
+		{
+			return null;
+		}
+	}
+
         #region Launch Methods
 
         private bool LaunchWithCreateProcess(string exePath, string workingDir)
@@ -491,8 +540,8 @@ namespace ChooChooEngine.App.Core
                 UseShellExecute = false
             };
 
-			if (!TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for cmd.exe launcher", message => Debug.WriteLine(message), out Process cmdProcess))
-				return false;
+			if (!TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for cmd.exe launcher", AppDiagnostics.LogError, out Process cmdProcess))
+					return false;
 
 			cmdProcess.WaitForExit();
 
@@ -512,18 +561,18 @@ namespace ChooChooEngine.App.Core
 
         private bool LaunchWithCreateThreadInjection(string exePath, string workingDir)
         {
-			_ = exePath;
-			_ = workingDir;
-			Debug.WriteLine(GetUnsupportedLaunchMethodMessage(LaunchMethod.CreateThreadInjection));
-			return false;
+				_ = exePath;
+				_ = workingDir;
+				AppDiagnostics.LogError(GetUnsupportedLaunchMethodMessage(LaunchMethod.CreateThreadInjection));
+				return false;
         }
 
         private bool LaunchWithRemoteThreadInjection(string exePath, string workingDir)
         {
-			_ = exePath;
-			_ = workingDir;
-			Debug.WriteLine(GetUnsupportedLaunchMethodMessage(LaunchMethod.RemoteThreadInjection));
-			return false;
+				_ = exePath;
+				_ = workingDir;
+				AppDiagnostics.LogError(GetUnsupportedLaunchMethodMessage(LaunchMethod.RemoteThreadInjection));
+				return false;
         }
 
         private bool LaunchWithShellExecute(string exePath, string workingDir)
@@ -535,7 +584,7 @@ namespace ChooChooEngine.App.Core
                 UseShellExecute = true
             };
 
-			if (!TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for shell execute launch", message => Debug.WriteLine(message), out Process process))
+			if (!TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for shell execute launch", AppDiagnostics.LogError, out Process process))
 				return false;
 
 			_process = process;
@@ -553,7 +602,7 @@ namespace ChooChooEngine.App.Core
                 UseShellExecute = false
             };
 
-			if (!TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for direct launch", message => Debug.WriteLine(message), out Process process))
+			if (!TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for direct launch", AppDiagnostics.LogError, out Process process))
 				return false;
 
 			_process = process;

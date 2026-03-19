@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Timers;
 using ChooChooEngine.App.Core;
+using ChooChooEngine.App.Diagnostics;
 using ChooChooEngine.App.Interop;
 
 namespace ChooChooEngine.App.Injection
@@ -205,7 +206,7 @@ namespace ChooChooEngine.App.Injection
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error validating DLL: {ex.Message}");
+                AppDiagnostics.LogError($"Error validating DLL: {ex}");
                 _validatedDlls[dllPath] = false;
                 return false;
             }
@@ -227,7 +228,7 @@ namespace ChooChooEngine.App.Injection
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error determining DLL architecture: {ex.Message}");
+                AppDiagnostics.LogError($"Error determining DLL architecture: {ex}");
                 return false;
             }
         }
@@ -373,7 +374,7 @@ namespace ChooChooEngine.App.Injection
                 if (!Kernel32Interop.VirtualFreeEx(processHandle, remoteMemory, 0, MEM_RELEASE))
                 {
                     int errorCode = Marshal.GetLastWin32Error();
-                    Debug.WriteLine(Win32ErrorHelper.FormatError("VirtualFreeEx", errorCode));
+                    AppDiagnostics.LogError(Win32ErrorHelper.FormatError("VirtualFreeEx", errorCode));
                 }
             }
         }

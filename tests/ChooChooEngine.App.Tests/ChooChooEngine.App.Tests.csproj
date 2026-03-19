@@ -15,6 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="../../src/ChooChooEngine.App/Diagnostics/AppDiagnostics.cs" Link="Diagnostics/AppDiagnostics.cs" />
     <Compile Include="../../src/ChooChooEngine.App/Interop/Kernel32Interop.cs" Link="Interop/Kernel32Interop.cs" />
     <Compile Include="../../src/ChooChooEngine.App/Interop/Win32ErrorHelper.cs" Link="Interop/Win32ErrorHelper.cs" />
     <Compile Include="../../src/ChooChooEngine.App/Core/ProcessManager.cs" Link="Core/ProcessManager.cs" />

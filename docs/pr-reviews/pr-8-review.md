@@ -267,41 +267,64 @@ Both silently delegate to `LaunchWithCreateProcess`. The user's explicit launch 
 
 ### IM-9: `MiniDumpWriteDump` return value discarded
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:258-259`
+**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:265-289`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 Returns `true` unconditionally even if the dump failed. User gets a 0-byte file with no error.
+
+**Validation:** Confirmed in `CreateMiniDump(...)`: the `MiniDumpWriteDump(...)` return value was ignored and the method always returned `true` unless an exception was thrown.
+
+**Fix:** `CreateMiniDump(...)` now resolves a valid process handle first, checks the `MiniDumpWriteDump(...)` result through `GetMiniDumpFailureMessage(...)`, logs the Win32 failure, and deletes the incomplete dump file before returning `false`.
 
 ---
 
 ### IM-10: `Debug.WriteLine` is the sole error logging — stripped in Release builds
 
-**File:** `ProcessManager.cs` (9 locations), `InjectionManager.cs` (2 locations)
+**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs`, `src/ChooChooEngine.App/Injection/InjectionManager.cs`, `src/ChooChooEngine.App/Diagnostics/AppDiagnostics.cs`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 All error logging in ProcessManager uses `Debug.WriteLine`, which is compiled out of Release builds. Every process/injection error becomes invisible in production.
+
+**Validation:** Confirmed by inspection. The affected ProcessManager and InjectionManager error paths were still using `Debug.WriteLine(...)`, and the app had no file-backed trace listener.
+
+**Fix:** Added `AppDiagnostics` as a shared diagnostics helper with a file-backed `TextWriterTraceListener` under `%LocalAppData%\\ChooChooEngine\\logs\\choochoo.log`, then routed the ProcessManager and InjectionManager error paths through `AppDiagnostics.LogError(...)` so release builds keep emitting diagnostics.
 
 ---
 
 ### IM-11: No global unhandled exception handler
 
-**File:** `src/ChooChooEngine.App/Program.cs:17-43`
+**File:** `src/ChooChooEngine.App/Program.cs:21-75`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 No `Application.SetUnhandledExceptionMode` or `AppDomain.UnhandledException` handler. On Steam Deck/Proton, crashes produce no log.
+
+**Validation:** Confirmed in `Program.Main(...)`: startup went straight from mutex creation to `Application.Run(...)` with no WinForms thread-exception handler, no AppDomain handler, and no persistent crash log path.
+
+**Fix:** `Program.Main(...)` now initializes diagnostics logging during startup, sets `Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException)`, subscribes both `Application.ThreadException` and `AppDomain.CurrentDomain.UnhandledException`, logs the full exception through `AppDiagnostics`, and shows a user-facing crash dialog that points to the log file.
 
 ---
 
 ### IM-12: `CurrentProcess` property leaks internal `Process` object
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:106`
+**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:107,472-499`
 **Source:** Type Design Analyzer
-**Status:** Open
+**Status:** Fixed
 
 Callers can `Kill()` the process directly, bypassing the manager's cleanup logic and leaving `_processHandle` dangling.
+
+**Validation:** Confirmed in `CurrentProcess => _process;`. The property returned the manager's internal `Process` instance directly.
+
+**Fix:** `CurrentProcess` now returns a detached process snapshot via `CreateProcessSnapshot(...)` instead of exposing the manager-owned instance.
+
+---
+
+**Validation for IM-9 through IM-12**
+
+- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~AppDiagnosticsTests|FullyQualifiedName~ProcessManagerDiagnosticsTests|FullyQualifiedName~ProcessManagerLaunchMethodTests|FullyQualifiedName~InjectionManagerTests"`
 
 ---
 
@@ -465,7 +488,7 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 9. **Fix IM-3/4:** Wire resize handlers and unify timer strategy — **Status:** Fixed
 10. **Fix IM-6/7:** Fail unsupported manual-mapping and stub launch selections explicitly — **Status:** Fixed
 11. **Fix IM-8:** Guard `Process.Start()` null returns in launch helpers — **Status:** Fixed
-12. **Fix IM-10:** Replace `Debug.WriteLine` with `Trace.WriteLine` or event-based logging — **Status:** Open
+12. **Fix IM-10:** Replace `Debug.WriteLine` with `Trace.WriteLine` or event-based logging — **Status:** Fixed
 13. **Fix IM-14:** Sanitize `profileName` against path traversal — **Status:** Open
 
 ### Follow-up Issues
@@ -473,5 +496,5 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 14. Add the 8 missing test cases (TC-1 through TC-8) — **Status:** Open
 15. Make data transfer objects immutable (`{ get; init; }`) — **Status:** Open
 16. Centralize Win32 constants in `Kernel32Interop` — **Status:** Open
-17. Add global unhandled exception handler in `Program.cs` — **Status:** Open
-18. Check return values of `SuspendThread`, `ResumeThread`, `MiniDumpWriteDump`, `WaitForSingleObject` — **Status:** Open
+17. Add global unhandled exception handler in `Program.cs` — **Status:** Fixed
+18. Check return values of `SuspendThread`, `ResumeThread`, `MiniDumpWriteDump`, `WaitForSingleObject` — **Status:** Fixed
