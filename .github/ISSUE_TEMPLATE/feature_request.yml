@@ -1,0 +1,62 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for CrossHook Loader
+title: '[Feature]: '
+labels: ['type:feature', 'status:needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe what you'd like and why it matters.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: What area does this feature relate to?
+      options:
+        - DLL Injection
+        - Memory Management
+        - Process Management
+        - User Interface
+        - Game/Trainer Profiles
+        - Build / Packaging
+        - CLI / Arguments
+        - Platform Compatibility
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use Case
+      description: What problem does this solve, or what use case does it enable?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe how you'd like this to work.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Platform Relevance
+      description: Which platforms would benefit from this feature?
+      options:
+        - label: Steam Deck (SteamOS)
+        - label: Linux (other distro)
+        - label: macOS
+        - label: Windows (via WINE)
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've considered.
+    validations:
+      required: false

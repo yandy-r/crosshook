@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v5.0.0); used only when run manually'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install asset rendering tools
+        run: sudo apt-get install -y --no-install-recommends librsvg2-bin imagemagick
+
+      - name: Generate branding assets from SVGs
+        run: ./scripts/generate-assets.sh
+
+      - name: Publish distribution artifacts
+        run: ./scripts/publish-dist.sh
+        env:
+          DIST_DIR: ${{ github.workspace }}/dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          name: ${{ github.event.inputs.version || github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/crosshook-win-x64.zip
+            dist/crosshook-win-x86.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <linearGradient id="cg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#33F5FF"/>
+      <stop offset="100%" stop-color="#00D0E0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Transparent background (this gets overlaid on the Background image) -->
+
+  <!-- CH Monogram (left-center) -->
+  <g transform="translate(240, 160) scale(0.78)">
+    <path d="M 318 145 A 145 145 0 1 0 318 367"
+          fill="none" stroke="url(#cg)" stroke-width="42" stroke-linecap="round"/>
+    <path d="M 318 367 C 298 358, 280 338, 292 315"
+          fill="none" stroke="#00E8F0" stroke-width="32" stroke-linecap="round"/>
+    <line x1="318" y1="145" x2="318" y2="367"
+          stroke="url(#cg)" stroke-width="40" stroke-linecap="round"/>
+    <line x1="402" y1="145" x2="402" y2="367"
+          stroke="url(#cg)" stroke-width="40" stroke-linecap="round"/>
+    <line x1="290" y1="256" x2="430" y2="256"
+          stroke="#00F0FF" stroke-width="32" stroke-linecap="round"/>
+    <circle cx="360" cy="256" r="30" fill="none" stroke="#FF00AA" stroke-width="5"/>
+    <circle cx="360" cy="256" r="5" fill="#FF00AA"/>
+    <line x1="360" y1="214" x2="360" y2="230" stroke="#FF00AA" stroke-width="5" stroke-linecap="round"/>
+    <line x1="360" y1="282" x2="360" y2="298" stroke="#FF00AA" stroke-width="5" stroke-linecap="round"/>
+    <line x1="318" y1="256" x2="334" y2="256" stroke="#FF00AA" stroke-width="5" stroke-linecap="round"/>
+    <line x1="386" y1="256" x2="402" y2="256" stroke="#FF00AA" stroke-width="5" stroke-linecap="round"/>
+  </g>
+
+  <!-- "CROSS" text -->
+  <text x="620" y="380" text-anchor="start"
+        font-family="'Impact', 'Arial Black', 'Liberation Sans Narrow', sans-serif"
+        font-weight="900" font-size="130" letter-spacing="5"
+        fill="#00F0FF">CROSS</text>
+
+  <!-- "HOOK" text -->
+  <text x="620" y="500" text-anchor="start"
+        font-family="'Impact', 'Arial Black', 'Liberation Sans Narrow', sans-serif"
+        font-weight="900" font-size="130" letter-spacing="5"
+        fill="#FF00AA">HOOK</text>
+
+  <!-- Tagline -->
+  <text x="625" y="555" text-anchor="start"
+        font-family="'Consolas', 'DejaVu Sans Mono', monospace"
+        font-size="20" letter-spacing="5"
+        fill="#666666">PROTON/WINE TRAINER &amp; DLL LOADER</text>
+
+  <!-- Accent line -->
+  <line x1="620" y1="570" x2="900" y2="570"
+        stroke="#00F0FF" stroke-width="2" opacity="0.25"/>
+  <line x1="900" y1="570" x2="1080" y2="570"
+        stroke="#FF00AA" stroke-width="2" opacity="0.25"/>
+</svg>

@@ -1,0 +1,98 @@
+name: Compatibility Report
+description: Report whether a game/trainer combination works with CrossHook under Proton/WINE
+title: '[Compat]: '
+labels: ['type:compatibility', 'status:needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help build our compatibility database! Report whether a game + trainer combination works with CrossHook Loader under Proton/WINE.
+
+  - type: dropdown
+    id: status
+    attributes:
+      label: Compatibility Status
+      description: Overall compatibility result.
+      options:
+        - Working — fully functional
+        - Partial — some features work, others don't
+        - Broken — does not work at all
+    validations:
+      required: true
+
+  - type: input
+    id: game
+    attributes:
+      label: Game
+      description: 'Full game name (and Steam App ID if known)'
+      placeholder: 'Elden Ring (1245620)'
+    validations:
+      required: true
+
+  - type: input
+    id: trainer
+    attributes:
+      label: Trainer / Mod
+      description: 'Trainer name, source, and version'
+      placeholder: 'FLiNG Trainer v1.2.3'
+    validations:
+      required: true
+
+  - type: input
+    id: crosshook-version
+    attributes:
+      label: CrossHook Version
+      description: 'Version or commit hash of CrossHook Loader'
+      placeholder: 'v1.0.0 or abc1234'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Where are you running CrossHook?
+      options:
+        - Steam Deck (SteamOS)
+        - Linux (other distro)
+        - macOS
+        - Windows (via WINE)
+    validations:
+      required: true
+
+  - type: input
+    id: proton-wine-version
+    attributes:
+      label: Proton / WINE Version
+      description: 'e.g., Proton 9.0-1, Proton GE 8-25, WINE 9.0'
+      placeholder: 'Proton 9.0-1'
+    validations:
+      required: true
+
+  - type: textarea
+    id: dlls
+    attributes:
+      label: DLLs Injected
+      description: 'List any DLLs that were injected (one per line).'
+      placeholder: |
+        dinput8.dll
+        version.dll
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Setup Notes / Workarounds
+      description: 'Any special configuration, launch options, or workarounds needed.'
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Attach any relevant output or screenshots.
+      render: shell
+    validations:
+      required: false
