@@ -29,7 +29,7 @@ Going forward, download CrossHook from the [GitHub Releases page](https://github
 Install by extracting the entire zip into any directory you want to keep CrossHook in, then launch `crosshook.exe` from the extracted folder. Do not run it from inside the zip, and do not move only `crosshook.exe` by itself.
 
 [![GitHub Releases](https://img.shields.io/github/release/yandy-r/crosshook/all.svg?style=for-the-badge)](https://github.com/yandy-r/crosshook/releases)  
-[![Platforms: macOS | Linux | Steam Deck | Windows ](https://img.shields.io/badge/Platforms-Windows%20|%20macOS%20|%20Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/crosshook-loader)
+[![Platforms: macOS | Linux | Steam Deck | Windows ](https://img.shields.io/badge/Platforms-Windows%20|%20macOS%20|%20Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/crosshook)
 
 ---
 
