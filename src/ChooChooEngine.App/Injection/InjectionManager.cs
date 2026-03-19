@@ -251,23 +251,42 @@ namespace ChooChooEngine.App.Injection
             IntPtr remoteMemory = Kernel32Interop.VirtualAllocEx(processHandle, IntPtr.Zero, allocSize, 
                 MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
             if (remoteMemory == IntPtr.Zero)
+            {
+                int errorCode = Marshal.GetLastWin32Error();
+                OnInjectionFailed(new InjectionEventArgs(dllPath, Win32ErrorHelper.FormatError("VirtualAllocEx", errorCode)));
                 return false;
+            }
 
             try
             {
                 // Write the DLL path to the allocated memory
-                // Pass exact buffer length — VirtualAllocEx zero-initialized the extra byte for the null terminator
+		// Pass exact buffer length - VirtualAllocEx zero-initialized the extra byte for the null terminator
                 UIntPtr bytesWritten;
                 bool writeResult = Kernel32Interop.WriteProcessMemory(processHandle, remoteMemory, dllPathBytes,
                     (uint)dllPathBytes.Length, out bytesWritten);
                 if (!writeResult)
+                {
+                    int errorCode = Marshal.GetLastWin32Error();
+                    OnInjectionFailed(new InjectionEventArgs(dllPath, Win32ErrorHelper.FormatError("WriteProcessMemory", errorCode)));
                     return false;
+                }
+
+                if (bytesWritten.ToUInt64() != (ulong)dllPathBytes.Length)
+                {
+                    OnInjectionFailed(new InjectionEventArgs(dllPath,
+                        $"WriteProcessMemory returned {bytesWritten.ToUInt64()} bytes, expected {dllPathBytes.Length}"));
+                    return false;
+                }
 
                 // Create a remote thread that calls LoadLibraryA with the DLL path as argument
                 IntPtr threadHandle = Kernel32Interop.CreateRemoteThread(processHandle, IntPtr.Zero, 0, 
                     loadLibraryAddr, remoteMemory, 0, IntPtr.Zero);
                 if (threadHandle == IntPtr.Zero)
+                {
+                    int errorCode = Marshal.GetLastWin32Error();
+                    OnInjectionFailed(new InjectionEventArgs(dllPath, Win32ErrorHelper.FormatError("CreateRemoteThread", errorCode)));
                     return false;
+                }
 
                 // Wait for the thread to finish
                 WaitForSingleObject(threadHandle, 5000);
@@ -291,7 +310,11 @@ namespace ChooChooEngine.App.Injection
             finally
             {
                 // Free the allocated memory
-                Kernel32Interop.VirtualFreeEx(processHandle, remoteMemory, 0, MEM_RELEASE);
+                if (!Kernel32Interop.VirtualFreeEx(processHandle, remoteMemory, 0, MEM_RELEASE))
+                {
+                    int errorCode = Marshal.GetLastWin32Error();
+                    Debug.WriteLine(Win32ErrorHelper.FormatError("VirtualFreeEx", errorCode));
+                }
             }
         }
 

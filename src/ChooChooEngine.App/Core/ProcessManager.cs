@@ -13,14 +13,14 @@ namespace ChooChooEngine.App.Core
     {
         #region Win32 API
 
-        [LibraryImport("kernel32.dll")]
-        private static partial IntPtr OpenThread(int dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwThreadId);
+	[LibraryImport("kernel32.dll", SetLastError = true)]
+	private static partial IntPtr OpenThread(int dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwThreadId);
 
-        [LibraryImport("kernel32.dll")]
-        private static partial uint SuspendThread(IntPtr hThread);
+	[LibraryImport("kernel32.dll", SetLastError = true)]
+	private static partial uint SuspendThread(IntPtr hThread);
 
-        [LibraryImport("kernel32.dll")]
-        private static partial uint ResumeThread(IntPtr hThread);
+	[LibraryImport("kernel32.dll", SetLastError = true)]
+	private static partial uint ResumeThread(IntPtr hThread);
 
         [LibraryImport("kernel32.dll", SetLastError = true, EntryPoint = "CreateProcessW", StringMarshalling = StringMarshalling.Utf16)]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -202,16 +202,24 @@ namespace ChooChooEngine.App.Core
 
             try
             {
+		bool success = true;
+
                 foreach (ProcessThread thread in _process.Threads)
                 {
-                    IntPtr threadHandle = OpenThread(THREAD_SUSPEND_RESUME, false, (uint)thread.Id);
-                    if (threadHandle != IntPtr.Zero)
+			if (!TryExecuteThreadOperation(
+					thread.Id,
+					"SuspendThread",
+					() => OpenThread(THREAD_SUSPEND_RESUME, false, (uint)thread.Id),
+					SuspendThread,
+					handle => _ = Kernel32Interop.CloseHandle(handle),
+					Marshal.GetLastWin32Error,
+					message => Debug.WriteLine(message)))
                     {
-                        SuspendThread(threadHandle);
-                        Kernel32Interop.CloseHandle(threadHandle);
+				success = false;
                     }
                 }
-                return true;
+
+		return success;
             }
             catch (Exception ex)
             {
@@ -227,16 +235,24 @@ namespace ChooChooEngine.App.Core
 
             try
             {
+		bool success = true;
+
                 foreach (ProcessThread thread in _process.Threads)
                 {
-                    IntPtr threadHandle = OpenThread(THREAD_SUSPEND_RESUME, false, (uint)thread.Id);
-                    if (threadHandle != IntPtr.Zero)
+			if (!TryExecuteThreadOperation(
+					thread.Id,
+					"ResumeThread",
+					() => OpenThread(THREAD_SUSPEND_RESUME, false, (uint)thread.Id),
+					ResumeThread,
+					handle => _ = Kernel32Interop.CloseHandle(handle),
+					Marshal.GetLastWin32Error,
+					message => Debug.WriteLine(message)))
                     {
-                        ResumeThread(threadHandle);
-                        Kernel32Interop.CloseHandle(threadHandle);
+				success = false;
                     }
                 }
-                return true;
+
+		return success;
             }
             catch (Exception ex)
             {
@@ -330,6 +346,13 @@ namespace ChooChooEngine.App.Core
 		CloseProcessHandle();
                 _processHandle = Kernel32Interop.OpenProcess(PROCESS_ALL_ACCESS, false, _process.Id);
                 _processHandleOpen = _processHandle != IntPtr.Zero;
+
+		if (!_processHandleOpen)
+		{
+			int errorCode = Marshal.GetLastWin32Error();
+			Debug.WriteLine(Win32ErrorHelper.FormatError($"OpenProcess for process {_process.Id}", errorCode));
+		}
+
                 return _processHandleOpen;
             }
             catch (Exception ex)
@@ -369,6 +392,39 @@ namespace ChooChooEngine.App.Core
 		}
 
 		_disposed = true;
+	}
+
+	internal static bool TryExecuteThreadOperation(
+		int threadId,
+		string operationName,
+		Func<IntPtr> openThread,
+		Func<IntPtr, uint> threadOperation,
+		Action<IntPtr> closeHandle,
+		Func<int> getLastError,
+		Action<string> logFailure)
+	{
+		IntPtr threadHandle = openThread();
+		if (threadHandle == IntPtr.Zero)
+		{
+			logFailure(Win32ErrorHelper.FormatError($"OpenThread for {operationName} on thread {threadId}", getLastError()));
+			return false;
+		}
+
+		try
+		{
+			uint result = threadOperation(threadHandle);
+			if (result == uint.MaxValue)
+			{
+				logFailure(Win32ErrorHelper.FormatError($"{operationName} on thread {threadId}", getLastError()));
+				return false;
+			}
+
+			return true;
+		}
+		finally
+		{
+			closeHandle(threadHandle);
+		}
 	}
 
         #region Launch Methods

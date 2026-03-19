@@ -73,11 +73,11 @@ A `System.Timers.Timer` is created as a local variable. After the method returns
 
 **File:** `src/ChooChooEngine.App/Interop/Kernel32Interop.cs:9-28`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 `OpenProcess`, `CreateRemoteThread`, `WriteProcessMemory`, `VirtualAllocEx`, and `VirtualFreeEx` all lack `SetLastError = true`. When any of these fail, `Marshal.GetLastWin32Error()` returns stale data. The entire injection pipeline — the app's primary purpose — fails with zero diagnostic info.
 
-**Fix:** Add `SetLastError = true` to all declarations. After each failure, call `Marshal.GetLastWin32Error()` and include in error messages.
+**Fix:** Added `SetLastError = true` to all five `Kernel32Interop` declarations and introduced `Win32ErrorHelper` so injection/open-process failures now include the Win32 error code and message. `InjectionManager` now reports `VirtualAllocEx`, `WriteProcessMemory`, and `CreateRemoteThread` failures explicitly, and `ProcessManager.OpenProcessHandle()` logs the `OpenProcess` failure details.
 
 ---
 
@@ -85,11 +85,11 @@ A `System.Timers.Timer` is created as a local variable. After the method returns
 
 **File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:16-17`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 When `OpenThread` returns `IntPtr.Zero`, the thread is silently skipped. `SuspendProcess()` returns `true` even when threads fail to open, so the user sees "process suspended" but it keeps running.
 
-**Fix:** Add `SetLastError = true`. Check and log Win32 error on failure.
+**Fix:** Added `SetLastError = true` to `OpenThread` and routed suspend/resume through `TryExecuteThreadOperation(...)`, which logs `OpenThread` failures with the Win32 error and reports the overall operation as failed.
 
 ---
 
@@ -97,9 +97,11 @@ When `OpenThread` returns `IntPtr.Zero`, the thread is silently skipped. `Suspen
 
 **File:** `src/ChooChooEngine.App/Memory/MemoryManager.cs:15-27`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 All three P/Invoke declarations lack `SetLastError = true`. Memory operations fail with generic "Failed to read/write memory" messages.
+
+**Fix:** Added `SetLastError = true` to all three declarations. `ReadMemory()` and `WriteMemory()` now surface the underlying Win32 error on API failure and separately report short transfers; `QueryMemoryRegions()` now reports unexpected `VirtualQueryEx` failures instead of collapsing them into a generic message.
 
 ---
 
@@ -107,9 +109,18 @@ All three P/Invoke declarations lack `SetLastError = true`. Memory operations fa
 
 **File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:210,234`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 Both return `(DWORD)-1` on failure but the values are never checked. The methods return `true` as long as no managed exception is thrown, regardless of whether threads were actually suspended/resumed.
+
+**Fix:** Added `SetLastError = true` to both declarations and made `SuspendProcess()` / `ResumeProcess()` fail when `SuspendThread` or `ResumeThread` returns `uint.MaxValue`, with the Win32 error logged per thread.
+
+---
+
+**Validation for CR-5 through CR-8**
+
+- `DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
+- `DOTNET_ROLL_FORWARD=Major DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~InteropLibraryImportTests|FullyQualifiedName~ProcessManagerThreadOperationTests|FullyQualifiedName~Win32ErrorHelperTests"`
 
 ---
 
