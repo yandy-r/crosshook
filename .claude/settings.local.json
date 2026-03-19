@@ -50,7 +50,9 @@
       "Bash(cp \"/home/yandy/Pictures/Screenshots/screenshot-2026-03-19_10-41-43.png\" \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/images/steam-properties-shortcut.png\")",
       "Bash(cp \"/home/yandy/Pictures/Screenshots/screenshot-2026-03-19_10-41-54.png\" \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/images/steam-customization-default.png\")",
       "Bash(cp \"/home/yandy/Pictures/Screenshots/screenshot-2026-03-19_10-48-11.png\" \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/images/steam-customization-branded.png\")",
-      "Skill(git-workflow:git-workflow)"
+      "Skill(git-workflow:git-workflow)",
+      "Bash(umu-run --help)",
+      "Bash(/home/yandy/.claude/plugins/cache/yandy-plugins/deep-research/1.0.0/skills/deep-research/scripts/check-prerequisites.sh \"research/crosshook-feature-enhancements\")"
     ]
   }
 }
