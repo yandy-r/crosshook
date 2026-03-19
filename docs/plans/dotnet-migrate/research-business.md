@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The migration must preserve ChooChoo Loader as a Windows-targeted launcher and DLL injector running under WINE/Proton. The business-critical behavior is not the old project format; it is the current launch, attach, profile, and injection behavior. The main planning correction is that the docs must distinguish between:
+The migration must preserve CrossHook Loader as a Windows-targeted launcher and DLL injector running under WINE/Proton. The business-critical behavior is not the old project format; it is the current launch, attach, profile, and injection behavior. The main planning correction is that the docs must distinguish between:
 
 - behavior the code already implements
 - behavior the README claims but the code does not implement yet
@@ -57,7 +57,7 @@ That path must remain stable through the migration.
 
 - existing `.profile` files may contain launch-method values that correspond to placeholder enum members
 - recent-files loading intentionally ignores paths that no longer exist
-- `ValidateDll()` loads candidate DLLs into the ChooChoo process for validation, which is behaviorally meaningful and should not be casually redesigned during the migration
+- `ValidateDll()` loads candidate DLLs into the CrossHookk process for validation, which is behaviorally meaningful and should not be casually redesigned during the migration
 - the current injection path assumes ASCII-compatible DLL paths
 
 ## Count Corrections

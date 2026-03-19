@@ -6,11 +6,11 @@ This report captures the Phase 1 WINE/Proton validation attempt for issue `#2` o
 
 ## Verified
 
-- `dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x64 --self-contained true -o /tmp/choochoo-publish/win-x64`
+- `dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x64 --self-contained true -o /tmp/crosshook-publish/win-x64`
   Result: passed
-- `dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x86 --self-contained true -o /tmp/choochoo-publish/win-x86`
+- `dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x86 --self-contained true -o /tmp/crosshook-publish/win-x86`
   Result: passed
-- Both publish directories contain the expected runtime payloads, including `choochoo.exe`, `choochoo.dll`, and framework assemblies such as `System.Runtime.dll`.
+- Both publish directories contain the expected runtime payloads, including `crosshook.exe`, `crosshook.dll`, and framework assemblies such as `System.Runtime.dll`.
 
 ## External Validation
 
@@ -18,7 +18,7 @@ User-provided target-environment validation for March 18, 2026:
 
 - The executable was loaded into Steam and launched against The Witcher 3 with the trainer.
 - The user reported that everything worked with no problems and behavior matched the pre-migration build.
-- This validation is recorded under the assumption that the executable launched through Steam was the migrated `choochoo.exe`.
+- This validation is recorded under the assumption that the executable launched through Steam was the migrated `crosshook.exe`.
 
 ## Runtime Findings
 
@@ -28,15 +28,15 @@ Command shape:
 
 ```bash
 DISPLAY=:1 \
-WINEPREFIX=/tmp/choochoo-smoke-prefix \
-XDG_CACHE_HOME=/tmp/choochoo-xdg-cache \
+WINEPREFIX=/tmp/crosshook-smoke-prefix \
+XDG_CACHE_HOME=/tmp/crosshook-xdg-cache \
 WINEDEBUG=-all \
-wine /tmp/choochoo-publish/win-x64/choochoo.exe
+wine /tmp/crosshook-publish/win-x64/crosshook.exe
 ```
 
 Observed result:
 
-- WINE created windows, but X11 enumeration showed `Wine` and `Wine Mono Installer`, not the ChooChoo UI.
+- WINE created windows, but X11 enumeration showed `Wine` and `Wine Mono Installer`, not the CrossHook UI.
 
 ### Attempt 2: disable `mscoree/mshtml`
 
@@ -44,37 +44,37 @@ Command shape:
 
 ```bash
 DISPLAY=:1 \
-WINEPREFIX=/tmp/choochoo-smoke-prefix-override \
-XDG_CACHE_HOME=/tmp/choochoo-xdg-cache \
+WINEPREFIX=/tmp/crosshook-smoke-prefix-override \
+XDG_CACHE_HOME=/tmp/crosshook-xdg-cache \
 WINEDLLOVERRIDES="mscoree,mshtml=" \
 WINEDEBUG=-all \
-wine /tmp/choochoo-publish/win-x64/choochoo.exe
+wine /tmp/crosshook-publish/win-x64/crosshook.exe
 ```
 
 Observed result:
 
 - X11 enumeration showed `Wine Debugger` and `Program Error`.
 - WINE reported:
-  `System.IO.FileNotFoundException: Could not load file or assembly 'Z:\tmp\choochoo-publish\win-x64\System.Runtime.dll'. Module not found.`
+  `System.IO.FileNotFoundException: Could not load file or assembly 'Z:\tmp\crosshook-publish\win-x64\System.Runtime.dll'. Module not found.`
 
-### Attempt 3: copy the publish output into `C:\choochoo`
+### Attempt 3: copy the publish output into `C:\crosshook`
 
 Command shape:
 
 ```bash
 DISPLAY=:1 \
-WINEPREFIX=/tmp/choochoo-smoke-prefix-cdrive \
-XDG_CACHE_HOME=/tmp/choochoo-xdg-cache-cdrive \
+WINEPREFIX=/tmp/crosshook-smoke-prefix-cdrive \
+XDG_CACHE_HOME=/tmp/crosshook-xdg-cache-cdrive \
 WINEDLLOVERRIDES="mscoree,mshtml=" \
 WINEDEBUG=-all \
-wine C:\\choochoo\\choochoo.exe
+wine C:\\crosshook\\crosshook.exe
 ```
 
 Observed result:
 
 - X11 enumeration again showed `Wine Debugger` and `Program Error`.
 - WINE reported:
-  `System.IO.FileNotFoundException: Could not load file or assembly 'C:\choochoo\System.Runtime.dll'. Module not found.`
+  `System.IO.FileNotFoundException: Could not load file or assembly 'C:\crosshook\System.Runtime.dll'. Module not found.`
 
 ## Gate Status
 
@@ -84,7 +84,7 @@ The local WINE-only validation remains blocked in this workspace, but the releas
 
 ## Unproven Checklist Items
 
-- local standalone WINE startup in this workspace still does not reach an observable ChooChoo UI
+- local standalone WINE startup in this workspace still does not reach an observable CrossHook UI
 - the exact local root cause for the `Wine Mono Installer` and `System.Runtime.dll` failures is still unresolved
 
 ## Recommended Follow-Up

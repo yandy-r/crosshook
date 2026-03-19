@@ -28,10 +28,10 @@ Closes #<!-- issue number -->
 
 ### Checklist
 
-- [ ] `dotnet build src/ChooChooEngine.sln -c Debug` builds without errors
-- [ ] `dotnet build src/ChooChooEngine.sln -c Release` builds without errors
-- [ ] `dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x64 --self-contained true` succeeds
-- [ ] `dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x86 --self-contained true` succeeds
+- [ ] `dotnet build src/CrossHookEngine.sln -c Debug` builds without errors
+- [ ] `dotnet build src/CrossHookEngine.sln -c Release` builds without errors
+- [ ] `dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x64 --self-contained true` succeeds
+- [ ] `dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x86 --self-contained true` succeeds
 - [ ] Tested under Proton/WINE on target platform
 - [ ] **If touching Injection/**: Verified DLL injection works with at least one trainer
 - [ ] **If touching Memory/**: Verified memory read/write operations

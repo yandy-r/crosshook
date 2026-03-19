@@ -2,20 +2,20 @@
 
 > Background pattern analysis. The active migration decisions are frozen in `feature-spec.md` and `parallel-plan.md`.
 
-This document catalogs the coding patterns, conventions, and architectural decisions in the ChooChoo Loader codebase that are relevant to the .NET Framework 4.8 to .NET 9 migration. The codebase consists of 6 C# source files (~2800 lines in MainForm.cs, ~500 in ProcessManager.cs, ~350 in InjectionManager.cs, ~370 in MemoryManager.cs, ~110 in ResumePanel.cs, ~45 in Program.cs) with heavy Win32 P/Invoke usage, an event-driven manager architecture, and a monolithic WinForms UI.
+This document catalogs the coding patterns, conventions, and architectural decisions in the CrossHook Loader codebase that are relevant to the .NET Framework 4.8 to .NET 9 migration. The codebase consists of 6 C# source files (~2800 lines in MainForm.cs, ~500 in ProcessManager.cs, ~350 in InjectionManager.cs, ~370 in MemoryManager.cs, ~110 in ResumePanel.cs, ~45 in Program.cs) with heavy Win32 P/Invoke usage, an event-driven manager architecture, and a monolithic WinForms UI.
 
 ## Relevant Files
 
-- `/src/ChooChooEngine.App/Program.cs`: Application entry point with single-instance Mutex enforcement
-- `/src/ChooChooEngine.App/Core/ProcessManager.cs`: Process lifecycle manager with 12 P/Invoke declarations, event publishing, and 6 launch method strategies
-- `/src/ChooChooEngine.App/Injection/InjectionManager.cs`: DLL injection manager with 13 P/Invoke declarations, timer-based monitoring, and thread-safe injection via lock
-- `/src/ChooChooEngine.App/Memory/MemoryManager.cs`: Process memory read/write/query with 3 P/Invoke declarations, state save/restore, and binary file serialization
-- `/src/ChooChooEngine.App/Forms/MainForm.cs`: ~2800-line monolithic WinForms form containing all UI construction, event wiring, profile management, settings persistence, command-line parsing, and application orchestration
-- `/src/ChooChooEngine.App/Forms/MainForm.Designer.cs`: Minimal designer file (only sets form properties; all controls are created programmatically in MainForm.cs)
-- `/src/ChooChooEngine.App/UI/ResumePanel.cs`: Custom Panel subclass with GDI+ rendering and IDisposable implementation
-- `/src/ChooChooEngine.App/Properties/AssemblyInfo.cs`: Classic assembly metadata (to be deleted during migration, replaced by csproj properties)
-- `/src/ChooChooEngine.App/packages.config`: Single dependency on SharpDX 4.2.0 (unused in source, to be removed)
-- `/src/ChooChooEngine.App/ChooChooEngine.App.csproj`: Classic 75-line MSBuild project file targeting .NET Framework 4.8
+- `/src/CrossHookkEngine.App/Program.cs`: Application entry point with single-instance Mutex enforcement
+- `/src/CrossHookkEngine.App/Core/ProcessManager.cs`: Process lifecycle manager with 12 P/Invoke declarations, event publishing, and 6 launch method strategies
+- `/src/CrossHookkEngine.App/Injection/InjectionManager.cs`: DLL injection manager with 13 P/Invoke declarations, timer-based monitoring, and thread-safe injection via lock
+- `/src/CrossHookkEngine.App/Memory/MemoryManager.cs`: Process memory read/write/query with 3 P/Invoke declarations, state save/restore, and binary file serialization
+- `/src/CrossHookkEngine.App/Forms/MainForm.cs`: ~2800-line monolithic WinForms form containing all UI construction, event wiring, profile management, settings persistence, command-line parsing, and application orchestration
+- `/src/CrossHookkEngine.App/Forms/MainForm.Designer.cs`: Minimal designer file (only sets form properties; all controls are created programmatically in MainForm.cs)
+- `/src/CrossHookkEngine.App/UI/ResumePanel.cs`: Custom Panel subclass with GDI+ rendering and IDisposable implementation
+- `/src/CrossHookkEngine.App/Properties/AssemblyInfo.cs`: Classic assembly metadata (to be deleted during migration, replaced by csproj properties)
+- `/src/CrossHookkEngine.App/packages.config`: Single dependency on SharpDX 4.2.0 (unused in source, to be removed)
+- `/src/CrossHookkEngine.AppCrossHookokEngine.App.csproj`: Classic 75-line MSBuild project file targeting .NET Framework 4.8
 
 ## Architectural Patterns
 
@@ -30,7 +30,7 @@ The core business logic is organized into three manager classes with a clear dep
 
 This chain means `ProcessManager` is the natural extraction point for testability -- it can be given an interface and mocked.
 
-Example: `/src/ChooChooEngine.App/Forms/MainForm.cs` lines 266-286
+Example: `/src/CrossHookkEngine.App/Forms/MainForm.cs` lines 266-286
 
 ### Event-Driven Inter-Component Communication
 
@@ -46,7 +46,7 @@ Event args classes per file:
 - `InjectionEventArgs` (in InjectionManager.cs) -- wraps `DllPath` and `Message`
 - `MemoryEventArgs` (in MemoryManager.cs) -- wraps `Address`, `Size`, and `Message`
 
-Example: `/src/ChooChooEngine.App/Core/ProcessManager.cs` lines 118-121, 464-484
+Example: `/src/CrossHookkEngine.App/Core/ProcessManager.cs` lines 118-121, 464-484
 
 ### P/Invoke Organization with Region Blocks
 
@@ -71,7 +71,7 @@ Critical finding for migration: **P/Invoke declarations are heavily duplicated a
 
 Constants like `PROCESS_ALL_ACCESS`, `MEM_COMMIT`, `MEM_RESERVE`, `PAGE_READWRITE` are also duplicated. This is the primary candidate for consolidation into a shared `NativeInterop/Kernel32.cs` (or similar) during migration.
 
-Example: `/src/ChooChooEngine.App/Core/ProcessManager.cs` lines 13-112, `/src/ChooChooEngine.App/Injection/InjectionManager.cs` lines 15-65
+Example: `/src/CrossHookkEngine.App/Core/ProcessManager.cs` lines 13-112, `/srcCrossHookokEngine.App/Injection/InjectionManager.cs` lines 15-65
 
 ### Strategy Pattern for Launch Methods
 
@@ -79,7 +79,7 @@ Example: `/src/ChooChooEngine.App/Core/ProcessManager.cs` lines 13-112, `/src/Ch
 
 Two of the strategies (`LaunchWithCreateThreadInjection`, `LaunchWithRemoteThreadInjection`) are placeholder stubs that delegate to `LaunchWithCreateProcess`.
 
-Example: `/src/ChooChooEngine.App/Core/ProcessManager.cs` lines 131-164, 365-460, 487-495
+Example: `/src/CrossHookkEngine.App/Core/ProcessManager.cs` lines 131-164, 365-460, 487-495
 
 ### Monolithic Form as Application Controller
 
@@ -100,13 +100,13 @@ This is the primary target for service extraction during migration. Logical extr
 - **SettingsService**: `SaveAppSettings()`, `LoadAppSettings()`, `SaveRecentFiles()`, `LoadRecentFiles()` -- all use `Application.StartupPath` and INI-style parsing
 - **CommandLineService**: `ProcessCommandLineArguments()` -- parses `-p` and `-autolaunch` flags
 
-Example: `/src/ChooChooEngine.App/Forms/MainForm.cs` lines 1586-1751 (profile management), 2602-2701 (CLI parsing), 2703-2788 (settings)
+Example: `/src/CrossHookkEngine.App/Forms/MainForm.cs` lines 1586-1751 (profile management), 2602-2701 (CLI parsing), 2703-2788 (settings)
 
 ## Code Conventions
 
 ### Naming Conventions
 
-- **Namespaces**: `ChooChooEngine.App.{Layer}` where Layer is `Core`, `Injection`, `Memory`, `Forms`, `UI`
+- **Namespaces**: `CrossHookkEngine.App.{Layer}` where Layer is `Core`, `Injection`, `Memory`, `Forms`, `UI`
 - **Private fields**: `_camelCase` with underscore prefix (e.g., `_processManager`, `_processHandle`, `_processHandleOpen`)
 - **Private UI fields**: No underscore prefix for controls declared at field level (e.g., `tabControl`, `btnLaunch`, `cmbProfiles`, `radCreateProcess`). This is inconsistent with the underscore convention used for non-UI fields.
 - **Win32 constants**: `UPPER_SNAKE_CASE` (e.g., `PROCESS_ALL_ACCESS`, `MEM_COMMIT`, `PAGE_READWRITE`)
@@ -168,7 +168,7 @@ The codebase uses two distinct error handling approaches depending on the layer:
 
 `UpdateStatus()` and `LogToConsole()` in MainForm check `InvokeRequired` and call `Invoke(new Action<string>(...))` to marshal to the UI thread. This is necessary because manager events can fire from timer threads (e.g., `InjectionManager._monitoringTimer`). The auto-launch timer also uses `BeginInvoke` for the same reason.
 
-Example: `/src/ChooChooEngine.App/Forms/MainForm.cs` lines 1804-1841
+Example: `/src/CrossHookkEngine.App/Forms/MainForm.cs` lines 1804-1841
 
 ### Guard Clause Pattern
 
@@ -245,7 +245,7 @@ This pattern is used before any Win32 API call to avoid passing invalid handles.
 
 ### For Modern C# Conventions
 
-1. **File-scoped namespaces**: Convert `namespace ChooChooEngine.App.Core { ... }` to `namespace ChooChooEngine.App.Core;`
+1. **File-scoped namespaces**: Convert `namespace CrossHookkEngine.App.Core { ... }` to `namespaceCrossHookokEngine.App.Core;`
 2. **Nullable reference types**: Enable `<Nullable>enable</Nullable>`. Many fields initialized to `null` or `string.Empty` will need annotation.
 3. **Primary constructors or init-only properties**: `EventArgs` classes are good candidates.
 4. **Collection expressions**: Replace `new List<T>()` with `[]` where appropriate.

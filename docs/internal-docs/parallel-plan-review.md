@@ -25,7 +25,7 @@ Evaluation of the 14-task parallel implementation plan against the actual codeba
 
 - **Clear Purpose**: Yes. Title and description are unambiguous.
 - **Specific File Changes**: Yes. Create (1), modify (1), delete (4) -- all paths verified to exist.
-- **Actionable Instructions**: Yes. The 6-item numbered list for csproj contents is precise. Assembly metadata values are in AssemblyInfo.cs (verified: Title="ChooChoo Injection Engine", Version="1.0.0.0"). The plan says `<Version>6.0.0</Version>` which is a deliberate version bump, not an error.
+- **Actionable Instructions**: Yes. The 6-item numbered list for csproj contents is precise. Assembly metadata values are in AssemblyInfo.cs (verified: Title="CrossHook Injection Engine", Version="1.0.0.0"). The plan says `<Version>6.0.0</Version>` which is a deliberate version bump, not an error.
 - **Gotchas Documented**: Yes. SDK auto-globbing note, empty Utils/ folder, and validation commands are all accurate.
 - **Appropriate Scope**: Yes. 1 file rewrite + 4 deletions + 1 verification.
 

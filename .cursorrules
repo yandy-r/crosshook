@@ -1,17 +1,17 @@
-# ChooChoo Loader - Project Guidelines
+# CrossHook Loader - Project Guidelines
 
 ## Project Overview
 
-ChooChoo is a Proton/WINE Trainer & DLL Loader — a Windows Forms application that launches games alongside trainers, mods (FLiNG, WeMod, etc.), patches, and DLL injections. It targets Steam Deck, Linux, and macOS users running games through Proton/WINE.
+CrossHook is a Proton/WINE Trainer & DLL Loader — a Windows Forms application that launches games alongside trainers, mods (FLiNG, WeMod, etc.), patches, and DLL injections. It targets Steam Deck, Linux, and macOS users running games through Proton/WINE.
 
 ## Tech Stack
 
 - **Language**: C# (`net9.0-windows`)
 - **UI**: Windows Forms (WinForms)
 - **Build System**: `dotnet build` / `dotnet publish` with SDK-style `.csproj`
-- **Solution**: `src/ChooChooEngine.sln`
-- **Project**: `src/ChooChooEngine.App/ChooChooEngine.App.csproj`
-- **Output**: `choochoo.exe` (WinExe)
+- **Solution**: `src/CrossHookEngine.sln`
+- **Project**: `src/CrossHookEngine.App/CrossHookEngine.App.csproj`
+- **Output**: `crosshook.exe` (WinExe)
 
 ## Local SDK
 
@@ -33,15 +33,15 @@ When the local SDK is not present, commands fall back to the system `dotnet`. Th
 
 ```bash
 # Build with the .NET 9 SDK
-dotnet build src/ChooChooEngine.sln -c Debug
-dotnet build src/ChooChooEngine.sln -c Release
+dotnet build src/CrossHookEngine.sln -c Debug
+dotnet build src/CrossHookEngine.sln -c Release
 
 # Publish the migration release as dual artifacts (preferred: use the script)
 ./scripts/publish-dist.sh
 
 # Or publish manually
-dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x64 --self-contained true
-dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x86 --self-contained true
+dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x64 --self-contained true
+dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x86 --self-contained true
 ```
 
 > **Important**: this repo targets `net9.0-windows`. Use the local `.dotnet/` SDK if the system version differs.
@@ -49,7 +49,7 @@ dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r wi
 ## Architecture
 
 ```
-src/ChooChooEngine.App/
+src/CrossHookEngine.App/
   Program.cs              # Entry point (single-instance via Mutex)
   Core/ProcessManager.cs  # Process lifecycle (launch, attach, suspend, resume, kill)
   Injection/InjectionManager.cs  # DLL injection (LoadLibraryA via CreateRemoteThread)
@@ -67,7 +67,7 @@ src/ChooChooEngine.App/
 
 ## Code Conventions
 
-- Namespace pattern: `ChooChooEngine.App.{Layer}` (Core, Injection, Memory, Forms, UI)
+- Namespace pattern: `CrossHookEngine.App.{Layer}` (Core, Injection, Memory, Forms, UI)
 - Private fields: `_camelCase` prefix
 - Win32 constants: `UPPER_SNAKE_CASE`
 - P/Invoke declarations grouped in `#region Win32 API` blocks

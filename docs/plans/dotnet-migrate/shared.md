@@ -1,12 +1,12 @@
 # dotnet-migrate
 
-This plan now assumes a behavior-preserving migration, not a broad product redesign. The core objective is to move ChooChoo Loader from classic `.NET Framework 4.8` project tooling to modern `.NET` while keeping the app a Windows binary that runs inside WINE/Proton and preserving the current profile/settings formats and injection flow.
+This plan now assumes a behavior-preserving migration, not a broad product redesign. The core objective is to move CrossHook Loader from classic `.NET Framework 4.8` project tooling to modern `.NET` while keeping the app a Windows binary that runs inside WINE/Proton and preserving the current profile/settings formats and injection flow.
 
 ## Working Decisions
 
 - Target framework for the migration plan: `net9.0-windows`.
 - UI framework: keep WinForms.
-- Project structure: keep a single app project for the migration. Large structural moves such as a new `ChooChooEngine.Core` project or Avalonia rewrite are follow-up work.
+- Project structure: keep a single app project for the migration. Large structural moves such as a new `CrossHookEngine.Core` project or Avalonia rewrite are follow-up work.
 - File formats: keep `.profile`, `settings.ini`, and `Settings/AppSettings.ini` unchanged.
 - Publish architecture: dual artifacts (`win-x64` and `win-x86`). The codebase is currently `AnyCPU`, and `InjectionManager.ValidateDll()` depends on loader-process bitness, so this migration release must preserve 32-bit compatibility rather than collapsing to `win-x64`.
 - Launch method compatibility: preserve serialized `LaunchMethod` values during the migration. Do not remove `CreateThreadInjection` or `RemoteThreadInjection` as part of the base migration without a compatibility story.
@@ -34,11 +34,11 @@ This plan now assumes a behavior-preserving migration, not a broad product redes
 
 ## Critical Files
 
-- `/home/yandy/Projects/github.com/yandy-r/choochoo-loader/src/ChooChooEngine.App/ChooChooEngine.App.csproj`
-- `/home/yandy/Projects/github.com/yandy-r/choochoo-loader/src/ChooChooEngine.App/Properties/AssemblyInfo.cs`
-- `/home/yandy/Projects/github.com/yandy-r/choochoo-loader/src/ChooChooEngine.App/Core/ProcessManager.cs`
-- `/home/yandy/Projects/github.com/yandy-r/choochoo-loader/src/ChooChooEngine.App/Injection/InjectionManager.cs`
-- `/home/yandy/Projects/github.com/yandy-r/choochoo-loader/src/ChooChooEngine.App/Memory/MemoryManager.cs`
-- `/home/yandy/Projects/github.com/yandy-r/choochoo-loader/src/ChooChooEngine.App/Forms/MainForm.cs`
-- `/home/yandy/Projects/github.com/yandy-r/choochoo-loader/README.md`
-- `/home/yandy/Projects/github.com/yandy-r/choochoo-loader/CLAUDE.md`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/CrossHookEngine.App.csproj`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Properties/AssemblyInfo.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Core/ProcessManager.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Injection/InjectionManager.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Memory/MemoryManager.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/src/CrossHookEngine.App/Forms/MainForm.cs`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/README.md`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook-loader/CLAUDE.md`

@@ -1,6 +1,6 @@
 # Local Build And Publish
 
-This document captures the current local build and publish workflow for ChooChoo and how it feeds the standard GitHub Releases packaging flow.
+This document captures the current local build and publish workflow for CrossHook and how it feeds the standard GitHub Releases packaging flow.
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ PATH="$PWD/.dotnet:$PATH"
 Build the solution:
 
 ```bash
-dotnet build src/ChooChooEngine.sln -c Release
+dotnet build src/CrossHookEngine.sln -c Release
 ```
 
 ## Publish
@@ -32,10 +32,10 @@ Build the release artifacts:
 By default this produces both supported RIDs:
 
 ```bash
-dist/choochoo-win-x64/
-dist/choochoo-win-x86/
-dist/choochoo-win-x64.zip
-dist/choochoo-win-x86.zip
+dist/crosshook-win-x64/
+dist/crosshook-win-x86/
+dist/crosshook-win-x64.zip
+dist/crosshook-win-x86.zip
 ```
 
 The standard distribution path is the GitHub Releases page. `.github/workflows/release.yml` runs `./scripts/publish-dist.sh` and uploads these two zip files when a `v*` tag is pushed or the workflow is dispatched manually.
@@ -74,25 +74,25 @@ To publish only one RID:
 
 ## Artifact Shape
 
-Each `dist/choochoo-win-*` directory is a cleaned copy of the RID-specific `dotnet publish` output:
+Each `dist/crosshook-win-*` directory is a cleaned copy of the RID-specific `dotnet publish` output:
 
-- `choochoo.pdb` is removed from the shipped artifact.
+- `crosshook.pdb` is removed from the shipped artifact.
 - `Profiles/`, `Settings/`, and `settings.ini` are removed from the shipped artifact because they are runtime/user state.
-- The runtime host/runtime DLLs remain beside `choochoo.exe`.
+- The runtime host/runtime DLLs remain beside `crosshook.exe`.
 
 The matching `.zip` file is the preferred release artifact to upload, attach to a release, or copy into a test area.
 
-Important: these publishes are self-contained, but they are not single-file publishes. The `choochoo.exe` apphost expects `choochoo.dll`, `choochoo.deps.json`, `choochoo.runtimeconfig.json`, and the bundled runtime DLLs to remain in the same published directory layout.
+Important: these publishes are self-contained, but they are not single-file publishes. The `crosshook.exe` apphost expects `crosshook.dll`, `crosshook.deps.json`, `crosshook.runtimeconfig.json`, and the bundled runtime DLLs to remain in the same published directory layout.
 
-If you copy only `choochoo.exe` into another directory, startup fails with an error like:
+If you copy only `crosshook.exe` into another directory, startup fails with an error like:
 
 ```text
-The application to execute does not exist: 'D:\...\choochoo.dll'
+The application to execute does not exist: 'D:\...\crosshook.dll'
 ```
 
-When testing or packaging a publish, copy the entire `dist/choochoo-win-*` directory as a unit, or use the generated zip. End-user guidance should tell users to download a zip from GitHub Releases, extract it into a directory of their choice, and run `choochoo.exe` from the extracted folder.
+When testing or packaging a publish, copy the entire `dist/crosshook-win-*` directory as a unit, or use the generated zip. End-user guidance should tell users to download a zip from GitHub Releases, extract it into a directory of their choice, and run `crosshook.exe` from the extracted folder.
 
-The repo-root `choochoo.exe` is a legacy file already checked into the repository. The raw `src/ChooChooEngine.App/bin/Release/net9.0-windows/<rid>/publish/` directories are intermediate publish outputs; `dist/` is the release packaging output.
+The repo-root `crosshook.exe` is a legacy file already checked into the repository. The raw `src/CrossHookEngine.App/bin/Release/net9.0-windows/<rid>/publish/` directories are intermediate publish outputs; `dist/` is the release packaging output.
 
 ## Which Artifact To Use
 
@@ -104,7 +104,7 @@ The repo-root `choochoo.exe` is a legacy file already checked into the repositor
 
 The Phase 1 validation work produced both publish variants:
 
-- `/tmp/choochoo-publish/win-x64/choochoo.exe`
-- `/tmp/choochoo-publish/win-x86/choochoo.exe`
+- `/tmp/crosshook-publish/win-x64/crosshook.exe`
+- `/tmp/crosshook-publish/win-x86/crosshook.exe`
 
 That means the earlier verification did not standardize on only one architecture. Both were built successfully. The later Steam validation did not explicitly identify which one was loaded, so that result should not be treated as proof of only `win-x64` or only `win-x86`.

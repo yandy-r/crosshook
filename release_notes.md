@@ -1,9 +1,9 @@
-# 🆕 ChooChoo v5.0 – The Touch-First Release!
+# 🆕 CrossHook v5.0 – The Touch-First Release!
 
-[![Download ChooChoo](https://img.shields.io/badge/⬇_Download-ChooChoo_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/releases)
-[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/choochoo-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/choochoo-loader/releases)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/choochoo-loader)
-[![License](https://img.shields.io/github/license/yandy-r/choochoo-loader?style=for-the-badge&color=green)](LICENSE)
+[![Download CrossHook](https://img.shields.io/badge/⬇_Download-CrossHook_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook-loader/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/crosshook-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/crosshook-loader/releases)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/crosshook-loader)
+[![License](https://img.shields.io/github/license/yandy-r/crosshook-loader?style=for-the-badge&color=green)](LICENSE)
 
 ## Major Changes (Compared to v4.0a)
 
@@ -15,7 +15,7 @@
   - Optimized for touchscreen devices and Steam Deck
 
 - **Streamlined Executable Name:**
-  - Renamed to `choochoo.exe` for better recognition
+  - Renamed to `crosshook.exe` for better recognition
   - Simplified file management and Steam integration
 
 ### Improvements
@@ -83,18 +83,18 @@
 
 ## 📦 Installation Instructions
 
-ChooChoo is now distributed as zip packages on the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases). Download the correct zip, extract the full archive into a folder you want to keep, and launch `choochoo.exe` from the extracted folder. Do not treat `choochoo.exe` as a standalone single-file executable.
+CrossHook is now distributed as zip packages on the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases). Download the correct zip, extract the full archive into a folder you want to keep, and launch `crosshook.exe` from the extracted folder. Do not treat `crosshook.exe` as a standalone single-file executable.
 
 ### 🖥️ Windows
 
-1. Download **choochoo-win-x64.zip** (or **choochoo-win-x86.zip** for 32-bit) from the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases).
+1. Download **crosshook-win-x64.zip** (or **crosshook-win-x86.zip** for 32-bit) from the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases).
 2. Place the extracted folder in your game directory (or desired location).
-3. Run `choochoo.exe` from the extracted folder and configure!
+3. Run `crosshook.exe` from the extracted folder and configure!
 
 ### 🎮 Steam Deck (Proton)
 
-1. Download **choochoo-win-x64.zip** (or **choochoo-win-x86.zip** for 32-bit) from the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases) and extract it into a folder you want to keep.
-2. Add the extracted folder’s `choochoo.exe` as a Non-Steam Game.
+1. Download **crosshook-win-x64.zip** (or **crosshook-win-x86.zip** for 32-bit) from the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases) and extract it into a folder you want to keep.
+2. Add the extracted folder’s `crosshook.exe` as a Non-Steam Game.
 3. Enable Proton 9+
 4. Configure and play!
 
@@ -102,7 +102,7 @@ ChooChoo is now distributed as zip packages on the [GitHub Releases page](https:
 
 1. Install Whisky
 2. Create new bottle
-3. Download and extract **choochoo-win-x64.zip** from the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases), then run `choochoo.exe` from the extracted folder in the bottle.
+3. Download and extract **crosshook-win-x64.zip** from the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases), then run `crosshook.exe` from the extracted folder in the bottle.
 4. Configure and enjoy!
 
 ---
@@ -110,16 +110,16 @@ ChooChoo is now distributed as zip packages on the [GitHub Releases page](https:
 ## 🛠️ Support & Troubleshooting
 
 Found a bug? Report it here:
-[![Report Issue](https://img.shields.io/badge/🐛%20Report%20a%20Bug-GitHub%20Issues-red?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/issues)
+[![Report Issue](https://img.shields.io/badge/🐛%20Report%20a%20Bug-GitHub%20Issues-red?style=for-the-badge)](https://github.com/yandy-r/crosshook-loader/issues)
 
 ---
 
 ## 📜 License
 
-ChooChoo is open-source software under the MIT License.
+CrossHook is open-source software under the MIT License.
 
 ---
 
-## 🎉 Enjoy ChooChoo!
+## 🎉 Enjoy CrossHook!
 
-If you love using ChooChoo, give us a ⭐ on GitHub!
+If you love using CrossHook, give us a ⭐ on GitHub!

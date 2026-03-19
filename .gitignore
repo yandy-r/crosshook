@@ -66,4 +66,4 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 tasks/todo.md
-choochoo.exe
+crosshook.exe

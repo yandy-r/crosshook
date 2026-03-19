@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security Vulnerability
-    url: https://github.com/yandy-r/choochoo-loader/security/advisories/new
+    url: https://github.com/yandy-r/crosshook-loader/security/advisories/new
     about: Report security vulnerabilities privately via GitHub Security Advisories.
   - name: Questions & Discussion
-    url: https://github.com/yandy-r/choochoo-loader/discussions
+    url: https://github.com/yandy-r/crosshook-loader/discussions
     about: Ask questions or start a discussion — don't open an issue for general help.

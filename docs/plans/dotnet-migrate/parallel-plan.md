@@ -52,10 +52,10 @@ Depends on: 0.1
 
 Files:
 
-- `src/ChooChooEngine.App/ChooChooEngine.App.csproj`
-- `src/ChooChooEngine.App/Properties/AssemblyInfo.cs`
-- `src/ChooChooEngine.App/packages.config`
-- optionally `src/ChooChooEngine.sln`
+- `src/CrossHookEngine.App/CrossHookEngine.App.csproj`
+- `src/CrossHookkEngine.App/Properties/AssemblyInfo.cs`
+- `src/CrossHookkEngine.App/packages.config`
+- optionally `src/CrossHookkEngine.sln`
 
 Scope:
 
@@ -68,7 +68,7 @@ Scope:
 
 Validation:
 
-- `dotnet build src/ChooChooEngine.sln -c Release`
+- `dotnet build src/CrossHookkEngine.sln -c Release`
 
 ### Task 1.2: Update Contributor And Release Docs
 
@@ -118,7 +118,7 @@ Depends on: 1.3
 
 Files:
 
-- `src/ChooChooEngine.App/Forms/MainForm.cs`
+- `src/CrossHookkEngine.App/Forms/MainForm.cs`
 
 Scope:
 
@@ -138,9 +138,9 @@ Depends on: 2.1
 
 Files:
 
-- `src/ChooChooEngine.App/Core/ProcessManager.cs`
-- `src/ChooChooEngine.App/Injection/InjectionManager.cs`
-- `src/ChooChooEngine.App/Forms/MainForm.cs`
+- `src/CrossHookkEngine.App/Core/ProcessManager.cs`
+- `src/CrossHookkEngine.App/Injection/InjectionManager.cs`
+- `src/CrossHookkEngine.App/Forms/MainForm.cs`
 
 Scope:
 
@@ -159,10 +159,10 @@ Depends on: 2.2
 
 Files:
 
-- create `src/ChooChooEngine.App/Services/ProfileService.cs`
-- create `src/ChooChooEngine.App/Services/RecentFilesService.cs`
-- create `src/ChooChooEngine.App/Services/AppSettingsService.cs`
-- modify `src/ChooChooEngine.App/Forms/MainForm.cs`
+- create `src/CrossHookkEngine.App/Services/ProfileService.cs`
+- create `src/CrossHookkEngine.App/Services/RecentFilesService.cs`
+- create `src/CrossHookkEngine.App/Services/AppSettingsService.cs`
+- modify `src/CrossHookkEngine.App/Forms/MainForm.cs`
 
 Scope:
 
@@ -183,8 +183,8 @@ Depends on: 2.3 and 0.2
 
 Files:
 
-- create `src/ChooChooEngine.App/Services/CommandLineParser.cs`
-- modify `src/ChooChooEngine.App/Forms/MainForm.cs`
+- create `src/CrossHookkEngine.App/Services/CommandLineParser.cs`
+- modify `src/CrossHookkEngine.App/Forms/MainForm.cs`
 
 Scope:
 
