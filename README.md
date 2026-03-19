@@ -1,9 +1,9 @@
 # **🚂 ChooChoo**
 
-[![Download ChooChoo](https://img.shields.io/badge/⬇_Download-ChooChoo_v5.0-00C853?style=for-the-badge)](https://github.com/wowitsjack/choochoo-loader/releases/latest/download/choochoo.exe)
-[![GitHub Release](https://img.shields.io/github/v/release/wowitsjack/choochoo-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/wowitsjack/choochoo-loader/releases/latest)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/wowitsjack/choochoo-loader)
-[![License](https://img.shields.io/github/license/wowitsjack/choochoo-loader?style=for-the-badge&color=green)](LICENSE)
+[![Download ChooChoo](https://img.shields.io/badge/⬇_Download-ChooChoo_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/releases/latest)
+[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/choochoo-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/choochoo-loader/releases/latest)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/choochoo-loader)
+[![License](https://img.shields.io/github/license/yandy-r/choochoo-loader?style=for-the-badge&color=green)](LICENSE)
 
 **Proton/WINE Trainer & DLL Loader**  
 A loader for SteamOS/Linux/macOS that handles launches of games with trainers/mods (FLiNG, WeMod, etc.), patches, and up to 5 extra executables or DLLs, bypassing the issues of launching mods/patches in WINE/Proton enviroments 🔥.
@@ -19,10 +19,12 @@ A loader for SteamOS/Linux/macOS that handles launches of games with trainers/mo
 
 ## **Download & Links**
 
-[![Download ChooChoo](https://img.shields.io/badge/Download-ChooChoo-green?style=for-the-badge&logo=github)](https://github.com/wowitsjack/choochoo-loader/releases/download/4.0a/ChooChoo.exe)
+[![Download ChooChoo](https://img.shields.io/badge/Download-ChooChoo-green?style=for-the-badge&logo=github)](https://github.com/yandy-r/choochoo-loader/releases/latest)
 
-[![GitHub Releases](https://img.shields.io/github/release/wowitsjack/choochoo-loader/all.svg?style=for-the-badge)](https://github.com/wowitsjack/choochoo-loader/releases)  
-[![Platforms: macOS | Linux | Steam Deck | Windows ](https://img.shields.io/badge/Platforms-Windows%20|%20macOS%20|%20Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=steam)](https://github.com/wowitsjack/choochoo-loader)
+Download **choochoo-win-x64.zip** (recommended for 64-bit) or **choochoo-win-x86.zip** (for 32-bit) from the [latest release](https://github.com/yandy-r/choochoo-loader/releases/latest) Assets, then extract and run `choochoo.exe` from the extracted folder.
+
+[![GitHub Releases](https://img.shields.io/github/release/yandy-r/choochoo-loader/all.svg?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/releases)  
+[![Platforms: macOS | Linux | Steam Deck | Windows ](https://img.shields.io/badge/Platforms-Windows%20|%20macOS%20|%20Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/choochoo-loader)
 
 ---
 
@@ -44,7 +46,7 @@ The packaging script produces the release artifacts under `dist/`:
 - `dist/choochoo-win-x64.zip`
 - `dist/choochoo-win-x86.zip`
 
-Ship the zipped `dist/choochoo-win-*.zip` artifacts, or copy the matching `dist/choochoo-win-*` directory as a unit.
+Ship the zipped `dist/choochoo-win-*.zip` artifacts, or copy the matching `dist/choochoo-win-*` directory as a unit. The release workflow uploads these zips to GitHub Releases with auto-generated notes.
 
 Important: this is still a directory-based self-contained publish, not a single-file executable. `choochoo.exe` must stay beside `choochoo.dll`, `choochoo.deps.json`, `choochoo.runtimeconfig.json`, the bundled runtime files, and the adjacent `Profiles/`, `Settings/`, and `settings.ini` payload. If you copy only `choochoo.exe` into another directory, WINE/.NET will fail with an error like `The application to execute does not exist: ...\\choochoo.dll`.
 
