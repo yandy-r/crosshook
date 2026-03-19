@@ -19,10 +19,10 @@ namespace ChooChooEngine.App.Injection
         [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf8)]
         private static partial IntPtr GetProcAddress(IntPtr hModule, string procName);
 
-        [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
+        [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
         private static partial IntPtr GetModuleHandle(string lpModuleName);
 
-        [LibraryImport("kernel32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+        [LibraryImport("kernel32.dll", EntryPoint = "LoadLibraryW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
         private static partial IntPtr LoadLibrary(string lpFileName);
 
         [LibraryImport("kernel32.dll", SetLastError = true)]
