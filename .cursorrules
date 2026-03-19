@@ -13,6 +13,22 @@ ChooChoo is a Proton/WINE Trainer & DLL Loader — a Windows Forms application t
 - **Project**: `src/ChooChooEngine.App/ChooChooEngine.App.csproj`
 - **Output**: `choochoo.exe` (WinExe)
 
+## Local SDK
+
+The repo supports a **project-local .NET 9 SDK** to avoid conflicts with the system-installed version (e.g. .NET 10). Two gitignored directories handle this:
+
+- `.dotnet/` — contains the pinned .NET 9 SDK
+- `.dotnet-cli-home/` — isolates NuGet caches and CLI state from `~/.dotnet`
+
+To use the local SDK, prepend it to `PATH` before running any `dotnet` command:
+
+```bash
+export PATH="$PWD/.dotnet:$PATH"
+export DOTNET_CLI_HOME="$PWD/.dotnet-cli-home"
+```
+
+When the local SDK is not present, commands fall back to the system `dotnet`. The `scripts/publish-dist.sh` script auto-detects and uses the local SDK if `.dotnet/` exists.
+
 ## Build Commands
 
 ```bash
@@ -20,12 +36,15 @@ ChooChoo is a Proton/WINE Trainer & DLL Loader — a Windows Forms application t
 dotnet build src/ChooChooEngine.sln -c Debug
 dotnet build src/ChooChooEngine.sln -c Release
 
-# Publish the migration release as dual artifacts
+# Publish the migration release as dual artifacts (preferred: use the script)
+./scripts/publish-dist.sh
+
+# Or publish manually
 dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x64 --self-contained true
 dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x86 --self-contained true
 ```
 
-> **Important**: this repo now targets `net9.0-windows`, so contributors need a .NET 9 SDK that can publish Windows desktop apps.
+> **Important**: this repo targets `net9.0-windows`. Use the local `.dotnet/` SDK if the system version differs.
 
 ## Architecture
 
