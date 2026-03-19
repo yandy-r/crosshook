@@ -5,6 +5,14 @@ namespace ChooChooEngine.App.Tests;
 public sealed class AppSettingsServiceTests
 {
     [Fact]
+    public void Constructor_ThrowsForNullStartupPath()
+    {
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new AppSettingsService(null));
+
+        Assert.Equal("startupPath", exception.ParamName);
+    }
+
+    [Fact]
     public void SaveAppSettings_WritesExpectedSettingsFormat()
     {
         using TestWorkspace workspace = new TestWorkspace();
@@ -82,7 +90,26 @@ public sealed class AppSettingsServiceTests
 
 		AppSettingsData settings = service.LoadAppSettings();
 
-		Assert.False(settings.AutoLoadLastProfile);
-		Assert.Equal("deck-profile", settings.LastUsedProfile);
-	}
+        Assert.False(settings.AutoLoadLastProfile);
+        Assert.Equal("deck-profile", settings.LastUsedProfile);
+    }
+
+    [Fact]
+    public void SaveAppSettings_ThenLoadAppSettings_RoundTripsPersistedValues()
+    {
+        using TestWorkspace workspace = new TestWorkspace();
+        AppSettingsService service = new AppSettingsService(workspace.RootPath);
+        AppSettingsData expectedSettings = new AppSettingsData
+        {
+            AutoLoadLastProfile = true,
+            LastUsedProfile = "deck-profile"
+        };
+
+        service.SaveAppSettings(expectedSettings);
+
+        AppSettingsData actualSettings = service.LoadAppSettings();
+
+        Assert.Equal(expectedSettings.AutoLoadLastProfile, actualSettings.AutoLoadLastProfile);
+        Assert.Equal(expectedSettings.LastUsedProfile, actualSettings.LastUsedProfile);
+    }
 }

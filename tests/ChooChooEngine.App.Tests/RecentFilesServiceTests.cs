@@ -5,6 +5,14 @@ namespace ChooChooEngine.App.Tests;
 public sealed class RecentFilesServiceTests
 {
     [Fact]
+    public void Constructor_ThrowsForNullStartupPath()
+    {
+        ArgumentNullException exception = Assert.Throws<ArgumentNullException>(() => new RecentFilesService(null));
+
+        Assert.Equal("startupPath", exception.ParamName);
+    }
+
+    [Fact]
     public void SaveRecentFiles_WritesSectionedSettingsFormat()
     {
         using TestWorkspace workspace = new TestWorkspace();
@@ -34,6 +42,19 @@ public sealed class RecentFilesServiceTests
                 "/mods/second.dll"
             },
             File.ReadAllLines(settingsPath));
+    }
+
+    [Fact]
+    public void LoadRecentFiles_ReturnsEmptyListsWhenSettingsFileIsMissing()
+    {
+        using TestWorkspace workspace = new TestWorkspace();
+        RecentFilesService service = new RecentFilesService(workspace.RootPath);
+
+        RecentFilesData recentFiles = service.LoadRecentFiles();
+
+        Assert.Empty(recentFiles.GamePaths);
+        Assert.Empty(recentFiles.TrainerPaths);
+        Assert.Empty(recentFiles.DllPaths);
     }
 
     [Fact]
@@ -74,5 +95,29 @@ public sealed class RecentFilesServiceTests
         Assert.Equal(new[] { gamePath }, recentFiles.GamePaths);
         Assert.Equal(new[] { trainerPath }, recentFiles.TrainerPaths);
         Assert.Equal(new[] { dllPath }, recentFiles.DllPaths);
+    }
+
+    [Fact]
+    public void SaveRecentFiles_ThenLoadRecentFiles_RoundTripsPersistedExistingPaths()
+    {
+        using TestWorkspace workspace = new TestWorkspace();
+        RecentFilesService service = new RecentFilesService(workspace.RootPath);
+        string gamePath = workspace.CreateFile("games", "hades.exe");
+        string trainerPath = workspace.CreateFile("trainers", "hades-trainer.exe");
+        string firstDllPath = workspace.CreateFile("mods", "first.dll");
+        string secondDllPath = workspace.CreateFile("mods", "second.dll");
+
+        RecentFilesData expectedRecentFiles = new RecentFilesData(
+            new[] { gamePath },
+            new[] { trainerPath },
+            new[] { firstDllPath, secondDllPath });
+
+        service.SaveRecentFiles(expectedRecentFiles);
+
+        RecentFilesData actualRecentFiles = service.LoadRecentFiles();
+
+        Assert.Equal(expectedRecentFiles.GamePaths, actualRecentFiles.GamePaths);
+        Assert.Equal(expectedRecentFiles.TrainerPaths, actualRecentFiles.TrainerPaths);
+        Assert.Equal(expectedRecentFiles.DllPaths, actualRecentFiles.DllPaths);
     }
 }

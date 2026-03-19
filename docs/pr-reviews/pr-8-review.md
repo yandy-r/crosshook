@@ -367,51 +367,71 @@ Passing `"../../etc/passwd"` as a profile name constructs a path outside the int
 
 ### TC-1: `ProfileService.DeleteProfile` — entirely untested (Criticality: 9/10)
 
-**Status:** Open
+**Status:** Fixed
+
+Added `DeleteProfile_RemovesExistingProfileFile` and `DeleteProfile_ThrowsWhenProfileFileIsMissing` in `ProfileServiceTests`.
 
 ---
 
 ### TC-2: `ProfileService.LoadProfile` missing file — `FileNotFoundException` untested (Criticality: 9/10)
 
-**Status:** Open
+**Status:** Fixed
+
+Added `LoadProfile_ThrowsWhenProfileFileIsMissing` in `ProfileServiceTests`.
 
 ---
 
 ### TC-3: `ProfileService.GetProfileNames` — entirely untested (Criticality: 8/10)
 
-**Status:** Open
+**Status:** Fixed
+
+Added coverage for both the missing-directory default path and enumeration of persisted `.profile` names in `ProfileServiceTests`.
 
 ---
 
 ### TC-4: `AppSettingsService.LoadAppSettings` with corrupt boolean — crash untested (Criticality: 8/10)
 
-**Status:** Open
+**Status:** Fixed
+
+Validated as already covered by `LoadAppSettings_IgnoresInvalidBooleanValues_InsteadOfThrowing` in `AppSettingsServiceTests`; no production change was required.
 
 ---
 
 ### TC-5: `RecentFilesService.LoadRecentFiles` missing file — defaults untested (Criticality: 8/10)
 
-**Status:** Open
+**Status:** Fixed
+
+Added `LoadRecentFiles_ReturnsEmptyListsWhenSettingsFileIsMissing` in `RecentFilesServiceTests`.
 
 ---
 
 ### TC-6: No round-trip tests (Save then Load) for any service (Criticality: 7/10)
 
-**Status:** Open
+**Status:** Fixed
+
+Added save/load round-trip coverage for `ProfileService`, `AppSettingsService`, and `RecentFilesService`.
 
 ---
 
 ### TC-7: Unknown CLI flags silently ignored — behavior undocumented by tests (Criticality: 5/10)
 
-**Status:** Open
+**Status:** Fixed
+
+Added `Parse_IgnoresUnknownFlagsAndContinuesParsingKnownArguments` in `CommandLineParserTests`.
 
 ---
 
 ### TC-8: Constructor null-argument guards untested across all services (Criticality: 5/10)
 
-**Status:** Open
+**Status:** Fixed
+
+Added constructor null-guard tests for `ProfileService`, `AppSettingsService`, and `RecentFilesService`.
 
 All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` helper.
+
+**Validation for TC-1 through TC-8**
+
+- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~RecentFilesServiceTests|FullyQualifiedName~CommandLineParserTests"`
 
 ---
 
@@ -508,7 +528,7 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 
 ### Follow-up Issues
 
-14. Add the 8 missing test cases (TC-1 through TC-8) — **Status:** Open
+14. Add the 8 missing test cases (TC-1 through TC-8) — **Status:** Fixed
 15. Make data transfer objects immutable (`{ get; init; }`) — **Status:** Open
 16. Centralize Win32 constants in `Kernel32Interop` — **Status:** Open
 17. Add global unhandled exception handler in `Program.cs` — **Status:** Fixed

@@ -67,4 +67,17 @@ public sealed class CommandLineParserTests
         Assert.False(options.AutoLaunchRequested);
         Assert.Equal(string.Empty, options.AutoLaunchPath);
     }
+
+    [Fact]
+    public void Parse_IgnoresUnknownFlagsAndContinuesParsingKnownArguments()
+    {
+        CommandLineParser parser = new CommandLineParser();
+
+        CommandLineOptions options = parser.Parse(
+            new[] { "--mystery", "shadow", "-p", "Deck", "--noop", "placeholder", "-autolaunch", "game.exe" });
+
+        Assert.Equal(new[] { "Deck" }, options.ProfilesToLoad);
+        Assert.True(options.AutoLaunchRequested);
+        Assert.Equal("game.exe", options.AutoLaunchPath);
+    }
 }
