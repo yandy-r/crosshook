@@ -98,6 +98,7 @@ namespace ChooChooEngine.App.Forms
         private TableLayoutPanel mainLayout;
         private bool compactMode = false;
         private Timer resizeTimer;
+        private System.Timers.Timer _autoLaunchTimer;
         private TableLayoutPanel launchContainer;
         private Panel consolePanel;
         private Panel loadedDllsPanel;
@@ -271,6 +272,10 @@ namespace ChooChooEngine.App.Forms
             _injectionManager = new InjectionManager(_processManager);
             _memoryManager = new MemoryManager(_processManager);
             _resumePanel = new ResumePanel();
+            _resumePanel.Dock = DockStyle.Fill;
+            _resumePanel.Visible = false;
+            this.Controls.Add(_resumePanel);
+
             _profileService = new ProfileService(Application.StartupPath);
             _recentFilesService = new RecentFilesService(Application.StartupPath);
             _appSettingsService = new AppSettingsService(Application.StartupPath);
@@ -300,6 +305,13 @@ namespace ChooChooEngine.App.Forms
 		_processManager.Dispose();
 		_processManager = null;
             }
+
+	    if (_autoLaunchTimer != null)
+	    {
+		_autoLaunchTimer.Stop();
+		_autoLaunchTimer.Dispose();
+		_autoLaunchTimer = null;
+	    }
 
 	    if (resizeTimer != null)
 	    {
@@ -1747,6 +1759,7 @@ namespace ChooChooEngine.App.Forms
             // Show click to resume panel when focus is lost
             if (_resumePanel != null)
             {
+                _resumePanel.BringToFront();
                 _resumePanel.Show();
             }
         }
@@ -2544,18 +2557,19 @@ namespace ChooChooEngine.App.Forms
                 if (!string.IsNullOrEmpty(_autoLaunchPath) || !string.IsNullOrEmpty(_selectedTrainerPath))
                 {
                     // Delay launch slightly to allow UI to initialize properly
-                    System.Timers.Timer launchTimer = new System.Timers.Timer(1000);
-                    launchTimer.Elapsed += (s, e) => {
-                        launchTimer.Stop();
+                    // Store as class field to prevent GC before firing
+                    _autoLaunchTimer = new System.Timers.Timer(1000);
+                    _autoLaunchTimer.AutoReset = false;
+                    _autoLaunchTimer.Elapsed += (s, e) => {
                         this.BeginInvoke(new Action(() => {
                             LogToConsole("Executing launch command...");
                             BtnLaunch_Click(this, EventArgs.Empty);
-                            
+
                             // Minimize the window when auto-launching
                             this.WindowState = FormWindowState.Minimized;
                         }));
                     };
-                    launchTimer.Start();
+                    _autoLaunchTimer.Start();
                 }
                 else
                 {

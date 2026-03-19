@@ -256,9 +256,10 @@ namespace ChooChooEngine.App.Injection
             try
             {
                 // Write the DLL path to the allocated memory
+                // Pass exact buffer length — VirtualAllocEx zero-initialized the extra byte for the null terminator
                 UIntPtr bytesWritten;
-                bool writeResult = Kernel32Interop.WriteProcessMemory(processHandle, remoteMemory, dllPathBytes, 
-                    allocSize, out bytesWritten);
+                bool writeResult = Kernel32Interop.WriteProcessMemory(processHandle, remoteMemory, dllPathBytes,
+                    (uint)dllPathBytes.Length, out bytesWritten);
                 if (!writeResult)
                     return false;
 

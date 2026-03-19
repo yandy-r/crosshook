@@ -38,10 +38,10 @@ Go through the @docs/plans/progressive-disclosure plan and lets create a github 
 
 ## PR Review Correction
 
-Let's validate and fix suggestions issues 19-24
+Let's validate and fix critical issues 1-4
 
-- file: [@pr-146-review.md](file:///home/yandy/Projects/github.com/yandy-r/choochoo-loader/docs/pr-reviews/pr-146-review.md)
+- file: [@pr-8-review.md](file:///home/yandy/Projects/github.com/yandy-r/choochoo-loader/docs/pr-reviews/pr-8-review.md)
 - validate before implementing
 - run targeted tests
-- update doc when complete ([@pr-146-review.md](file:///home/yandy/Projects/github.com/yandy-r/choochoo-loader/docs/pr-reviews/pr-146-review.md))
+- update doc when complete ([@pr-8-review.md](file:///home/yandy/Projects/github.com/yandy-r/choochoo-loader/docs/pr-reviews/pr-8-review.md))
 - when confirmed fix, commit progress

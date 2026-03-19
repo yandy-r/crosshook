@@ -384,6 +384,9 @@ namespace ChooChooEngine.App.Core
 
             if (result)
             {
+                // Close the thread handle immediately — we only need hProcess
+                Kernel32Interop.CloseHandle(processInfo.hThread);
+
                 _process = Process.GetProcessById(processInfo.dwProcessId);
                 _processHandle = processInfo.hProcess;
                 _processHandleOpen = true;

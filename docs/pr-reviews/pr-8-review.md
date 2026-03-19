@@ -25,11 +25,11 @@ Issues that represent bugs, resource leaks, or non-functional features that shou
 
 **File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:382-395`
 **Source:** Code Reviewer, Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 `PROCESS_INFORMATION` returns both `hProcess` and `hThread`. The code saves `processInfo.hProcess` but never closes `processInfo.hThread`. Every process launch leaks a kernel thread handle.
 
-**Fix:** Add `Kernel32Interop.CloseHandle(processInfo.hThread);` after line 389.
+**Fix:** Added `Kernel32Interop.CloseHandle(processInfo.hThread);` immediately after successful `CreateProcess`, before storing `hProcess`.
 
 ---
 
@@ -37,19 +37,11 @@ Issues that represent bugs, resource leaks, or non-functional features that shou
 
 **File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:248-261`
 **Source:** Code Reviewer, Comment Analyzer
-**Status:** Open
+**Status:** Fixed
 
 `allocSize` includes space for a null terminator (`dllPathBytes.Length + 1`), but the same `allocSize` is passed as `nSize` to `WriteProcessMemory` while the source buffer `dllPathBytes` only contains `dllPathBytes.Length` bytes. This reads 1 byte past the buffer boundary.
 
-```csharp
-byte[] dllPathBytes = Encoding.ASCII.GetBytes(dllPath);
-uint allocSize = (uint)((dllPathBytes.Length + 1) * Marshal.SizeOf(typeof(char)));
-// ...
-bool writeResult = Kernel32Interop.WriteProcessMemory(processHandle, remoteMemory, dllPathBytes,
-    allocSize, out bytesWritten);  // allocSize > dllPathBytes.Length
-```
-
-**Fix:** Pass `(uint)dllPathBytes.Length` as `nSize`. The zero-initialized `VirtualAllocEx` memory already provides the null terminator.
+**Fix:** Changed `nSize` to `(uint)dllPathBytes.Length`. The zero-initialized `VirtualAllocEx` memory already provides the null terminator.
 
 ---
 
@@ -57,11 +49,11 @@ bool writeResult = Kernel32Interop.WriteProcessMemory(processHandle, remoteMemor
 
 **File:** `src/ChooChooEngine.App/Forms/MainForm.cs:273`
 **Source:** Code Reviewer
-**Status:** Open
+**Status:** Fixed
 
 `_resumePanel` is instantiated in `InitializeManagers()` and `Show()`/`Hide()` are called from `OnDeactivate`/`OnActivated`, but it is never added to any `Controls` collection. The pause/resume overlay feature is completely non-functional.
 
-**Fix:** Add `this.Controls.Add(_resumePanel);` after creation, and call `BringToFront()` when showing.
+**Fix:** Added `Controls.Add(_resumePanel)` with `Dock = Fill` and `Visible = false` after creation. Added `BringToFront()` in `OnDeactivate` before `Show()`.
 
 ---
 
@@ -69,11 +61,11 @@ bool writeResult = Kernel32Interop.WriteProcessMemory(processHandle, remoteMemor
 
 **File:** `src/ChooChooEngine.App/Forms/MainForm.cs:2547-2558`
 **Source:** Code Reviewer, Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 A `System.Timers.Timer` is created as a local variable. After the method returns, the timer has no rooted reference and may be garbage collected before firing. The timer is also never disposed.
 
-**Fix:** Store as a class field `_autoLaunchTimer` and dispose in `OnFormClosing`. Or switch to `System.Windows.Forms.Timer`.
+**Fix:** Promoted to class field `_autoLaunchTimer`, set `AutoReset = false` (fires once), and added disposal in `OnFormClosing`.
 
 ---
 
@@ -413,10 +405,10 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 
 ### Before Merge (Critical)
 
-1. **Fix CR-1:** Close `hThread` after `CreateProcess` — 1 line — **Status:** Open
-2. **Fix CR-2:** Pass `dllPathBytes.Length` to `WriteProcessMemory` — 1 line — **Status:** Open
-3. **Fix CR-3:** Add `_resumePanel` to form Controls — 1 line — **Status:** Open
-4. **Fix CR-4:** Root the auto-launch timer as a class field — 3 lines — **Status:** Open
+1. **Fix CR-1:** Close `hThread` after `CreateProcess` — 1 line — **Status:** Fixed
+2. **Fix CR-2:** Pass `dllPathBytes.Length` to `WriteProcessMemory` — 1 line — **Status:** Fixed
+3. **Fix CR-3:** Add `_resumePanel` to form Controls — 1 line — **Status:** Fixed
+4. **Fix CR-4:** Root the auto-launch timer as a class field — 3 lines — **Status:** Fixed
 5. **Fix CR-5/6/7:** Add `SetLastError = true` to all P/Invoke declarations — mechanical — **Status:** Open
 6. **Fix CR-10:** Correct PE header offset or use Optional Header magic intentionally — 2 lines — **Status:** Open
 
