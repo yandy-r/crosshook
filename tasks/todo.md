@@ -18,7 +18,7 @@
 - [x] Add targeted automated tests for the confirmed fixes.
 - [x] Run targeted build and test verification for the touched areas.
 - [x] Update `docs/pr-reviews/pr-8-review.md` with validation notes, fix status, and verification commands.
-- [ ] Commit confirmed progress.
+- [x] Commit confirmed progress.
 
 ## Review
 
