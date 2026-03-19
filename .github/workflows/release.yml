@@ -43,7 +43,7 @@ jobs:
           name: ${{ github.event.inputs.version || github.ref_name }}
           generate_release_notes: true
           files: |
-            dist/choochoo-win-x64.zip
-            dist/choochoo-win-x86.zip
+            dist/crosshook-win-x64.zip
+            dist/crosshook-win-x86.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

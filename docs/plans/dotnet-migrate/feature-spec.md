@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-ChooChoo Loader can be migrated from `.NET Framework 4.8` to modern `.NET` without changing its core product model: it remains a WinForms Windows executable running under WINE/Proton, and it continues to launch games, trainers, and DLL injections using Win32 APIs. The migration should be scoped as a tooling/runtime modernization with targeted cleanup, not as a combined UI rewrite, architecture rewrite, and config-format rewrite.
+CrossHook Loader can be migrated from `.NET Framework 4.8` to modern `.NET` without changing its core product model: it remains a WinForms Windows executable running under WINE/Proton, and it continues to launch games, trainers, and DLL injections using Win32 APIs. The migration should be scoped as a tooling/runtime modernization with targeted cleanup, not as a combined UI rewrite, architecture rewrite, and config-format rewrite.
 
 The first hard success criterion is not `dotnet build`; it is a published build that starts and behaves correctly under WINE/Proton. Only after that gate passes should the plan move into refactors or `LibraryImport` modernization.
 
@@ -38,7 +38,7 @@ These items must be resolved before implementation starts:
 ## Non-Goals
 
 - Avalonia or other UI framework migration.
-- New `ChooChooEngine.Core` project or full interface-based architecture split.
+- New `CrossHookkEngine.Core` project or full interface-based architecture split.
 - JSON/TOML/profile format migration.
 - Native Linux support.
 - NativeAOT.
@@ -48,7 +48,7 @@ These items must be resolved before implementation starts:
 ## Verified Facts From The Current Codebase
 
 - The project is currently a classic `.csproj` targeting `.NET Framework 4.8` and `AnyCPU`.
-- The solution contains one application project: `src/ChooChooEngine.App`.
+- The solution contains one application project: `src/CrossHookkEngine.App`.
 - There are 19 unique Win32 APIs across `kernel32.dll` and `Dbghelp.dll`.
 - `MainForm` currently:
   - initializes managers and subscribes to their events in `InitializeManagers()`
@@ -124,7 +124,7 @@ If those are intentionally removed, the plan should say so explicitly instead of
 ## Deferred Refactors
 
 - `LaunchOrchestrator`
-- `ChooChooEngine.Core` split
+- `CrossHookkEngine.Core` split
 - P/Invoke deduplication into shared interop files
 - nullable-wide cleanup across every source file
 - README/product cleanup beyond migration-related corrections
@@ -133,7 +133,7 @@ These are reasonable follow-up issues, but they should not block the base migrat
 
 ## Success Criteria
 
-- [ ] `dotnet build src/ChooChooEngine.sln -c Release` succeeds
+- [ ] `dotnet build src/CrossHookkEngine.sln -c Release` succeeds
 - [ ] The SDK-style project maps assembly metadata intentionally
 - [ ] Contributor docs no longer claim `dotnet build` is unsupported
 - [ ] A published modern-.NET build launches under WINE/Proton

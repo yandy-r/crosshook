@@ -37,7 +37,7 @@ The strongest migration path is a narrow, behavior-preserving move to `net9.0-wi
 ## What To Defer
 
 - Avalonia
-- `ChooChooEngine.Core` split
+- `CrossHookEngine.Core` split
 - JSON/TOML migration
 - `LaunchOrchestrator`
 - broad nullable/style modernization

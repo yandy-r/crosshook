@@ -13,7 +13,7 @@ The live code supports a conservative migration plan. The highest-signal finding
 
 ### Project And Packaging
 
-- `ChooChooEngine.App.csproj` targets `.NET Framework 4.8`
+- `CrossHookEngine.App.csproj` targets `.NET Framework 4.8`
 - platform is `AnyCPU`
 - `packages.config` contains `SharpDX 4.2.0`
 - `AssemblyInfo.cs` still contains explicit assembly attributes beyond name/description

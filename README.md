@@ -1,35 +1,35 @@
-# **🚂 ChooChoo**
+# **🚂 CrossHook**
 
-[![Download ChooChoo](https://img.shields.io/badge/⬇_Download-ChooChoo_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/releases)
-[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/choochoo-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/choochoo-loader/releases)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/choochoo-loader)
-[![License](https://img.shields.io/github/license/yandy-r/choochoo-loader?style=for-the-badge&color=green)](LICENSE)
+[![Download CrossHook](https://img.shields.io/badge/⬇_Download-CrossHook_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook-loader/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/crosshook-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/crosshook-loader/releases)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/crosshook-loader)
+[![License](https://img.shields.io/github/license/yandy-r/crosshook-loader?style=for-the-badge&color=green)](LICENSE)
 
 **Proton/WINE Trainer & DLL Loader**  
 A loader for SteamOS/Linux/macOS that handles launches of games with trainers/mods (FLiNG, WeMod, etc.), patches, and up to 5 extra executables or DLLs, bypassing the issues of launching mods/patches in WINE/Proton enviroments 🔥.
 
 <p align="center">
-  <img src="choochoo.png" width="40%" alt="ChooChoo Logo" />
+  <img src="crosshook.png" width="40%" alt="CrossHook Logo" />
 </p>
 
 <p align="center">
-  <img src="choochoo.gif" alt="Optimized GIF">
+  <img src="crosshook.gif" alt="Optimized GIF">
 </p>
 ---
 
 ## **Download & Links**
 
-[![Download ChooChoo](https://img.shields.io/badge/Download-ChooChoo-green?style=for-the-badge&logo=github)](https://github.com/yandy-r/choochoo-loader/releases)
+[![Download CrossHook](https://img.shields.io/badge/Download-CrossHook-green?style=for-the-badge&logo=github)](https://github.com/yandy-r/crosshook-loader/releases)
 
-Going forward, download ChooChoo from the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases). The standard release workflow (`.github/workflows/release.yml`) publishes these zip assets:
+Going forward, download CrossHook from the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases). The standard release workflow (`.github/workflows/release.yml`) publishes these zip assets:
 
-- `choochoo-win-x64.zip` for the normal 64-bit case
-- `choochoo-win-x86.zip` for 32-bit compatibility cases
+- `crosshook-win-x64.zip` for the normal 64-bit case
+- `crosshook-win-x86.zip` for 32-bit compatibility cases
 
-Install by extracting the entire zip into any directory you want to keep ChooChoo in, then launch `choochoo.exe` from the extracted folder. Do not run it from inside the zip, and do not move only `choochoo.exe` by itself.
+Install by extracting the entire zip into any directory you want to keep CrossHook in, then launch `crosshook.exe` from the extracted folder. Do not run it from inside the zip, and do not move only `crosshook.exe` by itself.
 
-[![GitHub Releases](https://img.shields.io/github/release/yandy-r/choochoo-loader/all.svg?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/releases)  
-[![Platforms: macOS | Linux | Steam Deck | Windows ](https://img.shields.io/badge/Platforms-Windows%20|%20macOS%20|%20Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/choochoo-loader)
+[![GitHub Releases](https://img.shields.io/github/release/yandy-r/crosshook-loader/all.svg?style=for-the-badge)](https://github.com/yandy-r/crosshook-loader/releases)  
+[![Platforms: macOS | Linux | Steam Deck | Windows ](https://img.shields.io/badge/Platforms-Windows%20|%20macOS%20|%20Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/crosshook-loader)
 
 ---
 
@@ -38,7 +38,7 @@ Install by extracting the entire zip into any directory you want to keep ChooCho
 The migration now uses the SDK-style `net9.0-windows` project. Build and publish with the .NET 9 SDK:
 
 ```bash
-dotnet build src/ChooChooEngine.sln -c Release
+dotnet build src/CrossHookEngine.sln -c Release
 ./scripts/publish-dist.sh
 ```
 
@@ -46,16 +46,16 @@ The release policy is dual artifacts, `win-x64` and `win-x86`, so the migration 
 
 The packaging script produces the release artifacts under `dist/`:
 
-- `dist/choochoo-win-x64/`
-- `dist/choochoo-win-x86/`
-- `dist/choochoo-win-x64.zip`
-- `dist/choochoo-win-x86.zip`
+- `dist/crosshook-win-x64/`
+- `dist/crosshook-win-x86/`
+- `dist/crosshook-win-x64.zip`
+- `dist/crosshook-win-x86.zip`
 
-Ship the zipped `dist/choochoo-win-*.zip` artifacts, or copy the matching `dist/choochoo-win-*` directory as a unit. `.github/workflows/release.yml` uploads these zips to the GitHub Releases page with auto-generated notes when a `v*` tag is pushed or the workflow is run manually.
+Ship the zipped `dist/crosshook-win-*.zip` artifacts, or copy the matching `dist/crosshook-win-*` directory as a unit. `.github/workflows/release.yml` uploads these zips to the GitHub Releases page with auto-generated notes when a `v*` tag is pushed or the workflow is run manually.
 
-Important: this is still a directory-based self-contained publish, not a single-file executable. `choochoo.exe` must stay beside `choochoo.dll`, `choochoo.deps.json`, `choochoo.runtimeconfig.json`, and the bundled runtime files from the extracted release folder. If you copy only `choochoo.exe` into another directory, WINE/.NET will fail with an error like `The application to execute does not exist: ...\\choochoo.dll`.
+Important: this is still a directory-based self-contained publish, not a single-file executable. `crosshook.exe` must stay beside `crosshook.dll`, `crosshook.deps.json`, `crosshook.runtimeconfig.json`, and the bundled runtime files from the extracted release folder. If you copy only `crosshook.exe` into another directory, WINE/.NET will fail with an error like `The application to execute does not exist: ...\\crosshook.dll`.
 
-The raw `src/ChooChooEngine.App/bin/Release/net9.0-windows/<rid>/publish/` directories remain implementation details of `dotnet publish`. The repo-root `choochoo.exe` is also a legacy checked-in file and is not a release artifact.
+The raw `src/CrossHookEngine.App/bin/Release/net9.0-windows/<rid>/publish/` directories remain implementation details of `dotnet publish`. The repo-root `crosshook.exe` is also a legacy checked-in file and is not a release artifact.
 
 `Profiles/`, `Settings/`, and `settings.ini` are user/runtime state and are intentionally excluded from `dist/` release artifacts. The app creates or tolerates those paths at runtime, so upgrades should not ship them.
 
@@ -67,9 +67,9 @@ For the full local workflow, including the optional repo-local SDK path and exac
 
 Running game trainers, patches, and DLL injectors in **Proton** or **WINE** can be problematic due to compatibility issues, anti-cheat false positives, and differences in Windows API implementations. Many game trainers and mods rely on system calls that work natively on Windows but fail under Proton/WINE.
 
-**ChooChoo** solves these issues by:
+**CrossHook** solves these issues by:
 
-✅ **Ensuring Proper Trainer Execution** – Many trainers rely on system-level hooks and memory modifications that fail in WINE. ChooChoo makes sure they load properly.
+✅ **Ensuring Proper Trainer Execution** – Many trainers rely on system-level hooks and memory modifications that fail in WINE. CrossHook makes sure they load properly.
 
 ✅ **DLL Injection Support** – Some patches, mods, or debuggers need to inject DLLs into the game process, which can fail in WINE without proper handling.
 
@@ -79,7 +79,7 @@ Running game trainers, patches, and DLL injectors in **Proton** or **WINE** can 
 
 ✅ **Seamless Steam Deck Integration** – Works effortlessly with Steam's Proton compatibility layer, making it easy to add trainers and patches on the go.
 
-Whether you are playing on **Linux**, **macOS (via Whisky)**, or **Steam Deck**, **ChooChoo** makes sure that your trainers, DLLs, and patches just...work.
+Whether you are playing on **Linux**, **macOS (via Whisky)**, or **Steam Deck**, **CrossHook** makes sure that your trainers, DLLs, and patches just...work.
 
 ---
 
@@ -101,21 +101,21 @@ Whether you are playing on **Linux**, **macOS (via Whisky)**, or **Steam Deck**,
 1. **Switch to Desktop Mode**
    - Tap the Steam Deck's **Power** button → **Switch to Desktop**.
 
-2. **Download & Extract ChooChoo**
-   - Open the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases).
-   - Download `choochoo-win-x64.zip` unless you specifically need the 32-bit `choochoo-win-x86.zip`.
-   - Extract the full zip into a folder you want to keep, such as `~/Applications/ChooChoo` or another game tools directory.
+2. **Download & Extract CrossHook**
+   - Open the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases).
+   - Download `crosshook-win-x64.zip` unless you specifically need the 32-bit `crosshook-win-x86.zip`.
+   - Extract the full zip into a folder you want to keep, such as `~/Applications/CrossHook` or another game tools directory.
 
-3. **Add ChooChoo to Steam**
+3. **Add CrossHook to Steam**
    - Open Steam on your Deck (in Desktop Mode).
-   - Go to **Games** → **Add a Non-Steam Game to My Library** → Select the extracted `choochoo.exe`.
+   - Go to **Games** → **Add a Non-Steam Game to My Library** → Select the extracted `crosshook.exe`.
 
 4. **Enable Proton**
-   - In your Steam Library, **right-click** on ChooChoo → **Properties** → **Compatibility**.
+   - In your Steam Library, **right-click** on CrossHook → **Properties** → **Compatibility**.
    - Check **Force the use…** and pick a Proton version (Proton 9+ recommended).
 
 5. **Configure & Launch**
-   - Click **Play** to open ChooChoo.
+   - Click **Play** to open CrossHook.
    - Choose your **Game Path**, **Trainer Path**, and any extra DLLs/EXEs.
    - (Optional) **Save a Profile** and enable **Auto Launcher**.
    - Finally, hit **Launch**.
@@ -178,19 +178,19 @@ Now trainers like **WeMod** should work properly on Steam Deck.
 1. **Install Whisky**
    - Get the latest version of **Whisky** for macOS.
 
-2. **Download & Extract ChooChoo**
-   - Open the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases).
-   - Download `choochoo-win-x64.zip`.
+2. **Download & Extract CrossHook**
+   - Open the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases).
+   - Download `crosshook-win-x64.zip`.
    - Extract the full zip into a folder you want to keep, then use that extracted folder as the source for Whisky.
 
-3. **Create a Bottle & Add ChooChoo**
+3. **Create a Bottle & Add CrossHook**
    - In Whisky, create a new **bottle**.
-   - Use **"Run Executable"** and pick the extracted `choochoo.exe`.
+   - Use **"Run Executable"** and pick the extracted `crosshook.exe`.
 
 4. **Configure & Run**
    - In the bottle's settings, enable **DXVK** (and other needed compatibility tweaks).
-   - Press **Run** to start ChooChoo.
-   - Inside ChooChoo, set **Game Path**, **Trainer Path**, and extras.
+   - Press **Run** to start CrossHook.
+   - Inside CrossHook, set **Game Path**, **Trainer Path**, and extras.
    - **Launch** to start your game + trainer simultaneously.
 
 <del>If trainers like <b>WeMod</b> are not working properly in <b>CrossOver/Whisky</b>, removing <b>Wine-Mono</b> and installing the official <b>.NET Framework</b> can help.</del>
@@ -227,7 +227,7 @@ Now trainers like **WeMod** should work properly on Steam Deck.
 <del>After this, **WeMod and other trainers** should now work correctly in **WINE/Proton on macOS**</del>
 
 The developers of Whisky have stated they do not intend to upgrade Whisky to a newer version of WINE to allow more modern Windows binaries.
-The Whisky project is not suitable for use with ChooChoo and ChooChoo style video gaming with binaries requiring complex memory manipulations.
+The Whisky project is not suitable for use with CrossHook and CrossHook style video gaming with binaries requiring complex memory manipulations.
 Unfortuntely there is nothing the end user can do about this.
 
 ---
@@ -235,11 +235,11 @@ Unfortuntely there is nothing the end user can do about this.
 ## **Customization & Artwork**
 
 - **Renaming in Steam:**
-  - Right-click ChooChoo in your Library → **Properties** → **Rename** (e.g., _"ChooChoo Trainer"_).
+  - Right-click CrossHook in your Library → **Properties** → **Rename** (e.g., _"CrossHook Trainer"_).
 
 - **Decky Loader & SteamGridDB (Optional):**
   - Install **Decky Loader** on Steam Deck.
-  - Add **SteamGridDB** plugin → Use it to replace ChooChoo's artwork with custom images or icons.
+  - Add **SteamGridDB** plugin → Use it to replace CrossHook's artwork with custom images or icons.
 
 ---
 

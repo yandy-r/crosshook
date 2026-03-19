@@ -88,7 +88,7 @@ BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
 git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1 && die "tag already exists: $TAG"
 git config --get "remote.$REMOTE.url" >/dev/null 2>&1 || die "remote not found: $REMOTE"
 
-TEMP_CHANGELOG="$(mktemp "${TMPDIR:-/tmp}/choochoo-changelog.XXXXXX")"
+TEMP_CHANGELOG="$(mktemp "${TMPDIR:-/tmp}/crosshook-changelog.XXXXXX")"
 cleanup() {
   rm -f "$TEMP_CHANGELOG"
 }

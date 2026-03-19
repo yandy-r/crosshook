@@ -52,7 +52,7 @@ There are two distinct DLL-loading cases in the current code:
 ### Local Validation Import
 
 - imported `LoadLibrary`
-- used to validate a DLL inside the ChooChoo process
+- used to validate a DLL inside the CrossHook process
 - appropriate place for Unicode-aware marshalling decisions
 
 ### Remote Injection Path

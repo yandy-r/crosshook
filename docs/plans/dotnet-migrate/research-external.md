@@ -4,7 +4,7 @@
 
 ## Executive Summary
 
-Migrating ChooChoo Loader from .NET Framework 4.8 to .NET 9 (LTS: .NET 8) is technically feasible but requires careful handling of three areas: (1) converting the classic .csproj to SDK-style with `net9.0-windows` target and `UseWindowsForms`, (2) migrating ~20 Win32 P/Invoke declarations from `[DllImport]` to the modern `[LibraryImport]` source generator or adopting CsWin32 for type-safe generated bindings, and (3) validating that the self-contained Windows executable continues to function under WINE/Proton -- particularly the DLL injection flow using `CreateRemoteThread`/`VirtualAllocEx`/`WriteProcessMemory`, which has known reliability issues under WINE regardless of .NET version. The migration itself is straightforward for the codebase's size; the WINE/Proton runtime compatibility is the highest-risk dimension.
+Migrating CrossHook Loader from .NET Framework 4.8 to .NET 9 (LTS: .NET 8) is technically feasible but requires careful handling of three areas: (1) converting the classic .csproj to SDK-style with `net9.0-windows` target and `UseWindowsForms`, (2) migrating ~20 Win32 P/Invoke declarations from `[DllImport]` to the modern `[LibraryImport]` source generator or adopting CsWin32 for type-safe generated bindings, and (3) validating that the self-contained Windows executable continues to function under WINE/Proton -- particularly the DLL injection flow using `CreateRemoteThread`/`VirtualAllocEx`/`WriteProcessMemory`, which has known reliability issues under WINE regardless of .NET version. The migration itself is straightforward for the codebase's size; the WINE/Proton runtime compatibility is the highest-risk dimension.
 
 **Confidence**: High (migration path is well-documented by Microsoft; WINE compatibility is the uncertain factor)
 
@@ -175,7 +175,7 @@ var processHandle = PInvoke.OpenProcess(
 
 #### Limitations for This Project
 
-- **Small codebase**: ChooChoo Loader has ~7 source files. Manual migration is likely faster and more predictable than running the Upgrade Assistant.
+- **Small codebase**: CrossHook Loader has ~7 source files. Manual migration is likely faster and more predictable than running the Upgrade Assistant.
 - **P/Invoke heavy**: The tool does not convert `[DllImport]` to `[LibraryImport]` or CsWin32. This must be done manually.
 - **No WINE/Proton awareness**: The tool has no concept of cross-platform WINE deployment.
 
@@ -271,8 +271,8 @@ The current classic .csproj (75 lines) would convert to an SDK-style .csproj of 
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RootNamespace>ChooChooEngine.App</RootNamespace>
-    <AssemblyName>choochoo</AssemblyName>
+    <RootNamespace>CrossHookEngine.App</RootNamespace>
+    <AssemblyName>crosshook</AssemblyName>
     <ApplicationDefaultFont>Microsoft Sans Serif, 8.25pt</ApplicationDefaultFont>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
@@ -460,7 +460,7 @@ This is where the most significant risks lie. The project uses the following ker
 
 1. **`CreateRemoteThread` can segfault** under WINE. The thread created by `CreateRemoteThread` may crash because WINE's thread creation does not fully replicate Windows thread initialization semantics.
 
-2. **Linux security restrictions**: Injection only works if the injecting process is in the parent process tree of the target. Since ChooChoo Loader uses `CreateProcess` to launch the game, this should be satisfied -- but only when using `LaunchMethod.CreateProcess`, not `ShellExecute` or `CmdStart`.
+2. **Linux security restrictions**: Injection only works if the injecting process is in the parent process tree of the target. Since CrossHook Loader uses `CreateProcess` to launch the game, this should be satisfied -- but only when using `LaunchMethod.CreateProcess`, not `ShellExecute` or `CmdStart`.
 
 3. **DLL path resolution**: Under WINE/Proton, DLLs in the game directory are not loaded instead of system DLLs by default. The `WINEDLLOVERRIDES` environment variable may be needed.
 
@@ -535,7 +535,7 @@ This is where the most significant risks lie. The project uses the following ker
 ```csharp
 using System.Runtime.InteropServices;
 
-namespace ChooChooEngine.App.Interop;
+namespace CrossHookEngine.App.Interop;
 
 /// <summary>
 /// Kernel32 P/Invoke declarations using modern LibraryImport source generation.
@@ -763,8 +763,8 @@ MiniDumpWriteDump
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <RootNamespace>ChooChooEngine.App</RootNamespace>
-    <AssemblyName>choochoo</AssemblyName>
+    <RootNamespace>CrossHookEngine.App</RootNamespace>
+    <AssemblyName>crosshook</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationDefaultFont>Microsoft Sans Serif, 8.25pt</ApplicationDefaultFont>
@@ -791,14 +791,14 @@ MiniDumpWriteDump
 ### Modern Program.cs Entry Point
 
 ```csharp
-using ChooChooEngine.App.Forms;
+using CrossHookEngine.App.Forms;
 
-namespace ChooChooEngine.App;
+namespace CrossHookEngine.App;
 
 static class Program
 {
     private static Mutex? _mutex;
-    private const string MutexName = "ChooChooEngineInjectorSingleInstance";
+    private const string MutexName = "CrossHookEngineInjectorSingleInstance";
 
     [STAThread]
     static void Main(string[] args)
@@ -808,7 +808,7 @@ static class Program
         if (!createdNew)
         {
             MessageBox.Show(
-                "ChooChoo Injection Engine is already running!",
+                "CrossHook Injection Engine is already running!",
                 "Already Running",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -838,7 +838,7 @@ static class Program
 
 ```bash
 # Build command
-dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj \
+dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj \
   -c Release \
   -r win-x64 \
   --self-contained true \
@@ -848,13 +848,13 @@ dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj \
   -o publish/
 ```
 
-**Output**: A single `choochoo.exe` (~70-100MB) that contains the full .NET 9 runtime. This runs directly under WINE/Proton without installing any .NET runtime in the prefix.
+**Output**: A single `crosshook.exe` (~70-100MB) that contains the full .NET 9 runtime. This runs directly under WINE/Proton without installing any .NET runtime in the prefix.
 
 **WINE/Proton launch**:
 
 ```bash
 # Direct WINE
-wine publish/choochoo.exe
+wine publish/crosshook.exe
 
 # Steam launch options (for Proton)
 WINEDLLOVERRIDES="winhttp=n,b" %command%

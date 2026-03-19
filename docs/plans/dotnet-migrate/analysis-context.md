@@ -10,9 +10,9 @@ The codebase supports a modern-.NET migration, but the original plan mixed migra
 
 ## Current-State Facts
 
-- Single application project: `src/ChooChooEngine.App`
+- Single application project: `src/CrossHookEngine.App`
 - Current build target: `.NET Framework 4.8`, `AnyCPU`
-- Main code bottleneck: `src/ChooChooEngine.App/Forms/MainForm.cs`
+- Main code bottleneck: `src/CrossHookkEngine.App/Forms/MainForm.cs`
 - Current persistence root: `Application.StartupPath`
 - Current profile format stores `LaunchMethod` by enum name
 - Current remote injection path uses `"LoadLibraryA"` plus `Encoding.ASCII`

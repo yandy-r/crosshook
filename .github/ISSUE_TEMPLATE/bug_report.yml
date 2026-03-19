@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug or unexpected behavior in ChooChoo Loader
+description: Report a bug or unexpected behavior in CrossHook Loader
 title: '[Bug]: '
 labels: ['type:bug', 'status:needs-triage']
 body:
@@ -21,7 +21,7 @@ body:
     id: component
     attributes:
       label: Component
-      description: Which part of ChooChoo is affected?
+      description: Which part of CrossHook is affected?
       options:
         - Injection (DLL injection)
         - Memory (read/write/save/restore)
@@ -38,7 +38,7 @@ body:
     id: platform
     attributes:
       label: Platform
-      description: Where are you running ChooChoo?
+      description: Where are you running CrossHook?
       options:
         - Steam Deck (SteamOS)
         - Linux (other distro)
@@ -57,10 +57,10 @@ body:
       required: true
 
   - type: input
-    id: choochoo-version
+    id: crosshook-version
     attributes:
-      label: ChooChoo Version
-      description: 'Version or commit hash of ChooChoo Loader'
+      label: CrossHook Version
+      description: 'Version or commit hash of CrossHook Loader'
       placeholder: 'v1.0.0 or abc1234'
     validations:
       required: true

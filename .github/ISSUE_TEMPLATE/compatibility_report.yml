@@ -1,12 +1,12 @@
 name: Compatibility Report
-description: Report whether a game/trainer combination works with ChooChoo under Proton/WINE
+description: Report whether a game/trainer combination works with CrossHook under Proton/WINE
 title: '[Compat]: '
 labels: ['type:compatibility', 'status:needs-triage']
 body:
   - type: markdown
     attributes:
       value: |
-        Help build our compatibility database! Report whether a game + trainer combination works with ChooChoo Loader under Proton/WINE.
+        Help build our compatibility database! Report whether a game + trainer combination works with CrossHook Loader under Proton/WINE.
 
   - type: dropdown
     id: status
@@ -39,10 +39,10 @@ body:
       required: true
 
   - type: input
-    id: choochoo-version
+    id: crosshook-version
     attributes:
-      label: ChooChoo Version
-      description: 'Version or commit hash of ChooChoo Loader'
+      label: CrossHook Version
+      description: 'Version or commit hash of CrossHook Loader'
       placeholder: 'v1.0.0 or abc1234'
     validations:
       required: true
@@ -51,7 +51,7 @@ body:
     id: platform
     attributes:
       label: Platform
-      description: Where are you running ChooChoo?
+      description: Where are you running CrossHook?
       options:
         - Steam Deck (SteamOS)
         - Linux (other distro)

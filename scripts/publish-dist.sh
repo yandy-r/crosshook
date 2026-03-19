@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROJECT_PATH="$ROOT_DIR/src/ChooChooEngine.App/ChooChooEngine.App.csproj"
+PROJECT_PATH="$ROOT_DIR/src/CrossHookEngine.App/CrossHookEngine.App.csproj"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
 CONFIGURATION="${CONFIGURATION:-Release}"
 RIDS=(win-x64 win-x86)
@@ -24,14 +24,14 @@ if [[ ! -f "$PROJECT_PATH" ]]; then
 fi
 
 mkdir -p "$DIST_DIR"
-STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/choochoo-dist.XXXXXX")"
+STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/crosshook-dist.XXXXXX")"
 cleanup() {
   rm -rf "$STAGING_DIR"
 }
 trap cleanup EXIT
 
 for rid in "${RIDS[@]}"; do
-  ARTIFACT_NAME="choochoo-${rid}"
+  ARTIFACT_NAME="crosshook-${rid}"
   RID_STAGE_DIR="$STAGING_DIR/$ARTIFACT_NAME"
   ZIP_PATH="$DIST_DIR/$ARTIFACT_NAME.zip"
 

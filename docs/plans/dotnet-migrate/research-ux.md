@@ -4,15 +4,15 @@
 
 ## Executive Summary
 
-Migrating ChooChoo Loader from .NET Framework 4.8 to modern .NET (8/9) presents a critical UX crossroads: WinForms on modern .NET cannot reliably run under WINE/Proton without installing the .NET Desktop Runtime into the WINE prefix (a notoriously fragile process), while .NET Framework 4.8 WinForms is reasonably supported by wine-mono. The strongest path forward for cross-platform Linux/Steam Deck users is migrating to **Avalonia UI**, which renders natively on Linux without WINE, supports MVVM architecture, and has proven itself in production game-modding tools (NexusMods.App uses Avalonia). A phased migration -- first porting to .NET 8/9 while keeping WinForms functional under WINE, then incrementally rewriting the UI in Avalonia -- balances risk and delivers the best long-term UX.
+Migrating CrossHook Loader from .NET Framework 4.8 to modern .NET (8/9) presents a critical UX crossroads: WinForms on modern .NET cannot reliably run under WINE/Proton without installing the .NET Desktop Runtime into the WINE prefix (a notoriously fragile process), while .NET Framework 4.8 WinForms is reasonably supported by wine-mono. The strongest path forward for cross-platform Linux/Steam Deck users is migrating to **Avalonia UI**, which renders natively on Linux without WINE, supports MVVM architecture, and has proven itself in production game-modding tools (NexusMods.App uses Avalonia). A phased migration -- first porting to .NET 8/9 while keeping WinForms functional under WINE, then incrementally rewriting the UI in Avalonia -- balances risk and delivers the best long-term UX.
 
 ## User Workflows
 
 ### Current Flow (WinForms on WINE)
 
-The current ChooChoo Loader workflow runs as a Windows executable under Proton/WINE:
+The current CrossHookk Loaderr workflow runs as a Windows executable under Proton/WINE:
 
-1. **Launch**: User adds ChooChoo Loader as a non-Steam game or launches via Proton prefix. WINE's wine-mono provides .NET Framework 4.8 compatibility. The WinForms UI renders through WINE's GDI translation layer.
+1. **Launch**: User adds CrossHookk Loaderr as a non-Steam game or launches via Proton prefix. WINE's wine-mono provides .NET Framework 4.8 compatibility. The WinForms UI renders through WINE's GDI translation layer.
 2. **Configure paths**: User browses for game executable, trainer executable, and up to 2 DLLs using Windows file dialogs (rendered by WINE). MRU dropdown lists provide recent selections.
 3. **Profile management**: User saves/loads `.ini` profile configurations. Auto-load last profile is available.
 4. **Select launch method**: User picks from 6 radio button options (CreateProcess, CmdStart, CreateThreadInjection, RemoteThreadInjection, ShellExecute, ProcessStart).
@@ -35,7 +35,7 @@ The current ChooChoo Loader workflow runs as a Windows executable under Proton/W
 If migrating to .NET 8/9 while keeping WinForms:
 
 1. **Runtime dependency changes**: The .NET Desktop Runtime 8 must be installed in the WINE prefix. This is [documented as highly problematic](https://github.com/Winetricks/winetricks/issues/2276) -- winetricks `dotnetdesktop8` frequently fails, and manual installation is unreliable.
-2. **Font change impact**: .NET 8 WinForms changed the default font from Microsoft Sans Serif 8.25pt to Segoe UI 9pt, causing forms and controls to be [approximately 27% larger](https://github.com/dotnet/winforms/issues/524). Since ChooChoo Loader already uses Segoe UI explicitly, the impact is reduced but the AutoScaleMode behavior changes in .NET 8 could still shift layouts.
+2. **Font change impact**: .NET 8 WinForms changed the default font from Microsoft Sans Serif 8.25pt to Segoe UI 9pt, causing forms and controls to be [approximately 27% larger](https://github.com/dotnet/winforms/issues/524). Since CrossHookk Loaderr already uses Segoe UI explicitly, the impact is reduced but the AutoScaleMode behavior changes in .NET 8 could still shift layouts.
 3. **DPI scaling changes**: .NET 8 introduces [breaking changes in form scaling](https://learn.microsoft.com/en-us/dotnet/core/compatibility/windows-forms/8.0/top-level-window-scaling) for PerMonitorV2 mode. Under WINE, DPI behavior is emulated and may not match native Windows behavior.
 4. **Self-contained deployment**: Publishing as self-contained (`--self-contained`) bundles the runtime, potentially avoiding the WINE runtime installation problem. However, this is [not well-tested under WINE](https://forum.winehq.org/viewtopic.php?t=39911) for .NET 8 WinForms specifically.
 
@@ -57,7 +57,7 @@ Steam Deck Gaming Mode presents unique UX constraints:
 1. **Controller-as-mouse**: In Gaming Mode, the right trackpad emulates mouse input. Users can click buttons and interact with standard UI elements, but small targets are frustrating. The Steam button + right trackpad provides cursor control, with L2/R2 triggers for left/right click.
 2. **No keyboard by default**: Text input requires the on-screen keyboard (invoked via Steam + X). The current workflow has multiple text fields (paths, profile names) that are cumbersome with on-screen keyboard.
 3. **Limited screen space**: The Steam Deck's 1280x800 display means the app needs to work well at that resolution. The current compact mode threshold (950px) is reasonable, but the layout in compact mode stacks panels vertically, requiring scrolling.
-4. **Add as non-Steam game**: To use in Gaming Mode, ChooChoo Loader must be added as a non-Steam game. Controller layout must be configured to "Gamepad with Mouse Trackpad" or similar.
+4. **Add as non-Steam game**: To use in Gaming Mode, CrossHookk Loaderr must be added as a non-Steam game. Controller layout must be configured to "Gamepad with Mouse Trackpad" or similar.
 5. **Overlay limitations**: The custom ResumePanel overlay works within the WinForms window. Under WINE, this should render correctly, but the "CLICK TO RESUME" text (designed for mouse) is less intuitive with a trackpad.
 
 **UX recommendations for Steam Deck:**
@@ -67,7 +67,7 @@ Steam Deck Gaming Mode presents unique UX constraints:
 - Support a "Steam Deck mode" with larger fonts and simplified layout
 - Consider mapping controller buttons to common actions (e.g., Start = Launch, Select = Load Profile)
 
-**Confidence**: Medium -- based on Steam Deck documentation and community reports; no direct testing data for ChooChoo Loader on Steam Deck.
+**Confidence**: Medium -- based on Steam Deck documentation and community reports; no direct testing data for CrossHookk Loaderr on Steam Deck.
 
 ## UI Framework Options
 
@@ -190,7 +190,7 @@ Steam Deck Gaming Mode presents unique UX constraints:
 | Process handle invalid                     | `InjectionFailed` event with "Process handle is invalid" | "Cannot connect to [game.exe]. The game may not be running or may have insufficient permissions."                            | Offer to refresh process list, suggest running as administrator            |
 | LoadLibraryA returns 0                     | `InjectionFailed` event with "LoadLibraryA returned 0"   | "DLL injection failed for [dll]. The game may have anti-cheat protection or the DLL may be incompatible."                    | Log detailed Win32 error code, suggest trying alternative injection method |
 | Game executable not found                  | Silent `false` return from `LaunchProcess`               | "Game executable not found at [path]. Please verify the file exists."                                                        | Highlight game path field, offer to browse                                 |
-| Single instance conflict                   | MessageBox "already running"                             | "ChooChoo Loader is already running. Switch to the existing window or close it first."                                       | Bring existing instance to foreground if possible                          |
+| Single instance conflict                   | MessageBox "already running"                             | "CrossHookk Loaderr is already running. Switch to the existing window or close it first."                                    | Bring existing instance to foreground if possible                          |
 | Profile load failure                       | Likely unhandled exception                               | "Could not load profile [name]. The profile file may be corrupted."                                                          | Offer to delete corrupted profile, fall back to defaults                   |
 | WINE/Proton not available                  | Not currently handled                                    | "WINE/Proton is required for game launching on Linux. Please ensure WINE is installed and configured."                       | Link to setup documentation, detect WINE availability at startup           |
 | .NET runtime missing (WINE)                | System error dialog                                      | "The .NET Desktop Runtime could not be found. If running under WINE, install the runtime using: `winetricks dotnetdesktop8`" | Provide copy-pasteable command, link to troubleshooting guide              |
@@ -255,7 +255,7 @@ The current code uses a `System.Timers.Timer` with 1000ms interval for injection
 - **UI framework**: [Python 3 + GTK](https://github.com/lutris/lutris) (native Linux rendering, no WINE for the UI)
 - **Architecture pattern**: The launcher UI is a native Linux application. Games run through WINE/Proton. Configuration, path management, and prefix setup are handled by the native UI layer.
 - **Controller support**: Community project [lutris-gamepad-ui](https://github.com/andrew-ld/lutris-gamepad-ui) provides a controller-navigable frontend. Exploring Godot-based full-screen UI for controller/TV use.
-- **Relevance to ChooChoo**: Validates the "native launcher + WINE game execution" hybrid architecture. Lutris's install scripts pattern is analogous to ChooChoo's profile system.
+- **Relevance to CrossHookk**: Validates the "native launcher + WINE game execution" hybrid architecture. Lutris's install scripts pattern is analogous toCrossHookok's profile system.
 
 **Confidence**: High -- Lutris is a mature, widely-used project with public source code.
 
@@ -274,14 +274,14 @@ The current code uses a `System.Timers.Timer` with 1000ms interval for injection
 - **UI framework**: [Python + GTK4 + Libadwaita](https://github.com/bottlesdevs/Bottles) (native Linux with GNOME design language)
 - **Key feature**: Creates isolated WINE prefixes ("bottles") with per-app dependency management
 - **Native Wayland support**: [Added in Bottles 60.0](https://linuxiac.com/bottles-60-0-launches-with-native-wayland-support/)
-- **Relevance**: Demonstrates GTK4/Libadwaita as a native Linux UI approach. The prefix isolation pattern could inform how ChooChoo manages game-specific configurations.
+- **Relevance**: Demonstrates GTK4/Libadwaita as a native Linux UI approach. The prefix isolation pattern could inform how CrossHookk manages game-specific configurations.
 
 **Confidence**: High -- public source code, ArchWiki documentation.
 
 ### NexusMods.App
 
 - **Approach**: Next-generation mod manager replacing Vortex, with native Linux support.
-- **UI framework**: [C# + Avalonia UI](https://nexus-mods.github.io/NexusMods.App/) -- the most directly comparable project to ChooChoo
+- **UI framework**: [C# + Avalonia UI](https://nexus-mods.github.io/NexusMods.App/) -- the most directly comparable project to CrossHookk
 - **Architecture**: MVVM with clean separation of UI and business logic. Uses [CSS-like styling system](https://nexus-mods.github.io/NexusMods.App/developers/development-guidelines/UIStylingGuidelines/) from Avalonia.
 - **Linux distribution**: Available as [AppImage on Linux](https://github.com/Nexus-Mods/NexusMods.App/releases), including Steam Deck
 - **Key insight**: A major game modding organization chose Avalonia specifically for native Linux support after their previous tool (Vortex) required WINE on Linux.
@@ -303,7 +303,7 @@ The current code uses a `System.Timers.Timer` with 1000ms interval for injection
 - **Approach**: Advanced mod manager for Bethesda games, using virtual filesystem (USVFS).
 - **UI framework**: C++ / Qt5
 - **Linux support**: Community effort via WINE. The USVFS virtual filesystem layer adds complexity under WINE.
-- **Relevance**: Qt5 is another viable cross-platform framework, but C++ is a different ecosystem from .NET. The virtual filesystem approach is more complex than ChooChoo's direct injection model.
+- **Relevance**: Qt5 is another viable cross-platform framework, but C++ is a different ecosystem from .NET. The virtual filesystem approach is more complex than CrossHookk's direct injection model.
 
 **Confidence**: Medium -- Linux community reports are anecdotal.
 
@@ -312,28 +312,28 @@ The current code uses a `System.Timers.Timer` with 1000ms interval for injection
 - **Approach**: Unity game modding framework using DLL proxy injection.
 - **Linux support**: [Documented Proton/WINE guide](https://docs.bepinex.dev/articles/advanced/proton_wine.html) using `WINEDLLOVERRIDES` for DLL proxy loading
 - **Key technique**: Uses `winhttp.dll` proxy DLL -- requires `WINEDLLOVERRIDES="winhttp=n,b"` to force native DLL loading under WINE
-- **Relevance**: The `WINEDLLOVERRIDES` technique is directly applicable to ChooChoo's DLL injection workflow. This is how DLL injection tools typically work under Proton/WINE.
+- **Relevance**: The `WINEDLLOVERRIDES` technique is directly applicable to CrossHookk's DLL injection workflow. This is how DLL injection tools typically work under Proton/WINE.
 
 **Confidence**: High -- official BepInEx documentation with specific WINE instructions.
 
 ### Summary: What the Competition Teaches Us
 
-| Tool               | UI Framework | Linux UI Layer     | Game Execution |
-| ------------------ | ------------ | ------------------ | -------------- |
-| Lutris             | Python/GTK   | Native             | WINE/Proton    |
-| Heroic             | Electron     | Native             | WINE/Proton    |
-| Bottles            | Python/GTK4  | Native             | WINE           |
-| NexusMods.App      | C#/Avalonia  | Native             | Native + WINE  |
-| Vortex             | Electron     | WINE (problematic) | WINE/Proton    |
-| ChooChoo (current) | C#/WinForms  | WINE               | WINE           |
+| Tool                 | UI Framework | Linux UI Layer     | Game Execution |
+| -------------------- | ------------ | ------------------ | -------------- |
+| Lutris               | Python/GTK   | Native             | WINE/Proton    |
+| Heroic               | Electron     | Native             | WINE/Proton    |
+| Bottles              | Python/GTK4  | Native             | WINE           |
+| NexusMods.App        | C#/Avalonia  | Native             | Native + WINE  |
+| Vortex               | Electron     | WINE (problematic) | WINE/Proton    |
+| CrossHookk (current) | C#/WinForms  | WINE               | WINE           |
 
-**Every successful Linux game tool uses a native UI layer.** The tools that rely on WINE for their own UI (Vortex, Mod Organizer 2) are the ones with the most reported problems. ChooChoo should follow the pattern established by NexusMods.App: native .NET UI via Avalonia, with game operations through WINE/Proton.
+**Every successful Linux game tool uses a native UI layer.** The tools that rely on WINE for their own UI (Vortex, Mod Organizer 2) are the ones with the most reported problems. CrossHookk should follow the pattern established by NexusMods.App: native .NET UI via Avalonia, with game operations through WINE/Proton.
 
 ## Recommendations
 
 ### Must Have
 
-- **Native Linux UI rendering**: Eliminate WINE dependency for the ChooChoo Loader UI itself. This is the single highest-impact UX improvement. Wine-mono does not support modern .NET, and .NET 8 Desktop Runtime installation in WINE prefixes is unreliable.
+- **Native Linux UI rendering**: Eliminate WINE dependency for the CrossHookk Loaderr UI itself. This is the single highest-impact UX improvement. Wine-mono does not support modern .NET, and .NET 8 Desktop Runtime installation in WINE prefixes is unreliable.
 
 - **Self-contained deployment**: Whether staying with WinForms (temporarily) or moving to Avalonia, publish as self-contained to avoid requiring users to install .NET runtimes. For Avalonia on Linux, distribute as AppImage or Flatpak.
 
@@ -375,7 +375,7 @@ The current code uses a `System.Timers.Timer` with 1000ms interval for injection
 
 - **Hybrid architecture for DLL injection**: If the UI runs as a native Linux process (Avalonia), how does it orchestrate DLL injection into a WINE-hosted game process? Options include: (a) spawning a small WINE-hosted helper process that performs the injection, (b) using `WINEDLLOVERRIDES` to load DLLs at game startup, or (c) communicating with the WINE prefix via pipes/sockets. NexusMods.App and BepInEx may provide patterns here.
 
-- **Gamepad timeline**: Avalonia's gamepad support PR (#18445) is still a draft. If Steam Deck controller navigation is a priority, should ChooChoo implement its own gamepad-to-keyboard translation layer, or wait for framework support?
+- **Gamepad timeline**: Avalonia's gamepad support PR (#18445) is still a draft. If Steam Deck controller navigation is a priority, should CrossHookk implement its own gamepad-to-keyboard translation layer, or wait for framework support?
 
 - **Profile format migration**: Should .ini profiles be migrated to JSON/TOML for better structure, or maintained for backward compatibility? Can both be supported with a migration path?
 

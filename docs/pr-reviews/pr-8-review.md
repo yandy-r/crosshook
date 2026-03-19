@@ -23,7 +23,7 @@ Issues that represent bugs, resource leaks, or non-functional features that shou
 
 ### CR-1: Handle leak — `hThread` from `CreateProcess` never closed
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:382-395`
+**File:** `src/CrossHookEngine.App/Core/ProcessManager.cs:382-395`
 **Source:** Code Reviewer, Silent Failure Hunter
 **Status:** Fixed
 
@@ -35,7 +35,7 @@ Issues that represent bugs, resource leaks, or non-functional features that shou
 
 ### CR-2: Buffer overread in `InjectDllStandard` — `WriteProcessMemory` size exceeds buffer
 
-**File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:248-261`
+**File:** `src/CrossHookEngine.App/Injection/InjectionManager.cs:248-261`
 **Source:** Code Reviewer, Comment Analyzer
 **Status:** Fixed
 
@@ -47,7 +47,7 @@ Issues that represent bugs, resource leaks, or non-functional features that shou
 
 ### CR-3: `_resumePanel` created but never added to form Controls
 
-**File:** `src/ChooChooEngine.App/Forms/MainForm.cs:273`
+**File:** `src/CrossHookEngine.App/Forms/MainForm.cs:273`
 **Source:** Code Reviewer
 **Status:** Fixed
 
@@ -59,7 +59,7 @@ Issues that represent bugs, resource leaks, or non-functional features that shou
 
 ### CR-4: Auto-launch timer is GC-eligible before firing
 
-**File:** `src/ChooChooEngine.App/Forms/MainForm.cs:2547-2558`
+**File:** `src/CrossHookEngine.App/Forms/MainForm.cs:2547-2558`
 **Source:** Code Reviewer, Silent Failure Hunter
 **Status:** Fixed
 
@@ -71,7 +71,7 @@ A `System.Timers.Timer` is created as a local variable. After the method returns
 
 ### CR-5: Missing `SetLastError = true` on all P/Invoke declarations in `Kernel32Interop`
 
-**File:** `src/ChooChooEngine.App/Interop/Kernel32Interop.cs:9-28`
+**File:** `src/CrossHookEngine.App/Interop/Kernel32Interop.cs:9-28`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -83,7 +83,7 @@ A `System.Timers.Timer` is created as a local variable. After the method returns
 
 ### CR-6: Missing `SetLastError = true` on `OpenThread` in `ProcessManager`
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:16-17`
+**File:** `src/CrossHookEngine.App/Core/ProcessManager.cs:16-17`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -95,7 +95,7 @@ When `OpenThread` returns `IntPtr.Zero`, the thread is silently skipped. `Suspen
 
 ### CR-7: Missing `SetLastError = true` on `ReadProcessMemory`/`WriteProcessMemory`/`VirtualQueryEx` in `MemoryManager`
 
-**File:** `src/ChooChooEngine.App/Memory/MemoryManager.cs:15-27`
+**File:** `src/CrossHookEngine.App/Memory/MemoryManager.cs:15-27`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -107,7 +107,7 @@ All three P/Invoke declarations lack `SetLastError = true`. Memory operations fa
 
 ### CR-8: `SuspendThread`/`ResumeThread` return values silently discarded
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:210,234`
+**File:** `src/CrossHookEngine.App/Core/ProcessManager.cs:210,234`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -119,14 +119,14 @@ Both return `(DWORD)-1` on failure but the values are never checked. The methods
 
 **Validation for CR-5 through CR-8**
 
-- `DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
-- `DOTNET_ROLL_FORWARD=Major DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~InteropLibraryImportTests|FullyQualifiedName~ProcessManagerThreadOperationTests|FullyQualifiedName~Win32ErrorHelperTests"`
+- `DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
+- `DOTNET_ROLL_FORWARD=Major DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~InteropLibraryImportTests|FullyQualifiedName~ProcessManagerThreadOperationTests|FullyQualifiedName~Win32ErrorHelperTests"`
 
 ---
 
 ### CR-9: `WaitForSingleObject` return value discarded during injection
 
-**File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:272`
+**File:** `src/CrossHookEngine.App/Injection/InjectionManager.cs:272`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -138,7 +138,7 @@ Can return `WAIT_TIMEOUT`, `WAIT_FAILED`, or `WAIT_ABANDONED` — all silently i
 
 ### CR-10: PE header parsing reads wrong field — comment says "COFF header" but reads Optional Header magic
 
-**File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:222-224`
+**File:** `src/CrossHookEngine.App/Injection/InjectionManager.cs:222-224`
 **Source:** Comment Analyzer
 **Status:** Fixed
 
@@ -150,8 +150,8 @@ After `fs.Position += 20` (skipping the entire 20-byte COFF header), the code re
 
 **Validation for CR-9 through CR-10**
 
-- `DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
-- `DOTNET_ROLL_FORWARD=Major DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~InjectionManagerTests"`
+- `DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
+- `DOTNET_ROLL_FORWARD=Major DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~InjectionManagerTests"`
 
 ---
 
@@ -161,7 +161,7 @@ Issues that represent missing functionality, dead code, or design problems that 
 
 ### IM-1: Auto-load last profile feature is not implemented
 
-**File:** `src/ChooChooEngine.App/Forms/MainForm.cs:2588-2608`
+**File:** `src/CrossHookEngine.App/Forms/MainForm.cs:2588-2608`
 **Source:** Code Reviewer
 **Status:** Fixed
 
@@ -173,7 +173,7 @@ Issues that represent missing functionality, dead code, or design problems that 
 
 ### IM-2: `PopulateControls()` defined but never called — dead code
 
-**File:** `src/ChooChooEngine.App/Forms/MainForm.cs:1415-1432`
+**File:** `src/CrossHookEngine.App/Forms/MainForm.cs:1415-1432`
 **Source:** Code Reviewer
 **Status:** Fixed
 
@@ -185,7 +185,7 @@ This method adds the status strip, calls `RefreshProcessList()`, and `ShowCurren
 
 ### IM-3: `MainForm_SizeChanged` and `MainForm_ResizeEnd` never wired to events
 
-**File:** `src/ChooChooEngine.App/Forms/MainForm.cs:318,335`
+**File:** `src/CrossHookEngine.App/Forms/MainForm.cs:318,335`
 **Source:** Code Reviewer
 **Status:** Fixed
 
@@ -197,7 +197,7 @@ These resize handlers are defined but never subscribed in `RegisterEventHandlers
 
 ### IM-4: Constructor resize timer conflicts with `MainForm_SizeChanged` timer
 
-**File:** `src/ChooChooEngine.App/Forms/MainForm.cs:260-265,318-333`
+**File:** `src/CrossHookEngine.App/Forms/MainForm.cs:260-265,318-333`
 **Source:** Code Reviewer
 **Status:** Fixed
 
@@ -207,14 +207,14 @@ Two competing timer strategies: the constructor creates a timer at 100ms (never 
 
 **Validation for IM-1 through IM-4**
 
-- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" dotnet build src/ChooChooEngine.sln -c Debug`
-- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~MainFormStartupCoordinatorTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~CommandLineParserTests"`
+- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" dotnet build src/CrossHookEngine.sln -c Debug`
+- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~MainFormStartupCoordinatorTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~CommandLineParserTests"`
 
 ---
 
 ### IM-5: `bool.Parse` throws `FormatException` on corrupted INI values
 
-**File:** `src/ChooChooEngine.App/Services/AppSettingsService.cs:46`, `ProfileService.cs:100,105`
+**File:** `src/CrossHookEngine.App/Services/AppSettingsService.cs:46`, `ProfileService.cs:100,105`
 **Source:** Code Reviewer, Silent Failure Hunter, Test Coverage Analyzer
 **Status:** Fixed
 
@@ -226,7 +226,7 @@ User-editable INI files with values like "yes", "1", or empty strings crash prof
 
 ### IM-6: `InjectDllManualMapping` silently falls back to standard injection
 
-**File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:297-302`
+**File:** `src/CrossHookEngine.App/Injection/InjectionManager.cs:297-302`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -238,7 +238,7 @@ Users select Manual Mapping to avoid anti-cheat detection (no `LoadLibrary` call
 
 ### IM-7: `LaunchWithCreateThreadInjection`/`LaunchWithRemoteThreadInjection` are undisclosed stubs
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:425-437`
+**File:** `src/CrossHookEngine.App/Core/ProcessManager.cs:425-437`
 **Source:** Silent Failure Hunter, Comment Analyzer
 **Status:** Fixed
 
@@ -250,7 +250,7 @@ Both silently delegate to `LaunchWithCreateProcess`. The user's explicit launch 
 
 ### IM-8: `Process.Start()` null return not handled
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:448-466`
+**File:** `src/CrossHookEngine.App/Core/ProcessManager.cs:448-466`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -260,14 +260,14 @@ Both silently delegate to `LaunchWithCreateProcess`. The user's explicit launch 
 
 **Validation for IM-5 through IM-8**
 
-- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
-- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~InjectionManagerTests|FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProcessManagerThreadOperationTests|FullyQualifiedName~ProcessManagerLaunchMethodTests"`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~InjectionManagerTests|FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProcessManagerThreadOperationTests|FullyQualifiedName~ProcessManagerLaunchMethodTests"`
 
 ---
 
 ### IM-9: `MiniDumpWriteDump` return value discarded
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:265-289`
+**File:** `src/CrossHookEngine.App/Core/ProcessManager.cs:265-289`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -281,7 +281,7 @@ Returns `true` unconditionally even if the dump failed. User gets a 0-byte file 
 
 ### IM-10: `Debug.WriteLine` is the sole error logging — stripped in Release builds
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs`, `src/ChooChooEngine.App/Injection/InjectionManager.cs`, `src/ChooChooEngine.App/Diagnostics/AppDiagnostics.cs`
+**File:** `src/CrossHookEngine.App/Core/ProcessManager.cs`, `src/CrossHookEngine.App/Injection/InjectionManager.cs`, `src/CrossHookEngine.App/Diagnostics/AppDiagnostics.cs`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -289,13 +289,13 @@ All error logging in ProcessManager uses `Debug.WriteLine`, which is compiled ou
 
 **Validation:** Confirmed by inspection. The affected ProcessManager and InjectionManager error paths were still using `Debug.WriteLine(...)`, and the app had no file-backed trace listener.
 
-**Fix:** Added `AppDiagnostics` as a shared diagnostics helper with a file-backed `TextWriterTraceListener` under `%LocalAppData%\\ChooChooEngine\\logs\\choochoo.log`, then routed the ProcessManager and InjectionManager error paths through `AppDiagnostics.LogError(...)` so release builds keep emitting diagnostics.
+**Fix:** Added `AppDiagnostics` as a shared diagnostics helper with a file-backed `TextWriterTraceListener` under `%LocalAppData%\\CrossHookEngine\\logs\\crosshook.log`, then routed the ProcessManager and InjectionManager error paths through `AppDiagnostics.LogError(...)` so release builds keep emitting diagnostics.
 
 ---
 
 ### IM-11: No global unhandled exception handler
 
-**File:** `src/ChooChooEngine.App/Program.cs:21-75`
+**File:** `src/CrossHookEngine.App/Program.cs:21-75`
 **Source:** Silent Failure Hunter
 **Status:** Fixed
 
@@ -309,7 +309,7 @@ No `Application.SetUnhandledExceptionMode` or `AppDomain.UnhandledException` han
 
 ### IM-12: `CurrentProcess` property leaks internal `Process` object
 
-**File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:107,472-499`
+**File:** `src/CrossHookEngine.App/Core/ProcessManager.cs:107,472-499`
 **Source:** Type Design Analyzer
 **Status:** Fixed
 
@@ -323,14 +323,14 @@ Callers can `Kill()` the process directly, bypassing the manager's cleanup logic
 
 **Validation for IM-9 through IM-12**
 
-- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
-- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~AppDiagnosticsTests|FullyQualifiedName~ProcessManagerDiagnosticsTests|FullyQualifiedName~ProcessManagerLaunchMethodTests|FullyQualifiedName~InjectionManagerTests"`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~AppDiagnosticsTests|FullyQualifiedName~ProcessManagerDiagnosticsTests|FullyQualifiedName~ProcessManagerLaunchMethodTests|FullyQualifiedName~InjectionManagerTests"`
 
 ---
 
 ### IM-13: `InjectionManager` constructor has no null check on `processManager`
 
-**File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:75-81`
+**File:** `src/CrossHookEngine.App/Injection/InjectionManager.cs:75-81`
 **Source:** Type Design Analyzer
 **Status:** Fixed
 
@@ -344,7 +344,7 @@ Passing null won't fail until first use of `_processManager`, producing a confus
 
 ### IM-14: Path traversal risk in `ProfileService.profileName`
 
-**File:** `src/ChooChooEngine.App/Services/ProfileService.cs:131-160`
+**File:** `src/CrossHookEngine.App/Services/ProfileService.cs:131-160`
 **Source:** Type Design Analyzer
 **Status:** Fixed
 
@@ -358,8 +358,8 @@ Passing `"../../etc/passwd"` as a profile name constructs a path outside the int
 
 **Validation for IM-13 through IM-14**
 
-- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
-- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProfileServiceTests"`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Debug`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProfileServiceTests"`
 
 ---
 
@@ -431,7 +431,7 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 
 **Validation for TC-1 through TC-8**
 
-- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~RecentFilesServiceTests|FullyQualifiedName~CommandLineParserTests"`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/crosshook-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/CrossHookEngine.App.Tests/CrossHookEngine.App.Tests.csproj --filter "FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~RecentFilesServiceTests|FullyQualifiedName~CommandLineParserTests"`
 
 ---
 
@@ -488,7 +488,7 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 
 - `sealed` classes throughout prevent unintended inheritance
 - `ArgumentNullException.ThrowIfNull` guards on all service constructors
-- Namespace conventions follow `ChooChooEngine.App.{Layer}` pattern per CLAUDE.md
+- Namespace conventions follow `CrossHookEngine.App.{Layer}` pattern per CLAUDE.md
 - INI parsing handles `=` in values correctly via `Split(new char[] { '=' }, 2)`
 
 ### Tests
