@@ -24,6 +24,7 @@
     <Compile Include="../../src/ChooChooEngine.App/Services/AppSettingsService.cs" Link="Services/AppSettingsService.cs" />
     <Compile Include="../../src/ChooChooEngine.App/Services/RecentFilesService.cs" Link="Services/RecentFilesService.cs" />
     <Compile Include="../../src/ChooChooEngine.App/Services/CommandLineParser.cs" Link="Services/CommandLineParser.cs" />
+    <Compile Include="../../src/ChooChooEngine.App/Forms/MainFormStartupCoordinator.cs" Link="Forms/MainFormStartupCoordinator.cs" />
   </ItemGroup>
 
   <ItemGroup>

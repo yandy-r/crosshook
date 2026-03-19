@@ -102,6 +102,7 @@ namespace ChooChooEngine.App.Forms
         private TableLayoutPanel launchContainer;
         private Panel consolePanel;
         private Panel loadedDllsPanel;
+		private const int ResizeDebounceIntervalMs = 100;
         
         // ProfileInputDialog class for getting profile name
         public class ProfileInputDialog : Form
@@ -225,6 +226,7 @@ namespace ChooChooEngine.App.Forms
         public MainForm(string[] args)
         {
             _args = args;
+			CommandLineOptions startupOptions = ParseCommandLineArguments();
             
             InitializeComponent();
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
@@ -247,20 +249,20 @@ namespace ChooChooEngine.App.Forms
             // Subscribe to events and initialize controls
             RegisterEventHandlers();
             
-            // Load recent files and profiles
-            LoadRecentFiles();
-            LoadProfiles();
-            
-            // Process command line arguments
-            ProcessCommandLineArguments();
-            
             // Load app settings
             LoadAppSettings();
             
-            // Start resize timer
-            resizeTimer = new Timer();
-            resizeTimer.Interval = 100;
-            resizeTimer.Tick += (s, e) => CheckLayoutMode();
+			// Populate the form once startup settings are available
+			PopulateControls();
+
+			// Apply the saved startup profile before command-line overrides.
+			TryAutoLoadLastProfile(startupOptions);
+
+			// Process command line arguments
+			ProcessCommandLineArguments(startupOptions);
+
+			// Start resize timer
+			InitializeResizeTimer();
             
             // Initial layout check
             CheckLayoutMode();
@@ -329,15 +331,9 @@ namespace ChooChooEngine.App.Forms
         
         private void MainForm_SizeChanged(object sender, EventArgs e)
         {
-            // Debounce resize events to avoid excessive layout changes
             if (resizeTimer == null)
             {
-                resizeTimer = new Timer();
-                resizeTimer.Interval = 200;
-                resizeTimer.Tick += (s, args) => {
-                    CheckLayoutMode();
-                    resizeTimer.Stop();
-                };
+				return;
             }
             
             resizeTimer.Stop();
@@ -346,8 +342,30 @@ namespace ChooChooEngine.App.Forms
         
         private void MainForm_ResizeEnd(object sender, EventArgs e)
         {
-            CheckLayoutMode();
-        }
+			if (resizeTimer != null)
+			{
+				resizeTimer.Stop();
+			}
+
+			CheckLayoutMode();
+		}
+
+		private void InitializeResizeTimer()
+		{
+			resizeTimer = new Timer();
+			resizeTimer.Interval = ResizeDebounceIntervalMs;
+			resizeTimer.Tick += ResizeTimer_Tick;
+		}
+
+		private void ResizeTimer_Tick(object sender, EventArgs e)
+		{
+			if (resizeTimer != null)
+			{
+				resizeTimer.Stop();
+			}
+
+			CheckLayoutMode();
+		}
         
         private void CheckLayoutMode()
         {
@@ -1379,6 +1397,8 @@ namespace ChooChooEngine.App.Forms
         {
             // Form events
             KeyDown += OnFormKeyDown;
+			SizeChanged += MainForm_SizeChanged;
+			ResizeEnd += MainForm_ResizeEnd;
             
             // Process Manager events
             _processManager.ProcessStarted += ProcessManager_ProcessStarted;
@@ -1427,8 +1447,15 @@ namespace ChooChooEngine.App.Forms
         private void PopulateControls()
         {
             // Add status strip
-            statusStrip.Items.Add(statusLabel);
-            Controls.Add(statusStrip);
+			if (!statusStrip.Items.Contains(statusLabel))
+			{
+				statusStrip.Items.Add(statusLabel);
+			}
+
+			if (!Controls.Contains(statusStrip))
+			{
+				Controls.Add(statusStrip);
+			}
             
             // Load recent files
             LoadRecentFiles();
@@ -1442,6 +1469,42 @@ namespace ChooChooEngine.App.Forms
             // Show current environment DLLs by default
             ShowCurrentEnvironmentModules();
         }
+
+		private CommandLineOptions ParseCommandLineArguments()
+		{
+			if (_args == null || _args.Length == 0)
+			{
+				return new CommandLineOptions();
+			}
+
+			return new CommandLineParser().Parse(_args);
+		}
+
+		private void TryAutoLoadLastProfile(CommandLineOptions options)
+		{
+			string profileName = MainFormStartupCoordinator.ResolveAutoLoadProfileName(
+				_autoLoadLastProfile,
+				_lastUsedProfile,
+				_profiles,
+				options);
+
+			if (string.IsNullOrEmpty(profileName))
+			{
+				if (_autoLoadLastProfile &&
+					!string.IsNullOrWhiteSpace(_lastUsedProfile) &&
+					options.ProfilesToLoad.Count == 0 &&
+					!_profiles.Contains(_lastUsedProfile))
+				{
+					LogToConsole($"Last used profile '{_lastUsedProfile}' was not found");
+				}
+
+				return;
+			}
+
+			LogToConsole($"Auto-loading last used profile: {profileName}");
+			cmbProfiles.SelectedItem = profileName;
+			LoadProfile(profileName);
+		}
         
         private void RefreshProcessList()
         {
@@ -2494,14 +2557,17 @@ namespace ChooChooEngine.App.Forms
         
         #endregion
         
-        private void ProcessCommandLineArguments()
-        {
+		private void ProcessCommandLineArguments(CommandLineOptions options)
+		{
+			if (options == null)
+			{
+				throw new ArgumentNullException(nameof(options));
+			}
+
             if (_args == null || _args.Length == 0)
                 return;
                 
             LogToConsole("Processing command line arguments: " + string.Join(" ", _args));
-
-            CommandLineOptions options = new CommandLineParser().Parse(_args);
 
             foreach (string profileToLoad in options.ProfilesToLoad)
             {
@@ -2511,9 +2577,6 @@ namespace ChooChooEngine.App.Forms
                 // Load the profile
                 if (!string.IsNullOrEmpty(_profileToLoad))
                 {
-                    // First, ensure profiles are loaded
-                    LoadProfiles();
-
                     if (cmbProfiles.Items.Contains(_profileToLoad))
                     {
                         // Select the profile in the combo box

@@ -163,9 +163,11 @@ Issues that represent missing functionality, dead code, or design problems that 
 
 **File:** `src/ChooChooEngine.App/Forms/MainForm.cs:2588-2608`
 **Source:** Code Reviewer
-**Status:** Open
+**Status:** Fixed
 
 `LoadAppSettings()` sets `_autoLoadLastProfile` and `_lastUsedProfile`, but no code ever checks `_autoLoadLastProfile` to actually load the profile on startup. The UI checkbox exists but the feature does nothing.
+
+**Fix:** Startup now loads app settings before populating controls, then auto-loads `_lastUsedProfile` when the checkbox is enabled and the saved profile still exists. Command-line `-p` profile requests take precedence and suppress the saved auto-load path.
 
 ---
 
@@ -173,9 +175,11 @@ Issues that represent missing functionality, dead code, or design problems that 
 
 **File:** `src/ChooChooEngine.App/Forms/MainForm.cs:1415-1432`
 **Source:** Code Reviewer
-**Status:** Open
+**Status:** Fixed
 
 This method adds the status strip, calls `RefreshProcessList()`, and `ShowCurrentEnvironmentModules()`. Since it's never called: the status strip is orphaned, the process dropdown starts empty, and environment modules aren't shown.
+
+**Fix:** The constructor now calls `PopulateControls()` once after settings are loaded. The method also guards the `StatusStrip` registration so the startup path stays idempotent.
 
 ---
 
@@ -183,9 +187,11 @@ This method adds the status strip, calls `RefreshProcessList()`, and `ShowCurren
 
 **File:** `src/ChooChooEngine.App/Forms/MainForm.cs:318,335`
 **Source:** Code Reviewer
-**Status:** Open
+**Status:** Fixed
 
 These resize handlers are defined but never subscribed in `RegisterEventHandlers()`. The resize debouncing logic never executes.
+
+**Fix:** `RegisterEventHandlers()` now subscribes both `SizeChanged` and `ResizeEnd`, so layout recalculation runs during and after resize operations.
 
 ---
 
@@ -193,9 +199,16 @@ These resize handlers are defined but never subscribed in `RegisterEventHandlers
 
 **File:** `src/ChooChooEngine.App/Forms/MainForm.cs:260-265,318-333`
 **Source:** Code Reviewer
-**Status:** Open
+**Status:** Fixed
 
 Two competing timer strategies: the constructor creates a timer at 100ms (never started), while `MainForm_SizeChanged` (never wired) creates a different timer at 200ms. Needs unification.
+
+**Fix:** Resizing now uses a single shared debounce timer initialized once at startup with a 100ms interval. `SizeChanged` restarts it, and `ResizeEnd` stops it before forcing an immediate layout check.
+
+**Validation for IM-1 through IM-4**
+
+- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" dotnet build src/ChooChooEngine.sln -c Debug`
+- `DOTNET_CLI_HOME=/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~MainFormStartupCoordinatorTests|FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~CommandLineParserTests"`
 
 ---
 
@@ -435,8 +448,8 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 ### Should Fix (Important)
 
 7. **Fix IM-5:** Replace `bool.Parse` with `bool.TryParse` in services — 4 call sites — **Status:** Open
-8. **Fix IM-2:** Call `PopulateControls()` from constructor or inline its logic — **Status:** Open
-9. **Fix IM-3/4:** Wire resize handlers and unify timer strategy — **Status:** Open
+8. **Fix IM-1/2:** Restore startup auto-load and call `PopulateControls()` during initialization — **Status:** Fixed
+9. **Fix IM-3/4:** Wire resize handlers and unify timer strategy — **Status:** Fixed
 10. **Fix IM-6/7:** Log warnings when stub methods are used, or disable their UI options — **Status:** Open
 11. **Fix IM-10:** Replace `Debug.WriteLine` with `Trace.WriteLine` or event-based logging — **Status:** Open
 12. **Fix IM-14:** Sanitize `profileName` against path traversal — **Status:** Open
