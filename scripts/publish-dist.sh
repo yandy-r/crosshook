@@ -7,6 +7,13 @@ DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
 CONFIGURATION="${CONFIGURATION:-Release}"
 RIDS=(win-x64 win-x86)
 
+# Use project-local SDK if present
+if [[ -d "$ROOT_DIR/.dotnet" ]]; then
+  export PATH="$ROOT_DIR/.dotnet:$PATH"
+  export DOTNET_CLI_HOME="$ROOT_DIR/.dotnet-cli-home"
+  mkdir -p "$DOTNET_CLI_HOME"
+fi
+
 if (($# > 0)); then
   RIDS=("$@")
 fi

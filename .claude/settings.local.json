@@ -14,7 +14,8 @@
       "Bash(git commit:*)",
       "Bash(dotnet test:*)",
       "Bash(dotnet --version)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(bash -n /home/yandy/Projects/github.com/yandy-r/choochoo-loader/scripts/publish-dist.sh)"
     ]
   }
 }
