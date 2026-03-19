@@ -32,18 +32,25 @@ The migration now uses the SDK-style `net9.0-windows` project. Build and publish
 
 ```bash
 dotnet build src/ChooChooEngine.sln -c Release
-dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x64 --self-contained true
-dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x86 --self-contained true
+./scripts/publish-dist.sh
 ```
 
 The release policy is dual artifacts, `win-x64` and `win-x86`, so the migration keeps the current AnyCPU and bitness-sensitive injection behavior intact.
 
-Published executables land at:
+The packaging script produces the release artifacts under `dist/`:
 
-- `src/ChooChooEngine.App/bin/Release/net9.0-windows/win-x64/publish/choochoo.exe`
-- `src/ChooChooEngine.App/bin/Release/net9.0-windows/win-x86/publish/choochoo.exe`
+- `dist/choochoo-win-x64/`
+- `dist/choochoo-win-x86/`
+- `dist/choochoo-win-x64.zip`
+- `dist/choochoo-win-x86.zip`
 
-The repo-root `choochoo.exe` is a legacy checked-in file. `dotnet publish` does not overwrite it.
+Ship the zipped `dist/choochoo-win-*.zip` artifacts, or copy the matching `dist/choochoo-win-*` directory as a unit.
+
+Important: this is still a directory-based self-contained publish, not a single-file executable. `choochoo.exe` must stay beside `choochoo.dll`, `choochoo.deps.json`, `choochoo.runtimeconfig.json`, the bundled runtime files, and the adjacent `Profiles/`, `Settings/`, and `settings.ini` payload. If you copy only `choochoo.exe` into another directory, WINE/.NET will fail with an error like `The application to execute does not exist: ...\\choochoo.dll`.
+
+The raw `src/ChooChooEngine.App/bin/Release/net9.0-windows/<rid>/publish/` directories remain implementation details of `dotnet publish`. The repo-root `choochoo.exe` is also a legacy checked-in file and is not a release artifact.
+
+`Profiles/`, `Settings/`, and `settings.ini` are user/runtime state and are intentionally excluded from `dist/` release artifacts. The app creates or tolerates those paths at runtime, so upgrades should not ship them.
 
 Use `win-x64` by default for modern 64-bit game/trainer flows. Keep `win-x86` for 32-bit compatibility cases.
 
