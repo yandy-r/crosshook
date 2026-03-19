@@ -74,6 +74,8 @@ namespace ChooChooEngine.App.Injection
 
         public InjectionManager(ProcessManager processManager)
         {
+            ArgumentNullException.ThrowIfNull(processManager);
+
             _processManager = processManager;
             _monitoringTimer = new System.Timers.Timer(MonitoringInterval);
             _monitoringTimer.Elapsed += OnMonitoringTimerElapsed;

@@ -35,7 +35,6 @@ public sealed class ProfileService
 
     public void SaveProfile(string profileName, ProfileData profile)
     {
-        ArgumentNullException.ThrowIfNull(profileName);
         ArgumentNullException.ThrowIfNull(profile);
 
         Directory.CreateDirectory(_profilesDirectoryPath);
@@ -54,8 +53,6 @@ public sealed class ProfileService
 
     public ProfileData LoadProfile(string profileName)
     {
-        ArgumentNullException.ThrowIfNull(profileName);
-
         string profilePath = GetProfilePath(profileName);
 
         if (!File.Exists(profilePath))
@@ -121,8 +118,6 @@ public sealed class ProfileService
 
     public void DeleteProfile(string profileName)
     {
-        ArgumentNullException.ThrowIfNull(profileName);
-
         string profilePath = GetProfilePath(profileName);
 
         if (!File.Exists(profilePath))
@@ -135,7 +130,41 @@ public sealed class ProfileService
 
     private string GetProfilePath(string profileName)
     {
-        return Path.Combine(_profilesDirectoryPath, $"{profileName}.profile");
+        string validatedProfileName = ValidateProfileName(profileName);
+        return Path.Combine(_profilesDirectoryPath, $"{validatedProfileName}.profile");
+    }
+
+    private static string ValidateProfileName(string profileName)
+    {
+        const string WindowsReservedPathCharacters = "<>:\"/\\|?*";
+
+        ArgumentNullException.ThrowIfNull(profileName);
+
+        if (string.IsNullOrWhiteSpace(profileName))
+        {
+            throw new ArgumentException("Profile name cannot be empty or whitespace.", nameof(profileName));
+        }
+
+        if (profileName == "." || profileName == "..")
+        {
+            throw new ArgumentException("Profile name cannot be a relative path segment.", nameof(profileName));
+        }
+
+        if (Path.IsPathRooted(profileName)
+            || profileName.Contains('/')
+            || profileName.Contains('\\')
+            || profileName.Contains(':'))
+        {
+            throw new ArgumentException("Profile name cannot contain path separators or rooted paths.", nameof(profileName));
+        }
+
+        if (profileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || profileName.IndexOfAny(WindowsReservedPathCharacters.ToCharArray()) >= 0)
+        {
+            throw new ArgumentException("Profile name contains invalid file name characters.", nameof(profileName));
+        }
+
+        return profileName;
     }
 }
 

@@ -98,4 +98,44 @@ public sealed class ProfileServiceTests
 		Assert.False(profile.LaunchInject2);
 		Assert.Equal("CreateProcess", profile.LaunchMethod);
 	}
+
+	[Theory]
+	[InlineData("../outside")]
+	[InlineData("nested/profile")]
+	[InlineData("..\\outside")]
+	public void SaveProfile_ThrowsForPathTraversalProfileNames(string profileName)
+	{
+		using TestWorkspace workspace = new TestWorkspace();
+		ProfileService service = new ProfileService(workspace.RootPath);
+
+		ArgumentException exception = Assert.Throws<ArgumentException>(() => service.SaveProfile(profileName, new ProfileData()));
+
+		Assert.Equal("profileName", exception.ParamName);
+	}
+
+	[Theory]
+	[InlineData("../outside")]
+	[InlineData("nested/profile")]
+	[InlineData("..\\outside")]
+	public void LoadProfile_ThrowsForPathTraversalProfileNames(string profileName)
+	{
+		using TestWorkspace workspace = new TestWorkspace();
+		ProfileService service = new ProfileService(workspace.RootPath);
+
+		ArgumentException exception = Assert.Throws<ArgumentException>(() => service.LoadProfile(profileName));
+
+		Assert.Equal("profileName", exception.ParamName);
+	}
+
+	[Fact]
+	public void SaveProfile_AllowsSafeNamesWithDotsAndSpaces()
+	{
+		using TestWorkspace workspace = new TestWorkspace();
+		ProfileService service = new ProfileService(workspace.RootPath);
+		ProfileData profile = new ProfileData { GamePath = "/games/hades.exe" };
+
+		service.SaveProfile("Steam Deck v1.0", profile);
+
+		Assert.True(File.Exists(workspace.GetPath("Profiles", "Steam Deck v1.0.profile")));
+	}
 }

@@ -330,21 +330,36 @@ Callers can `Kill()` the process directly, bypassing the manager's cleanup logic
 
 ### IM-13: `InjectionManager` constructor has no null check on `processManager`
 
-**File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs` constructor
+**File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:75-81`
 **Source:** Type Design Analyzer
-**Status:** Open
+**Status:** Fixed
 
 Passing null won't fail until first use of `_processManager`, producing a confusing `NullReferenceException` far from the bug's origin.
+
+**Validation:** Confirmed in the constructor: `processManager` was assigned directly to `_processManager` with no guard, so a null dependency survived construction and failed later on first use.
+
+**Fix:** The constructor now calls `ArgumentNullException.ThrowIfNull(processManager);` before storing the dependency, so the failure is immediate and localized to the call site.
 
 ---
 
 ### IM-14: Path traversal risk in `ProfileService.profileName`
 
-**File:** `src/ChooChooEngine.App/Services/ProfileService.cs`
+**File:** `src/ChooChooEngine.App/Services/ProfileService.cs:131-160`
 **Source:** Type Design Analyzer
-**Status:** Open
+**Status:** Fixed
 
 Passing `"../../etc/passwd"` as a profile name constructs a path outside the intended directory. No sanitization of path separators or invalid filename characters.
+
+**Validation:** Confirmed in `GetProfilePath(...)`: the method previously returned `Path.Combine(_profilesDirectoryPath, $"{profileName}.profile")` with no validation, so traversal segments and Windows path separators were accepted verbatim.
+
+**Fix:** Added centralized `ValidateProfileName(...)` and routed `SaveProfile(...)`, `LoadProfile(...)`, and `DeleteProfile(...)` through it via `GetProfilePath(...)`. The validator now rejects empty names, `.`/`..`, rooted paths, `/`, `\\`, `:`, and invalid file-name characters before any file operation occurs.
+
+---
+
+**Validation for IM-13 through IM-14**
+
+- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProfileServiceTests"`
 
 ---
 
@@ -489,7 +504,7 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 10. **Fix IM-6/7:** Fail unsupported manual-mapping and stub launch selections explicitly — **Status:** Fixed
 11. **Fix IM-8:** Guard `Process.Start()` null returns in launch helpers — **Status:** Fixed
 12. **Fix IM-10:** Replace `Debug.WriteLine` with `Trace.WriteLine` or event-based logging — **Status:** Fixed
-13. **Fix IM-14:** Sanitize `profileName` against path traversal — **Status:** Open
+13. **Fix IM-14:** Sanitize `profileName` against path traversal — **Status:** Fixed
 
 ### Follow-up Issues
 
