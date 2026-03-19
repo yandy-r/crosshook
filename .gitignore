@@ -30,6 +30,7 @@ bld/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+dist/
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
@@ -38,6 +39,12 @@ ScaffoldingReadMe.txt
 *.nupkg
 # NuGet Symbol Packages
 *.snupkg
+.nuget/
+
+# Local SDK and CLI state
+.dotnet/
+.dotnet-cli-home/
+.home/
 
 # dotenv environment variables file
 .env
@@ -58,3 +65,5 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+tasks/todo.md
+choochoo.exe

@@ -1,9 +1,9 @@
 # **🚂 ChooChoo**
 
-[![Download ChooChoo](https://img.shields.io/badge/⬇_Download-ChooChoo_v5.0-00C853?style=for-the-badge)](https://github.com/wowitsjack/choochoo-loader/releases/latest/download/choochoo.exe)
-[![GitHub Release](https://img.shields.io/github/v/release/wowitsjack/choochoo-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/wowitsjack/choochoo-loader/releases/latest)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/wowitsjack/choochoo-loader)
-[![License](https://img.shields.io/github/license/wowitsjack/choochoo-loader?style=for-the-badge&color=green)](LICENSE)
+[![Download ChooChoo](https://img.shields.io/badge/⬇_Download-ChooChoo_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/choochoo-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/choochoo-loader/releases)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/choochoo-loader)
+[![License](https://img.shields.io/github/license/yandy-r/choochoo-loader?style=for-the-badge&color=green)](LICENSE)
 
 **Proton/WINE Trainer & DLL Loader**  
 A loader for SteamOS/Linux/macOS that handles launches of games with trainers/mods (FLiNG, WeMod, etc.), patches, and up to 5 extra executables or DLLs, bypassing the issues of launching mods/patches in WINE/Proton enviroments 🔥.
@@ -19,12 +19,49 @@ A loader for SteamOS/Linux/macOS that handles launches of games with trainers/mo
 
 ## **Download & Links**
 
-[![Download ChooChoo](https://img.shields.io/badge/Download-ChooChoo-green?style=for-the-badge&logo=github)](https://github.com/wowitsjack/choochoo-loader/releases/download/4.0a/ChooChoo.exe)
+[![Download ChooChoo](https://img.shields.io/badge/Download-ChooChoo-green?style=for-the-badge&logo=github)](https://github.com/yandy-r/choochoo-loader/releases)
 
-[![GitHub Releases](https://img.shields.io/github/release/wowitsjack/choochoo-loader/all.svg?style=for-the-badge)](https://github.com/wowitsjack/choochoo-loader/releases)  
-[![Platforms: macOS | Linux | Steam Deck | Windows ](https://img.shields.io/badge/Platforms-Windows%20|%20macOS%20|%20Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=steam)](https://github.com/wowitsjack/choochoo-loader)
+Going forward, download ChooChoo from the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases). The standard release workflow (`.github/workflows/release.yml`) publishes these zip assets:
+
+- `choochoo-win-x64.zip` for the normal 64-bit case
+- `choochoo-win-x86.zip` for 32-bit compatibility cases
+
+Install by extracting the entire zip into any directory you want to keep ChooChoo in, then launch `choochoo.exe` from the extracted folder. Do not run it from inside the zip, and do not move only `choochoo.exe` by itself.
+
+[![GitHub Releases](https://img.shields.io/github/release/yandy-r/choochoo-loader/all.svg?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/releases)  
+[![Platforms: macOS | Linux | Steam Deck | Windows ](https://img.shields.io/badge/Platforms-Windows%20|%20macOS%20|%20Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/choochoo-loader)
 
 ---
+
+## **Build & Publish**
+
+The migration now uses the SDK-style `net9.0-windows` project. Build and publish with the .NET 9 SDK:
+
+```bash
+dotnet build src/ChooChooEngine.sln -c Release
+./scripts/publish-dist.sh
+```
+
+The release policy is dual artifacts, `win-x64` and `win-x86`, so the migration keeps the current AnyCPU and bitness-sensitive injection behavior intact.
+
+The packaging script produces the release artifacts under `dist/`:
+
+- `dist/choochoo-win-x64/`
+- `dist/choochoo-win-x86/`
+- `dist/choochoo-win-x64.zip`
+- `dist/choochoo-win-x86.zip`
+
+Ship the zipped `dist/choochoo-win-*.zip` artifacts, or copy the matching `dist/choochoo-win-*` directory as a unit. `.github/workflows/release.yml` uploads these zips to the GitHub Releases page with auto-generated notes when a `v*` tag is pushed or the workflow is run manually.
+
+Important: this is still a directory-based self-contained publish, not a single-file executable. `choochoo.exe` must stay beside `choochoo.dll`, `choochoo.deps.json`, `choochoo.runtimeconfig.json`, and the bundled runtime files from the extracted release folder. If you copy only `choochoo.exe` into another directory, WINE/.NET will fail with an error like `The application to execute does not exist: ...\\choochoo.dll`.
+
+The raw `src/ChooChooEngine.App/bin/Release/net9.0-windows/<rid>/publish/` directories remain implementation details of `dotnet publish`. The repo-root `choochoo.exe` is also a legacy checked-in file and is not a release artifact.
+
+`Profiles/`, `Settings/`, and `settings.ini` are user/runtime state and are intentionally excluded from `dist/` release artifacts. The app creates or tolerates those paths at runtime, so upgrades should not ship them.
+
+Use `win-x64` by default for modern 64-bit game/trainer flows. Keep `win-x86` for 32-bit compatibility cases.
+
+For the full local workflow, including the optional repo-local SDK path and exact step-by-step commands, see [`docs/internal-docs/local-build-publish.md`](docs/internal-docs/local-build-publish.md).
 
 ### **Why is this Needed for Proton/WINE?**
 
@@ -64,15 +101,20 @@ Whether you are playing on **Linux**, **macOS (via Whisky)**, or **Steam Deck**,
 1. **Switch to Desktop Mode**
    - Tap the Steam Deck's **Power** button → **Switch to Desktop**.
 
-2. **Add ChooChoo to Steam**
-   - Open Steam on your Deck (in Desktop Mode).
-   - Go to **Games** → **Add a Non-Steam Game to My Library** → Select `choochoo.exe`.
+2. **Download & Extract ChooChoo**
+   - Open the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases).
+   - Download `choochoo-win-x64.zip` unless you specifically need the 32-bit `choochoo-win-x86.zip`.
+   - Extract the full zip into a folder you want to keep, such as `~/Applications/ChooChoo` or another game tools directory.
 
-3. **Enable Proton**
+3. **Add ChooChoo to Steam**
+   - Open Steam on your Deck (in Desktop Mode).
+   - Go to **Games** → **Add a Non-Steam Game to My Library** → Select the extracted `choochoo.exe`.
+
+4. **Enable Proton**
    - In your Steam Library, **right-click** on ChooChoo → **Properties** → **Compatibility**.
    - Check **Force the use…** and pick a Proton version (Proton 9+ recommended).
 
-4. **Configure & Launch**
+5. **Configure & Launch**
    - Click **Play** to open ChooChoo.
    - Choose your **Game Path**, **Trainer Path**, and any extra DLLs/EXEs.
    - (Optional) **Save a Profile** and enable **Auto Launcher**.
@@ -136,11 +178,16 @@ Now trainers like **WeMod** should work properly on Steam Deck.
 1. **Install Whisky**
    - Get the latest version of **Whisky** for macOS.
 
-2. **Create a Bottle & Add ChooChoo**
-   - In Whisky, create a new **bottle**.
-   - Use **"Run Executable"** and pick `ChooChoo.exe` to place it in the bottle.
+2. **Download & Extract ChooChoo**
+   - Open the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases).
+   - Download `choochoo-win-x64.zip`.
+   - Extract the full zip into a folder you want to keep, then use that extracted folder as the source for Whisky.
 
-3. **Configure & Run**
+3. **Create a Bottle & Add ChooChoo**
+   - In Whisky, create a new **bottle**.
+   - Use **"Run Executable"** and pick the extracted `choochoo.exe`.
+
+4. **Configure & Run**
    - In the bottle's settings, enable **DXVK** (and other needed compatibility tweaks).
    - Press **Run** to start ChooChoo.
    - Inside ChooChoo, set **Game Path**, **Trainer Path**, and extras.
@@ -211,12 +258,10 @@ Scoped controller input: no more unintentional global actions when certain popup
 Properly interprets dpad vs. thumbstick movements, ignoring slight joystick drifts.
 Enhanced button mappings for easy menu navigation (e.g., A = Enter, B = Cancel, etc.).
 
-📜 Command-Line Enhancements
+📜 Command-Line Status
 
 -p "ProfileName": Loads a saved profile (paths, DLLs, etc.) on startup.
 -autolaunch: Starts the configured game automatically after a short delay.
--dllinject [Dll1.dll] [Dll2.dll] ...: Injects specified DLLs (up to five), either absolute or relative paths.
-Logs a clear message if any specified DLL doesn't exist or if the limit of five is exceeded.
 
 🖥️ UI & Stability Improvements
 

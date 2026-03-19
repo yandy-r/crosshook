@@ -5,24 +5,27 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using ChooChooEngine.App.Core;
+using ChooChooEngine.App.Interop;
 
 namespace ChooChooEngine.App.Memory
 {
-    public class MemoryManager
+    public partial class MemoryManager
     {
         #region Win32 API
 
-        [DllImport("kernel32.dll")]
-        private static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, 
-            uint nSize, out UIntPtr lpNumberOfBytesRead);
+	[LibraryImport("kernel32.dll", SetLastError = true)]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static partial bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer,
+		uint nSize, out UIntPtr lpNumberOfBytesRead);
 
-        [DllImport("kernel32.dll")]
-        private static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, 
-            uint nSize, out UIntPtr lpNumberOfBytesWritten);
+	[LibraryImport("kernel32.dll", SetLastError = true)]
+	[return: MarshalAs(UnmanagedType.Bool)]
+	private static partial bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer,
+		uint nSize, out UIntPtr lpNumberOfBytesWritten);
 
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr VirtualQueryEx(IntPtr hProcess, IntPtr lpAddress, 
-            out MEMORY_BASIC_INFORMATION lpBuffer, uint dwLength);
+	[LibraryImport("kernel32.dll", SetLastError = true)]
+	private static partial IntPtr VirtualQueryEx(IntPtr hProcess, IntPtr lpAddress,
+		out MEMORY_BASIC_INFORMATION lpBuffer, uint dwLength);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct MEMORY_BASIC_INFORMATION
@@ -40,6 +43,7 @@ namespace ChooChooEngine.App.Memory
         private const uint MEM_COMMIT = 0x1000;
         private const uint MEM_FREE = 0x10000;
         private const uint MEM_RESERVE = 0x2000;
+	private const int ERROR_INVALID_PARAMETER = 87;
 
         // Memory protection
         private const uint PAGE_EXECUTE = 0x10;
@@ -78,11 +82,19 @@ namespace ChooChooEngine.App.Memory
 
             try
             {
-                if (!ReadProcessMemory(processHandle, address, buffer, size, out bytesRead) || bytesRead.ToUInt32() != size)
-                {
-                    OnMemoryOperationFailed(new MemoryEventArgs(address, size, "Failed to read memory"));
-                    return null;
-                }
+		if (!ReadProcessMemory(processHandle, address, buffer, size, out bytesRead))
+		{
+			int errorCode = Marshal.GetLastWin32Error();
+			OnMemoryOperationFailed(new MemoryEventArgs(address, size, Win32ErrorHelper.FormatError("ReadProcessMemory", errorCode)));
+			return null;
+		}
+
+		if (bytesRead.ToUInt64() != size)
+		{
+			OnMemoryOperationFailed(new MemoryEventArgs(address, size,
+				$"ReadProcessMemory returned {bytesRead.ToUInt64()} bytes, expected {size}"));
+			return null;
+		}
 
                 OnMemoryOperationSucceeded(new MemoryEventArgs(address, size, "Memory read successfully"));
                 return buffer;
@@ -107,12 +119,19 @@ namespace ChooChooEngine.App.Memory
 
             try
             {
-                if (!WriteProcessMemory(processHandle, address, data, (uint)data.Length, out bytesWritten) || 
-                    bytesWritten.ToUInt32() != data.Length)
-                {
-                    OnMemoryOperationFailed(new MemoryEventArgs(address, (uint)data.Length, "Failed to write memory"));
-                    return false;
-                }
+		if (!WriteProcessMemory(processHandle, address, data, (uint)data.Length, out bytesWritten))
+		{
+			int errorCode = Marshal.GetLastWin32Error();
+			OnMemoryOperationFailed(new MemoryEventArgs(address, (uint)data.Length, Win32ErrorHelper.FormatError("WriteProcessMemory", errorCode)));
+			return false;
+		}
+
+		if (bytesWritten.ToUInt64() != (ulong)data.Length)
+		{
+			OnMemoryOperationFailed(new MemoryEventArgs(address, (uint)data.Length,
+				$"WriteProcessMemory returned {bytesWritten.ToUInt64()} bytes, expected {data.Length}"));
+			return false;
+		}
 
                 OnMemoryOperationSucceeded(new MemoryEventArgs(address, (uint)data.Length, "Memory written successfully"));
                 return true;
@@ -144,7 +163,16 @@ namespace ChooChooEngine.App.Memory
                     IntPtr result = VirtualQueryEx(processHandle, address, out mbi, (uint)Marshal.SizeOf(typeof(MEMORY_BASIC_INFORMATION)));
                     
                     if (result.ToInt64() == 0)
-                        break;
+			{
+				int errorCode = Marshal.GetLastWin32Error();
+				if (errorCode != 0 && errorCode != ERROR_INVALID_PARAMETER)
+				{
+					OnMemoryOperationFailed(new MemoryEventArgs(address, 0, Win32ErrorHelper.FormatError("VirtualQueryEx", errorCode)));
+					return null;
+				}
+
+				break;
+			}
 
                     if (mbi.State == MEM_COMMIT)
                     {

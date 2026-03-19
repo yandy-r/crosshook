@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -15,9 +16,33 @@ namespace ChooChooEngine.App.UI
         
         private const string DEFAULT_TEXT = "CLICK TO RESUME";
         private const string DEFAULT_SUBTEXT = "Application paused";
-        
-        public new string Text { get; set; } = DEFAULT_TEXT;
-        public string SubText { get; set; } = DEFAULT_SUBTEXT;
+		private string _subText = DEFAULT_SUBTEXT;
+
+		[Browsable(true)]
+		[DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
+		[DefaultValue(DEFAULT_TEXT)]
+		public override string Text
+		{
+			get => base.Text;
+			set
+			{
+				base.Text = value;
+				Invalidate();
+			}
+		}
+
+		[Browsable(true)]
+		[DesignerSerializationVisibility(DesignerSerializationVisibility.Visible)]
+		[DefaultValue(DEFAULT_SUBTEXT)]
+		public string SubText
+		{
+			get => _subText;
+			set
+			{
+				_subText = value;
+				Invalidate();
+			}
+		}
         
         public event EventHandler Resumed;
         
@@ -26,6 +51,7 @@ namespace ChooChooEngine.App.UI
             // Initialize properties
             Dock = DockStyle.Fill;
             Visible = false;
+			Text = DEFAULT_TEXT;
             
             // Create fonts and brushes
             _textFont = new Font("Arial", 36, FontStyle.Bold);
@@ -105,4 +131,4 @@ namespace ChooChooEngine.App.UI
             base.Dispose(disposing);
         }
     }
-} 
+}

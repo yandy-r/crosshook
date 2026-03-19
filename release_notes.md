@@ -1,9 +1,9 @@
 # 🆕 ChooChoo v5.0 – The Touch-First Release!
 
-[![Download ChooChoo](https://img.shields.io/badge/⬇_Download-ChooChoo_v5.0-00C853?style=for-the-badge)](https://github.com/wowitsjack/choochoo-loader/releases/latest/download/choochoo.exe)
-[![GitHub Release](https://img.shields.io/github/v/release/wowitsjack/choochoo-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/wowitsjack/choochoo-loader/releases/latest)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/wowitsjack/choochoo-loader)
-[![License](https://img.shields.io/github/license/wowitsjack/choochoo-loader?style=for-the-badge&color=green)](LICENSE)
+[![Download ChooChoo](https://img.shields.io/badge/⬇_Download-ChooChoo_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/choochoo-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/choochoo-loader/releases)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/choochoo-loader)
+[![License](https://img.shields.io/github/license/yandy-r/choochoo-loader?style=for-the-badge&color=green)](LICENSE)
 
 ## Major Changes (Compared to v4.0a)
 
@@ -70,7 +70,6 @@
 
 - `-p "ProfileName"`: Load saved profiles
 - `-autolaunch`: Start games automatically
-- `-dllinject [Dll1.dll] [Dll2.dll]`: Inject up to five DLLs
 - Clear error messaging for invalid configurations
 
 ### 💻 UI & Stability
@@ -84,16 +83,18 @@
 
 ## 📦 Installation Instructions
 
+ChooChoo is now distributed as zip packages on the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases). Download the correct zip, extract the full archive into a folder you want to keep, and launch `choochoo.exe` from the extracted folder. Do not treat `choochoo.exe` as a standalone single-file executable.
+
 ### 🖥️ Windows
 
-1. Download `choochoo.exe`
-2. Place it in your game folder
-3. Configure and launch!
+1. Download **choochoo-win-x64.zip** (or **choochoo-win-x86.zip** for 32-bit) from the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases).
+2. Place the extracted folder in your game directory (or desired location).
+3. Run `choochoo.exe` from the extracted folder and configure!
 
 ### 🎮 Steam Deck (Proton)
 
-1. Download `choochoo.exe`
-2. Add as Non-Steam Game
+1. Download **choochoo-win-x64.zip** (or **choochoo-win-x86.zip** for 32-bit) from the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases) and extract it into a folder you want to keep.
+2. Add the extracted folder’s `choochoo.exe` as a Non-Steam Game.
 3. Enable Proton 9+
 4. Configure and play!
 
@@ -101,7 +102,7 @@
 
 1. Install Whisky
 2. Create new bottle
-3. Run `choochoo.exe`
+3. Download and extract **choochoo-win-x64.zip** from the [GitHub Releases page](https://github.com/yandy-r/choochoo-loader/releases), then run `choochoo.exe` from the extracted folder in the bottle.
 4. Configure and enjoy!
 
 ---
@@ -109,7 +110,7 @@
 ## 🛠️ Support & Troubleshooting
 
 Found a bug? Report it here:
-[![Report Issue](https://img.shields.io/badge/🐛%20Report%20a%20Bug-GitHub%20Issues-red?style=for-the-badge)](https://github.com/wowitsjack/choochoo-loader/issues)
+[![Report Issue](https://img.shields.io/badge/🐛%20Report%20a%20Bug-GitHub%20Issues-red?style=for-the-badge)](https://github.com/yandy-r/choochoo-loader/issues)
 
 ---
 

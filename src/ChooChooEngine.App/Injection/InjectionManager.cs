@@ -3,49 +3,32 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.Marshalling;
 using System.Text;
 using System.Threading;
 using System.Timers;
 using ChooChooEngine.App.Core;
+using ChooChooEngine.App.Diagnostics;
+using ChooChooEngine.App.Interop;
 
 namespace ChooChooEngine.App.Injection
 {
-    public class InjectionManager
+    public partial class InjectionManager : IDisposable
     {
         #region Win32 API
 
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr OpenProcess(int dwDesiredAccess, bool bInheritHandle, int dwProcessId);
+        [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf8)]
+        private static partial IntPtr GetProcAddress(IntPtr hModule, string procName);
 
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+        [LibraryImport("kernel32.dll", EntryPoint = "GetModuleHandleW", StringMarshalling = StringMarshalling.Utf16)]
+        private static partial IntPtr GetModuleHandle(string lpModuleName);
 
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr GetModuleHandle(string lpModuleName);
+        [LibraryImport("kernel32.dll", EntryPoint = "LoadLibraryW", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
+        private static partial IntPtr LoadLibrary(string lpFileName);
 
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, 
-            uint flAllocationType, uint flProtect);
-
-        [DllImport("kernel32.dll")]
-        private static extern bool VirtualFreeEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint dwFreeType);
-
-        [DllImport("kernel32.dll")]
-        private static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, 
-            uint nSize, out UIntPtr lpNumberOfBytesWritten);
-
-        [DllImport("kernel32.dll")]
-        private static extern IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, 
-            IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool CloseHandle(IntPtr hObject);
-
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        private static extern IntPtr LoadLibrary(string lpFileName);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool FreeLibrary(IntPtr hModule);
+        [LibraryImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool FreeLibrary(IntPtr hModule);
 
         // Access rights
         private const int PROCESS_CREATE_THREAD = 0x0002;
@@ -62,12 +45,22 @@ namespace ChooChooEngine.App.Injection
         private const uint PAGE_READWRITE = 0x04;
         private const uint PAGE_EXECUTE_READWRITE = 0x40;
 
+	// Wait / PE parsing constants
+	private const uint WAIT_OBJECT_0 = 0x00000000;
+	private const uint WAIT_ABANDONED = 0x00000080;
+	private const uint WAIT_TIMEOUT = 0x00000102;
+	private const uint WAIT_FAILED = 0xFFFFFFFF;
+	private const uint STILL_ACTIVE = 259;
+	private const ushort IMAGE_NT_OPTIONAL_HDR32_MAGIC = 0x10B;
+	private const ushort IMAGE_NT_OPTIONAL_HDR64_MAGIC = 0x20B;
+
         #endregion
 
         private ProcessManager _processManager;
         private System.Timers.Timer _monitoringTimer;
         private Dictionary<string, bool> _validatedDlls = new Dictionary<string, bool>();
         private readonly object _injectionLock = new object();
+	private bool _disposed;
         
         public event EventHandler<InjectionEventArgs> InjectionSucceeded;
         public event EventHandler<InjectionEventArgs> InjectionFailed;
@@ -81,6 +74,8 @@ namespace ChooChooEngine.App.Injection
 
         public InjectionManager(ProcessManager processManager)
         {
+            ArgumentNullException.ThrowIfNull(processManager);
+
             _processManager = processManager;
             _monitoringTimer = new System.Timers.Timer(MonitoringInterval);
             _monitoringTimer.Elapsed += OnMonitoringTimerElapsed;
@@ -104,6 +99,23 @@ namespace ChooChooEngine.App.Injection
                 IsMonitoring = false;
             }
         }
+
+	public void Dispose()
+	{
+		if (_disposed)
+			return;
+
+		StopMonitoring();
+
+		if (_monitoringTimer != null)
+		{
+			_monitoringTimer.Elapsed -= OnMonitoringTimerElapsed;
+			_monitoringTimer.Dispose();
+			_monitoringTimer = null;
+		}
+
+		_disposed = true;
+	}
 
         public bool InjectDll(string dllPath)
         {
@@ -131,13 +143,14 @@ namespace ChooChooEngine.App.Injection
                     {
                         case InjectionMethod.StandardInjection:
                             return InjectDllStandard(processHandle, dllPath);
-                        case InjectionMethod.ManualMapping:
-                            return InjectDllManualMapping(processHandle, dllPath);
-                        default:
-                            return InjectDllStandard(processHandle, dllPath);
-                    }
-                }
-            }
+						case InjectionMethod.ManualMapping:
+							return InjectDllManualMapping(processHandle, dllPath);
+						default:
+							OnInjectionFailed(new InjectionEventArgs(dllPath, GetUnsupportedInjectionMethodMessage(InjectionMethod)));
+							return false;
+					}
+				}
+			}
             catch (Exception ex)
             {
                 OnInjectionFailed(new InjectionEventArgs(dllPath, $"Injection failed: {ex.Message}"));
@@ -195,7 +208,7 @@ namespace ChooChooEngine.App.Injection
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error validating DLL: {ex.Message}");
+                AppDiagnostics.LogError($"Error validating DLL: {ex}");
                 _validatedDlls[dllPath] = false;
                 return false;
             }
@@ -207,39 +220,88 @@ namespace ChooChooEngine.App.Injection
             {
                 // Read the PE header to determine if the DLL is 32-bit or 64-bit
                 using (FileStream fs = new FileStream(dllPath, FileMode.Open, FileAccess.Read))
-                using (BinaryReader br = new BinaryReader(fs))
                 {
-                    // DOS header
-                    fs.Position = 0x3C;
-                    uint peHeaderOffset = br.ReadUInt32();
+			bool? is64Bit = TryReadIsDll64Bit(fs);
+			if (!is64Bit.HasValue)
+				return false;
 
-                    // PE header signature
-                    fs.Position = peHeaderOffset;
-                    uint peHeaderSignature = br.ReadUInt32();
-                    if (peHeaderSignature != 0x00004550) // "PE\0\0"
-                        return false;
-
-                    // COFF header
-                    fs.Position += 20;
-                    ushort characteristics = br.ReadUInt16();
-
-                    // Check if the IMAGE_FILE_32BIT_MACHINE flag is set
-                    const ushort IMAGE_FILE_32BIT_MACHINE = 0x0100;
-                    bool is32Bit = (characteristics & IMAGE_FILE_32BIT_MACHINE) != 0;
-                    
-                    return !is32Bit;
+			return is64Bit.Value;
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error determining DLL architecture: {ex.Message}");
+                AppDiagnostics.LogError($"Error determining DLL architecture: {ex}");
                 return false;
             }
         }
 
+	internal static bool? TryReadIsDll64Bit(Stream dllStream)
+	{
+		using (BinaryReader br = new BinaryReader(dllStream, Encoding.UTF8, leaveOpen: true))
+		{
+			// DOS header
+			dllStream.Position = 0x3C;
+			uint peHeaderOffset = br.ReadUInt32();
+
+			// PE header signature
+			dllStream.Position = peHeaderOffset;
+			uint peHeaderSignature = br.ReadUInt32();
+			if (peHeaderSignature != 0x00004550) // "PE\0\0"
+				return null;
+
+			// Skip the 20-byte COFF header and read the Optional Header magic intentionally.
+			dllStream.Position += 20;
+			ushort magic = br.ReadUInt16();
+
+			return magic switch
+			{
+				IMAGE_NT_OPTIONAL_HDR32_MAGIC => false,
+				IMAGE_NT_OPTIONAL_HDR64_MAGIC => true,
+				_ => null
+			};
+		}
+	}
+
+	internal static string GetRemoteThreadFailureMessage(uint waitResult, bool gotExitCode, uint exitCode, Func<int> getLastError)
+	{
+		switch (waitResult)
+		{
+			case WAIT_OBJECT_0:
+				break;
+			case WAIT_TIMEOUT:
+				return "LoadLibraryA thread timed out after 5000 ms";
+			case WAIT_ABANDONED:
+				return "WaitForSingleObject returned WAIT_ABANDONED for the LoadLibraryA thread";
+			case WAIT_FAILED:
+				return Win32ErrorHelper.FormatError("WaitForSingleObject", getLastError());
+			default:
+				return $"WaitForSingleObject returned unexpected result {waitResult}";
+		}
+
+		if (!gotExitCode)
+			return Win32ErrorHelper.FormatError("GetExitCodeThread", getLastError());
+
+		if (exitCode == STILL_ACTIVE)
+			return "LoadLibraryA thread is still active after wait completion";
+
+		if (exitCode == 0)
+			return "LoadLibraryA returned 0";
+
+		return null;
+	}
+
+	internal static string GetUnsupportedInjectionMethodMessage(InjectionMethod injectionMethod)
+	{
+		return injectionMethod switch
+		{
+			InjectionMethod.ManualMapping => "Manual mapping is not implemented. Refusing to fall back to standard injection.",
+			_ => $"Injection method '{injectionMethod}' is not supported."
+		};
+	}
+
         private bool InjectDllStandard(IntPtr processHandle, string dllPath)
         {
-            // Get the address of LoadLibraryA in kernel32.dll
+            // Keep the remote thread pointed at LoadLibraryA so the ASCII-path injection contract stays unchanged.
             IntPtr loadLibraryAddr = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
             if (loadLibraryAddr == IntPtr.Zero)
                 return false;
@@ -248,39 +310,60 @@ namespace ChooChooEngine.App.Injection
             byte[] dllPathBytes = Encoding.ASCII.GetBytes(dllPath);
             uint allocSize = (uint)((dllPathBytes.Length + 1) * Marshal.SizeOf(typeof(char)));
 
-            IntPtr remoteMemory = VirtualAllocEx(processHandle, IntPtr.Zero, allocSize, 
+            IntPtr remoteMemory = Kernel32Interop.VirtualAllocEx(processHandle, IntPtr.Zero, allocSize, 
                 MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
             if (remoteMemory == IntPtr.Zero)
+            {
+                int errorCode = Marshal.GetLastWin32Error();
+                OnInjectionFailed(new InjectionEventArgs(dllPath, Win32ErrorHelper.FormatError("VirtualAllocEx", errorCode)));
                 return false;
+            }
 
             try
             {
                 // Write the DLL path to the allocated memory
+		// Pass exact buffer length - VirtualAllocEx zero-initialized the extra byte for the null terminator
                 UIntPtr bytesWritten;
-                bool writeResult = WriteProcessMemory(processHandle, remoteMemory, dllPathBytes, 
-                    allocSize, out bytesWritten);
+                bool writeResult = Kernel32Interop.WriteProcessMemory(processHandle, remoteMemory, dllPathBytes,
+                    (uint)dllPathBytes.Length, out bytesWritten);
                 if (!writeResult)
+                {
+                    int errorCode = Marshal.GetLastWin32Error();
+                    OnInjectionFailed(new InjectionEventArgs(dllPath, Win32ErrorHelper.FormatError("WriteProcessMemory", errorCode)));
                     return false;
+                }
+
+                if (bytesWritten.ToUInt64() != (ulong)dllPathBytes.Length)
+                {
+                    OnInjectionFailed(new InjectionEventArgs(dllPath,
+                        $"WriteProcessMemory returned {bytesWritten.ToUInt64()} bytes, expected {dllPathBytes.Length}"));
+                    return false;
+                }
 
                 // Create a remote thread that calls LoadLibraryA with the DLL path as argument
-                IntPtr threadHandle = CreateRemoteThread(processHandle, IntPtr.Zero, 0, 
+                IntPtr threadHandle = Kernel32Interop.CreateRemoteThread(processHandle, IntPtr.Zero, 0, 
                     loadLibraryAddr, remoteMemory, 0, IntPtr.Zero);
                 if (threadHandle == IntPtr.Zero)
+                {
+                    int errorCode = Marshal.GetLastWin32Error();
+                    OnInjectionFailed(new InjectionEventArgs(dllPath, Win32ErrorHelper.FormatError("CreateRemoteThread", errorCode)));
                     return false;
+                }
 
                 // Wait for the thread to finish
-                WaitForSingleObject(threadHandle, 5000);
+		uint waitResult = WaitForSingleObject(threadHandle, 5000);
 
                 // Get the thread exit code (should be the handle to the loaded DLL)
                 uint exitCode;
-                GetExitCodeThread(threadHandle, out exitCode);
+		bool gotExitCode = GetExitCodeThread(threadHandle, out exitCode);
 
                 // Clean up
-                CloseHandle(threadHandle);
+                Kernel32Interop.CloseHandle(threadHandle);
 
-                if (exitCode == 0)
+		string failureMessage = GetRemoteThreadFailureMessage(waitResult, gotExitCode, exitCode, Marshal.GetLastWin32Error);
+		if (!string.IsNullOrEmpty(failureMessage))
                 {
-                    OnInjectionFailed(new InjectionEventArgs(dllPath, "LoadLibraryA returned 0"));
+                    OnInjectionFailed(new InjectionEventArgs(dllPath, failureMessage));
                     return false;
                 }
 
@@ -290,15 +373,19 @@ namespace ChooChooEngine.App.Injection
             finally
             {
                 // Free the allocated memory
-                VirtualFreeEx(processHandle, remoteMemory, 0, MEM_RELEASE);
+                if (!Kernel32Interop.VirtualFreeEx(processHandle, remoteMemory, 0, MEM_RELEASE))
+                {
+                    int errorCode = Marshal.GetLastWin32Error();
+                    AppDiagnostics.LogError(Win32ErrorHelper.FormatError("VirtualFreeEx", errorCode));
+                }
             }
         }
 
         private bool InjectDllManualMapping(IntPtr processHandle, string dllPath)
         {
-            // Manual mapping is a more complex technique and would be implemented here
-            // For now, we'll use the standard injection method as a fallback
-            return InjectDllStandard(processHandle, dllPath);
+			_ = processHandle;
+			OnInjectionFailed(new InjectionEventArgs(dllPath, GetUnsupportedInjectionMethodMessage(InjectionMethod.ManualMapping)));
+			return false;
         }
 
         private void OnMonitoringTimerElapsed(object sender, ElapsedEventArgs e)
@@ -311,11 +398,12 @@ namespace ChooChooEngine.App.Injection
 
         #region Additional P/Invoke for thread handling
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+        [LibraryImport("kernel32.dll", SetLastError = true)]
+        private static partial uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool GetExitCodeThread(IntPtr hThread, out uint lpExitCode);
+        [LibraryImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static partial bool GetExitCodeThread(IntPtr hThread, out uint lpExitCode);
 
         #endregion
 
@@ -351,4 +439,4 @@ namespace ChooChooEngine.App.Injection
             Message = message;
         }
     }
-} 
+}

@@ -6,22 +6,45 @@ ChooChoo is a Proton/WINE Trainer & DLL Loader — a Windows Forms application t
 
 ## Tech Stack
 
-- **Language**: C# (.NET Framework 4.8)
+- **Language**: C# (`net9.0-windows`)
 - **UI**: Windows Forms (WinForms)
-- **Build System**: MSBuild (classic `.csproj`, NOT SDK-style)
+- **Build System**: `dotnet build` / `dotnet publish` with SDK-style `.csproj`
 - **Solution**: `src/ChooChooEngine.sln`
 - **Project**: `src/ChooChooEngine.App/ChooChooEngine.App.csproj`
 - **Output**: `choochoo.exe` (WinExe)
 
+## Local SDK
+
+The repo supports a **project-local .NET 9 SDK** to avoid conflicts with the system-installed version (e.g. .NET 10). Two gitignored directories handle this:
+
+- `.dotnet/` — contains the pinned .NET 9 SDK
+- `.dotnet-cli-home/` — isolates NuGet caches and CLI state from `~/.dotnet`
+
+To use the local SDK, prepend it to `PATH` before running any `dotnet` command:
+
+```bash
+export PATH="$PWD/.dotnet:$PATH"
+export DOTNET_CLI_HOME="$PWD/.dotnet-cli-home"
+```
+
+When the local SDK is not present, commands fall back to the system `dotnet`. The `scripts/publish-dist.sh` script auto-detects and uses the local SDK if `.dotnet/` exists.
+
 ## Build Commands
 
 ```bash
-# Build with MSBuild (NOT dotnet CLI — this is .NET Framework 4.8)
-msbuild src/ChooChooEngine.sln /p:Configuration=Release
-msbuild src/ChooChooEngine.sln /p:Configuration=Debug
+# Build with the .NET 9 SDK
+dotnet build src/ChooChooEngine.sln -c Debug
+dotnet build src/ChooChooEngine.sln -c Release
+
+# Publish the migration release as dual artifacts (preferred: use the script)
+./scripts/publish-dist.sh
+
+# Or publish manually
+dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x64 --self-contained true
+dotnet publish src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Release -r win-x86 --self-contained true
 ```
 
-> **Important**: `dotnet build` will NOT work. This project uses classic .NET Framework 4.8, not .NET Core/5+.
+> **Important**: this repo targets `net9.0-windows`. Use the local `.dotnet/` SDK if the system version differs.
 
 ## Architecture
 
@@ -56,5 +79,49 @@ src/ChooChooEngine.App/
 - The `AllowUnsafeBlocks` and P/Invoke usage is intentional for process manipulation
 - `MainForm.cs` is the largest file — it contains the full WinForms UI with designer-generated code
 - No test framework is currently configured
+- Migration releases publish both `win-x64` and `win-x86` artifacts to preserve the current AnyCPU/bitness-sensitive injection behavior.
 - Environment management uses `direnv` with `.envrc` and `dotenvx` for encrypted env vars
 - Never commit `.env`, `.env.encrypted`, or `.env.keys` files
+
+## GitHub Workflow
+
+### Issue Templates
+
+All issues MUST use the YAML form templates in `.github/ISSUE_TEMPLATE/`:
+
+- **Bug Report** (`bug_report.yml`): Use `gh issue create --template bug_report.yml`
+- **Feature Request** (`feature_request.yml`): Use `gh issue create --template feature_request.yml`
+- **Compatibility Report** (`compatibility_report.yml`): Use `gh issue create --template compatibility_report.yml`
+
+Blank issues are disabled via `config.yml`. Never bypass templates with `--title`-only issue creation.
+
+Practical CLI limitation:
+
+- `gh issue create` does not support combining `--template` with `--body` or `--body-file`.
+- In this repo, `gh issue create --template ...` currently reports `no templates found` for the YAML issue forms, so the CLI is not discovering these form templates reliably.
+- If this limitation blocks issue creation, use the GitHub API/tooling to create a fully structured issue body that mirrors the intended form fields, then apply the correct labels. Do not fall back to a vague or title-only issue.
+
+### Pull Requests
+
+PRs auto-populate from `.github/pull_request_template.md`. The template includes:
+
+- `Closes #` issue linkage (always link the related issue)
+- Type of Change checkboxes
+- Build verification checklist (`dotnet build` / `dotnet publish`)
+- Conditional checks for Injection/, Memory/, Core/, and UI/ changes
+
+CLI completion note:
+
+- Zsh completion for `gh` may be loaded correctly while `gh` itself still returns no positional completions for PR or issue numbers.
+- If `gh pr merge <TAB>` does not fill in PR identifiers, verify with `gh __complete pr merge \"\"`. If it returns only `:0`, that is a `gh` completion limitation, not necessarily a shell setup problem.
+
+### Labels
+
+Use the colon-prefixed label taxonomy — never create ad-hoc labels:
+
+- `type:` bug, feature, docs, refactor, compatibility, build, migration
+- `area:` injection, memory, process, ui, build, profiles, cli
+- `platform:` steam-deck, linux, macos, wine, proton
+- `priority:` critical, high, medium, low
+- `status:` needs-triage, in-progress, blocked, needs-info
+- Standalone: `good first issue`, `help wanted`, `duplicate`, `wontfix`
