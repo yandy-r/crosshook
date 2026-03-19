@@ -38,7 +38,7 @@ Go through the @docs/plans/progressive-disclosure plan and lets create a github 
 
 ## PR Review Correction
 
-Let's validate and fix critical issues 1-4
+Let's validate not just the status, but that the issues are real, and fix Test Coverage issues TC-1 - TC-8.
 
 - file: [@pr-8-review.md](file:///home/yandy/Projects/github.com/yandy-r/choochoo-loader/docs/pr-reviews/pr-8-review.md)
 - validate before implementing
