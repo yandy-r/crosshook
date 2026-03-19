@@ -11,7 +11,10 @@
       "Bash(gh label:*)",
       "Bash(gh repo:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet build:*)"
     ]
   }
 }
