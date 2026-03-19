@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
 # Regenerates all branding PNGs and ICO from SVG sources.
-# Requires: rsvg-convert (librsvg2-bin) and magick (imagemagick).
+# Requires: rsvg-convert (librsvg2-bin) and convert or magick (imagemagick).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ASSETS="$ROOT_DIR/assets"
 STEAM="$ASSETS/steam"
+
+# Resolve ImageMagick command (IM7 uses "magick", IM6 uses "convert")
+if command -v magick &>/dev/null; then
+  IM=magick
+elif command -v convert &>/dev/null; then
+  IM=convert
+else
+  echo "ImageMagick not found (neither magick nor convert)" >&2
+  exit 1
+fi
 
 # --- Monogram icon PNGs ---
 for size in 16 32 48 256 512; do
@@ -14,9 +24,9 @@ for size in 16 32 48 256 512; do
 done
 
 # --- Multi-resolution ICO ---
-magick "$ASSETS/icon-16.png" "$ASSETS/icon-32.png" \
-       "$ASSETS/icon-48.png" "$ASSETS/icon-256.png" \
-       "$ASSETS/crosshook.ico"
+$IM "$ASSETS/icon-16.png" "$ASSETS/icon-32.png" \
+    "$ASSETS/icon-48.png" "$ASSETS/icon-256.png" \
+    "$ASSETS/crosshook.ico"
 
 # --- Full logo PNG (for README) ---
 rsvg-convert -w 960 "$ASSETS/logo-full.svg" -o "$ROOT_DIR/crosshook.png"
