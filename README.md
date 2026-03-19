@@ -1,4 +1,4 @@
-# **🚂 CrossHook**
+# **🎯 CrossHook**
 
 [![Download CrossHook](https://img.shields.io/badge/⬇_Download-CrossHook_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook-loader/releases)
 [![GitHub Release](https://img.shields.io/github/v/release/yandy-r/crosshook-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/crosshook-loader/releases)
@@ -234,12 +234,52 @@ Unfortuntely there is nothing the end user can do about this.
 
 ## **Customization & Artwork**
 
-- **Renaming in Steam:**
-  - Right-click CrossHook in your Library → **Properties** → **Rename** (e.g., _"CrossHook Trainer"_).
+CrossHook ships with a full set of Steam artwork in the `artwork/` folder inside the release zip. You can use these images to give CrossHook a polished look in your Steam library.
 
-- **Decky Loader & SteamGridDB (Optional):**
-  - Install **Decky Loader** on Steam Deck.
-  - Add **SteamGridDB** plugin → Use it to replace CrossHook's artwork with custom images or icons.
+### Bundled Artwork Files
+
+| File                   | Size      | Steam Slot                          |
+| ---------------------- | --------- | ----------------------------------- |
+| `crosshook.ico`        | Multi-res | Windows icon                        |
+| `crosshook.png`        | 512x512   | General icon / Steam Grid           |
+| `steam-cover.png`      | 600x900   | Cover (library shelves)             |
+| `steam-background.png` | 3840x1240 | Background (detail page header)     |
+| `steam-logo.png`       | 1280x720  | Logo (overlaid on background)       |
+| `steam-wide-cover.png` | 920x430   | Wide Cover (carousels, Big Picture) |
+
+### Setting Up Custom Artwork
+
+1. **Open CrossHook's Properties**
+   - In your Steam Library, right-click **CrossHook** and select **Properties...**
+
+<p align="center">
+  <img src="docs/images/steam-library-right-click.png" width="80%" alt="Right-click CrossHook in Steam Library" />
+</p>
+
+2. **Verify Shortcut Settings**
+   - On the **Shortcut** tab, confirm the **Target** points to `crosshook.exe` and **Proton** is enabled under **Compatibility**.
+
+<p align="center">
+  <img src="docs/images/steam-properties-shortcut.png" width="80%" alt="Steam Properties - Shortcut tab" />
+</p>
+
+3. **Navigate to Customization**
+   - Click **Customization** in the left sidebar. You'll see the default placeholder artwork for each slot.
+
+<p align="center">
+  <img src="docs/images/steam-customization-default.png" width="60%" alt="Steam Customization - default artwork" />
+</p>
+
+4. **Apply CrossHook Artwork**
+   - For each slot (**Cover**, **Background**, **Logo**, **Wide Cover**), click **Change** and select the matching file from the `artwork/` folder in your CrossHook installation directory.
+
+<p align="center">
+  <img src="docs/images/steam-customization-branded.png" width="60%" alt="Steam Customization - CrossHook artwork applied" />
+</p>
+
+### Alternative: Decky Loader & SteamGridDB
+
+On Steam Deck, you can also use **Decky Loader** with the **SteamGridDB** plugin to browse and apply community artwork automatically.
 
 ---
 

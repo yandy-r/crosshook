@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="cg" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#33F5FF"/>
+      <stop offset="100%" stop-color="#00D0E0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background: rounded square (app icon shape) -->
+  <rect x="16" y="16" width="480" height="480" rx="72" fill="#1E1E1E"/>
+  <rect x="16" y="16" width="480" height="480" rx="72"
+        fill="none" stroke="#2D2D2D" stroke-width="2"/>
+
+  <!-- C arc: ~260 degree sweep, opening to the right -->
+  <!-- Arc center: (225, 256), radius: 145 -->
+  <!-- Top terminal at ~50 degrees, bottom terminal at ~-50 degrees -->
+  <path d="M 318 145 A 145 145 0 1 0 318 367"
+        fill="none" stroke="url(#cg)" stroke-width="42" stroke-linecap="round"/>
+
+  <!-- Hook barb at bottom C terminal: curls inward and upward -->
+  <path d="M 318 367 C 298 358, 280 338, 292 315"
+        fill="none" stroke="#00E8F0" stroke-width="32" stroke-linecap="round"/>
+
+  <!-- H left vertical (merges seamlessly with C arc opening) -->
+  <line x1="318" y1="145" x2="318" y2="367"
+        stroke="url(#cg)" stroke-width="40" stroke-linecap="round"/>
+
+  <!-- H right vertical -->
+  <line x1="402" y1="145" x2="402" y2="367"
+        stroke="url(#cg)" stroke-width="40" stroke-linecap="round"/>
+
+  <!-- H crossbar (extends slightly beyond H for crosshair effect) -->
+  <line x1="290" y1="256" x2="430" y2="256"
+        stroke="#00F0FF" stroke-width="32" stroke-linecap="round"/>
+
+  <!-- Crosshair reticle (magenta) centered between H verticals -->
+  <circle cx="360" cy="256" r="30"
+          fill="none" stroke="#FF00AA" stroke-width="5"/>
+
+  <!-- Crosshair tick marks -->
+  <line x1="360" y1="214" x2="360" y2="230"
+        stroke="#FF00AA" stroke-width="5" stroke-linecap="round"/>
+  <line x1="360" y1="282" x2="360" y2="298"
+        stroke="#FF00AA" stroke-width="5" stroke-linecap="round"/>
+  <line x1="318" y1="256" x2="334" y2="256"
+        stroke="#FF00AA" stroke-width="5" stroke-linecap="round"/>
+  <line x1="386" y1="256" x2="402" y2="256"
+        stroke="#FF00AA" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Center dot -->
+  <circle cx="360" cy="256" r="5" fill="#FF00AA"/>
+
+  <!-- Corner brackets (gaming HUD aesthetic) -->
+  <path d="M 48 88 L 48 48 L 88 48"
+        fill="none" stroke="#00F0FF" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+  <path d="M 424 48 L 464 48 L 464 88"
+        fill="none" stroke="#00F0FF" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+  <path d="M 48 424 L 48 464 L 88 464"
+        fill="none" stroke="#FF00AA" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+  <path d="M 424 464 L 464 464 L 464 424"
+        fill="none" stroke="#FF00AA" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+</svg>

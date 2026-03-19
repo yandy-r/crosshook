@@ -31,6 +31,12 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
+      - name: Install asset rendering tools
+        run: sudo apt-get install -y --no-install-recommends librsvg2-bin imagemagick
+
+      - name: Generate branding assets from SVGs
+        run: ./scripts/generate-assets.sh
+
       - name: Publish distribution artifacts
         run: ./scripts/publish-dist.sh
         env:

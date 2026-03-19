@@ -48,6 +48,15 @@ for rid in "${RIDS[@]}"; do
   rm -rf "$RID_STAGE_DIR/Profiles" "$RID_STAGE_DIR/Settings" "$RID_STAGE_DIR/settings.ini"
   rm -f "$RID_STAGE_DIR"/*.pdb
 
+  # Include branding assets for Steam library customization
+  mkdir -p "$RID_STAGE_DIR/artwork"
+  cp "$ROOT_DIR/assets/crosshook.ico" "$RID_STAGE_DIR/artwork/"
+  cp "$ROOT_DIR/assets/icon-512.png" "$RID_STAGE_DIR/artwork/crosshook.png"
+  cp "$ROOT_DIR/assets/steam/steam-cover.png" "$RID_STAGE_DIR/artwork/"
+  cp "$ROOT_DIR/assets/steam/steam-background.png" "$RID_STAGE_DIR/artwork/"
+  cp "$ROOT_DIR/assets/steam/steam-logo.png" "$RID_STAGE_DIR/artwork/"
+  cp "$ROOT_DIR/assets/steam/steam-wide-cover.png" "$RID_STAGE_DIR/artwork/"
+
   mv "$RID_STAGE_DIR" "$DIST_DIR/$ARTIFACT_NAME"
   (
     cd "$DIST_DIR"
