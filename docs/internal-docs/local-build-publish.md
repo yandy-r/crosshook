@@ -1,6 +1,6 @@
 # Local Build And Publish
 
-This document captures the current local build and publish workflow for ChooChoo before CI/CD is added.
+This document captures the current local build and publish workflow for ChooChoo and how it feeds the standard GitHub Releases packaging flow.
 
 ## Prerequisites
 
@@ -38,6 +38,33 @@ dist/choochoo-win-x64.zip
 dist/choochoo-win-x86.zip
 ```
 
+The standard distribution path is the GitHub Releases page. `.github/workflows/release.yml` runs `./scripts/publish-dist.sh` and uploads these two zip files when a `v*` tag is pushed or the workflow is dispatched manually.
+
+## Prepare A Release
+
+Use the repo-local release prep script to generate `CHANGELOG.md`, commit it, create the annotated release tag, and optionally push in the correct order.
+
+Prerequisites:
+
+- `git-cliff` installed locally, for example with `cargo install git-cliff --locked`
+- A clean git worktree
+
+Examples:
+
+```bash
+./scripts/prepare-release.sh --version 5.1.0
+./scripts/prepare-release.sh --tag v5.1.0 --push
+```
+
+The script sequence is:
+
+1. Regenerate `CHANGELOG.md` from git history using `.git-cliff.toml`
+2. Commit the changelog update as `chore(release): prepare vX.Y.Z`
+3. Create the annotated tag `vX.Y.Z`
+4. If `--push` is used, push the branch first and the tag second
+
+That keeps the tag-triggered GitHub Release workflow pointed at the commit that already contains the matching changelog update.
+
 To publish only one RID:
 
 ```bash
@@ -53,9 +80,9 @@ Each `dist/choochoo-win-*` directory is a cleaned copy of the RID-specific `dotn
 - `Profiles/`, `Settings/`, and `settings.ini` are removed from the shipped artifact because they are runtime/user state.
 - The runtime host/runtime DLLs remain beside `choochoo.exe`.
 
-The matching `.zip` file is the preferred release artifact to upload or copy into a test area.
+The matching `.zip` file is the preferred release artifact to upload, attach to a release, or copy into a test area.
 
-Important: these publishes are self-contained, but they are not single-file publishes. The `choochoo.exe` apphost expects `choochoo.dll`, `choochoo.deps.json`, `choochoo.runtimeconfig.json`, the bundled runtime DLLs, and the adjacent `Profiles/`, `Settings/`, and `settings.ini` files to remain in the same published directory layout.
+Important: these publishes are self-contained, but they are not single-file publishes. The `choochoo.exe` apphost expects `choochoo.dll`, `choochoo.deps.json`, `choochoo.runtimeconfig.json`, and the bundled runtime DLLs to remain in the same published directory layout.
 
 If you copy only `choochoo.exe` into another directory, startup fails with an error like:
 
@@ -63,7 +90,7 @@ If you copy only `choochoo.exe` into another directory, startup fails with an er
 The application to execute does not exist: 'D:\...\choochoo.dll'
 ```
 
-When testing or packaging a publish, copy the entire `dist/choochoo-win-*` directory as a unit, or use the generated zip.
+When testing or packaging a publish, copy the entire `dist/choochoo-win-*` directory as a unit, or use the generated zip. End-user guidance should tell users to download a zip from GitHub Releases, extract it into a directory of their choice, and run `choochoo.exe` from the extracted folder.
 
 The repo-root `choochoo.exe` is a legacy file already checked into the repository. The raw `src/ChooChooEngine.App/bin/Release/net9.0-windows/<rid>/publish/` directories are intermediate publish outputs; `dist/` is the release packaging output.
 
