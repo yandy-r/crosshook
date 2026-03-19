@@ -5,36 +5,13 @@ using System.Runtime.InteropServices;
 using System.ComponentModel;
 using System.IO;
 using System.Threading;
+using ChooChooEngine.App.Interop;
 
 namespace ChooChooEngine.App.Core
 {
     public partial class ProcessManager : IDisposable
     {
         #region Win32 API
-
-        [LibraryImport("kernel32.dll")]
-        private static partial IntPtr OpenProcess(int dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, int dwProcessId);
-
-        [LibraryImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static partial bool CloseHandle(IntPtr hObject);
-
-        [LibraryImport("kernel32.dll")]
-        private static partial IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, 
-            IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
-
-        [LibraryImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static partial bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, 
-            uint nSize, out UIntPtr lpNumberOfBytesWritten);
-
-        [LibraryImport("kernel32.dll")]
-        private static partial IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, 
-            uint flAllocationType, uint flProtect);
-
-        [LibraryImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static partial bool VirtualFreeEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint dwFreeType);
 
         [LibraryImport("kernel32.dll")]
         private static partial IntPtr OpenThread(int dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, uint dwThreadId);
@@ -231,7 +208,7 @@ namespace ChooChooEngine.App.Core
                     if (threadHandle != IntPtr.Zero)
                     {
                         SuspendThread(threadHandle);
-                        CloseHandle(threadHandle);
+                        Kernel32Interop.CloseHandle(threadHandle);
                     }
                 }
                 return true;
@@ -256,7 +233,7 @@ namespace ChooChooEngine.App.Core
                     if (threadHandle != IntPtr.Zero)
                     {
                         ResumeThread(threadHandle);
-                        CloseHandle(threadHandle);
+                        Kernel32Interop.CloseHandle(threadHandle);
                     }
                 }
                 return true;
@@ -351,7 +328,7 @@ namespace ChooChooEngine.App.Core
             try
             {
 		CloseProcessHandle();
-                _processHandle = OpenProcess(PROCESS_ALL_ACCESS, false, _process.Id);
+                _processHandle = Kernel32Interop.OpenProcess(PROCESS_ALL_ACCESS, false, _process.Id);
                 _processHandleOpen = _processHandle != IntPtr.Zero;
                 return _processHandleOpen;
             }
@@ -366,7 +343,7 @@ namespace ChooChooEngine.App.Core
         {
             if (_processHandleOpen && _processHandle != IntPtr.Zero)
             {
-                CloseHandle(_processHandle);
+                Kernel32Interop.CloseHandle(_processHandle);
                 _processHandle = IntPtr.Zero;
                 _processHandleOpen = false;
             }

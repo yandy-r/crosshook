@@ -1,85 +1,77 @@
 using System;
 using System.IO;
 
-namespace ChooChooEngine.App.Services
+namespace ChooChooEngine.App.Services;
+
+public sealed class AppSettingsService
 {
-    public sealed class AppSettingsService
+    private readonly string _settingsDirectoryPath;
+    private readonly string _settingsPath;
+
+    public AppSettingsService(string startupPath)
     {
-        private readonly string _settingsDirectoryPath;
-        private readonly string _settingsPath;
+        ArgumentNullException.ThrowIfNull(startupPath);
+        _settingsDirectoryPath = Path.Combine(startupPath, "Settings");
+        _settingsPath = Path.Combine(_settingsDirectoryPath, "AppSettings.ini");
+    }
 
-        public AppSettingsService(string startupPath)
+    public AppSettingsData LoadAppSettings()
+    {
+        Directory.CreateDirectory(_settingsDirectoryPath);
+
+        AppSettingsData settings = new AppSettingsData();
+
+        if (!File.Exists(_settingsPath))
         {
-            if (startupPath == null)
-            {
-                throw new ArgumentNullException(nameof(startupPath));
-            }
-
-            _settingsDirectoryPath = Path.Combine(startupPath, "Settings");
-            _settingsPath = Path.Combine(_settingsDirectoryPath, "AppSettings.ini");
-        }
-
-        public AppSettingsData LoadAppSettings()
-        {
-            Directory.CreateDirectory(_settingsDirectoryPath);
-
-            AppSettingsData settings = new AppSettingsData();
-
-            if (!File.Exists(_settingsPath))
-            {
-                return settings;
-            }
-
-            string[] lines = File.ReadAllLines(_settingsPath);
-
-            foreach (string line in lines)
-            {
-                string[] parts = line.Split(new char[] { '=' }, 2);
-
-                if (parts.Length != 2)
-                {
-                    continue;
-                }
-
-                string key = parts[0];
-                string value = parts[1];
-
-                switch (key)
-                {
-                    case "AutoLoadLastProfile":
-                        settings.AutoLoadLastProfile = bool.Parse(value);
-                        break;
-
-                    case "LastUsedProfile":
-                        settings.LastUsedProfile = value;
-                        break;
-                }
-            }
-
             return settings;
         }
 
-        public void SaveAppSettings(AppSettingsData settings)
+        string[] lines = File.ReadAllLines(_settingsPath);
+
+        foreach (string line in lines)
         {
-            if (settings == null)
+            string[] parts = line.Split(new char[] { '=' }, 2);
+
+            if (parts.Length != 2)
             {
-                throw new ArgumentNullException(nameof(settings));
+                continue;
             }
 
-            Directory.CreateDirectory(_settingsDirectoryPath);
+            string key = parts[0];
+            string value = parts[1];
 
-            using (StreamWriter writer = new StreamWriter(_settingsPath))
+            switch (key)
             {
-                writer.WriteLine($"AutoLoadLastProfile={settings.AutoLoadLastProfile}");
-                writer.WriteLine($"LastUsedProfile={settings.LastUsedProfile}");
+                case "AutoLoadLastProfile":
+                    settings.AutoLoadLastProfile = bool.Parse(value);
+                    break;
+
+                case "LastUsedProfile":
+                    settings.LastUsedProfile = value;
+                    break;
             }
         }
+
+        return settings;
     }
 
-    public sealed class AppSettingsData
+    public void SaveAppSettings(AppSettingsData settings)
     {
-        public bool AutoLoadLastProfile { get; set; }
+        ArgumentNullException.ThrowIfNull(settings);
 
-        public string LastUsedProfile { get; set; } = string.Empty;
+        Directory.CreateDirectory(_settingsDirectoryPath);
+
+        using (StreamWriter writer = new StreamWriter(_settingsPath))
+        {
+            writer.WriteLine($"AutoLoadLastProfile={settings.AutoLoadLastProfile}");
+            writer.WriteLine($"LastUsedProfile={settings.LastUsedProfile}");
+        }
     }
+}
+
+public sealed class AppSettingsData
+{
+    public bool AutoLoadLastProfile { get; set; }
+
+    public string LastUsedProfile { get; set; } = string.Empty;
 }

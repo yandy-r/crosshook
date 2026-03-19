@@ -2,137 +2,129 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace ChooChooEngine.App.Services
+namespace ChooChooEngine.App.Services;
+
+public sealed class RecentFilesService
 {
-    public sealed class RecentFilesService
+    private readonly string _settingsPath;
+
+    public RecentFilesService(string startupPath)
     {
-        private readonly string _settingsPath;
+        ArgumentNullException.ThrowIfNull(startupPath);
+        _settingsPath = Path.Combine(startupPath, "settings.ini");
+    }
 
-        public RecentFilesService(string startupPath)
+    public RecentFilesData LoadRecentFiles()
+    {
+        RecentFilesData recentFiles = new RecentFilesData();
+
+        if (!File.Exists(_settingsPath))
         {
-            if (startupPath == null)
-            {
-                throw new ArgumentNullException(nameof(startupPath));
-            }
-
-            _settingsPath = Path.Combine(startupPath, "settings.ini");
-        }
-
-        public RecentFilesData LoadRecentFiles()
-        {
-            RecentFilesData recentFiles = new RecentFilesData();
-
-            if (!File.Exists(_settingsPath))
-            {
-                return recentFiles;
-            }
-
-            string[] lines = File.ReadAllLines(_settingsPath);
-            string section = string.Empty;
-
-            foreach (string line in lines)
-            {
-                if (string.IsNullOrWhiteSpace(line) || line.StartsWith(";"))
-                {
-                    continue;
-                }
-
-                if (line.StartsWith("[") && line.EndsWith("]"))
-                {
-                    section = line.Substring(1, line.Length - 2);
-                    continue;
-                }
-
-                if (!File.Exists(line))
-                {
-                    continue;
-                }
-
-                switch (section)
-                {
-                    case "RecentGamePaths":
-                        recentFiles.GamePaths.Add(line);
-                        break;
-
-                    case "RecentTrainerPaths":
-                        recentFiles.TrainerPaths.Add(line);
-                        break;
-
-                    case "RecentDllPaths":
-                        recentFiles.DllPaths.Add(line);
-                        break;
-                }
-            }
-
             return recentFiles;
         }
 
-        public void SaveRecentFiles(RecentFilesData recentFiles)
+        string[] lines = File.ReadAllLines(_settingsPath);
+        string section = string.Empty;
+
+        foreach (string line in lines)
         {
-            if (recentFiles == null)
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith(";"))
             {
-                throw new ArgumentNullException(nameof(recentFiles));
+                continue;
             }
 
-            using (StreamWriter writer = new StreamWriter(_settingsPath))
+            if (line.StartsWith("[") && line.EndsWith("]"))
             {
-                writer.WriteLine("[RecentGamePaths]");
-                foreach (string path in recentFiles.GamePaths)
-                {
-                    writer.WriteLine(path);
-                }
+                section = line.Substring(1, line.Length - 2);
+                continue;
+            }
 
-                writer.WriteLine();
-                writer.WriteLine("[RecentTrainerPaths]");
-                foreach (string path in recentFiles.TrainerPaths)
-                {
-                    writer.WriteLine(path);
-                }
+            if (!File.Exists(line))
+            {
+                continue;
+            }
 
-                writer.WriteLine();
-                writer.WriteLine("[RecentDllPaths]");
-                foreach (string path in recentFiles.DllPaths)
-                {
-                    writer.WriteLine(path);
-                }
+            switch (section)
+            {
+                case "RecentGamePaths":
+                    recentFiles.GamePaths.Add(line);
+                    break;
+
+                case "RecentTrainerPaths":
+                    recentFiles.TrainerPaths.Add(line);
+                    break;
+
+                case "RecentDllPaths":
+                    recentFiles.DllPaths.Add(line);
+                    break;
+            }
+        }
+
+        return recentFiles;
+    }
+
+    public void SaveRecentFiles(RecentFilesData recentFiles)
+    {
+        ArgumentNullException.ThrowIfNull(recentFiles);
+
+        using (StreamWriter writer = new StreamWriter(_settingsPath))
+        {
+            writer.WriteLine("[RecentGamePaths]");
+            foreach (string path in recentFiles.GamePaths)
+            {
+                writer.WriteLine(path);
+            }
+
+            writer.WriteLine();
+            writer.WriteLine("[RecentTrainerPaths]");
+            foreach (string path in recentFiles.TrainerPaths)
+            {
+                writer.WriteLine(path);
+            }
+
+            writer.WriteLine();
+            writer.WriteLine("[RecentDllPaths]");
+            foreach (string path in recentFiles.DllPaths)
+            {
+                writer.WriteLine(path);
             }
         }
     }
+}
 
-    public sealed class RecentFilesData
+public sealed class RecentFilesData
+{
+    public List<string> GamePaths { get; }
+
+    public List<string> TrainerPaths { get; }
+
+    public List<string> DllPaths { get; }
+
+    public RecentFilesData()
     {
-        public List<string> GamePaths { get; }
+        GamePaths = new List<string>();
+        TrainerPaths = new List<string>();
+        DllPaths = new List<string>();
+    }
 
-        public List<string> TrainerPaths { get; }
+    public RecentFilesData(IEnumerable<string> gamePaths, IEnumerable<string> trainerPaths, IEnumerable<string> dllPaths)
+        : this()
+    {
+        AddRange(GamePaths, gamePaths);
+        AddRange(TrainerPaths, trainerPaths);
+        AddRange(DllPaths, dllPaths);
+    }
 
-        public List<string> DllPaths { get; }
-
-        public RecentFilesData()
+    private static void AddRange(List<string> target, IEnumerable<string> values)
+    {
+        if (values is null)
         {
-            GamePaths = new List<string>();
-            TrainerPaths = new List<string>();
-            DllPaths = new List<string>();
+            return;
         }
 
-        public RecentFilesData(IEnumerable<string> gamePaths, IEnumerable<string> trainerPaths, IEnumerable<string> dllPaths)
-            : this()
+        foreach (string value in values)
         {
-            AddRange(GamePaths, gamePaths);
-            AddRange(TrainerPaths, trainerPaths);
-            AddRange(DllPaths, dllPaths);
-        }
-
-        private static void AddRange(List<string> target, IEnumerable<string> values)
-        {
-            if (values == null)
-            {
-                return;
-            }
-
-            foreach (string value in values)
-            {
-                target.Add(value);
-            }
+            target.Add(value);
         }
     }
 }

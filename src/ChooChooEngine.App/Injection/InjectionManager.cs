@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Timers;
 using ChooChooEngine.App.Core;
+using ChooChooEngine.App.Interop;
 
 namespace ChooChooEngine.App.Injection
 {
@@ -15,35 +16,11 @@ namespace ChooChooEngine.App.Injection
     {
         #region Win32 API
 
-        [LibraryImport("kernel32.dll")]
-        private static partial IntPtr OpenProcess(int dwDesiredAccess, [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle, int dwProcessId);
-
         [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf8)]
         private static partial IntPtr GetProcAddress(IntPtr hModule, string procName);
 
         [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)]
         private static partial IntPtr GetModuleHandle(string lpModuleName);
-
-        [LibraryImport("kernel32.dll")]
-        private static partial IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, 
-            uint flAllocationType, uint flProtect);
-
-        [LibraryImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static partial bool VirtualFreeEx(IntPtr hProcess, IntPtr lpAddress, uint dwSize, uint dwFreeType);
-
-        [LibraryImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static partial bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, 
-            uint nSize, out UIntPtr lpNumberOfBytesWritten);
-
-        [LibraryImport("kernel32.dll")]
-        private static partial IntPtr CreateRemoteThread(IntPtr hProcess, IntPtr lpThreadAttributes, uint dwStackSize, 
-            IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
-
-        [LibraryImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static partial bool CloseHandle(IntPtr hObject);
 
         [LibraryImport("kernel32.dll", SetLastError = true, StringMarshalling = StringMarshalling.Utf16)]
         private static partial IntPtr LoadLibrary(string lpFileName);
@@ -271,7 +248,7 @@ namespace ChooChooEngine.App.Injection
             byte[] dllPathBytes = Encoding.ASCII.GetBytes(dllPath);
             uint allocSize = (uint)((dllPathBytes.Length + 1) * Marshal.SizeOf(typeof(char)));
 
-            IntPtr remoteMemory = VirtualAllocEx(processHandle, IntPtr.Zero, allocSize, 
+            IntPtr remoteMemory = Kernel32Interop.VirtualAllocEx(processHandle, IntPtr.Zero, allocSize, 
                 MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
             if (remoteMemory == IntPtr.Zero)
                 return false;
@@ -280,13 +257,13 @@ namespace ChooChooEngine.App.Injection
             {
                 // Write the DLL path to the allocated memory
                 UIntPtr bytesWritten;
-                bool writeResult = WriteProcessMemory(processHandle, remoteMemory, dllPathBytes, 
+                bool writeResult = Kernel32Interop.WriteProcessMemory(processHandle, remoteMemory, dllPathBytes, 
                     allocSize, out bytesWritten);
                 if (!writeResult)
                     return false;
 
                 // Create a remote thread that calls LoadLibraryA with the DLL path as argument
-                IntPtr threadHandle = CreateRemoteThread(processHandle, IntPtr.Zero, 0, 
+                IntPtr threadHandle = Kernel32Interop.CreateRemoteThread(processHandle, IntPtr.Zero, 0, 
                     loadLibraryAddr, remoteMemory, 0, IntPtr.Zero);
                 if (threadHandle == IntPtr.Zero)
                     return false;
@@ -299,7 +276,7 @@ namespace ChooChooEngine.App.Injection
                 GetExitCodeThread(threadHandle, out exitCode);
 
                 // Clean up
-                CloseHandle(threadHandle);
+                Kernel32Interop.CloseHandle(threadHandle);
 
                 if (exitCode == 0)
                 {
@@ -313,7 +290,7 @@ namespace ChooChooEngine.App.Injection
             finally
             {
                 // Free the allocated memory
-                VirtualFreeEx(processHandle, remoteMemory, 0, MEM_RELEASE);
+                Kernel32Interop.VirtualFreeEx(processHandle, remoteMemory, 0, MEM_RELEASE);
             }
         }
 
