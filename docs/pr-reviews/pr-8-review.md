@@ -128,9 +128,11 @@ Both return `(DWORD)-1` on failure but the values are never checked. The methods
 
 **File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:272`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 Can return `WAIT_TIMEOUT`, `WAIT_FAILED`, or `WAIT_ABANDONED` — all silently ignored. On timeout (common with anti-cheat), the code checks the exit code of a still-running thread, yielding `STILL_ACTIVE` (259) which is misinterpreted as success.
+
+**Fix:** Added explicit wait-result handling for `WAIT_OBJECT_0`, `WAIT_TIMEOUT`, `WAIT_ABANDONED`, and `WAIT_FAILED`, plus `GetExitCodeThread` validation. The injection path now fails with a concrete diagnostic when the remote `LoadLibraryA` thread does not complete successfully instead of treating timeout/failure as success.
 
 ---
 
@@ -138,11 +140,18 @@ Can return `WAIT_TIMEOUT`, `WAIT_FAILED`, or `WAIT_ABANDONED` — all silently i
 
 **File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:222-224`
 **Source:** Comment Analyzer
-**Status:** Open
+**Status:** Fixed
 
 After `fs.Position += 20` (skipping the entire 20-byte COFF header), the code reads 2 bytes. The comment says it reads COFF `Characteristics`, but it actually reads the Optional Header `Magic` field. Checking `IMAGE_FILE_32BIT_MACHINE` (0x0100) against the PE32 magic (0x010B) happens to produce roughly correct results by coincidence (`0x010B & 0x0100 == 0x0100`), but this is fragile.
 
-**Fix:** Either read Characteristics correctly (`fs.Position += 18; ushort characteristics = br.ReadUInt16();`) or use the Optional Header magic intentionally (`bool is32Bit = magic == 0x10B;`).
+**Fix:** Reworked the parser to read the Optional Header magic intentionally through `TryReadIsDll64Bit(Stream)`. It now returns `false` for PE32 (`0x10B`), `true` for PE32+ (`0x20B`), and rejects unknown/invalid headers instead of relying on the accidental `0x0100` bit overlap.
+
+---
+
+**Validation for CR-9 through CR-10**
+
+- `DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
+- `DOTNET_ROLL_FORWARD=Major DOTNET_CLI_HOME=/tmp/dotnet-cli-home NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~InjectionManagerTests"`
 
 ---
 
