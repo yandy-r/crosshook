@@ -1,5 +1,34 @@
 # merge conflict fix for pr 8
 
+# validate and fix important issues im-5 through im-8 for pr 8
+
+## Scope
+
+- Pull request: `#8`
+- Review doc: `docs/pr-reviews/pr-8-review.md`
+- Goal: validate IM-5 through IM-8 against the current branch, implement only the confirmed fixes, run focused verification, update the review doc with final status/evidence, and commit the progress
+
+## Plan
+
+- [x] Inspect the current branch and confirm whether IM-5 through IM-8 are still present before editing code.
+- [x] Add focused reproducer tests that prove the reported failures on the current code paths.
+- [x] Fix INI boolean parsing so malformed user-edited values no longer throw during settings/profile load.
+- [x] Remove silent fallback behavior from manual-mapping and undisclosed launch-method stubs, and make unsupported selections fail explicitly.
+- [x] Handle `Process.Start()` null returns so process-launch flows fail cleanly instead of storing a null process.
+- [x] Run focused validation for the touched project files.
+- [x] Update `docs/pr-reviews/pr-8-review.md` with final statuses and validation notes.
+- [x] Commit the confirmed progress without touching unrelated worktree changes.
+
+## Review
+
+- Validation confirmed IM-5 through IM-8 are real on the current branch before implementation: the settings/profile loaders still used `bool.Parse`, manual mapping still delegated to standard injection, both thread-injection launch modes still delegated to `CreateProcess`, and the `Process.Start()` call sites still assigned or dereferenced the result without a null guard.
+- `src/ChooChooEngine.App/Services/AppSettingsService.cs` and `src/ChooChooEngine.App/Services/ProfileService.cs` now use `bool.TryParse`, so malformed user-edited boolean values no longer crash file loading and unrelated keys still load.
+- `src/ChooChooEngine.App/Injection/InjectionManager.cs` now fails manual mapping explicitly and surfaces a clear unsupported-method message instead of silently taking the standard `LoadLibraryA` path.
+- `src/ChooChooEngine.App/Core/ProcessManager.cs` now fails the two unimplemented thread-injection launch modes explicitly and routes every `Process.Start()` call through `TryRequireStartedProcess(...)`, so null returns fail cleanly instead of leaving `_process` unusable.
+- Added `tests/ChooChooEngine.App.Tests/InjectionManagerUnsupportedMethodTests.cs` and `tests/ChooChooEngine.App.Tests/ProcessManagerLaunchMethodTests.cs`, and extended the service tests so the malformed-INI and unsupported-method/null-start regressions are covered directly.
+- Focused verification passed with `PATH="$PWD/.dotnet:$PATH" DOTNET_CLI_HOME="$PWD/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`.
+- Focused verification passed with `PATH="$PWD/.dotnet:$PATH" DOTNET_CLI_HOME="$PWD/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~InjectionManagerTests|FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProcessManagerThreadOperationTests|FullyQualifiedName~ProcessManagerLaunchMethodTests"`.
+
 # validate and fix important issues im-1 through im-4 for pr 8
 
 ## Scope

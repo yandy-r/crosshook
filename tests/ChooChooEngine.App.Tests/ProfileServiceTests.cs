@@ -72,4 +72,30 @@ public sealed class ProfileServiceTests
         Assert.False(profile.LaunchInject2);
         Assert.Equal("ProcessStart", profile.LaunchMethod);
     }
+
+	[Fact]
+	public void LoadProfile_IgnoresInvalidBooleanValues_InsteadOfThrowing()
+	{
+		using TestWorkspace workspace = new TestWorkspace();
+		ProfileService service = new ProfileService(workspace.RootPath);
+		string profilePath = workspace.GetPath("Profiles", "deck-run.profile");
+
+		Directory.CreateDirectory(Path.GetDirectoryName(profilePath)!);
+		File.WriteAllLines(
+			profilePath,
+			new[]
+			{
+				"GamePath=/games/hades.exe",
+				"LaunchInject1=1",
+				"LaunchInject2=",
+				"LaunchMethod=CreateProcess"
+			});
+
+		ProfileData profile = service.LoadProfile("deck-run");
+
+		Assert.Equal("/games/hades.exe", profile.GamePath);
+		Assert.False(profile.LaunchInject1);
+		Assert.False(profile.LaunchInject2);
+		Assert.Equal("CreateProcess", profile.LaunchMethod);
+	}
 }

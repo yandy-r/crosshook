@@ -96,13 +96,19 @@ public sealed class ProfileService
                     profile.Dll2Path = value;
                     break;
 
-                case "LaunchInject1":
-                    profile.LaunchInject1 = bool.Parse(value);
-                    break;
+				case "LaunchInject1":
+					if (bool.TryParse(value, out bool launchInject1))
+					{
+						profile.LaunchInject1 = launchInject1;
+					}
+					break;
 
-                case "LaunchInject2":
-                    profile.LaunchInject2 = bool.Parse(value);
-                    break;
+				case "LaunchInject2":
+					if (bool.TryParse(value, out bool launchInject2))
+					{
+						profile.LaunchInject2 = launchInject2;
+					}
+					break;
 
                 case "LaunchMethod":
                     profile.LaunchMethod = value;

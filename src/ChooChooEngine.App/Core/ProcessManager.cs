@@ -427,6 +427,33 @@ namespace ChooChooEngine.App.Core
 		}
 	}
 
+	internal static string GetUnsupportedLaunchMethodMessage(LaunchMethod method)
+	{
+		return method switch
+		{
+			LaunchMethod.CreateThreadInjection => "CreateThreadInjection launch is not implemented. Refusing to fall back to CreateProcess.",
+			LaunchMethod.RemoteThreadInjection => "RemoteThreadInjection launch is not implemented. Refusing to fall back to CreateProcess.",
+			_ => $"Launch method '{method}' is not supported."
+		};
+	}
+
+	internal static bool TryRequireStartedProcess(
+		Process process,
+		string operationName,
+		Action<string> logFailure,
+		out Process startedProcess)
+	{
+		if (process is null)
+		{
+			logFailure($"{operationName} returned null. The target process may have been reused by the shell.");
+			startedProcess = null;
+			return false;
+		}
+
+		startedProcess = process;
+		return true;
+	}
+
         #region Launch Methods
 
         private bool LaunchWithCreateProcess(string exePath, string workingDir)
@@ -464,8 +491,10 @@ namespace ChooChooEngine.App.Core
                 UseShellExecute = false
             };
 
-            Process cmdProcess = Process.Start(startInfo);
-            cmdProcess.WaitForExit();
+			if (!TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for cmd.exe launcher", message => Debug.WriteLine(message), out Process cmdProcess))
+				return false;
+
+			cmdProcess.WaitForExit();
 
             // We need to find our newly created process
             // This is a simplistic approach and may not work in all cases
@@ -483,16 +512,18 @@ namespace ChooChooEngine.App.Core
 
         private bool LaunchWithCreateThreadInjection(string exePath, string workingDir)
         {
-            // This is a placeholder. In a real implementation, this would
-            // create a suspended process and inject code to call CreateThread
-            return LaunchWithCreateProcess(exePath, workingDir);
+			_ = exePath;
+			_ = workingDir;
+			Debug.WriteLine(GetUnsupportedLaunchMethodMessage(LaunchMethod.CreateThreadInjection));
+			return false;
         }
 
         private bool LaunchWithRemoteThreadInjection(string exePath, string workingDir)
         {
-            // This is a placeholder. In a real implementation, this would
-            // create a suspended process and inject code to call CreateRemoteThread
-            return LaunchWithCreateProcess(exePath, workingDir);
+			_ = exePath;
+			_ = workingDir;
+			Debug.WriteLine(GetUnsupportedLaunchMethodMessage(LaunchMethod.RemoteThreadInjection));
+			return false;
         }
 
         private bool LaunchWithShellExecute(string exePath, string workingDir)
@@ -504,7 +535,10 @@ namespace ChooChooEngine.App.Core
                 UseShellExecute = true
             };
 
-            _process = Process.Start(startInfo);
+			if (!TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for shell execute launch", message => Debug.WriteLine(message), out Process process))
+				return false;
+
+			_process = process;
             OpenProcessHandle();
             OnProcessStarted(new ProcessEventArgs(_process));
             return true;
@@ -519,7 +553,10 @@ namespace ChooChooEngine.App.Core
                 UseShellExecute = false
             };
 
-            _process = Process.Start(startInfo);
+			if (!TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for direct launch", message => Debug.WriteLine(message), out Process process))
+				return false;
+
+			_process = process;
             OpenProcessHandle();
             OnProcessStarted(new ProcessEventArgs(_process));
             return true;

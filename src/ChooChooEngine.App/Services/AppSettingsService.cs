@@ -40,11 +40,14 @@ public sealed class AppSettingsService
             string key = parts[0];
             string value = parts[1];
 
-            switch (key)
-            {
-                case "AutoLoadLastProfile":
-                    settings.AutoLoadLastProfile = bool.Parse(value);
-                    break;
+			switch (key)
+			{
+				case "AutoLoadLastProfile":
+					if (bool.TryParse(value, out bool autoLoadLastProfile))
+					{
+						settings.AutoLoadLastProfile = autoLoadLastProfile;
+					}
+					break;
 
                 case "LastUsedProfile":
                     settings.LastUsedProfile = value;

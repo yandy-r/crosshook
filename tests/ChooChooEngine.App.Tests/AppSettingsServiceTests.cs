@@ -63,4 +63,26 @@ public sealed class AppSettingsServiceTests
         Assert.True(settings.AutoLoadLastProfile);
         Assert.Equal("steam=deck=profile", settings.LastUsedProfile);
     }
+
+	[Fact]
+	public void LoadAppSettings_IgnoresInvalidBooleanValues_InsteadOfThrowing()
+	{
+		using TestWorkspace workspace = new TestWorkspace();
+		AppSettingsService service = new AppSettingsService(workspace.RootPath);
+		string settingsPath = workspace.GetPath("Settings", "AppSettings.ini");
+
+		Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+		File.WriteAllLines(
+			settingsPath,
+			new[]
+			{
+				"AutoLoadLastProfile=yes",
+				"LastUsedProfile=deck-profile"
+			});
+
+		AppSettingsData settings = service.LoadAppSettings();
+
+		Assert.False(settings.AutoLoadLastProfile);
+		Assert.Equal("deck-profile", settings.LastUsedProfile);
+	}
 }

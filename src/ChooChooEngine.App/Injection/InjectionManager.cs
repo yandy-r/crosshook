@@ -140,13 +140,14 @@ namespace ChooChooEngine.App.Injection
                     {
                         case InjectionMethod.StandardInjection:
                             return InjectDllStandard(processHandle, dllPath);
-                        case InjectionMethod.ManualMapping:
-                            return InjectDllManualMapping(processHandle, dllPath);
-                        default:
-                            return InjectDllStandard(processHandle, dllPath);
-                    }
-                }
-            }
+						case InjectionMethod.ManualMapping:
+							return InjectDllManualMapping(processHandle, dllPath);
+						default:
+							OnInjectionFailed(new InjectionEventArgs(dllPath, GetUnsupportedInjectionMethodMessage(InjectionMethod)));
+							return false;
+					}
+				}
+			}
             catch (Exception ex)
             {
                 OnInjectionFailed(new InjectionEventArgs(dllPath, $"Injection failed: {ex.Message}"));
@@ -286,6 +287,15 @@ namespace ChooChooEngine.App.Injection
 		return null;
 	}
 
+	internal static string GetUnsupportedInjectionMethodMessage(InjectionMethod injectionMethod)
+	{
+		return injectionMethod switch
+		{
+			InjectionMethod.ManualMapping => "Manual mapping is not implemented. Refusing to fall back to standard injection.",
+			_ => $"Injection method '{injectionMethod}' is not supported."
+		};
+	}
+
         private bool InjectDllStandard(IntPtr processHandle, string dllPath)
         {
             // Keep the remote thread pointed at LoadLibraryA so the ASCII-path injection contract stays unchanged.
@@ -370,9 +380,9 @@ namespace ChooChooEngine.App.Injection
 
         private bool InjectDllManualMapping(IntPtr processHandle, string dllPath)
         {
-            // Manual mapping is a more complex technique and would be implemented here
-            // For now, we'll use the standard injection method as a fallback
-            return InjectDllStandard(processHandle, dllPath);
+			_ = processHandle;
+			OnInjectionFailed(new InjectionEventArgs(dllPath, GetUnsupportedInjectionMethodMessage(InjectionMethod.ManualMapping)));
+			return false;
         }
 
         private void OnMonitoringTimerElapsed(object sender, ElapsedEventArgs e)

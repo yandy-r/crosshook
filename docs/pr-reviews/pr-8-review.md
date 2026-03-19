@@ -216,9 +216,11 @@ Two competing timer strategies: the constructor creates a timer at 100ms (never 
 
 **File:** `src/ChooChooEngine.App/Services/AppSettingsService.cs:46`, `ProfileService.cs:100,105`
 **Source:** Code Reviewer, Silent Failure Hunter, Test Coverage Analyzer
-**Status:** Open
+**Status:** Fixed
 
 User-editable INI files with values like "yes", "1", or empty strings crash profile/settings loading. Use `bool.TryParse` instead.
+
+**Fix:** Replaced the `bool.Parse` calls in `AppSettingsService` and `ProfileService` with `bool.TryParse`, so malformed user-edited booleans no longer throw and the rest of the file still loads.
 
 ---
 
@@ -226,9 +228,11 @@ User-editable INI files with values like "yes", "1", or empty strings crash prof
 
 **File:** `src/ChooChooEngine.App/Injection/InjectionManager.cs:297-302`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 Users select Manual Mapping to avoid anti-cheat detection (no `LoadLibrary` call). The silent fallback to standard injection defeats the purpose and could get users banned.
+
+**Fix:** `InjectDllManualMapping` now raises `InjectionFailed` with an explicit "not implemented" message and returns `false` instead of silently calling the standard `LoadLibraryA` injection path.
 
 ---
 
@@ -236,9 +240,11 @@ Users select Manual Mapping to avoid anti-cheat detection (no `LoadLibrary` call
 
 **File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:425-437`
 **Source:** Silent Failure Hunter, Comment Analyzer
-**Status:** Open
+**Status:** Fixed
 
 Both silently delegate to `LaunchWithCreateProcess`. The user's explicit launch method selection is overridden without notification.
+
+**Fix:** Both stub launch paths now log an explicit "not implemented" message and return `false` instead of silently falling back to `CreateProcess`.
 
 ---
 
@@ -246,9 +252,16 @@ Both silently delegate to `LaunchWithCreateProcess`. The user's explicit launch 
 
 **File:** `src/ChooChooEngine.App/Core/ProcessManager.cs:448-466`
 **Source:** Silent Failure Hunter
-**Status:** Open
+**Status:** Fixed
 
 `Process.Start()` can return null when the process is reused. The result is assigned directly to `_process` — subsequent calls throw `NullReferenceException`.
+
+**Fix:** Added `TryRequireStartedProcess(...)` and routed every `Process.Start()` launch path through it, so `cmd.exe`, `ShellExecute`, and direct launch now fail cleanly when `Process.Start()` returns `null` instead of storing a null process reference.
+
+**Validation for IM-5 through IM-8**
+
+- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet build src/ChooChooEngine.App/ChooChooEngine.App.csproj -c Debug`
+- `PATH="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet:$PATH" DOTNET_CLI_HOME="/home/yandy/Projects/github.com/yandy-r/choochoo-loader/.dotnet-cli-home" NUGET_PACKAGES=/tmp/nuget-packages NUGET_HTTP_CACHE_PATH=/tmp/nuget-http-cache dotnet test tests/ChooChooEngine.App.Tests/ChooChooEngine.App.Tests.csproj --filter "FullyQualifiedName~AppSettingsServiceTests|FullyQualifiedName~ProfileServiceTests|FullyQualifiedName~InjectionManagerTests|FullyQualifiedName~InjectionManagerUnsupportedMethodTests|FullyQualifiedName~ProcessManagerThreadOperationTests|FullyQualifiedName~ProcessManagerLaunchMethodTests"`
 
 ---
 
@@ -447,17 +460,18 @@ All gaps are low-effort (5-15 lines each) using the existing `TestWorkspace` hel
 
 ### Should Fix (Important)
 
-7. **Fix IM-5:** Replace `bool.Parse` with `bool.TryParse` in services — 4 call sites — **Status:** Open
+7. **Fix IM-5:** Replace `bool.Parse` with `bool.TryParse` in services — 4 call sites — **Status:** Fixed
 8. **Fix IM-1/2:** Restore startup auto-load and call `PopulateControls()` during initialization — **Status:** Fixed
 9. **Fix IM-3/4:** Wire resize handlers and unify timer strategy — **Status:** Fixed
-10. **Fix IM-6/7:** Log warnings when stub methods are used, or disable their UI options — **Status:** Open
-11. **Fix IM-10:** Replace `Debug.WriteLine` with `Trace.WriteLine` or event-based logging — **Status:** Open
-12. **Fix IM-14:** Sanitize `profileName` against path traversal — **Status:** Open
+10. **Fix IM-6/7:** Fail unsupported manual-mapping and stub launch selections explicitly — **Status:** Fixed
+11. **Fix IM-8:** Guard `Process.Start()` null returns in launch helpers — **Status:** Fixed
+12. **Fix IM-10:** Replace `Debug.WriteLine` with `Trace.WriteLine` or event-based logging — **Status:** Open
+13. **Fix IM-14:** Sanitize `profileName` against path traversal — **Status:** Open
 
 ### Follow-up Issues
 
-13. Add the 8 missing test cases (TC-1 through TC-8) — **Status:** Open
-14. Make data transfer objects immutable (`{ get; init; }`) — **Status:** Open
-15. Centralize Win32 constants in `Kernel32Interop` — **Status:** Open
-16. Add global unhandled exception handler in `Program.cs` — **Status:** Open
-17. Check return values of `SuspendThread`, `ResumeThread`, `MiniDumpWriteDump`, `WaitForSingleObject` — **Status:** Open
+14. Add the 8 missing test cases (TC-1 through TC-8) — **Status:** Open
+15. Make data transfer objects immutable (`{ get; init; }`) — **Status:** Open
+16. Centralize Win32 constants in `Kernel32Interop` — **Status:** Open
+17. Add global unhandled exception handler in `Program.cs` — **Status:** Open
+18. Check return values of `SuspendThread`, `ResumeThread`, `MiniDumpWriteDump`, `WaitForSingleObject` — **Status:** Open
