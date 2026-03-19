@@ -13,7 +13,7 @@ body = """
 {% for group, commits in commits | group_by(attribute="group") %}
 ### {{ group }}
 {% for commit in commits %}
-- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | split(pat="\n") | first | upper_first }}{% if commit.id %} ([`{{ commit.id | truncate(length=7, end="") }}`](https://github.com/yandy-r/crosshook-loader/commit/{{ commit.id }})){% endif %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | split(pat="\n") | first | upper_first }}{% if commit.id %} ([`{{ commit.id | truncate(length=7, end="") }}`](https://github.com/yandy-r/crosshook/commit/{{ commit.id }})){% endif %}
 {% endfor %}
 {% endfor %}
 
@@ -33,7 +33,7 @@ tag_pattern = "^v?[0-9].*"
 skip_tags = "^(alpha|beta|rc)$"
 
 commit_preprocessors = [
-  { pattern = "\\((?:refs )?#([0-9]+)\\)", replace = "([#${1}](https://github.com/yandy-r/crosshook-loader/issues/${1}))" },
+  { pattern = "\\((?:refs )?#([0-9]+)\\)", replace = "([#${1}](https://github.com/yandy-r/crosshook/issues/${1}))" },
 ]
 
 commit_parsers = [

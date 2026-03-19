@@ -1,7 +1,7 @@
 # **🎯 CrossHook**
 
-[![Download CrossHook](https://img.shields.io/badge/⬇_Download-CrossHook_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook-loader/releases)
-[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/crosshook-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/crosshook-loader/releases)
+[![Download CrossHook](https://img.shields.io/badge/⬇_Download-CrossHook_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/crosshook-loader?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/crosshook/releases)
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/crosshook-loader)
 [![License](https://img.shields.io/github/license/yandy-r/crosshook-loader?style=for-the-badge&color=green)](LICENSE)
 
@@ -19,16 +19,16 @@ A loader for SteamOS/Linux/macOS that handles launches of games with trainers/mo
 
 ## **Download & Links**
 
-[![Download CrossHook](https://img.shields.io/badge/Download-CrossHook-green?style=for-the-badge&logo=github)](https://github.com/yandy-r/crosshook-loader/releases)
+[![Download CrossHook](https://img.shields.io/badge/Download-CrossHook-green?style=for-the-badge&logo=github)](https://github.com/yandy-r/crosshook/releases)
 
-Going forward, download CrossHook from the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases). The standard release workflow (`.github/workflows/release.yml`) publishes these zip assets:
+Going forward, download CrossHook from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases). The standard release workflow (`.github/workflows/release.yml`) publishes these zip assets:
 
 - `crosshook-win-x64.zip` for the normal 64-bit case
 - `crosshook-win-x86.zip` for 32-bit compatibility cases
 
 Install by extracting the entire zip into any directory you want to keep CrossHook in, then launch `crosshook.exe` from the extracted folder. Do not run it from inside the zip, and do not move only `crosshook.exe` by itself.
 
-[![GitHub Releases](https://img.shields.io/github/release/yandy-r/crosshook-loader/all.svg?style=for-the-badge)](https://github.com/yandy-r/crosshook-loader/releases)  
+[![GitHub Releases](https://img.shields.io/github/release/yandy-r/crosshook/all.svg?style=for-the-badge)](https://github.com/yandy-r/crosshook/releases)  
 [![Platforms: macOS | Linux | Steam Deck | Windows ](https://img.shields.io/badge/Platforms-Windows%20|%20macOS%20|%20Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/crosshook-loader)
 
 ---
@@ -102,7 +102,7 @@ Whether you are playing on **Linux**, **macOS (via Whisky)**, or **Steam Deck**,
    - Tap the Steam Deck's **Power** button → **Switch to Desktop**.
 
 2. **Download & Extract CrossHook**
-   - Open the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases).
+   - Open the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases).
    - Download `crosshook-win-x64.zip` unless you specifically need the 32-bit `crosshook-win-x86.zip`.
    - Extract the full zip into a folder you want to keep, such as `~/Applications/CrossHook` or another game tools directory.
 
@@ -179,7 +179,7 @@ Now trainers like **WeMod** should work properly on Steam Deck.
    - Get the latest version of **Whisky** for macOS.
 
 2. **Download & Extract CrossHook**
-   - Open the [GitHub Releases page](https://github.com/yandy-r/crosshook-loader/releases).
+   - Open the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases).
    - Download `crosshook-win-x64.zip`.
    - Extract the full zip into a folder you want to keep, then use that extracted folder as the source for Whisky.
 
