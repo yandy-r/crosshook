@@ -4,8 +4,10 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using CrossHookEngine.App.Core;
+using CrossHookEngine.App.Diagnostics;
 using CrossHookEngine.App.Injection;
 using CrossHookEngine.App.Memory;
 using CrossHookEngine.App.Services;
@@ -16,6 +18,7 @@ namespace CrossHookEngine.App.Forms
     public partial class MainForm : Form
     {
         private ProcessManager _processManager;
+        private ProcessManager _trainerProcessManager;
         private InjectionManager _injectionManager;
         private MemoryManager _memoryManager;
         private ResumePanel _resumePanel;
@@ -37,6 +40,14 @@ namespace CrossHookEngine.App.Forms
         private Button btnBrowseGame = new Button();
         private ComboBox cmbTrainerPath = new ComboBox();
         private Button btnBrowseTrainer = new Button();
+        private CheckBox chkUseSteamMode = new CheckBox();
+        private TextBox txtSteamAppId = new TextBox();
+        private TextBox txtSteamCompatDataPath = new TextBox();
+        private TextBox txtSteamProtonPath = new TextBox();
+        private Button btnBrowseSteamCompatData = new Button();
+        private Button btnBrowseSteamProton = new Button();
+        private Button btnExportSteamLaunchers = new Button();
+        private Label lblSteamModeHint = new Label();
         private CheckBox chkLaunchInject1 = new CheckBox();
         private ComboBox cmbDll1 = new ComboBox();
         private Button btnBrowseDll1 = new Button();
@@ -65,6 +76,7 @@ namespace CrossHookEngine.App.Forms
         
         // Launch button
         private Button btnLaunch = new Button();
+        private Label lblLaunchHint = new Label();
         
         // Launch methods panel
         private Panel panelLaunchMethods = new Panel();
@@ -91,6 +103,11 @@ namespace CrossHookEngine.App.Forms
         private string _selectedTrainerPath = string.Empty;
         private string _selectedDll1Path = string.Empty;
         private string _selectedDll2Path = string.Empty;
+        private bool _useSteamMode = false;
+        private string _steamAppId = string.Empty;
+        private string _steamCompatDataPath = string.Empty;
+        private string _steamProtonPath = string.Empty;
+        private bool _steamTrainerLaunchPending = false;
         
         // Launch method
         private LaunchMethod _launchMethod = LaunchMethod.CreateProcess;
@@ -271,6 +288,7 @@ namespace CrossHookEngine.App.Forms
         private void InitializeManagers()
         {
             _processManager = new ProcessManager();
+            _trainerProcessManager = new ProcessManager();
             _injectionManager = new InjectionManager(_processManager);
             _memoryManager = new MemoryManager(_processManager);
             _resumePanel = new ResumePanel();
@@ -306,6 +324,13 @@ namespace CrossHookEngine.App.Forms
                 _processManager.DetachFromProcess();
 		_processManager.Dispose();
 		_processManager = null;
+            }
+
+            if (_trainerProcessManager != null)
+            {
+                _trainerProcessManager.DetachFromProcess();
+		_trainerProcessManager.Dispose();
+		_trainerProcessManager = null;
             }
 
 	    if (_autoLaunchTimer != null)
@@ -910,10 +935,11 @@ namespace CrossHookEngine.App.Forms
             TableLayoutPanel trainerContent = new TableLayoutPanel();
             trainerContent.Dock = DockStyle.Fill;
             trainerContent.ColumnCount = 1;  // Single column for consistent layout
-            trainerContent.RowCount = 3;
+            trainerContent.RowCount = 4;
             trainerContent.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Header text
             trainerContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // Game path row - increased height
             trainerContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // Trainer path row - increased height
+            trainerContent.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Steam settings
             trainerContent.Padding = new Padding(10, 0, 10, 10);
             
             Label trainerLabel = new Label();
@@ -941,6 +967,62 @@ namespace CrossHookEngine.App.Forms
             cmbTrainerPath.Dock = DockStyle.None;
             cmbTrainerPath.Size = new Size(290, 29);
             cmbTrainerPath.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top | AnchorStyles.Bottom;
+
+            chkUseSteamMode.Text = "Use Steam / Proton launch mode";
+            chkUseSteamMode.ForeColor = Color.White;
+            chkUseSteamMode.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+            chkUseSteamMode.Dock = DockStyle.Fill;
+            chkUseSteamMode.Margin = new Padding(0, 10, 0, 0);
+
+            lblSteamModeHint.Text = "Steam mode launches the game through Steam and the trainer inside the target compatdata. Direct launch methods and in-app DLL injection do not apply in this mode.";
+            lblSteamModeHint.ForeColor = Color.FromArgb(200, 200, 200);
+            lblSteamModeHint.Font = new Font("Segoe UI", 8.5f);
+            lblSteamModeHint.Dock = DockStyle.Fill;
+            lblSteamModeHint.AutoSize = true;
+            lblSteamModeHint.Margin = new Padding(0, 0, 0, 6);
+
+            txtSteamAppId.BackColor = Color.FromArgb(45, 45, 45);
+            txtSteamAppId.ForeColor = Color.White;
+            txtSteamAppId.BorderStyle = BorderStyle.FixedSingle;
+            txtSteamAppId.Font = new Font("Segoe UI", 9.5f);
+            txtSteamAppId.Dock = DockStyle.Fill;
+
+            txtSteamCompatDataPath.BackColor = Color.FromArgb(45, 45, 45);
+            txtSteamCompatDataPath.ForeColor = Color.White;
+            txtSteamCompatDataPath.BorderStyle = BorderStyle.FixedSingle;
+            txtSteamCompatDataPath.Font = new Font("Segoe UI", 9.5f);
+            txtSteamCompatDataPath.Dock = DockStyle.Fill;
+
+            txtSteamProtonPath.BackColor = Color.FromArgb(45, 45, 45);
+            txtSteamProtonPath.ForeColor = Color.White;
+            txtSteamProtonPath.BorderStyle = BorderStyle.FixedSingle;
+            txtSteamProtonPath.Font = new Font("Segoe UI", 9.5f);
+            txtSteamProtonPath.Dock = DockStyle.Fill;
+
+            btnBrowseSteamCompatData.Text = "Browse...";
+            btnBrowseSteamCompatData.BackColor = Color.FromArgb(60, 60, 60);
+            btnBrowseSteamCompatData.ForeColor = Color.White;
+            btnBrowseSteamCompatData.FlatStyle = FlatStyle.Flat;
+            btnBrowseSteamCompatData.FlatAppearance.BorderSize = 0;
+            btnBrowseSteamCompatData.Font = new Font("Segoe UI", 9);
+            btnBrowseSteamCompatData.Dock = DockStyle.Fill;
+
+            btnBrowseSteamProton.Text = "Browse...";
+            btnBrowseSteamProton.BackColor = Color.FromArgb(60, 60, 60);
+            btnBrowseSteamProton.ForeColor = Color.White;
+            btnBrowseSteamProton.FlatStyle = FlatStyle.Flat;
+            btnBrowseSteamProton.FlatAppearance.BorderSize = 0;
+            btnBrowseSteamProton.Font = new Font("Segoe UI", 9);
+            btnBrowseSteamProton.Dock = DockStyle.Fill;
+
+            btnExportSteamLaunchers.Text = "Create Script + Desktop";
+            btnExportSteamLaunchers.BackColor = Color.FromArgb(0, 120, 215);
+            btnExportSteamLaunchers.ForeColor = Color.White;
+            btnExportSteamLaunchers.FlatStyle = FlatStyle.Flat;
+            btnExportSteamLaunchers.FlatAppearance.BorderSize = 0;
+            btnExportSteamLaunchers.Font = new Font("Segoe UI", 9);
+            btnExportSteamLaunchers.Dock = DockStyle.Left;
+            btnExportSteamLaunchers.AutoSize = true;
             
             // Apply consistent styling to buttons
             btnBrowseGame.Size = new Size(85, 29);
@@ -1055,6 +1137,79 @@ namespace CrossHookEngine.App.Forms
             // Add rows to trainer content
             trainerContent.Controls.Add(gamePathRow, 0, 1);
             trainerContent.Controls.Add(trainerPathRow, 0, 2);
+
+            TableLayoutPanel steamSettingsLayout = new TableLayoutPanel();
+            steamSettingsLayout.Dock = DockStyle.Top;
+            steamSettingsLayout.AutoSize = true;
+            steamSettingsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            steamSettingsLayout.ColumnCount = 3;
+            steamSettingsLayout.RowCount = 6;
+            steamSettingsLayout.Margin = new Padding(0, 10, 0, 0);
+            steamSettingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LABEL_WIDTH));
+            steamSettingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            steamSettingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BUTTON_WIDTH));
+            steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
+            steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
+
+            Label steamAppIdLabel = new Label();
+            steamAppIdLabel.Text = "Steam App ID:";
+            steamAppIdLabel.ForeColor = Color.White;
+            steamAppIdLabel.Font = new Font("Segoe UI", 9);
+            steamAppIdLabel.Dock = DockStyle.Fill;
+            steamAppIdLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+            Label steamCompatDataLabel = new Label();
+            steamCompatDataLabel.Text = "Compatdata Path:";
+            steamCompatDataLabel.ForeColor = Color.White;
+            steamCompatDataLabel.Font = new Font("Segoe UI", 9);
+            steamCompatDataLabel.Dock = DockStyle.Fill;
+            steamCompatDataLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+            Label steamProtonLabel = new Label();
+            steamProtonLabel.Text = "Proton Path:";
+            steamProtonLabel.ForeColor = Color.White;
+            steamProtonLabel.Font = new Font("Segoe UI", 9);
+            steamProtonLabel.Dock = DockStyle.Fill;
+            steamProtonLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+            Label steamLaunchersLabel = new Label();
+            steamLaunchersLabel.Text = "External Launchers:";
+            steamLaunchersLabel.ForeColor = Color.White;
+            steamLaunchersLabel.Font = new Font("Segoe UI", 9);
+            steamLaunchersLabel.Dock = DockStyle.Fill;
+            steamLaunchersLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+            Panel steamAppIdSpacer = new Panel();
+            steamAppIdSpacer.Dock = DockStyle.Fill;
+
+            Panel steamLaunchersPanel = new Panel();
+            steamLaunchersPanel.Dock = DockStyle.Fill;
+            steamLaunchersPanel.Padding = new Padding(0);
+            steamLaunchersPanel.Margin = new Padding(0);
+            steamLaunchersPanel.Controls.Add(btnExportSteamLaunchers);
+
+            steamSettingsLayout.Controls.Add(chkUseSteamMode, 0, 0);
+            steamSettingsLayout.SetColumnSpan(chkUseSteamMode, 3);
+            steamSettingsLayout.Controls.Add(lblSteamModeHint, 0, 1);
+            steamSettingsLayout.SetColumnSpan(lblSteamModeHint, 3);
+            steamSettingsLayout.Controls.Add(steamAppIdLabel, 0, 2);
+            steamSettingsLayout.Controls.Add(txtSteamAppId, 1, 2);
+            steamSettingsLayout.Controls.Add(steamAppIdSpacer, 2, 2);
+            steamSettingsLayout.Controls.Add(steamCompatDataLabel, 0, 3);
+            steamSettingsLayout.Controls.Add(txtSteamCompatDataPath, 1, 3);
+            steamSettingsLayout.Controls.Add(btnBrowseSteamCompatData, 2, 3);
+            steamSettingsLayout.Controls.Add(steamProtonLabel, 0, 4);
+            steamSettingsLayout.Controls.Add(txtSteamProtonPath, 1, 4);
+            steamSettingsLayout.Controls.Add(btnBrowseSteamProton, 2, 4);
+            steamSettingsLayout.Controls.Add(steamLaunchersLabel, 0, 5);
+            steamSettingsLayout.Controls.Add(steamLaunchersPanel, 1, 5);
+            steamSettingsLayout.SetColumnSpan(steamLaunchersPanel, 2);
+
+            trainerContent.Controls.Add(steamSettingsLayout, 0, 3);
             
             trainerSetupPanel.Controls.Add(trainerContent);
             
@@ -1371,6 +1526,23 @@ namespace CrossHookEngine.App.Forms
             panelLaunchMethods.Controls.Add(methodsHeader);
             
             // Create a container for the Launch button and methods panel
+            lblLaunchHint.Dock = DockStyle.Fill;
+            lblLaunchHint.TextAlign = ContentAlignment.TopCenter;
+            lblLaunchHint.ForeColor = Color.FromArgb(220, 220, 220);
+            lblLaunchHint.Font = new Font("Segoe UI", 9);
+            lblLaunchHint.AutoSize = false;
+            lblLaunchHint.Visible = false;
+            lblLaunchHint.Margin = new Padding(0, 0, 0, 8);
+
+            TableLayoutPanel launchButtonPanel = new TableLayoutPanel();
+            launchButtonPanel.Dock = DockStyle.Fill;
+            launchButtonPanel.ColumnCount = 1;
+            launchButtonPanel.RowCount = 2;
+            launchButtonPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 80F));
+            launchButtonPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 20F));
+            launchButtonPanel.Controls.Add(btnLaunch, 0, 0);
+            launchButtonPanel.Controls.Add(lblLaunchHint, 0, 1);
+
             launchContainer = new TableLayoutPanel();
             launchContainer.Dock = DockStyle.Fill;
             launchContainer.RowCount = 2;
@@ -1378,7 +1550,7 @@ namespace CrossHookEngine.App.Forms
             launchContainer.RowStyles.Add(new RowStyle(SizeType.Percent, 40F));
             launchContainer.RowStyles.Add(new RowStyle(SizeType.Percent, 60F));
             
-            launchContainer.Controls.Add(btnLaunch, 0, 0);
+            launchContainer.Controls.Add(launchButtonPanel, 0, 0);
             launchContainer.Controls.Add(panelLaunchMethods, 0, 1);
             
             // Add all panels to the main layout
@@ -1424,6 +1596,9 @@ namespace CrossHookEngine.App.Forms
             btnRefreshProcesses.Click += (s, e) => RefreshProcessList();
             btnBrowseGame.Click += BtnBrowseGame_Click;
             btnBrowseTrainer.Click += BtnBrowseTrainer_Click;
+            btnBrowseSteamCompatData.Click += BtnBrowseSteamCompatData_Click;
+            btnBrowseSteamProton.Click += BtnBrowseSteamProton_Click;
+            btnExportSteamLaunchers.Click += BtnExportSteamLaunchers_Click;
             btnBrowseDll1.Click += BtnBrowseDll1_Click;
             btnBrowseDll2.Click += BtnBrowseDll2_Click;
             btnRefresh.Click += BtnRefresh_Click;
@@ -1431,6 +1606,10 @@ namespace CrossHookEngine.App.Forms
             btnSave.Click += BtnSave_Click;
             btnDelete.Click += BtnDelete_Click;
             btnLaunch.Click += BtnLaunch_Click;
+            chkUseSteamMode.CheckedChanged += ChkUseSteamMode_CheckedChanged;
+            txtSteamAppId.TextChanged += (s, e) => _steamAppId = txtSteamAppId.Text.Trim();
+            txtSteamCompatDataPath.TextChanged += (s, e) => _steamCompatDataPath = txtSteamCompatDataPath.Text.Trim();
+            txtSteamProtonPath.TextChanged += (s, e) => _steamProtonPath = txtSteamProtonPath.Text.Trim();
             
             // ComboBox events
             cmbRunningExe.SelectedIndexChanged += CmbRunningExe_SelectedIndexChanged;
@@ -1468,6 +1647,8 @@ namespace CrossHookEngine.App.Forms
             
             // Show current environment DLLs by default
             ShowCurrentEnvironmentModules();
+
+            UpdateSteamModeUiState();
         }
 
 		private CommandLineOptions ParseCommandLineArguments()
@@ -1648,7 +1829,11 @@ namespace CrossHookEngine.App.Forms
                     Dll2Path = _selectedDll2Path,
                     LaunchInject1 = chkLaunchInject1.Checked,
                     LaunchInject2 = chkLaunchInject2.Checked,
-                    LaunchMethod = _launchMethod.ToString()
+                    LaunchMethod = _launchMethod.ToString(),
+                    UseSteamMode = chkUseSteamMode.Checked,
+                    SteamAppId = txtSteamAppId.Text.Trim(),
+                    SteamCompatDataPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamCompatDataPath.Text.Trim()),
+                    SteamProtonPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamProtonPath.Text.Trim())
                 };
 
                 _profileService.SaveProfile(profileName, profile);
@@ -1690,12 +1875,29 @@ namespace CrossHookEngine.App.Forms
 
                 chkLaunchInject1.Checked = profile.LaunchInject1;
                 chkLaunchInject2.Checked = profile.LaunchInject2;
+                chkUseSteamMode.Checked = profile.UseSteamMode;
+                _useSteamMode = profile.UseSteamMode;
+                if (!_useSteamMode)
+                {
+                    _steamTrainerLaunchPending = false;
+                }
+
+                _steamAppId = profile.SteamAppId;
+                txtSteamAppId.Text = profile.SteamAppId;
+
+                _steamCompatDataPath = SteamLaunchService.NormalizeSteamHostPath(profile.SteamCompatDataPath);
+                txtSteamCompatDataPath.Text = _steamCompatDataPath;
+
+                _steamProtonPath = SteamLaunchService.NormalizeSteamHostPath(profile.SteamProtonPath);
+                txtSteamProtonPath.Text = _steamProtonPath;
 
                 if (Enum.TryParse<LaunchMethod>(profile.LaunchMethod, out LaunchMethod method))
                 {
                     _launchMethod = method;
                     UpdateLaunchMethodRadioButtons();
                 }
+
+                UpdateSteamModeUiState();
                 
                 LogToConsole($"Profile loaded: {profileName}");
                 UpdateStatus($"Profile loaded: {profileName}");
@@ -1841,6 +2043,81 @@ namespace CrossHookEngine.App.Forms
         #endregion
         
         #region UI Control Event Handlers
+
+        private void ChkUseSteamMode_CheckedChanged(object sender, EventArgs e)
+        {
+            _useSteamMode = chkUseSteamMode.Checked;
+            if (!_useSteamMode)
+            {
+                _steamTrainerLaunchPending = false;
+            }
+            UpdateSteamModeUiState();
+        }
+
+        private void UpdateSteamModeUiState()
+        {
+            bool steamModeEnabled = chkUseSteamMode.Checked;
+
+            txtSteamAppId.Enabled = steamModeEnabled;
+            txtSteamCompatDataPath.Enabled = steamModeEnabled;
+            txtSteamProtonPath.Enabled = steamModeEnabled;
+            btnBrowseSteamCompatData.Enabled = steamModeEnabled;
+            btnBrowseSteamProton.Enabled = steamModeEnabled;
+            btnExportSteamLaunchers.Enabled = steamModeEnabled;
+            launchMethodsFlow.Enabled = !steamModeEnabled;
+
+            if (steamModeEnabled)
+            {
+                UpdateStatus("Steam mode enabled: Launch uses the Steam helper path. Direct launch methods and DLL injection are unavailable.");
+            }
+
+            if (steamModeEnabled)
+            {
+                btnLaunch.Text = _steamTrainerLaunchPending ? "Launch Trainer" : "Launch Game";
+                lblLaunchHint.Visible = true;
+                lblLaunchHint.Text = _steamTrainerLaunchPending
+                    ? "Steam mode: the game launch has already been requested. Wait until you are at the in-game menu, then press Launch Trainer."
+                    : "Steam mode: press Launch Game first. After the game reaches the menu, return to CrossHook and press Launch Trainer.";
+            }
+            else
+            {
+                btnLaunch.Text = "Launch";
+                lblLaunchHint.Visible = false;
+                lblLaunchHint.Text = string.Empty;
+            }
+        }
+
+        private void BtnBrowseSteamCompatData_Click(object sender, EventArgs e)
+        {
+            using (FolderBrowserDialog dialog = new FolderBrowserDialog())
+            {
+                dialog.Description = "Select Steam compatdata directory";
+                dialog.ShowNewFolderButton = false;
+
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    _steamCompatDataPath = SteamLaunchService.NormalizeSteamHostPath(dialog.SelectedPath);
+                    txtSteamCompatDataPath.Text = _steamCompatDataPath;
+                    UpdateStatus($"Selected Steam compatdata path: {_steamCompatDataPath}");
+                }
+            }
+        }
+
+        private void BtnBrowseSteamProton_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "Proton launcher (proton)|proton|All Files (*.*)|*.*";
+                dialog.Title = "Select Proton launcher";
+
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    _steamProtonPath = SteamLaunchService.NormalizeSteamHostPath(dialog.FileName);
+                    txtSteamProtonPath.Text = _steamProtonPath;
+                    UpdateStatus($"Selected Proton path: {_steamProtonPath}");
+                }
+            }
+        }
         
         private void BtnBrowseGame_Click(object sender, EventArgs e)
         {
@@ -2059,116 +2336,462 @@ namespace CrossHookEngine.App.Forms
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        
-        private void BtnLaunch_Click(object sender, EventArgs e)
+
+        private bool HasConfiguredPostLaunchActions()
+        {
+            return HasConfiguredAutoInjection() || !string.IsNullOrEmpty(_selectedTrainerPath);
+        }
+
+        private bool HasConfiguredAutoInjection()
+        {
+            return (chkLaunchInject1.Checked && !string.IsNullOrEmpty(_selectedDll1Path))
+                || (chkLaunchInject2.Checked && !string.IsNullOrEmpty(_selectedDll2Path));
+        }
+
+        private bool WaitForGameReadiness()
+        {
+            ProcessReadinessOptions options = new ProcessReadinessOptions();
+            string waitMessage = $"Waiting up to {options.TimeoutMs} ms for game readiness (PID: {_processManager.ProcessId}) with a {options.MinimumProcessLifetimeMs} ms stabilization window.";
+            LogToConsole(waitMessage);
+            AppDiagnostics.LogInfo(waitMessage);
+
+            ProcessReadinessResult readiness = _processManager.WaitForCurrentProcessReady(options);
+            string readinessMessage = readiness.IsReady
+                ? $"Game readiness confirmed after {readiness.ElapsedMs} ms (modules accessible: {readiness.ModulesAccessible}, main window: {readiness.HasMainWindow}). {readiness.StatusMessage}"
+                : $"Game readiness check failed after {readiness.ElapsedMs} ms (modules accessible: {readiness.ModulesAccessible}, main window: {readiness.HasMainWindow}). {readiness.StatusMessage}";
+
+            LogToConsole(readinessMessage);
+
+            if (readiness.IsReady)
+            {
+                AppDiagnostics.LogInfo(readinessMessage);
+            }
+            else
+            {
+                AppDiagnostics.LogError(readinessMessage);
+            }
+
+            return readiness.IsReady;
+        }
+
+        private void LaunchConfiguredDlls()
+        {
+            if (chkLaunchInject1.Checked && !string.IsNullOrEmpty(_selectedDll1Path))
+            {
+                LogToConsole($"Auto-injecting: {_selectedDll1Path}");
+                InjectDll(_selectedDll1Path);
+            }
+
+            if (chkLaunchInject2.Checked && !string.IsNullOrEmpty(_selectedDll2Path))
+            {
+                LogToConsole($"Auto-injecting: {_selectedDll2Path}");
+                InjectDll(_selectedDll2Path);
+            }
+        }
+
+        private bool LaunchTrainerProcess(ProcessManager processManager)
+        {
+            if (processManager is null || string.IsNullOrEmpty(_selectedTrainerPath))
+            {
+                return false;
+            }
+
+            processManager.DetachFromProcess();
+
+            LogToConsole($"Launching trainer: {_selectedTrainerPath}");
+            string trainerDir = Path.GetDirectoryName(_selectedTrainerPath);
+
+            if (processManager.LaunchProcess(_selectedTrainerPath, trainerDir, _launchMethod))
+            {
+                LogToConsole($"Trainer launched successfully (PID: {processManager.ProcessId})");
+                return true;
+            }
+
+            LogToConsole("Failed to launch trainer");
+            return false;
+        }
+
+        private SteamLaunchRequest BuildSteamLaunchRequest()
+        {
+            return new SteamLaunchRequest
+            {
+                GamePath = _selectedGamePath,
+                TrainerPath = _selectedTrainerPath,
+                TrainerHostPath = SteamLaunchService.NormalizeSteamHostPath(_selectedTrainerPath),
+                SteamAppId = txtSteamAppId.Text.Trim(),
+                SteamCompatDataPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamCompatDataPath.Text.Trim()),
+                SteamProtonPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamProtonPath.Text.Trim()),
+                SteamClientInstallPath = GetSteamClientInstallPath(),
+                LaunchTrainerOnly = _steamTrainerLaunchPending,
+                LaunchGameOnly = !_steamTrainerLaunchPending
+            };
+        }
+
+        private SteamExternalLauncherExportRequest BuildSteamExternalLauncherExportRequest()
+        {
+            string steamClientInstallPath = GetSteamClientInstallPath();
+            return new SteamExternalLauncherExportRequest
+            {
+                LauncherName = GetPreferredSteamLauncherName(),
+                TrainerPath = _selectedTrainerPath,
+                SteamAppId = txtSteamAppId.Text.Trim(),
+                SteamCompatDataPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamCompatDataPath.Text.Trim()),
+                SteamProtonPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamProtonPath.Text.Trim()),
+                SteamClientInstallPath = steamClientInstallPath,
+                TargetHomePath = SteamExternalLauncherExportService.ResolveTargetHomePath(GetPreferredHostHomePathCandidate(), steamClientInstallPath)
+            };
+        }
+
+        private string GetSteamClientInstallPath()
+        {
+            string configuredPath = Environment.GetEnvironmentVariable("STEAM_COMPAT_CLIENT_INSTALL_PATH");
+            if (!string.IsNullOrWhiteSpace(configuredPath))
+            {
+                return configuredPath;
+            }
+
+            string homePath = Environment.GetEnvironmentVariable("HOME") ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(homePath))
+            {
+                homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            }
+
+            return string.IsNullOrWhiteSpace(homePath)
+                ? string.Empty
+                : Path.Combine(homePath, ".steam", "root");
+        }
+
+        private string GetPreferredHostHomePathCandidate()
+        {
+            string homePath = Environment.GetEnvironmentVariable("HOME") ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(homePath))
+            {
+                return SteamLaunchService.NormalizeSteamHostPath(homePath);
+            }
+
+            string userProfilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return string.IsNullOrWhiteSpace(userProfilePath)
+                ? string.Empty
+                : SteamLaunchService.NormalizeSteamHostPath(userProfilePath);
+        }
+
+        private string GetPreferredSteamLauncherName()
+        {
+            if (cmbProfiles.SelectedItem is string selectedProfileName && !string.IsNullOrWhiteSpace(selectedProfileName))
+            {
+                return selectedProfileName;
+            }
+
+            string trainerName = Path.GetFileNameWithoutExtension(_selectedTrainerPath);
+            if (!string.IsNullOrWhiteSpace(trainerName))
+            {
+                return trainerName;
+            }
+
+            string steamAppId = txtSteamAppId.Text.Trim();
+            return string.IsNullOrWhiteSpace(steamAppId)
+                ? "steam-trainer"
+                : $"steam-{steamAppId}-trainer";
+        }
+
+        private void BtnExportSteamLaunchers_Click(object sender, EventArgs e)
         {
             try
             {
-                if (string.IsNullOrEmpty(_selectedGamePath))
+                SteamExternalLauncherExportRequest request = BuildSteamExternalLauncherExportRequest();
+                SteamExternalLauncherExportValidationResult validation = SteamExternalLauncherExportService.Validate(request);
+                if (!validation.IsValid)
                 {
-                    // Skip the confirmation dialog if this is an auto-launch with just a trainer
-                    if (_autoLaunchRequested && !string.IsNullOrEmpty(_selectedTrainerPath))
-                    {
-                        LogToConsole("Auto-launching trainer without game executable");
-                    }
-                    else
-                    {
-                        // Since we've marked the game executable as optional in the UI, 
-                        // we should ask the user to confirm they want to proceed without a game path
-                        DialogResult result = MessageBox.Show(
-                            "No game executable selected. Do you want to continue?\n\n" +
-                            "Select 'Yes' to continue without launching a game executable.\n" +
-                            "Select 'No' to cancel and select a game executable.",
-                            "No Game Executable",
-                            MessageBoxButtons.YesNo,
-                            MessageBoxIcon.Question);
-                            
-                        if (result == DialogResult.No)
-                        {
-                            return;
-                        }
-                    }
-                    
-                    // Check if we have a trainer to launch
-                    if (!string.IsNullOrEmpty(_selectedTrainerPath))
-                    {
-                        LogToConsole($"Launching trainer without game: {_selectedTrainerPath}");
-                        
-                        string trainerDir = Path.GetDirectoryName(_selectedTrainerPath);
-                        
-                        if (_processManager.LaunchProcess(_selectedTrainerPath, trainerDir, _launchMethod))
-                        {
-                            LogToConsole($"Trainer launched successfully (PID: {_processManager.ProcessId})");
-                        }
-                        else
-                        {
-                            LogToConsole("Failed to launch trainer");
-                        }
-                    }
-                    else if (!_autoLaunchRequested) // Only show this message if not auto-launching
-                    {
-                        // If no game and no trainer, show message
-                        MessageBox.Show(
-                            "Please select at least a game executable or trainer to launch.", 
-                            "Nothing to Launch", 
-                            MessageBoxButtons.OK, 
-                            MessageBoxIcon.Warning);
-                    }
-                    
+                    LogToConsole(validation.ErrorMessage);
+                    MessageBox.Show(validation.ErrorMessage, "Steam Launcher Export", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                
-                // Launch the game
-                LogToConsole($"Launching game: {_selectedGamePath}");
-                LogToConsole($"Launch method: {_launchMethod}");
-                
-                string gameDir = Path.GetDirectoryName(_selectedGamePath);
-                
-                if (_processManager.LaunchProcess(_selectedGamePath, gameDir, _launchMethod))
+
+                SteamExternalLauncherExportResult result = SteamExternalLauncherExportService.ExportLaunchers(request);
+
+                LogToConsole($"Created external trainer script: {result.ScriptPath}");
+                LogToConsole($"Created desktop launcher: {result.DesktopEntryPath}");
+                LogToConsole("The generated script uses the known-good manual Proton command. Start the game first, wait for the menu, then run the launcher.");
+                UpdateStatus($"Created external Steam launchers for {result.DisplayName}");
+
+                MessageBox.Show(
+                    $"Created script:\n{result.ScriptPath}\n\nCreated desktop entry:\n{result.DesktopEntryPath}\n\nStart the game first, wait for the menu, then run the generated launcher.",
+                    "Steam Launchers Created",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                LogToConsole($"Error creating Steam launchers: {ex.Message}");
+                MessageBox.Show($"Error creating Steam launchers: {ex.Message}", "Steam Launcher Export", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task LaunchSteamModeAsync()
+        {
+            if (HasConfiguredAutoInjection())
+            {
+                const string steamDllMessage = "Steam mode does not support CrossHook's in-app DLL injection yet. Clear the DLL options and use Steam mode for the game + trainer launch only.";
+                LogToConsole(steamDllMessage);
+
+                if (!_autoLaunchRequested)
                 {
-                    LogToConsole($"Game launched successfully (PID: {_processManager.ProcessId})");
-                    
-                    // Check if we have DLLs to inject
-                    if (chkLaunchInject1.Checked && !string.IsNullOrEmpty(_selectedDll1Path))
+                    MessageBox.Show(steamDllMessage, "Steam Mode Limitation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+
+                return;
+            }
+
+            SteamLaunchRequest request = BuildSteamLaunchRequest();
+            SteamLaunchValidationResult validation = SteamLaunchService.Validate(request);
+            if (!validation.IsValid)
+            {
+                LogToConsole(validation.ErrorMessage);
+
+                if (!_autoLaunchRequested)
+                {
+                    MessageBox.Show(validation.ErrorMessage, "Steam Mode Configuration", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+
+                return;
+            }
+
+            string launchMessage = $"Launching Steam game via helper (AppID: {request.SteamAppId}).";
+            if (_steamTrainerLaunchPending)
+            {
+                launchMessage = "Launching Steam trainer in the existing Steam game session.";
+            }
+            LogToConsole(launchMessage);
+            AppDiagnostics.LogInfo(launchMessage);
+
+            SteamLaunchExecutionResult result = await Task.Run(() => RunSteamLaunchHelper(request));
+
+            if (!string.IsNullOrWhiteSpace(result.Message))
+            {
+                LogToConsole(result.Message);
+            }
+
+            if (result.Succeeded && !string.IsNullOrWhiteSpace(result.HelperLogPath))
+            {
+                if (!_steamTrainerLaunchPending)
+                {
+                    _steamTrainerLaunchPending = true;
+                    UpdateSteamModeUiState();
+                    LogToConsole("Steam game launch requested. Once the game reaches the menu, return and click Launch Trainer.");
+                    LogToConsole("Minimizing CrossHook so the Steam game can continue loading in the foreground.");
+                    WindowState = FormWindowState.Minimized;
+                }
+                _ = Task.Run(() => StreamSteamHelperLogAsync(result.HelperLogPath));
+            }
+
+            if (!result.Succeeded && !_autoLaunchRequested)
+            {
+                MessageBox.Show(result.Message, "Steam Launch Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private SteamLaunchExecutionResult RunSteamLaunchHelper(SteamLaunchRequest request)
+        {
+            try
+            {
+                string scriptPath = request.LaunchTrainerOnly
+                    ? SteamLaunchService.ResolveTrainerScriptPath(Application.StartupPath)
+                    : SteamLaunchService.ResolveHelperScriptPath(Application.StartupPath);
+
+                if (!File.Exists(scriptPath))
+                {
+                    return new SteamLaunchExecutionResult(false, $"Steam helper script not found: {scriptPath}");
+                }
+
+                string scriptUnixPath = SteamLaunchService.ConvertToUnixPath(scriptPath);
+                string compatDataUnixPath = SteamLaunchService.ConvertToUnixPath(request.SteamCompatDataPath);
+                string protonUnixPath = SteamLaunchService.ConvertToUnixPath(request.SteamProtonPath);
+                string helperLogPath = CreateSteamHelperLogPath();
+                string helperLogUnixPath = SteamLaunchService.ConvertToUnixPath(helperLogPath);
+                ProcessStartInfo startInfo = request.LaunchTrainerOnly
+                    ? SteamLaunchService.CreateTrainerStartInfo(scriptUnixPath, compatDataUnixPath, protonUnixPath, helperLogUnixPath, request)
+                    : SteamLaunchService.CreateHelperStartInfo(scriptUnixPath, compatDataUnixPath, protonUnixPath, helperLogUnixPath, request);
+
+                if (!ProcessManager.TryRequireStartedProcess(Process.Start(startInfo), "Process.Start for Steam helper", AppDiagnostics.LogError, out Process helperProcess))
+                {
+                    return new SteamLaunchExecutionResult(false, "Failed to start the Steam helper process.");
+                }
+
+                using (helperProcess)
+                {
+                    helperProcess.WaitForExit();
+                }
+
+                if (!File.Exists(helperLogPath))
+                {
+                    File.WriteAllText(helperLogPath, string.Empty);
+                }
+
+                return new SteamLaunchExecutionResult(true, $"Steam helper launched in the background. Streaming helper log from: {helperLogPath}", helperLogPath);
+            }
+            catch (Exception ex)
+            {
+                AppDiagnostics.LogError($"Error running Steam helper: {ex}");
+                return new SteamLaunchExecutionResult(false, $"Error running Steam helper: {ex.Message}");
+            }
+        }
+
+        private string CreateSteamHelperLogPath()
+        {
+            string directoryPath = Path.Combine(Path.GetTempPath(), "crosshook-steam-helper-logs");
+            Directory.CreateDirectory(directoryPath);
+
+            return Path.Combine(directoryPath, $"steam-helper-{DateTime.UtcNow:yyyyMMdd-HHmmssfff}.log");
+        }
+
+        private void StreamSteamHelperLogAsync(string logFilePath)
+        {
+            DateTime deadline = DateTime.UtcNow.AddMinutes(2);
+            long lastPosition = 0;
+            bool hasSeenLogFile = false;
+
+            while (DateTime.UtcNow < deadline)
+            {
+                if (File.Exists(logFilePath))
+                {
+                    hasSeenLogFile = true;
+
+                    using (FileStream stream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     {
-                        LogToConsole($"Auto-injecting: {_selectedDll1Path}");
-                        InjectDll(_selectedDll1Path);
-                    }
-                    
-                    if (chkLaunchInject2.Checked && !string.IsNullOrEmpty(_selectedDll2Path))
-                    {
-                        LogToConsole($"Auto-injecting: {_selectedDll2Path}");
-                        InjectDll(_selectedDll2Path);
-                    }
-                    
-                    // Launch trainer if needed
-                    if (!string.IsNullOrEmpty(_selectedTrainerPath))
-                    {
-                        LogToConsole($"Launching trainer: {_selectedTrainerPath}");
-                        
-                        string trainerDir = Path.GetDirectoryName(_selectedTrainerPath);
-                        
-                        if (_processManager.LaunchProcess(_selectedTrainerPath, trainerDir, _launchMethod))
+                        stream.Position = Math.Min(lastPosition, stream.Length);
+
+                        using (StreamReader reader = new StreamReader(stream))
                         {
-                            LogToConsole($"Trainer launched successfully (PID: {_processManager.ProcessId})");
-                        }
-                        else
-                        {
-                            LogToConsole("Failed to launch trainer");
+                            string line;
+                            while ((line = reader.ReadLine()) != null)
+                            {
+                                lastPosition = stream.Position;
+                                if (!string.IsNullOrWhiteSpace(line))
+                                {
+                                    LogToConsole(line);
+                                }
+                            }
                         }
                     }
+                }
+
+                System.Threading.Thread.Sleep(500);
+            }
+
+            if (hasSeenLogFile)
+            {
+                LogToConsole("Steam helper log streaming timed out after 2 minutes.");
+            }
+        }
+
+        private void LaunchDirectMode()
+        {
+            if (string.IsNullOrEmpty(_selectedGamePath))
+            {
+                // Skip the confirmation dialog if this is an auto-launch with just a trainer
+                if (_autoLaunchRequested && !string.IsNullOrEmpty(_selectedTrainerPath))
+                {
+                    LogToConsole("Auto-launching trainer without game executable");
                 }
                 else
                 {
-                    LogToConsole("Failed to launch game");
-                    
-                    // Only show error message if not auto-launching (since window would be minimized)
-                    if (!_autoLaunchRequested)
+                    // Since we've marked the game executable as optional in the UI, 
+                    // we should ask the user to confirm they want to proceed without a game path
+                    DialogResult result = MessageBox.Show(
+                        "No game executable selected. Do you want to continue?\n\n" +
+                        "Select 'Yes' to continue without launching a game executable.\n" +
+                        "Select 'No' to cancel and select a game executable.",
+                        "No Game Executable",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
+                        
+                    if (result == DialogResult.No)
                     {
-                        MessageBox.Show("Failed to launch game. Please check the log for details.", 
-                            "Launch Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
                     }
                 }
+                
+                // Check if we have a trainer to launch
+                if (!string.IsNullOrEmpty(_selectedTrainerPath))
+                {
+                    LogToConsole($"Launching trainer without game: {_selectedTrainerPath}");
+                    LaunchTrainerProcess(_trainerProcessManager);
+                }
+                else if (!_autoLaunchRequested) // Only show this message if not auto-launching
+                {
+                    // If no game and no trainer, show message
+                    MessageBox.Show(
+                        "Please select at least a game executable or trainer to launch.", 
+                        "Nothing to Launch", 
+                        MessageBoxButtons.OK, 
+                        MessageBoxIcon.Warning);
+                }
+                
+                return;
+            }
+            
+            // Launch the game
+            LogToConsole($"Launching game: {_selectedGamePath}");
+            LogToConsole($"Launch method: {_launchMethod}");
+            
+            string gameDir = Path.GetDirectoryName(_selectedGamePath);
+            
+            if (_processManager.LaunchProcess(_selectedGamePath, gameDir, _launchMethod))
+            {
+                LogToConsole($"Game launched successfully (PID: {_processManager.ProcessId})");
+
+                if (HasConfiguredPostLaunchActions())
+                {
+                    if (!WaitForGameReadiness())
+                    {
+                        LogToConsole("Skipping post-launch actions because the game did not reach the ready state before timeout.");
+
+                        if (!_autoLaunchRequested)
+                        {
+                            MessageBox.Show(
+                                "The game launched, but CrossHook did not observe a ready state before the timeout. Trainer launch and DLL post-launch actions were skipped.",
+                                "Game Not Ready",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
+                        }
+
+                        return;
+                    }
+
+                    LaunchConfiguredDlls();
+
+                    if (!string.IsNullOrEmpty(_selectedTrainerPath))
+                    {
+                        LaunchTrainerProcess(_trainerProcessManager);
+                    }
+                }
+            }
+            else
+            {
+                LogToConsole("Failed to launch game");
+                
+                // Only show error message if not auto-launching (since window would be minimized)
+                if (!_autoLaunchRequested)
+                {
+                    MessageBox.Show("Failed to launch game. Please check the log for details.", 
+                        "Launch Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        
+        private async void BtnLaunch_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (chkUseSteamMode.Checked)
+                {
+                    await LaunchSteamModeAsync();
+                    return;
+                }
+
+                _steamTrainerLaunchPending = false;
+                UpdateSteamModeUiState();
+                LaunchDirectMode();
             }
             catch (Exception ex)
             {

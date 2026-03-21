@@ -1,6 +1,6 @@
 using CrossHookEngine.App.Core;
 
-namespace CrossHookkEngine.App.Tests;
+namespace CrossHookEngine.App.Tests;
 
 public class ProcessManagerThreadOperationTests
 {

@@ -1,6 +1,6 @@
 using CrossHookEngine.App.Interop;
 
-namespace CrossHookkEngine.App.Tests;
+namespace CrossHookEngine.App.Tests;
 
 public class Win32ErrorHelperTests
 {

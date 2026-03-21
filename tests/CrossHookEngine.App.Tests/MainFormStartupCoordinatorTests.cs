@@ -1,7 +1,7 @@
 using CrossHookEngine.App.Forms;
-using CrossHookkEngine.App.Services;
+using CrossHookEngine.App.Services;
 
-namespace CrossHookkEngine.App.Tests;
+namespace CrossHookEngine.App.Tests;
 
 public sealed class MainFormStartupCoordinatorTests
 {

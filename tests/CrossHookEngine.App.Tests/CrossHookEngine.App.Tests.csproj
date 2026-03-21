@@ -15,17 +15,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../../src/CrossHookkEngine.App/Diagnostics/AppDiagnostics.cs" Link="Diagnostics/AppDiagnostics.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Interop/Kernel32Interop.cs" Link="Interop/Kernel32Interop.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Interop/Win32ErrorHelper.cs" Link="Interop/Win32ErrorHelper.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Core/ProcessManager.cs" Link="Core/ProcessManager.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Injection/InjectionManager.cs" Link="Injection/InjectionManager.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Memory/MemoryManager.cs" Link="Memory/MemoryManager.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Services/ProfileService.cs" Link="Services/ProfileService.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Services/AppSettingsService.cs" Link="Services/AppSettingsService.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Services/RecentFilesService.cs" Link="Services/RecentFilesService.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Services/CommandLineParser.cs" Link="Services/CommandLineParser.cs" />
-    <Compile Include="../../src/CrossHookkEngine.App/Forms/MainFormStartupCoordinator.cs" Link="Forms/MainFormStartupCoordinator.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Diagnostics/AppDiagnostics.cs" Link="Diagnostics/AppDiagnostics.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Interop/Kernel32Interop.cs" Link="Interop/Kernel32Interop.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Interop/Win32ErrorHelper.cs" Link="Interop/Win32ErrorHelper.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Core/ProcessManager.cs" Link="Core/ProcessManager.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Injection/InjectionManager.cs" Link="Injection/InjectionManager.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Memory/MemoryManager.cs" Link="Memory/MemoryManager.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Services/ProfileService.cs" Link="Services/ProfileService.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Services/AppSettingsService.cs" Link="Services/AppSettingsService.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Services/RecentFilesService.cs" Link="Services/RecentFilesService.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Services/CommandLineParser.cs" Link="Services/CommandLineParser.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Services/SteamLaunchService.cs" Link="Services/SteamLaunchService.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Services/SteamExternalLauncherExportService.cs" Link="Services/SteamExternalLauncherExportService.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Forms/MainFormStartupCoordinator.cs" Link="Forms/MainFormStartupCoordinator.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using CrossHookEngine.App.Core;
 
-namespace CrossHookkEngine.App.Tests;
+namespace CrossHookEngine.App.Tests;
 
 public sealed class ProcessManagerLaunchMethodTests
 {

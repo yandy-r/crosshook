@@ -163,6 +163,21 @@ namespace CrossHookEngine.App.Core
             }
         }
 
+        public ProcessReadinessResult WaitForCurrentProcessReady(ProcessReadinessOptions options = null)
+        {
+            if (_process is null)
+            {
+                return new ProcessReadinessResult(
+                    isReady: false,
+                    elapsedMs: 0,
+                    modulesAccessible: false,
+                    hasMainWindow: false,
+                    statusMessage: "No process is currently tracked.");
+            }
+
+            return WaitForProcessReady(_process, options ?? new ProcessReadinessOptions(), milliseconds => Thread.Sleep(milliseconds));
+        }
+
         public bool DetachFromProcess()
         {
             if (_process == null)
@@ -503,6 +518,162 @@ namespace CrossHookEngine.App.Core
 		}
 	}
 
+	internal static ProcessReadinessOptions NormalizeProcessReadinessOptions(ProcessReadinessOptions options)
+	{
+		if (options is null)
+			throw new ArgumentNullException(nameof(options));
+
+		if (options.TimeoutMs <= 0)
+			throw new ArgumentOutOfRangeException(nameof(options.TimeoutMs), "Timeout must be greater than zero.");
+
+		if (options.PollIntervalMs <= 0)
+			throw new ArgumentOutOfRangeException(nameof(options.PollIntervalMs), "Poll interval must be greater than zero.");
+
+		if (options.MinimumProcessLifetimeMs < 0)
+			throw new ArgumentOutOfRangeException(nameof(options.MinimumProcessLifetimeMs), "Minimum process lifetime cannot be negative.");
+
+		if (options.TimeoutMs < options.MinimumProcessLifetimeMs)
+			throw new ArgumentOutOfRangeException(nameof(options.TimeoutMs), "Timeout must be greater than or equal to the minimum process lifetime.");
+
+		return new ProcessReadinessOptions
+		{
+			TimeoutMs = options.TimeoutMs,
+			PollIntervalMs = options.PollIntervalMs,
+			MinimumProcessLifetimeMs = options.MinimumProcessLifetimeMs,
+			RequireMainWindow = options.RequireMainWindow
+		};
+	}
+
+	internal static ProcessReadinessResult WaitForProcessReady(
+		Process process,
+		ProcessReadinessOptions options,
+		Action<int> delay)
+	{
+		if (process is null)
+			throw new ArgumentNullException(nameof(process));
+
+		if (delay is null)
+			throw new ArgumentNullException(nameof(delay));
+
+		ProcessReadinessOptions normalizedOptions = NormalizeProcessReadinessOptions(options);
+		Stopwatch stopwatch = Stopwatch.StartNew();
+
+		while (true)
+		{
+			using Process snapshot = CreateProcessSnapshot(process);
+			if (snapshot is null)
+			{
+				return new ProcessReadinessResult(
+					isReady: false,
+					elapsedMs: (int)stopwatch.ElapsedMilliseconds,
+					modulesAccessible: false,
+					hasMainWindow: false,
+					statusMessage: "Process exited before it became ready.");
+			}
+
+			snapshot.Refresh();
+
+			bool modulesAccessible = CanInspectProcessModules(snapshot);
+			bool hasMainWindow = TryHasMainWindow(snapshot);
+			bool lifetimeSatisfied = stopwatch.ElapsedMilliseconds >= normalizedOptions.MinimumProcessLifetimeMs;
+			bool mainWindowSatisfied = !normalizedOptions.RequireMainWindow || hasMainWindow;
+
+			if (lifetimeSatisfied && mainWindowSatisfied)
+			{
+				string readinessSource = hasMainWindow
+					? "main window"
+					: modulesAccessible
+						? "module enumeration"
+						: "stabilization window";
+
+				string statusMessage = hasMainWindow || modulesAccessible
+					? $"Process readiness confirmed via {readinessSource}."
+					: "Process remained alive for the stabilization window; proceeding without an additional readiness signal.";
+
+				return new ProcessReadinessResult(
+					isReady: true,
+					elapsedMs: (int)stopwatch.ElapsedMilliseconds,
+					modulesAccessible: modulesAccessible,
+					hasMainWindow: hasMainWindow,
+					statusMessage: statusMessage);
+			}
+
+			if (stopwatch.ElapsedMilliseconds >= normalizedOptions.TimeoutMs)
+			{
+				string timeoutMessage = normalizedOptions.RequireMainWindow
+					? "Timed out waiting for the process main window."
+					: "Timed out waiting for the process to stabilize.";
+
+				return new ProcessReadinessResult(
+					isReady: false,
+					elapsedMs: (int)stopwatch.ElapsedMilliseconds,
+					modulesAccessible: modulesAccessible,
+					hasMainWindow: hasMainWindow,
+					statusMessage: timeoutMessage);
+			}
+
+			delay(normalizedOptions.PollIntervalMs);
+		}
+	}
+
+	internal static bool CanInspectProcessModules(Process process)
+	{
+		if (process is null)
+			return false;
+
+		try
+		{
+			if (process.HasExited)
+				return false;
+
+			_ = process.Modules.Count;
+			return true;
+		}
+		catch (ArgumentException)
+		{
+			return false;
+		}
+		catch (InvalidOperationException)
+		{
+			return false;
+		}
+		catch (Win32Exception)
+		{
+			return false;
+		}
+		catch (NotSupportedException)
+		{
+			return false;
+		}
+	}
+
+	internal static bool TryHasMainWindow(Process process)
+	{
+		if (process is null)
+			return false;
+
+		try
+		{
+			if (process.HasExited)
+				return false;
+
+			process.Refresh();
+			return process.MainWindowHandle != IntPtr.Zero;
+		}
+		catch (ArgumentException)
+		{
+			return false;
+		}
+		catch (InvalidOperationException)
+		{
+			return false;
+		}
+		catch (Win32Exception)
+		{
+			return false;
+		}
+	}
+
         #region Launch Methods
 
         private bool LaunchWithCreateProcess(string exePath, string workingDir)
@@ -646,6 +817,32 @@ namespace CrossHookEngine.App.Core
         RemoteThreadInjection,
         ShellExecute,
         ProcessStart
+    }
+
+    public sealed class ProcessReadinessOptions
+    {
+        public int TimeoutMs { get; set; } = 15000;
+        public int PollIntervalMs { get; set; } = 250;
+        public int MinimumProcessLifetimeMs { get; set; } = 2000;
+        public bool RequireMainWindow { get; set; } = false;
+    }
+
+    public sealed class ProcessReadinessResult
+    {
+        public bool IsReady { get; }
+        public int ElapsedMs { get; }
+        public bool ModulesAccessible { get; }
+        public bool HasMainWindow { get; }
+        public string StatusMessage { get; }
+
+        public ProcessReadinessResult(bool isReady, int elapsedMs, bool modulesAccessible, bool hasMainWindow, string statusMessage)
+        {
+            IsReady = isReady;
+            ElapsedMs = elapsedMs;
+            ModulesAccessible = modulesAccessible;
+            HasMainWindow = hasMainWindow;
+            StatusMessage = statusMessage ?? string.Empty;
+        }
     }
 
     public class ProcessEventArgs : EventArgs
