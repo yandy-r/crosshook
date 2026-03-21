@@ -172,7 +172,8 @@ namespace CrossHookEngine.App.Core
                     elapsedMs: 0,
                     modulesAccessible: false,
                     hasMainWindow: false,
-                    statusMessage: "No process is currently tracked.");
+                    statusMessage: "No process is currently tracked.",
+                    processExitedBeforeReady: false);
             }
 
             return WaitForProcessReady(_process, options ?? new ProcessReadinessOptions(), milliseconds => Thread.Sleep(milliseconds));
@@ -568,7 +569,8 @@ namespace CrossHookEngine.App.Core
 					elapsedMs: (int)stopwatch.ElapsedMilliseconds,
 					modulesAccessible: false,
 					hasMainWindow: false,
-					statusMessage: "Process exited before it became ready.");
+					statusMessage: "Process exited before it became ready.",
+					processExitedBeforeReady: true);
 			}
 
 			snapshot.Refresh();
@@ -835,13 +837,16 @@ namespace CrossHookEngine.App.Core
         public bool HasMainWindow { get; }
         public string StatusMessage { get; }
 
-        public ProcessReadinessResult(bool isReady, int elapsedMs, bool modulesAccessible, bool hasMainWindow, string statusMessage)
+        public bool ProcessExitedBeforeReady { get; }
+
+        public ProcessReadinessResult(bool isReady, int elapsedMs, bool modulesAccessible, bool hasMainWindow, string statusMessage, bool processExitedBeforeReady = false)
         {
             IsReady = isReady;
             ElapsedMs = elapsedMs;
             ModulesAccessible = modulesAccessible;
             HasMainWindow = hasMainWindow;
             StatusMessage = statusMessage ?? string.Empty;
+            ProcessExitedBeforeReady = processExitedBeforeReady;
         }
     }
 

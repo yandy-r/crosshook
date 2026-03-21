@@ -13,6 +13,7 @@ public sealed class ProcessManagerReadinessTests
         ProcessReadinessResult result = manager.WaitForCurrentProcessReady();
 
         Assert.False(result.IsReady);
+        Assert.False(result.ProcessExitedBeforeReady);
         Assert.Equal("No process is currently tracked.", result.StatusMessage);
     }
 
@@ -71,6 +72,7 @@ public sealed class ProcessManagerReadinessTests
         ProcessReadinessResult result = ProcessManager.WaitForProcessReady(process, options, _ => { });
 
         Assert.False(result.IsReady);
+        Assert.True(result.ProcessExitedBeforeReady);
         Assert.Contains("exited", result.StatusMessage, StringComparison.OrdinalIgnoreCase);
     }
 }

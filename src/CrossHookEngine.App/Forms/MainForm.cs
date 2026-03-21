@@ -2348,7 +2348,7 @@ namespace CrossHookEngine.App.Forms
                 || (chkLaunchInject2.Checked && !string.IsNullOrEmpty(_selectedDll2Path));
         }
 
-        private bool WaitForGameReadiness()
+        private ProcessReadinessResult WaitForGameReadiness()
         {
             ProcessReadinessOptions options = new ProcessReadinessOptions();
             string waitMessage = $"Waiting up to {options.TimeoutMs} ms for game readiness (PID: {_processManager.ProcessId}) with a {options.MinimumProcessLifetimeMs} ms stabilization window.";
@@ -2371,7 +2371,7 @@ namespace CrossHookEngine.App.Forms
                 AppDiagnostics.LogError(readinessMessage);
             }
 
-            return readiness.IsReady;
+            return readiness;
         }
 
         private void LaunchConfiguredDlls()
@@ -2617,17 +2617,41 @@ namespace CrossHookEngine.App.Forms
                     return new SteamLaunchExecutionResult(false, "Failed to start the Steam helper process.");
                 }
 
+                int exitCode;
                 using (helperProcess)
                 {
                     helperProcess.WaitForExit();
+                    exitCode = helperProcess.ExitCode;
                 }
 
-                if (!File.Exists(helperLogPath))
+                if (exitCode != 0)
                 {
-                    File.WriteAllText(helperLogPath, string.Empty);
+                    string logHint = string.Empty;
+                    if (File.Exists(helperLogPath))
+                    {
+                        try
+                        {
+                            string all = File.ReadAllText(helperLogPath);
+                            if (!string.IsNullOrWhiteSpace(all))
+                            {
+                                string tail = all.Length > 1500 ? all.Substring(all.Length - 1500) : all;
+                                logHint = " " + tail.Trim();
+                            }
+                        }
+                        catch
+                        {
+                            // ignore log read errors
+                        }
+                    }
+                    else
+                    {
+                        logHint = " No helper log file was produced (the script may have failed before opening the log). Check shell-side paths in the Steam helper script.";
+                    }
+
+                    return new SteamLaunchExecutionResult(false, $"Steam helper exited with code {exitCode}.{logHint}");
                 }
 
-                return new SteamLaunchExecutionResult(true, $"Steam helper launched in the background. Streaming helper log from: {helperLogPath}", helperLogPath);
+                return new SteamLaunchExecutionResult(true, $"Steam helper completed successfully. Streaming helper log from: {helperLogPath}", helperLogPath);
             }
             catch (Exception ex)
             {
@@ -2684,7 +2708,7 @@ namespace CrossHookEngine.App.Forms
             }
         }
 
-        private void LaunchDirectMode()
+        private async Task LaunchDirectModeAsync()
         {
             if (string.IsNullOrEmpty(_selectedGamePath))
             {
@@ -2742,7 +2766,36 @@ namespace CrossHookEngine.App.Forms
 
                 if (HasConfiguredPostLaunchActions())
                 {
-                    if (!WaitForGameReadiness())
+                    ProcessReadinessResult readiness = await Task.Run(() => WaitForGameReadiness());
+
+                    if (readiness.IsReady)
+                    {
+                        LaunchConfiguredDlls();
+
+                        if (!string.IsNullOrEmpty(_selectedTrainerPath))
+                        {
+                            LaunchTrainerProcess(_trainerProcessManager);
+                        }
+                    }
+                    else if (readiness.ProcessExitedBeforeReady)
+                    {
+                        LogToConsole("The launched process exited before readiness (launcher/bootstrapper). Continuing with trainer if configured; DLL steps only if the game process is still tracked.");
+
+                        if (_processManager.IsProcessRunning)
+                        {
+                            LaunchConfiguredDlls();
+                        }
+                        else
+                        {
+                            LogToConsole("Skipping DLL auto-injection: the launched process is no longer running.");
+                        }
+
+                        if (!string.IsNullOrEmpty(_selectedTrainerPath))
+                        {
+                            LaunchTrainerProcess(_trainerProcessManager);
+                        }
+                    }
+                    else
                     {
                         LogToConsole("Skipping post-launch actions because the game did not reach the ready state before timeout.");
 
@@ -2754,15 +2807,6 @@ namespace CrossHookEngine.App.Forms
                                 MessageBoxButtons.OK,
                                 MessageBoxIcon.Warning);
                         }
-
-                        return;
-                    }
-
-                    LaunchConfiguredDlls();
-
-                    if (!string.IsNullOrEmpty(_selectedTrainerPath))
-                    {
-                        LaunchTrainerProcess(_trainerProcessManager);
                     }
                 }
             }
@@ -2791,7 +2835,7 @@ namespace CrossHookEngine.App.Forms
 
                 _steamTrainerLaunchPending = false;
                 UpdateSteamModeUiState();
-                LaunchDirectMode();
+                await LaunchDirectModeAsync();
             }
             catch (Exception ex)
             {
