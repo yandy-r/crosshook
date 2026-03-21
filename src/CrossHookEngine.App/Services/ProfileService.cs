@@ -52,6 +52,7 @@ public sealed class ProfileService
             writer.WriteLine($"SteamAppId={profile.SteamAppId}");
             writer.WriteLine($"SteamCompatDataPath={profile.SteamCompatDataPath}");
             writer.WriteLine($"SteamProtonPath={profile.SteamProtonPath}");
+            writer.WriteLine($"SteamLauncherIconPath={profile.SteamLauncherIconPath}");
         }
     }
 
@@ -132,6 +133,10 @@ public sealed class ProfileService
 
                 case "SteamProtonPath":
                     profile.SteamProtonPath = value;
+                    break;
+
+                case "SteamLauncherIconPath":
+                    profile.SteamLauncherIconPath = value;
                     break;
             }
         }
@@ -214,4 +219,6 @@ public sealed class ProfileData
     public string SteamCompatDataPath { get; set; } = string.Empty;
 
     public string SteamProtonPath { get; set; } = string.Empty;
+
+    public string SteamLauncherIconPath { get; set; } = string.Empty;
 }

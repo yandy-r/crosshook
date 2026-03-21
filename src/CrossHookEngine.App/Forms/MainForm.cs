@@ -44,8 +44,10 @@ namespace CrossHookEngine.App.Forms
         private TextBox txtSteamAppId = new TextBox();
         private TextBox txtSteamCompatDataPath = new TextBox();
         private TextBox txtSteamProtonPath = new TextBox();
+        private TextBox txtSteamLauncherIconPath = new TextBox();
         private Button btnBrowseSteamCompatData = new Button();
         private Button btnBrowseSteamProton = new Button();
+        private Button btnBrowseSteamLauncherIcon = new Button();
         private Button btnExportSteamLaunchers = new Button();
         private Label lblSteamModeHint = new Label();
         private CheckBox chkLaunchInject1 = new CheckBox();
@@ -107,6 +109,7 @@ namespace CrossHookEngine.App.Forms
         private string _steamAppId = string.Empty;
         private string _steamCompatDataPath = string.Empty;
         private string _steamProtonPath = string.Empty;
+        private string _steamLauncherIconPath = string.Empty;
         private bool _steamTrainerLaunchPending = false;
         
         // Launch method
@@ -999,6 +1002,12 @@ namespace CrossHookEngine.App.Forms
             txtSteamProtonPath.Font = new Font("Segoe UI", 9.5f);
             txtSteamProtonPath.Dock = DockStyle.Fill;
 
+            txtSteamLauncherIconPath.BackColor = Color.FromArgb(45, 45, 45);
+            txtSteamLauncherIconPath.ForeColor = Color.White;
+            txtSteamLauncherIconPath.BorderStyle = BorderStyle.FixedSingle;
+            txtSteamLauncherIconPath.Font = new Font("Segoe UI", 9.5f);
+            txtSteamLauncherIconPath.Dock = DockStyle.Fill;
+
             btnBrowseSteamCompatData.Text = "Browse...";
             btnBrowseSteamCompatData.BackColor = Color.FromArgb(60, 60, 60);
             btnBrowseSteamCompatData.ForeColor = Color.White;
@@ -1014,6 +1023,14 @@ namespace CrossHookEngine.App.Forms
             btnBrowseSteamProton.FlatAppearance.BorderSize = 0;
             btnBrowseSteamProton.Font = new Font("Segoe UI", 9);
             btnBrowseSteamProton.Dock = DockStyle.Fill;
+
+            btnBrowseSteamLauncherIcon.Text = "Browse...";
+            btnBrowseSteamLauncherIcon.BackColor = Color.FromArgb(60, 60, 60);
+            btnBrowseSteamLauncherIcon.ForeColor = Color.White;
+            btnBrowseSteamLauncherIcon.FlatStyle = FlatStyle.Flat;
+            btnBrowseSteamLauncherIcon.FlatAppearance.BorderSize = 0;
+            btnBrowseSteamLauncherIcon.Font = new Font("Segoe UI", 9);
+            btnBrowseSteamLauncherIcon.Dock = DockStyle.Fill;
 
             btnExportSteamLaunchers.Text = "Create Script + Desktop";
             btnExportSteamLaunchers.BackColor = Color.FromArgb(0, 120, 215);
@@ -1143,13 +1160,14 @@ namespace CrossHookEngine.App.Forms
             steamSettingsLayout.AutoSize = true;
             steamSettingsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             steamSettingsLayout.ColumnCount = 3;
-            steamSettingsLayout.RowCount = 6;
+            steamSettingsLayout.RowCount = 7;
             steamSettingsLayout.Margin = new Padding(0, 10, 0, 0);
             steamSettingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LABEL_WIDTH));
             steamSettingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             steamSettingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BUTTON_WIDTH));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
@@ -1175,6 +1193,13 @@ namespace CrossHookEngine.App.Forms
             steamProtonLabel.Font = new Font("Segoe UI", 9);
             steamProtonLabel.Dock = DockStyle.Fill;
             steamProtonLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+            Label steamLauncherIconLabel = new Label();
+            steamLauncherIconLabel.Text = "Launcher Icon:";
+            steamLauncherIconLabel.ForeColor = Color.White;
+            steamLauncherIconLabel.Font = new Font("Segoe UI", 9);
+            steamLauncherIconLabel.Dock = DockStyle.Fill;
+            steamLauncherIconLabel.TextAlign = ContentAlignment.MiddleLeft;
 
             Label steamLaunchersLabel = new Label();
             steamLaunchersLabel.Text = "External Launchers:";
@@ -1205,8 +1230,11 @@ namespace CrossHookEngine.App.Forms
             steamSettingsLayout.Controls.Add(steamProtonLabel, 0, 4);
             steamSettingsLayout.Controls.Add(txtSteamProtonPath, 1, 4);
             steamSettingsLayout.Controls.Add(btnBrowseSteamProton, 2, 4);
-            steamSettingsLayout.Controls.Add(steamLaunchersLabel, 0, 5);
-            steamSettingsLayout.Controls.Add(steamLaunchersPanel, 1, 5);
+            steamSettingsLayout.Controls.Add(steamLauncherIconLabel, 0, 5);
+            steamSettingsLayout.Controls.Add(txtSteamLauncherIconPath, 1, 5);
+            steamSettingsLayout.Controls.Add(btnBrowseSteamLauncherIcon, 2, 5);
+            steamSettingsLayout.Controls.Add(steamLaunchersLabel, 0, 6);
+            steamSettingsLayout.Controls.Add(steamLaunchersPanel, 1, 6);
             steamSettingsLayout.SetColumnSpan(steamLaunchersPanel, 2);
 
             trainerContent.Controls.Add(steamSettingsLayout, 0, 3);
@@ -1598,6 +1626,7 @@ namespace CrossHookEngine.App.Forms
             btnBrowseTrainer.Click += BtnBrowseTrainer_Click;
             btnBrowseSteamCompatData.Click += BtnBrowseSteamCompatData_Click;
             btnBrowseSteamProton.Click += BtnBrowseSteamProton_Click;
+            btnBrowseSteamLauncherIcon.Click += BtnBrowseSteamLauncherIcon_Click;
             btnExportSteamLaunchers.Click += BtnExportSteamLaunchers_Click;
             btnBrowseDll1.Click += BtnBrowseDll1_Click;
             btnBrowseDll2.Click += BtnBrowseDll2_Click;
@@ -1610,6 +1639,7 @@ namespace CrossHookEngine.App.Forms
             txtSteamAppId.TextChanged += (s, e) => _steamAppId = txtSteamAppId.Text.Trim();
             txtSteamCompatDataPath.TextChanged += (s, e) => _steamCompatDataPath = txtSteamCompatDataPath.Text.Trim();
             txtSteamProtonPath.TextChanged += (s, e) => _steamProtonPath = txtSteamProtonPath.Text.Trim();
+            txtSteamLauncherIconPath.TextChanged += (s, e) => _steamLauncherIconPath = txtSteamLauncherIconPath.Text.Trim();
             
             // ComboBox events
             cmbRunningExe.SelectedIndexChanged += CmbRunningExe_SelectedIndexChanged;
@@ -1833,7 +1863,10 @@ namespace CrossHookEngine.App.Forms
                     UseSteamMode = chkUseSteamMode.Checked,
                     SteamAppId = txtSteamAppId.Text.Trim(),
                     SteamCompatDataPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamCompatDataPath.Text.Trim()),
-                    SteamProtonPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamProtonPath.Text.Trim())
+                    SteamProtonPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamProtonPath.Text.Trim()),
+                    SteamLauncherIconPath = string.IsNullOrWhiteSpace(txtSteamLauncherIconPath.Text)
+                        ? string.Empty
+                        : SteamLaunchService.NormalizeSteamHostPath(txtSteamLauncherIconPath.Text.Trim())
                 };
 
                 _profileService.SaveProfile(profileName, profile);
@@ -1890,6 +1923,9 @@ namespace CrossHookEngine.App.Forms
 
                 _steamProtonPath = SteamLaunchService.NormalizeSteamHostPath(profile.SteamProtonPath);
                 txtSteamProtonPath.Text = _steamProtonPath;
+
+                _steamLauncherIconPath = SteamLaunchService.NormalizeSteamHostPath(profile.SteamLauncherIconPath);
+                txtSteamLauncherIconPath.Text = _steamLauncherIconPath;
 
                 if (Enum.TryParse<LaunchMethod>(profile.LaunchMethod, out LaunchMethod method))
                 {
@@ -2061,8 +2097,10 @@ namespace CrossHookEngine.App.Forms
             txtSteamAppId.Enabled = steamModeEnabled;
             txtSteamCompatDataPath.Enabled = steamModeEnabled;
             txtSteamProtonPath.Enabled = steamModeEnabled;
+            txtSteamLauncherIconPath.Enabled = steamModeEnabled;
             btnBrowseSteamCompatData.Enabled = steamModeEnabled;
             btnBrowseSteamProton.Enabled = steamModeEnabled;
+            btnBrowseSteamLauncherIcon.Enabled = steamModeEnabled;
             btnExportSteamLaunchers.Enabled = steamModeEnabled;
             launchMethodsFlow.Enabled = !steamModeEnabled;
 
@@ -2115,6 +2153,22 @@ namespace CrossHookEngine.App.Forms
                     _steamProtonPath = SteamLaunchService.NormalizeSteamHostPath(dialog.FileName);
                     txtSteamProtonPath.Text = _steamProtonPath;
                     UpdateStatus($"Selected Proton path: {_steamProtonPath}");
+                }
+            }
+        }
+
+        private void BtnBrowseSteamLauncherIcon_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "Image Files (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg|All Files (*.*)|*.*";
+                dialog.Title = "Select Launcher Icon";
+
+                if (dialog.ShowDialog() == DialogResult.OK)
+                {
+                    _steamLauncherIconPath = dialog.FileName;
+                    txtSteamLauncherIconPath.Text = _steamLauncherIconPath;
+                    UpdateStatus($"Selected Steam launcher icon: {Path.GetFileName(_steamLauncherIconPath)}");
                 }
             }
         }
@@ -2434,6 +2488,9 @@ namespace CrossHookEngine.App.Forms
             {
                 LauncherName = GetPreferredSteamLauncherName(),
                 TrainerPath = _selectedTrainerPath,
+                LauncherIconPath = string.IsNullOrWhiteSpace(_steamLauncherIconPath)
+                    ? string.Empty
+                    : SteamLaunchService.NormalizeSteamHostPath(_steamLauncherIconPath),
                 SteamAppId = txtSteamAppId.Text.Trim(),
                 SteamCompatDataPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamCompatDataPath.Text.Trim()),
                 SteamProtonPath = SteamLaunchService.NormalizeSteamHostPath(txtSteamProtonPath.Text.Trim()),

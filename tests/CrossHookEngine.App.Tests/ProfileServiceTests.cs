@@ -30,7 +30,8 @@ public sealed class ProfileServiceTests
             UseSteamMode = true,
             SteamAppId = "287700",
             SteamCompatDataPath = "/mnt/sdb/SteamLibrary/steamapps/compatdata/287700",
-            SteamProtonPath = "/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton"
+            SteamProtonPath = "/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton",
+            SteamLauncherIconPath = "/home/yandy/Pictures/mgs-tpp-icon.png"
         };
 
         service.SaveProfile("deck-run", profile);
@@ -50,7 +51,8 @@ public sealed class ProfileServiceTests
                 "UseSteamMode=True",
                 "SteamAppId=287700",
                 "SteamCompatDataPath=/mnt/sdb/SteamLibrary/steamapps/compatdata/287700",
-                "SteamProtonPath=/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton"
+                "SteamProtonPath=/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton",
+                "SteamLauncherIconPath=/home/yandy/Pictures/mgs-tpp-icon.png"
             },
             File.ReadAllLines(profilePath));
     }
@@ -79,6 +81,7 @@ public sealed class ProfileServiceTests
                 "SteamAppId=287700",
                 "SteamCompatDataPath=/compatdata/287700",
                 "SteamProtonPath=/proton/ge",
+                "SteamLauncherIconPath=/icons/mgs-tpp-icon.png",
                 "UnknownKey=ignored"
             });
 
@@ -95,6 +98,7 @@ public sealed class ProfileServiceTests
         Assert.Equal("287700", profile.SteamAppId);
         Assert.Equal("/compatdata/287700", profile.SteamCompatDataPath);
         Assert.Equal("/proton/ge", profile.SteamProtonPath);
+        Assert.Equal("/icons/mgs-tpp-icon.png", profile.SteamLauncherIconPath);
     }
 
     [Fact]
@@ -206,7 +210,8 @@ public sealed class ProfileServiceTests
             UseSteamMode = true,
             SteamAppId = "287700",
             SteamCompatDataPath = "/compatdata/287700",
-            SteamProtonPath = "/proton/path"
+            SteamProtonPath = "/proton/path",
+            SteamLauncherIconPath = "/icons/hades.png"
         };
 
         service.SaveProfile("deck-run", expectedProfile);
@@ -224,6 +229,7 @@ public sealed class ProfileServiceTests
         Assert.Equal(expectedProfile.SteamAppId, actualProfile.SteamAppId);
         Assert.Equal(expectedProfile.SteamCompatDataPath, actualProfile.SteamCompatDataPath);
         Assert.Equal(expectedProfile.SteamProtonPath, actualProfile.SteamProtonPath);
+        Assert.Equal(expectedProfile.SteamLauncherIconPath, actualProfile.SteamLauncherIconPath);
     }
 
     [Theory]

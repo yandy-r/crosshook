@@ -10,6 +10,8 @@ public sealed class SteamExternalLauncherExportRequest
 
     public string TrainerPath { get; set; } = string.Empty;
 
+    public string LauncherIconPath { get; set; } = string.Empty;
+
     public string SteamAppId { get; set; } = string.Empty;
 
     public string SteamCompatDataPath { get; set; } = string.Empty;
@@ -84,6 +86,24 @@ public static class SteamExternalLauncherExportService
             return new SteamExternalLauncherExportValidationResult(false, "External launcher export requires a host home path.");
         }
 
+        if (!string.IsNullOrWhiteSpace(request.LauncherIconPath))
+        {
+            string normalizedLauncherIconPath = NormalizeHostUnixPath(request.LauncherIconPath);
+            string resolvedLauncherIconPath = ResolveWritablePath(normalizedLauncherIconPath);
+            if (!File.Exists(resolvedLauncherIconPath))
+            {
+                return new SteamExternalLauncherExportValidationResult(false, "External launcher export icon path does not exist.");
+            }
+
+            string extension = Path.GetExtension(normalizedLauncherIconPath);
+            if (!extension.Equals(".png", StringComparison.OrdinalIgnoreCase)
+                && !extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+                && !extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase))
+            {
+                return new SteamExternalLauncherExportValidationResult(false, "External launcher export icon must be a PNG or JPG image.");
+            }
+        }
+
         return new SteamExternalLauncherExportValidationResult(true);
     }
 
@@ -109,7 +129,7 @@ public static class SteamExternalLauncherExportService
         string desktopEntryPath = CombineHostUnixPath(targetHomePath, DesktopEntryDirectoryRelativePath, $"crosshook-{launcherSlug}-trainer.desktop");
 
         WriteHostTextFile(scriptPath, BuildTrainerScriptContent(request, displayName));
-        WriteHostTextFile(desktopEntryPath, BuildDesktopEntryContent(displayName, scriptPath));
+        WriteHostTextFile(desktopEntryPath, BuildDesktopEntryContent(displayName, scriptPath, request.LauncherIconPath));
 
         return new SteamExternalLauncherExportResult
         {
@@ -226,7 +246,7 @@ public static class SteamExternalLauncherExportService
         return builder.ToString();
     }
 
-    internal static string BuildDesktopEntryContent(string displayName, string scriptPath)
+    internal static string BuildDesktopEntryContent(string displayName, string scriptPath, string launcherIconPath)
     {
         StringBuilder builder = new StringBuilder();
         _ = builder.AppendLine("[Desktop Entry]");
@@ -237,7 +257,7 @@ public static class SteamExternalLauncherExportService
         _ = builder.AppendLine($"Exec=/bin/bash {EscapeDesktopExecArgument(scriptPath)}");
         _ = builder.AppendLine("Terminal=false");
         _ = builder.AppendLine("Categories=Game;");
-        _ = builder.AppendLine("Icon=applications-games");
+        _ = builder.AppendLine($"Icon={ResolveDesktopIconValue(launcherIconPath)}");
         _ = builder.AppendLine("StartupNotify=false");
         return builder.ToString();
     }
@@ -289,6 +309,14 @@ public static class SteamExternalLauncherExportService
         }
 
         return hostPath;
+    }
+
+    private static string ResolveDesktopIconValue(string launcherIconPath)
+    {
+        string normalizedLauncherIconPath = NormalizeHostUnixPath(launcherIconPath);
+        return string.IsNullOrWhiteSpace(normalizedLauncherIconPath)
+            ? "applications-games"
+            : normalizedLauncherIconPath;
     }
 
     private static string NormalizeHostUnixPath(string path)

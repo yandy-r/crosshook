@@ -8,10 +8,12 @@ public sealed class SteamExternalLauncherExportServiceTests
     public void ExportLaunchers_WritesTrainerScriptAndDesktopEntryToUserHome()
     {
         using TestWorkspace workspace = new TestWorkspace();
+        string launcherIconPath = workspace.CreateFile("icons", "mgs-tpp-icon.png");
         SteamExternalLauncherExportRequest request = new SteamExternalLauncherExportRequest
         {
             LauncherName = "MGS_TPP",
             TrainerPath = @"D:\Games\Trainers\StandAlone\mgs-tpp-fling.exe",
+            LauncherIconPath = launcherIconPath,
             SteamAppId = "287700",
             SteamCompatDataPath = "/mnt/sdb/SteamLibrary/steamapps/compatdata/287700",
             SteamProtonPath = "/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton",
@@ -42,7 +44,7 @@ public sealed class SteamExternalLauncherExportServiceTests
         string desktopContent = File.ReadAllText(expectedDesktopEntryPath);
         Assert.Contains("Name=CrossHook Trainer - MGS_TPP", desktopContent);
         Assert.Contains($"Exec=/bin/bash {expectedScriptPath}", desktopContent);
-        Assert.Contains("Icon=applications-games", desktopContent);
+        Assert.Contains($"Icon={launcherIconPath}", desktopContent);
     }
 
     [Fact]
@@ -62,6 +64,50 @@ public sealed class SteamExternalLauncherExportServiceTests
 
         Assert.False(result.IsValid);
         Assert.Contains("home path", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExportLaunchers_UsesDefaultIcon_WhenLauncherIconPathIsBlank()
+    {
+        using TestWorkspace workspace = new TestWorkspace();
+        SteamExternalLauncherExportRequest request = new SteamExternalLauncherExportRequest
+        {
+            LauncherName = "MGS_TPP",
+            TrainerPath = @"D:\Games\Trainers\StandAlone\mgs-tpp-fling.exe",
+            SteamAppId = "287700",
+            SteamCompatDataPath = "/mnt/sdb/SteamLibrary/steamapps/compatdata/287700",
+            SteamProtonPath = "/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton",
+            SteamClientInstallPath = "/home/yandy/.local/share/Steam",
+            TargetHomePath = workspace.RootPath
+        };
+
+        SteamExternalLauncherExportResult result = SteamExternalLauncherExportService.ExportLaunchers(request);
+
+        string desktopContent = File.ReadAllText(result.DesktopEntryPath);
+        Assert.Contains("Icon=applications-games", desktopContent);
+    }
+
+    [Fact]
+    public void Validate_ReturnsInvalid_WhenLauncherIconPathIsNotAnImage()
+    {
+        using TestWorkspace workspace = new TestWorkspace();
+        string launcherIconPath = workspace.CreateFile("icons", "mgs-tpp-icon.txt");
+        SteamExternalLauncherExportRequest request = new SteamExternalLauncherExportRequest
+        {
+            LauncherName = "MGS_TPP",
+            TrainerPath = @"D:\Games\Trainers\StandAlone\mgs-tpp-fling.exe",
+            LauncherIconPath = launcherIconPath,
+            SteamAppId = "287700",
+            SteamCompatDataPath = "/mnt/sdb/SteamLibrary/steamapps/compatdata/287700",
+            SteamProtonPath = "/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton",
+            SteamClientInstallPath = "/home/yandy/.local/share/Steam",
+            TargetHomePath = workspace.RootPath
+        };
+
+        SteamExternalLauncherExportValidationResult result = SteamExternalLauncherExportService.Validate(request);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("PNG or JPG", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
