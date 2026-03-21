@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text;
 
 namespace CrossHookEngine.App.Services;
 
@@ -391,13 +394,22 @@ public static class SteamLaunchService
 
         try
         {
-            string driveRoot = ConvertToUnixPath(char.ToUpperInvariant(driveSegment[0]) + @":\");
+            string dosDevicesDirectoryPath = unixPath[..(markerIndex + marker.Length - 1)];
+            string driveRoot = ResolveDosDeviceLinkTarget(dosDevicesDirectoryPath, driveSegment);
             if (string.IsNullOrWhiteSpace(driveRoot))
             {
-                return unixPath;
+                string scannedHostPath = ResolveMountedHostPathByScanning(restOfPath, GetMountedHostSearchRoots());
+                return string.IsNullOrWhiteSpace(scannedHostPath) ? unixPath : scannedHostPath;
             }
 
-            return driveRoot.TrimEnd('/') + restOfPath;
+            string normalizedDriveRoot = driveRoot.Replace('\\', '/').TrimEnd('/');
+            string normalizedRestOfPath = restOfPath.TrimStart('/');
+            if (string.IsNullOrWhiteSpace(normalizedRestOfPath))
+            {
+                return normalizedDriveRoot;
+            }
+
+            return Path.Combine(normalizedDriveRoot, normalizedRestOfPath).Replace('\\', '/');
         }
         catch (Exception)
         {
@@ -405,10 +417,258 @@ public static class SteamLaunchService
         }
     }
 
+    internal static string ResolveDosDeviceLinkTarget(string dosDevicesDirectoryPath, string driveSegment)
+    {
+        if (string.IsNullOrWhiteSpace(dosDevicesDirectoryPath) || string.IsNullOrWhiteSpace(driveSegment))
+        {
+            return string.Empty;
+        }
+
+        string normalizedDosDevicesDirectoryPath = dosDevicesDirectoryPath.Replace('\\', '/');
+        if (!Directory.Exists(normalizedDosDevicesDirectoryPath))
+        {
+            return string.Empty;
+        }
+
+        DirectoryInfo dosDevicesDirectory = new DirectoryInfo(normalizedDosDevicesDirectoryPath);
+        FileSystemInfo driveEntry = dosDevicesDirectory
+            .EnumerateFileSystemInfos()
+            .FirstOrDefault(entry => string.Equals(entry.Name, driveSegment, StringComparison.OrdinalIgnoreCase));
+        if (driveEntry is null)
+        {
+            return string.Empty;
+        }
+
+        string linkTarget = driveEntry.LinkTarget;
+        if (string.IsNullOrWhiteSpace(linkTarget))
+        {
+            FileSystemInfo resolvedTarget = driveEntry.ResolveLinkTarget(returnFinalTarget: true);
+            if (resolvedTarget is not null)
+            {
+                return Path.GetFullPath(resolvedTarget.FullName).Replace('\\', '/');
+            }
+
+            string hostResolvedTarget = ResolveDosDeviceLinkTargetViaReadlink(normalizedDosDevicesDirectoryPath, driveSegment);
+            if (string.IsNullOrWhiteSpace(hostResolvedTarget))
+            {
+                return string.Empty;
+            }
+
+            return hostResolvedTarget;
+        }
+
+        string normalizedLinkTarget = linkTarget.Replace('\\', '/');
+        if (Path.IsPathRooted(normalizedLinkTarget))
+        {
+            return Path.GetFullPath(normalizedLinkTarget).Replace('\\', '/');
+        }
+
+        return Path.GetFullPath(Path.Combine(normalizedDosDevicesDirectoryPath, normalizedLinkTarget)).Replace('\\', '/');
+    }
+
+    internal static string ResolveMountedHostPathByScanning(string restOfPath, IEnumerable<string> searchRoots)
+    {
+        if (string.IsNullOrWhiteSpace(restOfPath) || searchRoots is null)
+        {
+            return string.Empty;
+        }
+
+        string normalizedRelativePath = restOfPath.TrimStart('/').Replace('\\', '/');
+        if (string.IsNullOrWhiteSpace(normalizedRelativePath))
+        {
+            return string.Empty;
+        }
+
+        HashSet<string> matches = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string searchRoot in searchRoots)
+        {
+            if (string.IsNullOrWhiteSpace(searchRoot) || !Directory.Exists(searchRoot))
+            {
+                continue;
+            }
+
+            foreach (string baseDirectory in EnumerateMountedBaseDirectories(searchRoot))
+            {
+                string candidatePath = Path.Combine(baseDirectory, normalizedRelativePath).Replace('\\', '/');
+                if (Directory.Exists(candidatePath) || File.Exists(candidatePath))
+                {
+                    _ = matches.Add(candidatePath);
+                }
+            }
+        }
+
+        return matches.Count == 1 ? matches.First() : string.Empty;
+    }
+
+    internal static IEnumerable<string> GetMountedHostSearchRoots()
+    {
+        return
+        [
+            "/mnt",
+            "/media",
+            "/run/media",
+            "/var/run/media"
+        ];
+    }
+
+    private static IEnumerable<string> EnumerateMountedBaseDirectories(string searchRoot)
+    {
+        if (!Directory.Exists(searchRoot))
+        {
+            yield break;
+        }
+
+        foreach (string firstLevelDirectory in Directory.EnumerateDirectories(searchRoot))
+        {
+            yield return firstLevelDirectory.Replace('\\', '/');
+
+            foreach (string secondLevelDirectory in Directory.EnumerateDirectories(firstLevelDirectory))
+            {
+                yield return secondLevelDirectory.Replace('\\', '/');
+            }
+        }
+    }
+
+    internal static string ResolveDosDeviceLinkTargetViaReadlink(string dosDevicesDirectoryPath, string driveSegment)
+    {
+        if (string.IsNullOrWhiteSpace(dosDevicesDirectoryPath) || string.IsNullOrWhiteSpace(driveSegment))
+        {
+            return string.Empty;
+        }
+
+        string dosDeviceLinkPath = (dosDevicesDirectoryPath.TrimEnd('/') + "/" + driveSegment).Replace('\\', '/');
+        string unixOutputPath = $"/tmp/crosshook-readlink-{Guid.NewGuid():N}.txt";
+        string windowsOutputPath = ConvertToWindowsPath(unixOutputPath);
+        string shellCommand =
+            "readlink -f " + QuoteForShellSingleQuotedLiteral(dosDeviceLinkPath)
+            + " > " + QuoteForShellSingleQuotedLiteral(unixOutputPath);
+
+        try
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = Path.Combine(Environment.SystemDirectory, "start.exe"),
+                Arguments = "/unix /bin/sh -lc " + QuoteForCommand(shellCommand),
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using Process process = Process.Start(startInfo);
+            process.WaitForExit();
+
+            if (process.ExitCode != 0 || !File.Exists(windowsOutputPath))
+            {
+                return string.Empty;
+            }
+
+            string output = File.ReadAllText(windowsOutputPath).Trim();
+            return string.IsNullOrWhiteSpace(output)
+                ? string.Empty
+                : output.Replace('\\', '/');
+        }
+        catch (Exception)
+        {
+            return string.Empty;
+        }
+        finally
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(windowsOutputPath) && File.Exists(windowsOutputPath))
+                {
+                    File.Delete(windowsOutputPath);
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+    }
+
+    internal static string DescribeDosDevicesResolution(string unixPath)
+    {
+        if (string.IsNullOrWhiteSpace(unixPath))
+        {
+            return "input=<empty>";
+        }
+
+        const string marker = "/dosdevices/";
+        int markerIndex = unixPath.IndexOf(marker, StringComparison.Ordinal);
+        if (markerIndex < 0)
+        {
+            return $"input={unixPath} | marker=absent";
+        }
+
+        string remainder = unixPath[(markerIndex + marker.Length)..];
+        int separatorIndex = remainder.IndexOf('/');
+        if (separatorIndex < 0)
+        {
+            return $"input={unixPath} | marker=present | remainder={remainder} | separator=absent";
+        }
+
+        string dosDevicesDirectoryPath = unixPath[..(markerIndex + marker.Length - 1)].Replace('\\', '/');
+        string driveSegment = remainder[..separatorIndex];
+        string restOfPath = remainder[separatorIndex..];
+        bool directoryExists = Directory.Exists(dosDevicesDirectoryPath);
+
+        StringBuilder builder = new StringBuilder();
+        _ = builder.Append($"input={unixPath}");
+        _ = builder.Append($" | dosdevices_dir={dosDevicesDirectoryPath}");
+        _ = builder.Append($" | dir_exists={directoryExists}");
+        _ = builder.Append($" | drive_segment={driveSegment}");
+        _ = builder.Append($" | rest={restOfPath}");
+
+        if (!directoryExists)
+        {
+            return builder.ToString();
+        }
+
+        try
+        {
+            DirectoryInfo dosDevicesDirectory = new DirectoryInfo(dosDevicesDirectoryPath);
+            string[] entryNames = dosDevicesDirectory
+                .EnumerateFileSystemInfos()
+                .Select(entry => entry.Name)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            _ = builder.Append($" | entries=[{string.Join(", ", entryNames)}]");
+
+            FileSystemInfo driveEntry = dosDevicesDirectory
+                .EnumerateFileSystemInfos()
+                .FirstOrDefault(entry => string.Equals(entry.Name, driveSegment, StringComparison.OrdinalIgnoreCase));
+            if (driveEntry is null)
+            {
+                _ = builder.Append(" | drive_entry=<missing>");
+                return builder.ToString();
+            }
+
+            _ = builder.Append($" | drive_entry={driveEntry.FullName.Replace('\\', '/')}");
+            _ = builder.Append($" | link_target={driveEntry.LinkTarget ?? "<null>"}");
+
+            FileSystemInfo resolvedTarget = driveEntry.ResolveLinkTarget(returnFinalTarget: true);
+            _ = builder.Append($" | resolved_target={(resolvedTarget is null ? "<null>" : resolvedTarget.FullName.Replace('\\', '/'))}");
+
+            string driveRoot = ResolveDosDeviceLinkTarget(dosDevicesDirectoryPath, driveSegment);
+            _ = builder.Append($" | computed_drive_root={driveRoot}");
+            return builder.ToString();
+        }
+        catch (Exception ex)
+        {
+            _ = builder.Append($" | error={ex.GetType().Name}: {ex.Message}");
+            return builder.ToString();
+        }
+    }
+
     internal static string QuoteForCommand(string value)
     {
         string normalizedValue = value ?? string.Empty;
         return "\"" + normalizedValue.Replace("\"", "\\\"") + "\"";
+    }
+
+    internal static string QuoteForShellSingleQuotedLiteral(string value)
+    {
+        string normalizedValue = value ?? string.Empty;
+        return "'" + normalizedValue.Replace("'", "'\"'\"'") + "'";
     }
 
     internal static string QuoteForProcessStart(string value)

@@ -2134,8 +2134,14 @@ namespace CrossHookEngine.App.Forms
 
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
+                    LogToConsole($"Steam compatdata browse selected raw path: {dialog.SelectedPath}");
+                    LogToConsole($"Steam compatdata browse raw path looks like Windows path: {SteamLaunchService.LooksLikeWindowsPath(dialog.SelectedPath)}");
+                    string unixCompatDataPath = SteamLaunchService.ConvertToUnixPath(dialog.SelectedPath);
+                    LogToConsole($"Steam compatdata browse unix path: {unixCompatDataPath}");
+                    LogToConsole($"Steam compatdata dosdevices diagnostics: {SteamLaunchService.DescribeDosDevicesResolution(unixCompatDataPath)}");
                     _steamCompatDataPath = SteamLaunchService.NormalizeSteamHostPath(dialog.SelectedPath);
                     txtSteamCompatDataPath.Text = _steamCompatDataPath;
+                    LogToConsole($"Steam compatdata browse normalized path: {_steamCompatDataPath}");
                     UpdateStatus($"Selected Steam compatdata path: {_steamCompatDataPath}");
                 }
             }

@@ -61,6 +61,65 @@ public sealed class SteamLaunchServiceTests
     }
 
     [Fact]
+    public void ResolveDosDevicesPath_UsesDriveSymlinkTarget_ForMappedHostDrives()
+    {
+        using TestWorkspace workspace = new TestWorkspace();
+        string driveTargetPath = workspace.GetPath("mnt", "sdb");
+        string expectedCompatDataPath = workspace.GetPath("mnt", "sdb", "SteamLibrary", "steamapps", "compatdata", "287700");
+        string dosDevicesDirectoryPath = workspace.GetPath("prefix", "pfx", "dosdevices");
+
+        Directory.CreateDirectory(expectedCompatDataPath);
+        Directory.CreateDirectory(dosDevicesDirectoryPath);
+        Directory.CreateSymbolicLink(workspace.GetPath("prefix", "pfx", "dosdevices", "d:"), driveTargetPath);
+
+        string unixPath = (workspace.GetPath("prefix", "pfx", "dosdevices", "d:") + "/SteamLibrary/steamapps/compatdata/287700").Replace('\\', '/');
+
+        string resolvedPath = SteamLaunchService.ResolveDosDevicesPath(unixPath);
+
+        Assert.Equal(expectedCompatDataPath.Replace('\\', '/'), resolvedPath);
+    }
+
+    [Fact]
+    public void ResolveDosDevicesPath_ReturnsOriginalPath_WhenDriveLinkCannotBeResolved()
+    {
+        string unixPath = "/fake/pfx/dosdevices/d:/SteamLibrary/steamapps/compatdata/287700";
+
+        string resolvedPath = SteamLaunchService.ResolveDosDevicesPath(unixPath);
+
+        Assert.Equal(unixPath, resolvedPath);
+    }
+
+    [Fact]
+    public void ResolveMountedHostPathByScanning_ReturnsUniqueMountedMatch()
+    {
+        using TestWorkspace workspace = new TestWorkspace();
+        string searchRoot = workspace.GetPath("mnt");
+        string expectedPath = workspace.GetPath("mnt", "sdb", "SteamLibrary", "steamapps", "compatdata", "1174180");
+        Directory.CreateDirectory(expectedPath);
+
+        string resolvedPath = SteamLaunchService.ResolveMountedHostPathByScanning(
+            "/SteamLibrary/steamapps/compatdata/1174180",
+            new[] { searchRoot });
+
+        Assert.Equal(expectedPath.Replace('\\', '/'), resolvedPath);
+    }
+
+    [Fact]
+    public void ResolveMountedHostPathByScanning_ReturnsEmpty_WhenMultipleMountedMatchesExist()
+    {
+        using TestWorkspace workspace = new TestWorkspace();
+        string searchRoot = workspace.GetPath("mnt");
+        Directory.CreateDirectory(workspace.GetPath("mnt", "sdb", "SteamLibrary", "steamapps", "compatdata", "1174180"));
+        Directory.CreateDirectory(workspace.GetPath("mnt", "sdc", "SteamLibrary", "steamapps", "compatdata", "1174180"));
+
+        string resolvedPath = SteamLaunchService.ResolveMountedHostPathByScanning(
+            "/SteamLibrary/steamapps/compatdata/1174180",
+            new[] { searchRoot });
+
+        Assert.Equal(string.Empty, resolvedPath);
+    }
+
+    [Fact]
     public void CreateHelperStartInfo_EmbedsExpectedSteamArguments()
     {
         SteamLaunchRequest request = new SteamLaunchRequest
