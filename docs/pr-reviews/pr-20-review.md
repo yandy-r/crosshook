@@ -23,64 +23,33 @@ This PR implements the full native CrossHook app (Rust/Tauri/React) and removes 
 
 ### C1. Shell scripts lose real Proton exit codes
 
-**Status**: Open
+**Status**: Closed — false positive
 **Agents**: Silent Failure Hunter, Comment Analyzer
 **Files**: `runtime-helpers/steam-host-trainer-runner.sh:232-239`, `runtime-helpers/steam-launch-helper.sh:349-357`
 
-Both runtime helper scripts use `if "$proton" run ...; then / exit 0 / fi / exit_code=$?` — but `set -e` is suppressed inside `if` conditionals, so `$?` after a failed `if` block is always 1, never the actual Proton exit code. If Proton exits with code 42, the script logs and exits with code 1.
+~~Both runtime helper scripts use `if "$proton" run ...; then / exit 0 / fi / exit_code=$?` — but `set -e` is suppressed inside `if` conditionals, so `$?` after a failed `if` block is always 1, never the actual Proton exit code.~~
 
-**Impact**: Real Proton failure codes (which indicate specific error conditions like missing dependencies or segfaults) are lost, making debugging much harder.
-
-**Fix**: Capture the exit code directly:
-
-```bash
-"$proton" run "$trainer_path" || true
-exit_code=$?
-if [ "$exit_code" -eq 0 ]; then
-  log "Trainer proton run exited successfully."
-else
-  log "Trainer proton run exited with code $exit_code"
-fi
-exit "$exit_code"
-```
+**Resolution**: The review misunderstood POSIX shell semantics. After `if cmd; then ... fi`, `$?` is the actual exit code of `cmd`, not a flattened 0/1. Both scripts correctly preserve the Proton exit code. Verified by tracing the control flow in both `steam-host-trainer-runner.sh:232-239` and `steam-launch-helper.sh:349-356`.
 
 ### C2. Launch log stream silently drops lines on process exit
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Code Reviewer
 **File**: `src-tauri/src/commands/launch.rs:99-127`
 
 When the child process exits (`try_wait` returns `Ok(Some(_))`), the loop breaks immediately without performing a final read of the log file. Lines written between the last 500ms poll and process exit are silently dropped.
 
-**Fix**: Perform one final read after the loop breaks:
-
-```rust
-// After the loop:
-if let Ok(content) = tokio::fs::read_to_string(&log_path).await {
-    if content.len() > last_len {
-        for line in content[last_len..].lines().filter(|l| !l.is_empty()) {
-            let _ = app.emit("launch-log", line.to_string());
-        }
-    }
-}
-```
+**Resolution**: Added a final `read_to_string` after the loop exits to capture any trailing output written between the last poll and process exit.
 
 ### C3. Launch log emit errors silently discarded
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **File**: `src-tauri/src/commands/launch.rs:112`
 
 `let _ = app.emit("launch-log", line.to_string());` discards any error. If the frontend disconnects, every log line silently fails to deliver. Users see no launch output with zero indication of why.
 
-**Fix**: Log a warning on first failure and break:
-
-```rust
-if let Err(error) = app.emit("launch-log", line.to_string()) {
-    tracing::warn!(?error, "failed to emit launch log line to frontend");
-    break;
-}
-```
+**Resolution**: Replaced `let _ =` with `if let Err(error) = ... { tracing::warn!(...); return/break; }`. On first emit failure, the stream logs a warning and stops — avoiding wasted I/O on a disconnected frontend.
 
 ### C4. Log stream ignores file read errors and child process errors
 

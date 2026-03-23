@@ -109,7 +109,10 @@ async fn stream_log_lines(app: AppHandle, log_path: PathBuf, mut child: tokio::p
                 let chunk = &content[last_len..];
                 for line in chunk.lines() {
                     if !line.is_empty() {
-                        let _ = app.emit("launch-log", line.to_string());
+                        if let Err(error) = app.emit("launch-log", line.to_string()) {
+                            tracing::warn!(%error, "failed to emit launch log line; stopping stream");
+                            return;
+                        }
                     }
                 }
                 last_len = content.len();
@@ -123,6 +126,18 @@ async fn stream_log_lines(app: AppHandle, log_path: PathBuf, mut child: tokio::p
         }
 
         tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+
+    // Final read to capture lines written between last poll and process exit
+    if let Ok(content) = tokio::fs::read_to_string(&log_path).await {
+        if content.len() > last_len {
+            for line in content[last_len..].lines().filter(|l| !l.is_empty()) {
+                if let Err(error) = app.emit("launch-log", line.to_string()) {
+                    tracing::warn!(%error, "failed to emit final launch log line");
+                    break;
+                }
+            }
+        }
     }
 }
 
