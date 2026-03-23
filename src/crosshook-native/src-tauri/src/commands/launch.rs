@@ -172,6 +172,7 @@ fn resolve_script_path(app: &AppHandle, script_name: &str) -> Result<PathBuf, St
 
     if let Some(path) = resource_path {
         if path.exists() {
+            tracing::debug!(path = %path.display(), script_name, "resolved bundled launch script");
             return Ok(path);
         }
     }
@@ -182,8 +183,11 @@ fn resolve_script_path(app: &AppHandle, script_name: &str) -> Result<PathBuf, St
         .join(script_name);
 
     if dev_path.exists() {
+        tracing::debug!(path = %dev_path.display(), script_name, "falling back to development launch script");
         Ok(dev_path)
     } else {
-        Err(format!("unable to resolve launch script: {script_name}"))
+        Err(format!(
+            "unable to resolve launch script '{script_name}': neither bundled nor development path exists"
+        ))
     }
 }

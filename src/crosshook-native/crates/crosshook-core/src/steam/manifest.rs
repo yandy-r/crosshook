@@ -152,7 +152,17 @@ fn safe_manifest_paths(steamapps_path: &Path, diagnostics: &mut Vec<String>) -> 
         return paths;
     };
 
-    for entry in entries.filter_map(Result::ok) {
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                diagnostics.push(format!(
+                    "Failed to read directory entry in '{}': {error}",
+                    steamapps_path.display()
+                ));
+                continue;
+            }
+        };
         let path = entry.path();
         if !is_appmanifest_path(&path) {
             continue;

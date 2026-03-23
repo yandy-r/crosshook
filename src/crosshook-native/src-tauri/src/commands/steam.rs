@@ -40,6 +40,11 @@ pub fn list_proton_installs(
     let mut diagnostics = Vec::new();
     let steam_root_candidates = discover_steam_root_candidates(configured_path, &mut diagnostics);
     let installs = discover_compat_tools(&steam_root_candidates, &mut diagnostics);
+
+    for entry in &diagnostics {
+        tracing::debug!(entry, "proton discovery diagnostic");
+    }
+
     Ok(installs)
 }
 

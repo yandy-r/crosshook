@@ -3,8 +3,14 @@ use std::path::{Path, PathBuf};
 const HELPER_SCRIPTS_DIR: &str = "../runtime-helpers";
 
 pub fn resolve_script_path(app: &tauri::AppHandle, script_name: &str) -> PathBuf {
-    resolve_bundled_script_path(app, script_name)
-        .unwrap_or_else(|| development_script_path(script_name))
+    if let Some(bundled) = resolve_bundled_script_path(app, script_name) {
+        tracing::debug!(path = %bundled.display(), script_name, "resolved bundled script");
+        return bundled;
+    }
+
+    let dev_path = development_script_path(script_name);
+    tracing::debug!(path = %dev_path.display(), script_name, "falling back to development script path");
+    dev_path
 }
 
 pub fn ensure_development_scripts_executable() -> std::io::Result<()> {

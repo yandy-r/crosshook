@@ -140,43 +140,43 @@ Returns an empty list on `read_dir` failure with no diagnostics. Users with SD c
 
 ### I5. Manifest scanning drops directory entry errors
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **File**: `crates/crosshook-core/src/steam/manifest.rs:155`
 
 `entries.filter_map(Result::ok)` silently drops broken symlinks and permission errors. Games may silently fail to appear in auto-populate.
 
-**Fix**: Log skipped entries to the diagnostics vector.
+**Resolution**: Replaced `filter_map(Result::ok)` with explicit `match` that logs entry-level errors to the diagnostics vector.
 
 ### I6. `list_proton_installs` command discards diagnostics
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **File**: `src-tauri/src/commands/steam.rs:35-44`
 
 Diagnostics from `discover_steam_root_candidates` and `discover_compat_tools` are collected but never returned or logged.
 
-**Fix**: Return diagnostics alongside the install list or log them via `tracing`.
+**Resolution**: Added `tracing::debug!` loop to emit each diagnostic entry before returning the install list.
 
 ### I7. `auto-load-profile` emit failure silently discarded
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **File**: `src-tauri/src/lib.rs:37`
 
 `let _ = app_handle.emit("auto-load-profile", ...)` discards the result. If the event fails to reach the frontend, the user's profile doesn't load on startup with no indication.
 
-**Fix**: Log the error.
+**Resolution**: Replaced `let _ =` with `if let Err(error) = ... { tracing::warn!(...) }` that logs the profile name and error.
 
 ### I8. Bundled script resolution silently falls back to dev path
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **Files**: `src-tauri/src/paths.rs:5-8`, `src-tauri/src/commands/launch.rs:144-166`
 
 Two separate `resolve_script_path` functions fall back from bundled to dev paths without logging. In production, if scripts aren't bundled, users get confusing "No such file or directory" errors.
 
-**Fix**: Log which path was resolved and fail explicitly in production if the bundled path is missing.
+**Resolution**: Added `tracing::debug!` to both `resolve_script_path` functions logging which path was resolved. The `launch.rs` variant also improved its error message to name the script and explain that neither path exists.
 
 ### I9. Constructors panic on missing home directory
 

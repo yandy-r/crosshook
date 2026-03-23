@@ -34,7 +34,13 @@ pub fn run() {
                     let app_handle = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
                         sleep(Duration::from_millis(350)).await;
-                        let _ = app_handle.emit("auto-load-profile", profile_name);
+                        if let Err(error) = app_handle.emit("auto-load-profile", &profile_name) {
+                            tracing::warn!(
+                                %error,
+                                profile_name,
+                                "failed to emit auto-load-profile event"
+                            );
+                        }
                     });
                 }
 
