@@ -155,10 +155,6 @@ fn resolve_script_path(app: &AppHandle, script_name: &str) -> Result<PathBuf, St
 
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
-        .join("..")
-        .join("..")
-        .join("src")
-        .join("CrossHookEngine.App")
         .join("runtime-helpers")
         .join(script_name);
 

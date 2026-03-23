@@ -27,7 +27,7 @@
   "bundle": {
     "active": true,
     "targets": ["appimage"],
-    "resources": ["../../CrossHookEngine.App/runtime-helpers/*.sh"],
+    "resources": ["../runtime-helpers/*.sh"],
     "icon": ["icons/icon.png"]
   }
 }

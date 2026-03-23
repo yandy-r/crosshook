@@ -4,6 +4,36 @@
 
 ### Goal
 
+Fix `scripts/build-native-container.sh` so the containerized native build does not fail with `Error: cargo is required` when the selected container image lacks a preinstalled Rust toolchain.
+
+### Plan
+
+- [x] Inspect the container wrapper and delegated native build script to confirm where the host/image Rust toolchain assumption leaks through.
+- [x] Make the container environment install or verify `cargo`/`rustc` explicitly before invoking `scripts/build-native.sh`.
+- [x] Run a focused script-level verification and document the result in this task log.
+
+### Review
+
+- Relocated the three runtime-helper shell scripts into `src/crosshook-native/runtime-helpers/` and updated the native Tauri/CLI references to use that native-owned path instead of the deleted C# tree.
+- Removed the legacy .NET/C# codebase and Windows release surfaces: `src/CrossHookEngine.App/`, `tests/CrossHookEngine.App.Tests/`, `src/CrossHookEngine.sln`, `scripts/publish-dist.sh`, the old review/migration docs, and the obsolete planning docs that were only preserving porting archaeology.
+- Renamed the AppImage workflow into `.github/workflows/release.yml`, updated active build docs (`README.md`, `CLAUDE.md`, `docs/internal-docs/local-build-publish.md`), fixed `packaging/PKGBUILD` to install helper scripts from the native workspace, and replaced the root `.gitignore` with a native-only ignore set.
+- Updated `scripts/build-native-container.sh` so container builds prefer a modern Rust toolchain from `/usr/local/cargo/bin` or `rustup` instead of failing on missing/too-old distro `cargo`.
+- Verification:
+- `env CARGO_HOME=/tmp/cargo-home CARGO_TARGET_DIR=/tmp/crosshook-core-test-target cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+- `env CARGO_HOME=/tmp/cargo-home CARGO_TARGET_DIR=/tmp/crosshook-native-check-target cargo check --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native`
+- `env npm_config_cache=/tmp/npm-crosshook-native-cache npm_config_update_notifier=false npm run build` in `src/crosshook-native`
+- `bash -n scripts/build-native-container.sh`
+- `bash -n packaging/PKGBUILD`
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/release.yml'); puts 'release.yml: ok'"`
+- `node -e "JSON.parse(require('fs').readFileSync('.claude/settings.local.json', 'utf8')); console.log('settings.local.json: ok')"`
+- repo-wide reference scan for `dotnet`, `CrossHookEngine.App`, `CrossHookEngine.sln`, `.csproj`, and `publish-dist.sh` returned no remaining active hits
+- Remaining gap:
+- I had to rename a root-owned `src/crosshook-native/dist/` tree from an earlier container build to `src/crosshook-native/dist-root-owned/` so the frontend build could run again. It is not part of the repo, but it still exists locally until it is removed with sufficient privileges.
+
+## 2026-03-23
+
+### Goal
+
 Improve the native runner UI so Steam and Proton modes both expose detected Proton installs via a readable dropdown that fills the editable path field, while keeping prefix-path labels consistent and understandable.
 
 ### Plan

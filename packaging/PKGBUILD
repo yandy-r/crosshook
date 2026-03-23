@@ -47,8 +47,8 @@ package() {
   [[ -n "$binary_path" ]] || return 1
 
   install -Dm755 "$binary_path" "$pkgdir/usr/bin/crosshook-native"
-  install -Dm755 src/CrossHookEngine.App/runtime-helpers/steam-launch-helper.sh "$helper_dir/steam-launch-helper.sh"
-  install -Dm755 src/CrossHookEngine.App/runtime-helpers/steam-launch-trainer.sh "$helper_dir/steam-launch-trainer.sh"
-  install -Dm755 src/CrossHookEngine.App/runtime-helpers/steam-host-trainer-runner.sh "$helper_dir/steam-host-trainer-runner.sh"
+  install -Dm755 src/crosshook-native/runtime-helpers/steam-launch-helper.sh "$helper_dir/steam-launch-helper.sh"
+  install -Dm755 src/crosshook-native/runtime-helpers/steam-launch-trainer.sh "$helper_dir/steam-launch-trainer.sh"
+  install -Dm755 src/crosshook-native/runtime-helpers/steam-host-trainer-runner.sh "$helper_dir/steam-host-trainer-runner.sh"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

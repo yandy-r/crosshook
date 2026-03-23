@@ -22,21 +22,21 @@ Closes #<!-- issue number -->
 
 ### Environment
 
-- **Platform**: <!-- Steam Deck / Linux distro / macOS -->
-- **Proton / WINE Version**: <!-- e.g., Proton 9.0-1 -->
+- **Platform**: <!-- Linux distro / Steam Deck -->
+- **Proton Version** (if applicable): <!-- e.g., Proton 9.0-1 -->
 - **Game / Trainer** (if applicable): <!-- e.g., Elden Ring + FLiNG v1.2.3 -->
 
 ### Checklist
 
-- [ ] `dotnet build src/CrossHookEngine.sln -c Debug` builds without errors
-- [ ] `dotnet build src/CrossHookEngine.sln -c Release` builds without errors
-- [ ] `dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x64 --self-contained true` succeeds
-- [ ] `dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x86 --self-contained true` succeeds
-- [ ] Tested under Proton/WINE on target platform
-- [ ] **If touching Injection/**: Verified DLL injection works with at least one trainer
-- [ ] **If touching Memory/**: Verified memory read/write operations
-- [ ] **If touching Core/ProcessManager**: Verified process launch, attach, and lifecycle
-- [ ] **If touching Forms/ or UI/**: Verified UI renders correctly under WINE
+- [ ] `./scripts/build-native.sh --binary-only` builds without errors
+- [ ] `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` passes
+- [ ] `./scripts/build-native.sh` produces a valid AppImage (if touching build/packaging)
+- [ ] Tested on target platform (Linux desktop or Steam Deck)
+- [ ] **If touching crates/crosshook-core/src/launch/**: Verified game and trainer launch works
+- [ ] **If touching crates/crosshook-core/src/steam/**: Verified Steam auto-populate and Proton discovery
+- [ ] **If touching crates/crosshook-core/src/profile/**: Verified profile save/load/import
+- [ ] **If touching src/components/ or src/hooks/**: Verified UI renders correctly
+- [ ] **If touching runtime-helpers/**: Verified shell scripts work under Proton
 
 ## Reviewer Notes
 

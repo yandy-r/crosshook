@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
 
-const HELPER_SCRIPTS_DIR: &str = "../../CrossHookEngine.App/runtime-helpers";
+const HELPER_SCRIPTS_DIR: &str = "../runtime-helpers";
 
 pub fn resolve_script_path(app: &AppHandle, script_name: &str) -> PathBuf {
     resolve_bundled_script_path(app, script_name)

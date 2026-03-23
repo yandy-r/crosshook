@@ -17,7 +17,7 @@ use tokio::fs::OpenOptions;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::time::{sleep, Duration};
 
-const DEFAULT_SCRIPTS_DIR: &str = "../../../CrossHookEngine.App/runtime-helpers";
+const DEFAULT_SCRIPTS_DIR: &str = "../../runtime-helpers";
 const HELPER_SCRIPT_NAME: &str = "steam-launch-helper.sh";
 
 #[tokio::main]

@@ -1,87 +1,132 @@
-# CrossHook Loader - Project Guidelines
+# CrossHook Native - Project Guidelines
+
+This file mirrors `CLAUDE.md` for non-Claude AI agents. Refer to this for project context, conventions, and workflow rules.
 
 ## Project Overview
 
-CrossHook is a Proton/WINE Trainer & DLL Loader — a Windows Forms application that launches games alongside trainers, mods (FLiNG, WeMod, etc.), patches, and DLL injections. It targets Steam Deck, Linux, and macOS users running games through Proton/WINE.
+CrossHook Native is a Linux desktop application for launching game trainers (FLiNG, WeMod, etc.) alongside Steam/Proton games. It is a complete rewrite of the original WinForms-based CrossHook Loader. CrossHook itself runs natively on Linux — trainers and games run under Proton/WINE.
 
 ## Tech Stack
 
-- **Language**: C# (`net9.0-windows`)
-- **UI**: Windows Forms (WinForms)
-- **Build System**: `dotnet build` / `dotnet publish` with SDK-style `.csproj`
-- **Solution**: `src/CrossHookEngine.sln`
-- **Project**: `src/CrossHookEngine.App/CrossHookEngine.App.csproj`
-- **Output**: `crosshook.exe` (WinExe)
-
-## Local SDK
-
-The repo supports a **project-local .NET 9 SDK** to avoid conflicts with the system-installed version (e.g. .NET 10). Two gitignored directories handle this:
-
-- `.dotnet/` — contains the pinned .NET 9 SDK
-- `.dotnet-cli-home/` — isolates NuGet caches and CLI state from `~/.dotnet`
-
-To use the local SDK, prepend it to `PATH` before running any `dotnet` command:
-
-```bash
-export PATH="$PWD/.dotnet:$PATH"
-export DOTNET_CLI_HOME="$PWD/.dotnet-cli-home"
-```
-
-When the local SDK is not present, commands fall back to the system `dotnet`. The `scripts/publish-dist.sh` script auto-detects and uses the local SDK if `.dotnet/` exists.
-
-## Build Commands
-
-```bash
-# Build with the .NET 9 SDK
-dotnet build src/CrossHookEngine.sln -c Debug
-dotnet build src/CrossHookEngine.sln -c Release
-
-# Publish the migration release as dual artifacts (preferred: use the script)
-./scripts/publish-dist.sh
-
-# Or publish manually
-dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x64 --self-contained true
-dotnet publish src/CrossHookEngine.App/CrossHookEngine.App.csproj -c Release -r win-x86 --self-contained true
-```
-
-> **Important**: this repo targets `net9.0-windows`. Use the local `.dotnet/` SDK if the system version differs.
+- **Backend**: Rust (workspace with two crates: `crosshook-core`, `crosshook-cli`)
+- **Desktop Shell**: Tauri v2
+- **Frontend**: React 18 + TypeScript + Vite
+- **Build**: `cargo` + `npm`, produces a Linux AppImage
+- **Source Root**: `src/crosshook-native/`
 
 ## Architecture
 
 ```
-src/CrossHookEngine.App/
-  Program.cs              # Entry point (single-instance via Mutex)
-  Core/ProcessManager.cs  # Process lifecycle (launch, attach, suspend, resume, kill)
-  Injection/InjectionManager.cs  # DLL injection (LoadLibraryA via CreateRemoteThread)
-  Memory/MemoryManager.cs # Process memory read/write/save/restore
-  Forms/MainForm.cs       # Main WinForms UI (large file)
-  UI/ResumePanel.cs       # Overlay panel for pause/resume
+src/crosshook-native/
+  Cargo.toml                # Rust workspace root
+  package.json              # React/Vite frontend
+  vite.config.ts            # Vite build configuration
+  index.html                # Tauri webview entry
+
+  crates/
+    crosshook-core/         # Shared Rust library
+      src/
+        lib.rs              # Crate root, module re-exports
+        logging.rs          # Structured logging
+        community/          # Community profile taps and sharing
+        export/             # Launcher export (shell scripts, .desktop entries)
+        launch/             # Game + trainer launch orchestration
+        profile/            # TOML profile management
+        settings/           # App settings persistence
+        steam/              # Steam library discovery, Proton version detection
+
+    crosshook-cli/          # Standalone CLI binary
+      src/
+        args.rs             # CLI argument parsing
+        main.rs             # CLI entry point
+
+  src-tauri/                # Tauri v2 app shell
+    src/
+      main.rs               # Tauri bootstrap
+      lib.rs                 # IPC command registration
+      paths.rs               # XDG/platform path resolution
+      startup.rs             # App initialization
+      commands/              # Tauri IPC command handlers
+        community.rs
+        export.rs
+        launch.rs
+        profile.rs
+        settings.rs
+        steam.rs
+
+  src/                      # React frontend
+    main.tsx                # React entry point
+    App.tsx                 # Root component with tab navigation
+    components/
+      AutoPopulate.tsx      # Steam library auto-populate UI
+      CommunityBrowser.tsx  # Community tap browser
+      CompatibilityViewer.tsx # Game/trainer compatibility reports
+      ConsoleView.tsx       # Real-time runner output console
+      LauncherExport.tsx    # Shell script / .desktop export UI
+      LaunchPanel.tsx       # Launch controls
+      ProfileEditor.tsx     # Profile creation and editing
+      SettingsPanel.tsx     # App settings UI
+    hooks/
+      useCommunityProfiles.ts
+      useGamepadNav.ts      # Controller/gamepad navigation
+      useLaunchState.ts
+      useProfile.ts
+    styles/                 # CSS with crosshook-* BEM custom properties
+    types/                  # TypeScript type definitions
 ```
 
-### Key Patterns
+## Build Commands
 
-- **Win32 P/Invoke**: Extensive use of `kernel32.dll` imports (`DllImport`) for process/memory/thread operations
-- **Event-driven**: Components communicate via C# events (`EventHandler<T>`)
-- **AllowUnsafeBlocks**: Enabled for low-level memory operations
-- **Single-instance**: Enforced via named `Mutex` in `Program.cs`
+```bash
+# Development mode (Tauri dev server with hot reload)
+./scripts/dev-native.sh
+
+# Production build (AppImage output)
+./scripts/build-native.sh
+
+# Binary-only build (no AppImage packaging)
+./scripts/build-native.sh --binary-only
+
+# Run core crate tests
+cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
+
+# Container-based build (for reproducible builds)
+./scripts/build-native-container.sh
+```
 
 ## Code Conventions
 
-- Namespace pattern: `CrossHookEngine.App.{Layer}` (Core, Injection, Memory, Forms, UI)
-- Private fields: `_camelCase` prefix
-- Win32 constants: `UPPER_SNAKE_CASE`
-- P/Invoke declarations grouped in `#region Win32 API` blocks
-- Event args: dedicated `{Feature}EventArgs` classes per component
+### Rust
+
+- `snake_case` for functions, variables, modules
+- Modules map 1:1 to feature domains (community, export, launch, profile, settings, steam)
+- Tauri IPC commands live in `src-tauri/src/commands/` with one file per domain
+- Error handling: return `Result<T, String>` from Tauri commands for frontend consumption
+
+### React / TypeScript
+
+- `PascalCase` for components and type names
+- `camelCase` for hooks, functions, and variables
+- One component per file in `src/components/`
+- Custom hooks in `src/hooks/` prefixed with `use`
+- CSS custom properties follow `crosshook-*` BEM naming
+
+### General
+
+- No `any` types in TypeScript — use proper types
+- Throw errors early; do not use silent fallbacks
+- Keep functions small and single-purpose
 
 ## Important Notes
 
-- This is a **Windows-only binary** designed to run under Proton/WINE on Linux/macOS
-- The `AllowUnsafeBlocks` and P/Invoke usage is intentional for process manipulation
-- `MainForm.cs` is the largest file — it contains the full WinForms UI with designer-generated code
-- No test framework is currently configured
-- Migration releases publish both `win-x64` and `win-x86` artifacts to preserve the current AnyCPU/bitness-sensitive injection behavior.
-- Environment management uses `direnv` with `.envrc` and `dotenvx` for encrypted env vars
-- Never commit `.env`, `.env.encrypted`, or `.env.keys` files
+- CrossHook is a **native Linux application**. It is NOT a Windows binary and does NOT run under WINE/Proton. Games and trainers run under Proton; CrossHook itself runs natively.
+- Distributed as an AppImage for Linux desktop and Steam Deck.
+- Three launch modes: **Steam App Launch** (via `steam://run`), **Proton Run** (direct `proton run`), **Native** (direct execution).
+- Profiles and settings use TOML format.
+- Community profiles use git-based taps for sharing.
+- No test framework for the frontend. Rust tests exist in `crosshook-core`.
+- Environment management uses `direnv` with `.envrc` and `dotenvx` for encrypted env vars.
+- Never commit `.env`, `.env.encrypted`, or `.env.keys` files.
 
 ## GitHub Workflow
 
@@ -107,13 +152,8 @@ PRs auto-populate from `.github/pull_request_template.md`. The template includes
 
 - `Closes #` issue linkage (always link the related issue)
 - Type of Change checkboxes
-- Build verification checklist (`dotnet build` / `dotnet publish`)
-- Conditional checks for Injection/, Memory/, Core/, and UI/ changes
-
-CLI completion note:
-
-- Zsh completion for `gh` may be loaded correctly while `gh` itself still returns no positional completions for PR or issue numbers.
-- If `gh pr merge <TAB>` does not fill in PR identifiers, verify with `gh __complete pr merge \"\"`. If it returns only `:0`, that is a `gh` completion limitation, not necessarily a shell setup problem.
+- Build verification checklist (`./scripts/build-native.sh`, `cargo test`)
+- Conditional checks for launch/, steam/, profile/, components/, hooks/, and runtime-helpers/ changes
 
 ### Labels
 
