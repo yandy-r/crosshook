@@ -1,7 +1,7 @@
 using System.Text;
 using CrossHookEngine.App.Injection;
 
-namespace CrossHookkEngine.App.Tests;
+namespace CrossHookEngine.App.Tests;
 
 public class InjectionManagerTests
 {

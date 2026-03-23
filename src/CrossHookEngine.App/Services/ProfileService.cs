@@ -48,6 +48,11 @@ public sealed class ProfileService
             writer.WriteLine($"LaunchInject1={profile.LaunchInject1}");
             writer.WriteLine($"LaunchInject2={profile.LaunchInject2}");
             writer.WriteLine($"LaunchMethod={profile.LaunchMethod}");
+            writer.WriteLine($"UseSteamMode={profile.UseSteamMode}");
+            writer.WriteLine($"SteamAppId={profile.SteamAppId}");
+            writer.WriteLine($"SteamCompatDataPath={profile.SteamCompatDataPath}");
+            writer.WriteLine($"SteamProtonPath={profile.SteamProtonPath}");
+            writer.WriteLine($"SteamLauncherIconPath={profile.SteamLauncherIconPath}");
         }
     }
 
@@ -109,6 +114,29 @@ public sealed class ProfileService
 
                 case "LaunchMethod":
                     profile.LaunchMethod = value;
+                    break;
+
+                case "UseSteamMode":
+                    if (bool.TryParse(value, out bool useSteamMode))
+                    {
+                        profile.UseSteamMode = useSteamMode;
+                    }
+                    break;
+
+                case "SteamAppId":
+                    profile.SteamAppId = value;
+                    break;
+
+                case "SteamCompatDataPath":
+                    profile.SteamCompatDataPath = value;
+                    break;
+
+                case "SteamProtonPath":
+                    profile.SteamProtonPath = value;
+                    break;
+
+                case "SteamLauncherIconPath":
+                    profile.SteamLauncherIconPath = value;
                     break;
             }
         }
@@ -183,4 +211,14 @@ public sealed class ProfileData
     public bool LaunchInject2 { get; set; }
 
     public string LaunchMethod { get; set; } = string.Empty;
+
+    public bool UseSteamMode { get; set; }
+
+    public string SteamAppId { get; set; } = string.Empty;
+
+    public string SteamCompatDataPath { get; set; } = string.Empty;
+
+    public string SteamProtonPath { get; set; } = string.Empty;
+
+    public string SteamLauncherIconPath { get; set; } = string.Empty;
 }
