@@ -56,7 +56,7 @@ where
 
         let mut config_paths = vec![steam_root_candidate.join("config").join("config.vdf")];
         config_paths.extend(
-            safe_enumerate_directories(&steam_root_candidate.join("userdata"))
+            safe_enumerate_directories(&steam_root_candidate.join("userdata"), diagnostics)
                 .into_iter()
                 .map(|user_data_directory| {
                     user_data_directory.join("config").join("localconfig.vdf")
@@ -316,7 +316,7 @@ fn discover_tools_in_root(
     seen_proton_paths: &mut HashSet<PathBuf>,
     diagnostics: &mut Vec<String>,
 ) {
-    for tool_directory_path in safe_enumerate_directories(tool_root) {
+    for tool_directory_path in safe_enumerate_directories(tool_root, diagnostics) {
         try_add_compat_tool_install(
             tools,
             seen_proton_paths,
@@ -455,19 +455,42 @@ fn tool_matches_requested_name_heuristically(
     false
 }
 
-fn safe_enumerate_directories(directory_path: &Path) -> Vec<PathBuf> {
+fn safe_enumerate_directories(
+    directory_path: &Path,
+    diagnostics: &mut Vec<String>,
+) -> Vec<PathBuf> {
     if !directory_path.is_dir() {
         return Vec::new();
     }
 
-    let mut directories = match fs::read_dir(directory_path) {
-        Ok(entries) => entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| path.is_dir())
-            .collect::<Vec<_>>(),
-        Err(_) => Vec::new(),
+    let entries = match fs::read_dir(directory_path) {
+        Ok(entries) => entries,
+        Err(error) => {
+            diagnostics.push(format!(
+                "Failed to read directory '{}': {error}",
+                directory_path.display()
+            ));
+            return Vec::new();
+        }
     };
+
+    let mut directories = Vec::new();
+    for entry in entries {
+        match entry {
+            Ok(entry) => {
+                let path = entry.path();
+                if path.is_dir() {
+                    directories.push(path);
+                }
+            }
+            Err(error) => {
+                diagnostics.push(format!(
+                    "Failed to read entry in '{}': {error}",
+                    directory_path.display()
+                ));
+            }
+        }
+    }
 
     directories.sort();
     directories

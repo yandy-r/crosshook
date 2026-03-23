@@ -43,7 +43,9 @@
       "Bash(umu-run --help)",
       "Bash(/home/yandy/.claude/plugins/cache/yandy-plugins/deep-research/1.0.0/skills/deep-research/scripts/check-prerequisites.sh \"research/crosshook-feature-enhancements\")",
       "Bash(/home/yandy/.claude/plugins/cache/yandy-plugins/deep-research/1.0.0/skills/deep-research/scripts/validate-research.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/research/crosshook-feature-enhancements\")",
-      "Skill(write-docs:write-docs)"
+      "Skill(write-docs:write-docs)",
+      "Bash(cargo test:*)",
+      "Bash(cargo check:*)"
     ]
   }
 }

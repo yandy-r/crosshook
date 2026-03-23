@@ -188,10 +188,12 @@ pub fn export_launchers(
     write_host_text_file(
         &script_path,
         &build_trainer_script_content(request, &display_name),
+        0o755,
     )?;
     write_host_text_file(
         &desktop_entry_path,
         &build_desktop_entry_content(&display_name, &script_path, &request.launcher_icon_path),
+        0o644,
     )?;
 
     Ok(SteamExternalLauncherExportResult {
@@ -405,7 +407,7 @@ fn build_desktop_entry_content(
     content
 }
 
-fn write_host_text_file(host_path: &str, content: &str) -> Result<(), io::Error> {
+fn write_host_text_file(host_path: &str, content: &str, mode: u32) -> Result<(), io::Error> {
     let writable_path = PathBuf::from(host_path);
     let directory_path = writable_path.parent().ok_or_else(|| {
         io::Error::new(
@@ -422,7 +424,7 @@ fn write_host_text_file(host_path: &str, content: &str) -> Result<(), io::Error>
         use std::os::unix::fs::PermissionsExt;
 
         let mut permissions = fs::metadata(&writable_path)?.permissions();
-        permissions.set_mode(0o755);
+        permissions.set_mode(mode);
         fs::set_permissions(&writable_path, permissions)?;
     }
 
@@ -594,12 +596,19 @@ mod tests {
         {
             use std::os::unix::fs::PermissionsExt;
 
-            let mode = fs::metadata(&result.script_path)
-                .expect("metadata")
+            let script_mode = fs::metadata(&result.script_path)
+                .expect("script metadata")
                 .permissions()
                 .mode()
                 & 0o777;
-            assert_eq!(mode, 0o755);
+            assert_eq!(script_mode, 0o755, "scripts should be executable");
+
+            let desktop_mode = fs::metadata(&result.desktop_entry_path)
+                .expect("desktop metadata")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(desktop_mode, 0o644, ".desktop files should not be executable");
         }
     }
 

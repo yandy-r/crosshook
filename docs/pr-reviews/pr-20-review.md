@@ -100,43 +100,43 @@ The `WINE_ENV_VARS_TO_CLEAR` constant in Rust includes `WINE_HEAP_DELAY_FREE` an
 
 ### I1. `import_community_profile` uses filename as profile name
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Code Reviewer
 **File**: `crates/crosshook-core/src/profile/exchange.rs:113-123`
 
 The function extracts the profile name from the file stem. Since community manifests are always named `community-profile.json`, every import would produce the name `community-profile`.
 
-**Fix**: Derive the name from manifest metadata (e.g., `manifest.metadata.game_name`) or the parent directory name.
+**Resolution**: Replaced file-stem logic with `derive_import_name()` that prefers `manifest.metadata.game_name`, falls back to parent directory name, then to `"community-profile"`. Names are sanitized to lowercase alphanumeric slugs.
 
 ### I2. `community_import_profile` accepts arbitrary filesystem paths
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Code Reviewer
 **File**: `src-tauri/src/commands/community.rs:80-86`
 
 The Tauri command accepts any string path from the frontend and reads arbitrary files. No validation that the path belongs to a synced tap workspace.
 
-**Fix**: Validate that the path is under a known tap workspace directory.
+**Resolution**: Added `SettingsStore` and `CommunityTapStore` states to the command. A `validate_import_path_in_workspace()` function canonicalizes the path and verifies it falls under a known tap workspace directory before proceeding.
 
 ### I3. `.desktop` files written with 0o755 permissions
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Code Reviewer
 **File**: `crates/crosshook-core/src/export/launcher.rs:420-428`
 
 `write_host_text_file` sets 0o755 on all files including `.desktop` entries, which should be 0o644.
 
-**Fix**: Pass the desired permission mode as a parameter.
+**Resolution**: Added a `mode` parameter to `write_host_text_file`. Scripts pass `0o755`, desktop entries pass `0o644`. Test updated to verify both permission modes.
 
 ### I4. `safe_enumerate_directories` silently discards read_dir errors
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **File**: `crates/crosshook-core/src/steam/proton.rs:458-474`
 
 Returns an empty list on `read_dir` failure with no diagnostics. Users with SD card Steam libraries or non-standard permissions see zero Proton installs with no explanation.
 
-**Fix**: Add errors to the diagnostics vector.
+**Resolution**: Added `diagnostics: &mut Vec<String>` parameter. Both `read_dir` failure and individual entry errors are now logged to the diagnostics vector.
 
 ### I5. Manifest scanning drops directory entry errors
 

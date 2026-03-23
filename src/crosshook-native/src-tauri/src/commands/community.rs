@@ -80,9 +80,45 @@ pub fn community_list_profiles(
 pub fn community_import_profile(
     path: String,
     profile_store: State<'_, ProfileStore>,
+    settings_store: State<'_, SettingsStore>,
+    tap_store: State<'_, CommunityTapStore>,
 ) -> Result<CommunityImportResult, String> {
-    import_community_profile(std::path::Path::new(&path), &profile_store.base_path)
-        .map_err(map_error)
+    let import_path = std::path::Path::new(&path);
+    validate_import_path_in_workspace(import_path, &settings_store, &tap_store)?;
+    import_community_profile(import_path, &profile_store.base_path).map_err(map_error)
+}
+
+fn validate_import_path_in_workspace(
+    path: &std::path::Path,
+    settings_store: &SettingsStore,
+    tap_store: &CommunityTapStore,
+) -> Result<(), String> {
+    let taps = load_community_taps(settings_store)?;
+    let workspaces = current_workspaces(tap_store, &taps)?;
+
+    let canonical = path.canonicalize().map_err(|error| {
+        format!(
+            "cannot resolve community profile path '{}': {error}",
+            path.display()
+        )
+    })?;
+
+    let in_workspace = workspaces.iter().any(|workspace| {
+        workspace
+            .local_path
+            .canonicalize()
+            .map(|root| canonical.starts_with(&root))
+            .unwrap_or(false)
+    });
+
+    if !in_workspace {
+        return Err(format!(
+            "community profile path '{}' is not inside a known tap workspace",
+            path.display()
+        ));
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -111,7 +147,12 @@ mod tests {
                 State<'_, CommunityTapStore>,
             ) -> Result<CommunityProfileIndex, String>;
         let _ = community_import_profile
-            as fn(String, State<'_, ProfileStore>) -> Result<CommunityImportResult, String>;
+            as fn(
+                String,
+                State<'_, ProfileStore>,
+                State<'_, SettingsStore>,
+                State<'_, CommunityTapStore>,
+            ) -> Result<CommunityImportResult, String>;
         let _ = community_sync
             as fn(
                 State<'_, SettingsStore>,

@@ -110,14 +110,7 @@ pub fn import_community_profile(
 
     validate_schema_version(manifest.schema_version)?;
 
-    let profile_name = json_path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .ok_or_else(|| CommunityExchangeError::InvalidManifest {
-            message: "community profile file name must be valid UTF-8".to_string(),
-        })?
-        .trim()
-        .to_string();
+    let profile_name = derive_import_name(&manifest, json_path);
 
     let store = ProfileStore::with_base_path(profiles_dir.to_path_buf());
     store.save(&profile_name, &manifest.profile)?;
@@ -234,6 +227,43 @@ fn build_metadata(profile: &GameProfile) -> CommunityProfileMetadata {
         compatibility_rating: CompatibilityRating::Unknown,
         author: String::new(),
         description: String::new(),
+    }
+}
+
+fn derive_import_name(manifest: &CommunityProfileManifest, json_path: &Path) -> String {
+    let game_name = manifest.metadata.game_name.trim();
+    if !game_name.is_empty() {
+        return sanitize_profile_name(game_name);
+    }
+
+    json_path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|name| name.to_str())
+        .map(|name| sanitize_profile_name(name))
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "community-profile".to_string())
+}
+
+fn sanitize_profile_name(name: &str) -> String {
+    let mut slug = String::with_capacity(name.len());
+    let mut last_was_separator = false;
+
+    for ch in name.trim().chars() {
+        if ch.is_alphanumeric() {
+            slug.push(ch.to_ascii_lowercase());
+            last_was_separator = false;
+        } else if !last_was_separator {
+            slug.push('-');
+            last_was_separator = true;
+        }
+    }
+
+    let slug = slug.trim_matches('-').to_string();
+    if slug.is_empty() {
+        "community-profile".to_string()
+    } else {
+        slug
     }
 }
 
