@@ -10,6 +10,8 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **native:** Align build and release versioning ([`bbd9ed9`](https://github.com/yandy-r/crosshook/commit/bbd9ed9cd98a551c9c0b5a73e7ead0ab65aa0813))
 
+- **native:** Restore workspace release manifest ([`dccd475`](https://github.com/yandy-r/crosshook/commit/dccd475b659c5fe48c7d29e74d44d58abfd0a609))
+
 
 ### Features
 
