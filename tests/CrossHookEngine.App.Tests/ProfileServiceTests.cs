@@ -1,6 +1,6 @@
 using CrossHookEngine.App.Services;
 
-namespace CrossHookkEngine.App.Tests;
+namespace CrossHookEngine.App.Tests;
 
 public sealed class ProfileServiceTests
 {
@@ -26,7 +26,12 @@ public sealed class ProfileServiceTests
             Dll2Path = "/mods/second.dll",
             LaunchInject1 = true,
             LaunchInject2 = false,
-            LaunchMethod = "CmdStart"
+            LaunchMethod = "CmdStart",
+            UseSteamMode = true,
+            SteamAppId = "287700",
+            SteamCompatDataPath = "/mnt/sdb/SteamLibrary/steamapps/compatdata/287700",
+            SteamProtonPath = "/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton",
+            SteamLauncherIconPath = "/home/yandy/Pictures/mgs-tpp-icon.png"
         };
 
         service.SaveProfile("deck-run", profile);
@@ -42,7 +47,12 @@ public sealed class ProfileServiceTests
                 "Dll2Path=/mods/second.dll",
                 "LaunchInject1=True",
                 "LaunchInject2=False",
-                "LaunchMethod=CmdStart"
+                "LaunchMethod=CmdStart",
+                "UseSteamMode=True",
+                "SteamAppId=287700",
+                "SteamCompatDataPath=/mnt/sdb/SteamLibrary/steamapps/compatdata/287700",
+                "SteamProtonPath=/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton",
+                "SteamLauncherIconPath=/home/yandy/Pictures/mgs-tpp-icon.png"
             },
             File.ReadAllLines(profilePath));
     }
@@ -67,6 +77,11 @@ public sealed class ProfileServiceTests
                 "LaunchInject1=true",
                 "LaunchInject2=false",
                 "LaunchMethod=ProcessStart",
+                "UseSteamMode=true",
+                "SteamAppId=287700",
+                "SteamCompatDataPath=/compatdata/287700",
+                "SteamProtonPath=/proton/ge",
+                "SteamLauncherIconPath=/icons/mgs-tpp-icon.png",
                 "UnknownKey=ignored"
             });
 
@@ -79,6 +94,11 @@ public sealed class ProfileServiceTests
         Assert.True(profile.LaunchInject1);
         Assert.False(profile.LaunchInject2);
         Assert.Equal("ProcessStart", profile.LaunchMethod);
+        Assert.True(profile.UseSteamMode);
+        Assert.Equal("287700", profile.SteamAppId);
+        Assert.Equal("/compatdata/287700", profile.SteamCompatDataPath);
+        Assert.Equal("/proton/ge", profile.SteamProtonPath);
+        Assert.Equal("/icons/mgs-tpp-icon.png", profile.SteamLauncherIconPath);
     }
 
     [Fact]
@@ -186,7 +206,12 @@ public sealed class ProfileServiceTests
             Dll2Path = "/mods/second.dll",
             LaunchInject1 = true,
             LaunchInject2 = true,
-            LaunchMethod = "CreateProcess"
+            LaunchMethod = "CreateProcess",
+            UseSteamMode = true,
+            SteamAppId = "287700",
+            SteamCompatDataPath = "/compatdata/287700",
+            SteamProtonPath = "/proton/path",
+            SteamLauncherIconPath = "/icons/hades.png"
         };
 
         service.SaveProfile("deck-run", expectedProfile);
@@ -200,6 +225,11 @@ public sealed class ProfileServiceTests
         Assert.Equal(expectedProfile.LaunchInject1, actualProfile.LaunchInject1);
         Assert.Equal(expectedProfile.LaunchInject2, actualProfile.LaunchInject2);
         Assert.Equal(expectedProfile.LaunchMethod, actualProfile.LaunchMethod);
+        Assert.Equal(expectedProfile.UseSteamMode, actualProfile.UseSteamMode);
+        Assert.Equal(expectedProfile.SteamAppId, actualProfile.SteamAppId);
+        Assert.Equal(expectedProfile.SteamCompatDataPath, actualProfile.SteamCompatDataPath);
+        Assert.Equal(expectedProfile.SteamProtonPath, actualProfile.SteamProtonPath);
+        Assert.Equal(expectedProfile.SteamLauncherIconPath, actualProfile.SteamLauncherIconPath);
     }
 
     [Theory]

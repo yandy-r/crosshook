@@ -46,5 +46,9 @@
     <Compile Update="UI/ResumePanel.cs">
       <SubType>Component</SubType>
     </Compile>
+    <None Include="runtime-helpers\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
   </ItemGroup>
 </Project>

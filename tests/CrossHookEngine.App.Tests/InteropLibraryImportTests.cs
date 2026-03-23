@@ -1,10 +1,10 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using CrossHookEngine.App.Core;
-using CrossHookkEngine.App.Interop;
-using CrossHookkEngine.App.Memory;
+using CrossHookEngine.App.Interop;
+using CrossHookEngine.App.Memory;
 
-namespace CrossHookkEngine.App.Tests;
+namespace CrossHookEngine.App.Tests;
 
 public class InteropLibraryImportTests
 {

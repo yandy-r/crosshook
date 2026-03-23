@@ -1,7 +1,7 @@
 using CrossHookEngine.App.Core;
-using CrossHookkEngine.App.Injection;
+using CrossHookEngine.App.Injection;
 
-namespace CrossHookkEngine.App.Tests;
+namespace CrossHookEngine.App.Tests;
 
 public sealed class InjectionManagerUnsupportedMethodTests
 {

@@ -1,6 +1,6 @@
 using CrossHookEngine.App.Diagnostics;
 
-namespace CrossHookkEngine.App.Tests;
+namespace CrossHookEngine.App.Tests;
 
 [Collection("Trace diagnostics")]
 public sealed class AppDiagnosticsTests : IDisposable
