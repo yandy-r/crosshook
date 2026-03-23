@@ -1,0 +1,100 @@
+@import './variables.css';
+
+:root[data-crosshook-controller-mode='true'] {
+  cursor: default;
+}
+
+.crosshook-focus-scope {
+  outline: none;
+}
+
+.crosshook-focus-target,
+.crosshook-nav-target,
+.crosshook-focus-scope :is(button, input, select, textarea, [href], [tabindex='0']) {
+  min-height: var(--crosshook-touch-target-min);
+  touch-action: manipulation;
+}
+
+.crosshook-focus-target:focus,
+.crosshook-nav-target:focus,
+.crosshook-focus-target:focus-visible,
+.crosshook-nav-target:focus-visible,
+:root[data-crosshook-controller-mode='true']
+  .crosshook-focus-scope
+  :is(button, input, select, textarea, [href], [tabindex='0']):focus,
+:root[data-crosshook-controller-mode='true']
+  .crosshook-focus-scope
+  :is(button, input, select, textarea, [href], [tabindex='0']):focus-visible,
+:root[data-crosshook-controller-mode='true'] .crosshook-focus-target:focus,
+:root[data-crosshook-controller-mode='true'] .crosshook-nav-target:focus {
+  outline: 0;
+  border-color: var(--crosshook-color-accent-strong);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.06),
+    0 0 0 4px var(--crosshook-color-accent-soft);
+}
+
+.crosshook-focus-target[data-active='true'],
+.crosshook-nav-target[data-active='true'] {
+  border-color: var(--crosshook-color-accent-strong);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.06),
+    0 0 0 4px var(--crosshook-color-accent-soft);
+}
+
+.crosshook-focus-ring {
+  position: relative;
+}
+
+.crosshook-focus-ring::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid transparent;
+  pointer-events: none;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.crosshook-focus-ring:focus-within::after,
+.crosshook-focus-ring[data-active='true']::after,
+:root[data-crosshook-controller-mode='true'] .crosshook-focus-ring:focus-within::after {
+  border-color: var(--crosshook-color-accent-strong);
+  box-shadow: 0 0 0 4px var(--crosshook-color-accent-soft);
+}
+
+.crosshook-controller-prompts {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.9rem;
+}
+
+.crosshook-controller-prompts__glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--crosshook-color-text);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .crosshook-focus-target,
+  .crosshook-nav-target {
+    min-height: calc(var(--crosshook-touch-target-min) + 4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-focus-ring::after {
+    transition: none;
+  }
+}

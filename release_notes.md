@@ -1,125 +1,94 @@
-# 🆕 CrossHook v5.0 – The Touch-First Release!
+# CrossHook Native -- Complete Rewrite
 
-[![Download CrossHook](https://img.shields.io/badge/⬇_Download-CrossHook_v5.0-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook/releases)
+[![Download CrossHook](https://img.shields.io/badge/Download-CrossHook_Native-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook/releases)
 [![GitHub Release](https://img.shields.io/github/v/release/yandy-r/crosshook?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/crosshook/releases)
-[![Platforms](https://img.shields.io/badge/Platforms-Windows%20|%20Linux%20|%20Steam%20Deck%20|%20macOS-blue?style=for-the-badge&logo=steam)](https://github.com/yandy-r/crosshook)
+[![Platforms](https://img.shields.io/badge/Platforms-Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=linux)](https://github.com/yandy-r/crosshook)
 [![License](https://img.shields.io/github/license/yandy-r/crosshook?style=for-the-badge&color=green)](LICENSE)
 
-## Major Changes (Compared to v4.0a)
+CrossHook Native is a ground-up rewrite. The original WinForms-based CrossHook Loader (a Windows binary running under Proton/WINE) has been replaced with a native Linux desktop application built on Rust, Tauri v2, and React/TypeScript. CrossHook itself no longer needs WINE or Proton to run -- only your games and trainers do.
 
-### New Features
+## What Changed
 
-- **Touch-First Interface:**
-  - Completely redesigned UI for touch and mouse input
-  - Larger, more accessible buttons and controls
-  - Optimized for touchscreen devices and Steam Deck
+### Native Linux Application
 
-- **Streamlined Executable Name:**
-  - Renamed to `crosshook.exe` for better recognition
-  - Simplified file management and Steam integration
+- CrossHook is now a **native Linux binary** distributed as an **AppImage**. No WINE or Proton required for CrossHook itself.
+- Built with **Rust** (backend logic), **Tauri v2** (desktop shell), and **React 18 + TypeScript** (frontend UI).
+- Runs natively on Linux desktops and Steam Deck without compatibility layers.
 
-### Improvements
+### Three Launch Modes
 
-- **Simplified Interface:**
-  - Removed legacy TV Mode and controller support for better stability
-  - Focused on touch and mouse interaction
-  - Enhanced desktop mode experience
+- **Steam App Launch**: Launches games via `steam://run` with trainers configured as launch options. Best for Steam Deck and games that require Steam integration.
+- **Proton Run**: Runs games directly through a selected Proton version using `proton run`. Supports standalone prefixes for isolation.
+- **Native**: Executes binaries directly without Proton. Useful for native Linux games or non-WINE tools.
 
-- **Process Management Enhancements:**
-  - More reliable game and trainer launching
-  - Improved process detection and handling
-  - Better error recovery and reporting
+### Steam Auto-Populate
 
-### Bug Fixes
+- Automatically discovers installed Steam games, library folders, and Proton versions.
+- Populates the profile editor with game executables, app IDs, and available Proton runners.
+- Supports multiple Steam library paths and custom install locations.
 
-- **Core Stability:**
-  - Fixed various UI-related crashes and hangs
-  - Improved error handling throughout
-  - Better memory management
+### Community Profile Sharing
 
-- **Process Handling:**
-  - More reliable process launching and monitoring
-  - Fixed issues with process detection and management
+- Share and discover game profiles through git-based **taps** (community repositories).
+- Browse, search, and import profiles from community taps.
+- Compatibility viewer shows which profiles work with which Proton versions and platforms.
 
-### Miscellaneous Changes
+### Launcher Export
 
-- **Documentation Updates:**
-  - Improved README with clear badges and download button
-  - Better installation instructions
-  - Updated platform compatibility information
+- Export launch configurations as standalone **shell scripts** and **.desktop entries**.
+- Generated launchers can be used independently of CrossHook.
+- Integrates with Steam as non-Steam game shortcuts.
 
----
+### TOML-Based Profiles and Settings
 
-## 🚀 Core Features
+- Profiles and application settings use human-readable **TOML** format.
+- Profiles store game paths, trainer paths, launch mode, Proton version, environment variables, and pre/post-launch commands.
 
-### 🔥 DLL Injection System
+### UI and Experience
 
-- Checks 32-bit/64-bit compatibility before injecting
-- Refuses mismatched DLLs (skips injection, logs an error)
-- Real-time UI updates for each validated DLL
-- Smart logging to prevent spam
+- **Dark theme** optimized for Steam Deck's display.
+- **Gamepad/controller navigation** support for couch and handheld use.
+- **Console view** for real-time runner output, launch logs, and process status.
+- Tab-based navigation: Profile Editor, Launch, Community, Export, Settings.
 
-### 👆 Touch & Mouse Interface
+### Developer Experience
 
-- Large, touch-friendly buttons and controls
-- Smooth scrolling and selection
-- Intuitive file browsing
-- Clear visual feedback
+- Rust workspace with two crates: `crosshook-core` (shared library) and `crosshook-cli` (standalone CLI).
+- Tauri IPC command layer bridges Rust backend to React frontend.
+- Vite-powered dev server with hot reload for frontend development.
+- Container-based build option for reproducible AppImage builds.
 
-### ⚡ Command-Line Features
+## Removed
 
-- `-p "ProfileName"`: Load saved profiles
-- `-autolaunch`: Start games automatically
-- Clear error messaging for invalid configurations
+- Windows Forms (WinForms) UI
+- C# / .NET runtime dependency
+- Win32 P/Invoke and DLL injection system
+- Windows-only `crosshook.exe` binary
+- Dual `win-x64` / `win-x86` artifact builds
 
-### 💻 UI & Stability
+## Installation
 
-- Windows Forms interface for reliability
-- Smart list refresh to preserve state
-- Robust error handling
-- Automatic profile saving
+Download the AppImage from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases).
 
----
+### Linux Desktop
 
-## 📦 Installation Instructions
+1. Download the AppImage.
+2. Make it executable: `chmod +x CrossHook-*.AppImage`
+3. Run it directly or integrate with your desktop environment.
 
-CrossHook is now distributed as zip packages on the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases). Download the correct zip, extract the full archive into a folder you want to keep, and launch `crosshook.exe` from the extracted folder. Do not treat `crosshook.exe` as a standalone single-file executable.
+### Steam Deck
 
-### 🖥️ Windows
+1. Download the AppImage to the Desktop or a known location.
+2. Add it as a Non-Steam Game in Steam.
+3. Launch from Gaming Mode -- no Proton compatibility tool needed (CrossHook is native).
 
-1. Download **crosshook-win-x64.zip** (or **crosshook-win-x86.zip** for 32-bit) from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases).
-2. Place the extracted folder in your game directory (or desired location).
-3. Run `crosshook.exe` from the extracted folder and configure!
+See `docs/getting-started/quickstart.md` for detailed setup instructions.
 
-### 🎮 Steam Deck (Proton)
+## Support
 
-1. Download **crosshook-win-x64.zip** (or **crosshook-win-x86.zip** for 32-bit) from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases) and extract it into a folder you want to keep.
-2. Add the extracted folder’s `crosshook.exe` as a Non-Steam Game.
-3. Enable Proton 9+
-4. Configure and play!
+Found a bug or compatibility issue? File a report:
+[![Report Issue](https://img.shields.io/badge/Report%20a%20Bug-GitHub%20Issues-red?style=for-the-badge)](https://github.com/yandy-r/crosshook/issues)
 
-### 🍏 macOS (Whisky)
-
-1. Install Whisky
-2. Create new bottle
-3. Download and extract **crosshook-win-x64.zip** from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases), then run `crosshook.exe` from the extracted folder in the bottle.
-4. Configure and enjoy!
-
----
-
-## 🛠️ Support & Troubleshooting
-
-Found a bug? Report it here:
-[![Report Issue](https://img.shields.io/badge/🐛%20Report%20a%20Bug-GitHub%20Issues-red?style=for-the-badge)](https://github.com/yandy-r/crosshook/issues)
-
----
-
-## 📜 License
+## License
 
 CrossHook is open-source software under the MIT License.
-
----
-
-## 🎉 Enjoy CrossHook!
-
-If you love using CrossHook, give us a ⭐ on GitHub!

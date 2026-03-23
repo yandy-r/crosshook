@@ -3,12 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (e.g. v5.0.0); used only when run manually'
-        required: true
+      - "v*"
 
 permissions:
   contents: write
@@ -18,38 +13,62 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  build-native:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up .NET 9
-        uses: actions/setup-dotnet@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          dotnet-version: '9.0.x'
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: src/crosshook-native/package-lock.json
 
-      - name: Install asset rendering tools
-        run: sudo apt-get install -y --no-install-recommends librsvg2-bin imagemagick
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
 
-      - name: Generate branding assets from SVGs
-        run: ./scripts/generate-assets.sh
+      - name: Install Linux build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            file \
+            libgtk-3-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
-      - name: Publish distribution artifacts
-        run: ./scripts/publish-dist.sh
+      - name: Install native frontend dependencies
+        working-directory: src/crosshook-native
+        run: npm ci
+
+      - name: Run crosshook-core tests
+        env:
+          CARGO_HOME: /tmp/cargo-home
+          CARGO_TARGET_DIR: /tmp/crosshook-native-target
+        run: cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
+
+      - name: Build native AppImage
         env:
           DIST_DIR: ${{ github.workspace }}/dist
+        run: ./scripts/build-native.sh
 
-      - name: Create GitHub Release
+      - name: Upload AppImage to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.version || github.ref_name }}
-          name: ${{ github.event.inputs.version || github.ref_name }}
-          generate_release_notes: true
-          files: |
-            dist/crosshook-win-x64.zip
-            dist/crosshook-win-x86.zip
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          files: dist/*.AppImage
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

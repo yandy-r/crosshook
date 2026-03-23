@@ -1,0 +1,9 @@
+[package]
+name = "crosshook-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+crosshook-core = { path = "../crosshook-core" }
+tokio = { version = "1", features = ["fs", "io-std", "io-util", "macros", "process", "rt-multi-thread", "time"] }
