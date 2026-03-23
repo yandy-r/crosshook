@@ -26,8 +26,7 @@ pub fn run() {
                 let log_path = logging::init_logging(false)?;
                 tracing::info!(log_path = %log_path.display(), "starting CrossHook Native");
 
-                let app_handle = app.handle().clone();
-                paths::ensure_bundled_scripts_executable(&app_handle)?;
+                paths::ensure_development_scripts_executable()?;
 
                 if let Some(profile_name) =
                     startup::resolve_auto_load_profile_name(&settings_store, &profile_store)?

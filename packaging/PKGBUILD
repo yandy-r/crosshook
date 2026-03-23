@@ -29,7 +29,7 @@ build() {
 
   cd "$repo_dir/src/crosshook-native"
   npm ci
-  cargo tauri build --target x86_64-unknown-linux-gnu
+  ./node_modules/.bin/tauri build --target x86_64-unknown-linux-gnu
 }
 
 package() {

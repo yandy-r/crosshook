@@ -1,30 +1,28 @@
 use std::path::{Path, PathBuf};
 
-use tauri::path::BaseDirectory;
-use tauri::{AppHandle, Manager};
-
 const HELPER_SCRIPTS_DIR: &str = "../runtime-helpers";
 
-pub fn resolve_script_path(app: &AppHandle, script_name: &str) -> PathBuf {
+pub fn resolve_script_path(app: &tauri::AppHandle, script_name: &str) -> PathBuf {
     resolve_bundled_script_path(app, script_name)
         .unwrap_or_else(|| development_script_path(script_name))
 }
 
-pub fn ensure_bundled_scripts_executable(app: &AppHandle) -> std::io::Result<()> {
+pub fn ensure_development_scripts_executable() -> std::io::Result<()> {
     for script_name in [
         "steam-launch-helper.sh",
         "steam-launch-trainer.sh",
         "steam-host-trainer-runner.sh",
     ] {
-        if let Some(script_path) = resolve_bundled_script_path(app, script_name) {
-            ensure_executable(&script_path)?;
-        }
+        ensure_executable(&development_script_path(script_name))?;
     }
 
     Ok(())
 }
 
-fn resolve_bundled_script_path(app: &AppHandle, script_name: &str) -> Option<PathBuf> {
+fn resolve_bundled_script_path(app: &tauri::AppHandle, script_name: &str) -> Option<PathBuf> {
+    use tauri::path::BaseDirectory;
+    use tauri::Manager;
+
     app.path()
         .resolve(script_name, BaseDirectory::Resource)
         .ok()
