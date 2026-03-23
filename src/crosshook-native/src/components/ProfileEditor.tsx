@@ -1,4 +1,5 @@
-import type { CSSProperties, ChangeEvent } from 'react';
+import { useEffect, useState, type CSSProperties, type ChangeEvent } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import AutoPopulate from './AutoPopulate';
 import { useProfile, type UseProfileResult } from '../hooks/useProfile';
@@ -85,6 +86,84 @@ function FieldRow(props: {
   );
 }
 
+interface ProtonInstallOption {
+  name: string;
+  path: string;
+  is_official: boolean;
+}
+
+function formatProtonInstallLabel(
+  install: ProtonInstallOption,
+  duplicateNameCounts: Record<string, number>,
+): string {
+  const baseLabel = install.name.trim() || 'Unnamed Proton install';
+  if ((duplicateNameCounts[baseLabel] ?? 0) <= 1) {
+    return baseLabel;
+  }
+
+  return `${baseLabel} (${install.is_official ? 'Steam' : 'Custom'})`;
+}
+
+function ProtonPathField(props: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  installs: ProtonInstallOption[];
+  error: string | null;
+  onBrowse: () => Promise<void>;
+}) {
+  const duplicateNameCounts = props.installs.reduce<Record<string, number>>((counts, install) => {
+    const key = install.name.trim() || 'Unnamed Proton install';
+    counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  }, {});
+  const selectedInstallPath =
+    props.installs.find((install) => install.path.trim() === props.value.trim())?.path ?? '';
+
+  return (
+    <div style={{ ...fieldStyle, marginTop: 16 }}>
+      <label style={labelStyle}>{props.label}</label>
+      <div style={{ display: 'grid', gap: 10 }}>
+        <select
+          style={inputStyle}
+          value={selectedInstallPath}
+          onChange={(event) => {
+            if (event.target.value.trim().length > 0) {
+              props.onChange(event.target.value);
+            }
+          }}
+        >
+          <option value="">Detected Proton install</option>
+          {props.installs.map((install) => (
+            <option key={install.path} value={install.path}>
+              {formatProtonInstallLabel(install, duplicateNameCounts)}
+            </option>
+          ))}
+        </select>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input
+            style={{ ...inputStyle, flex: 1 }}
+            value={props.value}
+            placeholder={props.placeholder}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange(event.target.value)}
+          />
+          <button type="button" style={subtleButtonStyle} onClick={props.onBrowse}>
+            Browse
+          </button>
+        </div>
+      </div>
+      <p style={{ ...helperStyle, marginTop: 8 }}>
+        Pick a detected Proton install to fill this field automatically, or edit the path manually.
+      </p>
+      {props.error ? (
+        <p style={{ ...helperStyle, marginTop: 8, color: '#ffb4b4' }}>{props.error}</p>
+      ) : null}
+    </div>
+  );
+}
+
 async function chooseFile(title: string, filters?: { name: string; extensions: string[] }[]) {
   const result = await open({
     directory: false,
@@ -151,6 +230,48 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
   const launchMethod = profile.launch.method || 'native';
   const supportsTrainerLaunch = launchMethod !== 'native';
   const steamClientInstallPath = deriveSteamClientInstallPath(profile.steam.compatdata_path);
+  const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
+  const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProtonInstalls() {
+      try {
+        const installs = await invoke<ProtonInstallOption[]>('list_proton_installs', {
+          steamClientInstallPath:
+            steamClientInstallPath.trim().length > 0 ? steamClientInstallPath : undefined,
+        });
+        const sortedInstalls = [...installs].sort((left, right) => {
+          if (left.is_official !== right.is_official) {
+            return left.is_official ? -1 : 1;
+          }
+
+          return left.name.localeCompare(right.name) || left.path.localeCompare(right.path);
+        });
+
+        if (!active) {
+          return;
+        }
+
+        setProtonInstalls(sortedInstalls);
+        setProtonInstallsError(null);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+
+        setProtonInstalls([]);
+        setProtonInstallsError(loadError instanceof Error ? loadError.message : String(loadError));
+      }
+    }
+
+    void loadProtonInstalls();
+
+    return () => {
+      active = false;
+    };
+  }, [steamClientInstallPath]);
 
   return (
     <section style={panelStyle}>
@@ -308,7 +429,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
             />
 
             <FieldRow
-              label="Compatdata Path"
+              label="Prefix Path"
               value={profile.steam.compatdata_path}
               onChange={(value) =>
                 updateProfile((current) => ({
@@ -319,35 +440,12 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
               placeholder="/home/user/.local/share/Steam/steamapps/compatdata/1245620"
               browseLabel="Browse"
               onBrowse={async () => {
-                const path = await chooseDirectory('Select Steam Compatdata Directory');
+                const path = await chooseDirectory('Select Steam Prefix Directory');
 
                 if (path) {
                   updateProfile((current) => ({
                     ...current,
                     steam: { ...current.steam, compatdata_path: path },
-                  }));
-                }
-              }}
-            />
-
-            <FieldRow
-              label="Proton Path"
-              value={profile.steam.proton_path}
-              onChange={(value) =>
-                updateProfile((current) => ({
-                  ...current,
-                  steam: { ...current.steam, proton_path: value },
-                }))
-              }
-              placeholder="/home/user/.steam/root/steamapps/common/Proton - Experimental/proton"
-              browseLabel="Browse"
-              onBrowse={async () => {
-                const path = await chooseFile('Select Proton Executable');
-
-                if (path) {
-                  updateProfile((current) => ({
-                    ...current,
-                    steam: { ...current.steam, proton_path: path },
                   }));
                 }
               }}
@@ -400,6 +498,30 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
             />
           </div>
 
+          <ProtonPathField
+            label="Proton Path"
+            value={profile.steam.proton_path}
+            onChange={(value) =>
+              updateProfile((current) => ({
+                ...current,
+                steam: { ...current.steam, proton_path: value },
+              }))
+            }
+            placeholder="/home/user/.steam/root/steamapps/common/Proton - Experimental/proton"
+            installs={protonInstalls}
+            error={protonInstallsError}
+            onBrowse={async () => {
+              const path = await chooseFile('Select Proton Executable');
+
+              if (path) {
+                updateProfile((current) => ({
+                  ...current,
+                  steam: { ...current.steam, proton_path: path },
+                }));
+              }
+            }}
+          />
+
           <div style={{ display: 'grid', gap: 16, marginTop: 18 }}>
             <AutoPopulate
               gamePath={profile.game.executable_path}
@@ -431,31 +553,56 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
       ) : null}
 
       {launchMethod === 'proton_run' ? (
-        <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
-          <FieldRow
-            label="Prefix Path"
-            value={profile.runtime.prefix_path}
-            onChange={(value) =>
-              updateProfile((current) => ({
-                ...current,
-                runtime: { ...current.runtime, prefix_path: value },
-              }))
-            }
-            placeholder="/path/to/prefix"
-            browseLabel="Browse"
-            onBrowse={async () => {
-              const path = await chooseDirectory('Select Proton Prefix Directory');
-
-              if (path) {
+        <>
+          <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
+            <FieldRow
+              label="Prefix Path"
+              value={profile.runtime.prefix_path}
+              onChange={(value) =>
                 updateProfile((current) => ({
                   ...current,
-                  runtime: { ...current.runtime, prefix_path: path },
-                }));
+                  runtime: { ...current.runtime, prefix_path: value },
+                }))
               }
-            }}
-          />
+              placeholder="/path/to/prefix"
+              browseLabel="Browse"
+              onBrowse={async () => {
+                const path = await chooseDirectory('Select Proton Prefix Directory');
 
-          <FieldRow
+                if (path) {
+                  updateProfile((current) => ({
+                    ...current,
+                    runtime: { ...current.runtime, prefix_path: path },
+                  }));
+                }
+              }}
+            />
+
+            <FieldRow
+              label="Working Directory"
+              value={profile.runtime.working_directory}
+              onChange={(value) =>
+                updateProfile((current) => ({
+                  ...current,
+                  runtime: { ...current.runtime, working_directory: value },
+                }))
+              }
+              placeholder="Optional override"
+              browseLabel="Browse"
+              onBrowse={async () => {
+                const path = await chooseDirectory('Select Working Directory');
+
+                if (path) {
+                  updateProfile((current) => ({
+                    ...current,
+                    runtime: { ...current.runtime, working_directory: path },
+                  }));
+                }
+              }}
+            />
+          </div>
+
+          <ProtonPathField
             label="Proton Path"
             value={profile.runtime.proton_path}
             onChange={(value) =>
@@ -465,7 +612,8 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
               }))
             }
             placeholder="/path/to/proton"
-            browseLabel="Browse"
+            installs={protonInstalls}
+            error={protonInstallsError}
             onBrowse={async () => {
               const path = await chooseFile('Select Proton Executable');
 
@@ -477,30 +625,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
               }
             }}
           />
-
-          <FieldRow
-            label="Working Directory"
-            value={profile.runtime.working_directory}
-            onChange={(value) =>
-              updateProfile((current) => ({
-                ...current,
-                runtime: { ...current.runtime, working_directory: value },
-              }))
-            }
-            placeholder="Optional override"
-            browseLabel="Browse"
-            onBrowse={async () => {
-              const path = await chooseDirectory('Select Working Directory');
-
-              if (path) {
-                updateProfile((current) => ({
-                  ...current,
-                  runtime: { ...current.runtime, working_directory: path },
-                }));
-              }
-            }}
-          />
-        </div>
+        </>
       ) : null}
 
       {launchMethod === 'native' ? (

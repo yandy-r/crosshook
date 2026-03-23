@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use crosshook_core::steam::{
-    attempt_auto_populate, SteamAutoPopulateRequest, SteamAutoPopulateResult,
+    attempt_auto_populate, discover_compat_tools, discover_steam_root_candidates, ProtonInstall,
+    SteamAutoPopulateRequest, SteamAutoPopulateResult,
 };
 
 #[tauri::command]
@@ -28,6 +29,18 @@ pub fn default_steam_client_install_path() -> String {
     }
 
     String::new()
+}
+
+#[tauri::command]
+pub fn list_proton_installs(
+    steam_client_install_path: Option<String>,
+) -> Result<Vec<ProtonInstall>, String> {
+    let configured_path =
+        steam_client_install_path.unwrap_or_else(default_steam_client_install_path);
+    let mut diagnostics = Vec::new();
+    let steam_root_candidates = discover_steam_root_candidates(configured_path, &mut diagnostics);
+    let installs = discover_compat_tools(&steam_root_candidates, &mut diagnostics);
+    Ok(installs)
 }
 
 #[tauri::command]

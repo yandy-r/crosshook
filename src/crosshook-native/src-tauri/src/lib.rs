@@ -70,6 +70,7 @@ pub fn run() {
             commands::settings::settings_save,
             commands::steam::auto_populate_steam,
             commands::steam::default_steam_client_install_path,
+            commands::steam::list_proton_installs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

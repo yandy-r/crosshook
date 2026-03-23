@@ -10,8 +10,10 @@ pub mod proton;
 pub mod vdf;
 
 pub use auto_populate::attempt_auto_populate;
+pub use discovery::discover_steam_root_candidates;
 pub use diagnostics::DiagnosticCollector;
 pub use models::{
     ProtonInstall, SteamAutoPopulateFieldState, SteamAutoPopulateRequest, SteamAutoPopulateResult,
     SteamGameMatch, SteamLibrary,
 };
+pub use proton::discover_compat_tools;

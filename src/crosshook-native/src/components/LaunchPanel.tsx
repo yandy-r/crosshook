@@ -10,7 +10,10 @@ interface LaunchPanelProps {
 
 const panelStyles = {
   card: {
+    display: 'grid',
+    alignContent: 'start',
     boxSizing: 'border-box',
+    height: '100%',
     padding: '28px',
     borderRadius: '20px',
     background: 'rgba(14, 20, 40, 0.82)',

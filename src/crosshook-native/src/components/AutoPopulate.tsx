@@ -193,7 +193,7 @@ export function AutoPopulate({
         <div style={{ display: 'grid', gap: 6 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Auto-Populate Steam</h2>
           <p style={mutedTextStyle}>
-            Scan the selected game and Steam install to fill App ID, compatdata, and Proton values.
+            Scan the selected game and Steam install to fill App ID, prefix path, and Proton values.
           </p>
         </div>
 
@@ -227,7 +227,7 @@ export function AutoPopulate({
           }
         />
         <FieldCard
-          label="Compatdata Path"
+          label="Prefix Path"
           state={compatdataState}
           currentValue={currentCompatdataPath}
           proposedValue={result?.compatdata_path ?? ''}

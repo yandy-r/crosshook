@@ -28,7 +28,9 @@ interface SteamExternalLauncherExportResult {
 
 const panelStyle: CSSProperties = {
   display: 'grid',
+  alignContent: 'start',
   gap: 16,
+  height: '100%',
   boxSizing: 'border-box',
   padding: 20,
   borderRadius: 18,

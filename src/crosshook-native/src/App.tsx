@@ -84,6 +84,7 @@ export function App() {
     return defaultSteamClientInstallPath || deriveSteamClientInstallPath(profile.steam.compatdata_path);
   }, [defaultSteamClientInstallPath, profile.steam.compatdata_path]);
   const targetHomePath = useMemo(() => deriveTargetHomePath(steamClientInstallPath), [steamClientInstallPath]);
+  const shouldStretchRightRail = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
 
   const launchRequest = useMemo<LaunchRequest | null>(() => {
     if (!profile.game.executable_path.trim()) {
@@ -262,22 +263,24 @@ export function App() {
         </div>
 
         {activeTab === 'main' ? (
-          <div className="stack">
-            <div className="crosshook-layout" style={{ alignItems: launchMethod === 'steam_applaunch' ? 'stretch' : 'start' }}>
-              <div className="stack">
+          <div style={{ display: 'grid', gap: '24px' }}>
+            <div className="crosshook-layout" style={{ alignItems: shouldStretchRightRail ? 'stretch' : 'start' }}>
+              <div style={{ display: 'grid', gap: '24px' }}>
                 <ProfileEditorView state={profileState} />
               </div>
               <div
-                className="stack"
-                style={
-                  launchMethod === 'steam_applaunch'
-                    ? {
-                        height: '100%',
-                        minHeight: 0,
-                        gridTemplateRows: 'minmax(0, 1fr) minmax(0, 1fr)',
-                      }
-                    : undefined
-                }
+                style={{
+                  display: 'grid',
+                  gap: '24px',
+                  height: shouldStretchRightRail ? '100%' : undefined,
+                  minHeight: shouldStretchRightRail ? 0 : undefined,
+                  gridTemplateRows:
+                    launchMethod === 'steam_applaunch'
+                      ? 'repeat(2, minmax(0, 1fr))'
+                      : launchMethod === 'proton_run'
+                        ? 'minmax(0, 1fr)'
+                        : undefined,
+                }}
               >
                 <LaunchPanel
                   profileId={profileName || 'new-profile'}
