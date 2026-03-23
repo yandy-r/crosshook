@@ -2,6 +2,11 @@
 
 ## 2026-03-18
 
+- In stateful diagnostic UI, do not map “no fresh scan result yet” to an error-like state such as `NotFound`. If persisted values are already loaded, show a neutral or saved state instead so reopening the app does not falsely imply missing data.
+- When moving a UI section to a new layout container, remove the old render site in the same change. Do not rely on visual inspection later to catch duplicated panels like Launcher Export.
+- In the native Tauri UI, do not let controller/gamepad key handlers capture typing keys while focus is inside editable controls. Before handling `Space`, `Enter`, arrows, or `Escape` globally, explicitly skip `input`, `textarea`, `select`, and `contenteditable` targets.
+- In the Tauri v2 native app, do not assume registering a plugin is enough for frontend access. If a plugin API such as `@tauri-apps/plugin-dialog` appears to no-op, first verify that `src-tauri/capabilities/*.json` exists and grants the corresponding plugin permission set to the `main` window.
+
 - When creating GitHub issues for this repo, do not assume `gh issue create --template ...` can be combined with `--body` or `--body-file`; the CLI rejects that combination.
 - Do not assume YAML issue forms are discoverable by `gh issue create --template` in this repo. Validate first. If the CLI reports `no templates found`, use API/tooling to create a fully structured issue body that mirrors the intended form fields.
 - When debugging missing `gh` tab completion for commands like `gh pr merge`, verify the shell and the CLI separately. If `_gh` is loaded but `gh __complete ...` returns no candidates, the problem is the CLI’s completion output, not shell wiring.
