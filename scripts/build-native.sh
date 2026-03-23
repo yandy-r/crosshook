@@ -14,22 +14,28 @@ stable_appimage_name() {
   local target_triple="$1"
   local arch_suffix
 
-  case "$target_triple" in
-    x86_64-*)
-      arch_suffix="amd64"
-      ;;
-    aarch64-*|arm64-*)
-      arch_suffix="arm64"
-      ;;
-    armv7-*)
-      arch_suffix="armv7"
-      ;;
-    *)
-      arch_suffix="${target_triple%%-*}"
-      ;;
-  esac
+  arch_suffix="$(appimage_arch_suffix "$target_triple")"
 
   printf 'CrossHook_%s.AppImage\n' "$arch_suffix"
+}
+
+appimage_arch_suffix() {
+  local target_triple="$1"
+
+  case "$target_triple" in
+    x86_64-*)
+      printf 'amd64\n'
+      ;;
+    aarch64-*|arm64-*)
+      printf 'arm64\n'
+      ;;
+    armv7-*)
+      printf 'armv7\n'
+      ;;
+    *)
+      printf '%s\n' "${target_triple%%-*}"
+      ;;
+  esac
 }
 
 usage() {
@@ -145,6 +151,10 @@ done
 [[ -n "$APPIMAGE_SOURCE" ]] || die "AppImage output not found after build"
 
 mkdir -p "$DIST_DIR"
+ARCH_SUFFIX="$(appimage_arch_suffix "$TARGET_TRIPLE")"
+find "$DIST_DIR" -maxdepth 1 -type f \
+  \( -name "CrossHook_*_${ARCH_SUFFIX}.AppImage" -o -name "CrossHook_${ARCH_SUFFIX}.AppImage" \) \
+  -delete
 cp -f "$APPIMAGE_SOURCE" "$DIST_DIR/"
 
 STABLE_APPIMAGE_NAME="$(stable_appimage_name "$TARGET_TRIPLE")"

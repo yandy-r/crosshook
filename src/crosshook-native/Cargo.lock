@@ -509,7 +509,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crosshook-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "crosshook-core",
@@ -518,7 +518,7 @@ dependencies = [
 
 [[package]]
 name = "crosshook-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "directories",
  "serde",
@@ -532,7 +532,7 @@ dependencies = [
 
 [[package]]
 name = "crosshook-native"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crosshook-core",
  "serde",

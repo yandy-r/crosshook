@@ -4,6 +4,61 @@
 
 ### Goal
 
+Fix native release versioning so tagged releases and built AppImage artifacts use the actual release version instead of staying on the scaffolded `0.1.0`.
+
+### Plan
+
+- [x] Trace the native version source across Cargo, Tauri config, build scripts, and `scripts/prepare-release.sh`.
+- [x] Collapse the native app to a single authoritative version source and make `prepare-release.sh` update it before tagging.
+- [x] Verify the resulting build artifact names/version metadata so `dist/` and GitHub Releases reflect the release tag accurately.
+
+### Review
+
+- Moved the native workspace onto a single Cargo-managed version source in `src/crosshook-native/Cargo.toml` using `[workspace.package] version = "0.2.0"`, and switched `crosshook-core`, `crosshook-cli`, and `crosshook-native` to `version.workspace = true`.
+- Removed the duplicate hard-coded `"version"` field from `src/crosshook-native/src-tauri/tauri.conf.json` so Tauri now inherits the package version instead of drifting from Cargo.
+- Updated `scripts/prepare-release.sh` so `--version` or `--tag` now syncs the native workspace version before generating the changelog commit and release tag.
+- Added a release-workflow guard in `.github/workflows/release.yml` so tag pushes fail early if `vX.Y.Z` does not match the native workspace version.
+- Updated `scripts/build-native.sh` to delete prior same-architecture AppImages in `dist/` before copying the new output, so local builds do not leave stale `CrossHook_<old-version>_amd64.AppImage` files beside the current release.
+- Verification:
+- `bash -n scripts/prepare-release.sh`
+- `bash -n scripts/build-native.sh`
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/release.yml'); puts 'release.yml: ok'"`
+- `cargo metadata --manifest-path src/crosshook-native/Cargo.toml --no-deps --format-version 1` confirmed `crosshook-core`, `crosshook-cli`, and `crosshook-native` are all `0.2.0`
+- `node -e 'const fs = require("fs"); const cfg = JSON.parse(fs.readFileSync("src/crosshook-native/src-tauri/tauri.conf.json", "utf8")); console.log(Object.prototype.hasOwnProperty.call(cfg, "version") ? cfg.version : "<inherited>");'` confirmed Tauri version is inherited
+- `scripts/build-native-container.sh`
+- `ls -la dist` now shows `CrossHook_0.2.0_amd64.AppImage` and `CrossHook_amd64.AppImage`
+- Result:
+- Native builds now emit the correct `0.2.0` release version, and future `prepare-release.sh` runs will keep the native manifests and release tag aligned.
+
+## 2026-03-23
+
+### Goal
+
+Fix the native Vite 8 upgrade so `scripts/build-native-container.sh` succeeds again instead of failing on the React plugin peer-dependency mismatch and outdated container Node runtime.
+
+### Plan
+
+- [x] Confirm the exact Vite/plugin compatibility window and any Node engine requirements introduced by the upgrade.
+- [x] Update the native frontend dependency set and container builder image to the minimum versions needed for a supported Vite 8 install/build path.
+- [x] Re-run the failing install/build flow, then record whether the upgrade is safe to keep or should be reverted.
+
+### Review
+
+- Updated `src/crosshook-native/package.json` and `src/crosshook-native/package-lock.json` so the native frontend uses `@vitejs/plugin-react@^5.2.0`, which is the first plugin release in this dependency line that declares support for `vite@^8`.
+- Updated `src/crosshook-native/vite.config.ts` to stop forcing the deprecated `build.minify: "esbuild"` path. Production builds now use Vite 8's supported `"oxc"` minifier, while debug builds still disable minification.
+- Updated `scripts/build-native-container.Dockerfile` so the cached builder image installs Node `v22.12.0` from the official tarball instead of Debian bookworm's Node 18 package, which is below the Node engine floor required by both `vite@8.0.2` and `@vitejs/plugin-react@5.2.0`.
+- Verification:
+- `env npm_config_cache=/tmp/npm-crosshook-native-cache npm install` in `src/crosshook-native`
+- `env npm_config_cache=/tmp/npm-crosshook-native-cache npm run build` in `src/crosshook-native`
+- `scripts/build-native-container.sh --rebuild-image`
+- `docker run --rm crosshook-native-builder:2c63aa272bf7 node -v` -> `v22.12.0`
+- Result:
+- The Vite upgrade is fixable and the containerized native build now completes successfully, so a Vite revert is not necessary based on the current failure.
+
+## 2026-03-23
+
+### Goal
+
 Fix `scripts/build-native-container.sh` so the containerized native build does not fail with `Error: cargo is required` when the selected container image lacks a preinstalled Rust toolchain.
 
 ### Plan

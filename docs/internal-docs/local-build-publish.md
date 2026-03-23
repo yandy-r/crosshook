@@ -30,7 +30,7 @@ Requires `cargo`, `npm`, and `patchelf`.
 
 The build writes two AppImage files into `dist/`:
 
-- the versioned Tauri output, for example `CrossHook_0.1.0_amd64.AppImage`
+- the versioned Tauri output, for example `CrossHook_0.2.0_amd64.AppImage`
 - a stable alias, for example `CrossHook_amd64.AppImage`
 
 The stable alias is intended for launchers and Steam shortcuts that should keep a fixed path across upgrades.
@@ -102,9 +102,10 @@ Examples:
 
 The script sequence is:
 
-1. Regenerate `CHANGELOG.md` from git history using `.git-cliff.toml`
-2. Commit the changelog update as `chore(release): prepare vX.Y.Z`
-3. Create the annotated tag `vX.Y.Z`
-4. If `--push` is used, push the branch first and the tag second
+1. Update the native workspace version to `X.Y.Z`
+2. Regenerate `CHANGELOG.md` from git history using `.git-cliff.toml`
+3. Commit the release metadata update as `chore(release): prepare vX.Y.Z`
+4. Create the annotated tag `vX.Y.Z`
+5. If `--push` is used, push the branch first and the tag second
 
-That keeps the tag-triggered GitHub Release workflow pointed at the commit that already contains the matching changelog update.
+That keeps the tag-triggered GitHub Release workflow pointed at the commit that already contains the matching native app version and changelog update.

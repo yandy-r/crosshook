@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHANGELOG_PATH="$ROOT_DIR/CHANGELOG.md"
 CLIFF_CONFIG_PATH="$ROOT_DIR/.git-cliff.toml"
+NATIVE_WORKSPACE_MANIFEST="$ROOT_DIR/src/crosshook-native/Cargo.toml"
 REMOTE="${REMOTE:-origin}"
 PUSH=false
 VERSION_INPUT=""
@@ -15,10 +16,11 @@ Usage:
   ./scripts/prepare-release.sh --tag v5.1.0 [--push] [--remote origin]
 
 This script:
-  1. Regenerates CHANGELOG.md with git-cliff
-  2. Commits the changelog update
-  3. Creates an annotated release tag
-  4. Optionally pushes the branch first and the tag second
+  1. Syncs the native workspace version
+  2. Regenerates CHANGELOG.md with git-cliff
+  3. Commits the release metadata update
+  4. Creates an annotated release tag
+  5. Optionally pushes the branch first and the tag second
 
 Examples:
   ./scripts/prepare-release.sh --version 5.1.0
@@ -29,6 +31,18 @@ EOF
 die() {
   echo "Error: $*" >&2
   exit 1
+}
+
+set_native_workspace_version() {
+  local version="$1"
+
+  [[ -f "$NATIVE_WORKSPACE_MANIFEST" ]] || die "missing native workspace manifest: $NATIVE_WORKSPACE_MANIFEST"
+
+  CROSSHOOK_RELEASE_VERSION="$version" perl -0pi -e '
+    my $version = $ENV{CROSSHOOK_RELEASE_VERSION};
+    my $count = s/(\[workspace\.package\]\s*version = ")[^"]+(")/${1}${version}${2}/;
+    exit($count ? 0 : 1);
+  ' "$NATIVE_WORKSPACE_MANIFEST" || die "failed to update native workspace version in $NATIVE_WORKSPACE_MANIFEST"
 }
 
 normalize_tag() {
@@ -83,10 +97,13 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 
 TAG="$(normalize_tag "$VERSION_INPUT")"
+VERSION="${TAG#v}"
 BRANCH="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
 
 git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1 && die "tag already exists: $TAG"
 git config --get "remote.$REMOTE.url" >/dev/null 2>&1 || die "remote not found: $REMOTE"
+
+set_native_workspace_version "$VERSION"
 
 TEMP_CHANGELOG="$(mktemp "${TMPDIR:-/tmp}/crosshook-changelog.XXXXXX")"
 cleanup() {
@@ -97,7 +114,7 @@ trap cleanup EXIT
 git-cliff --config "$CLIFF_CONFIG_PATH" --tag "$TAG" > "$TEMP_CHANGELOG"
 mv "$TEMP_CHANGELOG" "$CHANGELOG_PATH"
 
-git add CHANGELOG.md
+git add CHANGELOG.md "$NATIVE_WORKSPACE_MANIFEST"
 
 if git diff --cached --quiet; then
   die "CHANGELOG.md did not change for $TAG"
