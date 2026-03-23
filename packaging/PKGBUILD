@@ -1,0 +1,54 @@
+pkgname=crosshook-native
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="CrossHook native Tauri UI for Proton and WINE trainer launching"
+arch=('x86_64')
+url="https://github.com/yandy-r/crosshook"
+license=('MIT')
+depends=('bash' 'glib2' 'gtk3' 'webkit2gtk-4.1' 'libsoup-3.0' 'libayatana-appindicator')
+makedepends=('cargo' 'rust' 'nodejs' 'npm' 'pkgconf' 'glib2' 'gtk3' 'webkit2gtk-4.1' 'libsoup-3.0' 'libayatana-appindicator')
+source=("crosshook-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+_repo_dir() {
+  local candidate
+
+  for candidate in "$srcdir"/crosshook-*; do
+    [[ -d "$candidate/src/crosshook-native" ]] && {
+      printf '%s\n' "$candidate"
+      return 0
+    }
+  done
+
+  return 1
+}
+
+build() {
+  local repo_dir
+  repo_dir="$(_repo_dir)"
+
+  cd "$repo_dir/src/crosshook-native"
+  npm ci
+  cargo tauri build --target x86_64-unknown-linux-gnu
+}
+
+package() {
+  local repo_dir binary_path helper_dir
+  repo_dir="$(_repo_dir)"
+  helper_dir="$pkgdir/usr/lib/$pkgname/runtime-helpers"
+
+  cd "$repo_dir"
+
+  binary_path="$(find src/crosshook-native/src-tauri/target -type f -path '*/release/crosshook-native' | sort | tail -n 1)"
+  if [[ -z "$binary_path" ]]; then
+    binary_path="$(find src/crosshook-native/target -type f -path '*/release/crosshook-native' | sort | tail -n 1)"
+  fi
+
+  [[ -n "$binary_path" ]] || return 1
+
+  install -Dm755 "$binary_path" "$pkgdir/usr/bin/crosshook-native"
+  install -Dm755 src/CrossHookEngine.App/runtime-helpers/steam-launch-helper.sh "$helper_dir/steam-launch-helper.sh"
+  install -Dm755 src/CrossHookEngine.App/runtime-helpers/steam-launch-trainer.sh "$helper_dir/steam-launch-trainer.sh"
+  install -Dm755 src/CrossHookEngine.App/runtime-helpers/steam-host-trainer-runner.sh "$helper_dir/steam-host-trainer-runner.sh"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
