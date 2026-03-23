@@ -1,11 +1,11 @@
-import type { SteamLaunchRequest } from '../types';
+import type { LaunchMethod, LaunchRequest } from '../types';
 import { LaunchPhase } from '../types';
 import { useLaunchState } from '../hooks/useLaunchState';
 
 interface LaunchPanelProps {
   profileId: string;
-  steamModeEnabled: boolean;
-  request: SteamLaunchRequest | null;
+  method: Exclude<LaunchMethod, ''>;
+  request: LaunchRequest | null;
 }
 
 const panelStyles = {
@@ -20,7 +20,7 @@ const panelStyles = {
   } as const,
 };
 
-export function LaunchPanel({ profileId, steamModeEnabled, request }: LaunchPanelProps) {
+export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
   const {
     actionLabel,
     canLaunchGame,
@@ -36,7 +36,7 @@ export function LaunchPanel({ profileId, steamModeEnabled, request }: LaunchPane
     statusText,
   } = useLaunchState({
     profileId,
-    steamModeEnabled,
+    method,
     request,
   });
 
@@ -60,11 +60,13 @@ export function LaunchPanel({ profileId, steamModeEnabled, request }: LaunchPane
               fontSize: '0.74rem',
             }}
           >
-            Steam Launch
+            {method === 'steam_applaunch' ? 'Steam Launch' : method === 'proton_run' ? 'Proton Launch' : 'Native Launch'}
           </p>
           <h1 style={{ margin: '10px 0 6px', fontSize: '2rem', lineHeight: 1.1 }}>CrossHook Native</h1>
           <p style={{ margin: 0, color: '#9fb1d6', maxWidth: '56ch' }}>
-            Two-step launch flow for Steam games and trainers, driven by the native Tauri backend.
+            {method === 'native'
+              ? 'Direct launch flow for Linux-native executables, driven by the native Tauri backend.'
+              : `Two-step launch flow for ${method === 'steam_applaunch' ? 'Steam' : 'Proton'} games and trainers, driven by the native Tauri backend.`}
           </p>
         </div>
 
@@ -155,7 +157,13 @@ export function LaunchPanel({ profileId, steamModeEnabled, request }: LaunchPane
               background: isSessionActive ? '#27d17f' : isWaitingForTrainer ? '#f5c542' : '#5e77ff',
             }}
           />
-          <span>{steamModeEnabled ? 'Steam mode enabled' : 'Steam mode disabled'}</span>
+          <span>
+            {method === 'steam_applaunch'
+              ? 'Steam runner selected'
+              : method === 'proton_run'
+                ? 'Proton runner selected'
+                : 'Native runner selected'}
+          </span>
         </div>
         <div style={{ color: '#7f8fb0', fontSize: '0.9rem' }}>
           {request ? 'Profile request is loaded.' : 'No profile request is loaded yet.'}

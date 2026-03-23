@@ -318,8 +318,13 @@ mod tests {
                     display_name: "Elden Ring".to_string(),
                 },
             },
+            runtime: crate::profile::RuntimeSection {
+                prefix_path: String::new(),
+                proton_path: String::new(),
+                working_directory: String::new(),
+            },
             launch: crate::profile::LaunchSection {
-                method: "proton_run".to_string(),
+                method: "steam_applaunch".to_string(),
             },
         }
     }

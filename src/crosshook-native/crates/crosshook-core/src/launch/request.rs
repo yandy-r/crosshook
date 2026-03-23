@@ -5,20 +5,66 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
+pub const METHOD_PROTON_RUN: &str = "proton_run";
+pub const METHOD_NATIVE: &str = "native";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct SteamLaunchRequest {
+pub struct LaunchRequest {
+    #[serde(default)]
+    pub method: String,
+    #[serde(default)]
     pub game_path: String,
+    #[serde(default)]
     pub trainer_path: String,
+    #[serde(default)]
     pub trainer_host_path: String,
-    pub steam_app_id: String,
-    pub steam_compat_data_path: String,
-    pub steam_proton_path: String,
-    pub steam_client_install_path: String,
+    #[serde(default)]
+    pub steam: SteamLaunchConfig,
+    #[serde(default)]
+    pub runtime: RuntimeLaunchConfig,
+    #[serde(default)]
     pub launch_trainer_only: bool,
+    #[serde(default)]
     pub launch_game_only: bool,
 }
 
-impl SteamLaunchRequest {
+pub type SteamLaunchRequest = LaunchRequest;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct SteamLaunchConfig {
+    #[serde(default)]
+    pub app_id: String,
+    #[serde(default)]
+    pub compatdata_path: String,
+    #[serde(default)]
+    pub proton_path: String,
+    #[serde(default)]
+    pub steam_client_install_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct RuntimeLaunchConfig {
+    #[serde(default)]
+    pub prefix_path: String,
+    #[serde(default)]
+    pub proton_path: String,
+    #[serde(default)]
+    pub working_directory: String,
+}
+
+impl LaunchRequest {
+    pub fn resolved_method(&self) -> &str {
+        match self.method.trim() {
+            METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
+            METHOD_PROTON_RUN => METHOD_PROTON_RUN,
+            METHOD_NATIVE => METHOD_NATIVE,
+            _ if !self.steam.app_id.trim().is_empty() => METHOD_STEAM_APPLAUNCH,
+            _ if looks_like_windows_executable(&self.game_path) => METHOD_PROTON_RUN,
+            _ => METHOD_NATIVE,
+        }
+    }
+
     pub fn game_executable_name(&self) -> String {
         let trimmed_path = self.game_path.trim();
 
@@ -37,13 +83,51 @@ impl SteamLaunchRequest {
             None => trimmed_path.to_string(),
         }
     }
+
+    pub fn log_target_slug(&self) -> String {
+        let game_executable_name = self.game_executable_name();
+        let source = match self.resolved_method() {
+            METHOD_STEAM_APPLAUNCH => self.steam.app_id.trim(),
+            _ => game_executable_name.trim(),
+        };
+
+        let fallback = match self.resolved_method() {
+            METHOD_STEAM_APPLAUNCH => "steam",
+            METHOD_PROTON_RUN => "proton",
+            METHOD_NATIVE => "native",
+            _ => "launch",
+        };
+
+        let candidate = if source.is_empty() { fallback } else { source };
+        let slug = candidate
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character.to_ascii_lowercase()
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>();
+
+        let trimmed = slug.trim_matches('-');
+        if trimmed.is_empty() {
+            fallback.to_string()
+        } else {
+            trimmed.to_string()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidationError {
     GamePathRequired,
+    GamePathMissing,
+    GamePathNotFile,
     TrainerPathRequired,
     TrainerHostPathRequired,
+    TrainerHostPathMissing,
+    TrainerHostPathNotFile,
     SteamAppIdRequired,
     SteamCompatDataPathRequired,
     SteamCompatDataPathMissing,
@@ -52,95 +136,256 @@ pub enum ValidationError {
     SteamProtonPathMissing,
     SteamProtonPathNotExecutable,
     SteamClientInstallPathRequired,
-    TrainerHostPathMissing,
-    TrainerHostPathNotFile,
+    RuntimePrefixPathRequired,
+    RuntimePrefixPathMissing,
+    RuntimePrefixPathNotDirectory,
+    RuntimeProtonPathRequired,
+    RuntimeProtonPathMissing,
+    RuntimeProtonPathNotExecutable,
+    NativeWindowsExecutableNotSupported,
+    NativeTrainerLaunchUnsupported,
+    UnsupportedMethod(String),
 }
 
 impl ValidationError {
-    pub fn message(&self) -> &'static str {
+    pub fn message(&self) -> String {
         match self {
-            Self::GamePathRequired => {
-                "Steam mode requires a game executable path so CrossHook can identify the game process."
+            Self::GamePathRequired => "A game executable path is required.".to_string(),
+            Self::GamePathMissing => {
+                "The selected game executable path does not exist.".to_string()
             }
-            Self::TrainerPathRequired => "Steam mode requires a trainer path.",
-            Self::TrainerHostPathRequired => "Steam mode requires a trainer host path.",
-            Self::SteamAppIdRequired => "Steam mode requires a Steam App ID.",
-            Self::SteamCompatDataPathRequired => "Steam mode requires a compatdata path.",
-            Self::SteamCompatDataPathMissing => "Steam mode compatdata path does not exist.",
+            Self::GamePathNotFile => {
+                "The selected game executable path must be a file.".to_string()
+            }
+            Self::TrainerPathRequired => {
+                "A trainer path is required for trainer launch.".to_string()
+            }
+            Self::TrainerHostPathRequired => {
+                "A trainer host path is required for trainer launch.".to_string()
+            }
+            Self::TrainerHostPathMissing => "The trainer host path does not exist.".to_string(),
+            Self::TrainerHostPathNotFile => "The trainer host path must be a file.".to_string(),
+            Self::SteamAppIdRequired => "Steam app launch requires a Steam App ID.".to_string(),
+            Self::SteamCompatDataPathRequired => {
+                "Steam app launch requires a compatdata path.".to_string()
+            }
+            Self::SteamCompatDataPathMissing => {
+                "The Steam compatdata path does not exist.".to_string()
+            }
             Self::SteamCompatDataPathNotDirectory => {
-                "Steam mode compatdata path must be a directory."
+                "The Steam compatdata path must be a directory.".to_string()
             }
-            Self::SteamProtonPathRequired => "Steam mode requires a Proton path.",
-            Self::SteamProtonPathMissing => "Steam mode Proton path does not exist.",
-            Self::SteamProtonPathNotExecutable => "Steam mode Proton path must be executable.",
+            Self::SteamProtonPathRequired => "Steam app launch requires a Proton path.".to_string(),
+            Self::SteamProtonPathMissing => "The Steam Proton path does not exist.".to_string(),
+            Self::SteamProtonPathNotExecutable => {
+                "The Steam Proton path must be executable.".to_string()
+            }
             Self::SteamClientInstallPathRequired => {
-                "Steam mode requires a Steam client install path."
+                "Steam app launch requires a Steam client install path.".to_string()
             }
-            Self::TrainerHostPathMissing => "Steam mode trainer host path does not exist.",
-            Self::TrainerHostPathNotFile => "Steam mode trainer host path must be a file.",
+            Self::RuntimePrefixPathRequired => {
+                "Proton launch requires a runtime prefix path.".to_string()
+            }
+            Self::RuntimePrefixPathMissing => "The runtime prefix path does not exist.".to_string(),
+            Self::RuntimePrefixPathNotDirectory => {
+                "The runtime prefix path must be a directory.".to_string()
+            }
+            Self::RuntimeProtonPathRequired => {
+                "Proton launch requires a runtime Proton path.".to_string()
+            }
+            Self::RuntimeProtonPathMissing => "The runtime Proton path does not exist.".to_string(),
+            Self::RuntimeProtonPathNotExecutable => {
+                "The runtime Proton path must be executable.".to_string()
+            }
+            Self::NativeWindowsExecutableNotSupported => {
+                "Native launch only supports Linux-native executables, not Windows .exe files."
+                    .to_string()
+            }
+            Self::NativeTrainerLaunchUnsupported => {
+                "Native launch does not support the two-step trainer launch workflow.".to_string()
+            }
+            Self::UnsupportedMethod(method) => {
+                format!(
+                    "Unsupported launch method '{method}'. Use steam_applaunch, proton_run, or native."
+                )
+            }
         }
     }
 }
 
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.message())
+        f.write_str(&self.message())
     }
 }
 
 impl Error for ValidationError {}
 
-pub fn validate(request: &SteamLaunchRequest) -> Result<(), ValidationError> {
-    if !request.launch_trainer_only && request.game_path.trim().is_empty() {
+pub fn validate(request: &LaunchRequest) -> Result<(), ValidationError> {
+    match request.method.trim() {
+        "" | METHOD_STEAM_APPLAUNCH | METHOD_PROTON_RUN | METHOD_NATIVE => {}
+        value => return Err(ValidationError::UnsupportedMethod(value.to_string())),
+    }
+
+    match request.resolved_method() {
+        METHOD_STEAM_APPLAUNCH => validate_steam_applaunch(request),
+        METHOD_PROTON_RUN => validate_proton_run(request),
+        METHOD_NATIVE => validate_native(request),
+        other => Err(ValidationError::UnsupportedMethod(other.to_string())),
+    }
+}
+
+fn validate_steam_applaunch(request: &LaunchRequest) -> Result<(), ValidationError> {
+    require_game_path_if_needed(request, false)?;
+    require_trainer_paths_if_needed(request)?;
+
+    if request.steam.app_id.trim().is_empty() {
+        return Err(ValidationError::SteamAppIdRequired);
+    }
+
+    require_directory(
+        request.steam.compatdata_path.trim(),
+        ValidationError::SteamCompatDataPathRequired,
+        ValidationError::SteamCompatDataPathMissing,
+        ValidationError::SteamCompatDataPathNotDirectory,
+    )?;
+
+    require_executable_file(
+        request.steam.proton_path.trim(),
+        ValidationError::SteamProtonPathRequired,
+        ValidationError::SteamProtonPathMissing,
+        ValidationError::SteamProtonPathNotExecutable,
+    )?;
+
+    if request.steam.steam_client_install_path.trim().is_empty() {
+        return Err(ValidationError::SteamClientInstallPathRequired);
+    }
+    Ok(())
+}
+
+fn validate_proton_run(request: &LaunchRequest) -> Result<(), ValidationError> {
+    require_game_path_if_needed(request, true)?;
+    require_trainer_paths_if_needed(request)?;
+
+    require_directory(
+        request.runtime.prefix_path.trim(),
+        ValidationError::RuntimePrefixPathRequired,
+        ValidationError::RuntimePrefixPathMissing,
+        ValidationError::RuntimePrefixPathNotDirectory,
+    )?;
+
+    require_executable_file(
+        request.runtime.proton_path.trim(),
+        ValidationError::RuntimeProtonPathRequired,
+        ValidationError::RuntimeProtonPathMissing,
+        ValidationError::RuntimeProtonPathNotExecutable,
+    )?;
+
+    Ok(())
+}
+
+fn validate_native(request: &LaunchRequest) -> Result<(), ValidationError> {
+    if request.launch_trainer_only {
+        return Err(ValidationError::NativeTrainerLaunchUnsupported);
+    }
+
+    require_game_path_if_needed(request, true)?;
+
+    if looks_like_windows_executable(&request.game_path) {
+        return Err(ValidationError::NativeWindowsExecutableNotSupported);
+    }
+
+    Ok(())
+}
+
+fn require_game_path_if_needed(
+    request: &LaunchRequest,
+    must_exist: bool,
+) -> Result<(), ValidationError> {
+    if request.launch_trainer_only {
+        return Ok(());
+    }
+
+    let game_path = request.game_path.trim();
+    if game_path.is_empty() {
         return Err(ValidationError::GamePathRequired);
+    }
+
+    if must_exist {
+        let path = Path::new(game_path);
+        if !path.exists() {
+            return Err(ValidationError::GamePathMissing);
+        }
+        if !path.is_file() {
+            return Err(ValidationError::GamePathNotFile);
+        }
+    }
+
+    Ok(())
+}
+
+fn require_trainer_paths_if_needed(request: &LaunchRequest) -> Result<(), ValidationError> {
+    if request.launch_game_only {
+        return Ok(());
     }
 
     if request.trainer_path.trim().is_empty() {
         return Err(ValidationError::TrainerPathRequired);
     }
 
-    if request.trainer_host_path.trim().is_empty() {
+    let trainer_host_path = request.trainer_host_path.trim();
+    if trainer_host_path.is_empty() {
         return Err(ValidationError::TrainerHostPathRequired);
     }
 
-    if request.steam_app_id.trim().is_empty() {
-        return Err(ValidationError::SteamAppIdRequired);
-    }
-
-    if request.steam_compat_data_path.trim().is_empty() {
-        return Err(ValidationError::SteamCompatDataPathRequired);
-    }
-
-    let compatdata_path = Path::new(request.steam_compat_data_path.trim());
-    if !compatdata_path.exists() {
-        return Err(ValidationError::SteamCompatDataPathMissing);
-    }
-    if !compatdata_path.is_dir() {
-        return Err(ValidationError::SteamCompatDataPathNotDirectory);
-    }
-
-    if request.steam_proton_path.trim().is_empty() {
-        return Err(ValidationError::SteamProtonPathRequired);
-    }
-
-    let proton_path = Path::new(request.steam_proton_path.trim());
-    if !proton_path.exists() {
-        return Err(ValidationError::SteamProtonPathMissing);
-    }
-    if !is_executable_file(proton_path) {
-        return Err(ValidationError::SteamProtonPathNotExecutable);
-    }
-
-    if request.steam_client_install_path.trim().is_empty() {
-        return Err(ValidationError::SteamClientInstallPathRequired);
-    }
-
-    let trainer_host_path = Path::new(request.trainer_host_path.trim());
-    if !trainer_host_path.exists() {
+    let trainer_host = Path::new(trainer_host_path);
+    if !trainer_host.exists() {
         return Err(ValidationError::TrainerHostPathMissing);
     }
-    if !trainer_host_path.is_file() {
+    if !trainer_host.is_file() {
         return Err(ValidationError::TrainerHostPathNotFile);
+    }
+
+    Ok(())
+}
+
+fn require_directory<'a>(
+    value: &'a str,
+    required_error: ValidationError,
+    missing_error: ValidationError,
+    not_directory_error: ValidationError,
+) -> Result<&'a Path, ValidationError> {
+    if value.is_empty() {
+        return Err(required_error);
+    }
+
+    let path = Path::new(value);
+    if !path.exists() {
+        return Err(missing_error);
+    }
+    if !path.is_dir() {
+        return Err(not_directory_error);
+    }
+
+    Ok(path)
+}
+
+fn require_executable_file(
+    value: &str,
+    required_error: ValidationError,
+    missing_error: ValidationError,
+    not_executable_error: ValidationError,
+) -> Result<(), ValidationError> {
+    if value.is_empty() {
+        return Err(required_error);
+    }
+
+    let path = Path::new(value);
+    if !path.exists() {
+        return Err(missing_error);
+    }
+    if !is_executable_file(path) {
+        return Err(not_executable_error);
     }
 
     Ok(())
@@ -156,7 +401,7 @@ fn is_executable_file(path: &Path) -> bool {
     {
         use std::os::unix::fs::PermissionsExt;
 
-        metadata.permissions().mode() & 0o111 != 0
+        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
     }
 
     #[cfg(not(unix))]
@@ -165,13 +410,21 @@ fn is_executable_file(path: &Path) -> bool {
     }
 }
 
+fn looks_like_windows_executable(path: &str) -> bool {
+    path.trim().to_ascii_lowercase().ends_with(".exe")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     struct RequestFixture {
         _temp_dir: tempfile::TempDir,
-        request: SteamLaunchRequest,
+        game_path: String,
+        trainer_path: String,
+        compatdata_path: String,
+        proton_path: String,
+        steam_client_install_path: String,
     }
 
     fn write_executable_file(path: &Path) {
@@ -187,196 +440,167 @@ mod tests {
         }
     }
 
-    fn valid_request() -> RequestFixture {
+    fn fixture() -> RequestFixture {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let compatdata = temp_dir.path().join("compat");
-        let trainer = temp_dir.path().join("trainer.exe");
         let proton = temp_dir.path().join("proton");
+        let game = temp_dir.path().join("game.sh");
+        let trainer = temp_dir.path().join("trainer.exe");
+        let steam_client = temp_dir.path().join("steam");
 
         fs::create_dir_all(&compatdata).expect("compatdata dir");
-        fs::write(&trainer, b"trainer").expect("trainer file");
+        fs::create_dir_all(&steam_client).expect("steam client dir");
         write_executable_file(&proton);
+        write_executable_file(&game);
+        fs::write(&trainer, b"trainer").expect("trainer file");
 
         RequestFixture {
             _temp_dir: temp_dir,
-            request: SteamLaunchRequest {
-                game_path: "/games/test/game.exe".to_string(),
-                trainer_path: trainer.to_string_lossy().into_owned(),
-                trainer_host_path: trainer.to_string_lossy().into_owned(),
-                steam_app_id: "12345".to_string(),
-                steam_compat_data_path: compatdata.to_string_lossy().into_owned(),
-                steam_proton_path: proton.to_string_lossy().into_owned(),
-                steam_client_install_path: "/tmp/steam".to_string(),
-                launch_trainer_only: false,
-                launch_game_only: false,
-            },
+            game_path: game.to_string_lossy().into_owned(),
+            trainer_path: trainer.to_string_lossy().into_owned(),
+            compatdata_path: compatdata.to_string_lossy().into_owned(),
+            proton_path: proton.to_string_lossy().into_owned(),
+            steam_client_install_path: steam_client.to_string_lossy().into_owned(),
         }
     }
 
-    #[test]
-    fn validates_successful_request() {
-        let fixture = valid_request();
-        assert_eq!(validate(&fixture.request), Ok(()));
+    fn steam_request() -> (tempfile::TempDir, LaunchRequest) {
+        let RequestFixture {
+            _temp_dir,
+            game_path,
+            trainer_path,
+            compatdata_path,
+            proton_path,
+            steam_client_install_path,
+        } = fixture();
+        (
+            _temp_dir,
+            LaunchRequest {
+                method: METHOD_STEAM_APPLAUNCH.to_string(),
+                game_path,
+                trainer_path: trainer_path.clone(),
+                trainer_host_path: trainer_path,
+                steam: SteamLaunchConfig {
+                    app_id: "12345".to_string(),
+                    compatdata_path,
+                    proton_path,
+                    steam_client_install_path,
+                },
+                runtime: RuntimeLaunchConfig::default(),
+                launch_trainer_only: false,
+                launch_game_only: false,
+            },
+        )
+    }
+
+    fn proton_request() -> (tempfile::TempDir, LaunchRequest) {
+        let (temp_dir, mut request) = steam_request();
+        request.method = METHOD_PROTON_RUN.to_string();
+        request.game_path = request.game_path.replace("game.sh", "game.exe");
+        fs::write(&request.game_path, b"game").expect("game exe");
+        request.runtime = RuntimeLaunchConfig {
+            prefix_path: request.steam.compatdata_path.clone(),
+            proton_path: request.steam.proton_path.clone(),
+            working_directory: String::new(),
+        };
+        request.steam = SteamLaunchConfig::default();
+        (temp_dir, request)
+    }
+
+    fn native_request() -> (tempfile::TempDir, LaunchRequest) {
+        let (temp_dir, mut request) = steam_request();
+        request.method = METHOD_NATIVE.to_string();
+        request.trainer_path.clear();
+        request.trainer_host_path.clear();
+        request.steam = SteamLaunchConfig::default();
+        (temp_dir, request)
     }
 
     #[test]
-    fn requires_game_path_when_launching_game() {
-        let mut fixture = valid_request();
-        fixture.request.game_path.clear();
+    fn validates_steam_applaunch_request() {
+        let (_temp_dir, request) = steam_request();
+        assert_eq!(validate(&request), Ok(()));
+    }
+
+    #[test]
+    fn allows_game_only_steam_launch_without_trainer_paths() {
+        let (_temp_dir, mut request) = steam_request();
+        request.launch_game_only = true;
+        request.trainer_path.clear();
+        request.trainer_host_path.clear();
+
+        assert_eq!(validate(&request), Ok(()));
+    }
+
+    #[test]
+    fn validates_proton_run_request() {
+        let (_temp_dir, request) = proton_request();
+        assert_eq!(validate(&request), Ok(()));
+    }
+
+    #[test]
+    fn proton_run_requires_runtime_prefix_path() {
+        let (_temp_dir, mut request) = proton_request();
+        request.runtime.prefix_path.clear();
 
         assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::GamePathRequired)
+            validate(&request),
+            Err(ValidationError::RuntimePrefixPathRequired)
         );
     }
 
     #[test]
-    fn allows_missing_game_path_for_trainer_only_launches() {
-        let mut fixture = valid_request();
-        fixture.request.game_path.clear();
-        fixture.request.launch_trainer_only = true;
-
-        assert_eq!(validate(&fixture.request), Ok(()));
-    }
-
-    #[test]
-    fn requires_trainer_path() {
-        let mut fixture = valid_request();
-        fixture.request.trainer_path.clear();
+    fn native_requires_linux_native_executable() {
+        let (_temp_dir, mut request) = native_request();
+        request.game_path = request.game_path.replace("game.sh", "game.exe");
+        fs::write(&request.game_path, b"game").expect("game exe");
 
         assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::TrainerPathRequired)
+            validate(&request),
+            Err(ValidationError::NativeWindowsExecutableNotSupported)
         );
     }
 
     #[test]
-    fn requires_trainer_host_path() {
-        let mut fixture = valid_request();
-        fixture.request.trainer_host_path.clear();
+    fn native_rejects_trainer_only_launches() {
+        let (_temp_dir, mut request) = native_request();
+        request.launch_trainer_only = true;
 
         assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::TrainerHostPathRequired)
+            validate(&request),
+            Err(ValidationError::NativeTrainerLaunchUnsupported)
         );
     }
 
     #[test]
-    fn requires_app_id() {
-        let mut fixture = valid_request();
-        fixture.request.steam_app_id.clear();
+    fn rejects_unsupported_method() {
+        let (_temp_dir, mut request) = steam_request();
+        request.method = "direct".to_string();
 
         assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::SteamAppIdRequired)
+            validate(&request),
+            Err(ValidationError::UnsupportedMethod("direct".to_string()))
         );
     }
 
     #[test]
-    fn requires_compatdata_directory() {
-        let mut fixture = valid_request();
-        fixture.request.steam_compat_data_path.clear();
+    fn request_uses_last_path_segment_for_executable_name() {
+        let request = LaunchRequest {
+            game_path: r"Z:\Games\Test Game\game.exe".to_string(),
+            ..LaunchRequest::default()
+        };
 
-        assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::SteamCompatDataPathRequired)
-        );
+        assert_eq!(request.game_executable_name(), "game.exe");
     }
 
     #[test]
-    fn rejects_missing_compatdata_directory() {
-        let mut fixture = valid_request();
-        fixture.request.steam_compat_data_path = "/does/not/exist".to_string();
+    fn log_target_slug_prefers_game_name_for_non_steam_methods() {
+        let request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/games/Example Game/game.exe".to_string(),
+            ..LaunchRequest::default()
+        };
 
-        assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::SteamCompatDataPathMissing)
-        );
-    }
-
-    #[test]
-    fn rejects_non_directory_compatdata_path() {
-        let temp_dir = tempfile::tempdir().expect("temp dir");
-        let file_path = temp_dir.path().join("compat");
-        fs::write(&file_path, b"not a dir").expect("file");
-
-        let mut fixture = valid_request();
-        fixture.request.steam_compat_data_path = file_path.to_string_lossy().into_owned();
-
-        assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::SteamCompatDataPathNotDirectory)
-        );
-    }
-
-    #[test]
-    fn requires_proton_path() {
-        let mut fixture = valid_request();
-        fixture.request.steam_proton_path.clear();
-
-        assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::SteamProtonPathRequired)
-        );
-    }
-
-    #[test]
-    fn rejects_missing_proton_path() {
-        let mut fixture = valid_request();
-        fixture.request.steam_proton_path = "/does/not/exist/proton".to_string();
-
-        assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::SteamProtonPathMissing)
-        );
-    }
-
-    #[test]
-    fn rejects_non_executable_proton_path() {
-        let temp_dir = tempfile::tempdir().expect("temp dir");
-        let proton = temp_dir.path().join("proton");
-        fs::write(&proton, b"proton").expect("proton file");
-
-        let mut fixture = valid_request();
-        fixture.request.steam_proton_path = proton.to_string_lossy().into_owned();
-
-        assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::SteamProtonPathNotExecutable)
-        );
-    }
-
-    #[test]
-    fn requires_steam_client_install_path() {
-        let mut fixture = valid_request();
-        fixture.request.steam_client_install_path.clear();
-
-        assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::SteamClientInstallPathRequired)
-        );
-    }
-
-    #[test]
-    fn requires_trainer_host_file() {
-        let mut fixture = valid_request();
-        fixture.request.trainer_host_path = "/does/not/exist/trainer.exe".to_string();
-
-        assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::TrainerHostPathMissing)
-        );
-    }
-
-    #[test]
-    fn rejects_trainer_host_directory() {
-        let temp_dir = tempfile::tempdir().expect("temp dir");
-        let mut fixture = valid_request();
-        fixture.request.trainer_host_path = temp_dir.path().to_string_lossy().into_owned();
-
-        assert_eq!(
-            validate(&fixture.request),
-            Err(ValidationError::TrainerHostPathNotFile)
-        );
+        assert_eq!(request.log_target_slug(), "game-exe");
     }
 }

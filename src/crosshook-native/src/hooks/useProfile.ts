@@ -25,6 +25,12 @@ export interface UseProfileOptions {
   autoSelectFirstProfile?: boolean;
 }
 
+type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
+
+function looksLikeWindowsExecutable(path: string): boolean {
+  return path.trim().toLowerCase().endsWith('.exe');
+}
+
 function deriveDisplayNameFromPath(path: string): string {
   const normalized = path.trim();
   if (!normalized) {
@@ -47,27 +53,75 @@ function deriveLauncherDisplayName(profile: GameProfile): string {
   );
 }
 
-function normalizeProfileForSave(profile: GameProfile): GameProfile {
+function resolveLaunchMethod(profile: GameProfile): ResolvedLaunchMethod {
+  const method = profile.launch.method.trim();
+
+  if (method === 'steam_applaunch' || method === 'proton_run' || method === 'native') {
+    return method;
+  }
+
+  if (profile.steam.enabled) {
+    return 'steam_applaunch';
+  }
+
+  if (looksLikeWindowsExecutable(profile.game.executable_path)) {
+    return 'proton_run';
+  }
+
+  return 'native';
+}
+
+function normalizeProfileForEdit(profile: GameProfile): GameProfile {
+  const method = resolveLaunchMethod(profile);
+  const runtime = profile.runtime ?? {
+    prefix_path: '',
+    proton_path: '',
+    working_directory: '',
+  };
+
   return {
     ...profile,
-    game: {
-      ...profile.game,
-      name: deriveGameName(profile),
-    },
     trainer: {
       ...profile.trainer,
       type: profile.trainer.type.trim(),
     },
     steam: {
       ...profile.steam,
+      enabled: method === 'steam_applaunch',
       launcher: {
         ...profile.steam.launcher,
-        display_name: deriveLauncherDisplayName(profile),
       },
+    },
+    runtime: {
+      prefix_path: runtime.prefix_path.trim(),
+      proton_path: runtime.proton_path.trim(),
+      working_directory: runtime.working_directory.trim(),
     },
     launch: {
       ...profile.launch,
-      method: profile.launch.method.trim() || (profile.steam.enabled ? 'proton_run' : 'direct'),
+      method,
+    },
+  };
+}
+
+function normalizeProfileForSave(profile: GameProfile): GameProfile {
+  const normalized = normalizeProfileForEdit(profile);
+
+  return {
+    ...normalized,
+    game: {
+      ...normalized.game,
+      name: deriveGameName(normalized),
+    },
+    trainer: {
+      ...normalized.trainer,
+    },
+    steam: {
+      ...normalized.steam,
+      launcher: {
+        ...normalized.steam.launcher,
+        display_name: deriveLauncherDisplayName(normalized),
+      },
     },
   };
 }
@@ -104,6 +158,11 @@ function createEmptyProfile(): GameProfile {
         icon_path: '',
         display_name: '',
       },
+    },
+    runtime: {
+      prefix_path: '',
+      proton_path: '',
+      working_directory: '',
     },
     launch: {
       method: '',
@@ -159,11 +218,12 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
     try {
       const loaded = await invoke<GameProfile>('profile_load', { name: trimmed });
+      const normalized = normalizeProfileForEdit(loaded);
       setSelectedProfile(trimmed);
       setProfileName(trimmed);
-      setProfile(loaded);
+      setProfile(normalized);
       setDirty(false);
-      await syncProfileMetadata(trimmed, loaded);
+      await syncProfileMetadata(trimmed, normalized);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

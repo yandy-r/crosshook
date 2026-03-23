@@ -9,7 +9,9 @@ use args::{
     SteamCommand,
 };
 use clap::Parser;
-use crosshook_core::launch::{self, SteamLaunchRequest};
+use crosshook_core::launch::{
+    self, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, METHOD_STEAM_APPLAUNCH,
+};
 use crosshook_core::profile::{GameProfile, ProfileStore};
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
@@ -137,21 +139,33 @@ fn profile_store(profile_dir: Option<PathBuf>) -> ProfileStore {
 
 fn steam_launch_request_from_profile(
     profile: &GameProfile,
-) -> Result<SteamLaunchRequest, Box<dyn Error>> {
+) -> Result<LaunchRequest, Box<dyn Error>> {
+    let method = match profile.launch.method.trim() {
+        "" if profile.steam.enabled => METHOD_STEAM_APPLAUNCH,
+        value => value,
+    };
+    if method != METHOD_STEAM_APPLAUNCH {
+        return Err("crosshook-cli launch currently supports only steam_applaunch profiles".into());
+    }
+
     let steam_client_install_path =
         resolve_steam_client_install_path(&profile.steam.compatdata_path);
     if steam_client_install_path.as_os_str().is_empty() {
         return Err("could not determine Steam client install path".into());
     }
 
-    Ok(SteamLaunchRequest {
+    Ok(LaunchRequest {
+        method: METHOD_STEAM_APPLAUNCH.to_string(),
         game_path: profile.game.executable_path.clone(),
         trainer_path: profile.trainer.path.clone(),
         trainer_host_path: profile.trainer.path.clone(),
-        steam_app_id: profile.steam.app_id.clone(),
-        steam_compat_data_path: profile.steam.compatdata_path.clone(),
-        steam_proton_path: profile.steam.proton_path.clone(),
-        steam_client_install_path: steam_client_install_path.to_string_lossy().into_owned(),
+        steam: SteamLaunchConfig {
+            app_id: profile.steam.app_id.clone(),
+            compatdata_path: profile.steam.compatdata_path.clone(),
+            proton_path: profile.steam.proton_path.clone(),
+            steam_client_install_path: steam_client_install_path.to_string_lossy().into_owned(),
+        },
+        runtime: RuntimeLaunchConfig::default(),
         launch_trainer_only: false,
         launch_game_only: true,
     })
@@ -212,7 +226,7 @@ fn launch_log_path(profile_name: &str) -> PathBuf {
 }
 
 async fn spawn_helper(
-    request: &SteamLaunchRequest,
+    request: &LaunchRequest,
     helper_script: &Path,
     log_path: &Path,
 ) -> Result<tokio::process::Child, Box<dyn Error>> {

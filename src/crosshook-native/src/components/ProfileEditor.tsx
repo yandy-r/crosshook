@@ -148,6 +148,8 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
 
   const canSave = profileName.trim().length > 0 && !saving && !deleting && !loading;
   const canDelete = profileExists && !saving && !deleting && !loading;
+  const launchMethod = profile.launch.method || 'native';
+  const supportsTrainerLaunch = launchMethod !== 'native';
   const steamClientInstallPath = deriveSteamClientInstallPath(profile.steam.compatdata_path);
 
   return (
@@ -221,9 +223,10 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
           placeholder="/path/to/game.exe"
           browseLabel="Browse"
           onBrowse={async () => {
-            const path = await chooseFile('Select Game Executable', [
-              { name: 'Windows Executable', extensions: ['exe'] },
-            ]);
+            const path =
+              launchMethod === 'native'
+                ? await chooseFile('Select Linux Game Executable')
+                : await chooseFile('Select Game Executable', [{ name: 'Windows Executable', extensions: ['exe'] }]);
 
             if (path) {
               updateProfile((current) => ({
@@ -233,50 +236,63 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
             }
           }}
         />
-
-        <FieldRow
-          label="Trainer Path"
-          value={profile.trainer.path}
-          onChange={(value) =>
-            updateProfile((current) => ({
-              ...current,
-              trainer: { ...current.trainer, path: value },
-            }))
-          }
-          placeholder="/path/to/trainer.exe"
-          browseLabel="Browse"
-          onBrowse={async () => {
-            const path = await chooseFile('Select Trainer Executable', [
-              { name: 'Windows Executable', extensions: ['exe'] },
-            ]);
-
-            if (path) {
-              updateProfile((current) => ({
-                ...current,
-                trainer: { ...current.trainer, path },
-              }));
-            }
-          }}
-        />
       </div>
 
-      <label
-        style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#d9e3f0', fontWeight: 600, marginTop: 16 }}
-      >
-        <input
-          type="checkbox"
-          checked={profile.steam.enabled}
+      <div style={{ ...fieldStyle, marginTop: 16 }}>
+        <label style={labelStyle}>Runner Method</label>
+        <select
+          style={inputStyle}
+          value={launchMethod}
           onChange={(event) =>
             updateProfile((current) => ({
               ...current,
-              steam: { ...current.steam, enabled: event.target.checked },
+              steam: { ...current.steam, enabled: event.target.value === 'steam_applaunch' },
+              launch: {
+                ...current.launch,
+                method: event.target.value as typeof current.launch.method,
+              },
             }))
           }
-        />
-        Steam Mode
-      </label>
+        >
+          <option value="steam_applaunch">Steam app launch</option>
+          <option value="proton_run">Proton runtime launch</option>
+          <option value="native">Native Linux launch</option>
+        </select>
+        <p style={helperStyle}>
+          Choose the runner explicitly so CrossHook saves the correct launch method and only shows the relevant fields.
+        </p>
+      </div>
 
-      {profile.steam.enabled ? (
+      {supportsTrainerLaunch ? (
+        <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
+          <FieldRow
+            label="Trainer Path"
+            value={profile.trainer.path}
+            onChange={(value) =>
+              updateProfile((current) => ({
+                ...current,
+                trainer: { ...current.trainer, path: value },
+              }))
+            }
+            placeholder="/path/to/trainer.exe"
+            browseLabel="Browse"
+            onBrowse={async () => {
+              const path = await chooseFile('Select Trainer Executable', [
+                { name: 'Windows Executable', extensions: ['exe'] },
+              ]);
+
+              if (path) {
+                updateProfile((current) => ({
+                  ...current,
+                  trainer: { ...current.trainer, path },
+                }));
+              }
+            }}
+          />
+        </div>
+      ) : null}
+
+      {launchMethod === 'steam_applaunch' ? (
         <>
           <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
             <FieldRow
@@ -414,6 +430,106 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
         </>
       ) : null}
 
+      {launchMethod === 'proton_run' ? (
+        <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
+          <FieldRow
+            label="Prefix Path"
+            value={profile.runtime.prefix_path}
+            onChange={(value) =>
+              updateProfile((current) => ({
+                ...current,
+                runtime: { ...current.runtime, prefix_path: value },
+              }))
+            }
+            placeholder="/path/to/prefix"
+            browseLabel="Browse"
+            onBrowse={async () => {
+              const path = await chooseDirectory('Select Proton Prefix Directory');
+
+              if (path) {
+                updateProfile((current) => ({
+                  ...current,
+                  runtime: { ...current.runtime, prefix_path: path },
+                }));
+              }
+            }}
+          />
+
+          <FieldRow
+            label="Proton Path"
+            value={profile.runtime.proton_path}
+            onChange={(value) =>
+              updateProfile((current) => ({
+                ...current,
+                runtime: { ...current.runtime, proton_path: value },
+              }))
+            }
+            placeholder="/path/to/proton"
+            browseLabel="Browse"
+            onBrowse={async () => {
+              const path = await chooseFile('Select Proton Executable');
+
+              if (path) {
+                updateProfile((current) => ({
+                  ...current,
+                  runtime: { ...current.runtime, proton_path: path },
+                }));
+              }
+            }}
+          />
+
+          <FieldRow
+            label="Working Directory"
+            value={profile.runtime.working_directory}
+            onChange={(value) =>
+              updateProfile((current) => ({
+                ...current,
+                runtime: { ...current.runtime, working_directory: value },
+              }))
+            }
+            placeholder="Optional override"
+            browseLabel="Browse"
+            onBrowse={async () => {
+              const path = await chooseDirectory('Select Working Directory');
+
+              if (path) {
+                updateProfile((current) => ({
+                  ...current,
+                  runtime: { ...current.runtime, working_directory: path },
+                }));
+              }
+            }}
+          />
+        </div>
+      ) : null}
+
+      {launchMethod === 'native' ? (
+        <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
+          <FieldRow
+            label="Working Directory"
+            value={profile.runtime.working_directory}
+            onChange={(value) =>
+              updateProfile((current) => ({
+                ...current,
+                runtime: { ...current.runtime, working_directory: value },
+              }))
+            }
+            placeholder="Optional override"
+            browseLabel="Browse"
+            onBrowse={async () => {
+              const path = await chooseDirectory('Select Working Directory');
+
+              if (path) {
+                updateProfile((current) => ({
+                  ...current,
+                  runtime: { ...current.runtime, working_directory: path },
+                }));
+              }
+            }}
+          />
+        </div>
+      ) : null}
+
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
         <button type="button" style={buttonStyle} onClick={() => void saveProfile()} disabled={!canSave}>
           {saving ? 'Saving...' : 'Save'}
@@ -463,7 +579,7 @@ export function ProfileEditor() {
           </div>
           <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800 }}>Profile Editor</h1>
           <p style={{ ...helperStyle, maxWidth: 760 }}>
-            Edit a profile, save it to Tauri storage, and keep Steam mode ready for launch.
+            Edit a profile, save it to Tauri storage, and configure the correct Steam, Proton, or native runner path.
           </p>
         </header>
         <ProfileEditorView state={state} />

@@ -3,8 +3,11 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crosshook_core::launch::{
-    script_runner::{build_helper_command, build_trainer_command},
-    validate, SteamLaunchRequest,
+    script_runner::{
+        build_helper_command, build_native_game_command, build_proton_game_command,
+        build_proton_trainer_command, build_trainer_command,
+    },
+    validate, LaunchRequest, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -17,23 +20,29 @@ pub struct LaunchResult {
 }
 
 #[tauri::command]
-pub fn validate_launch(request: SteamLaunchRequest) -> Result<(), String> {
+pub fn validate_launch(request: LaunchRequest) -> Result<(), String> {
     validate(&request).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub async fn launch_game(
-    app: AppHandle,
-    request: SteamLaunchRequest,
-) -> Result<LaunchResult, String> {
+pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<LaunchResult, String> {
     let mut request = request;
     request.launch_game_only = true;
     request.launch_trainer_only = false;
     validate_launch(request.clone())?;
 
-    let log_path = create_log_path("game", &request.steam_app_id)?;
-    let script_path = resolve_script_path(&app, "steam-launch-helper.sh")?;
-    let mut command = build_helper_command(&request, &script_path, &log_path);
+    let log_path = create_log_path("game", &request.log_target_slug())?;
+    let mut command = match request.resolved_method() {
+        METHOD_STEAM_APPLAUNCH => {
+            let script_path = resolve_script_path(&app, "steam-launch-helper.sh")?;
+            build_helper_command(&request, &script_path, &log_path)
+        }
+        METHOD_PROTON_RUN => build_proton_game_command(&request, &log_path)
+            .map_err(|error| format!("failed to build Proton game launch: {error}"))?,
+        METHOD_NATIVE => build_native_game_command(&request, &log_path)
+            .map_err(|error| format!("failed to build native game launch: {error}"))?,
+        other => return Err(format!("unsupported launch method: {other}")),
+    };
     let child = command
         .spawn()
         .map_err(|error| format!("failed to launch helper: {error}"))?;
@@ -50,16 +59,24 @@ pub async fn launch_game(
 #[tauri::command]
 pub async fn launch_trainer(
     app: AppHandle,
-    request: SteamLaunchRequest,
+    request: LaunchRequest,
 ) -> Result<LaunchResult, String> {
     let mut request = request;
     request.launch_trainer_only = true;
     request.launch_game_only = false;
     validate_launch(request.clone())?;
 
-    let log_path = create_log_path("trainer", &request.steam_app_id)?;
-    let script_path = resolve_script_path(&app, "steam-launch-trainer.sh")?;
-    let mut command = build_trainer_command(&request, &script_path, &log_path);
+    let log_path = create_log_path("trainer", &request.log_target_slug())?;
+    let mut command = match request.resolved_method() {
+        METHOD_STEAM_APPLAUNCH => {
+            let script_path = resolve_script_path(&app, "steam-launch-trainer.sh")?;
+            build_trainer_command(&request, &script_path, &log_path)
+        }
+        METHOD_PROTON_RUN => build_proton_trainer_command(&request, &log_path)
+            .map_err(|error| format!("failed to build Proton trainer launch: {error}"))?,
+        METHOD_NATIVE => return Err("native launch does not support trainer launch.".to_string()),
+        other => return Err(format!("unsupported launch method: {other}")),
+    };
     let child = command
         .spawn()
         .map_err(|error| format!("failed to launch trainer helper: {error}"))?;
@@ -109,7 +126,7 @@ async fn stream_log_lines(app: AppHandle, log_path: PathBuf, mut child: tokio::p
     }
 }
 
-fn create_log_path(prefix: &str, app_id: &str) -> Result<PathBuf, String> {
+fn create_log_path(prefix: &str, target_slug: &str) -> Result<PathBuf, String> {
     let log_dir = PathBuf::from("/tmp/crosshook-logs");
     fs::create_dir_all(&log_dir).map_err(|error| error.to_string())?;
 
@@ -118,7 +135,7 @@ fn create_log_path(prefix: &str, app_id: &str) -> Result<PathBuf, String> {
         .map_err(|error| error.to_string())?
         .as_millis();
 
-    let file_name = format!("{prefix}-{app_id}-{timestamp}.log");
+    let file_name = format!("{prefix}-{target_slug}-{timestamp}.log");
     let log_path = log_dir.join(file_name);
     fs::File::create(&log_path).map_err(|error| error.to_string())?;
     Ok(log_path)

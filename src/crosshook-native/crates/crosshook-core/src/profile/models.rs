@@ -38,6 +38,8 @@ pub struct GameProfile {
     pub injection: InjectionSection,
     #[serde(default)]
     pub steam: SteamSection,
+    #[serde(default, skip_serializing_if = "RuntimeSection::is_empty")]
+    pub runtime: RuntimeSection,
     #[serde(default)]
     pub launch: LaunchSection,
 }
@@ -89,6 +91,24 @@ pub struct LauncherSection {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct RuntimeSection {
+    #[serde(rename = "prefix_path", default)]
+    pub prefix_path: String,
+    #[serde(rename = "proton_path", default)]
+    pub proton_path: String,
+    #[serde(rename = "working_directory", default)]
+    pub working_directory: String,
+}
+
+impl RuntimeSection {
+    pub fn is_empty(&self) -> bool {
+        self.prefix_path.trim().is_empty()
+            && self.proton_path.trim().is_empty()
+            && self.working_directory.trim().is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LaunchSection {
     #[serde(default)]
     pub method: String,
@@ -96,6 +116,8 @@ pub struct LaunchSection {
 
 impl From<LegacyProfileData> for GameProfile {
     fn from(value: LegacyProfileData) -> Self {
+        let method = derive_launch_method_from_legacy(&value);
+
         Self {
             game: GameSection {
                 name: String::default(),
@@ -119,9 +141,24 @@ impl From<LegacyProfileData> for GameProfile {
                     display_name: String::default(),
                 },
             },
-            launch: LaunchSection {
-                method: value.launch_method,
-            },
+            runtime: RuntimeSection::default(),
+            launch: LaunchSection { method },
         }
     }
+}
+
+fn derive_launch_method_from_legacy(value: &LegacyProfileData) -> String {
+    if value.use_steam_mode {
+        return "steam_applaunch".to_string();
+    }
+
+    if looks_like_windows_executable(&value.game_path) {
+        return "proton_run".to_string();
+    }
+
+    "native".to_string()
+}
+
+fn looks_like_windows_executable(path: &str) -> bool {
+    path.trim().to_ascii_lowercase().ends_with(".exe")
 }

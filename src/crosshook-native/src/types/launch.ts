@@ -1,3 +1,5 @@
+import type { LaunchMethod } from './profile';
+
 export enum LaunchPhase {
   Idle = "Idle",
   GameLaunching = "GameLaunching",
@@ -6,14 +8,22 @@ export enum LaunchPhase {
   SessionActive = "SessionActive",
 }
 
-export interface SteamLaunchRequest {
+export interface LaunchRequest {
+  method: Exclude<LaunchMethod, ''>;
   game_path: string;
   trainer_path: string;
   trainer_host_path: string;
-  steam_app_id: string;
-  steam_compat_data_path: string;
-  steam_proton_path: string;
-  steam_client_install_path: string;
+  steam: {
+    app_id: string;
+    compatdata_path: string;
+    proton_path: string;
+    steam_client_install_path: string;
+  };
+  runtime: {
+    prefix_path: string;
+    proton_path: string;
+    working_directory: string;
+  };
   launch_trainer_only: boolean;
   launch_game_only: boolean;
 }

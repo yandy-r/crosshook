@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useReducer } from "react";
 
-import type { LaunchResult, SteamLaunchRequest } from "../types";
+import type { LaunchMethod, LaunchRequest, LaunchResult } from "../types";
 import { LaunchPhase } from "../types";
 
 type LaunchState = {
@@ -13,15 +13,15 @@ type LaunchState = {
 type LaunchAction =
   | { type: "reset" }
   | { type: "game-start" }
-  | { type: "game-success"; helperLogPath: string }
+  | { type: "game-success"; helperLogPath: string; nextPhase: LaunchPhase }
   | { type: "trainer-start" }
   | { type: "trainer-success"; helperLogPath: string }
   | { type: "failure"; errorMessage: string; fallbackPhase: LaunchPhase };
 
 interface UseLaunchStateArgs {
   profileId: string;
-  steamModeEnabled: boolean;
-  request: SteamLaunchRequest | null;
+  method: Exclude<LaunchMethod, "">;
+  request: LaunchRequest | null;
 }
 
 const initialState: LaunchState = {
@@ -42,7 +42,7 @@ function reducer(state: LaunchState, action: LaunchAction): LaunchState {
       };
     case "game-success":
       return {
-        phase: LaunchPhase.WaitingForTrainer,
+        phase: action.nextPhase,
         errorMessage: null,
         helperLogPath: action.helperLogPath,
       };
@@ -70,9 +70,9 @@ function reducer(state: LaunchState, action: LaunchAction): LaunchState {
 }
 
 function buildLaunchRequest(
-  request: SteamLaunchRequest,
+  request: LaunchRequest,
   phase: LaunchPhase.GameLaunching | LaunchPhase.TrainerLaunching,
-): SteamLaunchRequest {
+): LaunchRequest {
   return phase === LaunchPhase.GameLaunching
     ? {
         ...request,
@@ -88,15 +88,16 @@ function buildLaunchRequest(
 
 export function useLaunchState({
   profileId,
-  steamModeEnabled,
+  method,
   request,
 }: UseLaunchStateArgs) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const hasLaunchRequest = steamModeEnabled && request !== null;
+  const hasLaunchRequest = request !== null;
+  const isTwoStepLaunch = method !== "native";
 
   useEffect(() => {
     dispatch({ type: "reset" });
-  }, [profileId, steamModeEnabled]);
+  }, [method, profileId]);
 
   async function launchGame() {
     if (!hasLaunchRequest || !request) {
@@ -112,6 +113,7 @@ export function useLaunchState({
       dispatch({
         type: "game-success",
         helperLogPath: result.helper_log_path,
+        nextPhase: isTwoStepLaunch ? LaunchPhase.WaitingForTrainer : LaunchPhase.SessionActive,
       });
     } catch (error) {
       dispatch({
@@ -151,47 +153,61 @@ export function useLaunchState({
   }
 
   const statusText = (() => {
-    if (!steamModeEnabled) {
-      return "Steam mode is disabled for this profile.";
-    }
-
     if (!request) {
-      return "Load a Steam profile to start the two-step launch flow.";
+      switch (method) {
+        case "steam_applaunch":
+          return "Select a game executable and Steam metadata to start the Steam launch flow.";
+        case "proton_run":
+          return "Select a game executable and Proton runtime details to start the Proton launch flow.";
+        case "native":
+        default:
+          return "Select a Linux-native game executable to enable launch.";
+      }
     }
 
     switch (state.phase) {
       case LaunchPhase.GameLaunching:
-        return "Launching the game through Steam.";
+        return method === "native" ? "Launching the native game executable." : `Launching the game through ${method === "steam_applaunch" ? "Steam" : "Proton"}.`;
       case LaunchPhase.WaitingForTrainer:
-        return "Game launch is ready. Start the trainer when the game reaches the menu.";
+        return `Game launch is ready. Start the trainer when the game reaches the ${method === "steam_applaunch" ? "menu" : "desired in-game state"}.`;
       case LaunchPhase.TrainerLaunching:
         return "Launching the trainer through Proton.";
       case LaunchPhase.SessionActive:
-        return "Session is active.";
+        return method === "native" ? "Native game session is active." : "Session is active.";
       case LaunchPhase.Idle:
       default:
-        return "Ready to launch the game.";
+        return method === "native" ? "Ready to launch the native game." : "Ready to launch the game.";
     }
   })();
 
   const hintText = (() => {
-    if (!steamModeEnabled) {
-      return "Enable Steam mode and load a profile to use the launch workflow.";
-    }
-
     if (!request) {
-      return "Select a profile that has Steam launch paths configured.";
+      switch (method) {
+        case "steam_applaunch":
+          return "Steam launch needs App ID, compatdata, Proton, and a game path before it can run.";
+        case "proton_run":
+          return "Proton launch needs a game path, prefix path, Proton path, and trainer path for the second step.";
+        case "native":
+        default:
+          return "Native launch only supports Linux executables and does not use the trainer runner flow.";
+      }
     }
 
     if (state.phase === LaunchPhase.WaitingForTrainer) {
-      return "Wait for the game to reach the main menu, then click Launch Trainer.";
+      return method === "steam_applaunch"
+        ? "Wait for the game to reach the main menu, then click Launch Trainer."
+        : "Wait for the game to be ready, then click Launch Trainer to inject into the same prefix.";
     }
 
     if (state.phase === LaunchPhase.SessionActive) {
-      return "The trainer is running. Keep this session open until you are done.";
+      return method === "native"
+        ? "The native game process has been started. Keep this session open while you monitor logs."
+        : "The trainer is running. Keep this session open until you are done.";
     }
 
-    return "The game will start first. The trainer is launched in the second step.";
+    return method === "native"
+      ? "CrossHook will start the Linux-native executable directly."
+      : "The game starts first. The trainer is launched in the second step.";
   })();
 
   const actionLabel =
@@ -207,6 +223,7 @@ export function useLaunchState({
     hasLaunchRequest && state.phase === LaunchPhase.Idle && !isBusy;
   const canLaunchTrainer =
     hasLaunchRequest &&
+    isTwoStepLaunch &&
     state.phase === LaunchPhase.WaitingForTrainer &&
     !isBusy;
 

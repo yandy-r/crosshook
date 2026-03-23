@@ -197,8 +197,13 @@ mod tests {
                     display_name: "Elden Ring".to_string(),
                 },
             },
+            runtime: crate::profile::RuntimeSection {
+                prefix_path: String::new(),
+                proton_path: String::new(),
+                working_directory: String::new(),
+            },
             launch: crate::profile::LaunchSection {
-                method: "proton_run".to_string(),
+                method: "steam_applaunch".to_string(),
             },
         }
     }
@@ -238,7 +243,50 @@ mod tests {
         assert_eq!(imported.trainer.path, "/trainers/elden-ring.exe");
         assert_eq!(imported.steam.compatdata_path, "/steam/compatdata/1245620");
         assert_eq!(imported.steam.launcher.icon_path, "/icons/elden-ring.png");
+        assert_eq!(imported.launch.method, "steam_applaunch");
         assert!(store.base_path.join("elden-ring.toml").exists());
+    }
+
+    #[test]
+    fn load_defaults_runtime_when_runtime_section_is_missing() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile_path = store.base_path.join("legacy.toml");
+
+        fs::create_dir_all(&store.base_path).unwrap();
+        fs::write(
+            &profile_path,
+            r#"[game]
+name = "Legacy"
+executable_path = "/games/legacy.sh"
+
+[trainer]
+path = "/trainers/legacy"
+type = "native"
+
+[injection]
+dll_paths = []
+inject_on_launch = [false, false]
+
+[steam]
+enabled = false
+app_id = ""
+compatdata_path = ""
+proton_path = ""
+
+[steam.launcher]
+icon_path = ""
+display_name = ""
+
+[launch]
+method = "native"
+"#,
+        )
+        .unwrap();
+
+        let loaded = store.load("legacy").unwrap();
+        assert!(loaded.runtime.is_empty());
+        assert_eq!(loaded.launch.method, "native");
     }
 
     #[test]

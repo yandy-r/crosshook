@@ -13,6 +13,8 @@ export interface ProfileData {
   SteamLauncherIconPath: string;
 }
 
+export type LaunchMethod = '' | 'steam_applaunch' | 'proton_run' | 'native';
+
 export interface GameProfile {
   game: {
     name: string;
@@ -36,7 +38,12 @@ export interface GameProfile {
       display_name: string;
     };
   };
+  runtime: {
+    prefix_path: string;
+    proton_path: string;
+    working_directory: string;
+  };
   launch: {
-    method: string;
+    method: LaunchMethod;
   };
 }

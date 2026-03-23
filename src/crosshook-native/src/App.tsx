@@ -11,7 +11,7 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { useCommunityProfiles } from './hooks/useCommunityProfiles';
 import { useGamepadNav } from './hooks/useGamepadNav';
 import { useProfile } from './hooks/useProfile';
-import type { AppSettingsData, RecentFilesData, SteamLaunchRequest } from './types';
+import type { AppSettingsData, GameProfile, LaunchMethod, LaunchRequest, RecentFilesData } from './types';
 
 type AppTab = 'main' | 'settings' | 'community';
 
@@ -49,6 +49,24 @@ function deriveTargetHomePath(steamClientInstallPath: string): string {
   return '';
 }
 
+function resolveLaunchMethod(profile: GameProfile): Exclude<LaunchMethod, ''> {
+  const method = profile.launch.method.trim();
+
+  if (method === 'steam_applaunch' || method === 'proton_run' || method === 'native') {
+    return method;
+  }
+
+  if (profile.steam.enabled) {
+    return 'steam_applaunch';
+  }
+
+  if (profile.game.executable_path.trim().toLowerCase().endsWith('.exe')) {
+    return 'proton_run';
+  }
+
+  return 'native';
+}
+
 export function App() {
   const profileState = useProfile({ autoSelectFirstProfile: false });
   const { profile, profileName, selectProfile } = profileState;
@@ -61,28 +79,61 @@ export function App() {
   const communityState = useCommunityProfiles({
     profilesDirectoryPath: DEFAULT_PROFILES_DIRECTORY,
   });
+  const launchMethod = useMemo(() => resolveLaunchMethod(profile), [profile]);
   const steamClientInstallPath = useMemo(() => {
     return defaultSteamClientInstallPath || deriveSteamClientInstallPath(profile.steam.compatdata_path);
   }, [defaultSteamClientInstallPath, profile.steam.compatdata_path]);
   const targetHomePath = useMemo(() => deriveTargetHomePath(steamClientInstallPath), [steamClientInstallPath]);
 
-  const launchRequest = useMemo<SteamLaunchRequest | null>(() => {
-    if (!profile.steam.enabled) {
+  const launchRequest = useMemo<LaunchRequest | null>(() => {
+    if (!profile.game.executable_path.trim()) {
       return null;
     }
 
     return {
+      method: launchMethod,
       game_path: profile.game.executable_path,
       trainer_path: profile.trainer.path,
       trainer_host_path: profile.trainer.path,
-      steam_app_id: profile.steam.app_id,
-      steam_compat_data_path: profile.steam.compatdata_path,
-      steam_proton_path: profile.steam.proton_path,
-      steam_client_install_path: steamClientInstallPath,
+      steam: {
+        app_id: profile.steam.app_id,
+        compatdata_path: profile.steam.compatdata_path,
+        proton_path: profile.steam.proton_path,
+        steam_client_install_path: steamClientInstallPath,
+      },
+      runtime: {
+        prefix_path: profile.runtime.prefix_path,
+        proton_path: profile.runtime.proton_path,
+        working_directory: profile.runtime.working_directory,
+      },
       launch_trainer_only: false,
       launch_game_only: false,
     };
-  }, [profile, steamClientInstallPath]);
+  }, [launchMethod, profile, steamClientInstallPath]);
+
+  const headingTitle = (() => {
+    switch (launchMethod) {
+      case 'steam_applaunch':
+        return 'Two-step Steam launch';
+      case 'proton_run':
+        return 'Two-step Proton launch';
+      case 'native':
+      default:
+        return 'Native launch';
+    }
+  })();
+
+  const headingCopy = (() => {
+    switch (launchMethod) {
+      case 'steam_applaunch':
+        return 'Launch the game through Steam first, then switch to trainer mode once the game reaches the main menu.';
+      case 'proton_run':
+        return 'Launch the game through Proton first, then launch the trainer into the same configured prefix.';
+      case 'native':
+      default:
+        return 'Launch a Linux-native executable directly without Steam or Proton runner requirements.';
+    }
+  })();
 
   const compatibilityEntries = useMemo(
     () =>
@@ -172,15 +223,10 @@ export function App() {
       <div className="crosshook-shell">
         <header style={{ display: 'grid', gap: '8px' }}>
           <div className="crosshook-heading-eyebrow">CrossHook Native</div>
-          <h1 className="crosshook-heading-title">
-            {profile.steam.enabled ? 'Two-step Steam launch' : 'CrossHook Native'}
-          </h1>
-          {profile.steam.enabled ? (
-            <p className="crosshook-heading-copy">
-              Launch the game first, then switch to trainer mode once the game reaches the main menu. The console below
-              streams helper output.
-            </p>
-          ) : null}
+          <h1 className="crosshook-heading-title">{headingTitle}</h1>
+          <p className="crosshook-heading-copy">
+            {headingCopy} The console below streams launcher output when a runner writes logs.
+          </p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <span className="crosshook-status-chip">Controller mode: {gamepadNav.controllerMode ? 'On' : 'Off'}</span>
             <span className="crosshook-status-chip">Last profile: {settings.last_used_profile || 'none'}</span>
@@ -217,14 +263,14 @@ export function App() {
 
         {activeTab === 'main' ? (
           <div className="stack">
-            <div className="crosshook-layout" style={{ alignItems: profile.steam.enabled ? 'stretch' : 'start' }}>
+            <div className="crosshook-layout" style={{ alignItems: launchMethod === 'steam_applaunch' ? 'stretch' : 'start' }}>
               <div className="stack">
                 <ProfileEditorView state={profileState} />
               </div>
               <div
                 className="stack"
                 style={
-                  profile.steam.enabled
+                  launchMethod === 'steam_applaunch'
                     ? {
                         height: '100%',
                         minHeight: 0,
@@ -235,10 +281,10 @@ export function App() {
               >
                 <LaunchPanel
                   profileId={profileName || 'new-profile'}
-                  steamModeEnabled={profile.steam.enabled}
+                  method={launchMethod}
                   request={launchRequest}
                 />
-                {profile.steam.enabled ? (
+                {launchMethod === 'steam_applaunch' ? (
                   <LauncherExport
                     profile={profile}
                     steamClientInstallPath={steamClientInstallPath}
