@@ -55,15 +55,15 @@ export function App() {
   const [settings, setSettings] = useState<AppSettingsData>(DEFAULT_SETTINGS);
   const [recentFiles, setRecentFiles] = useState<RecentFilesData>(DEFAULT_RECENT_FILES);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
   const [activeTab, setActiveTab] = useState<AppTab>('main');
   const gamepadNav = useGamepadNav();
   const communityState = useCommunityProfiles({
     profilesDirectoryPath: DEFAULT_PROFILES_DIRECTORY,
   });
-  const steamClientInstallPath = useMemo(
-    () => deriveSteamClientInstallPath(profile.steam.compatdata_path),
-    [profile.steam.compatdata_path]
-  );
+  const steamClientInstallPath = useMemo(() => {
+    return defaultSteamClientInstallPath || deriveSteamClientInstallPath(profile.steam.compatdata_path);
+  }, [defaultSteamClientInstallPath, profile.steam.compatdata_path]);
   const targetHomePath = useMemo(() => deriveTargetHomePath(steamClientInstallPath), [steamClientInstallPath]);
 
   const launchRequest = useMemo<SteamLaunchRequest | null>(() => {
@@ -102,9 +102,10 @@ export function App() {
 
     async function loadPreferences() {
       try {
-        const [loadedSettings, loadedRecentFiles] = await Promise.all([
+        const [loadedSettings, loadedRecentFiles, steamClientPath] = await Promise.all([
           invoke<AppSettingsData>('settings_load'),
           invoke<RecentFilesData>('recent_files_load'),
+          invoke<string>('default_steam_client_install_path'),
         ]);
 
         if (!active) {
@@ -113,6 +114,7 @@ export function App() {
 
         setSettings(loadedSettings);
         setRecentFiles(loadedRecentFiles);
+        setDefaultSteamClientInstallPath(steamClientPath);
         setSettingsError(null);
       } catch (error) {
         if (active) {
@@ -170,11 +172,15 @@ export function App() {
       <div className="crosshook-shell">
         <header style={{ display: 'grid', gap: '8px' }}>
           <div className="crosshook-heading-eyebrow">CrossHook Native</div>
-          <h1 className="crosshook-heading-title">Two-step Steam launch</h1>
-          <p className="crosshook-heading-copy">
-            Launch the game first, then switch to trainer mode once the game reaches the main menu. The console below
-            streams helper output.
-          </p>
+          <h1 className="crosshook-heading-title">
+            {profile.steam.enabled ? 'Two-step Steam launch' : 'CrossHook Native'}
+          </h1>
+          {profile.steam.enabled ? (
+            <p className="crosshook-heading-copy">
+              Launch the game first, then switch to trainer mode once the game reaches the main menu. The console below
+              streams helper output.
+            </p>
+          ) : null}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <span className="crosshook-status-chip">Controller mode: {gamepadNav.controllerMode ? 'On' : 'Off'}</span>
             <span className="crosshook-status-chip">Last profile: {settings.last_used_profile || 'none'}</span>

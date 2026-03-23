@@ -56,19 +56,81 @@ log_staged_trainer_status() {
   fi
 }
 
+copy_support_directory_if_present() {
+  local source_dir="$1"
+  local target_dir="$2"
+  local child_name="$3"
+
+  if [[ -d "$source_dir/$child_name" ]]; then
+    mkdir -p "$target_dir"
+    cp -R "$source_dir/$child_name" "$target_dir/"
+    log "Staged trainer support directory: $child_name"
+  fi
+}
+
+stage_trainer_support_files() {
+  local trainer_source_dir="$1"
+  local staged_target_dir="$2"
+  local trainer_file_name="$3"
+  local trainer_base_name="$4"
+  local sibling_file
+  local sibling_name
+
+  shopt -s nullglob
+
+  for sibling_file in "$trainer_source_dir"/*; do
+    sibling_name="$(basename "$sibling_file")"
+
+    if [[ "$sibling_name" == "$trainer_file_name" ]]; then
+      continue
+    fi
+
+    if [[ -f "$sibling_file" ]]; then
+      case "$sibling_name" in
+        "$trainer_base_name".*.json|\
+        "$trainer_base_name".*.config|\
+        "$trainer_base_name".*.ini|\
+        "$trainer_base_name".*.dll|\
+        "$trainer_base_name".*.bin|\
+        "$trainer_base_name".*.dat|\
+        "$trainer_base_name".*.pak)
+          cp -f "$sibling_file" "$staged_target_dir/"
+          log "Staged trainer sidecar file: $sibling_name"
+          ;;
+        *.dll|*.json|*.config|*.ini|*.pak|*.dat|*.bin)
+          cp -f "$sibling_file" "$staged_target_dir/"
+          log "Staged shared trainer dependency: $sibling_name"
+          ;;
+      esac
+    fi
+  done
+
+  shopt -u nullglob
+
+  for support_dir in assets data lib bin runtimes plugins locales cef resources; do
+    copy_support_directory_if_present "$trainer_source_dir" "$staged_target_dir" "$support_dir"
+  done
+}
+
 stage_trainer_into_compatdata() {
-  local trainer_file_name staged_trainer_directory_path
+  local trainer_file_name trainer_base_name trainer_source_dir
+  local staged_trainer_root_path staged_trainer_directory_path
 
   [[ -n "$trainer_host_path" ]] || fail "Missing trainer host path."
   [[ -f "$trainer_host_path" ]] || fail "Trainer host path does not exist as a file: $trainer_host_path"
 
   trainer_file_name="$(basename "$trainer_host_path")"
-  staged_trainer_directory_path="$compatdata/pfx/drive_c/CrossHook/StagedTrainers"
+  trainer_base_name="${trainer_file_name%.*}"
+  trainer_source_dir="$(dirname "$trainer_host_path")"
+  staged_trainer_root_path="$compatdata/pfx/drive_c/CrossHook/StagedTrainers"
+  staged_trainer_directory_path="$staged_trainer_root_path/$trainer_base_name"
   staged_trainer_host_path="$staged_trainer_directory_path/$trainer_file_name"
-  staged_trainer_windows_path="C:\\CrossHook\\StagedTrainers\\$trainer_file_name"
+  staged_trainer_windows_path="C:\\CrossHook\\StagedTrainers\\$trainer_base_name\\$trainer_file_name"
 
+  rm -rf "$staged_trainer_directory_path"
   mkdir -p "$staged_trainer_directory_path"
   cp -f "$trainer_host_path" "$staged_trainer_host_path"
+  stage_trainer_support_files "$trainer_source_dir" "$staged_trainer_directory_path" "$trainer_file_name" "$trainer_base_name"
 
   trainer_path="$staged_trainer_windows_path"
   log "Staged Steam trainer to $trainer_path"
