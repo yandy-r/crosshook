@@ -100,29 +100,37 @@ async fn stream_log_lines(app: AppHandle, log_path: PathBuf, mut child: tokio::p
     let mut last_len = 0usize;
 
     loop {
-        if let Ok(content) = tokio::fs::read_to_string(&log_path).await {
-            if content.len() < last_len {
-                last_len = 0;
-            }
+        match tokio::fs::read_to_string(&log_path).await {
+            Ok(content) => {
+                if content.len() < last_len {
+                    last_len = 0;
+                }
 
-            if content.len() > last_len {
-                let chunk = &content[last_len..];
-                for line in chunk.lines() {
-                    if !line.is_empty() {
-                        if let Err(error) = app.emit("launch-log", line.to_string()) {
-                            tracing::warn!(%error, "failed to emit launch log line; stopping stream");
-                            return;
+                if content.len() > last_len {
+                    let chunk = &content[last_len..];
+                    for line in chunk.lines() {
+                        if !line.is_empty() {
+                            if let Err(error) = app.emit("launch-log", line.to_string()) {
+                                tracing::warn!(%error, "failed to emit launch log line; stopping stream");
+                                return;
+                            }
                         }
                     }
+                    last_len = content.len();
                 }
-                last_len = content.len();
+            }
+            Err(error) => {
+                tracing::warn!(%error, path = %log_path.display(), "failed to read launch log file");
             }
         }
 
         match child.try_wait() {
             Ok(Some(_)) => break,
             Ok(None) => {}
-            Err(_) => break,
+            Err(error) => {
+                tracing::warn!(%error, "failed to check child process status");
+                break;
+            }
         }
 
         tokio::time::sleep(Duration::from_millis(500)).await;

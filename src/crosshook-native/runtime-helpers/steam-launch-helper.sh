@@ -329,9 +329,14 @@ run_proton_with_clean_env() {
 
   # Strip WINE/Proton-specific variables inherited from CrossHook's
   # WINE session so Proton can rebuild its own session state cleanly.
+  # Keep in sync with WINE_ENV_VARS_TO_CLEAR in crosshook-core/src/launch/env.rs.
+  # WINEPREFIX is unset here (inherited from host) and re-exported below for the
+  # trainer's own prefix — it is listed in REQUIRED_PROTON_VARS in env.rs, not
+  # WINE_ENV_VARS_TO_CLEAR, because the Rust path sets rather than clears it.
   unset WINESERVER WINELOADER WINEDLLPATH WINEDLLOVERRIDES WINEDEBUG
   unset WINEESYNC WINEFSYNC WINELOADERNOEXEC WINEPREFIX
   unset WINE_LARGE_ADDRESS_AWARE WINE_DISABLE_KERNEL_WRITEWATCH
+  unset WINE_HEAP_DELAY_FREE WINEFSYNC_SPINCOUNT
   unset LD_PRELOAD LD_LIBRARY_PATH
   unset GST_PLUGIN_PATH GST_PLUGIN_SYSTEM_PATH GST_PLUGIN_SYSTEM_PATH_1_0
   unset SteamGameId SteamAppId GAMEID

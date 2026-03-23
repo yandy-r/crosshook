@@ -53,7 +53,7 @@ When the child process exits (`try_wait` returns `Ok(Some(_))`), the loop breaks
 
 ### C4. Log stream ignores file read errors and child process errors
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **File**: `src-tauri/src/commands/launch.rs:99-127`
 
@@ -62,47 +62,37 @@ Two silent failures in `stream_log_lines`:
 1. Line 103: `if let Ok(content) = tokio::fs::read_to_string(...)` silently skips on read failure (permissions, deleted, disk full).
 2. Line 121: `Err(_) => break` silently ignores `try_wait()` OS errors.
 
-**Fix**: Log errors from both code paths.
+**Resolution**: Both paths now use `match` with `Err(error)` arms that log via `tracing::warn!`.
 
 ### C5. Community tap indexer traverses `.git/` directory
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Code Reviewer
 **File**: `crates/crosshook-core/src/community/index.rs:99-163`
 
 `collect_manifests` recursively walks all subdirectories including `.git/`, causing unnecessary I/O over thousands of git object files and potential errors from permission-restricted git internals.
 
-**Fix**: Skip hidden directories:
-
-```rust
-if path.is_dir() {
-    if path.file_name().and_then(|v| v.to_str()).map_or(false, |n| n.starts_with('.')) {
-        continue;
-    }
-    collect_manifests(root, &path, workspace, index)?;
-    continue;
-}
-```
+**Resolution**: Added a check to skip directories whose name starts with `.` before recursing.
 
 ### C6. Community tap git operations have no timeout
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **File**: `crates/crosshook-core/src/community/taps.rs:184-213, 253-283`
 
 All git operations use `Command::new("git")...output()` which blocks indefinitely. If a remote repo is unreachable (DNS failure, firewall), the `community_sync` Tauri command hangs, freezing the UI.
 
-**Fix**: Use `tokio::process::Command` with a timeout, or set `GIT_HTTP_LOW_SPEED_LIMIT=1000` and `GIT_HTTP_LOW_SPEED_TIME=30` as environment variables on the git process.
+**Resolution**: Introduced a `git_command()` helper that sets `GIT_HTTP_LOW_SPEED_LIMIT=1000` and `GIT_HTTP_LOW_SPEED_TIME=30` on all git processes. Aborts HTTP transfers slower than 1 KB/s sustained for 30 seconds.
 
 ### C7. WINE env var lists have drifted between Rust and shell scripts
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Comment Analyzer
 **Files**: `crates/crosshook-core/src/launch/env.rs:54`, `runtime-helpers/steam-launch-helper.sh:332-341`, `runtime-helpers/steam-host-trainer-runner.sh:214-223`
 
 The `WINE_ENV_VARS_TO_CLEAR` constant in Rust includes `WINE_HEAP_DELAY_FREE` and `WINEFSYNC_SPINCOUNT`, but the shell scripts omit them. Conversely, the shell scripts unset `WINEPREFIX` which is not in the Rust list. No comment explains the intentional divergence.
 
-**Fix**: Add a comment in `env.rs` documenting the intentional divergence. Consider having the Rust side generate or validate the shell script's unset list.
+**Resolution**: Added `WINE_HEAP_DELAY_FREE` and `WINEFSYNC_SPINCOUNT` to both shell scripts' unset lists. The `WINEPREFIX` divergence is intentional (shell scripts clear the inherited host value, Rust sets it via `REQUIRED_PROTON_VARS`) — documented with cross-reference comments in `env.rs` and both shell scripts.
 
 ---
 

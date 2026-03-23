@@ -115,6 +115,13 @@ fn collect_manifests(
         let path = entry.path();
 
         if path.is_dir() {
+            if path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with('.'))
+            {
+                continue;
+            }
             collect_manifests(root, &path, workspace, index)?;
             continue;
         }

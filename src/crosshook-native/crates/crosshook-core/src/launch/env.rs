@@ -1,3 +1,10 @@
+/// Variables cleared before launching a trainer via Proton to prevent host-session bleed.
+///
+/// The runtime helper shell scripts maintain a parallel unset list for the
+/// `steam_applaunch` path. Those scripts also unset `WINEPREFIX` (which is in
+/// `REQUIRED_PROTON_VARS` here, not this list, because the Rust path sets it
+/// rather than clearing it). Keep both lists in sync — see the "Keep in sync"
+/// comments in the shell scripts.
 pub const WINE_ENV_VARS_TO_CLEAR: &[&str] = &[
     "WINESERVER",
     "WINELOADER",

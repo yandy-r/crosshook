@@ -12,6 +12,10 @@ use super::index::{self, CommunityProfileIndex, CommunityProfileIndexError};
 const DEFAULT_COMMUNITY_TAPS_DIR: &str = "crosshook/community/taps";
 const DEFAULT_TAP_BRANCH: &str = "main";
 
+/// Abort HTTP transfers slower than 1 KB/s for 30 seconds.
+const GIT_HTTP_LOW_SPEED_LIMIT: &str = "1000";
+const GIT_HTTP_LOW_SPEED_TIME: &str = "30";
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct CommunityTapSubscription {
@@ -181,7 +185,7 @@ impl CommunityTapStore {
     }
 
     fn clone_tap(&self, workspace: &CommunityTapWorkspace) -> Result<(), CommunityTapError> {
-        let mut command = Command::new("git");
+        let mut command = git_command();
         command
             .arg("clone")
             .arg("--branch")
@@ -228,7 +232,7 @@ impl CommunityTapStore {
     }
 
     fn rev_parse_head(&self, path: &Path) -> Result<String, CommunityTapError> {
-        let output = Command::new("git")
+        let output = git_command()
             .arg("-C")
             .arg(path)
             .args(["rev-parse", "HEAD"])
@@ -256,7 +260,7 @@ impl CommunityTapStore {
         action: &'static str,
         args: [&str; N],
     ) -> Result<(), CommunityTapError> {
-        let output = Command::new("git")
+        let output = git_command()
             .arg("-C")
             .arg(&workspace.local_path)
             .args(args)
@@ -335,6 +339,14 @@ impl CommunityTapSubscription {
             slug
         }
     }
+}
+
+fn git_command() -> Command {
+    let mut command = Command::new("git");
+    command
+        .env("GIT_HTTP_LOW_SPEED_LIMIT", GIT_HTTP_LOW_SPEED_LIMIT)
+        .env("GIT_HTTP_LOW_SPEED_TIME", GIT_HTTP_LOW_SPEED_TIME);
+    command
 }
 
 fn slugify(value: &str) -> String {
