@@ -6,9 +6,19 @@ This file is generated with `git-cliff` from the repository history and release 
 ## [v0.2.0] - 2026-03-23
 
 
+### Bug Fixes
+
+- **native:** Align build and release versioning ([`bbd9ed9`](https://github.com/yandy-r/crosshook/commit/bbd9ed9cd98a551c9c0b5a73e7ead0ab65aa0813))
+
+
 ### Features
 
 - Implement the platform-native-ui native app feature set ([#20](https://github.com/yandy-r/crosshook/issues/20)) ([`246a5ea`](https://github.com/yandy-r/crosshook/commit/246a5ea374ab9606e9a51d79642a69e624fa8926))
+
+
+### Other
+
+- Bump esbuild ([#21](https://github.com/yandy-r/crosshook/issues/21)) ([`7871738`](https://github.com/yandy-r/crosshook/commit/78717382dba3bfde0e5c759ab98e8b59d432a152))
 
 
 ## [v0.1.1] - 2026-03-23
