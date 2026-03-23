@@ -52,6 +52,28 @@ jobs:
         working-directory: src/crosshook-native
         run: npm ci
 
+      - name: Verify native version matches release tag
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          manifest_version="$(
+            awk '
+              $0 == "[workspace.package]" { in_section=1; next }
+              in_section && /^\[/ { exit }
+              in_section && $1 == "version" { gsub(/"/, "", $3); print $3; exit }
+            ' src/crosshook-native/Cargo.toml
+          )"
+
+          [[ -n "$manifest_version" ]] || {
+            echo "Failed to read native workspace version from src/crosshook-native/Cargo.toml" >&2
+            exit 1
+          }
+
+          [[ "$manifest_version" == "$tag_version" ]] || {
+            echo "Release tag version ($tag_version) does not match native workspace version ($manifest_version)" >&2
+            exit 1
+          }
+
       - name: Run crosshook-core tests
         env:
           CARGO_HOME: /tmp/cargo-home
