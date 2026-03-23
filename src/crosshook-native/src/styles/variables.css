@@ -1,0 +1,48 @@
+:root {
+  color-scheme: dark;
+
+  --crosshook-color-bg: #1a1a2e;
+  --crosshook-color-bg-elevated: #20243d;
+  --crosshook-color-surface: #12172a;
+  --crosshook-color-surface-strong: #0c1120;
+  --crosshook-color-border: rgba(224, 224, 224, 0.12);
+  --crosshook-color-border-strong: rgba(224, 224, 224, 0.22);
+  --crosshook-color-text: #e0e0e0;
+  --crosshook-color-text-muted: rgba(224, 224, 224, 0.76);
+  --crosshook-color-text-subtle: rgba(224, 224, 224, 0.56);
+  --crosshook-color-accent: #0078d4;
+  --crosshook-color-accent-strong: #2da3ff;
+  --crosshook-color-accent-soft: rgba(0, 120, 212, 0.18);
+  --crosshook-color-success: #28c76f;
+  --crosshook-color-warning: #f5c542;
+  --crosshook-color-danger: #ff758f;
+
+  --crosshook-font-body: 'Avenir Next', 'Segoe UI', 'Helvetica Neue', system-ui, -apple-system, sans-serif;
+  --crosshook-font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+
+  --crosshook-shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.32);
+  --crosshook-shadow-strong: 0 28px 70px rgba(0, 0, 0, 0.42);
+  --crosshook-radius-lg: 20px;
+  --crosshook-radius-md: 14px;
+  --crosshook-radius-sm: 10px;
+  --crosshook-content-width: 1280px;
+  --crosshook-touch-target-min: 48px;
+  --crosshook-grid-gap: 20px;
+  --crosshook-page-padding: 32px;
+  --crosshook-transition-fast: 140ms;
+  --crosshook-transition-standard: 220ms;
+}
+
+@media (max-width: 1360px) {
+  :root {
+    --crosshook-page-padding: 20px;
+    --crosshook-grid-gap: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --crosshook-page-padding: 16px;
+    --crosshook-grid-gap: 14px;
+  }
+}

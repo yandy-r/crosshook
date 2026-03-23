@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CrossHook",
+  "version": "0.1.0",
+  "identifier": "com.crosshook.native",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "CrossHook",
+        "width": 1280,
+        "height": 800,
+        "theme": "Dark",
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["appimage"],
+    "resources": ["../runtime-helpers/*.sh"],
+    "icon": ["icons/icon.png"]
+  }
+}
