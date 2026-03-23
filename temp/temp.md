@@ -38,10 +38,10 @@ Go through the @docs/plans/progressive-disclosure plan and lets create a github 
 
 ## PR Review Correction
 
-Let's validate not just the status, but that the issues are real, and fix Test Coverage issues TC-1 - TC-8.
+Let's validate not just the status, but that the issues are real, and fix Important issues I1-I4.
 
-- file: [@pr-8-review.md](file:///home/yandy/Projects/github.com/yandy-r/crosshook/docs/pr-reviews/pr-8-review.md)
+- file: [@pr-20-review.md](file:///home/yandy/Projects/github.com/yandy-r/crosshook/docs/pr-reviews/pr-20-review.md)
 - validate before implementing
 - run targeted tests
-- update doc when complete ([@pr-8-review.md](file:///home/yandy/Projects/github.com/yandy-r/crosshook/docs/pr-reviews/pr-8-review.md))
+- update doc when complete ([@pr-20-review.md](file:///home/yandy/Projects/github.com/yandy-r/crosshook/docs/pr-reviews/pr-20-review.md))
 - when confirmed fix, commit progress
