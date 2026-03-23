@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-CrossHook's native Linux UI replaces the C#/WinForms application with a platform-native application that operates **outside** the WINE environment, solving the fundamental problem where trainers running inside WINE cannot access game memory. The app wraps the existing, proven shell-script-based trainer launch pipeline (`steam-launch-helper.sh`, `steam-host-trainer-runner.sh`) in a clean desktop and controller-friendly UI, providing Steam library auto-discovery, profile management, and process orchestration. The recommended technology is **Rust** with either **Tauri v2** (Rust backend + web frontend for cross-platform reach) or **GTK4 + libadwaita** (for maximum native Linux integration), distributed as an **AppImage** to avoid Flatpak sandbox restrictions that block `/proc` and `ptrace` access. The primary risk is maintaining two codebases (WinForms + native), mitigated by freezing the WinForms app at its current feature set.
+CrossHook's native Linux UI replaces the C#/WinForms application with a platform-native application that operates **outside** the WINE environment, solving the fundamental problem where trainers running inside WINE cannot access game memory. The app wraps the existing, proven shell-script-based trainer launch pipeline (`steam-launch-helper.sh`, `steam-host-trainer-runner.sh`) in a clean desktop and controller-friendly UI, providing Steam library auto-discovery, profile management, and process orchestration. The technology stack is **Tauri v2** (Rust backend + React/TypeScript frontend via Vite), targeting Linux first then macOS and Windows. Distribution is via **AppImage** to avoid Flatpak sandbox restrictions that block `/proc` and `ptrace` access. The primary risk is maintaining two codebases (WinForms + native), mitigated by freezing the WinForms app at its current feature set.
 
 ## External Dependencies
 
@@ -43,10 +43,11 @@ CrossHook's native Linux UI replaces the C#/WinForms application with a platform
 | `clap`                 | 4.x     | CLI argument parsing                                                | `cargo add clap --features derive`        |
 | `tracing`              | latest  | Structured logging                                                  | `cargo add tracing tracing-subscriber`    |
 
-**UI Framework** (see Decisions Needed):
+**UI Framework** (decided):
 
-- **Option A**: `gtk4` (0.9+) + `libadwaita` (0.7+) + `relm4` — native GNOME integration
-- **Option B**: `tauri` (2.x) + Svelte/TypeScript frontend — cross-platform, smaller binary
+- **Tauri v2** (2.x) — Rust backend with IPC to frontend
+- **React + TypeScript** via Vite — frontend UI
+- Uses system WebView: WebKitGTK (Linux), WebKit (macOS), WebView2 (Windows)
 
 ### External Documentation
 
@@ -279,14 +280,23 @@ Examples:
 New `src/crosshook-linux/` directory within the existing monorepo:
 
 ```
-src/crosshook-linux/
+src/crosshook-native/
   Cargo.toml                    # Workspace root
   crates/
-    crosshook-core/src/         # Shared library: process, memory, injection, steam, profiles
+    crosshook-core/src/         # Shared Rust library: process, memory, injection, steam, profiles
     crosshook-cli/src/          # Headless CLI binary
-    crosshook-gtk/src/          # GTK4 UI binary (if GTK4 chosen)
-    crosshook-tauri/src-tauri/  # Tauri backend (if Tauri chosen)
-    crosshook-tauri/src/        # Tauri web frontend
+  src-tauri/
+    src/                        # Tauri Rust backend (IPC commands, plugin setup)
+    Cargo.toml
+    tauri.conf.json
+  src/                          # React + TypeScript frontend (Vite)
+    App.tsx
+    components/
+    hooks/
+    styles/
+  package.json
+  vite.config.ts
+  tsconfig.json
 ```
 
 #### Files to Preserve/Reference (Porting Sources)
@@ -386,14 +396,16 @@ This avoids reimplementing any Win32 P/Invoke, DLL injection, or memory manageme
 
 ### Technology Decisions
 
-| Decision           | Recommendation                                               | Rationale                                                                                                                         |
-| ------------------ | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| Language           | Rust                                                         | Zero-cost abstractions for `/proc`/`ptrace`; memory safety critical for process manipulation; single static binary for Steam Deck |
-| Profile Format     | TOML (with legacy `.profile` reader)                         | Human-readable, supports nesting, excellent `serde` support                                                                       |
-| Process Monitoring | `pidfd_open` + `poll` (primary), `/proc` polling fallback    | Race-free, available on Linux 5.3+ (SteamOS ships 6.1+)                                                                           |
-| Trainer Launch     | `proton run` (primary), ptrace injection (optional advanced) | Proven pattern from existing scripts; ptrace is fragile against WINE internals                                                    |
-| Project Structure  | Monorepo (`src/crosshook-linux/`)                            | Share scripts, profile format spec, CI infrastructure with WinForms app                                                           |
-| Distribution       | AppImage (primary) + AUR PKGBUILD                            | AppImage: no sandbox, single file, survives SteamOS updates. NOT Flatpak (blocks `/proc`/`ptrace`)                                |
+| Decision           | Choice                                                       | Rationale                                                                                                                                   |
+| ------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI Framework       | Tauri v2 (Rust + React/TypeScript via Vite)                  | Cross-platform (Linux/macOS/Windows); system WebView (~5-10MB binary); fast UI iteration with React HMR; WebKitGTK pre-installed on SteamOS |
+| Backend Language   | Rust                                                         | Zero-cost abstractions for `/proc`/`ptrace`; memory safety critical for process manipulation; single static binary for Steam Deck           |
+| Frontend           | React + TypeScript + Vite                                    | Largest ecosystem, best Tauri community support, mature state management for complex launch flows, deep talent pool                         |
+| Profile Format     | TOML (with legacy `.profile` reader)                         | Human-readable, supports nesting, excellent `serde` support                                                                                 |
+| Process Monitoring | `pidfd_open` + `poll` (primary), `/proc` polling fallback    | Race-free, available on Linux 5.3+ (SteamOS ships 6.1+)                                                                                     |
+| Trainer Launch     | `proton run` (primary), ptrace injection (optional advanced) | Proven pattern from existing scripts; ptrace is fragile against WINE internals                                                              |
+| Project Structure  | Monorepo (`src/crosshook-native/`)                           | Share scripts, profile format spec, CI infrastructure with WinForms app                                                                     |
+| Distribution       | AppImage (primary) + AUR PKGBUILD                            | AppImage: no sandbox, single file, survives SteamOS updates. NOT Flatpak (blocks `/proc`/`ptrace`)                                          |
 
 ### Quick Wins
 
@@ -420,14 +432,14 @@ This avoids reimplementing any Win32 P/Invoke, DLL injection, or memory manageme
 | WINE env variable contract changes between Proton versions | Medium     | Medium | Scripts already strip ALL vars and reconstruct clean env; monitor Proton changelogs                  |
 | Two-codebase maintenance burden                            | High       | Medium | Freeze WinForms at current feature set; native app is the future                                     |
 | Linux kernel tightens ptrace restrictions                  | Low        | Medium | Primary workflow (Proton run) doesn't use ptrace; only advanced features affected                    |
-| UI framework choice impacts Steam Deck UX                  | Medium     | Medium | Prototype both GTK4 and Tauri early; validate controller navigation before committing                |
+| WebKitGTK version gaps on minimal distros                  | Low        | Medium | AppImage bundles dependencies; WebKitGTK pre-installed on SteamOS and all major distros              |
 
 ### Integration Challenges
 
 - **Steam client detection on immutable distros**: Must check Flatpak's `~/.var/app/com.valvesoftware.Steam/data/Steam` in addition to standard paths
 - **Proton symlink resolution**: Existing `dosdevices` resolution logic needed only for legacy profile import
 - **Process visibility across WINE boundaries**: WINE processes appear as standard Linux processes (confirmed by existing `pgrep -af` usage); names may be truncated
-- **Gamescope integration**: GTK4/Tauri runs in desktop session, not inside Gamescope (correct — app is a launcher, not overlay)
+- **Gamescope integration**: Tauri runs in desktop session, not inside Gamescope (correct — app is a launcher, not overlay)
 
 ### Security Considerations
 
@@ -491,10 +503,8 @@ This avoids reimplementing any Win32 P/Invoke, DLL injection, or memory manageme
 
 ## Decisions Needed
 
-1. **UI Framework: Tauri v2 vs GTK4 + libadwaita**
-   - Options: Tauri v2 (Rust + web frontend), GTK4/libadwaita (pure Rust native)
-   - Impact: Tauri = cross-platform, smaller binary (~5-10MB), faster UI iteration, WebKitGTK dependency. GTK4 = maximum native feel, GNOME integration, no webview, Linux-only.
-   - Recommendation: **Tauri v2** for cross-platform ambition and Steam Deck compatibility (WebKitGTK pre-installed on SteamOS). Close decision — GTK4 wins on native feel.
+1. **~~UI Framework~~** — **DECIDED: Tauri v2 + React/TypeScript + Vite**
+   - Cross-platform (Linux → macOS → Windows), system WebView, ~5-10MB binary, fast UI iteration with React HMR
 
 2. **Profile Format Migration**
    - Options: JSON from day one, TOML from day one, keep legacy `Key=Value` indefinitely

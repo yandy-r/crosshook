@@ -1,4 +1,4 @@
-# Recommendations: platform-native-linux-ui
+# Recommendations: platform-native-ui
 
 ## Executive Summary
 

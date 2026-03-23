@@ -1,4 +1,4 @@
-# Technical Specifications: platform-native-linux-ui
+# Technical Specifications: platform-native-ui
 
 ## Executive Summary
 

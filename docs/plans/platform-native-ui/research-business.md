@@ -1,4 +1,4 @@
-# Business Logic Research: platform-native-linux-ui
+# Business Logic Research: platform-native-ui
 
 ## Executive Summary
 
