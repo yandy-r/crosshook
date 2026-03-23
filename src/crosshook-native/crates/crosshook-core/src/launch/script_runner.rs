@@ -62,7 +62,7 @@ pub fn build_proton_game_command(
     command.arg(request.game_path.trim());
     command.env_clear();
     apply_host_environment(&mut command);
-    apply_runtime_proton_environment(&mut command, request.runtime.prefix_path.trim());
+    apply_runtime_proton_environment(&mut command, request);
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -86,7 +86,7 @@ pub fn build_proton_trainer_command(
     command.arg(staged_trainer_path);
     command.env_clear();
     apply_host_environment(&mut command);
-    apply_runtime_proton_environment(&mut command, request.runtime.prefix_path.trim());
+    apply_runtime_proton_environment(&mut command, request);
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -156,26 +156,59 @@ fn apply_steam_proton_environment(command: &mut Command, request: &LaunchRequest
     );
 }
 
-fn apply_runtime_proton_environment(command: &mut Command, prefix_path: &str) {
+fn apply_runtime_proton_environment(command: &mut Command, request: &LaunchRequest) {
+    let prefix_path = request.runtime.prefix_path.trim();
     set_env(command, "WINEPREFIX", prefix_path);
 
     let prefix = Path::new(prefix_path);
-    if prefix.file_name().and_then(|value| value.to_str()) == Some("pfx") {
-        if let Some(parent) = prefix.parent() {
-            set_env(
-                command,
-                "STEAM_COMPAT_DATA_PATH",
-                parent.to_string_lossy().as_ref(),
-            );
-        }
+    let compat_data_path = if prefix.file_name().and_then(|value| value.to_str()) == Some("pfx") {
+        prefix.parent().unwrap_or(prefix)
+    } else {
+        prefix
+    };
+
+    set_env(
+        command,
+        "STEAM_COMPAT_DATA_PATH",
+        compat_data_path.to_string_lossy().as_ref(),
+    );
+
+    if let Some(steam_client_install_path) =
+        resolve_steam_client_install_path(request.steam.steam_client_install_path.trim())
+    {
+        set_env(
+            command,
+            "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+            steam_client_install_path.as_str(),
+        );
+    }
+}
+
+fn resolve_steam_client_install_path(configured_path: &str) -> Option<String> {
+    let trimmed_configured_path = configured_path.trim();
+    if !trimmed_configured_path.is_empty() {
+        return Some(trimmed_configured_path.to_string());
     }
 
     if let Ok(steam_client_install_path) = env::var("STEAM_COMPAT_CLIENT_INSTALL_PATH") {
         let trimmed = steam_client_install_path.trim();
         if !trimmed.is_empty() {
-            set_env(command, "STEAM_COMPAT_CLIENT_INSTALL_PATH", trimmed);
+            return Some(trimmed.to_string());
         }
     }
+
+    let home_path = env::var_os("HOME").map(PathBuf::from)?;
+    for candidate in [
+        home_path.join(".local/share/Steam"),
+        home_path.join(".steam/root"),
+        home_path.join(".var/app/com.valvesoftware.Steam/data/Steam"),
+    ] {
+        if candidate.join("steamapps").is_dir() {
+            return Some(candidate.to_string_lossy().into_owned());
+        }
+    }
+
+    None
 }
 
 fn env_value(key: &str, default: &str) -> String {
@@ -517,5 +550,64 @@ mod tests {
         assert!(prefix_path
             .join("drive_c/CrossHook/StagedTrainers/sample/sample.ini")
             .exists());
+    }
+
+    #[test]
+    fn proton_game_command_sets_compat_data_path_for_standalone_prefixes() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let prefix_path = temp_dir.path().join("standalone-prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let game_path = temp_dir.path().join("game.exe");
+        let log_path = temp_dir.path().join("game.log");
+        let steam_client_path = temp_dir.path().join("steam");
+
+        fs::create_dir_all(prefix_path.join("drive_c")).expect("prefix dir");
+        fs::create_dir_all(steam_client_path.join("steamapps")).expect("steam client dir");
+        write_executable_file(&proton_path);
+        fs::write(&game_path, b"game").expect("game exe");
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: game_path.to_string_lossy().into_owned(),
+            trainer_path: String::new(),
+            trainer_host_path: String::new(),
+            steam: crate::launch::SteamLaunchConfig {
+                app_id: String::new(),
+                compatdata_path: String::new(),
+                proton_path: String::new(),
+                steam_client_install_path: steam_client_path.to_string_lossy().into_owned(),
+            },
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: String::new(),
+            },
+            launch_trainer_only: false,
+            launch_game_only: true,
+        };
+
+        let command = build_proton_game_command(&request, &log_path).expect("game command");
+        let envs = command
+            .as_std()
+            .get_envs()
+            .map(|(key, value)| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.map(|inner| inner.to_string_lossy().into_owned()),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert!(envs.iter().any(|(key, value)| {
+            key == "STEAM_COMPAT_DATA_PATH"
+                && value.as_deref() == Some(prefix_path.to_string_lossy().as_ref())
+        }));
+        assert!(envs.iter().any(|(key, value)| {
+            key == "WINEPREFIX" && value.as_deref() == Some(prefix_path.to_string_lossy().as_ref())
+        }));
+        assert!(envs.iter().any(|(key, value)| {
+            key == "STEAM_COMPAT_CLIENT_INSTALL_PATH"
+                && value.as_deref() == Some(steam_client_path.to_string_lossy().as_ref())
+        }));
     }
 }
