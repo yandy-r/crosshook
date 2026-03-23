@@ -1,0 +1,26 @@
+[package]
+name = "crosshook-native"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[lib]
+name = "crosshook_native"
+path = "src/lib.rs"
+
+[[bin]]
+name = "crosshook-native"
+path = "src/main.rs"
+
+[dependencies]
+crosshook-core = { path = "../crates/crosshook-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2" }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+tokio = { version = "1", features = ["fs", "process", "time"] }
+
+[build-dependencies]
+tauri-build = { version = "2" }
