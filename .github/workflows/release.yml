@@ -85,12 +85,17 @@ jobs:
           DIST_DIR: ${{ github.workspace }}/dist
         run: ./scripts/build-native.sh
 
+      - name: Select release AppImage asset
+        run: |
+          set -euo pipefail
+          echo "RELEASE_APPIMAGE=dist/CrossHook_${GITHUB_REF_NAME#v}_amd64.AppImage" >> "$GITHUB_ENV"
+
       - name: Upload AppImage to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          files: dist/*.AppImage
+          files: ${{ env.RELEASE_APPIMAGE }}
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
