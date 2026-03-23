@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://crosshook.app/schemas/community-profile.json",
+  "title": "CrossHook Community Profile Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "metadata", "profile"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Community profile schema version."
+    },
+    "metadata": {
+      "$ref": "#/$defs/CommunityProfileMetadata"
+    },
+    "profile": {
+      "$ref": "#/$defs/GameProfile"
+    }
+  },
+  "$defs": {
+    "CommunityProfileMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "game_name",
+        "game_version",
+        "trainer_name",
+        "trainer_version",
+        "proton_version",
+        "platform_tags",
+        "compatibility_rating",
+        "author",
+        "description"
+      ],
+      "properties": {
+        "game_name": { "type": "string" },
+        "game_version": { "type": "string" },
+        "trainer_name": { "type": "string" },
+        "trainer_version": { "type": "string" },
+        "proton_version": { "type": "string" },
+        "platform_tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "compatibility_rating": {
+          "$ref": "#/$defs/CompatibilityRating"
+        },
+        "author": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "CompatibilityRating": {
+      "type": "string",
+      "enum": ["unknown", "broken", "partial", "working", "platinum"]
+    },
+    "GameProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["game", "trainer", "injection", "steam", "launch"],
+      "properties": {
+        "game": { "$ref": "#/$defs/GameSection" },
+        "trainer": { "$ref": "#/$defs/TrainerSection" },
+        "injection": { "$ref": "#/$defs/InjectionSection" },
+        "steam": { "$ref": "#/$defs/SteamSection" },
+        "launch": { "$ref": "#/$defs/LaunchSection" }
+      }
+    },
+    "GameSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "executable_path"],
+      "properties": {
+        "name": { "type": "string" },
+        "executable_path": { "type": "string" }
+      }
+    },
+    "TrainerSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "type"],
+      "properties": {
+        "path": { "type": "string" },
+        "type": { "type": "string" }
+      }
+    },
+    "InjectionSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dll_paths", "inject_on_launch"],
+      "properties": {
+        "dll_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "inject_on_launch": {
+          "type": "array",
+          "items": { "type": "boolean" }
+        }
+      }
+    },
+    "SteamSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "app_id", "compatdata_path", "proton_path", "launcher"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "app_id": { "type": "string" },
+        "compatdata_path": { "type": "string" },
+        "proton_path": { "type": "string" },
+        "launcher": { "$ref": "#/$defs/LauncherSection" }
+      }
+    },
+    "LauncherSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["icon_path", "display_name"],
+      "properties": {
+        "icon_path": { "type": "string" },
+        "display_name": { "type": "string" }
+      }
+    },
+    "LaunchSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method"],
+      "properties": {
+        "method": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,58 +1,58 @@
-import type { CSSProperties, ChangeEvent } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
-import AutoPopulate from "./AutoPopulate";
-import LauncherExport from "./LauncherExport";
-import { useProfile, type UseProfileResult } from "../hooks/useProfile";
+import type { CSSProperties, ChangeEvent } from 'react';
+import { open } from '@tauri-apps/plugin-dialog';
+import AutoPopulate from './AutoPopulate';
+import { useProfile, type UseProfileResult } from '../hooks/useProfile';
 
 const panelStyle: CSSProperties = {
-  background: "rgba(13, 20, 31, 0.92)",
-  border: "1px solid rgba(120, 145, 177, 0.2)",
+  background: 'rgba(13, 20, 31, 0.92)',
+  border: '1px solid rgba(120, 145, 177, 0.2)',
   borderRadius: 18,
-  boxShadow: "0 24px 60px rgba(0, 0, 0, 0.35)",
+  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
   padding: 20,
 };
 
 const fieldStyle: CSSProperties = {
-  display: "grid",
+  display: 'grid',
   gap: 8,
 };
 
 const inputStyle: CSSProperties = {
-  width: "100%",
+  width: '100%',
+  minWidth: 0,
   minHeight: 44,
   borderRadius: 12,
-  border: "1px solid rgba(120, 145, 177, 0.35)",
-  background: "#08111c",
-  color: "#f3f6fb",
-  padding: "0 14px",
-  boxSizing: "border-box",
+  border: '1px solid rgba(120, 145, 177, 0.35)',
+  background: '#08111c',
+  color: '#f3f6fb',
+  padding: '0 14px',
+  boxSizing: 'border-box',
 };
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: "#b8c4d7",
-  letterSpacing: "0.02em",
+  color: '#b8c4d7',
+  letterSpacing: '0.02em',
 };
 
 const buttonStyle: CSSProperties = {
   minHeight: 42,
   borderRadius: 12,
-  border: "1px solid rgba(120, 145, 177, 0.35)",
-  background: "linear-gradient(180deg, #1a2b45 0%, #132034 100%)",
-  color: "#f3f6fb",
-  padding: "0 14px",
-  cursor: "pointer",
+  border: '1px solid rgba(120, 145, 177, 0.35)',
+  background: 'linear-gradient(180deg, #1a2b45 0%, #132034 100%)',
+  color: '#f3f6fb',
+  padding: '0 14px',
+  cursor: 'pointer',
 };
 
 const subtleButtonStyle: CSSProperties = {
   ...buttonStyle,
-  background: "#0b1624",
+  background: '#0b1624',
 };
 
 const helperStyle: CSSProperties = {
   margin: 0,
-  color: "#99a8bd",
+  color: '#99a8bd',
   fontSize: 13,
   lineHeight: 1.5,
 };
@@ -68,7 +68,7 @@ function FieldRow(props: {
   return (
     <div style={fieldStyle}>
       <label style={labelStyle}>{props.label}</label>
-      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
         <input
           style={{ ...inputStyle, flex: 1 }}
           value={props.value}
@@ -77,7 +77,7 @@ function FieldRow(props: {
         />
         {props.onBrowse ? (
           <button type="button" style={subtleButtonStyle} onClick={props.onBrowse}>
-            {props.browseLabel ?? "Browse"}
+            {props.browseLabel ?? 'Browse'}
           </button>
         ) : null}
       </div>
@@ -115,23 +115,11 @@ async function chooseDirectory(title: string) {
 }
 
 function deriveSteamClientInstallPath(compatdataPath: string): string {
-  const marker = "/steamapps/compatdata/";
-  const normalized = compatdataPath.trim().replace(/\\/g, "/");
+  const marker = '/steamapps/compatdata/';
+  const normalized = compatdataPath.trim().replace(/\\/g, '/');
   const index = normalized.indexOf(marker);
 
-  return index >= 0 ? normalized.slice(0, index) : "";
-}
-
-function deriveTargetHomePath(steamClientInstallPath: string): string {
-  const normalized = steamClientInstallPath.trim().replace(/\\/g, "/");
-
-  for (const suffix of ["/.local/share/Steam", "/.steam/root"]) {
-    if (normalized.endsWith(suffix)) {
-      return normalized.slice(0, -suffix.length);
-    }
-  }
-
-  return "";
+  return index >= 0 ? normalized.slice(0, index) : '';
 }
 
 export interface ProfileEditorProps {
@@ -160,15 +148,12 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
 
   const canSave = profileName.trim().length > 0 && !saving && !deleting && !loading;
   const canDelete = profileExists && !saving && !deleting && !loading;
-  const steamClientInstallPath = deriveSteamClientInstallPath(
-    profile.steam.compatdata_path,
-  );
-  const targetHomePath = deriveTargetHomePath(steamClientInstallPath);
+  const steamClientInstallPath = deriveSteamClientInstallPath(profile.steam.compatdata_path);
 
   return (
     <section style={panelStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center" }}>
-        <div style={{ display: "grid", gap: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
+        <div style={{ display: 'grid', gap: 6 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Profile</h2>
           <p style={helperStyle}>Select an existing profile or type a new name before saving.</p>
         </div>
@@ -177,7 +162,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
         </button>
       </div>
 
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr auto" }}>
+      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr auto' }}>
         <div style={fieldStyle}>
           <label style={labelStyle}>Profile Name</label>
           <input
@@ -211,7 +196,19 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(2, minmax(0, 1fr))", marginTop: 16 }}>
+      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
+        <FieldRow
+          label="Game Name"
+          value={profile.game.name}
+          onChange={(value) =>
+            updateProfile((current) => ({
+              ...current,
+              game: { ...current.game, name: value },
+            }))
+          }
+          placeholder="God of War Ragnarok"
+        />
+
         <FieldRow
           label="Game Path"
           value={profile.game.executable_path}
@@ -224,8 +221,8 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
           placeholder="/path/to/game.exe"
           browseLabel="Browse"
           onBrowse={async () => {
-            const path = await chooseFile("Select Game Executable", [
-              { name: "Windows Executable", extensions: ["exe"] },
+            const path = await chooseFile('Select Game Executable', [
+              { name: 'Windows Executable', extensions: ['exe'] },
             ]);
 
             if (path) {
@@ -249,8 +246,8 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
           placeholder="/path/to/trainer.exe"
           browseLabel="Browse"
           onBrowse={async () => {
-            const path = await chooseFile("Select Trainer Executable", [
-              { name: "Windows Executable", extensions: ["exe"] },
+            const path = await chooseFile('Select Trainer Executable', [
+              { name: 'Windows Executable', extensions: ['exe'] },
             ]);
 
             if (path) {
@@ -263,7 +260,9 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
         />
       </div>
 
-      <label style={{ display: "flex", alignItems: "center", gap: 10, color: "#d9e3f0", fontWeight: 600, marginTop: 16 }}>
+      <label
+        style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#d9e3f0', fontWeight: 600, marginTop: 16 }}
+      >
         <input
           type="checkbox"
           checked={profile.steam.enabled}
@@ -279,7 +278,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
 
       {profile.steam.enabled ? (
         <>
-          <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(2, minmax(0, 1fr))", marginTop: 16 }}>
+          <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
             <FieldRow
               label="Steam App ID"
               value={profile.steam.app_id}
@@ -304,7 +303,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
               placeholder="/home/user/.local/share/Steam/steamapps/compatdata/1245620"
               browseLabel="Browse"
               onBrowse={async () => {
-                const path = await chooseDirectory("Select Steam Compatdata Directory");
+                const path = await chooseDirectory('Select Steam Compatdata Directory');
 
                 if (path) {
                   updateProfile((current) => ({
@@ -327,7 +326,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
               placeholder="/home/user/.steam/root/steamapps/common/Proton - Experimental/proton"
               browseLabel="Browse"
               onBrowse={async () => {
-                const path = await chooseFile("Select Proton Executable");
+                const path = await chooseFile('Select Proton Executable');
 
                 if (path) {
                   updateProfile((current) => ({
@@ -336,6 +335,21 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
                   }));
                 }
               }}
+            />
+
+            <FieldRow
+              label="Launcher Display Name"
+              value={profile.steam.launcher.display_name}
+              onChange={(value) =>
+                updateProfile((current) => ({
+                  ...current,
+                  steam: {
+                    ...current.steam,
+                    launcher: { ...current.steam.launcher, display_name: value },
+                  },
+                }))
+              }
+              placeholder="God of War Ragnarok Trainer"
             />
 
             <FieldRow
@@ -353,8 +367,8 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
               placeholder="/path/to/icon.png"
               browseLabel="Browse"
               onBrowse={async () => {
-                const path = await chooseFile("Select Launcher Icon", [
-                  { name: "Images", extensions: ["png", "jpg", "jpeg"] },
+                const path = await chooseFile('Select Launcher Icon', [
+                  { name: 'Images', extensions: ['png', 'jpg', 'jpeg'] },
                 ]);
 
                 if (path) {
@@ -370,7 +384,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
             />
           </div>
 
-          <div style={{ display: "grid", gap: 16, marginTop: 18 }}>
+          <div style={{ display: 'grid', gap: 16, marginTop: 18 }}>
             <AutoPopulate
               gamePath={profile.game.executable_path}
               steamClientInstallPath={steamClientInstallPath}
@@ -396,25 +410,19 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
                 }))
               }
             />
-
-            <LauncherExport
-              profile={profile}
-              steamClientInstallPath={steamClientInstallPath}
-              targetHomePath={targetHomePath}
-            />
           </div>
         </>
       ) : null}
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 18 }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
         <button type="button" style={buttonStyle} onClick={() => void saveProfile()} disabled={!canSave}>
-          {saving ? "Saving..." : "Save"}
+          {saving ? 'Saving...' : 'Save'}
         </button>
         <button type="button" style={subtleButtonStyle} onClick={() => void deleteProfile()} disabled={!canDelete}>
-          {deleting ? "Deleting..." : "Delete"}
+          {deleting ? 'Deleting...' : 'Delete'}
         </button>
-        <div style={{ display: "flex", alignItems: "center", color: dirty ? "#ffd166" : "#9bb1c8" }}>
-          {loading ? "Loading..." : dirty ? "Unsaved changes" : "No unsaved changes"}
+        <div style={{ display: 'flex', alignItems: 'center', color: dirty ? '#ffd166' : '#9bb1c8' }}>
+          {loading ? 'Loading...' : dirty ? 'Unsaved changes' : 'No unsaved changes'}
         </div>
       </div>
 
@@ -424,9 +432,9 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
             marginTop: 16,
             borderRadius: 12,
             padding: 12,
-            background: "rgba(140, 40, 40, 0.2)",
-            border: "1px solid rgba(255, 90, 90, 0.3)",
-            color: "#ffd4d4",
+            background: 'rgba(140, 40, 40, 0.2)',
+            border: '1px solid rgba(255, 90, 90, 0.3)',
+            color: '#ffd4d4',
           }}
         >
           {error}
@@ -441,16 +449,16 @@ export function ProfileEditor() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: '100vh',
         padding: 24,
         background:
-          "radial-gradient(circle at top, rgba(27, 59, 108, 0.35), transparent 35%), linear-gradient(180deg, #08111c 0%, #0b1320 100%)",
-        color: "#f3f6fb",
+          'radial-gradient(circle at top, rgba(27, 59, 108, 0.35), transparent 35%), linear-gradient(180deg, #08111c 0%, #0b1320 100%)',
+        color: '#f3f6fb',
       }}
     >
-      <div style={{ display: "grid", gap: 18, maxWidth: 1180, margin: "0 auto" }}>
-        <header style={{ display: "grid", gap: 8 }}>
-          <div style={{ color: "#60a5fa", fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase" }}>
+      <div style={{ display: 'grid', gap: 18, maxWidth: 1180, margin: '0 auto' }}>
+        <header style={{ display: 'grid', gap: 8 }}>
+          <div style={{ color: '#60a5fa', fontSize: 12, letterSpacing: '0.2em', textTransform: 'uppercase' }}>
             CrossHook Native
           </div>
           <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800 }}>Profile Editor</h1>

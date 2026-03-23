@@ -73,6 +73,34 @@ textarea {
   align-items: start;
 }
 
+.crosshook-tab-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.crosshook-tab {
+  min-height: var(--crosshook-touch-target-min);
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--crosshook-color-text-muted);
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition:
+    border-color var(--crosshook-transition-standard) ease,
+    background var(--crosshook-transition-standard) ease,
+    color var(--crosshook-transition-standard) ease;
+}
+
+.crosshook-tab--active {
+  border-color: rgba(0, 120, 212, 0.45);
+  background: linear-gradient(135deg, var(--crosshook-color-accent) 0%, var(--crosshook-color-accent-strong) 100%);
+  color: #fff;
+}
+
 .crosshook-panel,
 .crosshook-card {
   background: linear-gradient(180deg, rgba(18, 23, 42, 0.96), rgba(12, 17, 32, 0.96));
@@ -128,6 +156,7 @@ textarea {
 .crosshook-select,
 .crosshook-textarea {
   width: 100%;
+  min-width: 0;
   min-height: var(--crosshook-touch-target-min);
   border-radius: var(--crosshook-radius-md);
   border: 1px solid var(--crosshook-color-border-strong);

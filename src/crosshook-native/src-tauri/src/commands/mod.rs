@@ -1,3 +1,4 @@
+pub mod community;
 pub mod export;
 pub mod launch;
 pub mod profile;

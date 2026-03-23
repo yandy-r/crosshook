@@ -1,7 +1,6 @@
-import { useState, type CSSProperties } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
-import type { GameProfile } from "../types";
+import { useState, type CSSProperties } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import type { GameProfile } from '../types';
 
 interface LauncherExportProps {
   profile: GameProfile;
@@ -28,64 +27,65 @@ interface SteamExternalLauncherExportResult {
 }
 
 const panelStyle: CSSProperties = {
-  display: "grid",
+  display: 'grid',
   gap: 16,
+  boxSizing: 'border-box',
   padding: 20,
   borderRadius: 18,
-  background:
-    "radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 30%), rgba(10, 15, 24, 0.96)",
-  border: "1px solid rgba(96, 165, 250, 0.24)",
-  boxShadow: "0 24px 60px rgba(0, 0, 0, 0.35)",
+  background: 'radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 30%), rgba(10, 15, 24, 0.96)',
+  border: '1px solid rgba(96, 165, 250, 0.24)',
+  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
 };
 
 const sectionStyle: CSSProperties = {
-  display: "grid",
+  display: 'grid',
   gap: 10,
 };
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
-  letterSpacing: "0.02em",
-  color: "#cbd5e1",
+  letterSpacing: '0.02em',
+  color: '#cbd5e1',
 };
 
 const inputStyle: CSSProperties = {
-  width: "100%",
+  width: '100%',
+  minWidth: 0,
   minHeight: 44,
-  boxSizing: "border-box",
+  boxSizing: 'border-box',
   borderRadius: 12,
-  border: "1px solid rgba(96, 165, 250, 0.24)",
-  background: "rgba(15, 23, 42, 0.92)",
-  color: "#f8fafc",
-  padding: "0 14px",
+  border: '1px solid rgba(96, 165, 250, 0.24)',
+  background: 'rgba(15, 23, 42, 0.92)',
+  color: '#f8fafc',
+  padding: '0 14px',
 };
 
 const buttonStyle: CSSProperties = {
   minHeight: 44,
   borderRadius: 12,
-  border: "1px solid rgba(96, 165, 250, 0.32)",
-  background: "linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)",
-  color: "#fff",
-  padding: "0 16px",
-  cursor: "pointer",
+  border: '1px solid rgba(96, 165, 250, 0.32)',
+  background: 'linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)',
+  color: '#fff',
+  padding: '0 16px',
+  cursor: 'pointer',
   fontWeight: 700,
 };
 
 const subtleButtonStyle: CSSProperties = {
   ...buttonStyle,
-  background: "rgba(15, 23, 42, 0.9)",
+  background: 'rgba(15, 23, 42, 0.9)',
 };
 
 const helperStyle: CSSProperties = {
   margin: 0,
-  color: "#94a3b8",
+  color: '#94a3b8',
   fontSize: 13,
   lineHeight: 1.5,
 };
 
 function safeTrim(value: string | undefined | null): string {
-  return value?.trim() ?? "";
+  return value?.trim() ?? '';
 }
 
 function deriveLauncherName(profile: GameProfile): string {
@@ -102,7 +102,7 @@ function deriveLauncherName(profile: GameProfile): string {
   const trainerStem = safeTrim(profile.trainer.path)
     .split(/[\\/]/)
     .pop()
-    ?.replace(/\.[^.]+$/, "")
+    ?.replace(/\.[^.]+$/, '')
     .trim();
   if (trainerStem) {
     return trainerStem;
@@ -113,22 +113,7 @@ function deriveLauncherName(profile: GameProfile): string {
     return `steam-${steamAppId}-trainer`;
   }
 
-  return "crosshook-trainer";
-}
-
-async function chooseIconPath(): Promise<string | null> {
-  const result = await open({
-    directory: false,
-    multiple: false,
-    title: "Select Launcher Icon",
-    filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
+  return 'crosshook-trainer';
 }
 
 function buildExportRequest(
@@ -136,7 +121,7 @@ function buildExportRequest(
   launcherName: string,
   launcherIconPath: string,
   steamClientInstallPath: string,
-  targetHomePath: string,
+  targetHomePath: string
 ): SteamExternalLauncherExportRequest {
   return {
     launcher_name: launcherName.trim(),
@@ -150,30 +135,19 @@ function buildExportRequest(
   };
 }
 
-export function LauncherExport({
-  profile,
-  steamClientInstallPath,
-  targetHomePath,
-}: LauncherExportProps) {
-  const [launcherName, setLauncherName] = useState(() =>
-    deriveLauncherName(profile),
-  );
-  const [launcherIconPath, setLauncherIconPath] = useState(() =>
-    safeTrim(profile.steam.launcher.icon_path),
-  );
+export function LauncherExport({ profile, steamClientInstallPath, targetHomePath }: LauncherExportProps) {
+  const [launcherName, setLauncherName] = useState(() => deriveLauncherName(profile));
   const [isExporting, setIsExporting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [result, setResult] = useState<SteamExternalLauncherExportResult | null>(
-    null,
-  );
+  const [result, setResult] = useState<SteamExternalLauncherExportResult | null>(null);
 
   const request = buildExportRequest(
     profile,
     launcherName,
-    launcherIconPath,
+    safeTrim(profile.steam.launcher.icon_path),
     steamClientInstallPath,
-    targetHomePath,
+    targetHomePath
   );
 
   const canExport =
@@ -192,13 +166,10 @@ export function LauncherExport({
     setResult(null);
 
     try {
-      await invoke<void>("validate_launcher_export", { request });
-      const exported = await invoke<SteamExternalLauncherExportResult>(
-        "export_launchers",
-        { request },
-      );
+      await invoke<void>('validate_launcher_export', { request });
+      const exported = await invoke<SteamExternalLauncherExportResult>('export_launchers', { request });
       setResult(exported);
-      setStatusMessage("Launcher export completed.");
+      setStatusMessage('Launcher export completed.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -208,27 +179,24 @@ export function LauncherExport({
 
   return (
     <section style={panelStyle} aria-label="Launcher export">
-      <header style={{ display: "grid", gap: 8 }}>
+      <header style={{ display: 'grid', gap: 8 }}>
         <div
           style={{
-            color: "#60a5fa",
+            color: '#60a5fa',
             fontSize: 12,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
           }}
         >
           Launcher Export
         </div>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>
-          Export a standalone trainer launcher
-        </h2>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Export a standalone trainer launcher</h2>
         <p style={helperStyle}>
-          Generate a shell script and matching desktop entry from the current
-          profile and Steam settings.
+          Generate a shell script and matching desktop entry from the current profile and Steam settings.
         </p>
       </header>
 
-      <div style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: 'grid', gap: 12 }}>
         <div style={sectionStyle}>
           <label style={labelStyle} htmlFor="launcher-name">
             Launcher Name
@@ -243,76 +211,96 @@ export function LauncherExport({
         </div>
 
         <div style={sectionStyle}>
-          <label style={labelStyle} htmlFor="launcher-icon">
-            Launcher Icon
-          </label>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <input
-              id="launcher-icon"
-              style={{ ...inputStyle, flex: 1 }}
-              value={launcherIconPath}
-              onChange={(event) => setLauncherIconPath(event.target.value)}
-              placeholder="/path/to/icon.png"
-            />
-            <button
-              type="button"
-              style={subtleButtonStyle}
-              onClick={async () => {
-                const path = await chooseIconPath();
-                if (path) {
-                  setLauncherIconPath(path);
-                }
-              }}
-            >
-              Browse
-            </button>
+          <label style={labelStyle}>Launcher Icon</label>
+          <div
+            style={{
+              ...inputStyle,
+              display: 'flex',
+              alignItems: 'flex-start',
+              color: safeTrim(profile.steam.launcher.icon_path) ? '#f8fafc' : '#94a3b8',
+              padding: '10px 14px',
+              wordBreak: 'break-word',
+            }}
+          >
+            {safeTrim(profile.steam.launcher.icon_path) || 'Use the Steam Mode launcher icon field above'}
           </div>
         </div>
       </div>
 
       <div
         style={{
-          display: "grid",
+          display: 'grid',
           gap: 12,
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
         }}
       >
         <div style={sectionStyle}>
           <label style={labelStyle}>Trainer Path</label>
-          <div style={{ ...inputStyle, display: "flex", alignItems: "center" }}>
-            {safeTrim(profile.trainer.path) || "Not set"}
+          <div
+            style={{
+              ...inputStyle,
+              display: 'flex',
+              alignItems: 'flex-start',
+              padding: '10px 14px',
+              wordBreak: 'break-word',
+            }}
+          >
+            {safeTrim(profile.trainer.path) || 'Not set'}
           </div>
         </div>
         <div style={sectionStyle}>
           <label style={labelStyle}>Steam App ID</label>
-          <div style={{ ...inputStyle, display: "flex", alignItems: "center" }}>
-            {safeTrim(profile.steam.app_id) || "Not set"}
+          <div
+            style={{
+              ...inputStyle,
+              display: 'flex',
+              alignItems: 'flex-start',
+              padding: '10px 14px',
+              wordBreak: 'break-word',
+            }}
+          >
+            {safeTrim(profile.steam.app_id) || 'Not set'}
           </div>
         </div>
         <div style={sectionStyle}>
           <label style={labelStyle}>Compatdata Path</label>
-          <div style={{ ...inputStyle, display: "flex", alignItems: "center" }}>
-            {safeTrim(profile.steam.compatdata_path) || "Not set"}
+          <div
+            style={{
+              ...inputStyle,
+              display: 'flex',
+              alignItems: 'flex-start',
+              padding: '10px 14px',
+              wordBreak: 'break-word',
+            }}
+          >
+            {safeTrim(profile.steam.compatdata_path) || 'Not set'}
           </div>
         </div>
         <div style={sectionStyle}>
           <label style={labelStyle}>Proton Path</label>
-          <div style={{ ...inputStyle, display: "flex", alignItems: "center" }}>
-            {safeTrim(profile.steam.proton_path) || "Not set"}
+          <div
+            style={{
+              ...inputStyle,
+              display: 'flex',
+              alignItems: 'flex-start',
+              padding: '10px 14px',
+              wordBreak: 'break-word',
+            }}
+          >
+            {safeTrim(profile.steam.proton_path) || 'Not set'}
           </div>
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <button type="button" style={buttonStyle} disabled={!canExport} onClick={() => void handleExport()}>
-          {isExporting ? "Exporting..." : "Export Launcher"}
+          {isExporting ? 'Exporting...' : 'Export Launcher'}
         </button>
         <button
           type="button"
           style={subtleButtonStyle}
           onClick={() => {
             setLauncherName(deriveLauncherName(profile));
-            setLauncherIconPath(safeTrim(profile.steam.launcher.icon_path));
             setErrorMessage(null);
             setStatusMessage(null);
             setResult(null);
@@ -327,9 +315,9 @@ export function LauncherExport({
           style={{
             borderRadius: 12,
             padding: 12,
-            background: "rgba(16, 185, 129, 0.12)",
-            border: "1px solid rgba(16, 185, 129, 0.28)",
-            color: "#d1fae5",
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.28)',
+            color: '#d1fae5',
           }}
         >
           {statusMessage}
@@ -341,9 +329,9 @@ export function LauncherExport({
           style={{
             borderRadius: 12,
             padding: 12,
-            background: "rgba(185, 28, 28, 0.16)",
-            border: "1px solid rgba(248, 113, 113, 0.28)",
-            color: "#fee2e2",
+            background: 'rgba(185, 28, 28, 0.16)',
+            border: '1px solid rgba(248, 113, 113, 0.28)',
+            color: '#fee2e2',
           }}
         >
           {errorMessage}
@@ -353,26 +341,23 @@ export function LauncherExport({
       {result ? (
         <div
           style={{
-            display: "grid",
+            display: 'grid',
             gap: 10,
             borderRadius: 14,
             padding: 14,
-            background: "rgba(15, 23, 42, 0.7)",
-            border: "1px solid rgba(96, 165, 250, 0.18)",
+            background: 'rgba(15, 23, 42, 0.7)',
+            border: '1px solid rgba(96, 165, 250, 0.18)',
           }}
         >
-          <div style={{ color: "#dbeafe", fontWeight: 700 }}>
-            Exported {result.display_name}
+          <div style={{ color: '#dbeafe', fontWeight: 700 }}>Exported {result.display_name}</div>
+          <div style={helperStyle}>
+            Script: <span style={{ color: '#e2e8f0' }}>{result.script_path}</span>
           </div>
           <div style={helperStyle}>
-            Script: <span style={{ color: "#e2e8f0" }}>{result.script_path}</span>
+            Desktop entry: <span style={{ color: '#e2e8f0' }}>{result.desktop_entry_path}</span>
           </div>
           <div style={helperStyle}>
-            Desktop entry:{" "}
-            <span style={{ color: "#e2e8f0" }}>{result.desktop_entry_path}</span>
-          </div>
-          <div style={helperStyle}>
-            Slug: <span style={{ color: "#e2e8f0" }}>{result.launcher_slug}</span>
+            Slug: <span style={{ color: '#e2e8f0' }}>{result.launcher_slug}</span>
           </div>
         </div>
       ) : null}

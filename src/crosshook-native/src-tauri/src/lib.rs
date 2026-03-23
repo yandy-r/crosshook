@@ -2,6 +2,7 @@ mod commands;
 mod paths;
 mod startup;
 
+use crosshook_core::community::CommunityTapStore;
 use crosshook_core::logging;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{RecentFilesStore, SettingsStore};
@@ -14,6 +15,7 @@ pub fn run() {
     let profile_store = ProfileStore::new();
     let settings_store = SettingsStore::new();
     let recent_files_store = RecentFilesStore::new();
+    let community_tap_store = CommunityTapStore::new();
 
     tauri::Builder::default()
         .setup({
@@ -43,12 +45,17 @@ pub fn run() {
         .manage(profile_store)
         .manage(settings_store)
         .manage(recent_files_store)
+        .manage(community_tap_store)
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             commands::export::export_launchers,
             commands::export::validate_launcher_export,
+            commands::community::community_add_tap,
+            commands::community::community_import_profile,
+            commands::community::community_list_profiles,
+            commands::community::community_sync,
             commands::launch::launch_game,
             commands::launch::launch_trainer,
             commands::launch::validate_launch,

@@ -25,6 +25,53 @@ export interface UseProfileOptions {
   autoSelectFirstProfile?: boolean;
 }
 
+function deriveDisplayNameFromPath(path: string): string {
+  const normalized = path.trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const segment = normalized.split(/[\\/]/).pop() ?? '';
+  return segment.replace(/\.[^.]+$/, '').trim();
+}
+
+function deriveGameName(profile: GameProfile): string {
+  return profile.game.name.trim() || deriveDisplayNameFromPath(profile.game.executable_path);
+}
+
+function deriveLauncherDisplayName(profile: GameProfile): string {
+  return (
+    profile.steam.launcher.display_name.trim() ||
+    deriveGameName(profile) ||
+    deriveDisplayNameFromPath(profile.trainer.path)
+  );
+}
+
+function normalizeProfileForSave(profile: GameProfile): GameProfile {
+  return {
+    ...profile,
+    game: {
+      ...profile.game,
+      name: deriveGameName(profile),
+    },
+    trainer: {
+      ...profile.trainer,
+      type: profile.trainer.type.trim(),
+    },
+    steam: {
+      ...profile.steam,
+      launcher: {
+        ...profile.steam.launcher,
+        display_name: deriveLauncherDisplayName(profile),
+      },
+    },
+    launch: {
+      ...profile.launch,
+      method: profile.launch.method.trim() || (profile.steam.enabled ? 'proton_run' : 'direct'),
+    },
+  };
+}
+
 function mergeRecentPaths(currentPaths: string[], nextPath: string): string[] {
   const trimmed = nextPath.trim();
   if (!trimmed) {
@@ -168,8 +215,10 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     setError(null);
 
     try {
-      await invoke('profile_save', { name, data: profile });
-      await syncProfileMetadata(name, profile);
+      const normalizedProfile = normalizeProfileForSave(profile);
+      setProfile(normalizedProfile);
+      await invoke('profile_save', { name, data: normalizedProfile });
+      await syncProfileMetadata(name, normalizedProfile);
       await refreshProfiles();
       await loadProfile(name);
     } catch (err) {

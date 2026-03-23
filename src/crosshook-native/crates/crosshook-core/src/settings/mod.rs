@@ -5,6 +5,8 @@ use std::fmt;
 use std::fs;
 use std::path::PathBuf;
 
+use crate::community::CommunityTapSubscription;
+
 pub mod recent;
 
 pub use recent::{RecentFilesData, RecentFilesStore, RecentFilesStoreError};
@@ -19,6 +21,7 @@ pub struct SettingsStore {
 pub struct AppSettingsData {
     pub auto_load_last_profile: bool,
     pub last_used_profile: String,
+    pub community_taps: Vec<CommunityTapSubscription>,
 }
 
 #[derive(Debug)]
@@ -124,6 +127,10 @@ mod tests {
         let settings = AppSettingsData {
             auto_load_last_profile: true,
             last_used_profile: "elden-ring".to_string(),
+            community_taps: vec![CommunityTapSubscription {
+                url: "https://example.invalid/community.git".to_string(),
+                branch: Some("main".to_string()),
+            }],
         };
 
         store.save(&settings).unwrap();
@@ -151,6 +158,7 @@ mod tests {
             AppSettingsData {
                 auto_load_last_profile: false,
                 last_used_profile: "elden-ring".to_string(),
+                community_taps: Vec::new(),
             }
         );
     }

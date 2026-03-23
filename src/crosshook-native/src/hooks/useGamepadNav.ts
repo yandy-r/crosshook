@@ -154,6 +154,39 @@ function getCurrentIndex(elements: HTMLElement[], activeElement: Element | null)
   return activeAncestor ? elements.indexOf(activeAncestor) : -1;
 }
 
+function isEditableElement(element: EventTarget | null): boolean {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (element.isContentEditable) {
+    return true;
+  }
+
+  if (element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+    return true;
+  }
+
+  if (element instanceof HTMLInputElement) {
+    switch (element.type) {
+      case 'button':
+      case 'checkbox':
+      case 'color':
+      case 'file':
+      case 'image':
+      case 'radio':
+      case 'range':
+      case 'reset':
+      case 'submit':
+        return false;
+      default:
+        return true;
+    }
+  }
+
+  return false;
+}
+
 export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState {
   const rootRef = useRef<HTMLElement | null>(null);
   const [controllerMode, setControllerMode] = useState(() => {
@@ -288,6 +321,10 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
     const handleKeyDown = (event: KeyboardEvent) => {
       const root = getRootElement(rootRef);
       if (!root || !root.contains(document.activeElement)) {
+        return;
+      }
+
+      if (isEditableElement(event.target)) {
         return;
       }
 

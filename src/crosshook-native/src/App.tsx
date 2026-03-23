@@ -2,16 +2,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import ConsoleView from './components/ConsoleView';
+import CommunityBrowser from './components/CommunityBrowser';
+import CompatibilityViewer from './components/CompatibilityViewer';
 import LaunchPanel from './components/LaunchPanel';
+import LauncherExport from './components/LauncherExport';
 import { ProfileEditorView } from './components/ProfileEditor';
 import { SettingsPanel } from './components/SettingsPanel';
+import { useCommunityProfiles } from './hooks/useCommunityProfiles';
 import { useGamepadNav } from './hooks/useGamepadNav';
 import { useProfile } from './hooks/useProfile';
 import type { AppSettingsData, RecentFilesData, SteamLaunchRequest } from './types';
 
+type AppTab = 'main' | 'settings' | 'community';
+
 const DEFAULT_SETTINGS: AppSettingsData = {
   auto_load_last_profile: false,
   last_used_profile: '',
+  community_taps: [],
 };
 
 const DEFAULT_RECENT_FILES: RecentFilesData = {
@@ -30,13 +37,34 @@ function deriveSteamClientInstallPath(compatdataPath: string): string {
   return index >= 0 ? normalized.slice(0, index) : '';
 }
 
+function deriveTargetHomePath(steamClientInstallPath: string): string {
+  const normalized = steamClientInstallPath.trim().replace(/\\/g, '/');
+
+  for (const suffix of ['/.local/share/Steam', '/.steam/root']) {
+    if (normalized.endsWith(suffix)) {
+      return normalized.slice(0, -suffix.length);
+    }
+  }
+
+  return '';
+}
+
 export function App() {
   const profileState = useProfile({ autoSelectFirstProfile: false });
   const { profile, profileName, selectProfile } = profileState;
   const [settings, setSettings] = useState<AppSettingsData>(DEFAULT_SETTINGS);
   const [recentFiles, setRecentFiles] = useState<RecentFilesData>(DEFAULT_RECENT_FILES);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<AppTab>('main');
   const gamepadNav = useGamepadNav();
+  const communityState = useCommunityProfiles({
+    profilesDirectoryPath: DEFAULT_PROFILES_DIRECTORY,
+  });
+  const steamClientInstallPath = useMemo(
+    () => deriveSteamClientInstallPath(profile.steam.compatdata_path),
+    [profile.steam.compatdata_path]
+  );
+  const targetHomePath = useMemo(() => deriveTargetHomePath(steamClientInstallPath), [steamClientInstallPath]);
 
   const launchRequest = useMemo<SteamLaunchRequest | null>(() => {
     if (!profile.steam.enabled) {
@@ -50,11 +78,24 @@ export function App() {
       steam_app_id: profile.steam.app_id,
       steam_compat_data_path: profile.steam.compatdata_path,
       steam_proton_path: profile.steam.proton_path,
-      steam_client_install_path: deriveSteamClientInstallPath(profile.steam.compatdata_path),
+      steam_client_install_path: steamClientInstallPath,
       launch_trainer_only: false,
       launch_game_only: false,
     };
-  }, [profile]);
+  }, [profile, steamClientInstallPath]);
+
+  const compatibilityEntries = useMemo(
+    () =>
+      communityState.index.entries.map((entry) => ({
+        id: `${entry.tap_url}::${entry.relative_path}`,
+        tap_url: entry.tap_url,
+        tap_branch: entry.tap_branch,
+        manifest_path: entry.manifest_path,
+        relative_path: entry.relative_path,
+        metadata: entry.manifest.metadata,
+      })),
+    [communityState.index.entries]
+  );
 
   useEffect(() => {
     let active = true;
@@ -144,46 +185,106 @@ export function App() {
             </p>
           ) : null}
         </header>
+        <div className="crosshook-tab-row" role="tablist" aria-label="CrossHook sections">
+          <button
+            type="button"
+            className={`crosshook-tab ${activeTab === 'main' ? 'crosshook-tab--active' : ''}`}
+            onClick={() => setActiveTab('main')}
+          >
+            Main
+          </button>
+          <button
+            type="button"
+            className={`crosshook-tab ${activeTab === 'settings' ? 'crosshook-tab--active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            Settings
+          </button>
+          <button
+            type="button"
+            className={`crosshook-tab ${activeTab === 'community' ? 'crosshook-tab--active' : ''}`}
+            onClick={() => setActiveTab('community')}
+          >
+            Community
+          </button>
+        </div>
 
-        <div className="crosshook-layout">
+        {activeTab === 'main' ? (
           <div className="stack">
-            <ProfileEditorView state={profileState} />
-            <SettingsPanel
-              autoLoadLastProfile={settings.auto_load_last_profile}
-              lastUsedProfile={settings.last_used_profile}
-              profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY}
-              profilesDirectoryConfigured={false}
-              recentFiles={{
-                gamePaths: recentFiles.game_paths,
-                trainerPaths: recentFiles.trainer_paths,
-                dllPaths: recentFiles.dll_paths,
-              }}
-              onAutoLoadLastProfileChange={(enabled) => {
-                void handleAutoLoadChange(enabled).catch((error) => {
-                  setSettingsError(error instanceof Error ? error.message : String(error));
-                });
-              }}
-              onRefreshRecentFiles={() => {
-                void refreshPreferences().catch((error) => {
-                  setSettingsError(error instanceof Error ? error.message : String(error));
-                });
-              }}
-              onClearRecentFiles={() => {
-                void clearRecentFiles().catch((error) => {
-                  setSettingsError(error instanceof Error ? error.message : String(error));
-                });
-              }}
-            />
-          </div>
-          <div className="stack">
-            <LaunchPanel
-              profileId={profileName || 'new-profile'}
-              steamModeEnabled={profile.steam.enabled}
-              request={launchRequest}
-            />
+            <div className="crosshook-layout" style={{ alignItems: profile.steam.enabled ? 'stretch' : 'start' }}>
+              <div className="stack">
+                <ProfileEditorView state={profileState} />
+              </div>
+              <div
+                className="stack"
+                style={
+                  profile.steam.enabled
+                    ? {
+                        height: '100%',
+                        minHeight: 0,
+                        gridTemplateRows: 'minmax(0, 1fr) minmax(0, 1fr)',
+                      }
+                    : undefined
+                }
+              >
+                <LaunchPanel
+                  profileId={profileName || 'new-profile'}
+                  steamModeEnabled={profile.steam.enabled}
+                  request={launchRequest}
+                />
+                {profile.steam.enabled ? (
+                  <LauncherExport
+                    profile={profile}
+                    steamClientInstallPath={steamClientInstallPath}
+                    targetHomePath={targetHomePath}
+                  />
+                ) : null}
+              </div>
+            </div>
             <ConsoleView />
           </div>
-        </div>
+        ) : null}
+
+        {activeTab === 'settings' ? (
+          <SettingsPanel
+            autoLoadLastProfile={settings.auto_load_last_profile}
+            lastUsedProfile={settings.last_used_profile}
+            profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY}
+            profilesDirectoryConfigured={false}
+            recentFiles={{
+              gamePaths: recentFiles.game_paths,
+              trainerPaths: recentFiles.trainer_paths,
+              dllPaths: recentFiles.dll_paths,
+            }}
+            onAutoLoadLastProfileChange={(enabled) => {
+              void handleAutoLoadChange(enabled).catch((error) => {
+                setSettingsError(error instanceof Error ? error.message : String(error));
+              });
+            }}
+            onRefreshRecentFiles={() => {
+              void refreshPreferences().catch((error) => {
+                setSettingsError(error instanceof Error ? error.message : String(error));
+              });
+            }}
+            onClearRecentFiles={() => {
+              void clearRecentFiles().catch((error) => {
+                setSettingsError(error instanceof Error ? error.message : String(error));
+              });
+            }}
+          />
+        ) : null}
+
+        {activeTab === 'community' ? (
+          <div className="stack">
+            <CommunityBrowser profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY} state={communityState} />
+            <CompatibilityViewer
+              entries={compatibilityEntries}
+              loading={communityState.loading || communityState.syncing}
+              error={communityState.error}
+              emptyMessage="No indexed community compatibility entries are available yet."
+            />
+          </div>
+        ) : null}
       </div>
     </main>
   );
