@@ -2,6 +2,8 @@
 
 ## 2026-03-18
 
+- After changing a manifest that becomes a new source of truth for CI or release workflows, explicitly verify the committed file contents and byte size before pushing. Do not assume an edited `Cargo.toml` is intact just because local commands succeeded earlier in the turn.
+
 - When replacing a manual path field with a detected-install dropdown, do not make the text input effectively dead once a dropdown value is chosen. Prefer a dropdown that fills the editable path field, so detection accelerates entry without blocking manual correction.
 
 - For exported standalone Steam trainer launchers, do not point Proton at the original host/Linux trainer path. Generate the script so it stages the trainer into the deterministic `C:\CrossHook\StagedTrainers\...` prefix path first, matching the in-app trainer launch behavior and allowing staged state to persist across runs.
