@@ -1,4 +1,4 @@
-# External API Research: platform-native-linux-ui
+# External API Research: platform-native-ui
 
 ## Executive Summary
 
@@ -36,11 +36,13 @@ Building a platform-native Linux UI for CrossHook requires three primary integra
   - `STEAM_COMPAT_CLIENT_INSTALL_PATH`: Points to `~/.local/share/Steam/` (Steam installation root)
   - `WINEPREFIX`: Set to `$STEAM_COMPAT_DATA_PATH/pfx`
 - **Key Command**:
+
   ```bash
   export STEAM_COMPAT_DATA_PATH=~/.local/share/Steam/steamapps/compatdata/<appid>
   export STEAM_COMPAT_CLIENT_INSTALL_PATH=~/.local/share/Steam/
   ~/.local/share/Steam/steamapps/common/Proton\ <VERSION>/proton run <path-to-exe>
   ```
+
 - **Critical Pattern**: The existing `steam-host-trainer-runner.sh` demonstrates the correct approach -- strip all inherited WINE/Proton environment variables (`WINESERVER`, `WINELOADER`, `WINEDLLPATH`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, etc.) before setting a clean environment and calling `proton run`. This prevents the trainer's WINE session from conflicting with the game's WINE session.
 - **Confidence**: High -- this is the proven working pattern from the existing codebase.
 
@@ -106,7 +108,8 @@ Building a platform-native Linux UI for CrossHook requires three primary integra
 
 - **Documentation**: [Proton FAQ](https://github.com/ValveSoftware/Proton/wiki/Proton-FAQ)
 - **Key Paths**:
-  ```
+
+  ```text
   Steam root:           ~/.local/share/Steam/
   Library folders:      ~/.local/share/Steam/steamapps/libraryfolders.vdf
   App manifests:        <library>/steamapps/appmanifest_<appid>.acf
@@ -118,6 +121,7 @@ Building a platform-native Linux UI for CrossHook requires three primary integra
   User config:          ~/.local/share/Steam/userdata/<userid>/config/
   Shortcuts:            ~/.local/share/Steam/userdata/<userid>/config/shortcuts.vdf
   ```
+
 - **Discovery Algorithm**:
   1. Parse `~/.local/share/Steam/steamapps/libraryfolders.vdf` to find all Steam library folders
   2. For each library folder, scan for `appmanifest_<appid>.acf` files

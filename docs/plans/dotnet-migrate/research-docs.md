@@ -93,6 +93,6 @@ Nice-to-have reading:
 9. **.env.example is boilerplate**: The .env.example file contains generic database/API key placeholders that are not relevant to this C# WinForms application. No project-specific environment variables are documented.
 10. **Conflicting .NET version recommendations**: The feature-spec.md recommends .NET 9 (STS), while research-recommendations.md recommends .NET 8 (LTS). The feature-spec.md resolves this by noting self-contained deployment makes lifecycle irrelevant, but the disagreement between research files may confuse implementers. The feature-spec.md is the authoritative answer: target .NET 9, plan to retarget to .NET 10 LTS.
 
-# Note
+## Note
 
 This file catalogs the research set, but the active migration decisions now live in `feature-spec.md`, `parallel-plan.md`, and the refreshed `analysis-*` docs. Older exploratory documents in this directory still contain alternatives that were intentionally deferred from the current plan.
