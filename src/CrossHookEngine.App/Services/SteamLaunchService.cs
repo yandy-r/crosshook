@@ -518,13 +518,69 @@ public static class SteamLaunchService
             yield break;
         }
 
-        foreach (string firstLevelDirectory in Directory.EnumerateDirectories(searchRoot))
+        IEnumerator<string> firstLevelDirectoryEnumerator;
+        try
         {
-            yield return firstLevelDirectory.Replace('\\', '/');
+            firstLevelDirectoryEnumerator = Directory.EnumerateDirectories(searchRoot).GetEnumerator();
+        }
+        catch (Exception)
+        {
+            yield break;
+        }
 
-            foreach (string secondLevelDirectory in Directory.EnumerateDirectories(firstLevelDirectory))
+        using (firstLevelDirectoryEnumerator)
+        {
+            while (true)
             {
-                yield return secondLevelDirectory.Replace('\\', '/');
+                string firstLevelDirectory;
+                try
+                {
+                    if (!firstLevelDirectoryEnumerator.MoveNext())
+                    {
+                        yield break;
+                    }
+
+                    firstLevelDirectory = firstLevelDirectoryEnumerator.Current;
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+
+                yield return firstLevelDirectory.Replace('\\', '/');
+
+                IEnumerator<string> secondLevelDirectoryEnumerator;
+                try
+                {
+                    secondLevelDirectoryEnumerator = Directory.EnumerateDirectories(firstLevelDirectory).GetEnumerator();
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+
+                using (secondLevelDirectoryEnumerator)
+                {
+                    while (true)
+                    {
+                        string secondLevelDirectory;
+                        try
+                        {
+                            if (!secondLevelDirectoryEnumerator.MoveNext())
+                            {
+                                break;
+                            }
+
+                            secondLevelDirectory = secondLevelDirectoryEnumerator.Current;
+                        }
+                        catch (Exception)
+                        {
+                            break;
+                        }
+
+                        yield return secondLevelDirectory.Replace('\\', '/');
+                    }
+                }
             }
         }
     }

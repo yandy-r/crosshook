@@ -82,7 +82,7 @@ public sealed class SteamLaunchServiceTests
     [Fact]
     public void ResolveDosDevicesPath_ReturnsOriginalPath_WhenDriveLinkCannotBeResolved()
     {
-        string unixPath = "/fake/pfx/dosdevices/d:/SteamLibrary/steamapps/compatdata/287700";
+        string unixPath = "/fake/pfx/dosdevices/d:/CrossHookMissingLibrary/steamapps/compatdata/287700";
 
         string resolvedPath = SteamLaunchService.ResolveDosDevicesPath(unixPath);
 

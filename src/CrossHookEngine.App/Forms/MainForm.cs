@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using CrossHookEngine.App.Core;
@@ -25,13 +26,13 @@ namespace CrossHookEngine.App.Forms
         private ProfileService _profileService;
         private RecentFilesService _recentFilesService;
         private AppSettingsService _appSettingsService;
-        
+
         // Tab control components
         private TabControl tabControl = new TabControl();
         private TabPage tabMain = new TabPage("Main");
         private TabPage tabHelp = new TabPage("Help");
         private TabPage tabTools = new TabPage("Tools");
-        
+
         // Paths/Process Selection panel components
         private Panel panelPathsProcessSelection = new Panel();
         private Button btnRefreshProcesses = new Button();
@@ -48,6 +49,7 @@ namespace CrossHookEngine.App.Forms
         private Button btnBrowseSteamCompatData = new Button();
         private Button btnBrowseSteamProton = new Button();
         private Button btnBrowseSteamLauncherIcon = new Button();
+        private Button btnAttemptSteamAutoPopulate = new Button();
         private Button btnExportSteamLaunchers = new Button();
         private Label lblSteamModeHint = new Label();
         private CheckBox chkLaunchInject1 = new CheckBox();
@@ -56,7 +58,7 @@ namespace CrossHookEngine.App.Forms
         private CheckBox chkLaunchInject2 = new CheckBox();
         private ComboBox cmbDll2 = new ComboBox();
         private Button btnBrowseDll2 = new Button();
-        
+
         // Profiles panel components
         private Panel panelProfiles = new Panel();
         private ComboBox cmbProfiles = new ComboBox();
@@ -65,21 +67,21 @@ namespace CrossHookEngine.App.Forms
         private Button btnSave = new Button();
         private Button btnDelete = new Button();
         private CheckBox chkAutoLoadLastProfile = new CheckBox();
-        
+
         // Last used profile settings
         private string _lastUsedProfile = string.Empty;
         private bool _autoLoadLastProfile = false;
-        
+
         // Console output
         private TextBox txtConsoleOutput = new TextBox();
-        
+
         // Loaded DLLs
         private ListBox lstLoadedDlls = new ListBox();
-        
+
         // Launch button
         private Button btnLaunch = new Button();
         private Label lblLaunchHint = new Label();
-        
+
         // Launch methods panel
         private Panel panelLaunchMethods = new Panel();
         private RadioButton radCreateProcess = new RadioButton();
@@ -89,17 +91,17 @@ namespace CrossHookEngine.App.Forms
         private RadioButton radShellExecute = new RadioButton();
         private RadioButton radProcessStart = new RadioButton();
         private FlowLayoutPanel launchMethodsFlow = new FlowLayoutPanel();
-        
+
         // Status strip
         private StatusStrip statusStrip = new StatusStrip();
         private ToolStripStatusLabel statusLabel = new ToolStripStatusLabel();
-        
+
         // Recent file lists
         private List<string> _recentGamePaths = new List<string>();
         private List<string> _recentTrainerPaths = new List<string>();
         private List<string> _recentDllPaths = new List<string>();
         private List<string> _profiles = new List<string>();
-        
+
         // Selected paths
         private string _selectedGamePath = string.Empty;
         private string _selectedTrainerPath = string.Empty;
@@ -111,10 +113,10 @@ namespace CrossHookEngine.App.Forms
         private string _steamProtonPath = string.Empty;
         private string _steamLauncherIconPath = string.Empty;
         private bool _steamTrainerLaunchPending = false;
-        
+
         // Launch method
         private LaunchMethod _launchMethod = LaunchMethod.CreateProcess;
-        
+
         private TableLayoutPanel mainLayout;
         private bool compactMode = false;
         private Timer resizeTimer;
@@ -123,7 +125,7 @@ namespace CrossHookEngine.App.Forms
         private Panel consolePanel;
         private Panel loadedDllsPanel;
 		private const int ResizeDebounceIntervalMs = 100;
-        
+
         // ProfileInputDialog class for getting profile name
         public class ProfileInputDialog : Form
         {
@@ -131,9 +133,9 @@ namespace CrossHookEngine.App.Forms
             private Button btnOK;
             private Button btnCancel;
             private Label lblPrompt;
-            
+
             public string ProfileName { get; private set; }
-            
+
             public ProfileInputDialog(string title = "Enter Profile Name")
             {
                 Text = title;
@@ -142,7 +144,7 @@ namespace CrossHookEngine.App.Forms
                 StartPosition = FormStartPosition.CenterParent;
                 MaximizeBox = false;
                 MinimizeBox = false;
-                
+
                 // Configure controls
                 lblPrompt = new Label
                 {
@@ -151,7 +153,7 @@ namespace CrossHookEngine.App.Forms
                     Size = new Size(360, 20),
                     Font = new Font("Segoe UI", 10)
                 };
-                
+
                 txtProfileName = new TextBox
                 {
                     Location = new Point(20, 50),
@@ -160,7 +162,7 @@ namespace CrossHookEngine.App.Forms
                     BorderStyle = BorderStyle.FixedSingle,
                     TabIndex = 0
                 };
-                
+
                 btnOK = new Button
                 {
                     Text = "OK",
@@ -171,7 +173,7 @@ namespace CrossHookEngine.App.Forms
                     FlatStyle = FlatStyle.Flat,
                     TabIndex = 1
                 };
-                
+
                 btnCancel = new Button
                 {
                     Text = "Cancel",
@@ -182,17 +184,17 @@ namespace CrossHookEngine.App.Forms
                     FlatStyle = FlatStyle.Flat,
                     TabIndex = 2
                 };
-                
+
                 // Add controls to form
                 Controls.Add(lblPrompt);
                 Controls.Add(txtProfileName);
                 Controls.Add(btnOK);
                 Controls.Add(btnCancel);
-                
+
                 // Set key events
                 AcceptButton = btnOK;
                 CancelButton = btnCancel;
-                
+
                 // Apply dark theme
                 BackColor = Color.FromArgb(40, 40, 40);
                 ForeColor = Color.White;
@@ -205,73 +207,73 @@ namespace CrossHookEngine.App.Forms
                 btnCancel.ForeColor = Color.White;
                 btnCancel.FlatAppearance.BorderColor = Color.FromArgb(100, 100, 100);
             }
-            
+
             protected override void OnShown(EventArgs e)
             {
                 base.OnShown(e);
                 txtProfileName.Focus();
                 txtProfileName.SelectAll();
             }
-            
+
             protected override void OnFormClosing(FormClosingEventArgs e)
             {
                 base.OnFormClosing(e);
-                
+
                 if (DialogResult == DialogResult.OK)
                 {
                     if (string.IsNullOrWhiteSpace(txtProfileName.Text))
                     {
-                        MessageBox.Show("Please enter a profile name.", "Error", 
+                        MessageBox.Show("Please enter a profile name.", "Error",
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                         e.Cancel = true;
                         return;
                     }
-                    
+
                     ProfileName = txtProfileName.Text.Trim();
                 }
             }
         }
-        
+
         // Command line arguments
         private string[] _args;
         private string _profileToLoad = string.Empty;
         private string _autoLaunchPath = string.Empty;
         private bool _autoLaunchRequested = false;
-        
+
         public MainForm()
             : this(new string[0])
         {
         }
-        
+
         public MainForm(string[] args)
         {
             _args = args;
 			CommandLineOptions startupOptions = ParseCommandLineArguments();
-            
+
             InitializeComponent();
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
-            
+
             // Position form in center of screen
             this.StartPosition = FormStartPosition.CenterScreen;
-            
+
             // Configure tab control
             ConfigureTabControl();
-            
+
             // Configure UI layout
             ConfigureUILayout();
-            
+
             // Apply dark theme
             ApplyDarkTheme();
-            
+
             // Initialize managers
             InitializeManagers();
-            
+
             // Subscribe to events and initialize controls
             RegisterEventHandlers();
-            
+
             // Load app settings
             LoadAppSettings();
-            
+
 			// Populate the form once startup settings are available
 			PopulateControls();
 
@@ -283,11 +285,11 @@ namespace CrossHookEngine.App.Forms
 
 			// Start resize timer
 			InitializeResizeTimer();
-            
+
             // Initial layout check
             CheckLayoutMode();
         }
-        
+
         private void InitializeManagers()
         {
             _processManager = new ProcessManager();
@@ -303,7 +305,7 @@ namespace CrossHookEngine.App.Forms
             _recentFilesService = new RecentFilesService(Application.StartupPath);
             _appSettingsService = new AppSettingsService(Application.StartupPath);
         }
-        
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
 	    base.OnFormClosing(e);
@@ -356,18 +358,18 @@ namespace CrossHookEngine.App.Forms
 		_resumePanel = null;
             }
         }
-        
+
         private void MainForm_SizeChanged(object sender, EventArgs e)
         {
             if (resizeTimer == null)
             {
 				return;
             }
-            
+
             resizeTimer.Stop();
             resizeTimer.Start();
         }
-        
+
         private void MainForm_ResizeEnd(object sender, EventArgs e)
         {
 			if (resizeTimer != null)
@@ -394,19 +396,19 @@ namespace CrossHookEngine.App.Forms
 
 			CheckLayoutMode();
 		}
-        
+
         private void CheckLayoutMode()
         {
             // Check if we need to switch to compact mode based on form width
             bool shouldBeCompact = this.Width < 950;
-            
+
             if (compactMode != shouldBeCompact)
             {
                 compactMode = shouldBeCompact;
                 UpdateLayoutForCurrentMode();
             }
         }
-        
+
         private void UpdateLayoutForCurrentMode()
         {
             if (compactMode)
@@ -415,7 +417,7 @@ namespace CrossHookEngine.App.Forms
                 mainLayout.RowStyles[0] = new RowStyle(SizeType.Percent, 55F); // More space for top panels
                 mainLayout.RowStyles[1] = new RowStyle(SizeType.Percent, 20F); // Less for console/DLLs
                 mainLayout.RowStyles[2] = new RowStyle(SizeType.Percent, 25F); // Same for buttons
-                
+
                 // Stack the top panels vertically in compact mode
                 mainLayout.SetColumn(panelProfiles, 0);  // Move profiles panel below the injection panel
                 mainLayout.SetRow(panelProfiles, 1);     // In the middle row
@@ -423,10 +425,10 @@ namespace CrossHookEngine.App.Forms
                 mainLayout.SetRow(consolePanel, 0);      // In the top row
                 mainLayout.SetColumn(loadedDllsPanel, 1); // Keep DLLs panel on the right
                 mainLayout.SetRow(loadedDllsPanel, 1);    // Below console
-                
+
                 // Make launch methods more visible in compact mode
                 mainLayout.SetColumnSpan(launchContainer, 2); // Span full width
-                
+
                 // When in very compact mode, ensure the console and DLL panels have minimum height
                 int minPanelHeight = 180;
                 consolePanel.MinimumSize = new Size(0, minPanelHeight);
@@ -438,7 +440,7 @@ namespace CrossHookEngine.App.Forms
                 mainLayout.RowStyles[0] = new RowStyle(SizeType.Percent, 48F);
                 mainLayout.RowStyles[1] = new RowStyle(SizeType.Percent, 27F);
                 mainLayout.RowStyles[2] = new RowStyle(SizeType.Percent, 25F);
-                
+
                 // Restore the original panel arrangement
                 mainLayout.SetColumn(panelPathsProcessSelection, 0);
                 mainLayout.SetRow(panelPathsProcessSelection, 0);
@@ -448,19 +450,19 @@ namespace CrossHookEngine.App.Forms
                 mainLayout.SetRow(consolePanel, 1);
                 mainLayout.SetColumn(loadedDllsPanel, 1);
                 mainLayout.SetRow(loadedDllsPanel, 1);
-                
+
                 // Restore launch container
                 mainLayout.SetColumnSpan(launchContainer, 2);
-                
+
                 // Reset minimum sizes in standard mode to allow proper docking
                 consolePanel.MinimumSize = new Size(0, 0);
                 loadedDllsPanel.MinimumSize = new Size(0, 0);
             }
-            
+
             // Adjust card sizes based on mode
             ResizeCardHeights();
         }
-        
+
         private void ResizeCardHeights()
         {
             if (compactMode)
@@ -470,9 +472,9 @@ namespace CrossHookEngine.App.Forms
                 int targetCardHeight = Math.Max(60, cardContainerHeight / 4);
                 int dllCardHeight = Math.Max(90, cardContainerHeight / 3);
                 int trainerCardHeight = Math.Max(90, cardContainerHeight / 3);
-                
+
                 // Make sure we have a cardsContainer reference
-                if (panelPathsProcessSelection.Controls.Count > 1 && 
+                if (panelPathsProcessSelection.Controls.Count > 1 &&
                     panelPathsProcessSelection.Controls[0] is Panel pathsContent &&
                     pathsContent.Controls.Count > 0 &&
                     pathsContent.Controls[0] is TableLayoutPanel cardsContainer)
@@ -486,7 +488,7 @@ namespace CrossHookEngine.App.Forms
             {
                 // In normal mode, use percentage-based sizing
                 // Find cardsContainer and reset row styles
-                if (panelPathsProcessSelection.Controls.Count > 1 && 
+                if (panelPathsProcessSelection.Controls.Count > 1 &&
                     panelPathsProcessSelection.Controls[0] is Panel pathsContent &&
                     pathsContent.Controls.Count > 0 &&
                     pathsContent.Controls[0] is TableLayoutPanel cardsContainer)
@@ -497,14 +499,14 @@ namespace CrossHookEngine.App.Forms
                 }
             }
         }
-        
+
         private void ApplyDarkTheme()
         {
             // Apply dark theme to form and controls
             this.BackColor = Color.FromArgb(30, 30, 30);
             this.ForeColor = Color.White;
         }
-        
+
         private void ConfigureTabControl()
         {
             // Setup tab control
@@ -513,7 +515,7 @@ namespace CrossHookEngine.App.Forms
             tabControl.ItemSize = new Size(80, 30);
             tabControl.Font = new Font("Segoe UI", 10);
             tabControl.SizeMode = TabSizeMode.Fixed;
-            
+
             // Style the tabs
             tabControl.DrawMode = TabDrawMode.OwnerDrawFixed;
             tabControl.DrawItem += (s, e) => {
@@ -521,11 +523,11 @@ namespace CrossHookEngine.App.Forms
                 Rectangle tabRect = tabControl.GetTabRect(e.Index);
                 TabPage page = tabControl.TabPages[e.Index];
                 bool isSelected = (tabControl.SelectedIndex == e.Index);
-                
+
                 // Fill tab background
                 Brush backBrush = isSelected ? new SolidBrush(Color.FromArgb(45, 45, 45)) : new SolidBrush(Color.FromArgb(30, 30, 30));
                 g.FillRectangle(backBrush, tabRect);
-                
+
                 // Draw text
                 string text = page.Text;
                 Font font = isSelected ? new Font("Segoe UI", 10, FontStyle.Bold) : new Font("Segoe UI", 10);
@@ -533,7 +535,7 @@ namespace CrossHookEngine.App.Forms
                 sf.Alignment = StringAlignment.Center;
                 sf.LineAlignment = StringAlignment.Center;
                 g.DrawString(text, font, Brushes.White, tabRect, sf);
-                
+
                 // Draw a border at the bottom if selected
                 if (isSelected)
                 {
@@ -541,19 +543,19 @@ namespace CrossHookEngine.App.Forms
                     g.DrawLine(borderPen, tabRect.Left, tabRect.Bottom - 2, tabRect.Right, tabRect.Bottom - 2);
                 }
             };
-            
+
             // Configure tab pages
             tabControl.Controls.Add(tabMain);
             tabControl.Controls.Add(tabHelp);
             tabControl.Controls.Add(tabTools);
-            
+
             // Add tab control to form
             this.Controls.Add(tabControl);
-            
+
             // Set selected tab
             tabControl.SelectedTab = tabMain;
         }
-        
+
         private void ConfigureUILayout()
         {
             // Use TableLayoutPanel for main layout
@@ -568,7 +570,7 @@ namespace CrossHookEngine.App.Forms
             mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));  // Right column (narrower)
             mainLayout.Padding = new Padding(3);
             mainLayout.AutoScroll = true;  // Enable auto-scrolling for very small sizes
-            
+
             // ============================================================================================
             // COMPLETELY REDESIGNED TOP-LEFT PANEL WITH SIMPLE BUTTON-BASED NAVIGATION
             // ============================================================================================
@@ -576,13 +578,13 @@ namespace CrossHookEngine.App.Forms
             panelPathsProcessSelection.Dock = DockStyle.Fill;
             panelPathsProcessSelection.Padding = new Padding(0);
             panelPathsProcessSelection.BackColor = Color.FromArgb(25, 25, 25);
-            
+
             // Create header panel
             Panel headerPanel = new Panel();
             headerPanel.Dock = DockStyle.Top;
             headerPanel.Height = 40;
             headerPanel.BackColor = Color.FromArgb(40, 40, 40);
-            
+
             // Header content
             TableLayoutPanel headerContent = new TableLayoutPanel();
             headerContent.Dock = DockStyle.Fill;
@@ -592,14 +594,14 @@ namespace CrossHookEngine.App.Forms
             headerContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30F));
             headerContent.Padding = new Padding(10, 5, 10, 5);
             headerContent.Margin = new Padding(0);
-            
+
             Label headerLabel = new Label();
             headerLabel.Text = "INJECTION SETUP";
             headerLabel.Font = new Font("Segoe UI", 11, FontStyle.Bold);
             headerLabel.ForeColor = Color.White;
             headerLabel.TextAlign = ContentAlignment.MiddleLeft;
             headerLabel.Dock = DockStyle.Fill;
-            
+
             btnRefreshProcesses.Text = "Refresh Processes";
             btnRefreshProcesses.FlatStyle = FlatStyle.Flat;
             btnRefreshProcesses.FlatAppearance.BorderSize = 0;
@@ -610,7 +612,7 @@ namespace CrossHookEngine.App.Forms
             headerContent.Controls.Add(headerLabel, 0, 0);
             headerContent.Controls.Add(btnRefreshProcesses, 1, 0);
             headerPanel.Controls.Add(headerContent);
-            
+
             // Create a main content area with navigation buttons and content panels
             TableLayoutPanel mainContentPanel = new TableLayoutPanel();
             mainContentPanel.Dock = DockStyle.Fill;
@@ -619,23 +621,23 @@ namespace CrossHookEngine.App.Forms
             mainContentPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 240F)); // Nav buttons column - wider to prevent cropping
             mainContentPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));  // Content column
             mainContentPanel.Margin = new Padding(0);
-            
+
             // Navigation panel with buttons
             Panel navPanel = new Panel();
             navPanel.Dock = DockStyle.Fill;
             navPanel.BackColor = Color.FromArgb(30, 30, 30);
             navPanel.Padding = new Padding(5);
-            
+
             // Content panel to hold our "pages"
             Panel contentPanel = new Panel();
             contentPanel.Dock = DockStyle.Fill;
             contentPanel.BackColor = Color.FromArgb(35, 35, 35);
             contentPanel.Padding = new Padding(0);
-            
+
             // Create navigation buttons and content panels
             Button btnTrainerSetup = CreateNavButton("Trainer Setup", true);
             Button btnTargetProcess = CreateNavButton("Target Process & DLL Injection (Optional)", false);
-            
+
             // Stack navigation buttons
             FlowLayoutPanel navButtonsFlow = new FlowLayoutPanel();
             navButtonsFlow.Dock = DockStyle.Fill;
@@ -643,38 +645,38 @@ namespace CrossHookEngine.App.Forms
             navButtonsFlow.WrapContents = false;
             navButtonsFlow.AutoScroll = false;
             navButtonsFlow.Padding = new Padding(0, 5, 0, 5);
-            
+
             navButtonsFlow.Controls.Add(btnTrainerSetup);
             navButtonsFlow.Controls.Add(btnTargetProcess);
             navPanel.Controls.Add(navButtonsFlow);
-            
+
             // Create content pages - all docked to fill but initially hidden
             Panel trainerSetupPanel = CreateContentPanel();
             Panel targetProcessPanel = CreateContentPanel();
-            
+
             // Hide all except the first panel
             trainerSetupPanel.Visible = true;
             targetProcessPanel.Visible = false;
-            
+
             // Add navigation button click handlers
             btnTrainerSetup.Click += (s, e) => {
                 SetActiveNavButton(btnTrainerSetup);
                 ShowPanel(trainerSetupPanel, new[] { targetProcessPanel });
             };
-            
+
             btnTargetProcess.Click += (s, e) => {
                 SetActiveNavButton(btnTargetProcess);
                 ShowPanel(targetProcessPanel, new[] { trainerSetupPanel });
             };
-            
+
             // Add content panels to the content area
             contentPanel.Controls.Add(trainerSetupPanel);
             contentPanel.Controls.Add(targetProcessPanel);
-            
+
             // Add nav panel and content panel to main content
             mainContentPanel.Controls.Add(navPanel, 0, 0);
             mainContentPanel.Controls.Add(contentPanel, 1, 0);
-            
+
             // Helper methods for styling
             Button CreateNavButton(string text, bool isActive = false)
             {
@@ -699,7 +701,7 @@ namespace CrossHookEngine.App.Forms
                 btn.Tag = isActive; // Store active state
                 return btn;
             }
-            
+
             Panel CreateContentPanel()
             {
                 Panel panel = new Panel();
@@ -708,7 +710,7 @@ namespace CrossHookEngine.App.Forms
                 panel.Padding = new Padding(15);
                 return panel;
             }
-            
+
             void SetActiveNavButton(Button activeButton)
             {
                 // Update all buttons in the flow panel
@@ -725,7 +727,7 @@ namespace CrossHookEngine.App.Forms
                     }
                 }
             }
-            
+
             void ShowPanel(Panel panelToShow, Panel[] panelsToHide)
             {
                 panelToShow.Visible = true;
@@ -735,7 +737,7 @@ namespace CrossHookEngine.App.Forms
                     panel.Visible = false;
                 }
             }
-            
+
             // 1. TARGET PROCESS PANEL CONTENT - merged with DLL Injection
             TableLayoutPanel processContent = new TableLayoutPanel();
             processContent.Dock = DockStyle.Fill;
@@ -746,7 +748,7 @@ namespace CrossHookEngine.App.Forms
             processContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 20F)); // Spacing
             processContent.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // DLL header
             processContent.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // DLL panels
-            
+
             // Process Selection section
             Label processLabel = new Label();
             processLabel.Text = "Select the process to inject into (optional):";
@@ -756,12 +758,12 @@ namespace CrossHookEngine.App.Forms
             processLabel.Dock = DockStyle.Top;
             processLabel.Padding = new Padding(0, 0, 0, 8);
             processContent.Controls.Add(processLabel, 0, 0);
-            
+
             // Process selector with dropdown style
             Panel processPanel = new Panel();
             processPanel.Dock = DockStyle.Fill;
             processPanel.Padding = new Padding(0);
-            
+
             cmbRunningExe.DropDownStyle = ComboBoxStyle.DropDownList;
             cmbRunningExe.BackColor = Color.FromArgb(45, 45, 45);
             cmbRunningExe.ForeColor = Color.White;
@@ -770,14 +772,14 @@ namespace CrossHookEngine.App.Forms
             cmbRunningExe.Dock = DockStyle.Fill;
             cmbRunningExe.Margin = new Padding(5, 8, 5, 8);
             processPanel.Controls.Add(cmbRunningExe);
-            
+
             processContent.Controls.Add(processPanel, 0, 1);
-            
+
             // Add spacing row
             Panel spacingPanel = new Panel();
             spacingPanel.BackColor = Color.Transparent;
             processContent.Controls.Add(spacingPanel, 0, 2);
-            
+
             // DLL Injection section
             Label dllLabel = new Label();
             dllLabel.Text = "Select DLLs to inject (optional):";
@@ -787,12 +789,12 @@ namespace CrossHookEngine.App.Forms
             dllLabel.Dock = DockStyle.Top;
             dllLabel.Padding = new Padding(0, 0, 0, 10);
             processContent.Controls.Add(dllLabel, 0, 3);
-            
+
             // DLL Panel container
             Panel dllPanelContainer = new Panel();
             dllPanelContainer.Dock = DockStyle.Fill;
             dllPanelContainer.Padding = new Padding(0);
-            
+
             // Create DLL section using the same approach as trainer setup
             TableLayoutPanel dllsTable = new TableLayoutPanel();
             dllsTable.Dock = DockStyle.Fill;
@@ -800,13 +802,13 @@ namespace CrossHookEngine.App.Forms
             dllsTable.RowCount = 2;
             dllsTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F));
             dllsTable.RowStyles.Add(new RowStyle(SizeType.Absolute, 45F));
-            
+
             // DLL 1 Row
             Panel dll1Panel = new Panel();
             dll1Panel.Dock = DockStyle.Fill;
             dll1Panel.BackColor = Color.FromArgb(35, 35, 35);
             dll1Panel.Padding = new Padding(5);
-            
+
             // Use TableLayoutPanel for precise control
             TableLayoutPanel dll1Layout = new TableLayoutPanel();
             dll1Layout.Dock = DockStyle.Fill;
@@ -820,7 +822,7 @@ namespace CrossHookEngine.App.Forms
             dll1Layout.Margin = new Padding(0);
             dll1Layout.AutoSize = false;
             dll1Layout.Height = 35;
-            
+
             Label dll1Label = new Label();
             dll1Label.Text = "DLL 1:";
             dll1Label.ForeColor = Color.White;
@@ -828,16 +830,16 @@ namespace CrossHookEngine.App.Forms
             dll1Label.Dock = DockStyle.Fill;
             dll1Label.TextAlign = ContentAlignment.MiddleLeft;
             dll1Label.Padding = new Padding(5, 0, 0, 0);
-            
+
             chkLaunchInject1.Text = "Inject";
             chkLaunchInject1.BackColor = Color.Transparent;
-            chkLaunchInject1.ForeColor = Color.White; 
+            chkLaunchInject1.ForeColor = Color.White;
             chkLaunchInject1.Font = new Font("Segoe UI", 9);
             chkLaunchInject1.Dock = DockStyle.Fill;
             chkLaunchInject1.TextAlign = ContentAlignment.MiddleLeft;
             chkLaunchInject1.Padding = new Padding(0);
             chkLaunchInject1.Margin = new Padding(0);
-            
+
             cmbDll1.BackColor = Color.FromArgb(45, 45, 45);
             cmbDll1.ForeColor = Color.White;
             cmbDll1.FlatStyle = FlatStyle.Flat;
@@ -845,7 +847,7 @@ namespace CrossHookEngine.App.Forms
             cmbDll1.Dock = DockStyle.Fill;
             cmbDll1.Margin = new Padding(5, 3, 5, 3);
             cmbDll1.Height = 29;
-            
+
             btnBrowseDll1.Text = "Browse...";
             btnBrowseDll1.BackColor = Color.FromArgb(60, 60, 60);
             btnBrowseDll1.ForeColor = Color.White;
@@ -856,21 +858,21 @@ namespace CrossHookEngine.App.Forms
             btnBrowseDll1.Size = new Size(85, 29);
             btnBrowseDll1.Margin = new Padding(5, 3, 5, 3);
             btnBrowseDll1.Anchor = AnchorStyles.Right | AnchorStyles.Top;
-            
+
             dll1Layout.Controls.Add(dll1Label, 0, 0);
             dll1Layout.Controls.Add(chkLaunchInject1, 1, 0);
             dll1Layout.Controls.Add(cmbDll1, 2, 0);
             dll1Layout.Controls.Add(btnBrowseDll1, 3, 0);
-            
+
             dll1Panel.Controls.Add(dll1Layout);
             dllsTable.Controls.Add(dll1Panel, 0, 0);
-            
+
             // DLL 2 Row - using identical styling and layout as DLL 1
             Panel dll2Panel = new Panel();
             dll2Panel.Dock = DockStyle.Fill;
             dll2Panel.BackColor = Color.FromArgb(35, 35, 35);
             dll2Panel.Padding = new Padding(5);
-            
+
             // Use TableLayoutPanel for precise control - match DLL 1 exactly
             TableLayoutPanel dll2Layout = new TableLayoutPanel();
             dll2Layout.Dock = DockStyle.Fill;
@@ -884,7 +886,7 @@ namespace CrossHookEngine.App.Forms
             dll2Layout.Margin = new Padding(0);
             dll2Layout.AutoSize = false;
             dll2Layout.Height = 35;
-            
+
             Label dll2Label = new Label();
             dll2Label.Text = "DLL 2:";
             dll2Label.ForeColor = Color.White;
@@ -892,7 +894,7 @@ namespace CrossHookEngine.App.Forms
             dll2Label.Dock = DockStyle.Fill;
             dll2Label.TextAlign = ContentAlignment.MiddleLeft;
             dll2Label.Padding = new Padding(5, 0, 0, 0);
-            
+
             chkLaunchInject2.Text = "Inject";
             chkLaunchInject2.BackColor = Color.Transparent;
             chkLaunchInject2.ForeColor = Color.White;
@@ -901,7 +903,7 @@ namespace CrossHookEngine.App.Forms
             chkLaunchInject2.TextAlign = ContentAlignment.MiddleLeft;
             chkLaunchInject2.Padding = new Padding(0);
             chkLaunchInject2.Margin = new Padding(0);
-            
+
             cmbDll2.BackColor = Color.FromArgb(45, 45, 45);
             cmbDll2.ForeColor = Color.White;
             cmbDll2.FlatStyle = FlatStyle.Flat;
@@ -909,7 +911,7 @@ namespace CrossHookEngine.App.Forms
             cmbDll2.Dock = DockStyle.Fill;
             cmbDll2.Margin = new Padding(5, 3, 5, 3);
             cmbDll2.Height = 29;
-            
+
             btnBrowseDll2.Text = "Browse...";
             btnBrowseDll2.BackColor = Color.FromArgb(60, 60, 60);
             btnBrowseDll2.ForeColor = Color.White;
@@ -920,20 +922,20 @@ namespace CrossHookEngine.App.Forms
             btnBrowseDll2.Size = new Size(85, 29);
             btnBrowseDll2.Margin = new Padding(5, 3, 5, 3);
             btnBrowseDll2.Anchor = AnchorStyles.Right | AnchorStyles.Top;
-            
+
             dll2Layout.Controls.Add(dll2Label, 0, 0);
             dll2Layout.Controls.Add(chkLaunchInject2, 1, 0);
             dll2Layout.Controls.Add(cmbDll2, 2, 0);
             dll2Layout.Controls.Add(btnBrowseDll2, 3, 0);
-            
+
             dll2Panel.Controls.Add(dll2Layout);
             dllsTable.Controls.Add(dll2Panel, 0, 1);
-            
+
             dllPanelContainer.Controls.Add(dllsTable);
             processContent.Controls.Add(dllPanelContainer, 0, 4);
-            
+
             targetProcessPanel.Controls.Add(processContent);
-            
+
             // 3. TRAINER SETUP PANEL CONTENT
             TableLayoutPanel trainerContent = new TableLayoutPanel();
             trainerContent.Dock = DockStyle.Fill;
@@ -944,7 +946,7 @@ namespace CrossHookEngine.App.Forms
             trainerContent.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F)); // Trainer path row - increased height
             trainerContent.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // Steam settings
             trainerContent.Padding = new Padding(10, 0, 10, 10);
-            
+
             Label trainerLabel = new Label();
             trainerLabel.Text = "Set up game and trainer paths (optional):";
             trainerLabel.ForeColor = Color.FromArgb(200, 200, 200);
@@ -953,7 +955,7 @@ namespace CrossHookEngine.App.Forms
             trainerLabel.Dock = DockStyle.Top;
             trainerLabel.Padding = new Padding(0, 0, 0, 10);
             trainerContent.Controls.Add(trainerLabel, 0, 0);
-            
+
             // Configure cmbGamePath and cmbTrainerPath with consistent settings
             cmbGamePath.BackColor = Color.FromArgb(45, 45, 45);
             cmbGamePath.ForeColor = Color.White;
@@ -962,7 +964,7 @@ namespace CrossHookEngine.App.Forms
             cmbGamePath.Dock = DockStyle.None;
             cmbGamePath.Size = new Size(290, 29);
             cmbGamePath.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top | AnchorStyles.Bottom;
-            
+
             cmbTrainerPath.BackColor = Color.FromArgb(45, 45, 45);
             cmbTrainerPath.ForeColor = Color.White;
             cmbTrainerPath.FlatStyle = FlatStyle.Flat;
@@ -1032,6 +1034,15 @@ namespace CrossHookEngine.App.Forms
             btnBrowseSteamLauncherIcon.Font = new Font("Segoe UI", 9);
             btnBrowseSteamLauncherIcon.Dock = DockStyle.Fill;
 
+            btnAttemptSteamAutoPopulate.Text = "Auto Populate";
+            btnAttemptSteamAutoPopulate.BackColor = Color.FromArgb(46, 125, 50);
+            btnAttemptSteamAutoPopulate.ForeColor = Color.White;
+            btnAttemptSteamAutoPopulate.FlatStyle = FlatStyle.Flat;
+            btnAttemptSteamAutoPopulate.FlatAppearance.BorderSize = 0;
+            btnAttemptSteamAutoPopulate.Font = new Font("Segoe UI", 9);
+            btnAttemptSteamAutoPopulate.Dock = DockStyle.Left;
+            btnAttemptSteamAutoPopulate.AutoSize = true;
+
             btnExportSteamLaunchers.Text = "Create Script + Desktop";
             btnExportSteamLaunchers.BackColor = Color.FromArgb(0, 120, 215);
             btnExportSteamLaunchers.ForeColor = Color.White;
@@ -1040,7 +1051,7 @@ namespace CrossHookEngine.App.Forms
             btnExportSteamLaunchers.Font = new Font("Segoe UI", 9);
             btnExportSteamLaunchers.Dock = DockStyle.Left;
             btnExportSteamLaunchers.AutoSize = true;
-            
+
             // Apply consistent styling to buttons
             btnBrowseGame.Size = new Size(85, 29);
             btnBrowseGame.AutoSize = false;
@@ -1051,7 +1062,7 @@ namespace CrossHookEngine.App.Forms
             btnBrowseGame.FlatAppearance.BorderSize = 0;
             btnBrowseGame.Font = new Font("Segoe UI", 9);
             btnBrowseGame.Anchor = AnchorStyles.Right;
-            
+
             btnBrowseTrainer.Size = new Size(85, 29);
             btnBrowseTrainer.AutoSize = false;
             btnBrowseTrainer.Text = "Browse...";
@@ -1061,18 +1072,18 @@ namespace CrossHookEngine.App.Forms
             btnBrowseTrainer.FlatAppearance.BorderSize = 0;
             btnBrowseTrainer.Font = new Font("Segoe UI", 9);
             btnBrowseTrainer.Anchor = AnchorStyles.Right;
-            
+
             // Create panels for each row with fixed layout
             Panel gamePathRow = new Panel();
             gamePathRow.Dock = DockStyle.Fill;
             gamePathRow.Padding = new Padding(0);
             gamePathRow.Margin = new Padding(0);
-            
+
             Panel trainerPathRow = new Panel();
             trainerPathRow.Dock = DockStyle.Fill;
             trainerPathRow.Padding = new Padding(0);
             trainerPathRow.Margin = new Padding(0);
-            
+
             // Add controls to each row with absolute positioning
             Label gamePathLabel = new Label();
             gamePathLabel.Text = "Launch Game Binary (Optional):";
@@ -1081,7 +1092,7 @@ namespace CrossHookEngine.App.Forms
             gamePathLabel.Size = new Size(180, 29);
             gamePathLabel.Location = new Point(5, 10);
             gamePathLabel.TextAlign = ContentAlignment.MiddleLeft;
-            
+
             Label trainerPathLabel = new Label();
             trainerPathLabel.Text = "Trainer Path:";
             trainerPathLabel.ForeColor = Color.White;
@@ -1089,68 +1100,68 @@ namespace CrossHookEngine.App.Forms
             trainerPathLabel.Size = new Size(90, 29);
             trainerPathLabel.Location = new Point(5, 10);
             trainerPathLabel.TextAlign = ContentAlignment.MiddleLeft;
-            
+
             // Position the ComboBoxes and Buttons - ensure proper initial position
             const int LABEL_WIDTH = 180;
             const int BUTTON_WIDTH = 85;
             const int MARGIN = 10;
             const int CONTROL_HEIGHT = 29;
             const int VERTICAL_POSITION = 10;
-            
+
             // Position game path labels and controls with consistent layout
             gamePathLabel.Size = new Size(LABEL_WIDTH, CONTROL_HEIGHT);
             gamePathLabel.Location = new Point(MARGIN, VERTICAL_POSITION);
-            
+
             btnBrowseGame.Size = new Size(BUTTON_WIDTH, CONTROL_HEIGHT);
             btnBrowseGame.Margin = new Padding(0);
             btnBrowseGame.Padding = new Padding(0);
             btnBrowseGame.Anchor = AnchorStyles.Right | AnchorStyles.Top;
             btnBrowseGame.Location = new Point(gamePathRow.ClientSize.Width - BUTTON_WIDTH - MARGIN, VERTICAL_POSITION);
-            
+
             cmbGamePath.Size = new Size(gamePathRow.ClientSize.Width - LABEL_WIDTH - BUTTON_WIDTH - (MARGIN * 3), CONTROL_HEIGHT);
             cmbGamePath.Location = new Point(LABEL_WIDTH + MARGIN, VERTICAL_POSITION);
             cmbGamePath.Margin = new Padding(0);
             cmbGamePath.Padding = new Padding(0);
             cmbGamePath.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
-            
+
             // Position trainer path labels and controls with identical layout
             trainerPathLabel.Size = new Size(LABEL_WIDTH, CONTROL_HEIGHT);
             trainerPathLabel.Location = new Point(MARGIN, VERTICAL_POSITION);
-            
+
             btnBrowseTrainer.Size = new Size(BUTTON_WIDTH, CONTROL_HEIGHT);
             btnBrowseTrainer.Margin = new Padding(0);
             btnBrowseTrainer.Padding = new Padding(0);
             btnBrowseTrainer.Anchor = AnchorStyles.Right | AnchorStyles.Top;
             btnBrowseTrainer.Location = new Point(trainerPathRow.ClientSize.Width - BUTTON_WIDTH - MARGIN, VERTICAL_POSITION);
-            
+
             cmbTrainerPath.Size = new Size(trainerPathRow.ClientSize.Width - LABEL_WIDTH - BUTTON_WIDTH - (MARGIN * 3), CONTROL_HEIGHT);
             cmbTrainerPath.Location = new Point(LABEL_WIDTH + MARGIN, VERTICAL_POSITION);
             cmbTrainerPath.Margin = new Padding(0);
             cmbTrainerPath.Padding = new Padding(0);
             cmbTrainerPath.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right;
-            
+
             // Handle resize events with identical handling for both rows
             gamePathRow.SizeChanged += (s, e) => {
                 int availableWidth = gamePathRow.ClientSize.Width;
                 btnBrowseGame.Location = new Point(availableWidth - BUTTON_WIDTH - MARGIN, VERTICAL_POSITION);
                 cmbGamePath.Width = availableWidth - LABEL_WIDTH - BUTTON_WIDTH - (MARGIN * 3);
             };
-            
+
             trainerPathRow.SizeChanged += (s, e) => {
                 int availableWidth = trainerPathRow.ClientSize.Width;
                 btnBrowseTrainer.Location = new Point(availableWidth - BUTTON_WIDTH - MARGIN, VERTICAL_POSITION);
                 cmbTrainerPath.Width = availableWidth - LABEL_WIDTH - BUTTON_WIDTH - (MARGIN * 3);
             };
-            
+
             // Add controls to panels
             gamePathRow.Controls.Add(gamePathLabel);
             gamePathRow.Controls.Add(cmbGamePath);
             gamePathRow.Controls.Add(btnBrowseGame);
-            
+
             trainerPathRow.Controls.Add(trainerPathLabel);
             trainerPathRow.Controls.Add(cmbTrainerPath);
             trainerPathRow.Controls.Add(btnBrowseTrainer);
-            
+
             // Add rows to trainer content
             trainerContent.Controls.Add(gamePathRow, 0, 1);
             trainerContent.Controls.Add(trainerPathRow, 0, 2);
@@ -1160,13 +1171,14 @@ namespace CrossHookEngine.App.Forms
             steamSettingsLayout.AutoSize = true;
             steamSettingsLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             steamSettingsLayout.ColumnCount = 3;
-            steamSettingsLayout.RowCount = 7;
+            steamSettingsLayout.RowCount = 8;
             steamSettingsLayout.Margin = new Padding(0, 10, 0, 0);
             steamSettingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LABEL_WIDTH));
             steamSettingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             steamSettingsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, BUTTON_WIDTH));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
             steamSettingsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34F));
@@ -1208,8 +1220,18 @@ namespace CrossHookEngine.App.Forms
             steamLaunchersLabel.Dock = DockStyle.Fill;
             steamLaunchersLabel.TextAlign = ContentAlignment.MiddleLeft;
 
-            Panel steamAppIdSpacer = new Panel();
-            steamAppIdSpacer.Dock = DockStyle.Fill;
+            Label steamAutoPopulateLabel = new Label();
+            steamAutoPopulateLabel.Text = "Auto Populate:";
+            steamAutoPopulateLabel.ForeColor = Color.White;
+            steamAutoPopulateLabel.Font = new Font("Segoe UI", 9);
+            steamAutoPopulateLabel.Dock = DockStyle.Fill;
+            steamAutoPopulateLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+            Panel steamAutoPopulatePanel = new Panel();
+            steamAutoPopulatePanel.Dock = DockStyle.Fill;
+            steamAutoPopulatePanel.Padding = new Padding(0);
+            steamAutoPopulatePanel.Margin = new Padding(0);
+            steamAutoPopulatePanel.Controls.Add(btnAttemptSteamAutoPopulate);
 
             Panel steamLaunchersPanel = new Panel();
             steamLaunchersPanel.Dock = DockStyle.Fill;
@@ -1221,40 +1243,43 @@ namespace CrossHookEngine.App.Forms
             steamSettingsLayout.SetColumnSpan(chkUseSteamMode, 3);
             steamSettingsLayout.Controls.Add(lblSteamModeHint, 0, 1);
             steamSettingsLayout.SetColumnSpan(lblSteamModeHint, 3);
-            steamSettingsLayout.Controls.Add(steamAppIdLabel, 0, 2);
-            steamSettingsLayout.Controls.Add(txtSteamAppId, 1, 2);
-            steamSettingsLayout.Controls.Add(steamAppIdSpacer, 2, 2);
-            steamSettingsLayout.Controls.Add(steamCompatDataLabel, 0, 3);
-            steamSettingsLayout.Controls.Add(txtSteamCompatDataPath, 1, 3);
-            steamSettingsLayout.Controls.Add(btnBrowseSteamCompatData, 2, 3);
-            steamSettingsLayout.Controls.Add(steamProtonLabel, 0, 4);
-            steamSettingsLayout.Controls.Add(txtSteamProtonPath, 1, 4);
-            steamSettingsLayout.Controls.Add(btnBrowseSteamProton, 2, 4);
-            steamSettingsLayout.Controls.Add(steamLauncherIconLabel, 0, 5);
-            steamSettingsLayout.Controls.Add(txtSteamLauncherIconPath, 1, 5);
-            steamSettingsLayout.Controls.Add(btnBrowseSteamLauncherIcon, 2, 5);
-            steamSettingsLayout.Controls.Add(steamLaunchersLabel, 0, 6);
-            steamSettingsLayout.Controls.Add(steamLaunchersPanel, 1, 6);
+            steamSettingsLayout.Controls.Add(steamAutoPopulateLabel, 0, 2);
+            steamSettingsLayout.Controls.Add(steamAutoPopulatePanel, 1, 2);
+            steamSettingsLayout.SetColumnSpan(steamAutoPopulatePanel, 2);
+            steamSettingsLayout.Controls.Add(steamAppIdLabel, 0, 3);
+            steamSettingsLayout.Controls.Add(txtSteamAppId, 1, 3);
+            steamSettingsLayout.Controls.Add(new Panel { Dock = DockStyle.Fill }, 2, 3);
+            steamSettingsLayout.Controls.Add(steamCompatDataLabel, 0, 4);
+            steamSettingsLayout.Controls.Add(txtSteamCompatDataPath, 1, 4);
+            steamSettingsLayout.Controls.Add(btnBrowseSteamCompatData, 2, 4);
+            steamSettingsLayout.Controls.Add(steamProtonLabel, 0, 5);
+            steamSettingsLayout.Controls.Add(txtSteamProtonPath, 1, 5);
+            steamSettingsLayout.Controls.Add(btnBrowseSteamProton, 2, 5);
+            steamSettingsLayout.Controls.Add(steamLauncherIconLabel, 0, 6);
+            steamSettingsLayout.Controls.Add(txtSteamLauncherIconPath, 1, 6);
+            steamSettingsLayout.Controls.Add(btnBrowseSteamLauncherIcon, 2, 6);
+            steamSettingsLayout.Controls.Add(steamLaunchersLabel, 0, 7);
+            steamSettingsLayout.Controls.Add(steamLaunchersPanel, 1, 7);
             steamSettingsLayout.SetColumnSpan(steamLaunchersPanel, 2);
 
             trainerContent.Controls.Add(steamSettingsLayout, 0, 3);
-            
+
             trainerSetupPanel.Controls.Add(trainerContent);
-            
+
             // Add panels to the main panel
             panelPathsProcessSelection.Controls.Add(mainContentPanel);
             panelPathsProcessSelection.Controls.Add(headerPanel);
-            
+
             // ============================================================================================
             // END OF REDESIGNED TOP-LEFT PANEL
             // ============================================================================================
-            
+
             // Configure Profiles panel
             panelProfiles.BorderStyle = BorderStyle.FixedSingle;
             panelProfiles.Dock = DockStyle.Fill;
             panelProfiles.Padding = new Padding(0);
             panelProfiles.BackColor = Color.FromArgb(25, 25, 25);
-            
+
             // Create a header for the profiles panel to match the style
             TableLayoutPanel profilesHeader = new TableLayoutPanel();
             profilesHeader.Dock = DockStyle.Top;
@@ -1264,16 +1289,16 @@ namespace CrossHookEngine.App.Forms
             profilesHeader.ColumnCount = 1;
             profilesHeader.Margin = new Padding(0);
             profilesHeader.Padding = new Padding(10, 5, 10, 5);
-            
+
             Label profilesHeaderLabel = new Label();
             profilesHeaderLabel.Text = "PROFILES";
             profilesHeaderLabel.Font = new Font("Segoe UI", 11, FontStyle.Bold);
             profilesHeaderLabel.ForeColor = Color.White;
             profilesHeaderLabel.Dock = DockStyle.Fill;
             profilesHeaderLabel.TextAlign = ContentAlignment.MiddleLeft;
-            
+
             profilesHeader.Controls.Add(profilesHeaderLabel, 0, 0);
-            
+
             // Create a TableLayoutPanel for profile controls
             TableLayoutPanel profilesLayout = new TableLayoutPanel();
             profilesLayout.Dock = DockStyle.Fill;
@@ -1287,7 +1312,7 @@ namespace CrossHookEngine.App.Forms
             profilesLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); // Save
             profilesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             profilesLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            
+
             // Profile selection combobox
             cmbProfiles.Dock = DockStyle.Fill;
             cmbProfiles.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -1297,7 +1322,7 @@ namespace CrossHookEngine.App.Forms
             cmbProfiles.Font = new Font("Segoe UI", 9.5f);
             profilesLayout.Controls.Add(cmbProfiles, 0, 0);
             profilesLayout.SetColumnSpan(cmbProfiles, 2);
-            
+
             // Profile action buttons
             btnRefresh.Text = "Refresh";
             btnRefresh.Dock = DockStyle.Fill;
@@ -1308,7 +1333,7 @@ namespace CrossHookEngine.App.Forms
             btnRefresh.FlatAppearance.BorderSize = 0;
             btnRefresh.Font = new Font("Segoe UI", 9.5f);
             profilesLayout.Controls.Add(btnRefresh, 0, 1);
-            
+
             btnDelete.Text = "Delete";
             btnDelete.Dock = DockStyle.Fill;
             btnDelete.Margin = new Padding(3, 5, 0, 0);
@@ -1318,7 +1343,7 @@ namespace CrossHookEngine.App.Forms
             btnDelete.FlatAppearance.BorderSize = 0;
             btnDelete.Font = new Font("Segoe UI", 9.5f);
             profilesLayout.Controls.Add(btnDelete, 1, 1);
-            
+
             btnLoad.Text = "Load";
             btnLoad.Dock = DockStyle.Fill;
             btnLoad.Margin = new Padding(0, 5, 0, 0);
@@ -1329,7 +1354,7 @@ namespace CrossHookEngine.App.Forms
             btnLoad.Font = new Font("Segoe UI", 9.5f);
             profilesLayout.Controls.Add(btnLoad, 0, 2);
             profilesLayout.SetColumnSpan(btnLoad, 2);
-            
+
             btnSave.Text = "Save";
             btnSave.Dock = DockStyle.Bottom;
             btnSave.Height = 40;
@@ -1341,7 +1366,7 @@ namespace CrossHookEngine.App.Forms
             btnSave.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
             profilesLayout.Controls.Add(btnSave, 0, 4);
             profilesLayout.SetColumnSpan(btnSave, 2);
-            
+
             // Auto-load last profile checkbox
             chkAutoLoadLastProfile = new CheckBox();
             chkAutoLoadLastProfile.Text = "Auto-load last used profile on startup";
@@ -1352,10 +1377,10 @@ namespace CrossHookEngine.App.Forms
             chkAutoLoadLastProfile.CheckedChanged += ChkAutoLoadLastProfile_CheckedChanged;
             profilesLayout.Controls.Add(chkAutoLoadLastProfile, 0, 3);
             profilesLayout.SetColumnSpan(chkAutoLoadLastProfile, 2);
-            
+
             panelProfiles.Controls.Add(profilesLayout);
             panelProfiles.Controls.Add(profilesHeader);
-            
+
             // Configure console output textbox - less height
             txtConsoleOutput.Dock = DockStyle.Fill;
             txtConsoleOutput.Multiline = true;
@@ -1364,21 +1389,21 @@ namespace CrossHookEngine.App.Forms
             txtConsoleOutput.ForeColor = Color.LightGreen;
             txtConsoleOutput.Font = new Font("Consolas", 9);
             txtConsoleOutput.ScrollBars = ScrollBars.Vertical;
-            
+
             // Create a panel for console output
             consolePanel = new Panel();
             consolePanel.BorderStyle = BorderStyle.FixedSingle;
             consolePanel.Dock = DockStyle.Fill;
             consolePanel.Padding = new Padding(0);
             consolePanel.Controls.Add(txtConsoleOutput);
-            
+
             // Configure loaded DLLs list
             loadedDllsPanel = new Panel();
             loadedDllsPanel.BorderStyle = BorderStyle.FixedSingle;
             loadedDllsPanel.Dock = DockStyle.Fill;
             loadedDllsPanel.Padding = new Padding(0);
             loadedDllsPanel.BackColor = Color.FromArgb(25, 25, 25);
-            
+
             TableLayoutPanel dllsHeader = new TableLayoutPanel();
             dllsHeader.Dock = DockStyle.Top;
             dllsHeader.Height = 40;
@@ -1387,30 +1412,30 @@ namespace CrossHookEngine.App.Forms
             dllsHeader.ColumnCount = 1;
             dllsHeader.Margin = new Padding(0);
             dllsHeader.Padding = new Padding(10, 5, 10, 5);
-            
+
             Label dllsHeaderLabel = new Label();
             dllsHeaderLabel.Text = "LOADED DLLS/MODULES";
             dllsHeaderLabel.Font = new Font("Segoe UI", 11, FontStyle.Bold);
             dllsHeaderLabel.ForeColor = Color.White;
             dllsHeaderLabel.Dock = DockStyle.Fill;
             dllsHeaderLabel.TextAlign = ContentAlignment.MiddleLeft;
-            
+
             dllsHeader.Controls.Add(dllsHeaderLabel, 0, 0);
-            
+
             lstLoadedDlls.Dock = DockStyle.Fill;
             lstLoadedDlls.BackColor = Color.FromArgb(40, 40, 40);
             lstLoadedDlls.ForeColor = Color.White;
             lstLoadedDlls.BorderStyle = BorderStyle.None;
             lstLoadedDlls.Font = new Font("Segoe UI", 9);
-            
+
             Panel dllsListContainer = new Panel();
             dllsListContainer.Dock = DockStyle.Fill;
             dllsListContainer.Padding = new Padding(5);
             dllsListContainer.Controls.Add(lstLoadedDlls);
-            
+
             loadedDllsPanel.Controls.Add(dllsListContainer);
             loadedDllsPanel.Controls.Add(dllsHeader);
-            
+
             // Configure Launch button
             btnLaunch.Text = "Launch";
             btnLaunch.Dock = DockStyle.Fill;
@@ -1419,13 +1444,13 @@ namespace CrossHookEngine.App.Forms
             btnLaunch.ForeColor = Color.White;
             btnLaunch.FlatStyle = FlatStyle.Flat;
             btnLaunch.FlatAppearance.BorderSize = 0;
-            
+
             // Launch methods panel
             panelLaunchMethods.BorderStyle = BorderStyle.FixedSingle;
             panelLaunchMethods.Dock = DockStyle.Fill;
             panelLaunchMethods.Padding = new Padding(0);
             panelLaunchMethods.BackColor = Color.FromArgb(25, 25, 25);
-            
+
             TableLayoutPanel methodsHeader = new TableLayoutPanel();
             methodsHeader.Dock = DockStyle.Top;
             methodsHeader.Height = 40;
@@ -1434,16 +1459,16 @@ namespace CrossHookEngine.App.Forms
             methodsHeader.ColumnCount = 1;
             methodsHeader.Margin = new Padding(0);
             methodsHeader.Padding = new Padding(10, 5, 10, 5);
-            
+
             Label methodsHeaderLabel = new Label();
             methodsHeaderLabel.Text = "LAUNCH METHODS";
             methodsHeaderLabel.Font = new Font("Segoe UI", 11, FontStyle.Bold);
             methodsHeaderLabel.ForeColor = Color.White;
             methodsHeaderLabel.Dock = DockStyle.Fill;
             methodsHeaderLabel.TextAlign = ContentAlignment.MiddleLeft;
-            
+
             methodsHeader.Controls.Add(methodsHeaderLabel, 0, 0);
-            
+
             // Create a better layout for the radio buttons - FlowLayout with styled buttons
             launchMethodsFlow = new FlowLayoutPanel();
             launchMethodsFlow.Dock = DockStyle.Fill;
@@ -1454,7 +1479,7 @@ namespace CrossHookEngine.App.Forms
             // Center alignment properties
             launchMethodsFlow.AutoSize = true;
             launchMethodsFlow.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            
+
             // Setup styled radio buttons
             radCreateProcess.Text = "P/Invoke CreateProcess";
             radCreateProcess.AutoSize = false;
@@ -1466,7 +1491,7 @@ namespace CrossHookEngine.App.Forms
             radCreateProcess.TextAlign = ContentAlignment.MiddleCenter;
             radCreateProcess.Margin = new Padding(5);
             radCreateProcess.Font = new Font("Segoe UI", 9);
-            
+
             radCmdStart.Text = "CMD Start";
             radCmdStart.AutoSize = false;
             radCmdStart.Size = new Size(140, 30);
@@ -1477,7 +1502,7 @@ namespace CrossHookEngine.App.Forms
             radCmdStart.TextAlign = ContentAlignment.MiddleCenter;
             radCmdStart.Margin = new Padding(5);
             radCmdStart.Font = new Font("Segoe UI", 9);
-            
+
             radCreateThreadInjection.Text = "Create Thread Injection";
             radCreateThreadInjection.AutoSize = false;
             radCreateThreadInjection.Size = new Size(180, 30);
@@ -1488,7 +1513,7 @@ namespace CrossHookEngine.App.Forms
             radCreateThreadInjection.TextAlign = ContentAlignment.MiddleCenter;
             radCreateThreadInjection.Margin = new Padding(5);
             radCreateThreadInjection.Font = new Font("Segoe UI", 9);
-            
+
             radRemoteThreadInjection.Text = "Remote Thread Injection";
             radRemoteThreadInjection.AutoSize = false;
             radRemoteThreadInjection.Size = new Size(180, 30);
@@ -1499,7 +1524,7 @@ namespace CrossHookEngine.App.Forms
             radRemoteThreadInjection.TextAlign = ContentAlignment.MiddleCenter;
             radRemoteThreadInjection.Margin = new Padding(5);
             radRemoteThreadInjection.Font = new Font("Segoe UI", 9);
-            
+
             radShellExecute.Text = "Shell Execute";
             radShellExecute.AutoSize = false;
             radShellExecute.Size = new Size(140, 30);
@@ -1510,7 +1535,7 @@ namespace CrossHookEngine.App.Forms
             radShellExecute.TextAlign = ContentAlignment.MiddleCenter;
             radShellExecute.Margin = new Padding(5);
             radShellExecute.Font = new Font("Segoe UI", 9);
-            
+
             radProcessStart.Text = "Raw Process Start";
             radProcessStart.AutoSize = false;
             radProcessStart.Size = new Size(160, 30);
@@ -1521,7 +1546,7 @@ namespace CrossHookEngine.App.Forms
             radProcessStart.TextAlign = ContentAlignment.MiddleCenter;
             radProcessStart.Margin = new Padding(5);
             radProcessStart.Font = new Font("Segoe UI", 9);
-            
+
             // Add radio buttons to flow panel
             launchMethodsFlow.Controls.Add(radCreateProcess);
             launchMethodsFlow.Controls.Add(radCmdStart);
@@ -1529,30 +1554,30 @@ namespace CrossHookEngine.App.Forms
             launchMethodsFlow.Controls.Add(radRemoteThreadInjection);
             launchMethodsFlow.Controls.Add(radShellExecute);
             launchMethodsFlow.Controls.Add(radProcessStart);
-            
+
             // Create a container to center the flow panel
             Panel centerContainer = new Panel();
             centerContainer.Dock = DockStyle.Fill;
             centerContainer.BackColor = Color.FromArgb(30, 30, 30);
-            
+
             // Add the flow panel to the center container with centering
             launchMethodsFlow.Dock = DockStyle.None;
             launchMethodsFlow.Location = new Point(
                 (centerContainer.ClientSize.Width - launchMethodsFlow.Width) / 2,
                 (centerContainer.ClientSize.Height - launchMethodsFlow.Height) / 2);
-            
+
             centerContainer.SizeChanged += (s, e) => {
                 launchMethodsFlow.Location = new Point(
                     (centerContainer.ClientSize.Width - launchMethodsFlow.Width) / 2,
                     (centerContainer.ClientSize.Height - launchMethodsFlow.Height) / 2);
             };
-            
+
             centerContainer.Controls.Add(launchMethodsFlow);
-            
+
             // Add center container to launch methods panel
             panelLaunchMethods.Controls.Add(centerContainer);
             panelLaunchMethods.Controls.Add(methodsHeader);
-            
+
             // Create a container for the Launch button and methods panel
             lblLaunchHint.Dock = DockStyle.Fill;
             lblLaunchHint.TextAlign = ContentAlignment.TopCenter;
@@ -1577,10 +1602,10 @@ namespace CrossHookEngine.App.Forms
             launchContainer.ColumnCount = 1;
             launchContainer.RowStyles.Add(new RowStyle(SizeType.Percent, 40F));
             launchContainer.RowStyles.Add(new RowStyle(SizeType.Percent, 60F));
-            
+
             launchContainer.Controls.Add(launchButtonPanel, 0, 0);
             launchContainer.Controls.Add(panelLaunchMethods, 0, 1);
-            
+
             // Add all panels to the main layout
             mainLayout.Controls.Add(panelPathsProcessSelection, 0, 0);
             mainLayout.Controls.Add(panelProfiles, 1, 0);
@@ -1588,38 +1613,38 @@ namespace CrossHookEngine.App.Forms
             mainLayout.Controls.Add(loadedDllsPanel, 1, 1);
             mainLayout.Controls.Add(launchContainer, 0, 2);
             mainLayout.SetColumnSpan(launchContainer, 2);
-            
+
             // Add the main layout to the tab
             tabMain.Controls.Add(mainLayout);
         }
-        
+
         private void RegisterEventHandlers()
         {
             // Form events
             KeyDown += OnFormKeyDown;
 			SizeChanged += MainForm_SizeChanged;
 			ResizeEnd += MainForm_ResizeEnd;
-            
+
             // Process Manager events
             _processManager.ProcessStarted += ProcessManager_ProcessStarted;
             _processManager.ProcessStopped += ProcessManager_ProcessStopped;
             _processManager.ProcessAttached += ProcessManager_ProcessAttached;
             _processManager.ProcessDetached += ProcessManager_ProcessDetached;
-            
+
             // Injection Manager events
             _injectionManager.InjectionSucceeded += InjectionManager_InjectionSucceeded;
             _injectionManager.InjectionFailed += InjectionManager_InjectionFailed;
-            
+
             // Memory Manager events
             _memoryManager.MemoryOperationSucceeded += MemoryManager_MemoryOperationSucceeded;
             _memoryManager.MemoryOperationFailed += MemoryManager_MemoryOperationFailed;
-            
+
             // Resume Panel events
             if (_resumePanel != null)
             {
                 _resumePanel.Resumed += ResumePanel_Resumed;
             }
-            
+
             // Button click events
             btnRefreshProcesses.Click += (s, e) => RefreshProcessList();
             btnBrowseGame.Click += BtnBrowseGame_Click;
@@ -1627,6 +1652,7 @@ namespace CrossHookEngine.App.Forms
             btnBrowseSteamCompatData.Click += BtnBrowseSteamCompatData_Click;
             btnBrowseSteamProton.Click += BtnBrowseSteamProton_Click;
             btnBrowseSteamLauncherIcon.Click += BtnBrowseSteamLauncherIcon_Click;
+            btnAttemptSteamAutoPopulate.Click += BtnAttemptSteamAutoPopulate_Click;
             btnExportSteamLaunchers.Click += BtnExportSteamLaunchers_Click;
             btnBrowseDll1.Click += BtnBrowseDll1_Click;
             btnBrowseDll2.Click += BtnBrowseDll2_Click;
@@ -1640,10 +1666,10 @@ namespace CrossHookEngine.App.Forms
             txtSteamCompatDataPath.TextChanged += (s, e) => _steamCompatDataPath = txtSteamCompatDataPath.Text.Trim();
             txtSteamProtonPath.TextChanged += (s, e) => _steamProtonPath = txtSteamProtonPath.Text.Trim();
             txtSteamLauncherIconPath.TextChanged += (s, e) => _steamLauncherIconPath = txtSteamLauncherIconPath.Text.Trim();
-            
+
             // ComboBox events
             cmbRunningExe.SelectedIndexChanged += CmbRunningExe_SelectedIndexChanged;
-            
+
             // Radio button events
             radCreateProcess.CheckedChanged += LaunchMethod_CheckedChanged;
             radCmdStart.CheckedChanged += LaunchMethod_CheckedChanged;
@@ -1652,7 +1678,7 @@ namespace CrossHookEngine.App.Forms
             radShellExecute.CheckedChanged += LaunchMethod_CheckedChanged;
             radProcessStart.CheckedChanged += LaunchMethod_CheckedChanged;
         }
-        
+
         private void PopulateControls()
         {
             // Add status strip
@@ -1665,16 +1691,16 @@ namespace CrossHookEngine.App.Forms
 			{
 				Controls.Add(statusStrip);
 			}
-            
+
             // Load recent files
             LoadRecentFiles();
-            
+
             // Load profiles
             LoadProfiles();
-            
+
             // Refresh process list
             RefreshProcessList();
-            
+
             // Show current environment DLLs by default
             ShowCurrentEnvironmentModules();
 
@@ -1716,23 +1742,23 @@ namespace CrossHookEngine.App.Forms
 			cmbProfiles.SelectedItem = profileName;
 			LoadProfile(profileName);
 		}
-        
+
         private void RefreshProcessList()
         {
             try
             {
                 // Clear the list
                 cmbRunningExe.Items.Clear();
-                
+
                 // Add an empty item
                 cmbRunningExe.Items.Add(string.Empty);
-                
+
                 // Get all running processes
                 var processes = Process.GetProcesses();
-                
+
                 // Sort by name
                 Array.Sort(processes, (p1, p2) => p1.ProcessName.CompareTo(p2.ProcessName));
-                
+
                 // Add each process to the list
                 foreach (var process in processes)
                 {
@@ -1743,13 +1769,13 @@ namespace CrossHookEngine.App.Forms
                         {
                             continue;
                         }
-                        
+
                         // Skip this process
                         if (process.Id == Process.GetCurrentProcess().Id)
                         {
                             continue;
                         }
-                        
+
                         // Add the process to the list
                         cmbRunningExe.Items.Add($"{process.ProcessName} (ID: {process.Id})");
                     }
@@ -1759,7 +1785,7 @@ namespace CrossHookEngine.App.Forms
                         continue;
                     }
                 }
-                
+
                 LogToConsole($"Refreshed process list - {cmbRunningExe.Items.Count - 1} processes found");
             }
             catch (Exception ex)
@@ -1767,7 +1793,7 @@ namespace CrossHookEngine.App.Forms
                 LogToConsole($"Error refreshing process list: {ex.Message}");
             }
         }
-        
+
         private void LoadRecentFiles()
         {
             try
@@ -1797,7 +1823,7 @@ namespace CrossHookEngine.App.Forms
                     cmbDll1.Items.Add(path);
                     cmbDll2.Items.Add(path);
                 }
-                
+
                 LogToConsole($"Loaded recent files - Games: {_recentGamePaths.Count}, Trainers: {_recentTrainerPaths.Count}, DLLs: {_recentDllPaths.Count}");
             }
             catch (Exception ex)
@@ -1805,7 +1831,7 @@ namespace CrossHookEngine.App.Forms
                 LogToConsole($"Error loading recent files: {ex.Message}");
             }
         }
-        
+
         private void SaveRecentFiles()
         {
             try
@@ -1817,7 +1843,7 @@ namespace CrossHookEngine.App.Forms
                 LogToConsole($"Error saving recent files: {ex.Message}");
             }
         }
-        
+
         private void LoadProfiles()
         {
             try
@@ -1832,9 +1858,9 @@ namespace CrossHookEngine.App.Forms
                     _profiles.Add(profileName);
                     cmbProfiles.Items.Add(profileName);
                 }
-                
+
                 UpdateStatus($"Loaded {profileNames.Count} profiles");
-                
+
                 // Select the last used profile if available
                 if (!string.IsNullOrEmpty(_lastUsedProfile) && cmbProfiles.Items.Contains(_lastUsedProfile))
                 {
@@ -1846,7 +1872,7 @@ namespace CrossHookEngine.App.Forms
                 LogToConsole($"Error loading profiles: {ex.Message}");
             }
         }
-        
+
         private void SaveProfile(string profileName)
         {
             try
@@ -1870,24 +1896,24 @@ namespace CrossHookEngine.App.Forms
                 };
 
                 _profileService.SaveProfile(profileName, profile);
-                
+
                 if (!_profiles.Contains(profileName))
                 {
                     _profiles.Add(profileName);
                     cmbProfiles.Items.Add(profileName);
                 }
-                
+
                 LogToConsole($"Profile saved: {profileName}");
                 UpdateStatus($"Profile saved: {profileName}");
             }
             catch (Exception ex)
             {
                 LogToConsole($"Error saving profile: {ex.Message}");
-                MessageBox.Show($"Error saving profile: {ex.Message}", "Error", 
+                MessageBox.Show($"Error saving profile: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        
+
         private void LoadProfile(string profileName)
         {
             try
@@ -1934,38 +1960,38 @@ namespace CrossHookEngine.App.Forms
                 }
 
                 UpdateSteamModeUiState();
-                
+
                 LogToConsole($"Profile loaded: {profileName}");
                 UpdateStatus($"Profile loaded: {profileName}");
             }
             catch (FileNotFoundException ex)
             {
-                MessageBox.Show($"Profile file not found: {ex.FileName}", "Error", 
+                MessageBox.Show($"Profile file not found: {ex.FileName}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             catch (Exception ex)
             {
                 LogToConsole($"Error loading profile: {ex.Message}");
-                MessageBox.Show($"Error loading profile: {ex.Message}", "Error", 
+                MessageBox.Show($"Error loading profile: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        
+
         private void SetComboBoxValue(ComboBox comboBox, string value)
         {
             if (string.IsNullOrEmpty(value))
             {
                 return;
             }
-            
+
             if (!comboBox.Items.Contains(value))
             {
                 comboBox.Items.Add(value);
             }
-            
+
             comboBox.SelectedItem = value;
         }
-        
+
         private void UpdateLaunchMethodRadioButtons()
         {
             // Reset all radio buttons to default appearance
@@ -1977,7 +2003,7 @@ namespace CrossHookEngine.App.Forms
                     rb.ForeColor = Color.White;
                 }
             }
-            
+
             // Check the appropriate radio button based on the launch method
             radCreateProcess.Checked = _launchMethod == LaunchMethod.CreateProcess;
             radCmdStart.Checked = _launchMethod == LaunchMethod.CmdStart;
@@ -1985,7 +2011,7 @@ namespace CrossHookEngine.App.Forms
             radRemoteThreadInjection.Checked = _launchMethod == LaunchMethod.RemoteThreadInjection;
             radShellExecute.Checked = _launchMethod == LaunchMethod.ShellExecute;
             radProcessStart.Checked = _launchMethod == LaunchMethod.ProcessStart;
-            
+
             // Highlight the selected radio button
             RadioButton selectedButton = null;
             if (_launchMethod == LaunchMethod.CreateProcess) selectedButton = radCreateProcess;
@@ -1994,14 +2020,14 @@ namespace CrossHookEngine.App.Forms
             else if (_launchMethod == LaunchMethod.RemoteThreadInjection) selectedButton = radRemoteThreadInjection;
             else if (_launchMethod == LaunchMethod.ShellExecute) selectedButton = radShellExecute;
             else if (_launchMethod == LaunchMethod.ProcessStart) selectedButton = radProcessStart;
-            
+
             if (selectedButton != null)
             {
                 selectedButton.BackColor = Color.FromArgb(0, 120, 215);
                 selectedButton.ForeColor = Color.White;
             }
         }
-        
+
         private void UpdateStatus(string message)
         {
             // Update the status strip label
@@ -2010,17 +2036,17 @@ namespace CrossHookEngine.App.Forms
                 Invoke(new Action<string>(UpdateStatus), message);
                 return;
             }
-            
+
             statusLabel.Text = message;
-            
+
             // Also log to console if it's an important message
-            if (message.Contains("Error") || message.Contains("Success") || message.Contains("Started") || 
+            if (message.Contains("Error") || message.Contains("Success") || message.Contains("Started") ||
                 message.Contains("Injected") || message.Contains("Launched"))
             {
                 LogToConsole(message);
             }
         }
-        
+
         private void LogToConsole(string message)
         {
             if (InvokeRequired)
@@ -2028,21 +2054,21 @@ namespace CrossHookEngine.App.Forms
                 Invoke(new Action<string>(LogToConsole), message);
                 return;
             }
-            
+
             // Add timestamp
             string timestamp = DateTime.Now.ToString("HH:mm:ss");
             string logEntry = $"[{timestamp}] {message}";
-            
+
             // Add to console
             txtConsoleOutput.AppendText(logEntry + Environment.NewLine);
-            
+
             // Auto-scroll to bottom
             txtConsoleOutput.SelectionStart = txtConsoleOutput.Text.Length;
             txtConsoleOutput.ScrollToCaret();
         }
-        
+
         #region Event Handlers
-        
+
         private void OnFormKeyDown(object sender, KeyEventArgs e)
         {
             // Handle keyboard shortcuts
@@ -2052,11 +2078,11 @@ namespace CrossHookEngine.App.Forms
                 e.Handled = true;
             }
         }
-        
+
         protected override void OnDeactivate(EventArgs e)
         {
             base.OnDeactivate(e);
-            
+
             // Show click to resume panel when focus is lost
             if (_resumePanel != null)
             {
@@ -2064,20 +2090,20 @@ namespace CrossHookEngine.App.Forms
                 _resumePanel.Show();
             }
         }
-        
+
         protected override void OnActivated(EventArgs e)
         {
             base.OnActivated(e);
-            
+
             // Hide click to resume panel when focus is gained
             if (_resumePanel != null)
             {
                 _resumePanel.Hide();
             }
         }
-        
+
         #endregion
-        
+
         #region UI Control Event Handlers
 
         private void ChkUseSteamMode_CheckedChanged(object sender, EventArgs e)
@@ -2101,6 +2127,7 @@ namespace CrossHookEngine.App.Forms
             btnBrowseSteamCompatData.Enabled = steamModeEnabled;
             btnBrowseSteamProton.Enabled = steamModeEnabled;
             btnBrowseSteamLauncherIcon.Enabled = steamModeEnabled;
+            btnAttemptSteamAutoPopulate.Enabled = steamModeEnabled;
             btnExportSteamLaunchers.Enabled = steamModeEnabled;
             launchMethodsFlow.Enabled = !steamModeEnabled;
 
@@ -2178,135 +2205,282 @@ namespace CrossHookEngine.App.Forms
                 }
             }
         }
-        
+
+        private SteamAutoPopulateRequest BuildSteamAutoPopulateRequest()
+        {
+            string gamePath = string.IsNullOrWhiteSpace(_selectedGamePath)
+                ? cmbGamePath.Text.Trim()
+                : _selectedGamePath;
+
+            return new SteamAutoPopulateRequest
+            {
+                GamePath = gamePath,
+                SteamClientInstallPath = GetSteamClientInstallPath()
+            };
+        }
+
+        private async void BtnAttemptSteamAutoPopulate_Click(object sender, EventArgs e)
+        {
+            SteamAutoPopulateRequest request = BuildSteamAutoPopulateRequest();
+            if (string.IsNullOrWhiteSpace(request.GamePath))
+            {
+                const string missingGameMessage =
+                    "Select the game executable first, then try auto-populate again.\n\n"
+                    + "CrossHook uses the selected game binary to match a Steam App ID through Steam manifests.\n\n"
+                    + "Common manual locations:\n"
+                    + "- Game executable: <SteamLibrary>/steamapps/common/<Game>/...\n"
+                    + "- Compatdata: <SteamLibrary>/steamapps/compatdata/<AppID>\n"
+                    + "- Proton: <SteamRoot>/steamapps/common/<Proton Folder>/proton";
+
+                MessageBox.Show(
+                    missingGameMessage,
+                    "Steam Auto Populate",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            string originalButtonText = btnAttemptSteamAutoPopulate.Text;
+            btnAttemptSteamAutoPopulate.Enabled = false;
+            btnAttemptSteamAutoPopulate.Text = "Scanning...";
+
+            try
+            {
+                UpdateStatus("Scanning Steam libraries and Proton configuration for the selected game...");
+
+                SteamAutoPopulateResult result = await Task.Run(() => SteamAutoPopulateService.AttemptAutoPopulate(request));
+                ApplySteamAutoPopulateResult(result);
+
+                foreach (string diagnostic in result.Diagnostics)
+                {
+                    LogToConsole($"Steam auto-populate: {diagnostic}");
+                }
+
+                foreach (string manualHint in result.ManualHints)
+                {
+                    LogToConsole($"Steam auto-populate hint: {manualHint}");
+                }
+
+                MessageBox.Show(
+                    BuildSteamAutoPopulateSummaryMessage(result),
+                    result.HasAnyMatch ? "Steam Auto Populate Results" : "Steam Auto Populate Guidance",
+                    MessageBoxButtons.OK,
+                    result.HasAnyMatch ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                LogToConsole($"Steam auto-populate failed: {ex.Message}");
+                MessageBox.Show(
+                    $"Steam auto-populate failed: {ex.Message}",
+                    "Steam Auto Populate",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            finally
+            {
+                btnAttemptSteamAutoPopulate.Text = originalButtonText;
+                btnAttemptSteamAutoPopulate.Enabled = chkUseSteamMode.Checked;
+            }
+        }
+
+        private void ApplySteamAutoPopulateResult(SteamAutoPopulateResult result)
+        {
+            int appliedFieldCount = 0;
+
+            if (result.SteamAppIdState == SteamAutoPopulateFieldState.Found && !string.IsNullOrWhiteSpace(result.SteamAppId))
+            {
+                txtSteamAppId.Text = result.SteamAppId;
+                appliedFieldCount++;
+            }
+
+            if (result.SteamCompatDataPathState == SteamAutoPopulateFieldState.Found && !string.IsNullOrWhiteSpace(result.SteamCompatDataPath))
+            {
+                txtSteamCompatDataPath.Text = result.SteamCompatDataPath;
+                appliedFieldCount++;
+            }
+
+            if (result.SteamProtonPathState == SteamAutoPopulateFieldState.Found && !string.IsNullOrWhiteSpace(result.SteamProtonPath))
+            {
+                txtSteamProtonPath.Text = result.SteamProtonPath;
+                appliedFieldCount++;
+            }
+
+            if (appliedFieldCount > 0)
+            {
+                UpdateStatus($"Steam auto-populate applied {appliedFieldCount} field(s). Review the results before launching.");
+                return;
+            }
+
+            UpdateStatus("Steam auto-populate did not find any fields it could fill confidently.");
+        }
+
+        private string BuildSteamAutoPopulateSummaryMessage(SteamAutoPopulateResult result)
+        {
+            StringBuilder builder = new StringBuilder();
+            _ = builder.AppendLine("Detected values:");
+            _ = builder.AppendLine(DescribeSteamAutoPopulateField("Steam App ID", result.SteamAppIdState, result.SteamAppId));
+            _ = builder.AppendLine(DescribeSteamAutoPopulateField("Compatdata Path", result.SteamCompatDataPathState, result.SteamCompatDataPath));
+            _ = builder.AppendLine(DescribeSteamAutoPopulateField("Proton Path", result.SteamProtonPathState, result.SteamProtonPath));
+
+            AppendSteamAutoPopulateSection(builder, "Diagnostics", result.Diagnostics);
+            AppendSteamAutoPopulateSection(builder, "Manual hints", result.ManualHints);
+
+            return builder.ToString().Trim();
+        }
+
+        private static string DescribeSteamAutoPopulateField(string label, SteamAutoPopulateFieldState state, string value)
+        {
+            return state switch
+            {
+                SteamAutoPopulateFieldState.Found when !string.IsNullOrWhiteSpace(value) => $"- {label}: {value}",
+                SteamAutoPopulateFieldState.Ambiguous => $"- {label}: multiple candidates found; left unchanged",
+                _ => $"- {label}: not found; left unchanged"
+            };
+        }
+
+        private static void AppendSteamAutoPopulateSection(StringBuilder builder, string heading, IReadOnlyList<string> lines)
+        {
+            if (lines is null || lines.Count == 0)
+            {
+                return;
+            }
+
+            _ = builder.AppendLine();
+            _ = builder.AppendLine($"{heading}:");
+            foreach (string line in lines)
+            {
+                _ = builder.AppendLine($"- {line}");
+            }
+        }
+
         private void BtnBrowseGame_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog dialog = new OpenFileDialog())
             {
                 dialog.Filter = "Executable Files (*.exe;*.bat;*.cmd;*.com;*.scr)|*.exe;*.bat;*.cmd;*.com;*.scr|All Files (*.*)|*.*";
                 dialog.Title = "Select Game Executable";
-                
+
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
                     _selectedGamePath = dialog.FileName;
-                    
+
                     // Add to combobox and recent paths if not already there
                     if (!cmbGamePath.Items.Contains(_selectedGamePath))
                     {
                         cmbGamePath.Items.Add(_selectedGamePath);
                         _recentGamePaths.Add(_selectedGamePath);
                     }
-                    
+
                     cmbGamePath.SelectedItem = _selectedGamePath;
-                    
+
                     UpdateStatus($"Selected game path: {_selectedGamePath}");
                     LogToConsole($"Selected game: {Path.GetFileName(_selectedGamePath)}");
-                    
+
                     // Save recent files
                     SaveRecentFiles();
                 }
             }
         }
-        
+
         private void BtnBrowseTrainer_Click(object sender, EventArgs e)
         {
             using (OpenFileDialog dialog = new OpenFileDialog())
             {
                 dialog.Filter = "Executable Files (*.exe;*.bat;*.cmd;*.com;*.scr)|*.exe;*.bat;*.cmd;*.com;*.scr|All Files (*.*)|*.*";
                 dialog.Title = "Select Trainer Executable";
-                
+
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
                     _selectedTrainerPath = dialog.FileName;
-                    
+
                     // Add to combobox and recent paths if not already there
                     if (!cmbTrainerPath.Items.Contains(_selectedTrainerPath))
                     {
                         cmbTrainerPath.Items.Add(_selectedTrainerPath);
                         _recentTrainerPaths.Add(_selectedTrainerPath);
                     }
-                    
+
                     cmbTrainerPath.SelectedItem = _selectedTrainerPath;
-                    
+
                     UpdateStatus($"Selected trainer path: {_selectedTrainerPath}");
                     LogToConsole($"Selected trainer: {Path.GetFileName(_selectedTrainerPath)}");
-                    
+
                     // Save recent files
                     SaveRecentFiles();
                 }
             }
         }
-        
+
         private void BtnBrowseDll1_Click(object sender, EventArgs e)
         {
             BrowseForDll(cmbDll1, path => _selectedDll1Path = path);
         }
-        
+
         private void BtnBrowseDll2_Click(object sender, EventArgs e)
         {
             BrowseForDll(cmbDll2, path => _selectedDll2Path = path);
         }
-        
+
         private void BrowseForDll(ComboBox comboBox, Action<string> setPathAction)
         {
             using (OpenFileDialog dialog = new OpenFileDialog())
             {
                 dialog.Filter = "DLL Files (*.dll)|*.dll|All Files (*.*)|*.*";
                 dialog.Title = "Select DLL";
-                
+
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
                     string dllPath = dialog.FileName;
-                    
+
                     // Set the path using the provided action
                     setPathAction(dllPath);
-                    
+
                     // Add to combobox and recent paths if not already there
                     if (!comboBox.Items.Contains(dllPath))
                     {
                         comboBox.Items.Add(dllPath);
                     }
-                    
+
                     if (!_recentDllPaths.Contains(dllPath))
                     {
                         _recentDllPaths.Add(dllPath);
                     }
-                    
+
                     comboBox.SelectedItem = dllPath;
-                    
+
                     UpdateStatus($"Selected DLL path: {dllPath}");
                     LogToConsole($"Selected DLL: {Path.GetFileName(dllPath)}");
-                    
+
                     // Save recent files
                     SaveRecentFiles();
                 }
             }
         }
-        
+
         private void BtnRefresh_Click(object sender, EventArgs e)
         {
             LoadProfiles();
             LogToConsole("Profiles refreshed");
             UpdateStatus("Profiles refreshed");
         }
-        
+
         private void BtnLoad_Click(object sender, EventArgs e)
         {
             if (cmbProfiles.SelectedItem == null)
             {
-                MessageBox.Show("Please select a profile to load.", "No Profile Selected", 
+                MessageBox.Show("Please select a profile to load.", "No Profile Selected",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            
+
             string profileName = cmbProfiles.SelectedItem.ToString();
             LoadProfile(profileName);
-            
+
             // Save as last used profile
             _lastUsedProfile = profileName;
             SaveAppSettings();
         }
-        
+
         private void BtnSave_Click(object sender, EventArgs e)
         {
             // Show dialog to get profile name
@@ -2315,57 +2489,57 @@ namespace CrossHookEngine.App.Forms
                 if (dialog.ShowDialog(this) == DialogResult.OK)
                 {
                     string profileName = dialog.ProfileName;
-                    
+
                     // Check if profile already exists
                     if (cmbProfiles.Items.Contains(profileName))
                     {
                         DialogResult result = MessageBox.Show(
-                            $"Profile '{profileName}' already exists. Do you want to overwrite it?", 
-                            "Profile Exists", 
-                            MessageBoxButtons.YesNo, 
+                            $"Profile '{profileName}' already exists. Do you want to overwrite it?",
+                            "Profile Exists",
+                            MessageBoxButtons.YesNo,
                             MessageBoxIcon.Question);
-                        
+
                         if (result != DialogResult.Yes)
                         {
                             return;
                         }
                     }
-                    
+
                     SaveProfile(profileName);
-                    
+
                     // Update last used profile
                     _lastUsedProfile = profileName;
                     SaveAppSettings();
-                    
+
                     // Select the profile in the dropdown
                     cmbProfiles.SelectedItem = profileName;
                 }
             }
         }
-        
+
         private void BtnDelete_Click(object sender, EventArgs e)
         {
             if (cmbProfiles.SelectedItem == null)
             {
-                MessageBox.Show("Please select a profile to delete.", "No Profile Selected", 
+                MessageBox.Show("Please select a profile to delete.", "No Profile Selected",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            
+
             string profileName = cmbProfiles.SelectedItem.ToString();
-            
+
             // Confirm deletion
             DialogResult result = MessageBox.Show(
-                $"Are you sure you want to delete the profile '{profileName}'?", 
-                "Confirm Delete", 
-                MessageBoxButtons.YesNo, 
+                $"Are you sure you want to delete the profile '{profileName}'?",
+                "Confirm Delete",
+                MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
-            
+
             if (result != DialogResult.Yes)
             {
                 return;
             }
-            
+
             try
             {
                 _profileService.DeleteProfile(profileName);
@@ -2386,13 +2560,13 @@ namespace CrossHookEngine.App.Forms
             }
             catch (FileNotFoundException ex)
             {
-                MessageBox.Show($"Profile file not found: {ex.FileName}", "Error", 
+                MessageBox.Show($"Profile file not found: {ex.FileName}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             catch (Exception ex)
             {
                 LogToConsole($"Error deleting profile: {ex.Message}");
-                MessageBox.Show($"Error deleting profile: {ex.Message}", "Error", 
+                MessageBox.Show($"Error deleting profile: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -2782,7 +2956,7 @@ namespace CrossHookEngine.App.Forms
                 }
                 else
                 {
-                    // Since we've marked the game executable as optional in the UI, 
+                    // Since we've marked the game executable as optional in the UI,
                     // we should ask the user to confirm they want to proceed without a game path
                     DialogResult result = MessageBox.Show(
                         "No game executable selected. Do you want to continue?\n\n" +
@@ -2791,13 +2965,13 @@ namespace CrossHookEngine.App.Forms
                         "No Game Executable",
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question);
-                        
+
                     if (result == DialogResult.No)
                     {
                         return;
                     }
                 }
-                
+
                 // Check if we have a trainer to launch
                 if (!string.IsNullOrEmpty(_selectedTrainerPath))
                 {
@@ -2808,21 +2982,21 @@ namespace CrossHookEngine.App.Forms
                 {
                     // If no game and no trainer, show message
                     MessageBox.Show(
-                        "Please select at least a game executable or trainer to launch.", 
-                        "Nothing to Launch", 
-                        MessageBoxButtons.OK, 
+                        "Please select at least a game executable or trainer to launch.",
+                        "Nothing to Launch",
+                        MessageBoxButtons.OK,
                         MessageBoxIcon.Warning);
                 }
-                
+
                 return;
             }
-            
+
             // Launch the game
             LogToConsole($"Launching game: {_selectedGamePath}");
             LogToConsole($"Launch method: {_launchMethod}");
-            
+
             string gameDir = Path.GetDirectoryName(_selectedGamePath);
-            
+
             if (_processManager.LaunchProcess(_selectedGamePath, gameDir, _launchMethod))
             {
                 LogToConsole($"Game launched successfully (PID: {_processManager.ProcessId})");
@@ -2876,16 +3050,16 @@ namespace CrossHookEngine.App.Forms
             else
             {
                 LogToConsole("Failed to launch game");
-                
+
                 // Only show error message if not auto-launching (since window would be minimized)
                 if (!_autoLaunchRequested)
                 {
-                    MessageBox.Show("Failed to launch game. Please check the log for details.", 
+                    MessageBox.Show("Failed to launch game. Please check the log for details.",
                         "Launch Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
-        
+
         private async void BtnLaunch_Click(object sender, EventArgs e)
         {
             try
@@ -2903,16 +3077,16 @@ namespace CrossHookEngine.App.Forms
             catch (Exception ex)
             {
                 LogToConsole($"Error launching: {ex.Message}");
-                
+
                 // Only show error message if not auto-launching (since window would be minimized)
                 if (!_autoLaunchRequested)
                 {
-                    MessageBox.Show($"Error launching: {ex.Message}", 
+                    MessageBox.Show($"Error launching: {ex.Message}",
                         "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
-        
+
         private void InjectDll(string dllPath)
         {
             try
@@ -2922,11 +3096,11 @@ namespace CrossHookEngine.App.Forms
                     LogToConsole($"Invalid DLL path: {dllPath}");
                     return;
                 }
-                
+
                 if (_injectionManager.InjectDll(dllPath))
                 {
                     LogToConsole($"Successfully injected: {dllPath}");
-                    
+
                     // Update the loadeddlls list
                     RefreshLoadedDllsList();
                 }
@@ -2940,13 +3114,13 @@ namespace CrossHookEngine.App.Forms
                 LogToConsole($"Error injecting DLL: {ex.Message}");
             }
         }
-        
+
         private void LaunchMethod_CheckedChanged(object sender, EventArgs e)
         {
             RadioButton radioButton = sender as RadioButton;
             if (radioButton == null || !radioButton.Checked)
                 return;
-            
+
             // Reset all radio buttons to default appearance
             foreach (Control control in launchMethodsFlow.Controls)
             {
@@ -2956,11 +3130,11 @@ namespace CrossHookEngine.App.Forms
                     rb.ForeColor = Color.White;
                 }
             }
-            
+
             // Highlight the selected radio button
             radioButton.BackColor = Color.FromArgb(0, 120, 215);
             radioButton.ForeColor = Color.White;
-            
+
             // Update the launch method based on the selected radio button
             if (radioButton == radCreateProcess)
                 _launchMethod = LaunchMethod.CreateProcess;
@@ -2974,139 +3148,139 @@ namespace CrossHookEngine.App.Forms
                 _launchMethod = LaunchMethod.ShellExecute;
             else if (radioButton == radProcessStart)
                 _launchMethod = LaunchMethod.ProcessStart;
-            
+
             UpdateStatus($"Launch method selected: {_launchMethod}");
         }
-        
+
         private void CmbRunningExe_SelectedIndexChanged(object sender, EventArgs e)
         {
             if (cmbRunningExe.SelectedItem != null)
             {
                 string selectedProcess = cmbRunningExe.SelectedItem.ToString();
                 int processId = ExtractProcessId(selectedProcess);
-                
+
                 if (processId > 0)
                 {
                     UpdateStatus($"Selected process: {selectedProcess}");
-                    
+
                     // Refresh loaded DLLs list to show modules for the selected process
                     RefreshLoadedDllsList();
                 }
             }
         }
-        
+
         #endregion
-        
+
         #region Process Manager Event Handlers
-        
+
         private void ProcessManager_ProcessStarted(object sender, ProcessEventArgs e)
         {
             UpdateStatus($"Process started: {e.Process.ProcessName} (PID: {e.Process.Id})");
             LogToConsole($"Process started: {e.Process.ProcessName} (PID: {e.Process.Id})");
             RefreshLoadedDllsList();
         }
-        
+
         private void ProcessManager_ProcessStopped(object sender, ProcessEventArgs e)
         {
             UpdateStatus($"Process stopped: {e.Process.ProcessName}");
             LogToConsole($"Process stopped: {e.Process.ProcessName}");
             RefreshLoadedDllsList();
         }
-        
+
         private void ProcessManager_ProcessAttached(object sender, ProcessEventArgs e)
         {
             UpdateStatus($"Attached to process: {e.Process.ProcessName} (PID: {e.Process.Id})");
             LogToConsole($"Attached to process: {e.Process.ProcessName} (PID: {e.Process.Id})");
             RefreshLoadedDllsList();
         }
-        
+
         private void ProcessManager_ProcessDetached(object sender, ProcessEventArgs e)
         {
             UpdateStatus($"Detached from process: {e.Process.ProcessName}");
             LogToConsole($"Detached from process: {e.Process.ProcessName}");
             RefreshLoadedDllsList();
         }
-        
+
         #endregion
-        
+
         #region Injection Manager Event Handlers
-        
+
         private void InjectionManager_InjectionSucceeded(object sender, InjectionEventArgs e)
         {
             UpdateStatus($"Injection succeeded: {e.DllPath}");
             LogToConsole($"Injection succeeded: {e.DllPath}");
             RefreshLoadedDllsList();
         }
-        
+
         private void InjectionManager_InjectionFailed(object sender, InjectionEventArgs e)
         {
             UpdateStatus($"Injection failed: {e.DllPath} - {e.Message}");
             LogToConsole($"Injection failed: {e.DllPath} - {e.Message}");
         }
-        
+
         #endregion
-        
+
         #region Memory Manager Event Handlers
-        
+
         private void MemoryManager_MemoryOperationSucceeded(object sender, MemoryEventArgs e)
         {
             UpdateStatus(e.Message);
             LogToConsole(e.Message);
         }
-        
+
         private void MemoryManager_MemoryOperationFailed(object sender, MemoryEventArgs e)
         {
             UpdateStatus($"Memory operation failed: {e.Message}");
             LogToConsole($"Memory operation failed: {e.Message}");
         }
-        
+
         #endregion
-        
+
         #region UI Component Event Handlers
-        
+
         private void ResumePanel_Resumed(object sender, EventArgs e)
         {
             // Handle resume
             UpdateStatus("Application resumed");
         }
-        
+
         #endregion
-        
+
         #region Helper Methods
-        
+
         private void RefreshLoadedDllsList()
         {
             try
             {
                 // Clear the list
                 lstLoadedDlls.Items.Clear();
-                
+
                 // Get selected process if any
                 string selectedProcess = cmbRunningExe.SelectedItem?.ToString();
-                
+
                 if (!string.IsNullOrEmpty(selectedProcess))
                 {
                     // If process is selected, extract process ID and show its modules
                     int processId = ExtractProcessId(selectedProcess);
-                    
+
                     if (processId > 0)
                     {
                         try
                         {
                             Process proc = Process.GetProcessById(processId);
                             UpdateStatus($"Showing modules for process: {proc.ProcessName} (PID: {proc.Id})");
-                            
+
                             foreach (ProcessModule module in proc.Modules)
                             {
                                 lstLoadedDlls.Items.Add(module.FileName);
                             }
-                            
+
                             LogToConsole($"Refreshed loaded modules list - {proc.Modules.Count} modules found for {proc.ProcessName}");
                         }
                         catch (Exception ex)
                         {
                             LogToConsole($"Error getting modules for selected process: {ex.Message}");
-                            
+
                             // Fall back to current process modules
                             ShowCurrentEnvironmentModules();
                         }
@@ -3129,7 +3303,7 @@ namespace CrossHookEngine.App.Forms
                 LogToConsole($"Error refreshing loaded DLLs: {ex.Message}");
             }
         }
-        
+
         private void ShowCurrentEnvironmentModules()
         {
             try
@@ -3137,12 +3311,12 @@ namespace CrossHookEngine.App.Forms
                 // Show modules for the current process (our application)
                 Process currentProc = Process.GetCurrentProcess();
                 UpdateStatus("Showing modules for current Windows environment");
-                
+
                 foreach (ProcessModule module in currentProc.Modules)
                 {
                     lstLoadedDlls.Items.Add(module.FileName);
                 }
-                
+
                 LogToConsole($"Refreshed loaded modules list - {currentProc.Modules.Count} modules found for current environment");
             }
             catch (Exception ex)
@@ -3150,7 +3324,7 @@ namespace CrossHookEngine.App.Forms
                 LogToConsole($"Error getting modules for current environment: {ex.Message}");
             }
         }
-        
+
         private int ExtractProcessId(string processText)
         {
             try
@@ -3170,7 +3344,7 @@ namespace CrossHookEngine.App.Forms
                         }
                     }
                 }
-                
+
                 return -1;
             }
             catch
@@ -3178,7 +3352,7 @@ namespace CrossHookEngine.App.Forms
                 return -1;
             }
         }
-        
+
         // Helper method to create improved field panels with better styling
         private TableLayoutPanel CreateImprovedFieldPanel(string labelText, Control inputControl, Control buttonControl)
         {
@@ -3190,13 +3364,13 @@ namespace CrossHookEngine.App.Forms
             panel.RowCount = 1;
             panel.Height = 40;
             panel.AutoSize = false;
-            
+
             // Column styles - exact same values for both panels
             panel.ColumnStyles.Clear();
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F)); // Label
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); // Input
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F)); // Button
-            
+
             // Create label
             Label label = new Label();
             label.Text = labelText;
@@ -3205,11 +3379,11 @@ namespace CrossHookEngine.App.Forms
             label.Dock = DockStyle.Fill;
             label.TextAlign = ContentAlignment.MiddleLeft;
             label.Padding = new Padding(5, 0, 0, 0);
-            
+
             // Configure input control
             inputControl.Dock = DockStyle.Fill;
             inputControl.Margin = new Padding(0, 3, 5, 3);
-            
+
             // Configure button - check that it's a Button type first
             if (buttonControl is Button btn)
             {
@@ -3231,15 +3405,15 @@ namespace CrossHookEngine.App.Forms
                 buttonControl.AutoSize = false;
                 buttonControl.Margin = new Padding(5, 3, 5, 3);
             }
-            
+
             // Add controls
             panel.Controls.Add(label, 0, 0);
             panel.Controls.Add(inputControl, 1, 0);
             panel.Controls.Add(buttonControl, 2, 0);
-            
+
             return panel;
         }
-        
+
         // Helper method to create improved DLL injection panels with better styling
         private TableLayoutPanel CreateImprovedDllPanel(CheckBox checkbox, string labelText, ComboBox comboBox, Button button)
         {
@@ -3248,13 +3422,13 @@ namespace CrossHookEngine.App.Forms
             panel.RowCount = 1;
             panel.Dock = DockStyle.Fill;
             panel.Margin = new Padding(0, 2, 0, 2);
-            
+
             // Configure columns
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F));  // Checkbox
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15F));  // Label
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));  // ComboBox
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));  // Button
-            
+
             // Configure checkbox
             checkbox.Text = "Launch/Inject";
             checkbox.AutoSize = true;
@@ -3262,7 +3436,7 @@ namespace CrossHookEngine.App.Forms
             checkbox.Dock = DockStyle.Fill;
             checkbox.ForeColor = Color.White;
             panel.Controls.Add(checkbox, 0, 0);
-            
+
             // Create label
             Label label = new Label();
             label.Text = labelText;
@@ -3272,21 +3446,21 @@ namespace CrossHookEngine.App.Forms
             label.ForeColor = Color.White;
             label.Dock = DockStyle.Fill;
             panel.Controls.Add(label, 1, 0);
-            
+
             // Configure combobox
             comboBox.Dock = DockStyle.Fill;
             panel.Controls.Add(comboBox, 2, 0);
-            
+
             // Configure button
             button.Text = "Browse...";
             button.Dock = DockStyle.Fill;
             panel.Controls.Add(button, 3, 0);
-            
+
             return panel;
         }
-        
+
         #endregion
-        
+
 		private void ProcessCommandLineArguments(CommandLineOptions options)
 		{
 			if (options == null)
@@ -3296,7 +3470,7 @@ namespace CrossHookEngine.App.Forms
 
             if (_args == null || _args.Length == 0)
                 return;
-                
+
             LogToConsole("Processing command line arguments: " + string.Join(" ", _args));
 
             foreach (string profileToLoad in options.ProfilesToLoad)
@@ -3340,12 +3514,12 @@ namespace CrossHookEngine.App.Forms
                 SetComboBoxValue(cmbGamePath, _selectedGamePath);
                 LogToConsole($"Game path set to: {_selectedGamePath}");
             }
-            
+
             // If auto-launch was requested, perform the launch
             if (_autoLaunchRequested)
             {
                 LogToConsole("Auto-launching game...");
-                
+
                 // Make sure we have a valid path to auto-launch or a trainer set in profile
                 if (!string.IsNullOrEmpty(_autoLaunchPath) || !string.IsNullOrEmpty(_selectedTrainerPath))
                 {
@@ -3370,7 +3544,7 @@ namespace CrossHookEngine.App.Forms
                 }
             }
         }
-        
+
         // Methods to save and load application settings
         private void SaveAppSettings()
         {
@@ -3383,7 +3557,7 @@ namespace CrossHookEngine.App.Forms
                 };
 
                 _appSettingsService.SaveAppSettings(settings);
-                
+
                 LogToConsole("Application settings saved");
             }
             catch (Exception ex)
@@ -3391,7 +3565,7 @@ namespace CrossHookEngine.App.Forms
                 LogToConsole($"Error saving app settings: {ex.Message}");
             }
         }
-        
+
         private void LoadAppSettings()
         {
             try
@@ -3405,7 +3579,7 @@ namespace CrossHookEngine.App.Forms
                 {
                     chkAutoLoadLastProfile.Checked = _autoLoadLastProfile;
                 }
-                
+
                 LogToConsole("Application settings loaded");
             }
             catch (Exception ex)
@@ -3413,12 +3587,12 @@ namespace CrossHookEngine.App.Forms
                 LogToConsole($"Error loading app settings: {ex.Message}");
             }
         }
-        
+
         private void ChkAutoLoadLastProfile_CheckedChanged(object sender, EventArgs e)
         {
             _autoLoadLastProfile = chkAutoLoadLastProfile.Checked;
             SaveAppSettings();
-            
+
             if (_autoLoadLastProfile)
                 LogToConsole("Auto-load last profile enabled");
             else

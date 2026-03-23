@@ -26,6 +26,7 @@
     <Compile Include="../../src/CrossHookEngine.App/Services/RecentFilesService.cs" Link="Services/RecentFilesService.cs" />
     <Compile Include="../../src/CrossHookEngine.App/Services/CommandLineParser.cs" Link="Services/CommandLineParser.cs" />
     <Compile Include="../../src/CrossHookEngine.App/Services/SteamLaunchService.cs" Link="Services/SteamLaunchService.cs" />
+    <Compile Include="../../src/CrossHookEngine.App/Services/SteamAutoPopulateService.cs" Link="Services/SteamAutoPopulateService.cs" />
     <Compile Include="../../src/CrossHookEngine.App/Services/SteamExternalLauncherExportService.cs" Link="Services/SteamExternalLauncherExportService.cs" />
     <Compile Include="../../src/CrossHookEngine.App/Forms/MainFormStartupCoordinator.cs" Link="Forms/MainFormStartupCoordinator.cs" />
   </ItemGroup>
