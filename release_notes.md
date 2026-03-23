@@ -1,94 +1,61 @@
-# CrossHook Native -- Complete Rewrite
+# v0.2.0
 
-[![Download CrossHook](https://img.shields.io/badge/Download-CrossHook_Native-00C853?style=for-the-badge)](https://github.com/yandy-r/crosshook/releases)
-[![GitHub Release](https://img.shields.io/github/v/release/yandy-r/crosshook?style=for-the-badge&color=blue&label=Latest)](https://github.com/yandy-r/crosshook/releases)
-[![Platforms](https://img.shields.io/badge/Platforms-Linux%20|%20Steam%20Deck-blue?style=for-the-badge&logo=linux)](https://github.com/yandy-r/crosshook)
-[![License](https://img.shields.io/github/license/yandy-r/crosshook?style=for-the-badge&color=green)](LICENSE)
+CrossHook Native is the first full Linux-native release of CrossHook.
 
-CrossHook Native is a ground-up rewrite. The original WinForms-based CrossHook Loader (a Windows binary running under Proton/WINE) has been replaced with a native Linux desktop application built on Rust, Tauri v2, and React/TypeScript. CrossHook itself no longer needs WINE or Proton to run -- only your games and trainers do.
+This release replaces the legacy Windows-first loader flow with a native desktop application built on Rust, Tauri v2, and React. CrossHook itself now runs natively on Linux and Steam Deck; only the games and trainers continue to run under Proton or WINE when needed.
 
-## What Changed
+## Highlights
 
-### Native Linux Application
+- Native Linux desktop app distributed as an AppImage
+- Steam Deck-friendly UI with controller/gamepad navigation
+- Three launch modes: `steam_applaunch`, `proton_run`, and `native`
+- Steam auto-populate for game detection, App ID lookup, compatdata/prefix paths, and Proton discovery
+- Shared Proton install picker with readable detected versions and manual override support
+- TOML-based profiles and settings, including recent files and last-used profile tracking
+- Real-time launch console and structured logging
+- Community taps for discovering, importing, and sharing profiles
+- Compatibility viewer for community profile metadata
+- Launcher export as shell scripts and `.desktop` entries
+- Reproducible containerized AppImage builds for local and CI release workflows
 
-- CrossHook is now a **native Linux binary** distributed as an **AppImage**. No WINE or Proton required for CrossHook itself.
-- Built with **Rust** (backend logic), **Tauri v2** (desktop shell), and **React 18 + TypeScript** (frontend UI).
-- Runs natively on Linux desktops and Steam Deck without compatibility layers.
+## Native UI And Launching
 
-### Three Launch Modes
+- Replaced the old WinForms workflow with a native Linux UI built for desktop and handheld use
+- Added explicit runner selection so Steam, Proton, and native Linux launches each expose only the relevant fields
+- Added method-specific validation for Steam-backed launches, direct Proton launches, and native Linux executables
+- Improved Proton path selection by listing discovered installs while preserving manual edit/browse flows
+- Added startup auto-load behavior, settings management, and recent-profile handling in the native shell
 
-- **Steam App Launch**: Launches games via `steam://run` with trainers configured as launch options. Best for Steam Deck and games that require Steam integration.
-- **Proton Run**: Runs games directly through a selected Proton version using `proton run`. Supports standalone prefixes for isolation.
-- **Native**: Executes binaries directly without Proton. Useful for native Linux games or non-WINE tools.
+## Steam And Proton Integration
 
-### Steam Auto-Populate
+- Detects Steam roots, library folders, app manifests, compatdata locations, and Proton installs
+- Supports both Steam-managed launches and direct Proton launches for non-Steam setups
+- Normalizes prefix-path labeling across runner modes for clearer setup
+- Preserves manual control when auto-detection is incomplete or ambiguous
 
-- Automatically discovers installed Steam games, library folders, and Proton versions.
-- Populates the profile editor with game executables, app IDs, and available Proton runners.
-- Supports multiple Steam library paths and custom install locations.
+## Community And Export Features
 
-### Community Profile Sharing
+- Added git-backed community taps and manifest indexing
+- Added native import/export between local TOML profiles and community profile exchange data
+- Added an in-app browser for community profiles and compatibility data
+- Added launcher export for standalone scripts and desktop entries
 
-- Share and discover game profiles through git-based **taps** (community repositories).
-- Browse, search, and import profiles from community taps.
-- Compatibility viewer shows which profiles work with which Proton versions and platforms.
+## Packaging And Distribution
 
-### Launcher Export
+- CrossHook is now shipped as a Linux AppImage instead of a Windows binary
+- Release automation builds the native app, runs `crosshook-core` tests, and uploads the versioned AppImage artifact
+- Local builds also produce a stable alias AppImage for launchers and Steam shortcuts
 
-- Export launch configurations as standalone **shell scripts** and **.desktop entries**.
-- Generated launchers can be used independently of CrossHook.
-- Integrates with Steam as non-Steam game shortcuts.
+## Removed And Replaced
 
-### TOML-Based Profiles and Settings
+- Legacy WinForms UI
+- C# / .NET application runtime
+- Windows-only distribution artifacts
+- The old assumption that CrossHook itself must run under Proton or WINE
 
-- Profiles and application settings use human-readable **TOML** format.
-- Profiles store game paths, trainer paths, launch mode, Proton version, environment variables, and pre/post-launch commands.
+## Notes
 
-### UI and Experience
+- This is a major architectural rewrite rather than a small incremental patch
+- Existing release tags should match the native workspace version so artifact names and embedded app metadata stay aligned
 
-- **Dark theme** optimized for Steam Deck's display.
-- **Gamepad/controller navigation** support for couch and handheld use.
-- **Console view** for real-time runner output, launch logs, and process status.
-- Tab-based navigation: Profile Editor, Launch, Community, Export, Settings.
-
-### Developer Experience
-
-- Rust workspace with two crates: `crosshook-core` (shared library) and `crosshook-cli` (standalone CLI).
-- Tauri IPC command layer bridges Rust backend to React frontend.
-- Vite-powered dev server with hot reload for frontend development.
-- Container-based build option for reproducible AppImage builds.
-
-## Removed
-
-- Windows Forms (WinForms) UI
-- C# / .NET runtime dependency
-- Win32 P/Invoke and DLL injection system
-- Windows-only `crosshook.exe` binary
-- Dual `win-x64` / `win-x86` artifact builds
-
-## Installation
-
-Download the AppImage from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases).
-
-### Linux Desktop
-
-1. Download the AppImage.
-2. Make it executable: `chmod +x CrossHook-*.AppImage`
-3. Run it directly or integrate with your desktop environment.
-
-### Steam Deck
-
-1. Download the AppImage to the Desktop or a known location.
-2. Add it as a Non-Steam Game in Steam.
-3. Launch from Gaming Mode -- no Proton compatibility tool needed (CrossHook is native).
-
-See `docs/getting-started/quickstart.md` for detailed setup instructions.
-
-## Support
-
-Found a bug or compatibility issue? File a report:
-[![Report Issue](https://img.shields.io/badge/Report%20a%20Bug-GitHub%20Issues-red?style=for-the-badge)](https://github.com/yandy-r/crosshook/issues)
-
-## License
-
-CrossHook is open-source software under the MIT License.
+Thanks to everyone helping validate the native transition.
