@@ -4,6 +4,30 @@
 
 ### Goal
 
+Improve the native runner UI so Steam and Proton modes both expose detected Proton installs via a readable dropdown that fills the editable path field, while keeping prefix-path labels consistent and understandable.
+
+### Plan
+
+- [x] Add a native backend command that lists discovered Proton installs from the existing Steam/system compat-tool scan.
+- [x] Add a shared profile-editor control for Proton executable selection that offers detected installs plus manual browse/edit entry for both Steam and Proton modes.
+- [x] Normalize the Steam/Proton prefix-path labels so they describe the same concept consistently without mislabeling the Proton executable path.
+- [x] Verify the native frontend build and Tauri cargo check after the UI/backend wiring is complete.
+
+### Review
+
+- Added `list_proton_installs` in `src/crosshook-native/src-tauri/src/commands/steam.rs` and re-exported the existing compat-tool discovery helpers from `crosshook-core`, so the UI can reuse the same Steam/system Proton scan that powers Steam auto-populate.
+- Reworked `src/crosshook-native/src/components/ProfileEditor.tsx` to use a shared Proton selector for both Steam and Proton modes. The dropdown now shows readable install names instead of full paths, and selecting one fills the editable Proton path field rather than locking it.
+- Kept manual entry intact: the Proton path input remains browseable and editable after a dropdown selection, so detected installs accelerate setup without blocking manual correction.
+- Renamed the Steam compatdata label and related auto-populate copy to `Prefix Path` for consistency with Proton mode, while keeping `Proton Path` reserved for the actual Proton executable.
+- Verification:
+- `cargo fmt --manifest-path src/crosshook-native/Cargo.toml --all`
+- `env CARGO_HOME=/tmp/cargo-home CARGO_TARGET_DIR=/tmp/crosshook-native-check-target cargo check --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native`
+- `env npm_config_cache=/tmp/npm-crosshook-native-cache npm_config_update_notifier=false npm run build` in `src/crosshook-native`
+
+## 2026-03-23
+
+### Goal
+
 Implement `temp/non-steam-runner-plan.md` so the native app supports explicit `steam_applaunch`, `proton_run`, and `native` runner modes without regressing Steam-backed profiles or legacy `.profile` import.
 
 ### Plan

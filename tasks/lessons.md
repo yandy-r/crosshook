@@ -2,6 +2,8 @@
 
 ## 2026-03-18
 
+- When replacing a manual path field with a detected-install dropdown, do not make the text input effectively dead once a dropdown value is chosen. Prefer a dropdown that fills the editable path field, so detection accelerates entry without blocking manual correction.
+
 - For exported standalone Steam trainer launchers, do not point Proton at the original host/Linux trainer path. Generate the script so it stages the trainer into the deterministic `C:\CrossHook\StagedTrainers\...` prefix path first, matching the in-app trainer launch behavior and allowing staged state to persist across runs.
 - In native Steam mode, do not derive `STEAM_COMPAT_CLIENT_INSTALL_PATH` from the selected game's compatdata or library root. That value must point at the real Steam client install (for example `~/.local/share/Steam` or `~/.steam/root`), or Proton-side trainer launches can misbehave even when the game launch itself works.
 - For trainer staging in Steam mode, do not copy only the selected `.exe` by default. Directory-based trainers such as Aurora require adjacent DLLs, config files, and support directories. Stage a minimal bundle closure around the selected exe, and keep the staged Windows launch path deterministic under `C:\CrossHook\StagedTrainers\...`.
