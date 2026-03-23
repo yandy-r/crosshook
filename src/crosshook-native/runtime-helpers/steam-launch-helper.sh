@@ -224,12 +224,15 @@ done
 [[ -n "$proton" ]] || fail "Missing Proton path."
 [[ -n "$steam_client" ]] || fail "Missing Steam client install path."
 [[ -n "$game_exe_name" ]] || fail "Missing game executable name."
-[[ -n "$trainer_path" ]] || fail "Missing trainer path."
-[[ -n "$trainer_host_path" ]] || fail "Missing trainer host path."
 [[ -n "$log_file" ]] || fail "Missing helper log path."
 [[ -d "$compatdata" ]] || fail "Compatdata path does not exist: $compatdata"
 [[ -x "$proton" ]] || fail "Proton path is not executable: $proton"
-[[ -f "$trainer_host_path" ]] || fail "Trainer host path does not exist: $trainer_host_path"
+
+if [[ "$game_only" != "1" ]]; then
+  [[ -n "$trainer_path" ]] || fail "Missing trainer path."
+  [[ -n "$trainer_host_path" ]] || fail "Missing trainer host path."
+  [[ -f "$trainer_host_path" ]] || fail "Trainer host path does not exist: $trainer_host_path"
+fi
 
 mkdir -p "$(dirname "$log_file")"
 exec >>"$log_file" 2>&1
@@ -237,7 +240,10 @@ exec >>"$log_file" 2>&1
 compatdata="$(realpath "$compatdata")"
 proton="$(realpath "$proton")"
 steam_client="$(realpath "$steam_client")"
-trainer_host_path="$(realpath "$trainer_host_path")"
+
+if [[ "$game_only" != "1" ]]; then
+  trainer_host_path="$(realpath "$trainer_host_path")"
+fi
 
 if command -v steam >/dev/null 2>&1; then
   steam_command="steam"
@@ -365,7 +371,11 @@ else
   if process_visible "$game_exe_name"; then
     log "Detected process: $game_exe_name after startup delay"
   else
-    log "Game process $game_exe_name was not confirmed after startup delay; continuing with trainer launch."
+    if [[ "$game_only" == "1" ]]; then
+      log "Game process $game_exe_name was not confirmed after startup delay; continuing with game-only exit."
+    else
+      log "Game process $game_exe_name was not confirmed after startup delay; continuing with trainer launch."
+    fi
   fi
 fi
 else

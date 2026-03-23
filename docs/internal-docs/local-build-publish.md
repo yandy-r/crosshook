@@ -28,6 +28,13 @@ Build the full AppImage to `dist/`:
 
 Requires `cargo`, `npm`, and `patchelf`.
 
+The build writes two AppImage files into `dist/`:
+
+- the versioned Tauri output, for example `CrossHook_0.1.0_amd64.AppImage`
+- a stable alias, for example `CrossHook_amd64.AppImage`
+
+The stable alias is intended for launchers and Steam shortcuts that should keep a fixed path across upgrades.
+
 Options:
 
 | Flag | Description |
@@ -44,15 +51,18 @@ Build inside a container for CI-like reproducibility:
 ./scripts/build-native-container.sh
 ```
 
-Uses the `rust:1-bookworm` image by default and bootstraps a current Rust toolchain inside the container if the image does not provide one. Supports Docker and Podman.
+Uses a managed cached builder image derived from `scripts/build-native-container.Dockerfile`. The script rebuilds that image only when the Dockerfile changes, then reuses it on subsequent runs. Supports Docker and Podman.
 
 Options:
 
 | Flag | Description |
 | ---- | ----------- |
 | `--runtime docker\|podman` | Choose container runtime |
-| `--image IMAGE` | Override the container image |
+| `--image IMAGE` | Use IMAGE directly instead of the managed cached builder image |
+| `--base-image IMAGE` | Base image used when building the managed cached builder image |
+| `--rebuild-image` | Force rebuilding the managed cached builder image |
 | `--install-node-modules` | Force `npm ci` inside the container |
+| `--keep-worktree-artifacts` | Keep `src/crosshook-native` build artifacts instead of cleaning them after the build |
 
 ## CI/CD
 
@@ -66,7 +76,10 @@ Options:
 
 ## Artifact Shape
 
-Output: `dist/CrossHook_<version>_amd64.AppImage`
+Output:
+
+- `dist/CrossHook_<version>_amd64.AppImage`
+- `dist/CrossHook_amd64.AppImage`
 
 - Self-contained Linux binary; no runtime dependencies needed for end users.
 - User state stored in `~/.config/crosshook/` (profiles, settings).

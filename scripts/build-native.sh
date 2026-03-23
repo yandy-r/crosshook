@@ -10,6 +10,28 @@ INSTALL_DEPS=0
 INSTALL_DEPS_YES=0
 BINARY_ONLY=0
 
+stable_appimage_name() {
+  local target_triple="$1"
+  local arch_suffix
+
+  case "$target_triple" in
+    x86_64-*)
+      arch_suffix="amd64"
+      ;;
+    aarch64-*|arm64-*)
+      arch_suffix="arm64"
+      ;;
+    armv7-*)
+      arch_suffix="armv7"
+      ;;
+    *)
+      arch_suffix="${target_triple%%-*}"
+      ;;
+  esac
+
+  printf 'CrossHook_%s.AppImage\n' "$arch_suffix"
+}
+
 usage() {
   cat <<'EOF'
 Usage: ./scripts/build-native.sh [--binary-only] [--install-deps] [--yes]
@@ -125,4 +147,8 @@ done
 mkdir -p "$DIST_DIR"
 cp -f "$APPIMAGE_SOURCE" "$DIST_DIR/"
 
+STABLE_APPIMAGE_NAME="$(stable_appimage_name "$TARGET_TRIPLE")"
+cp -f "$APPIMAGE_SOURCE" "$DIST_DIR/$STABLE_APPIMAGE_NAME"
+
 echo "Copied AppImage to $DIST_DIR/$(basename "$APPIMAGE_SOURCE")"
+echo "Copied stable AppImage alias to $DIST_DIR/$STABLE_APPIMAGE_NAME"
