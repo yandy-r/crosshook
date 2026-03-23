@@ -7,6 +7,8 @@
 
 CrossHook is a native Linux trainer launcher for Steam and Proton games. It runs directly on your Linux desktop or Steam Deck -- no WINE needed for CrossHook itself -- and orchestrates trainers, mods, and patches that run under the game's own Proton/WINE prefix.
 
+CrossHook also includes an `Install Game` flow inside the Profile panel. It installs Windows games through direct `proton run`, defaults new prefixes under `~/.local/share/crosshook/prefixes/<slug>`, and then returns you to the normal profile editor so you can review the generated profile before saving it.
+
 ## Contents
 
 - [Download](#download)
@@ -53,6 +55,8 @@ Launches the game through Steam using `steam -applaunch <appid>`, then runs the 
 
 Runs the trainer directly using `proton run <trainer.exe>` against the game's compatdata prefix. Useful when you want to launch a trainer standalone without going through Steam, or when the game is already running.
 
+The same direct Proton path is used by the `Install Game` workflow in the Profile panel. That flow writes the prefix under `~/.local/share/crosshook/prefixes/<slug>` and hands you back a normal `GameProfile` for review and save.
+
 ### Native
 
 For trainers or tools that run natively on Linux without WINE/Proton. CrossHook launches them as regular Linux processes alongside the game.
@@ -61,6 +65,7 @@ For trainers or tools that run natively on Linux without WINE/Proton. CrossHook 
 
 - **Steam Library Auto-Populate** -- Discovers installed Steam games, their App IDs, Proton versions, and compatdata paths automatically.
 - **Profile Management** -- Save and load launch configurations per game. Switch between trainer setups instantly.
+- **Install Game Workflow** -- Install a Windows game from the Profile panel, review the generated profile, and save it explicitly after install.
 - **Launcher Export** -- Generate standalone shell scripts and `.desktop` entries from any profile for one-click launching without opening CrossHook.
 - **Community Profile Sharing** -- Share and import launch profiles with other users.
 - **Proton Selector** -- Choose which Proton version to use for each trainer, with auto-detection of installed versions.
@@ -121,6 +126,7 @@ The [release](.github/workflows/release.yml) GitHub Actions workflow builds and 
 - Releases publish a single **AppImage** artifact for x86_64 Linux.
 - The AppImage is self-contained and portable -- no system-level installation needed.
 - User state (profiles, settings) is stored in `~/.config/crosshook/` or the XDG config directory, separate from the application binary.
+- Install prefixes default under `~/.local/share/crosshook/prefixes/<slug>` and are only saved into a profile after review in the Profile panel.
 - macOS support is planned for a future release.
 
 ## License

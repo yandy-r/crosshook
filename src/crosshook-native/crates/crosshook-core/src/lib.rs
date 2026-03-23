@@ -1,5 +1,6 @@
 pub mod community;
 pub mod export;
+pub mod install;
 pub mod launch;
 pub mod logging;
 pub mod profile;

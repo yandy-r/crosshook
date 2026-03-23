@@ -1,16 +1,18 @@
-use std::env;
 use std::ffi::OsString;
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 
 use tokio::process::Command;
 
-use super::LaunchRequest;
+use super::{
+    runtime_helpers::{
+        apply_host_environment, apply_runtime_proton_environment, apply_working_directory,
+        attach_log_stdio, new_direct_proton_command,
+    },
+    LaunchRequest,
+};
 
 const BASH_EXECUTABLE: &str = "/bin/bash";
-const DEFAULT_PATH: &str = "/usr/bin:/bin";
-const DEFAULT_SHELL: &str = "/bin/bash";
 const DEFAULT_GAME_STARTUP_DELAY_SECONDS: &str = "30";
 const DEFAULT_GAME_TIMEOUT_SECONDS: &str = "90";
 const DEFAULT_TRAINER_TIMEOUT_SECONDS: &str = "10";
@@ -57,12 +59,14 @@ pub fn build_proton_game_command(
     request: &LaunchRequest,
     log_path: &Path,
 ) -> std::io::Result<Command> {
-    let mut command = Command::new(request.runtime.proton_path.trim());
-    command.arg("run");
+    let mut command = new_direct_proton_command(request.runtime.proton_path.trim());
     command.arg(request.game_path.trim());
-    command.env_clear();
     apply_host_environment(&mut command);
-    apply_runtime_proton_environment(&mut command, request);
+    apply_runtime_proton_environment(
+        &mut command,
+        request.runtime.prefix_path.trim(),
+        request.steam.steam_client_install_path.trim(),
+    );
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -81,12 +85,14 @@ pub fn build_proton_trainer_command(
         Path::new(request.trainer_host_path.trim()),
     )?;
 
-    let mut command = Command::new(request.runtime.proton_path.trim());
-    command.arg("run");
+    let mut command = new_direct_proton_command(request.runtime.proton_path.trim());
     command.arg(staged_trainer_path);
-    command.env_clear();
     apply_host_environment(&mut command);
-    apply_runtime_proton_environment(&mut command, request);
+    apply_runtime_proton_environment(
+        &mut command,
+        request.runtime.prefix_path.trim(),
+        request.steam.steam_client_install_path.trim(),
+    );
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -119,22 +125,6 @@ fn build_base_command(script_path: &Path) -> Command {
     command
 }
 
-fn apply_host_environment(command: &mut Command) {
-    set_env(command, "HOME", env_value("HOME", ""));
-    set_env(command, "USER", env_value("USER", ""));
-    set_env(command, "LOGNAME", env_value("LOGNAME", ""));
-    set_env(command, "SHELL", env_value("SHELL", DEFAULT_SHELL));
-    set_env(command, "PATH", env_value("PATH", DEFAULT_PATH));
-    set_env(command, "DISPLAY", env_value("DISPLAY", ""));
-    set_env(command, "WAYLAND_DISPLAY", env_value("WAYLAND_DISPLAY", ""));
-    set_env(command, "XDG_RUNTIME_DIR", env_value("XDG_RUNTIME_DIR", ""));
-    set_env(
-        command,
-        "DBUS_SESSION_BUS_ADDRESS",
-        env_value("DBUS_SESSION_BUS_ADDRESS", ""),
-    );
-}
-
 fn apply_steam_proton_environment(command: &mut Command, request: &LaunchRequest) {
     set_env(
         command,
@@ -154,65 +144,6 @@ fn apply_steam_proton_environment(command: &mut Command, request: &LaunchRequest
             .to_string_lossy()
             .into_owned(),
     );
-}
-
-fn apply_runtime_proton_environment(command: &mut Command, request: &LaunchRequest) {
-    let prefix_path = request.runtime.prefix_path.trim();
-    set_env(command, "WINEPREFIX", prefix_path);
-
-    let prefix = Path::new(prefix_path);
-    let compat_data_path = if prefix.file_name().and_then(|value| value.to_str()) == Some("pfx") {
-        prefix.parent().unwrap_or(prefix)
-    } else {
-        prefix
-    };
-
-    set_env(
-        command,
-        "STEAM_COMPAT_DATA_PATH",
-        compat_data_path.to_string_lossy().as_ref(),
-    );
-
-    if let Some(steam_client_install_path) =
-        resolve_steam_client_install_path(request.steam.steam_client_install_path.trim())
-    {
-        set_env(
-            command,
-            "STEAM_COMPAT_CLIENT_INSTALL_PATH",
-            steam_client_install_path.as_str(),
-        );
-    }
-}
-
-fn resolve_steam_client_install_path(configured_path: &str) -> Option<String> {
-    let trimmed_configured_path = configured_path.trim();
-    if !trimmed_configured_path.is_empty() {
-        return Some(trimmed_configured_path.to_string());
-    }
-
-    if let Ok(steam_client_install_path) = env::var("STEAM_COMPAT_CLIENT_INSTALL_PATH") {
-        let trimmed = steam_client_install_path.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
-
-    let home_path = env::var_os("HOME").map(PathBuf::from)?;
-    for candidate in [
-        home_path.join(".local/share/Steam"),
-        home_path.join(".steam/root"),
-        home_path.join(".var/app/com.valvesoftware.Steam/data/Steam"),
-    ] {
-        if candidate.join("steamapps").is_dir() {
-            return Some(candidate.to_string_lossy().into_owned());
-        }
-    }
-
-    None
-}
-
-fn env_value(key: &str, default: &str) -> String {
-    env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
 fn set_env(command: &mut Command, key: &str, value: impl AsRef<str>) {
@@ -271,37 +202,6 @@ fn trainer_arguments(request: &LaunchRequest, log_path: &Path) -> Vec<OsString> 
         "--log-file".into(),
         log_path.as_os_str().to_owned(),
     ]
-}
-
-fn attach_log_stdio(command: &mut Command, log_path: &Path) -> std::io::Result<()> {
-    if let Some(parent) = log_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let stdout = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path)?;
-    let stderr = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(log_path)?;
-    command.stdout(Stdio::from(stdout));
-    command.stderr(Stdio::from(stderr));
-    Ok(())
-}
-
-fn apply_working_directory(command: &mut Command, configured_directory: &str, primary_path: &Path) {
-    if !configured_directory.is_empty() {
-        command.current_dir(configured_directory);
-        return;
-    }
-
-    if let Some(parent) = primary_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            command.current_dir(parent);
-        }
-    }
 }
 
 fn stage_trainer_into_prefix(

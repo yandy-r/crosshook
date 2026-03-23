@@ -15,6 +15,7 @@ export interface UseProfileResult {
   profileExists: boolean;
   setProfileName: (name: string) => void;
   selectProfile: (name: string) => Promise<void>;
+  hydrateProfile: (name: string, profile: GameProfile) => void;
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   saveProfile: () => Promise<void>;
   deleteProfile: () => Promise<void>;
@@ -259,6 +260,25 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     [loadProfile]
   );
 
+  const hydrateProfile = useCallback(
+    (name: string, nextProfile: GameProfile) => {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        setError('Profile name is required.');
+        return;
+      }
+
+      const normalizedProfile = normalizeProfileForEdit(nextProfile);
+
+      setSelectedProfile(profiles.includes(trimmedName) ? trimmedName : '');
+      setProfileName(trimmedName);
+      setProfile(normalizedProfile);
+      setDirty(true);
+      setError(null);
+    },
+    [profiles]
+  );
+
   const updateProfile = useCallback((updater: (current: GameProfile) => GameProfile) => {
     setProfile((current) => updater(current));
     setDirty(true);
@@ -349,6 +369,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     profileExists,
     setProfileName,
     selectProfile,
+    hydrateProfile,
     updateProfile,
     saveProfile,
     deleteProfile,
