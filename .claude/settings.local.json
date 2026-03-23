@@ -61,7 +61,11 @@
       "Bash(get_feature_plan_dir \"platform-native-ui\")",
       "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/plan-workflow/scripts/check-state.sh platform-native-ui 2>&1)",
       "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/shared-context/scripts/validate-research-artifacts.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-ui\" 2>&1)",
-      "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/plan-workflow/scripts/validate-shared.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-ui/shared.md\" 2>&1)"
+      "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/plan-workflow/scripts/validate-shared.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-ui/shared.md\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/parallel-plan/scripts/validate-analysis-artifacts.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-ui\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/parallel-plan/scripts/persist-or-fail.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-ui\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/plan-workflow/scripts/validate-workflow-plan.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-ui/parallel-plan.md\" 2>&1)",
+      "Bash(bash -x /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/plan-workflow/scripts/validate-workflow-plan.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-ui/parallel-plan.md\")"
     ]
   }
 }

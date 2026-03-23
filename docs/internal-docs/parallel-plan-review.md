@@ -1,6 +1,6 @@
-# Parallel Plan Review: dotnet-migrate
+# Parallel Plan Review: Platform-Native UI
 
-Evaluation of the 14-task parallel implementation plan against the actual codebase. Each task was cross-referenced against the source files to verify line numbers, file paths, technical claims, and completeness.
+Evaluation of the 34-task parallel implementation plan (`docs/plans/platform-native-ui/parallel-plan.md`) for the Tauri v2 native UI. Each task was cross-referenced against the actual codebase to verify line numbers, file paths, technical claims, and completeness.
 
 ---
 
@@ -8,281 +8,180 @@ Evaluation of the 14-task parallel implementation plan against the actual codeba
 
 | Metric                       | Count |
 | ---------------------------- | ----- |
-| **Total Tasks**              | 14    |
-| **High Quality**             | 9     |
-| **Needs Minor Improvements** | 4     |
-| **Needs Significant Work**   | 1     |
+| **Total Tasks**              | 34    |
+| **High Quality**             | 22    |
+| **Needs Minor Improvements** | 8     |
+| **Needs Significant Work**   | 4     |
 
 ---
 
 ## Detailed Findings
 
-### Phase 1: Foundation
-
-#### Task 1.1: Convert to SDK-Style csproj and Delete Obsolete Files
-
-**Rating: High Quality**
-
-- **Clear Purpose**: Yes. Title and description are unambiguous.
-- **Specific File Changes**: Yes. Create (1), modify (1), delete (4) -- all paths verified to exist.
-- **Actionable Instructions**: Yes. The 6-item numbered list for csproj contents is precise. Assembly metadata values are in AssemblyInfo.cs (verified: Title="CrossHook Injection Engine", Version="1.0.0.0"). The plan says `<Version>6.0.0</Version>` which is a deliberate version bump, not an error.
-- **Gotchas Documented**: Yes. SDK auto-globbing note, empty Utils/ folder, and validation commands are all accurate.
-- **Appropriate Scope**: Yes. 1 file rewrite + 4 deletions + 1 verification.
-
-**One Issue**: The plan says the csproj is 75 lines. Verified: it is exactly 75 lines. Accurate.
+Tasks not listed below passed all four criteria (clear purpose, specific file paths, actionable instructions, appropriate scope) and are implementation-ready. These include: 1.1, 1.3, 1.4, 1.5, 1.6, 1.8, 1.9, 1.10, 1.15, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.10, 2.12, 2.13, 2.14, 3.1, 3.2.
 
 ---
 
-#### Task 1.2: Verify WINE/Proton Compatibility
+### Phase 1
 
-**Rating: High Quality**
+#### Task 1.2: React/Vite/Tauri scaffolding -- Needs Minor Improvement
 
-- **Clear Purpose**: Yes. Explicit verification task with no file modifications.
-- **Specific File Changes**: Correctly states "(none)".
-- **Actionable Instructions**: Yes. 7-item test checklist is concrete. The note about falling back to git history is practical.
-- **Gotchas Documented**: The `Application.StartupPath` concern under single-file publish is documented in the Advice section (line 407 of the plan) and in `research-external.md`. Could be mentioned here explicitly since it is the most likely failure point.
-- **Appropriate Scope**: Yes. This is a manual testing task.
+- **Issue: Ambiguous scaffolding method.** Instruction says "Run `cargo create-tauri-app` or manually scaffold" -- a developer must decide which approach to use and the two produce different file structures. The manual option requires knowing exactly what boilerplate files Tauri v2 needs (e.g., `index.html`, `capabilities/`, `icons/`).
+- **Fix:** Pick one approach and specify it. If manual, list every file including `index.html`, `src-tauri/capabilities/default.json`, `src-tauri/icons/`. If using the CLI tool, specify the exact command with flags (e.g., `cargo create-tauri-app crosshook-native --template react-ts --manager npm`).
 
-**Minor Suggestion**: Add an explicit note about `Application.StartupPath` behavior under single-file publish, since that is the most WINE-specific runtime behavior change. The Advice section covers it, but a tester may not read the Advice section.
+#### Task 1.7: Shell script invocation wrapper -- Needs Minor Improvement
 
----
+- **Issue: Environment variable list is hardcoded in prose.** The instructions list ~10 specific env vars to pass through, but this duplicates what Task 1.9 defines as named constants. There is no cross-reference telling the developer to import from `launch::env`.
+- **Fix:** Add "Import `PASSTHROUGH_DISPLAY_VARS` and `REQUIRED_PROTON_VARS` from `launch::env` (Task 1.9) for the env setup. If 1.9 is not yet complete, use inline constants temporarily." This also surfaces a dependency ordering issue -- 1.7 depends on [1.1] but references 1.9's output without declaring that dependency.
 
-### Phase 2: Architecture Refactoring
+#### Task 1.11: Tauri IPC commands (launch) -- Needs Minor Improvement
 
-#### Task 2.1: Fix Double Event Subscription Bug
+- **Issue: Log streaming implementation underspecified.** The 500ms poll interval file-reading approach is described but lacks detail on: when to stop polling (the C# version uses a 2-minute deadline at MainForm.cs line 2910), what to do if the log file never appears, and error handling for file locks.
+- **Fix:** Add: "Implement a 2-minute deadline matching the C# behavior. If the log file does not appear within 10 seconds after launch, emit a warning event. Stop streaming when the child process exits OR the deadline is reached."
 
-**Rating: High Quality**
+#### Task 1.12: React profile editor form -- Needs Minor Improvement
 
-- **Clear Purpose**: Yes. Bug fix with clear root cause.
-- **Specific File Changes**: Yes. Single file modification.
-- **Actionable Instructions**: Yes. The bug is verified -- `InitializeManagers()` (lines 274-285) and `RegisterEventHandlers()` (lines 1370-1387) do subscribe to the exact same 9 events. The `btnRefreshProcesses.Click` double-wiring is also verified at lines 547 and 1390.
-- **Gotchas Documented**: The btnRefreshProcesses double-wiring is noted. The plan correctly identifies which subscriptions to keep (manager events in `InitializeManagers`, button clicks in `RegisterEventHandlers`).
-- **Appropriate Scope**: Yes. Single file, focused change.
+- **Issue: "Lines 1-200 for UI field layout" is a vague reference.** MainForm.cs lines 1-200 are field declarations and constructor setup, not a UI layout specification. A developer would need to read hundreds of lines of Designer.cs to understand actual layout.
+- **Fix:** Replace the reference with a bulleted field list directly in the instructions: "Form fields in order: Game Path (browse), Trainer Path (browse), DLL 1 Path (browse), DLL 2 Path (browse), Launch Inject 1 (checkbox), Launch Inject 2 (checkbox), Launch Method (dropdown), Steam Mode (toggle), Steam App ID (text), Compatdata Path (browse), Proton Path (browse), Launcher Icon Path (browse)."
 
-**Line Numbers Verified**: All line references are accurate.
+#### Task 1.13: React two-step launch UI -- Needs Minor Improvement
 
----
+- **Issue: Does not mention error state handling.** The `LaunchPhase` enum includes happy-path states but no `Error` state. If `launch_game` fails, the UI behavior is undefined.
+- **Fix:** Add `Error` to the `LaunchPhase` enum and specify: "On launch failure, transition to `Error` state with error message display. Show a 'Retry' button that resets to `Idle`."
 
-#### Task 2.2: Implement IDisposable on ProcessManager
+#### Task 1.16: Shell script bundling -- Needs Minor Improvement
 
-**Rating: High Quality**
-
-- **Clear Purpose**: Yes. Handle leak fix.
-- **Specific File Changes**: Yes. Two files, both paths verified.
-- **Actionable Instructions**: Yes. The 5-step implementation list is clear. The reference to ResumePanel.cs (lines 94-106) as a pattern to follow is verified and appropriate -- it demonstrates the exact `Dispose(bool)` pattern needed.
-- **Gotchas Documented**: Yes. The existing `CloseProcessHandle()` method (lines 355-363) does exactly what the plan describes.
-- **Appropriate Scope**: Yes. 2 files, focused change.
-
-**One Observation**: The plan says to update `OnFormClosing` to call `_processManager?.Dispose()` instead of `DetachFromProcess()`. Verified at line 304: MainForm currently calls `_processManager.DetachFromProcess()`. The plan is correct.
+- **Issue: Resource path in `tauri.conf.json` assumes scripts stay at the C# project location.** The path `../../src/CrossHookEngine.App/runtime-helpers/*.sh` is fragile and couples the native app build to the legacy project directory structure.
+- **Fix:** Add a build step (or a note in the instructions) to copy the 3 scripts into `src/crosshook-native/src-tauri/runtime-helpers/` during development, so the resource path becomes `runtime-helpers/*.sh`. The `build-native.sh` script (Task 3.8) can handle the copy.
 
 ---
 
-#### Task 2.3: Extract ProfileService from MainForm
+### Phase 2
 
-**Rating: High Quality**
+#### Task 2.1: VDF key-value parser -- Needs Minor Improvement
 
-- **Clear Purpose**: Yes. Service extraction with clear boundary.
-- **Specific File Changes**: Yes. 1 create + 1 modify.
-- **Actionable Instructions**: Yes. The 4 methods and ProfileData fields are explicitly listed. The key=value file format is documented with the backwards-compatibility gotcha.
-- **Gotchas Documented**: Yes. File format preservation, ProfileInputDialog staying in MainForm.
-- **Appropriate Scope**: Yes. 2 files.
+- **Issue: "First evaluate the `steam-vdf-parser` crate" is a research step embedded in an implementation task.** If the crate fails evaluation, the developer must pivot to writing ~125 lines of parser code -- a fundamentally different task. This makes time estimation unpredictable.
+- **Fix:** Split into two sequential micro-tasks: (A) Evaluate `steam-vdf-parser` crate against real files, document result. (B) Based on result, either wrap the crate or port the parser. Alternatively, just commit to the port -- the C# parser is well-documented (lines 739-863 of SteamAutoPopulateService.cs, verified) and the crate evaluation adds uncertainty.
 
-**Line Numbers Verified**: Profile methods span lines 1586-1751. The `SaveProfile` method (line 1624) writes the exact fields listed in the ProfileData spec: GamePath, TrainerPath, Dll1Path, Dll2Path, LaunchInject1, LaunchInject2, LaunchMethod. The `LoadProfile` method (line 1674) reads them back with `Split(new char[] { '=' }, 2)`. All verified.
+#### Task 2.9: Diagnostic collector -- Needs Minor Improvement
 
----
-
-#### Task 2.4: Extract CommandLineParser from MainForm
-
-**Rating: High Quality**
-
-- **Clear Purpose**: Yes.
-- **Specific File Changes**: Yes. 1 create + 1 modify.
-- **Actionable Instructions**: Yes. The `CommandLineOptions` record fields match the existing state tracked by `_profileToLoad`, `_autoLaunchPath`, `_autoLaunchRequested`.
-- **Gotchas Documented**: Yes. The `-autolaunch` consuming all remaining args is verified at lines 2650-2654. The `-dllinject` deferral is correctly noted.
-- **Appropriate Scope**: Yes. 2 files.
-
-**One Nuance**: The current `ProcessCommandLineArguments()` method does more than just parse -- it also calls `LoadProfiles()`, `LoadProfile()`, `SaveAppSettings()`, sets combo box values, and creates a timer-based auto-launch (lines 2620-2694). The plan says "MainForm calls parser in constructor and acts on returned options" which implies all those side effects stay in MainForm. This is correct but the implementer should be aware that the extraction is parse-only, and the ~30 lines of side-effect code remain in MainForm. Could be more explicit about this boundary.
+- **Issue: This task is trivially small (~15 lines of Rust) and could be folded into Task 2.4 (Steam data models) since `DiagnosticCollector` is already defined in Task 2.4's struct list.** Having it as a separate task creates overhead. Task 2.4 already specifies the struct; Task 2.9 only adds 3 methods.
+- **Fix:** Merge into Task 2.4, or keep as-is but flag it as a 15-minute task for sequencing purposes.
 
 ---
 
-#### Task 2.5: Extract RecentFilesService and SettingsService from MainForm
+### Phase 3
 
-**Rating: Needs Minor Improvements**
+#### Task 3.5: React settings panel -- Needs Significant Work
 
-- **Clear Purpose**: Partially. The title says "RecentFilesService and SettingsService" but the instructions only create `RecentFilesService.cs`. The task bundles two logically separate services (recent files from `settings.ini` and app settings from `AppSettings.ini`) into one file/class, which contradicts the title suggesting two separate services.
-- **Specific File Changes**: Only one file to create is listed (`RecentFilesService.cs`). If this is intentional (one class handles both), the title is misleading. If two classes were intended, the second file (`SettingsService.cs` or similar) is missing.
-- **Actionable Instructions**: Yes for the methods listed. The 5 methods are clear with correct parameter types. The File.Exists filtering gotcha (lines 1517-1520) is verified and accurately described.
-- **Gotchas Documented**: Yes. The filtering behavior is correctly flagged.
-- **Appropriate Scope**: Borderline. Combining both services into one task is reasonable but the scope is larger than stated -- the task touches `LoadRecentFiles` (lines 1483-1549), `SaveRecentFiles` (lines 1551-1584), `LoadAppSettings` (lines 2734-2788), `SaveAppSettings` (lines 2704-2732), plus creating the service class. That is 4 methods extracted + 1 new file + MainForm rewiring.
+- **Issue: No design specifics.** "Settings UI: auto-load toggle, recent files display, profiles directory configuration. Simple form layout." gives almost no implementation guidance. What does "recent files display" look like? Is "profiles directory configuration" a text input or a browse dialog? How is this panel accessed (modal, sidebar, route)?
+- **Fix:** Specify: panel access method (e.g., gear icon in header opens a slide-out drawer or modal), each field's input type, and the recent files display format (e.g., "collapsible list grouped by type: Game Paths, Trainer Paths, DLL Paths, with click-to-fill behavior").
 
-**Issues**:
+#### Task 3.6: Dark gaming theme -- Needs Significant Work
 
-1. Title says "SettingsService" but no `SettingsService.cs` file is listed to create. Either the title should match (just "RecentFilesService") or a second file should be listed.
-2. The `LoadRecentFiles` method in MainForm currently writes directly to combo boxes (lines 1520, 1528, 1536-1537). The plan correctly notes "MainForm populates combo boxes from the returned data objects" but does not mention that the current implementation interleaves list-population with UI-population. The implementer needs to know that the service should only return data, and MainForm must add a separate loop to populate combo boxes.
-3. The two INI file formats are different (section-based for settings.ini vs flat key=value for AppSettings.ini). This is documented but the single-class approach may be confusing.
+- **Issue: Two CSS files are listed but no guidance on CSS architecture.** Does the app use CSS modules, Tailwind, styled-components, or plain CSS? The `variables.css` file implies CSS custom properties, but this conflicts with whatever CSS approach Task 1.2 scaffolds. No mention of how components consume these styles.
+- **Fix:** Decide and document the CSS strategy in Task 1.2, then reference it here. Specify: "Use CSS custom properties in `variables.css` for the design tokens. Import `theme.css` in `main.tsx`. Components use the variables via `var(--color-bg-primary)` etc." This is a cross-cutting concern that affects all Phase 1 React components.
 
----
+#### Task 3.7: Controller/gamepad navigation -- Needs Significant Work
 
-#### Task 2.6: Remove Dead Code Stubs
+- **Issue: "Detect `SteamDeck=1` env var" -- this is a Tauri/Rust concern, not a React hook concern.** Environment variables are not accessible from the browser/WebView context. This task needs a Tauri command to expose the detection, or the hook needs to use the Gamepad API directly.
+- **Fix:** Add: "Create a Tauri command `is_steam_deck() -> bool` that checks the `SteamDeck` env var from the Rust side. The React hook calls this on mount. Also detect the Gamepad API as a fallback for non-Steam-Deck controllers." Alternatively, move env var detection to `startup.rs` (Task 3.3) and emit it as a frontend event.
 
-**Rating: Needs Minor Improvements**
+#### Task 3.9: AUR PKGBUILD -- Needs Significant Work
 
-- **Clear Purpose**: Yes. Dead code removal.
-- **Specific File Changes**: Yes. 3 files listed.
-- **Actionable Instructions**: Mostly yes. The 7-item list is concrete.
-- **Gotchas Documented**: Partially.
-- **Appropriate Scope**: Yes. 3 files, well-scoped.
-
-**Issues**:
-
-1. **Line number accuracy for ProcessManager**: The plan says "lines 416-428 stub methods" -- verified: `LaunchWithCreateThreadInjection` at line 416, `LaunchWithRemoteThreadInjection` at line 423. Correct. "Lines 487-495 LaunchMethod enum" -- verified at line 487. Correct.
-2. **Line number accuracy for InjectionManager**: The plan says "lines 297-302 ManualMapping stub" -- verified at line 297. Correct. "Lines 337-341 InjectionMethod enum" -- verified at line 337. Correct.
-3. **Missing gotcha about radio buttons**: The plan says to remove `radCreateThreadInjection` and `radRemoteThreadInjection` from MainForm's UI construction. These are declared at MainForm lines 71-72 and wired up in `ConfigureUILayout()` and `RegisterEventHandlers()`. The plan does not specify which lines in ConfigureUILayout() contain these radio buttons, making it harder to locate them in the 1,400-line method. A line reference or search hint would help.
-4. **PopulateControls verification**: The plan says to "Remove the dead `PopulateControls()` method from MainForm (never called)". Verified: `PopulateControls()` exists at line 1413 and is indeed never called from anywhere in the codebase (the constructor calls `LoadRecentFiles()` and `LoadProfiles()` directly at lines 248-249, which are also called inside `PopulateControls`). Correct assessment.
-5. **Missing note about LaunchMethod enum serialization**: Profiles serialize `LaunchMethod` as a string (line 1654: `writer.WriteLine($"LaunchMethod={_launchMethod}")`). Removing enum values will break deserialization of existing profiles that have `LaunchMethod=CreateThreadInjection` or `LaunchMethod=RemoteThreadInjection`. This backwards-compatibility gotcha is not documented.
+- **Issue: Extremely vague.** "Build with `cargo tauri build`" is insufficient for a PKGBUILD. Missing: `pkgname`, `pkgver` strategy, `makedepends` (rust, nodejs, npm, webkit2gtk, etc.), the `build()` function body, `package()` function body with `install -Dm755` commands, `license`, where the binary and shell scripts are installed, `source` array format for GitHub releases.
+- **Fix:** Provide a skeleton PKGBUILD with at least: `pkgname=crosshook-native`, `makedepends` list, `build()` body, `package()` body with `install` commands, and the `source` array format. An Arch developer would currently have to guess every field.
 
 ---
 
-### Phase 3: P/Invoke Modernization
+### Phase 4
 
-#### Task 3.1: Convert ProcessManager DllImport to LibraryImport
+Phase 4 tasks (4.1-4.6) are intentionally high-level, which is acceptable for their planning horizon. Two minor observations:
 
-**Rating: High Quality**
-
-- **Clear Purpose**: Yes.
-- **Specific File Changes**: Yes. Single file.
-- **Actionable Instructions**: Yes. The 5-item conversion list is specific. Special handling for `CreateProcess` (UTF-16) and `MiniDumpWriteDump` (Dbghelp.dll) is correctly called out.
-- **Gotchas Documented**: Yes. The `STARTUPINFO` struct string fields needing `[MarshalAs(UnmanagedType.LPWStr)]` is an important detail. Verified: `lpReserved`, `lpDesktop`, `lpTitle` are `string` fields (lines 59-61).
-- **Appropriate Scope**: Yes. Single file.
-
-**One Observation**: The plan says "lines 13-112 Win32 API region" -- verified: the `#region Win32 API` block runs from line 13 to line 112. Correct.
+- **Task 4.3 (Git-based profile sharing)** is a multi-day feature compressed into one paragraph. It should be flagged as requiring its own sub-plan before implementation. The scope (git2 crate or shelling out, index format, conflict resolution, network errors, background sync) is at least 3-5 subtasks.
+- **Task 4.6 (Compatibility database viewer)** does not specify where the compatibility data comes from (bundled, remote API, derived from community profiles). This data source question must be answered before implementation.
 
 ---
 
-#### Task 3.2: Convert InjectionManager DllImport to LibraryImport
+## Cross-Cutting Issues
 
-**Rating: Needs Minor Improvements**
+### 1. Implicit dependency between Tasks 1.7 and 1.9
 
-- **Clear Purpose**: Yes.
-- **Specific File Changes**: Yes. Single file.
-- **Actionable Instructions**: Mostly yes. The CRITICAL note about LoadLibraryA ANSI encoding is the single most important gotcha in the entire plan and is well-documented.
-- **Gotchas Documented**: Mostly yes.
-- **Appropriate Scope**: Yes. Single file.
+Task 1.7 (script runner) hardcodes environment variable names in its instructions. Task 1.9 (env cleanup constants) defines them as named constants. Both depend on [1.1] and can run in parallel -- but a developer doing 1.7 first will write inline constants that 1.9 then duplicates. Either add 1.9 as a dependency of 1.7, or note that 1.7 should import from 1.9 when available.
 
-**Issues**:
+### 2. No integration test task
 
-1. **Line number for "additional region"**: The plan says "lines 312-318 additional region". Verified: the `#region Additional P/Invoke for thread handling` starts at line 312 and contains `WaitForSingleObject` (line 314-315) and `GetExitCodeThread` (line 317-318). Correct.
-2. **Line number for "LoadLibrary validation call"**: The plan says "line 176" for the LoadLibrary validation call. Verified at line 176: `IntPtr moduleHandle = LoadLibrary(dllPath)`. Correct.
-3. **Line number for "InjectDllStandard"**: The plan says "line 243" for the `GetProcAddress` call and "line 248" for `Encoding.ASCII.GetBytes`. Verified: line 243 is `IntPtr loadLibraryAddr = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA")` and line 248 is `byte[] dllPathBytes = Encoding.ASCII.GetBytes(dllPath)`. Correct.
-4. **Missing P/Invoke declarations**: The plan lists conversions for LoadLibrary, GetProcAddress, and GetModuleHandle. But InjectionManager also has `FreeLibrary` (line 47-48), `WaitForSingleObject` (line 314-315), and `GetExitCodeThread` (line 317-318) which need conversion. These 3 additional P/Invokes are not mentioned in the conversion instructions. The implementer could miss them.
-5. **P/Invoke count discrepancy**: The plan header says "12 DllImport declarations" but the actual file has 12 total declarations (10 in the main region at lines 17-48, plus 2 in the additional region at lines 314-318). The plan's instruction list only addresses 3 of them explicitly (LoadLibrary, GetProcAddress, GetModuleHandle), relying on step 2's generic "Standard conversion for all P/Invoke methods" to cover the rest. This could be made more explicit.
+There is no task for end-to-end integration testing of the Rust core (e.g., "load a legacy profile, build a launch command, verify the command args match expected values"). Individual tasks mention `#[cfg(test)]` unit tests, but no task validates the full pipeline works together. A Task 1.17 or 2.15 for integration tests would catch cross-module wiring issues early.
 
----
+### 3. CSS strategy undefined until Phase 3
 
-#### Task 3.3: Convert MemoryManager DllImport to LibraryImport
+Task 3.6 (Dark gaming theme) establishes the CSS architecture, but Phase 1 React components (Tasks 1.12, 1.13, 1.14) will already need styling decisions. Either move the CSS strategy to Task 1.2, or add a Phase 1 task for base styles. Without this, three developers could independently choose different styling approaches.
 
-**Rating: High Quality**
+### 4. Missing module registration notes
 
-- **Clear Purpose**: Yes.
-- **Specific File Changes**: Yes. Single file.
-- **Actionable Instructions**: Yes. The 4-item list is precise. Correctly notes no string marshalling concerns and all blittable types.
-- **Gotchas Documented**: Yes.
-- **Appropriate Scope**: Yes. Smallest P/Invoke conversion task (3 declarations).
+Several tasks create new Rust files (e.g., `launch/script_runner.rs`, `profile/legacy.rs`, `steam/vdf.rs`) but do not mention updating the corresponding `mod.rs` to declare the submodule with `pub mod`. This is a trivial step but can trip up developers less familiar with Rust's module system. Consider adding a standard note: "Register the new module in the parent `mod.rs`."
 
-**Line Numbers Verified**: "Lines 15-37 Win32 API region" -- the `#region Win32 API` block runs from line 13 to line 55. The DllImport declarations are at lines 15-25 (3 methods). The struct and constants follow. The plan's line reference is slightly narrow but adequate.
+### 5. `directories` crate missing from Task 1.1 dependency list
+
+Task 1.6 uses the `directories` crate for `~/.config/crosshook/` path resolution, but Task 1.1 (workspace scaffolding) does not include it in the `crosshook-core/Cargo.toml` dependency list. Same applies to `unicase` (mentioned in Task 2.1 for case-insensitive keys). These should be added to Task 1.1, or each consuming task should note "add `directories` to `Cargo.toml` if not already present."
 
 ---
 
-#### Task 3.4: Consolidate Duplicate P/Invoke into Shared NativeMethods
+## Line Number Verification
 
-**Rating: High Quality**
+All C# line references in the plan were spot-checked against the actual source. Results:
 
-- **Clear Purpose**: Yes.
-- **Specific File Changes**: Yes. 2 create + 3 modify.
-- **Actionable Instructions**: Yes. The 6 duplicated APIs are specifically listed. Struct placement is defined. The namespace and class structure are specified.
-- **Gotchas Documented**: The Advice section notes this task is optional but recommended.
-- **Appropriate Scope**: Borderline larger (5 files) but logically cohesive.
+| Reference                                               | Claimed   | Actual    | Status   |
+| ------------------------------------------------------- | --------- | --------- | -------- |
+| ProfileService.cs ProfileData class                     | line 199  | line 199  | Exact    |
+| SteamAutoPopulateService.cs ParseKeyValueObject         | line 739  | line 739  | Exact    |
+| SteamLaunchService.cs SteamLaunchRequest                | line 10   | line 10   | Exact    |
+| SteamLaunchService.cs GetEnvironmentVariablesToClear    | line 233  | line 233  | Exact    |
+| SteamAutoPopulateService.cs DiscoverSteamRootCandidates | line 164  | line 164  | Exact    |
+| MainForm.cs BuildSteamLaunchRequest                     | line 2648 | line 2648 | Exact    |
+| MainForm.cs UpdateSteamModeUiState                      | line 2119 | line 2119 | Exact    |
+| MainForm.cs StreamSteamHelperLogAsync                   | line 2908 | line 2908 | Exact    |
+| SteamAutoPopulateService.cs line count                  | ~1286     | 1285      | Off by 1 |
+| SteamLaunchService.cs line count                        | ~737      | 736       | Off by 1 |
+| ProfileService.cs line count                            | ~225      | 224       | Off by 1 |
 
-**Duplication Verified**: The following 6 APIs are confirmed duplicated between ProcessManager and InjectionManager:
-
-- `OpenProcess` (PM line 15, IM line 17)
-- `CloseHandle` (PM line 18, IM line 41)
-- `CreateRemoteThread` (PM line 21, IM line 37)
-- `WriteProcessMemory` (PM line 25, IM line 33)
-- `VirtualAllocEx` (PM line 29, IM line 26)
-- `VirtualFreeEx` (PM line 33, IM line 30)
-
-All 6 match. Additionally, `WriteProcessMemory` is also declared in MemoryManager (line 19), making it a 3-way duplicate. The plan accounts for this by listing MemoryManager as a file to modify. `ReadProcessMemory` (MemoryManager line 15) and `VirtualQueryEx` (MemoryManager line 23) are unique to MemoryManager and should stay there. The plan correctly says "Each manager retains only its unique P/Invoke declarations."
-
-**One Note**: The plan says "Total P/Invoke declaration sites reduced from 29 to 19." Let me verify: 11 (PM) + 12 (IM) + 3 (MM) = 26 declaration sites (not 29 as claimed). After consolidation, removing 6 from PM and 6 from IM and 1 from MM (WriteProcessMemory) = 13 removed, leaving 13 in managers + 6 in Kernel32 + 1 in Dbghelp = 20 total sites (not 19). The arithmetic is slightly off but does not affect implementation.
+Line references are highly accurate. The ~1-line discrepancies in total line counts are negligible and likely due to trailing newline differences.
 
 ---
 
-#### Task 3.5: Enable Nullable, C# 12 Features, and Update Documentation
+## Priority Improvements (Ordered)
 
-**Rating: Needs Significant Work**
-
-- **Clear Purpose**: Partially. The title bundles three unrelated concerns: nullable annotations, C# 12 syntax modernization, and documentation updates.
-- **Specific File Changes**: "All .cs files" is vague. There are 8 .cs source files. The plan should list them explicitly.
-- **Actionable Instructions**: Partially. The nullable guidance mentions specific examples (`MemoryManager.ReadMemory()` returns `byte[]?`, `QueryMemoryRegions()` returns `List<MemoryRegion>?`) which are verified and helpful. But "Address nullable warnings across all files" is too broad for a single task.
-- **Gotchas Documented**: No. Several gotchas are undocumented.
-- **Appropriate Scope**: No. This task touches potentially all 8 .cs files plus 3 documentation files = 11+ files. It should be split into at least 2-3 subtasks.
-
-**Issues**:
-
-1. **Scope is too large**: Nullable annotation across 8 files + file-scoped namespace conversion + C# 12 syntax + CLAUDE.md update + README.md update + AGENTS.md update + .cursorrules update. This is 4 distinct work items crammed into one task.
-2. **"All .cs files" is not specific**: Should list: `Program.cs`, `ProcessManager.cs`, `InjectionManager.cs`, `MemoryManager.cs`, `MainForm.cs`, `MainForm.Designer.cs`, `ResumePanel.cs`, plus the new files from Phase 2 and 3 (`ProfileService.cs`, `CommandLineParser.cs`, `RecentFilesService.cs`, `Kernel32.cs`, `Dbghelp.cs`). That is 12 files.
-3. **Missing gotcha: file-scoped namespaces and nested classes**: MainForm.cs contains a nested `ProfileInputDialog` class (lines 104-209). File-scoped namespaces (`namespace Foo;`) do not support nesting -- you cannot have a namespace-scoped class contain a nested class definition. This is fine for the nested class itself (it is inside the MainForm class, not a nested namespace), but the implementer should be aware that file-scoped namespace conversion is mechanical and does not affect class nesting.
-4. **Missing gotcha: MainForm.Designer.cs is a partial class**: Converting `MainForm.Designer.cs` to file-scoped namespace requires the namespace to match exactly with MainForm.cs. This is trivially true but should be noted.
-5. **AGENTS.md and .cursorrules exist**: Verified. Both files exist in the repo root. The "if they exist" conditional is unnecessary -- they do exist and should be listed as explicit files to modify.
-6. **README.md XInput claims**: The plan says to "Remove XInput/controller feature claims that no longer exist in source." This is correct as a goal, but the specific sections to modify are not identified.
-7. **Missing ordering concern**: Task 3.5 depends on [3.4], but the file-scoped namespace conversion and nullable annotations affect ALL files modified in every prior task. If this task is done last (as the dependency chain requires), that is fine. But if any earlier task is re-done or amended after 3.5, conflicts will arise. This is an implicit dependency that should be noted.
-
-**Recommendation**: Split into three subtasks:
-
-- 3.5a: Enable nullable reference types and resolve warnings across all .cs files
-- 3.5b: Convert to file-scoped namespaces and apply C# 12 syntax
-- 3.5c: Update documentation (CLAUDE.md, README.md, AGENTS.md, .cursorrules)
-
----
-
-## Priority Improvements
-
-Ordered by impact on implementation success:
-
-1. **Task 3.5 -- Split into subtasks**: This is the only task rated "Needs Significant Work." Touching 11+ files in a single task with three unrelated objectives violates the plan's own 1-3 file scope guideline. Split into nullable, syntax modernization, and documentation subtasks.
-
-2. **Task 2.6 -- Add LaunchMethod enum serialization gotcha**: Removing `CreateThreadInjection` and `RemoteThreadInjection` from the `LaunchMethod` enum will break `Enum.TryParse<LaunchMethod>(value, ...)` for existing profiles that saved these values. The fix is simple (add a migration fallback or warn on unknown values), but it must be documented so the implementer does not silently break profile loading.
-
-3. **Task 2.5 -- Clarify service boundary and file count**: The title says "RecentFilesService and SettingsService" but only one file is listed. Either rename to match, or add `SettingsService.cs` as a second file. Also note that `LoadRecentFiles` interleaves data loading with UI population, so the service extraction requires separating those concerns.
-
-4. **Task 3.2 -- List all P/Invoke declarations to convert**: The instructions only explicitly address 3 of the 12 declarations (LoadLibrary, GetProcAddress, GetModuleHandle). The remaining 9 (OpenProcess, VirtualAllocEx, VirtualFreeEx, WriteProcessMemory, CreateRemoteThread, CloseHandle, LoadLibrary, FreeLibrary, WaitForSingleObject, GetExitCodeThread) are covered by the generic "Standard conversion" step 2, but FreeLibrary, WaitForSingleObject, and GetExitCodeThread are not mentioned anywhere and could be missed. At minimum, enumerate them.
-
-5. **Task 3.4 -- Fix P/Invoke count arithmetic**: The plan says 29 declaration sites reduced to 19. Actual count is 26 sites (11 + 12 + 3) reduced to approximately 20. Minor but inaccurate numbers can erode confidence in the plan.
-
-6. **Task 1.2 -- Explicitly mention Application.StartupPath gotcha**: The Advice section (line 407) documents this critical behavior difference, but the task itself does not reference it. The tester might not read the Advice section.
+1. **Add CSS strategy to Task 1.2** -- blocks all Phase 1 React components (1.12, 1.13, 1.14) from having a consistent approach
+2. **Fix Task 1.7 / 1.9 dependency** -- prevents constant duplication during parallel development
+3. **Flesh out Task 3.9 (AUR PKGBUILD)** -- currently unimplementable without guessing every field
+4. **Add `directories` crate to Task 1.1** -- blocks Task 1.6 at build time
+5. **Clarify Task 1.2 scaffolding approach** -- pick CLI or manual, list all files
+6. **Add error state to Task 1.13 launch UI** -- prevents undefined behavior on failure
+7. **Specify Task 3.5 settings panel layout** -- currently too vague to implement
+8. **Fix Task 3.7 env var detection** -- `SteamDeck=1` env var is not accessible from browser context
+9. **Add integration test task after Phase 1** -- validates the pipeline before Phase 2
+10. **Add log streaming termination conditions to Task 1.11** -- missing deadline/timeout behavior from C# reference
 
 ---
 
 ## Overall Assessment
 
-**Plan Quality: Strong**
+**Plan Quality: Strong -- Ready for implementation with minor pre-work.**
 
-The parallel plan is well above average for implementation readiness. 9 of 14 tasks can be picked up and implemented immediately without guessing. The plan demonstrates deep familiarity with the codebase: line number references were verified against the actual source and are overwhelmingly accurate, file paths are all valid, technical claims about duplication and bugs are confirmed by the code, and the critical LoadLibraryA ANSI encoding gotcha is prominently highlighted.
+The 22 high-quality tasks (65%) can be picked up and implemented immediately without guessing. The 8 tasks needing minor improvements can proceed with a developer who exercises reasonable judgment -- the gaps are small and well-bounded. The 4 tasks needing significant work (3.5, 3.6, 3.7, 3.9) are all in Phase 3, which provides time to refine them before they block progress.
 
-**Key Strengths**:
+**Key Strengths:**
 
-- Every task has a "READ THESE BEFORE TASK" section pointing to specific source files and documentation, which is an excellent pattern for reducing context-switching
-- Line number references are precise -- all verified within 1-2 lines of the stated locations
-- The Advice section contains genuinely useful implementation wisdom (MainForm merge bottleneck, LoadLibraryA sensitivity, exe size expectations, Application.StartupPath behavior)
-- Dependencies between tasks are correctly identified; the dependency graph is a valid DAG with no cycles
-- Gotchas are documented where they matter most (ANSI encoding, profile file format, event double-subscription)
+- Every task has a "READ THESE BEFORE TASK" section with specific source files and line numbers -- all verified accurate
+- Line number references are precise across every spot-checked location (8/8 exact matches)
+- The dependency graph is a valid DAG with no cycles and reasonable parallelism
+- The Advice section at the bottom contains genuinely critical implementation wisdom (script selection for Phase 2 launch, path conversion code NOT needed, profile format cross-app contract)
+- File paths for all 34 tasks specify concrete locations in the `src/crosshook-native/` tree -- no placeholders
 
-**Key Weaknesses**:
+**Key Weaknesses:**
 
-- Task 3.5 is overloaded and should be decomposed
-- One backwards-compatibility risk (LaunchMethod enum serialization in Task 2.6) is undocumented
-- Task 2.5 has a title/content mismatch
-- P/Invoke counts are slightly inaccurate (26 vs 29 stated)
+- CSS/styling strategy is deferred to Phase 3 but needed in Phase 1
+- One implicit dependency (1.7 <-> 1.9) could cause wasted parallel work
+- Four Phase 3 tasks (3.5, 3.6, 3.7, 3.9) need significant specification work
+- No integration test task anywhere in the plan
 
-**Implementation Readiness**: The plan is ready for Phase 1 and Phase 2 immediately. Phase 3 tasks are ready except Task 3.5 which needs decomposition. The sequential ordering advice for Phase 2 (avoiding MainForm merge conflicts) is practical and should be followed.
+**Implementation Readiness:** Phase 1 and Phase 2 are ready to begin immediately. The recommended pre-work is: (1) add CSS strategy to Task 1.2, (2) resolve the 1.7/1.9 dependency, and (3) add `directories` to Task 1.1's dependency list. Phase 3 should be refined after Phase 1 delivery. Phase 4 is appropriately sketched and should get its own detailed sub-plan when the time comes.
