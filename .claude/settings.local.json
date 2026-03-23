@@ -56,7 +56,12 @@
       "Bash(/home/yandy/.claude/plugins/cache/yandy-plugins/deep-research/1.0.0/skills/deep-research/scripts/validate-research.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/research/crosshook-feature-enhancements\")",
       "Bash(export PATH=\"$PWD/.dotnet:$PATH\")",
       "Bash(export DOTNET_CLI_HOME=\"$PWD/.dotnet-cli-home\")",
-      "Bash(wc -l /home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-linux-ui/*.md)"
+      "Bash(wc -l /home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-linux-ui/*.md)",
+      "Bash(source /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/_shared/scripts/resolve-plans-dir.sh)",
+      "Bash(get_feature_plan_dir \"platform-native-ui\")",
+      "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/plan-workflow/scripts/check-state.sh platform-native-ui 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/shared-context/scripts/validate-research-artifacts.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-ui\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/plan-workflow/scripts/validate-shared.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/platform-native-ui/shared.md\" 2>&1)"
     ]
   }
 }
