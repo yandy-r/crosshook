@@ -37,11 +37,16 @@ pub fn attempt_auto_populate(request: &SteamAutoPopulateRequest) -> SteamAutoPop
         );
     }
 
-    let steam_root_candidates =
-        discover_steam_root_candidates(&request.steam_client_install_path, &mut collector.diagnostics);
+    let steam_root_candidates = discover_steam_root_candidates(
+        &request.steam_client_install_path,
+        &mut collector.diagnostics,
+    );
     let libraries = discover_steam_libraries(&steam_root_candidates, &mut collector.diagnostics);
-    let match_selection =
-        find_game_match(&normalized_game_path, &libraries, &mut collector.diagnostics);
+    let match_selection = find_game_match(
+        &normalized_game_path,
+        &libraries,
+        &mut collector.diagnostics,
+    );
 
     let app_id_state = match_selection.state;
     let steam_app_id = match_selection
@@ -74,8 +79,11 @@ pub fn attempt_auto_populate(request: &SteamAutoPopulateRequest) -> SteamAutoPop
     let mut proton_path = Default::default();
 
     if let Some(matched) = match_selection.matched.as_ref() {
-        let proton_resolution =
-            resolve_proton_path(&matched.app_id, &steam_root_candidates, &mut collector.diagnostics);
+        let proton_resolution = resolve_proton_path(
+            &matched.app_id,
+            &steam_root_candidates,
+            &mut collector.diagnostics,
+        );
         proton_state = proton_resolution.state;
         proton_path = proton_resolution.proton_path;
     }
@@ -111,7 +119,10 @@ pub fn attempt_auto_populate(request: &SteamAutoPopulateRequest) -> SteamAutoPop
         for steam_root_candidate in &steam_root_candidates {
             collector.add_hint(format!(
                 "Proton is usually under: {}",
-                steam_root_candidate.join("steamapps").join("common").display()
+                steam_root_candidate
+                    .join("steamapps")
+                    .join("common")
+                    .display()
             ));
             collector.add_hint(format!(
                 "Custom Proton tools are usually under: {}",

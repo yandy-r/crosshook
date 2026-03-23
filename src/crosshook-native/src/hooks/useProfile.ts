@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import type { GameProfile } from "../types";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import type { AppSettingsData, GameProfile, RecentFilesData } from '../types';
 
 export interface UseProfileResult {
   profiles: string[];
@@ -21,15 +21,28 @@ export interface UseProfileResult {
   refreshProfiles: () => Promise<void>;
 }
 
+export interface UseProfileOptions {
+  autoSelectFirstProfile?: boolean;
+}
+
+function mergeRecentPaths(currentPaths: string[], nextPath: string): string[] {
+  const trimmed = nextPath.trim();
+  if (!trimmed) {
+    return currentPaths;
+  }
+
+  return [trimmed, ...currentPaths.filter((path) => path !== trimmed)].slice(0, 10);
+}
+
 function createEmptyProfile(): GameProfile {
   return {
     game: {
-      name: "",
-      executable_path: "",
+      name: '',
+      executable_path: '',
     },
     trainer: {
-      path: "",
-      type: "",
+      path: '',
+      type: '',
     },
     injection: {
       dll_paths: [],
@@ -37,24 +50,24 @@ function createEmptyProfile(): GameProfile {
     },
     steam: {
       enabled: false,
-      app_id: "",
-      compatdata_path: "",
-      proton_path: "",
+      app_id: '',
+      compatdata_path: '',
+      proton_path: '',
       launcher: {
-        icon_path: "",
-        display_name: "",
+        icon_path: '',
+        display_name: '',
       },
     },
     launch: {
-      method: "",
+      method: '',
     },
   };
 }
 
-export function useProfile(): UseProfileResult {
+export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [profiles, setProfiles] = useState<string[]>([]);
-  const [selectedProfile, setSelectedProfile] = useState("");
-  const [profileName, setProfileName] = useState("");
+  const [selectedProfile, setSelectedProfile] = useState('');
+  const [profileName, setProfileName] = useState('');
   const [profile, setProfile] = useState<GameProfile>(createEmptyProfile);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,11 +75,33 @@ export function useProfile(): UseProfileResult {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const syncProfileMetadata = useCallback(async (name: string, currentProfile: GameProfile) => {
+    const settings = await invoke<AppSettingsData>('settings_load');
+    await invoke('settings_save', {
+      data: {
+        ...settings,
+        last_used_profile: name,
+      } satisfies AppSettingsData,
+    });
+
+    const recentFiles = await invoke<RecentFilesData>('recent_files_load');
+    await invoke('recent_files_save', {
+      data: {
+        game_paths: mergeRecentPaths(recentFiles.game_paths, currentProfile.game.executable_path),
+        trainer_paths: mergeRecentPaths(recentFiles.trainer_paths, currentProfile.trainer.path),
+        dll_paths: currentProfile.injection.dll_paths.reduce(
+          (paths, dllPath) => mergeRecentPaths(paths, dllPath),
+          recentFiles.dll_paths
+        ),
+      } satisfies RecentFilesData,
+    });
+  }, []);
+
   const loadProfile = useCallback(async (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) {
-      setSelectedProfile("");
-      setProfileName("");
+      setSelectedProfile('');
+      setProfileName('');
       setProfile(createEmptyProfile());
       setDirty(false);
       return;
@@ -76,11 +111,12 @@ export function useProfile(): UseProfileResult {
     setError(null);
 
     try {
-      const loaded = await invoke<GameProfile>("profile_load", { name: trimmed });
+      const loaded = await invoke<GameProfile>('profile_load', { name: trimmed });
       setSelectedProfile(trimmed);
       setProfileName(trimmed);
       setProfile(loaded);
       setDirty(false);
+      await syncProfileMetadata(trimmed, loaded);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -89,12 +125,12 @@ export function useProfile(): UseProfileResult {
   }, []);
 
   const refreshProfiles = useCallback(async () => {
-    const names = await invoke<string[]>("profile_list");
+    const names = await invoke<string[]>('profile_list');
     setProfiles(names);
 
     if (names.length === 0) {
-      setSelectedProfile("");
-      setProfileName("");
+      setSelectedProfile('');
+      setProfileName('');
       setProfile(createEmptyProfile());
       setDirty(false);
       return;
@@ -104,14 +140,16 @@ export function useProfile(): UseProfileResult {
       return;
     }
 
-    await loadProfile(names[0]);
-  }, [loadProfile, selectedProfile]);
+    if (options.autoSelectFirstProfile ?? true) {
+      await loadProfile(names[0]);
+    }
+  }, [loadProfile, options.autoSelectFirstProfile, selectedProfile]);
 
   const selectProfile = useCallback(
     async (name: string) => {
       await loadProfile(name);
     },
-    [loadProfile],
+    [loadProfile]
   );
 
   const updateProfile = useCallback((updater: (current: GameProfile) => GameProfile) => {
@@ -122,7 +160,7 @@ export function useProfile(): UseProfileResult {
   const saveProfile = useCallback(async () => {
     const name = profileName.trim();
     if (!name) {
-      setError("Profile name is required.");
+      setError('Profile name is required.');
       return;
     }
 
@@ -130,7 +168,8 @@ export function useProfile(): UseProfileResult {
     setError(null);
 
     try {
-      await invoke("profile_save", { name, data: profile });
+      await invoke('profile_save', { name, data: profile });
+      await syncProfileMetadata(name, profile);
       await refreshProfiles();
       await loadProfile(name);
     } catch (err) {
@@ -143,7 +182,7 @@ export function useProfile(): UseProfileResult {
   const deleteProfile = useCallback(async () => {
     const name = profileName.trim();
     if (!name) {
-      setError("Select a profile to delete.");
+      setError('Select a profile to delete.');
       return;
     }
 
@@ -151,13 +190,22 @@ export function useProfile(): UseProfileResult {
     setError(null);
 
     try {
-      await invoke("profile_delete", { name });
-      const names = await invoke<string[]>("profile_list");
+      await invoke('profile_delete', { name });
+      const settings = await invoke<AppSettingsData>('settings_load');
+      if (settings.last_used_profile === name) {
+        await invoke('settings_save', {
+          data: {
+            ...settings,
+            last_used_profile: '',
+          } satisfies AppSettingsData,
+        });
+      }
+      const names = await invoke<string[]>('profile_list');
       setProfiles(names);
 
       if (names.length === 0) {
-        setSelectedProfile("");
-        setProfileName("");
+        setSelectedProfile('');
+        setProfileName('');
         setProfile(createEmptyProfile());
         setDirty(false);
         return;
@@ -177,10 +225,7 @@ export function useProfile(): UseProfileResult {
     });
   }, [refreshProfiles]);
 
-  const profileExists = useMemo(
-    () => profiles.includes(profileName.trim()),
-    [profileName, profiles],
-  );
+  const profileExists = useMemo(() => profiles.includes(profileName.trim()), [profileName, profiles]);
 
   return {
     profiles,

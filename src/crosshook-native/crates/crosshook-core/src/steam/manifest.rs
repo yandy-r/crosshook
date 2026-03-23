@@ -60,7 +60,8 @@ pub fn find_game_match(
 
     let matches = dedupe_matches(matches);
     if matches.is_empty() {
-        diagnostics.push("No Steam app manifest matched the selected game executable path.".to_string());
+        diagnostics
+            .push("No Steam app manifest matched the selected game executable path.".to_string());
         return SteamGameMatchSelection {
             state: SteamAutoPopulateFieldState::NotFound,
             matched: None,
@@ -110,7 +111,9 @@ fn parse_manifest(manifest_path: &Path) -> Result<(String, String), String> {
     let content = fs::read_to_string(manifest_path)
         .map_err(|error| format!("unable to read manifest: {error}"))?;
     let manifest_root = parse_vdf(&content).map_err(|error| error.to_string())?;
-    let app_state_node = manifest_root.get_child("AppState").unwrap_or(&manifest_root);
+    let app_state_node = manifest_root
+        .get_child("AppState")
+        .unwrap_or(&manifest_root);
 
     let steam_app_id = app_state_node
         .get_child("appid")
@@ -255,7 +258,9 @@ mod tests {
             compatdata_path_for_match(&matched),
             steamapps.join("compatdata/12345")
         );
-        assert!(diagnostics.iter().any(|entry| entry.contains("Matched Steam App ID")));
+        assert!(diagnostics
+            .iter()
+            .any(|entry| entry.contains("Matched Steam App ID")));
     }
 
     #[test]
@@ -267,11 +272,7 @@ mod tests {
         let game_exe = game_dir.join("game.exe");
 
         fs::create_dir_all(&game_dir).expect("game dir");
-        write_manifest(
-            &steamapps.join("appmanifest_67890.acf"),
-            "",
-            "Fallback",
-        );
+        write_manifest(&steamapps.join("appmanifest_67890.acf"), "", "Fallback");
         fs::write(&game_exe, b"test").expect("exe");
 
         let libraries = vec![SteamLibrary {

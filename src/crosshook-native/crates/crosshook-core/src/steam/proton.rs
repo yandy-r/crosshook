@@ -293,7 +293,10 @@ fn resolve_compat_tool_by_name<'a>(
     if let Some(normalized_requested_tool_name) = normalize_alias(requested_tool_name) {
         let normalized_matches = installed_tools
             .iter()
-            .filter(|tool| tool.normalized_aliases.contains(&normalized_requested_tool_name))
+            .filter(|tool| {
+                tool.normalized_aliases
+                    .contains(&normalized_requested_tool_name)
+            })
             .collect::<Vec<_>>();
         if !normalized_matches.is_empty() {
             return normalized_matches;

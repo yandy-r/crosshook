@@ -126,7 +126,10 @@ impl ProfileStore {
             .ok_or_else(|| ProfileStoreError::InvalidName(legacy_path.display().to_string()))?;
 
         validate_name(profile_name)?;
-        let legacy_profile = legacy::load(legacy_path.parent().unwrap_or_else(|| Path::new("")), profile_name)?;
+        let legacy_profile = legacy::load(
+            legacy_path.parent().unwrap_or_else(|| Path::new("")),
+            profile_name,
+        )?;
         let profile = GameProfile::from(legacy_profile);
         self.save(profile_name, &profile)?;
         Ok(profile)
@@ -139,7 +142,8 @@ impl ProfileStore {
 }
 
 pub fn validate_name(name: &str) -> Result<(), ProfileStoreError> {
-    const WINDOWS_RESERVED_PATH_CHARACTERS: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+    const WINDOWS_RESERVED_PATH_CHARACTERS: [char; 9] =
+        ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
     let trimmed = name.trim();
     if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
@@ -227,7 +231,10 @@ mod tests {
         .unwrap();
 
         let imported = store.import_legacy(&legacy_path).unwrap();
-        assert_eq!(imported.game.executable_path, "/games/elden-ring/eldenring.exe");
+        assert_eq!(
+            imported.game.executable_path,
+            "/games/elden-ring/eldenring.exe"
+        );
         assert_eq!(imported.trainer.path, "/trainers/elden-ring.exe");
         assert_eq!(imported.steam.compatdata_path, "/steam/compatdata/1245620");
         assert_eq!(imported.steam.launcher.icon_path, "/icons/elden-ring.png");

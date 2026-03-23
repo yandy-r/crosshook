@@ -37,9 +37,13 @@ pub fn load(profiles_dir: &Path, name: &str) -> io::Result<LegacyProfileData> {
                 }
             }
             "SteamAppId" => data.steam_app_id = value.trim().to_string(),
-            "SteamCompatDataPath" => data.steam_compat_data_path = normalize_legacy_windows_path(value),
+            "SteamCompatDataPath" => {
+                data.steam_compat_data_path = normalize_legacy_windows_path(value)
+            }
             "SteamProtonPath" => data.steam_proton_path = normalize_legacy_windows_path(value),
-            "SteamLauncherIconPath" => data.steam_launcher_icon_path = normalize_legacy_windows_path(value),
+            "SteamLauncherIconPath" => {
+                data.steam_launcher_icon_path = normalize_legacy_windows_path(value)
+            }
             _ => {}
         }
     }
@@ -63,7 +67,11 @@ pub fn save(profiles_dir: &Path, name: &str, data: &LegacyProfileData) -> io::Re
     writeln!(file, "SteamAppId={}", data.steam_app_id)?;
     writeln!(file, "SteamCompatDataPath={}", data.steam_compat_data_path)?;
     writeln!(file, "SteamProtonPath={}", data.steam_proton_path)?;
-    writeln!(file, "SteamLauncherIconPath={}", data.steam_launcher_icon_path)?;
+    writeln!(
+        file,
+        "SteamLauncherIconPath={}",
+        data.steam_launcher_icon_path
+    )?;
     Ok(())
 }
 
@@ -102,10 +110,14 @@ pub fn delete(profiles_dir: &Path, name: &str) -> io::Result<()> {
 }
 
 pub fn validate_name(name: &str) -> io::Result<()> {
-    const WINDOWS_RESERVED_PATH_CHARACTERS: &[char] = &['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+    const WINDOWS_RESERVED_PATH_CHARACTERS: &[char] =
+        &['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
     if name.trim().is_empty() {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "profile name cannot be empty"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "profile name cannot be empty",
+        ));
     }
 
     if name == "." || name == ".." {
@@ -115,7 +127,11 @@ pub fn validate_name(name: &str) -> io::Result<()> {
         ));
     }
 
-    if Path::new(name).is_absolute() || name.contains('/') || name.contains('\\') || name.contains(':') {
+    if Path::new(name).is_absolute()
+        || name.contains('/')
+        || name.contains('\\')
+        || name.contains(':')
+    {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             "profile name cannot contain path separators or rooted paths",
@@ -225,7 +241,10 @@ mod tests {
         fs::write(temp_dir.path().join("a.profile"), "").unwrap();
         fs::write(temp_dir.path().join("ignore.txt"), "").unwrap();
 
-        assert_eq!(list(temp_dir.path()).unwrap(), vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(
+            list(temp_dir.path()).unwrap(),
+            vec!["a".to_string(), "b".to_string()]
+        );
 
         delete(temp_dir.path(), "a").unwrap();
         assert!(!temp_dir.path().join("a.profile").exists());

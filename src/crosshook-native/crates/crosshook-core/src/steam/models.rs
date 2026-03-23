@@ -53,16 +53,9 @@ pub struct SteamAutoPopulateResult {
 
 impl SteamAutoPopulateResult {
     pub fn has_any_match(&self) -> bool {
-        matches!(
-            self.app_id_state,
-            SteamAutoPopulateFieldState::Found
-        ) || matches!(
-            self.compatdata_state,
-            SteamAutoPopulateFieldState::Found
-        ) || matches!(
-            self.proton_state,
-            SteamAutoPopulateFieldState::Found
-        )
+        matches!(self.app_id_state, SteamAutoPopulateFieldState::Found)
+            || matches!(self.compatdata_state, SteamAutoPopulateFieldState::Found)
+            || matches!(self.proton_state, SteamAutoPopulateFieldState::Found)
     }
 }
 
