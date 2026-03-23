@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+## [v0.2.0] - 2026-03-23
+
+
+### Features
+
+- Implement the platform-native-ui native app feature set ([#20](https://github.com/yandy-r/crosshook/issues/20)) ([`246a5ea`](https://github.com/yandy-r/crosshook/commit/246a5ea374ab9606e9a51d79642a69e624fa8926))
+
+
 ## [v0.1.1] - 2026-03-23
 
 
@@ -20,8 +28,6 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Features
 
-- **build:** Complete dotnet migration plan ([#8](https://github.com/yandy-r/crosshook/issues/8)) ([`fa74fd0`](https://github.com/yandy-r/crosshook/commit/fa74fd0d48a0a692ffdc759c7c092ffa9a9359ca))
-
 - Add Steam / Proton trainer workflow ([#18](https://github.com/yandy-r/crosshook/issues/18)) ([`bd3e6e9`](https://github.com/yandy-r/crosshook/commit/bd3e6e9a7693155d857b812e0d25145bca177ffc))
 
 - Add comprehensive documentation for platform-native Linux UI ([`266864e`](https://github.com/yandy-r/crosshook/commit/266864e9a3f80a9fb1bd5827492a4188a929ea86))
@@ -29,6 +35,32 @@ This file is generated with `git-cliff` from the repository history and release 
 - Expand platform-native UI documentation and enhance local settings ([`9ed9016`](https://github.com/yandy-r/crosshook/commit/9ed90162a882506104ad3a9d3b31db6e1bdb53b1))
 
 - Expand platform-native UI analysis and documentation ([`b88bd7c`](https://github.com/yandy-r/crosshook/commit/b88bd7c4d784733cf6d6759dd2c1dfc7adfbfc06))
+
+
+### Other
+
+- Adds native Linux UI plan documentation ([`d6fec34`](https://github.com/yandy-r/crosshook/commit/d6fec347ca63d6602c80858e46b2779fcffbe26c))
+
+
+### chore
+
+- Enhance local settings with additional Bash commands for automation ([`8c3f842`](https://github.com/yandy-r/crosshook/commit/8c3f842008ea492d0a2033c6adadad35b01b7669))
+
+- Enhance local settings with additional Bash command for validation script ([`5b7130a`](https://github.com/yandy-r/crosshook/commit/5b7130a1c85c2215ecbdd9b694a2dc8da097ad30))
+
+- Enhance local settings with additional Bash commands for validation and asset management ([`ae83b90`](https://github.com/yandy-r/crosshook/commit/ae83b90de788713e23e759b3029b38e86413b885))
+
+- Remove obsolete tasks file and update .gitignore ([`e35b36c`](https://github.com/yandy-r/crosshook/commit/e35b36c80628bdc4add7d1555958d81b8ba487d4))
+
+- Enhance local settings with additional Bash command for line count check ([`d490178`](https://github.com/yandy-r/crosshook/commit/d4901785cb8bb287303d29488baea6f0211ff9bd))
+
+
+## [v0.1.0] - 2026-03-19
+
+
+### Features
+
+- **build:** Complete dotnet migration plan ([#8](https://github.com/yandy-r/crosshook/issues/8)) ([`fa74fd0`](https://github.com/yandy-r/crosshook/commit/fa74fd0d48a0a692ffdc759c7c092ffa9a9359ca))
 
 
 ### Other
@@ -65,8 +97,6 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - Add GitHub workflow documentation for issue and pull request management ([`a0a372e`](https://github.com/yandy-r/crosshook/commit/a0a372e4191ca021805ba395dfaf328dfa55bdeb))
 
-- Adds native Linux UI plan documentation ([`d6fec34`](https://github.com/yandy-r/crosshook/commit/d6fec347ca63d6602c80858e46b2779fcffbe26c))
-
 
 ### Refactoring
 
@@ -76,19 +106,6 @@ This file is generated with `git-cliff` from the repository history and release 
 ### Release
 
 - Remove controller support and TV mode, streamline executable name ([`dafbae5`](https://github.com/yandy-r/crosshook/commit/dafbae55e7a925294313206ec5f7df760a6423e5))
-
-
-### chore
-
-- Enhance local settings with additional Bash commands for automation ([`8c3f842`](https://github.com/yandy-r/crosshook/commit/8c3f842008ea492d0a2033c6adadad35b01b7669))
-
-- Enhance local settings with additional Bash command for validation script ([`5b7130a`](https://github.com/yandy-r/crosshook/commit/5b7130a1c85c2215ecbdd9b694a2dc8da097ad30))
-
-- Enhance local settings with additional Bash commands for validation and asset management ([`ae83b90`](https://github.com/yandy-r/crosshook/commit/ae83b90de788713e23e759b3029b38e86413b885))
-
-- Remove obsolete tasks file and update .gitignore ([`e35b36c`](https://github.com/yandy-r/crosshook/commit/e35b36c80628bdc4add7d1555958d81b8ba487d4))
-
-- Enhance local settings with additional Bash command for line count check ([`d490178`](https://github.com/yandy-r/crosshook/commit/d4901785cb8bb287303d29488baea6f0211ff9bd))
 
 
 ## [v5.0] - 2025-04-04
@@ -106,75 +123,21 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Other
 
-- Compat Fixes ([`83c9677`](https://github.com/yandy-r/crosshook/commit/83c96778968f02e30c171729042155d3d2e06b38))
+- Initial commit ([`0106a2e`](https://github.com/yandy-r/crosshook/commit/0106a2ead97267963a604e4ddd675c7024e9cba5))
 
-- Update README.md ([`52d0c2c`](https://github.com/yandy-r/crosshook/commit/52d0c2cd3a346201e8fd8b196005a6a12dc11f39))
+- Update README.md ([`a8a50f5`](https://github.com/yandy-r/crosshook/commit/a8a50f55340ae6c1cf9377b2120586a4a21698fc))
 
-- Update README.md ([`6338d70`](https://github.com/yandy-r/crosshook/commit/6338d70ce9f2f690e41be61bdcd4535545649584))
+- Visual demo ([`fcddb55`](https://github.com/yandy-r/crosshook/commit/fcddb556891b686b826d45483b28c2407c330f82))
 
-- TV Mode Update! ([`2763288`](https://github.com/yandy-r/crosshook/commit/276328859d4c7c5ad8ccd353ebb36c880147079d))
+- Update README.md ([`065776c`](https://github.com/yandy-r/crosshook/commit/065776cbc6b0d18175b48fef6170ffbd23c3c335))
 
-- Update README.md ([`c545130`](https://github.com/yandy-r/crosshook/commit/c545130bba064ad93045852a58d231f9c8857e58))
+- Update README.md ([`3e053a9`](https://github.com/yandy-r/crosshook/commit/3e053a9f1f22b0559cfa0ce33f68e8f55af90d8a))
 
-- Big rewrite ([`ba88fcc`](https://github.com/yandy-r/crosshook/commit/ba88fcc32136f7a3c68f272c9617d0d6c299761d))
+- Update README.md ([`6d8d37e`](https://github.com/yandy-r/crosshook/commit/6d8d37e1d46df35cee841589d09e3e78280d6bd0))
 
-- Update README.md ([`3061b48`](https://github.com/yandy-r/crosshook/commit/3061b488609cb5477c27a44332f3cbf86c3039e2))
+- Main source in C ([`f273fa8`](https://github.com/yandy-r/crosshook/commit/f273fa86cf432dd2f33f859a10c8bf583984e333))
 
-- Update README.md ([`5dbd9ea`](https://github.com/yandy-r/crosshook/commit/5dbd9ea167f965b037cdfd44c71b33faed17a212))
-
-- Update README.md ([`9adf720`](https://github.com/yandy-r/crosshook/commit/9adf72002cc7b02b29cec3133876328b971875e0))
-
-- Update README.md ([`dea063e`](https://github.com/yandy-r/crosshook/commit/dea063e6a156ae1d644d6855d0eb045dcea12de2))
-
-- Add .gitignore file ([`27534b4`](https://github.com/yandy-r/crosshook/commit/27534b49f99d54e0d40100d034d138c462941784))
-
-- Update LICENSE ([`c06f1f9`](https://github.com/yandy-r/crosshook/commit/c06f1f908b0277255099360199a5d995722f3552))
-
-
-## [4.0a] - 2025-02-20
-
-
-### Other
-
-- New Launcher Logic ([`59dbaec`](https://github.com/yandy-r/crosshook/commit/59dbaec3d4abbb77f26ad454c4e78e3bb7040521))
-
-- Update README.md ([`16bff37`](https://github.com/yandy-r/crosshook/commit/16bff37f8d7cba46ed493aaa05e4a3e333257571))
-
-- Update README.md ([`3b450b4`](https://github.com/yandy-r/crosshook/commit/3b450b42a4386626830a74b3fc9ce60d869144a5))
-
-- Compat fix ([`91cfd71`](https://github.com/yandy-r/crosshook/commit/91cfd71dbbcbaacde29bbf895085b9162e492fb3))
-
-- Update README.md ([`d7d1e86`](https://github.com/yandy-r/crosshook/commit/d7d1e86aff222c68e0cbd814ddacc5e749339042))
-
-- Emergency compat fix for SteamOS 3.x ([`161fa7e`](https://github.com/yandy-r/crosshook/commit/161fa7edb26d5bd996001d651b5fddf1d8b9a3de))
-
-- Stability fixes. ([`5a0319e`](https://github.com/yandy-r/crosshook/commit/5a0319e49280191c5726ec398e6ee7cd3287f2ce))
-
-
-## [3.0a] - 2025-02-17
-
-
-### Other
-
-- Uploaded the runtimeless version. ([`cb971be`](https://github.com/yandy-r/crosshook/commit/cb971beb158fb8cedf3ee5eec277a9b947daeeb4))
-
-- Update with embedded runtimes. ([`9bb6a03`](https://github.com/yandy-r/crosshook/commit/9bb6a03a761dfbdd95ab09d828a1b09a591f1760))
-
-- Update README.md ([`4372102`](https://github.com/yandy-r/crosshook/commit/43721029829868b5a12ca995c7b3448596322e2e))
-
-- Update README.md ([`894d685`](https://github.com/yandy-r/crosshook/commit/894d685cf7cb96876399df49d0fc7458ac9a69c1))
-
-- New versions and video demo ([`e39d344`](https://github.com/yandy-r/crosshook/commit/e39d34443912f3841b88e38b0a22f62eaaf30bdf))
-
-- WINE Mono Refactor ([`9485e12`](https://github.com/yandy-r/crosshook/commit/9485e12527b92d4b58f0dece86bbe6006dd76baa))
-
-- Create LICENSE ([`3adecf1`](https://github.com/yandy-r/crosshook/commit/3adecf19244e61a3eca42ba4841bf0000a8fbb0a))
-
-
-## [2.0] - 2025-02-10
-
-
-### Other
+- Main compiled win32 executable. ([`bc372d8`](https://github.com/yandy-r/crosshook/commit/bc372d8c8b467d669c364f52acd01269a11e4d6f))
 
 - Update README.md ([`6c1abda`](https://github.com/yandy-r/crosshook/commit/6c1abda628ce89cf46b98cf7524b449e9daf76c4))
 
@@ -218,27 +181,57 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - Overhaul in C# ([`4fb5afe`](https://github.com/yandy-r/crosshook/commit/4fb5afe052cb4222dfd222878740ec2f294b222f))
 
+- Uploaded the runtimeless version. ([`cb971be`](https://github.com/yandy-r/crosshook/commit/cb971beb158fb8cedf3ee5eec277a9b947daeeb4))
 
-## [1.0] - 2025-02-05
+- Update with embedded runtimes. ([`9bb6a03`](https://github.com/yandy-r/crosshook/commit/9bb6a03a761dfbdd95ab09d828a1b09a591f1760))
 
+- Update README.md ([`4372102`](https://github.com/yandy-r/crosshook/commit/43721029829868b5a12ca995c7b3448596322e2e))
 
-### Other
+- Update README.md ([`894d685`](https://github.com/yandy-r/crosshook/commit/894d685cf7cb96876399df49d0fc7458ac9a69c1))
 
-- Initial commit ([`0106a2e`](https://github.com/yandy-r/crosshook/commit/0106a2ead97267963a604e4ddd675c7024e9cba5))
+- New versions and video demo ([`e39d344`](https://github.com/yandy-r/crosshook/commit/e39d34443912f3841b88e38b0a22f62eaaf30bdf))
 
-- Update README.md ([`a8a50f5`](https://github.com/yandy-r/crosshook/commit/a8a50f55340ae6c1cf9377b2120586a4a21698fc))
+- WINE Mono Refactor ([`9485e12`](https://github.com/yandy-r/crosshook/commit/9485e12527b92d4b58f0dece86bbe6006dd76baa))
 
-- Visual demo ([`fcddb55`](https://github.com/yandy-r/crosshook/commit/fcddb556891b686b826d45483b28c2407c330f82))
+- Create LICENSE ([`3adecf1`](https://github.com/yandy-r/crosshook/commit/3adecf19244e61a3eca42ba4841bf0000a8fbb0a))
 
-- Update README.md ([`065776c`](https://github.com/yandy-r/crosshook/commit/065776cbc6b0d18175b48fef6170ffbd23c3c335))
+- New Launcher Logic ([`59dbaec`](https://github.com/yandy-r/crosshook/commit/59dbaec3d4abbb77f26ad454c4e78e3bb7040521))
 
-- Update README.md ([`3e053a9`](https://github.com/yandy-r/crosshook/commit/3e053a9f1f22b0559cfa0ce33f68e8f55af90d8a))
+- Update README.md ([`16bff37`](https://github.com/yandy-r/crosshook/commit/16bff37f8d7cba46ed493aaa05e4a3e333257571))
 
-- Update README.md ([`6d8d37e`](https://github.com/yandy-r/crosshook/commit/6d8d37e1d46df35cee841589d09e3e78280d6bd0))
+- Update README.md ([`3b450b4`](https://github.com/yandy-r/crosshook/commit/3b450b42a4386626830a74b3fc9ce60d869144a5))
 
-- Main source in C ([`f273fa8`](https://github.com/yandy-r/crosshook/commit/f273fa86cf432dd2f33f859a10c8bf583984e333))
+- Compat fix ([`91cfd71`](https://github.com/yandy-r/crosshook/commit/91cfd71dbbcbaacde29bbf895085b9162e492fb3))
 
-- Main compiled win32 executable. ([`bc372d8`](https://github.com/yandy-r/crosshook/commit/bc372d8c8b467d669c364f52acd01269a11e4d6f))
+- Update README.md ([`d7d1e86`](https://github.com/yandy-r/crosshook/commit/d7d1e86aff222c68e0cbd814ddacc5e749339042))
+
+- Emergency compat fix for SteamOS 3.x ([`161fa7e`](https://github.com/yandy-r/crosshook/commit/161fa7edb26d5bd996001d651b5fddf1d8b9a3de))
+
+- Stability fixes. ([`5a0319e`](https://github.com/yandy-r/crosshook/commit/5a0319e49280191c5726ec398e6ee7cd3287f2ce))
+
+- Compat Fixes ([`83c9677`](https://github.com/yandy-r/crosshook/commit/83c96778968f02e30c171729042155d3d2e06b38))
+
+- Update README.md ([`52d0c2c`](https://github.com/yandy-r/crosshook/commit/52d0c2cd3a346201e8fd8b196005a6a12dc11f39))
+
+- Update README.md ([`6338d70`](https://github.com/yandy-r/crosshook/commit/6338d70ce9f2f690e41be61bdcd4535545649584))
+
+- TV Mode Update! ([`2763288`](https://github.com/yandy-r/crosshook/commit/276328859d4c7c5ad8ccd353ebb36c880147079d))
+
+- Update README.md ([`c545130`](https://github.com/yandy-r/crosshook/commit/c545130bba064ad93045852a58d231f9c8857e58))
+
+- Big rewrite ([`ba88fcc`](https://github.com/yandy-r/crosshook/commit/ba88fcc32136f7a3c68f272c9617d0d6c299761d))
+
+- Update README.md ([`3061b48`](https://github.com/yandy-r/crosshook/commit/3061b488609cb5477c27a44332f3cbf86c3039e2))
+
+- Update README.md ([`5dbd9ea`](https://github.com/yandy-r/crosshook/commit/5dbd9ea167f965b037cdfd44c71b33faed17a212))
+
+- Update README.md ([`9adf720`](https://github.com/yandy-r/crosshook/commit/9adf72002cc7b02b29cec3133876328b971875e0))
+
+- Update README.md ([`dea063e`](https://github.com/yandy-r/crosshook/commit/dea063e6a156ae1d644d6855d0eb045dcea12de2))
+
+- Add .gitignore file ([`27534b4`](https://github.com/yandy-r/crosshook/commit/27534b49f99d54e0d40100d034d138c462941784))
+
+- Update LICENSE ([`c06f1f9`](https://github.com/yandy-r/crosshook/commit/c06f1f908b0277255099360199a5d995722f3552))
 
 
 <!-- generated by git-cliff -->
