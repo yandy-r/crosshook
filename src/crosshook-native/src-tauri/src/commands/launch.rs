@@ -91,8 +91,14 @@ pub async fn launch_trainer(
 }
 
 fn spawn_log_stream(app: AppHandle, log_path: PathBuf, child: tokio::process::Child) {
-    tauri::async_runtime::spawn(async move {
+    let handle = tauri::async_runtime::spawn(async move {
         stream_log_lines(app, log_path, child).await;
+    });
+
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = handle.await {
+            tracing::error!(%error, "launch log stream task failed");
+        }
     });
 }
 

@@ -101,13 +101,16 @@ impl Default for CommunityTapStore {
 }
 
 impl CommunityTapStore {
-    pub fn new() -> Self {
+    pub fn try_new() -> Result<Self, String> {
         let base_path = BaseDirs::new()
-            .expect("home directory is required for CrossHook community taps")
+            .ok_or("home directory not found — CrossHook requires a user home directory")?
             .data_local_dir()
             .join(DEFAULT_COMMUNITY_TAPS_DIR);
+        Ok(Self { base_path })
+    }
 
-        Self { base_path }
+    pub fn new() -> Self {
+        Self::try_new().expect("home directory is required for CrossHook community taps")
     }
 
     pub fn with_base_path(base_path: PathBuf) -> Self {

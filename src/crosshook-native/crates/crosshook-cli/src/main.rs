@@ -133,7 +133,10 @@ fn emit_placeholder(global: &GlobalOptions, command: &str) {
 fn profile_store(profile_dir: Option<PathBuf>) -> ProfileStore {
     match profile_dir {
         Some(path) => ProfileStore::with_base_path(path),
-        None => ProfileStore::new(),
+        None => ProfileStore::try_new().unwrap_or_else(|error| {
+            eprintln!("crosshook: failed to initialize profile store: {error}");
+            std::process::exit(1);
+        }),
     }
 }
 

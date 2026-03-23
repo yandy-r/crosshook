@@ -57,14 +57,17 @@ impl Default for ProfileStore {
 }
 
 impl ProfileStore {
-    pub fn new() -> Self {
+    pub fn try_new() -> Result<Self, String> {
         let base_path = BaseDirs::new()
-            .expect("home directory is required for CrossHook profile storage")
+            .ok_or("home directory not found — CrossHook requires a user home directory")?
             .config_dir()
             .join("crosshook")
             .join("profiles");
+        Ok(Self { base_path })
+    }
 
-        Self { base_path }
+    pub fn new() -> Self {
+        Self::try_new().expect("home directory is required for CrossHook profile storage")
     }
 
     pub fn with_base_path(base_path: PathBuf) -> Self {

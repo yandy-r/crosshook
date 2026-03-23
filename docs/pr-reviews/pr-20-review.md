@@ -180,33 +180,33 @@ Two separate `resolve_script_path` functions fall back from bundled to dev paths
 
 ### I9. Constructors panic on missing home directory
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **Files**: `community/taps.rs:101-104`, `profile/toml_store.rs:61-62`, `settings/mod.rs:72-73`
 
 `BaseDirs::new().expect(...)` panics with an unhelpful stack trace on containerized or unusual environments.
 
-**Fix**: Return `Result` from constructors and show a user-facing dialog.
+**Resolution**: Added `try_new() -> Result<Self, String>` to all four store types (`ProfileStore`, `SettingsStore`, `RecentFilesStore`, `CommunityTapStore`). The Tauri and CLI entry points now call `try_new()` with `unwrap_or_else` that prints a clear message to stderr and exits cleanly. The existing `new()` and `Default` impls remain for backward compatibility.
 
 ### I10. `should_stage_support_file` has dead logic branch
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Comment Analyzer
 **File**: `crates/crosshook-core/src/launch/script_runner.rs:377-393`
 
 The `starts_with` check on line 388 returns `true`, but line 392 also unconditionally returns `true` — making the `starts_with` branch unreachable as a meaningful decision point.
 
-**Fix**: Remove the dead branch and add a comment explaining the simplified staging behavior.
+**Resolution**: Removed the dead `starts_with` branch. The function now directly returns the extension check result. Added a doc comment explaining that all sibling files with recognized extensions are staged. The `trainer_base_name` parameter is retained (prefixed with `_`) to preserve the function signature for future use.
 
 ### I11. Spawned log stream task runs unsupervised
 
-**Status**: Open
+**Status**: Closed — fixed
 **Agent**: Silent Failure Hunter
 **File**: `src-tauri/src/commands/launch.rs:93-97`
 
 `tauri::async_runtime::spawn` returns a `JoinHandle` that is never joined. If the task panics, it's silently swallowed.
 
-**Fix**: Capture the handle and log if it resolves to an error.
+**Resolution**: Captured the `JoinHandle` and spawned a supervising task that awaits it and logs via `tracing::error!` if the stream task panics or is cancelled.
 
 ---
 

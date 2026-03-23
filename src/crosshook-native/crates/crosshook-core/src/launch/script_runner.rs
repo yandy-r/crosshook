@@ -374,22 +374,16 @@ fn stage_trainer_support_files(
     Ok(())
 }
 
-fn should_stage_support_file(file_name: &std::ffi::OsStr, trainer_base_name: &str) -> bool {
+/// Stages any sibling file with a recognized support extension (.dll, .ini, etc.).
+/// The trainer executable itself is excluded by the caller before this check.
+fn should_stage_support_file(file_name: &std::ffi::OsStr, _trainer_base_name: &str) -> bool {
     let file_name = file_name.to_string_lossy();
     let extension = file_name
         .rsplit_once('.')
         .map(|(_, extension)| extension.to_ascii_lowercase())
         .unwrap_or_default();
 
-    if !SHARED_DEPENDENCY_EXTENSIONS.contains(&extension.as_str()) {
-        return false;
-    }
-
-    if file_name.starts_with(&format!("{trainer_base_name}.")) {
-        return true;
-    }
-
-    true
+    SHARED_DEPENDENCY_EXTENSIONS.contains(&extension.as_str())
 }
 
 fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {

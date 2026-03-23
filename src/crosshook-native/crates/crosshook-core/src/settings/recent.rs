@@ -65,14 +65,17 @@ impl Default for RecentFilesStore {
 }
 
 impl RecentFilesStore {
-    pub fn new() -> Self {
+    pub fn try_new() -> Result<Self, String> {
         let path = BaseDirs::new()
-            .expect("home directory is required for CrossHook recent files storage")
+            .ok_or("home directory not found — CrossHook requires a user home directory")?
             .data_local_dir()
             .join(SETTINGS_DIR)
             .join(RECENT_FILE_NAME);
+        Ok(Self { path })
+    }
 
-        Self { path }
+    pub fn new() -> Self {
+        Self::try_new().expect("home directory is required for CrossHook recent files storage")
     }
 
     pub fn with_path(path: PathBuf) -> Self {

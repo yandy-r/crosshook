@@ -12,10 +12,22 @@ use tokio::time::{sleep, Duration};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let profile_store = ProfileStore::new();
-    let settings_store = SettingsStore::new();
-    let recent_files_store = RecentFilesStore::new();
-    let community_tap_store = CommunityTapStore::new();
+    let profile_store = ProfileStore::try_new().unwrap_or_else(|error| {
+        eprintln!("CrossHook: failed to initialize profile store: {error}");
+        std::process::exit(1);
+    });
+    let settings_store = SettingsStore::try_new().unwrap_or_else(|error| {
+        eprintln!("CrossHook: failed to initialize settings store: {error}");
+        std::process::exit(1);
+    });
+    let recent_files_store = RecentFilesStore::try_new().unwrap_or_else(|error| {
+        eprintln!("CrossHook: failed to initialize recent files store: {error}");
+        std::process::exit(1);
+    });
+    let community_tap_store = CommunityTapStore::try_new().unwrap_or_else(|error| {
+        eprintln!("CrossHook: failed to initialize community tap store: {error}");
+        std::process::exit(1);
+    });
 
     tauri::Builder::default()
         .setup({
