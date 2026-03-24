@@ -1,8 +1,12 @@
 use crosshook_core::export::{
+    check_launcher_for_profile as check_launcher_for_profile_core,
+    delete_launcher_by_slug as delete_launcher_by_slug_core,
     export_launchers as export_launchers_core, validate as validate_launcher_export_core,
     LauncherDeleteResult, LauncherInfo, LauncherRenameResult, SteamExternalLauncherExportRequest,
     SteamExternalLauncherExportResult,
 };
+use crosshook_core::profile::ProfileStore;
+use tauri::State;
 
 #[tauri::command]
 pub fn validate_launcher_export(request: SteamExternalLauncherExportRequest) -> Result<(), String> {
@@ -34,6 +38,15 @@ pub fn check_launcher_exists(
 }
 
 #[tauri::command]
+pub fn check_launcher_for_profile(
+    name: String,
+    store: State<'_, ProfileStore>,
+) -> Result<LauncherInfo, String> {
+    let profile = store.load(&name).map_err(|error| error.to_string())?;
+    Ok(check_launcher_for_profile_core(&profile, "", ""))
+}
+
+#[tauri::command]
 pub fn delete_launcher(
     display_name: String,
     steam_app_id: String,
@@ -45,6 +58,20 @@ pub fn delete_launcher(
         &display_name,
         &steam_app_id,
         &trainer_path,
+        &target_home_path,
+        &steam_client_install_path,
+    )
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn delete_launcher_by_slug(
+    launcher_slug: String,
+    target_home_path: String,
+    steam_client_install_path: String,
+) -> Result<LauncherDeleteResult, String> {
+    delete_launcher_by_slug_core(
+        &launcher_slug,
         &target_home_path,
         &steam_client_install_path,
     )
@@ -117,10 +144,15 @@ mod tests {
         let _ = validate_launcher_export
             as fn(SteamExternalLauncherExportRequest) -> Result<(), String>;
         let _ = export_launchers
-            as fn(SteamExternalLauncherExportRequest) -> Result<SteamExternalLauncherExportResult, String>;
-        let _ = check_launcher_exists
-            as fn(String, String, String, String, String) -> LauncherInfo;
+            as fn(
+                SteamExternalLauncherExportRequest,
+            ) -> Result<SteamExternalLauncherExportResult, String>;
+        let _ = check_launcher_exists as fn(String, String, String, String, String) -> LauncherInfo;
+        let _ = check_launcher_for_profile
+            as fn(String, State<'_, ProfileStore>) -> Result<LauncherInfo, String>;
         let _ = delete_launcher
             as fn(String, String, String, String, String) -> Result<LauncherDeleteResult, String>;
+        let _ = delete_launcher_by_slug
+            as fn(String, String, String) -> Result<LauncherDeleteResult, String>;
     }
 }

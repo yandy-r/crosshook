@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { CSSProperties, ChangeEvent } from 'react';
-import type { LauncherInfo } from '../types';
+import type { LauncherDeleteResult, LauncherInfo } from '../types';
 
 interface RecentFilesState {
   gamePaths: string[];
@@ -198,7 +198,7 @@ function ManageLaunchersSection({
     setDeleting(slug);
     setError(null);
     try {
-      await invoke<string[]>('delete_launcher', {
+      await invoke<LauncherDeleteResult>('delete_launcher_by_slug', {
         launcherSlug: slug,
         targetHomePath,
         steamClientInstallPath,

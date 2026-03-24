@@ -9,6 +9,8 @@
 
 This PR implements launcher lifecycle management for CrossHook's exported `.sh` scripts and `.desktop` entries. A new `launcher_store.rs` module (1,007 lines) handles check/delete/rename/list/orphan-detection for launcher files. The frontend gains status badges, delete confirmations, stale notifications, and an orphan management section in Settings.
 
+Validation update on 2026-03-24: C1, C2, and C4 were confirmed against the current code and fixed in the workspace. C3 was not reproducible as written; launcher file paths are derived from launcher metadata, not the profile TOML filename.
+
 Five specialized review agents analyzed the changes in parallel:
 
 | Agent                 | Focus                                              |
@@ -21,11 +23,11 @@ Five specialized review agents analyzed the changes in parallel:
 
 ---
 
-## Critical Issues (4 found)
+## Critical Issues (4 reviewed: 3 confirmed/fixed, 1 not reproduced)
 
 ### C1. IPC argument mismatch: `confirmDelete` calls `check_launcher_exists` with wrong parameters
 
-**Status**: Open
+**Status**: Fixed
 **Agents**: Code Reviewer (98%), Silent Failure Hunter, Comment Analyzer
 **File**: `src/crosshook-native/src/hooks/useProfile.ts:393-395`
 
@@ -41,13 +43,13 @@ The Tauri command (`src-tauri/src/commands/export.rs:20-34`) expects **five** pa
 
 **Impact**: The entire "show launcher files in the delete confirmation dialog" feature is non-functional. The user never sees the warning that launcher files will be removed when deleting a profile. The cascade delete still happens server-side, but users are never informed.
 
-**Fix**: Load the full profile and pass correct parameters matching the backend signature, or create a simplified backend command that accepts a profile name.
+**Fix**: Added a simplified `check_launcher_for_profile` Tauri command that loads the saved profile and derives the canonical launcher lookup server-side. `useProfile.ts` now calls that command instead of sending the wrong IPC payload.
 
 ---
 
 ### C2. IPC argument mismatch: `handleDelete` in SettingsPanel calls `delete_launcher` with wrong parameters
 
-**Status**: Open
+**Status**: Fixed
 **Agents**: Code Reviewer (97%), Comment Analyzer
 **File**: `src/crosshook-native/src/components/SettingsPanel.tsx:201-205`
 
@@ -63,27 +65,27 @@ The Tauri command expects `displayName`, `steamAppId`, `trainerPath`, `targetHom
 
 **Impact**: The "Manage Launchers" section's per-launcher delete button in Settings is completely broken. Clicking "Confirm" always produces an error.
 
-**Fix**: Either change the backend command to accept a `launcher_slug` parameter (more ergonomic since `list_launchers` only returns slugs), or pass the parameters the current command expects.
+**Fix**: Added a dedicated `delete_launcher_by_slug` core/Tauri path and updated `SettingsPanel.tsx` to call that command with the slug returned by `list_launchers`.
 
 ---
 
 ### C3. `profile_rename` does not cascade to `rename_launcher_files`
 
-**Status**: Open
+**Status**: Not Reproduced
 **Agent**: Type Design Analyzer
 **File**: `src/crosshook-native/src-tauri/src/commands/profile.rs:44-51`
 
-The `profile_delete` command correctly cascades to `delete_launcher_for_profile`. However, `profile_rename` only renames the TOML file -- it does **not** call `rename_launcher_files`. CLAUDE.md states: _"profile deletion and renaming cascade to launcher cleanup via Tauri commands"_, but the rename cascade is not wired up.
+The command does only rename the TOML file, but the claimed impact is incorrect. Launcher file paths are derived from `resolve_display_name()` / `sanitize_launcher_slug()` using `steam.launcher.display_name`, `steam.app_id`, and `trainer.path`, not the profile filename. Renaming `foo.toml` to `bar.toml` does not change the launcher slug unless those launcher fields change too.
 
-**Impact**: Renaming a profile leaves orphaned launcher files with the old slug and display name. The `LauncherRenameResult` type and `rename_launcher_files` function exist but are dead code from the Tauri command perspective.
+**Validation**: Confirmed by tracing the derivation chain in `crates/crosshook-core/src/export/launcher.rs` and the frontend save normalization in `src/hooks/useProfile.ts`. Both derive launcher names from launcher/game/trainer metadata rather than the profile name.
 
-**Fix**: Add launcher rename cascade to `profile_rename`, mirroring the pattern in `profile_delete`.
+**Conclusion**: No code change is required for C3 as written. The review item should be treated as invalid, though the broader rename workflow may still have separate gaps outside this critical claim.
 
 ---
 
 ### C4. Misplaced doc comment on `find_orphaned_launchers`
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Comment Analyzer
 **File**: `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs:413-415`
 
@@ -95,7 +97,20 @@ The doc comment's first two lines describe `extract_display_name_from_desktop` (
 /// Returns launchers that don't match any known profile slug.
 ```
 
-**Fix**: Replace with a comment that describes only `find_orphaned_launchers`.
+**Fix**: Replaced the misplaced `extract_display_name_from_desktop` text so the doc comment now describes only `find_orphaned_launchers`.
+
+---
+
+## Validation and Verification
+
+- Confirmed via code inspection that C1 and C2 were real IPC contract mismatches.
+- Confirmed via code inspection that C4 was a real comment-placement defect.
+- Invalidated C3 after tracing launcher slug derivation: launcher file names do not come from the profile TOML filename.
+- Passed: `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core check_launcher_for_profile_delegates_correctly`
+- Passed: `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core delete_launcher_by_slug_deletes_matching_files`
+- Passed: `npm exec --yes tsc -- --noEmit`
+- Passed: `cargo check --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native --lib`
+- Blocked by pre-existing unrelated test failures: `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native command_names_match_expected_ipc_contract` currently fails in `src-tauri/src/startup.rs` tests because `tempfile` is missing and several `AppSettingsData` test initializers are stale.
 
 ---
 

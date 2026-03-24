@@ -1,14 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { AppSettingsData, GameProfile, RecentFilesData } from '../types';
-
-export interface LauncherInfo {
-  script_path: string;
-  desktop_entry_path: string;
-  script_exists: boolean;
-  desktop_entry_exists: boolean;
-  is_stale: boolean;
-}
+import type { AppSettingsData, GameProfile, LauncherInfo, RecentFilesData } from '../types';
 
 export interface PendingDelete {
   name: string;
@@ -390,8 +382,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     setError(null);
 
     try {
-      const launcherInfo = await invoke<LauncherInfo>('check_launcher_exists', {
-        profileName: trimmed,
+      const launcherInfo = await invoke<LauncherInfo>('check_launcher_for_profile', {
+        name: trimmed,
       });
 
       if (launcherInfo.script_exists || launcherInfo.desktop_entry_exists) {

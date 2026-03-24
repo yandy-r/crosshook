@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::launcher::{
     build_desktop_entry_content, build_trainer_script_content, combine_host_unix_path,
-    resolve_display_name, resolve_target_home_path, sanitize_launcher_slug,
-    write_host_text_file, SteamExternalLauncherExportRequest,
+    resolve_display_name, resolve_target_home_path, sanitize_launcher_slug, write_host_text_file,
+    SteamExternalLauncherExportRequest,
 };
 use crate::profile::GameProfile;
 
@@ -128,6 +128,61 @@ fn derive_launcher_paths(
     (resolved_name, slug, script_path, desktop_entry_path)
 }
 
+fn derive_launcher_paths_from_slug(
+    launcher_slug: &str,
+    target_home_path: &str,
+    steam_client_install_path: &str,
+) -> (String, String) {
+    let home = resolve_target_home_path(target_home_path, steam_client_install_path);
+    let normalized_slug = sanitize_launcher_slug(launcher_slug);
+
+    let script_path = combine_host_unix_path(
+        &home,
+        ".local/share/crosshook/launchers",
+        &format!("{normalized_slug}-trainer.sh"),
+    );
+    let desktop_entry_path = combine_host_unix_path(
+        &home,
+        ".local/share/applications",
+        &format!("crosshook-{normalized_slug}-trainer.desktop"),
+    );
+
+    (script_path, desktop_entry_path)
+}
+
+fn delete_launcher_at_paths(
+    script_path: String,
+    desktop_entry_path: String,
+) -> Result<LauncherDeleteResult, LauncherStoreError> {
+    let mut result = LauncherDeleteResult {
+        script_path: script_path.clone(),
+        desktop_entry_path: desktop_entry_path.clone(),
+        ..Default::default()
+    };
+
+    // Delete desktop entry first (user-visible artifact), with watermark verification
+    match verify_crosshook_file(&desktop_entry_path, DESKTOP_ENTRY_WATERMARK)? {
+        Some(reason) => {
+            result.desktop_entry_skipped_reason = Some(reason);
+        }
+        None => {
+            result.desktop_entry_deleted = remove_file_if_exists(&desktop_entry_path)?;
+        }
+    }
+
+    // Delete script, with watermark verification
+    match verify_crosshook_file(&script_path, SCRIPT_WATERMARK)? {
+        Some(reason) => {
+            result.script_skipped_reason = Some(reason);
+        }
+        None => {
+            result.script_deleted = remove_file_if_exists(&script_path)?;
+        }
+    }
+
+    Ok(result)
+}
+
 pub fn check_launcher_exists(
     display_name: &str,
     steam_app_id: &str,
@@ -167,6 +222,24 @@ pub fn check_launcher_exists(
     }
 }
 
+pub fn check_launcher_for_profile(
+    profile: &GameProfile,
+    target_home_path: &str,
+    steam_client_install_path: &str,
+) -> LauncherInfo {
+    if profile.launch.method == "native" {
+        return LauncherInfo::default();
+    }
+
+    check_launcher_exists(
+        &profile.steam.launcher.display_name,
+        &profile.steam.app_id,
+        &profile.trainer.path,
+        target_home_path,
+        steam_client_install_path,
+    )
+}
+
 pub fn delete_launcher_files(
     display_name: &str,
     steam_app_id: &str,
@@ -182,33 +255,17 @@ pub fn delete_launcher_files(
         steam_client_install_path,
     );
 
-    let mut result = LauncherDeleteResult {
-        script_path: script_path.clone(),
-        desktop_entry_path: desktop_entry_path.clone(),
-        ..Default::default()
-    };
+    delete_launcher_at_paths(script_path, desktop_entry_path)
+}
 
-    // Delete desktop entry first (user-visible artifact), with watermark verification
-    match verify_crosshook_file(&desktop_entry_path, DESKTOP_ENTRY_WATERMARK)? {
-        Some(reason) => {
-            result.desktop_entry_skipped_reason = Some(reason);
-        }
-        None => {
-            result.desktop_entry_deleted = remove_file_if_exists(&desktop_entry_path)?;
-        }
-    }
-
-    // Delete script, with watermark verification
-    match verify_crosshook_file(&script_path, SCRIPT_WATERMARK)? {
-        Some(reason) => {
-            result.script_skipped_reason = Some(reason);
-        }
-        None => {
-            result.script_deleted = remove_file_if_exists(&script_path)?;
-        }
-    }
-
-    Ok(result)
+pub fn delete_launcher_by_slug(
+    launcher_slug: &str,
+    target_home_path: &str,
+    steam_client_install_path: &str,
+) -> Result<LauncherDeleteResult, LauncherStoreError> {
+    let (script_path, desktop_entry_path) =
+        derive_launcher_paths_from_slug(launcher_slug, target_home_path, steam_client_install_path);
+    delete_launcher_at_paths(script_path, desktop_entry_path)
 }
 
 pub fn delete_launcher_for_profile(
@@ -268,8 +325,7 @@ pub fn rename_launcher_files(
     );
 
     // Check if old files exist. If neither exists, return early with renamed: false
-    let old_script_exists =
-        !old_script_path.is_empty() && Path::new(&old_script_path).exists();
+    let old_script_exists = !old_script_path.is_empty() && Path::new(&old_script_path).exists();
     let old_desktop_exists =
         !old_desktop_entry_path.is_empty() && Path::new(&old_desktop_entry_path).exists();
 
@@ -337,11 +393,7 @@ pub fn list_launchers(
     steam_client_install_path: &str,
 ) -> Vec<LauncherInfo> {
     let home = resolve_target_home_path(target_home_path, steam_client_install_path);
-    let launchers_dir = combine_host_unix_path(
-        &home,
-        ".local/share/crosshook/launchers",
-        "",
-    );
+    let launchers_dir = combine_host_unix_path(&home, ".local/share/crosshook/launchers", "");
 
     if launchers_dir.is_empty() {
         return Vec::new();
@@ -372,11 +424,8 @@ pub fn list_launchers(
             continue;
         }
 
-        let script_path = combine_host_unix_path(
-            &home,
-            ".local/share/crosshook/launchers",
-            &file_name_str,
-        );
+        let script_path =
+            combine_host_unix_path(&home, ".local/share/crosshook/launchers", &file_name_str);
 
         let desktop_entry_path = combine_host_unix_path(
             &home,
@@ -389,8 +438,7 @@ pub fn list_launchers(
 
         // Try to extract display name from the Name= line in the .desktop file
         let display_name = if desktop_entry_exists {
-            extract_display_name_from_desktop(&desktop_entry_path)
-                .unwrap_or_else(|| slug.clone())
+            extract_display_name_from_desktop(&desktop_entry_path).unwrap_or_else(|| slug.clone())
         } else {
             slug.clone()
         };
@@ -410,8 +458,6 @@ pub fn list_launchers(
     launchers
 }
 
-/// Extracts the display name from a `.desktop` file by reading the `Name=` line
-/// and stripping the ` - Trainer` suffix.
 /// Returns launchers that don't match any known profile slug.
 pub fn find_orphaned_launchers(
     known_profile_slugs: &[String],
@@ -500,8 +546,11 @@ mod tests {
     fn create_watermarked_script(path: &str) {
         let parent = Path::new(path).parent().expect("parent dir");
         fs::create_dir_all(parent).expect("create dirs");
-        fs::write(path, "#!/usr/bin/env bash\n# Generated by CrossHook\necho hello\n")
-            .expect("write file");
+        fs::write(
+            path,
+            "#!/usr/bin/env bash\n# Generated by CrossHook\necho hello\n",
+        )
+        .expect("write file");
     }
 
     /// Helper: create parent directories and write a watermarked desktop entry file.
@@ -582,10 +631,7 @@ mod tests {
 
         let info = check_launcher_exists("Partial Game", "", "/fake/trainer.exe", &home, "");
         assert!(info.script_exists, "script should exist");
-        assert!(
-            !info.desktop_entry_exists,
-            "desktop entry should not exist"
-        );
+        assert!(!info.desktop_entry_exists, "desktop entry should not exist");
     }
 
     // --- delete_launcher_files tests ---
@@ -599,9 +645,8 @@ mod tests {
         create_watermarked_script(&script_path);
         create_watermarked_desktop(&desktop_path);
 
-        let result =
-            delete_launcher_files("Delete Both", "", "/fake/trainer.exe", &home, "")
-                .expect("delete should succeed");
+        let result = delete_launcher_files("Delete Both", "", "/fake/trainer.exe", &home, "")
+            .expect("delete should succeed");
 
         assert!(result.script_deleted, "script should be deleted");
         assert!(
@@ -623,9 +668,8 @@ mod tests {
         let temp = tempdir().expect("temp dir");
         let home = temp.path().to_string_lossy().into_owned();
 
-        let result =
-            delete_launcher_files("No Files", "", "/fake/trainer.exe", &home, "")
-                .expect("delete should succeed even with no files");
+        let result = delete_launcher_files("No Files", "", "/fake/trainer.exe", &home, "")
+            .expect("delete should succeed even with no files");
 
         assert!(!result.script_deleted, "nothing to delete for script");
         assert!(
@@ -642,9 +686,8 @@ mod tests {
 
         create_watermarked_script(&script_path);
 
-        let result =
-            delete_launcher_files("Script Only", "", "/fake/trainer.exe", &home, "")
-                .expect("delete should succeed");
+        let result = delete_launcher_files("Script Only", "", "/fake/trainer.exe", &home, "")
+            .expect("delete should succeed");
 
         assert!(result.script_deleted, "script should be deleted");
         assert!(
@@ -706,6 +749,68 @@ mod tests {
         assert!(!Path::new(&result.desktop_entry_path).exists());
     }
 
+    #[test]
+    fn check_launcher_for_profile_delegates_correctly() {
+        let temp = tempdir().expect("temp dir");
+        let home = temp.path().to_string_lossy().into_owned();
+
+        let profile = GameProfile {
+            game: GameSection {
+                name: "Test Game".to_string(),
+                executable_path: String::new(),
+            },
+            trainer: TrainerSection {
+                path: "/mnt/trainers/test.exe".to_string(),
+                kind: String::new(),
+            },
+            steam: SteamSection {
+                app_id: "12345".to_string(),
+                launcher: LauncherSection {
+                    display_name: "Test Game".to_string(),
+                    icon_path: String::new(),
+                },
+                ..Default::default()
+            },
+            launch: LaunchSection {
+                method: "steam_applaunch".to_string(),
+            },
+            ..Default::default()
+        };
+
+        let direct = check_launcher_exists(
+            &profile.steam.launcher.display_name,
+            &profile.steam.app_id,
+            &profile.trainer.path,
+            &home,
+            "",
+        );
+        let delegated = check_launcher_for_profile(&profile, &home, "");
+
+        assert_eq!(delegated, direct);
+    }
+
+    #[test]
+    fn delete_launcher_by_slug_deletes_matching_files() {
+        let temp = tempdir().expect("temp dir");
+        let home = temp.path().to_string_lossy().into_owned();
+
+        let (script_path, desktop_path) =
+            derive_launcher_paths_from_slug("delete-by-slug", &home, "");
+
+        create_watermarked_script(&script_path);
+        create_watermarked_desktop(&desktop_path);
+
+        let result = delete_launcher_by_slug("delete-by-slug", &home, "")
+            .expect("delete by slug should succeed");
+
+        assert!(result.script_deleted);
+        assert!(result.desktop_entry_deleted);
+        assert_eq!(result.script_path, script_path);
+        assert_eq!(result.desktop_entry_path, desktop_path);
+        assert!(!Path::new(&result.script_path).exists());
+        assert!(!Path::new(&result.desktop_entry_path).exists());
+    }
+
     // --- rename_launcher_files tests ---
 
     #[test]
@@ -732,20 +837,16 @@ mod tests {
             "[Desktop Entry]\nName=Old Game - Trainer\nExec=/bin/bash old.sh\n",
         );
 
-        let result = rename_launcher_files(
-            old_slug,
-            "New Game",
-            "",
-            &home,
-            "",
-            &request,
-        )
-        .expect("rename should succeed");
+        let result = rename_launcher_files(old_slug, "New Game", "", &home, "", &request)
+            .expect("rename should succeed");
 
         assert_eq!(result.old_slug, "old-game");
         assert_eq!(result.new_slug, "new-game");
         assert!(result.script_renamed, "script should be renamed");
-        assert!(result.desktop_entry_renamed, "desktop entry should be renamed");
+        assert!(
+            result.desktop_entry_renamed,
+            "desktop entry should be renamed"
+        );
 
         // Old files should be deleted (slug changed)
         assert!(
@@ -788,15 +889,8 @@ mod tests {
         let home = temp.path().to_string_lossy().into_owned();
         let request = make_test_request();
 
-        let result = rename_launcher_files(
-            "nonexistent-game",
-            "New Name",
-            "",
-            &home,
-            "",
-            &request,
-        )
-        .expect("rename should succeed with no-op");
+        let result = rename_launcher_files("nonexistent-game", "New Name", "", &home, "", &request)
+            .expect("rename should succeed with no-op");
 
         assert!(!result.script_renamed, "script should not be renamed");
         assert!(
@@ -833,20 +927,16 @@ mod tests {
             "[Desktop Entry]\nName=Old Name - Trainer\nExec=/bin/bash old.sh\n",
         );
 
-        let result = rename_launcher_files(
-            slug,
-            "My Game",
-            "",
-            &home,
-            "",
-            &request,
-        )
-        .expect("rename should succeed");
+        let result = rename_launcher_files(slug, "My Game", "", &home, "", &request)
+            .expect("rename should succeed");
 
         assert_eq!(result.old_slug, "my-game");
         assert_eq!(result.new_slug, "my-game");
         assert!(result.script_renamed, "script should be rewritten");
-        assert!(result.desktop_entry_renamed, "desktop entry should be rewritten");
+        assert!(
+            result.desktop_entry_renamed,
+            "desktop entry should be rewritten"
+        );
 
         // Files should still exist at the same paths (not deleted)
         assert!(
@@ -939,28 +1029,31 @@ mod tests {
         let (script_path, _desktop_path) = derive_test_paths(&home, "Symlink Test");
 
         let real_file = temp.path().join("real-script.sh");
-        fs::write(&real_file, "#!/usr/bin/env bash\n# Generated by CrossHook\n")
-            .expect("write real");
+        fs::write(
+            &real_file,
+            "#!/usr/bin/env bash\n# Generated by CrossHook\n",
+        )
+        .expect("write real");
         let parent = Path::new(&script_path).parent().expect("parent");
         fs::create_dir_all(parent).expect("mkdir");
         unix_fs::symlink(&real_file, &script_path).expect("symlink");
 
-        let result =
-            delete_launcher_files("Symlink Test", "", "/fake/trainer.exe", &home, "")
-                .expect("delete should succeed");
+        let result = delete_launcher_files("Symlink Test", "", "/fake/trainer.exe", &home, "")
+            .expect("delete should succeed");
 
-        assert!(!result.script_deleted, "symlinked script should not be deleted");
+        assert!(
+            !result.script_deleted,
+            "symlinked script should not be deleted"
+        );
         assert!(
             result.script_skipped_reason.is_some(),
             "should have skip reason for symlink"
         );
-        assert!(
-            result
-                .script_skipped_reason
-                .as_ref()
-                .unwrap()
-                .contains("Not a regular file"),
-        );
+        assert!(result
+            .script_skipped_reason
+            .as_ref()
+            .unwrap()
+            .contains("Not a regular file"),);
     }
 
     #[test]
@@ -972,9 +1065,8 @@ mod tests {
         create_file_at(&script_path); // plain "placeholder", no watermark
         create_file_at(&desktop_path);
 
-        let result =
-            delete_launcher_files("No Watermark", "", "/fake/trainer.exe", &home, "")
-                .expect("delete should succeed");
+        let result = delete_launcher_files("No Watermark", "", "/fake/trainer.exe", &home, "")
+            .expect("delete should succeed");
 
         assert!(!result.script_deleted);
         assert!(!result.desktop_entry_deleted);
@@ -993,9 +1085,8 @@ mod tests {
         create_watermarked_script(&script_path);
         create_watermarked_desktop(&desktop_path);
 
-        let result =
-            delete_launcher_files("Watermarked", "", "/fake/trainer.exe", &home, "")
-                .expect("delete should succeed");
+        let result = delete_launcher_files("Watermarked", "", "/fake/trainer.exe", &home, "")
+            .expect("delete should succeed");
 
         assert!(result.script_deleted);
         assert!(result.desktop_entry_deleted);
