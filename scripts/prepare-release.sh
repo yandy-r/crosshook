@@ -5,6 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHANGELOG_PATH="$ROOT_DIR/CHANGELOG.md"
 CLIFF_CONFIG_PATH="$ROOT_DIR/.git-cliff.toml"
 NATIVE_WORKSPACE_MANIFEST="$ROOT_DIR/src/crosshook-native/Cargo.toml"
+NATIVE_CARGO_MANIFESTS=(
+  "$ROOT_DIR/src/crosshook-native/Cargo.toml"
+  "$ROOT_DIR/src/crosshook-native/crates/crosshook-core/Cargo.toml"
+  "$ROOT_DIR/src/crosshook-native/crates/crosshook-cli/Cargo.toml"
+  "$ROOT_DIR/src/crosshook-native/src-tauri/Cargo.toml"
+)
 REMOTE="${REMOTE:-origin}"
 PUSH=false
 VERSION_INPUT=""
@@ -35,14 +41,19 @@ die() {
 
 set_native_workspace_version() {
   local version="$1"
+  local manifest
 
-  [[ -f "$NATIVE_WORKSPACE_MANIFEST" ]] || die "missing native workspace manifest: $NATIVE_WORKSPACE_MANIFEST"
+  for manifest in "${NATIVE_CARGO_MANIFESTS[@]}"; do
+    [[ -f "$manifest" ]] || die "missing native manifest: $manifest"
+  done
 
   CROSSHOOK_RELEASE_VERSION="$version" perl -0pi -e '
     my $version = $ENV{CROSSHOOK_RELEASE_VERSION};
-    my $count = s/(\[workspace\.package\]\s*version = ")[^"]+(")/${1}${version}${2}/;
+    my $count = 0;
+    $count += s/(\[workspace\.package\]\s*version = ")[^"]+(")/${1}${version}${2}/g;
+    $count += s/(\[package\]\s*name = "[^"]+"\s*version = ")[^"]+(")/${1}${version}${2}/g;
     exit($count ? 0 : 1);
-  ' "$NATIVE_WORKSPACE_MANIFEST" || die "failed to update native workspace version in $NATIVE_WORKSPACE_MANIFEST"
+  ' "${NATIVE_CARGO_MANIFESTS[@]}" || die "failed to update native Cargo manifest versions"
 }
 
 normalize_tag() {
@@ -114,7 +125,7 @@ trap cleanup EXIT
 git-cliff --config "$CLIFF_CONFIG_PATH" --tag "$TAG" > "$TEMP_CHANGELOG"
 mv "$TEMP_CHANGELOG" "$CHANGELOG_PATH"
 
-git add CHANGELOG.md "$NATIVE_WORKSPACE_MANIFEST"
+git add CHANGELOG.md "${NATIVE_CARGO_MANIFESTS[@]}"
 
 if git diff --cached --quiet; then
   die "CHANGELOG.md did not change for $TAG"

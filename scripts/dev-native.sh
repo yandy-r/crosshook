@@ -50,7 +50,7 @@ if [[ -n "${WAYLAND_DISPLAY:-}" || "${XDG_SESSION_TYPE:-}" == "wayland" ]]; then
   echo
   echo "Wayland launch failed. Retrying with X11 fallback..."
   echo "  GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1"
-  exec GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 npm exec tauri dev
+  exec env GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1 npm exec tauri dev
 fi
 
 exit 1

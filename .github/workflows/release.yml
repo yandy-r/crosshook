@@ -56,23 +56,40 @@ jobs:
         run: |
           set -euo pipefail
           tag_version="${GITHUB_REF_NAME#v}"
-          manifest_version="$(
+          manifests=(
+            "src/crosshook-native/Cargo.toml"
+            "src/crosshook-native/crates/crosshook-core/Cargo.toml"
+            "src/crosshook-native/crates/crosshook-cli/Cargo.toml"
+            "src/crosshook-native/src-tauri/Cargo.toml"
+          )
+
+          read_version() {
+            local manifest="$1"
             awk '
-              $0 == "[workspace.package]" { in_section=1; next }
-              in_section && /^\[/ { exit }
-              in_section && $1 == "version" { gsub(/"/, "", $3); print $3; exit }
-            ' src/crosshook-native/Cargo.toml
-          )"
-
-          [[ -n "$manifest_version" ]] || {
-            echo "Failed to read native workspace version from src/crosshook-native/Cargo.toml" >&2
-            exit 1
+              $0 == "[workspace.package]" { in_workspace=1; next }
+              $0 == "[package]" { in_package=1; next }
+              /^\[/ { in_workspace=0; in_package=0 }
+              (in_workspace || in_package) && $1 == "version" {
+                gsub(/"/, "", $3)
+                print $3
+                exit
+              }
+            ' "$manifest"
           }
 
-          [[ "$manifest_version" == "$tag_version" ]] || {
-            echo "Release tag version ($tag_version) does not match native workspace version ($manifest_version)" >&2
-            exit 1
-          }
+          for manifest in "${manifests[@]}"; do
+            manifest_version="$(read_version "$manifest")"
+
+            [[ -n "$manifest_version" ]] || {
+              echo "Failed to read version from $manifest" >&2
+              exit 1
+            }
+
+            [[ "$manifest_version" == "$tag_version" ]] || {
+              echo "Release tag version ($tag_version) does not match $manifest version ($manifest_version)" >&2
+              exit 1
+            }
+          done
 
       - name: Run crosshook-core tests
         env:
