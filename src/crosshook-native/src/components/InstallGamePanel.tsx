@@ -1,4 +1,5 @@
-import { type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 
 import { useInstallGame } from '../hooks/useInstallGame';
@@ -16,6 +17,14 @@ type ProtonInstallOption = {
 };
 
 const detectedProtonInstalls: ProtonInstallOption[] = [];
+function formatProtonInstallLabel(install: ProtonInstallOption, duplicateNameCounts: Record<string, number>): string {
+  const baseLabel = install.name.trim() || 'Unnamed Proton install';
+  if ((duplicateNameCounts[baseLabel] ?? 0) <= 1) {
+    return baseLabel;
+  }
+
+  return `${baseLabel} (${install.is_official ? 'Steam' : 'Custom'})`;
+}
 
 function stageLabel(stage: InstallGameStage): string {
   switch (stage) {
@@ -100,14 +109,15 @@ function InstallField(props: {
   browseFilters?: { name: string; extensions: string[] }[];
   helpText?: string;
   error?: string | null;
+  className?: string;
 }) {
   return (
-    <div className="crosshook-field">
+    <div className={props.className ? `crosshook-field ${props.className}` : 'crosshook-field'}>
       <label className="crosshook-label">{props.label}</label>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+      <div className="crosshook-install-field-control">
         <input
           className="crosshook-input"
-          style={{ flex: 1 }}
+          style={{ flex: 1, minWidth: 0 }}
           value={props.value}
           placeholder={props.placeholder}
           onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange(event.target.value)}
@@ -141,41 +151,45 @@ function ProtonPathField(props: {
   value: string;
   onChange: (value: string) => void;
   error?: string | null;
+  installs: ProtonInstallOption[];
+  installsError: string | null;
 }) {
-  const selectedPath = detectedProtonInstalls.find((install) => install.path === props.value)?.path ?? '';
+  const duplicateNameCounts = props.installs.reduce<Record<string, number>>((counts, install) => {
+    const key = install.name.trim() || 'Unnamed Proton install';
+    counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  }, {});
+  const selectedPath = props.installs.find((install) => install.path.trim() === props.value.trim())?.path ?? '';
 
   return (
-    <div className="crosshook-field">
+    <div className="crosshook-field crosshook-install-proton-field">
       <label className="crosshook-label" htmlFor="install-detected-proton">
-        Detected Proton
+        Proton Path
       </label>
-      <select
-        id="install-detected-proton"
-        className="crosshook-select"
-        value={selectedPath}
-        onChange={(event) => {
-          if (event.target.value) {
-            props.onChange(event.target.value);
-          }
-        }}
-      >
-        <option value="">Detected Proton installs will appear here later</option>
-        {detectedProtonInstalls.map((install) => (
-          <option key={install.path} value={install.path}>
-            {install.name} {install.is_official ? '(Steam)' : '(Custom)'}
-          </option>
-        ))}
-      </select>
+      <div style={{ display: 'grid', gap: 10 }}>
+        <select
+          id="install-detected-proton"
+          className="crosshook-select"
+          value={selectedPath}
+          onChange={(event) => {
+            if (event.target.value.trim().length > 0) {
+              props.onChange(event.target.value);
+            }
+          }}
+        >
+          <option value="">Detected Proton install</option>
+          {props.installs.map((install) => (
+            <option key={install.path} value={install.path}>
+              {formatProtonInstallLabel(install, duplicateNameCounts)}
+            </option>
+          ))}
+        </select>
 
-      <div className="crosshook-field">
-        <label className="crosshook-label" htmlFor="install-proton-path">
-          Proton Path
-        </label>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div className="crosshook-install-field-control">
           <input
             id="install-proton-path"
             className="crosshook-input"
-            style={{ flex: 1 }}
+            style={{ flex: 1, minWidth: 0 }}
             value={props.value}
             onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange(event.target.value)}
             placeholder="/home/user/.steam/root/steamapps/common/Proton - Experimental/proton"
@@ -196,9 +210,10 @@ function ProtonPathField(props: {
       </div>
 
       <p className="crosshook-help-text">
-        Pick a detected Proton install when the backend wiring lands, or edit the path manually now.
+        Pick a detected Proton install to fill this field automatically, or edit the path manually.
       </p>
       {props.error ? <p className="crosshook-danger">{props.error}</p> : null}
+      {props.installsError ? <p className="crosshook-danger">{props.installsError}</p> : null}
     </div>
   );
 }
@@ -260,6 +275,45 @@ export function InstallGamePanel({ onReviewGeneratedProfile }: InstallGamePanelP
   const logPath = result?.helper_log_path ?? '';
   const reviewableInstallResult = result?.succeeded === true && reviewProfile !== null ? result : null;
   const canReviewGeneratedProfile = reviewableInstallResult !== null;
+  const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>(detectedProtonInstalls);
+  const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProtonInstalls() {
+      try {
+        const installs = await invoke<ProtonInstallOption[]>('list_proton_installs');
+        const sortedInstalls = [...installs].sort((left, right) => {
+          if (left.is_official !== right.is_official) {
+            return left.is_official ? -1 : 1;
+          }
+
+          return left.name.localeCompare(right.name) || left.path.localeCompare(right.path);
+        });
+
+        if (!active) {
+          return;
+        }
+
+        setProtonInstalls(sortedInstalls);
+        setProtonInstallsError(null);
+      } catch (loadError) {
+        if (!active) {
+          return;
+        }
+
+        setProtonInstalls([]);
+        setProtonInstallsError(loadError instanceof Error ? loadError.message : String(loadError));
+      }
+    }
+
+    void loadProtonInstalls();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <section className="crosshook-install-shell" aria-labelledby="install-game-heading">
@@ -274,72 +328,88 @@ export function InstallGamePanel({ onReviewGeneratedProfile }: InstallGamePanelP
         </p>
       </div>
 
-      <div className="crosshook-install-grid">
-        <InstallField
-          label="Profile Name"
-          value={request.profile_name}
-          onChange={(value) => updateRequest('profile_name', value)}
-          placeholder="god-of-war-ragnarok"
-          helpText="Saved profile identifier and default prefix slug."
-          error={validation.fieldErrors.profile_name}
-        />
+      <div className="crosshook-install-section">
+        <div className="crosshook-install-section-title">Profile identity</div>
+        <div className="crosshook-install-grid">
+          <InstallField
+            label="Profile Name"
+            value={request.profile_name}
+            onChange={(value) => updateRequest('profile_name', value)}
+            placeholder="god-of-war-ragnarok"
+            helpText="Saved profile identifier and default prefix slug."
+            error={validation.fieldErrors.profile_name}
+          />
 
-        <InstallField
-          label="Display Name"
-          value={request.display_name}
-          onChange={(value) => updateRequest('display_name', value)}
-          placeholder="God of War Ragnarok"
-          helpText="Optional friendly name for the generated profile."
-          error={validation.fieldErrors.display_name}
-        />
+          <InstallField
+            label="Display Name"
+            value={request.display_name}
+            onChange={(value) => updateRequest('display_name', value)}
+            placeholder="God of War Ragnarok"
+            helpText="Optional friendly name for the generated profile."
+            error={validation.fieldErrors.display_name}
+          />
+        </div>
+      </div>
 
-        <InstallField
-          label="Installer EXE"
-          value={request.installer_path}
-          onChange={(value) => updateRequest('installer_path', value)}
-          placeholder="/mnt/media/setup.exe"
-          browseLabel="Browse"
-          browseTitle="Select Installer Executable"
-          browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
-          helpText="Choose the installer media, not the final game executable."
-          error={validation.fieldErrors.installer_path}
-        />
+      <div className="crosshook-install-section">
+        <div className="crosshook-install-section-title">Install media</div>
+        <div className="crosshook-install-grid">
+          <InstallField
+            label="Installer EXE"
+            value={request.installer_path}
+            onChange={(value) => updateRequest('installer_path', value)}
+            placeholder="/mnt/media/setup.exe"
+            browseLabel="Browse"
+            browseTitle="Select Installer Executable"
+            browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
+            helpText="Choose the installer media, not the final game executable."
+            error={validation.fieldErrors.installer_path}
+          />
 
-        <InstallField
-          label="Trainer EXE"
-          value={request.trainer_path}
-          onChange={(value) => updateRequest('trainer_path', value)}
-          placeholder="/mnt/media/trainer.exe"
-          browseLabel="Browse"
-          browseTitle="Select Optional Trainer Executable"
-          browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
-          helpText="Optional. The review step keeps trainer media separate from the game executable."
-          error={validation.fieldErrors.trainer_path}
-        />
+          <InstallField
+            label="Trainer EXE"
+            value={request.trainer_path}
+            onChange={(value) => updateRequest('trainer_path', value)}
+            placeholder="/mnt/media/trainer.exe"
+            browseLabel="Browse"
+            browseTitle="Select Optional Trainer Executable"
+            browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
+            helpText="Optional. The review step keeps trainer media separate from the game executable."
+            error={validation.fieldErrors.trainer_path}
+          />
+        </div>
+      </div>
 
-        <ProtonPathField
-          value={request.proton_path}
-          onChange={(value) => updateRequest('proton_path', value)}
-          error={validation.fieldErrors.proton_path}
-        />
+      <div className="crosshook-install-section">
+        <div className="crosshook-install-section-title">Runtime</div>
+        <div className="crosshook-install-runtime-stack">
+          <ProtonPathField
+            value={request.proton_path}
+            onChange={(value) => updateRequest('proton_path', value)}
+            error={validation.fieldErrors.proton_path}
+            installs={protonInstalls}
+            installsError={protonInstallsError}
+          />
 
-        <InstallField
-          label="Prefix Path"
-          value={request.prefix_path}
-          onChange={(value) => updateRequest('prefix_path', value)}
-          placeholder="/home/user/.local/share/crosshook/prefixes/god-of-war-ragnarok"
-          browseLabel="Browse"
-          browseMode="directory"
-          browseTitle="Select Prefix Directory"
-          helpText={
-            defaultPrefixPathState === 'loading'
-              ? 'Resolving the default prefix from the entered profile name.'
-              : defaultPrefixPath.trim().length > 0
-                ? `Suggested default prefix: ${defaultPrefixPath}`
-                : 'Defaults under ~/.local/share/crosshook/prefixes/<slug> and stays editable.'
-          }
-          error={validation.fieldErrors.prefix_path || defaultPrefixPathError}
-        />
+          <InstallField
+            label="Prefix Path"
+            value={request.prefix_path}
+            onChange={(value) => updateRequest('prefix_path', value)}
+            placeholder="/home/user/.local/share/crosshook/prefixes/god-of-war-ragnarok"
+            browseLabel="Browse"
+            browseMode="directory"
+            browseTitle="Select Prefix Directory"
+            helpText={
+              defaultPrefixPathState === 'loading'
+                ? 'Resolving the default prefix from the entered profile name.'
+                : defaultPrefixPath.trim().length > 0
+                  ? `Suggested default prefix: ${defaultPrefixPath}`
+                  : 'Defaults under ~/.local/share/crosshook/prefixes/<slug> and stays editable.'
+            }
+            error={validation.fieldErrors.prefix_path || defaultPrefixPathError}
+            className="crosshook-install-prefix-field"
+          />
+        </div>
       </div>
 
       <div className="crosshook-install-card">

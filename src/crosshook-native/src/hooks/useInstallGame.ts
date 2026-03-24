@@ -384,7 +384,7 @@ export function useInstallGame(): UseInstallGameResult {
 
       try {
         const resolvedPrefixPath = await invoke<string>('install_default_prefix_path', {
-          profile_name: trimmedProfileName,
+          profileName: trimmedProfileName,
         });
 
         if (requestId !== undefined && requestId !== prefixResolutionRequestIdRef.current) {

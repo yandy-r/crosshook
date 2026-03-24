@@ -199,9 +199,10 @@ function deriveSteamClientInstallPath(compatdataPath: string): string {
 
 export interface ProfileEditorProps {
   state: UseProfileResult;
+  onEditorTabChange?: (tab: 'profile' | 'install') => void;
 }
 
-export function ProfileEditorView({ state }: ProfileEditorProps) {
+export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorProps) {
   const {
     profiles,
     selectedProfile,
@@ -230,6 +231,10 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
   const [editorTab, setEditorTab] = useState<'profile' | 'install'>('profile');
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onEditorTabChange?.(editorTab);
+  }, [editorTab, onEditorTabChange]);
 
   function handleInstallReview(profileNameValue: string, generatedProfile: GameProfile) {
     hydrateProfile(profileNameValue, generatedProfile);
@@ -309,7 +314,8 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
       </div>
 
       {editorTab === 'profile' ? (
-        <>
+        <div className="crosshook-profile-shell">
+          <div className="crosshook-install-section-title">Profile Identity</div>
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr auto' }}>
             <div style={fieldStyle}>
               <label style={labelStyle}>Profile Name</label>
@@ -328,13 +334,13 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
             </div>
 
             <div style={fieldStyle}>
-              <label style={labelStyle}>Load Existing</label>
+              <label style={labelStyle}>Load Profile</label>
               <select
                 style={inputStyle}
                 value={selectedProfile}
                 onChange={(event) => void selectProfile(event.target.value)}
               >
-                <option value="">Choose a profile</option>
+                <option value="">Create New</option>
                 {profiles.map((name) => (
                   <option key={name} value={name}>
                     {name}
@@ -344,6 +350,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
             </div>
           </div>
 
+          <div className="crosshook-install-section-title">Game</div>
           <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
             <FieldRow
               label="Game Name"
@@ -410,6 +417,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
             </p>
           </div>
 
+          {supportsTrainerLaunch ? <div className="crosshook-install-section-title">Trainer</div> : null}
           {supportsTrainerLaunch ? (
             <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
               <FieldRow
@@ -439,6 +447,13 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
             </div>
           ) : null}
 
+          <div className="crosshook-install-section-title">
+            {launchMethod === 'steam_applaunch'
+              ? 'Steam Runtime'
+              : launchMethod === 'proton_run'
+                ? 'Proton Runtime'
+                : 'Native Runtime'}
+          </div>
           {launchMethod === 'steam_applaunch' ? (
             <>
               <div
@@ -711,7 +726,7 @@ export function ProfileEditorView({ state }: ProfileEditorProps) {
               {error}
             </div>
           ) : null}
-        </>
+        </div>
       ) : (
         <InstallGamePanel onReviewGeneratedProfile={handleInstallReview} />
       )}

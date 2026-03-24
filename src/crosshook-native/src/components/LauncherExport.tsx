@@ -1,20 +1,23 @@
-import { useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { GameProfile } from '../types';
+import type { GameProfile, LaunchMethod } from '../types';
 
 interface LauncherExportProps {
   profile: GameProfile;
+  method: Exclude<LaunchMethod, ''>;
   steamClientInstallPath: string;
   targetHomePath: string;
+  context?: 'default' | 'install';
 }
 
 interface SteamExternalLauncherExportRequest {
+  method: string;
   launcher_name: string;
   trainer_path: string;
   launcher_icon_path: string;
+  prefix_path: string;
+  proton_path: string;
   steam_app_id: string;
-  steam_compat_data_path: string;
-  steam_proton_path: string;
   steam_client_install_path: string;
   target_home_path: string;
 }
@@ -120,24 +123,34 @@ function deriveLauncherName(profile: GameProfile): string {
 
 function buildExportRequest(
   profile: GameProfile,
+  method: Exclude<LaunchMethod, ''>,
   launcherName: string,
   launcherIconPath: string,
   steamClientInstallPath: string,
   targetHomePath: string
 ): SteamExternalLauncherExportRequest {
   return {
+    method,
     launcher_name: launcherName.trim(),
     trainer_path: profile.trainer.path.trim(),
     launcher_icon_path: launcherIconPath.trim(),
+    prefix_path:
+      method === 'steam_applaunch' ? profile.steam.compatdata_path.trim() : profile.runtime.prefix_path.trim(),
+    proton_path:
+      method === 'steam_applaunch' ? profile.steam.proton_path.trim() : profile.runtime.proton_path.trim(),
     steam_app_id: profile.steam.app_id.trim(),
-    steam_compat_data_path: profile.steam.compatdata_path.trim(),
-    steam_proton_path: profile.steam.proton_path.trim(),
     steam_client_install_path: steamClientInstallPath.trim(),
     target_home_path: targetHomePath.trim(),
   };
 }
 
-export function LauncherExport({ profile, steamClientInstallPath, targetHomePath }: LauncherExportProps) {
+export function LauncherExport({
+  profile,
+  method,
+  steamClientInstallPath,
+  targetHomePath,
+  context = 'default',
+}: LauncherExportProps) {
   const [launcherName, setLauncherName] = useState(() => deriveLauncherName(profile));
   const [isExporting, setIsExporting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -146,20 +159,106 @@ export function LauncherExport({ profile, steamClientInstallPath, targetHomePath
 
   const request = buildExportRequest(
     profile,
+    method,
     launcherName,
     safeTrim(profile.steam.launcher.icon_path),
     steamClientInstallPath,
     targetHomePath
   );
 
+  const metadataRows = useMemo(
+    () =>
+      method === 'steam_applaunch'
+        ? [
+            { label: 'Trainer Path', value: safeTrim(profile.trainer.path) || 'Not set' },
+            { label: 'Steam App ID', value: safeTrim(profile.steam.app_id) || 'Not set' },
+            { label: 'Compatdata Path', value: safeTrim(profile.steam.compatdata_path) || 'Not set' },
+            { label: 'Proton Path', value: safeTrim(profile.steam.proton_path) || 'Not set' },
+          ]
+        : [
+            { label: 'Trainer Path', value: safeTrim(profile.trainer.path) || 'Not set' },
+            { label: 'Prefix Path', value: safeTrim(profile.runtime.prefix_path) || 'Not set' },
+            { label: 'Proton Path', value: safeTrim(profile.runtime.proton_path) || 'Not set' },
+            { label: 'Working Directory', value: safeTrim(profile.runtime.working_directory) || 'Not set' },
+          ],
+    [method, profile],
+  );
+
   const canExport =
     request.trainer_path.length > 0 &&
-    request.steam_app_id.length > 0 &&
-    request.steam_compat_data_path.length > 0 &&
-    request.steam_proton_path.length > 0 &&
-    request.steam_client_install_path.length > 0 &&
-    request.target_home_path.length > 0 &&
+    request.prefix_path.length > 0 &&
+    request.proton_path.length > 0 &&
+    (method !== 'steam_applaunch' || request.steam_app_id.length > 0) &&
     !isExporting;
+
+  if (context === 'install') {
+    return (
+      <section style={panelStyle} aria-label="Install review">
+        <header style={{ display: 'grid', gap: 8 }}>
+          <div
+            style={{
+              color: '#60a5fa',
+              fontSize: 12,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+            }}
+          >
+            Install Review
+          </div>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Review and save the generated profile</h2>
+          <p style={helperStyle}>
+            Install Game keeps the profile editable until you confirm the executable and save it in the Profile tab.
+          </p>
+        </header>
+
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={sectionStyle}>
+            <label style={labelStyle}>Runner</label>
+            <div
+              style={{
+                ...inputStyle,
+                display: 'flex',
+                alignItems: 'center',
+                color: '#f8fafc',
+              }}
+            >
+              Proton (`proton_run`)
+            </div>
+          </div>
+
+          <div style={sectionStyle}>
+            <label style={labelStyle}>Save boundary</label>
+            <div
+              style={{
+                ...inputStyle,
+                display: 'flex',
+                alignItems: 'flex-start',
+                padding: '10px 14px',
+                color: '#f8fafc',
+              }}
+            >
+              Nothing is persisted until you switch back to Profile and click Save.
+            </div>
+          </div>
+
+          <div style={sectionStyle}>
+            <label style={labelStyle}>After save</label>
+            <div
+              style={{
+                ...inputStyle,
+                display: 'flex',
+                alignItems: 'flex-start',
+                padding: '10px 14px',
+                color: '#f8fafc',
+              }}
+            >
+              The normal launch and launcher export flow becomes available once the generated profile is saved.
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   async function handleExport() {
     setIsExporting(true);
@@ -194,7 +293,7 @@ export function LauncherExport({ profile, steamClientInstallPath, targetHomePath
         </div>
         <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Export a standalone trainer launcher</h2>
         <p style={helperStyle}>
-          Generate a shell script and matching desktop entry from the current profile and Steam settings.
+          Generate a shell script and matching desktop entry from the current profile and runtime settings.
         </p>
       </header>
 
@@ -224,7 +323,7 @@ export function LauncherExport({ profile, steamClientInstallPath, targetHomePath
               wordBreak: 'break-word',
             }}
           >
-            {safeTrim(profile.steam.launcher.icon_path) || 'Use the Steam Mode launcher icon field above'}
+            {safeTrim(profile.steam.launcher.icon_path) || 'Use the launcher icon field from the current profile'}
           </div>
         </div>
       </div>
@@ -236,62 +335,22 @@ export function LauncherExport({ profile, steamClientInstallPath, targetHomePath
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
         }}
       >
-        <div style={sectionStyle}>
-          <label style={labelStyle}>Trainer Path</label>
-          <div
-            style={{
-              ...inputStyle,
-              display: 'flex',
-              alignItems: 'flex-start',
-              padding: '10px 14px',
-              wordBreak: 'break-word',
-            }}
-          >
-            {safeTrim(profile.trainer.path) || 'Not set'}
+        {metadataRows.map((row) => (
+          <div key={row.label} style={sectionStyle}>
+            <label style={labelStyle}>{row.label}</label>
+            <div
+              style={{
+                ...inputStyle,
+                display: 'flex',
+                alignItems: 'flex-start',
+                padding: '10px 14px',
+                wordBreak: 'break-word',
+              }}
+            >
+              {row.value}
+            </div>
           </div>
-        </div>
-        <div style={sectionStyle}>
-          <label style={labelStyle}>Steam App ID</label>
-          <div
-            style={{
-              ...inputStyle,
-              display: 'flex',
-              alignItems: 'flex-start',
-              padding: '10px 14px',
-              wordBreak: 'break-word',
-            }}
-          >
-            {safeTrim(profile.steam.app_id) || 'Not set'}
-          </div>
-        </div>
-        <div style={sectionStyle}>
-          <label style={labelStyle}>Compatdata Path</label>
-          <div
-            style={{
-              ...inputStyle,
-              display: 'flex',
-              alignItems: 'flex-start',
-              padding: '10px 14px',
-              wordBreak: 'break-word',
-            }}
-          >
-            {safeTrim(profile.steam.compatdata_path) || 'Not set'}
-          </div>
-        </div>
-        <div style={sectionStyle}>
-          <label style={labelStyle}>Proton Path</label>
-          <div
-            style={{
-              ...inputStyle,
-              display: 'flex',
-              alignItems: 'flex-start',
-              padding: '10px 14px',
-              wordBreak: 'break-word',
-            }}
-          >
-            {safeTrim(profile.steam.proton_path) || 'Not set'}
-          </div>
-        </div>
+        ))}
       </div>
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>

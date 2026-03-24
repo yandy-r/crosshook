@@ -36,15 +36,11 @@ pub fn apply_runtime_proton_environment(
     prefix_path: &str,
     steam_client_install_path: &str,
 ) {
-    let prefix_path = prefix_path.trim();
-    set_env(command, "WINEPREFIX", prefix_path);
+    let prefix = Path::new(prefix_path.trim());
+    let wine_prefix_path = resolve_wine_prefix_path(prefix);
+    set_env(command, "WINEPREFIX", wine_prefix_path.to_string_lossy().as_ref());
 
-    let prefix = Path::new(prefix_path);
-    let compat_data_path = if prefix.file_name().and_then(|value| value.to_str()) == Some("pfx") {
-        prefix.parent().unwrap_or(prefix)
-    } else {
-        prefix
-    };
+    let compat_data_path = resolve_compat_data_path(prefix, &wine_prefix_path);
 
     set_env(
         command,
@@ -60,6 +56,30 @@ pub fn apply_runtime_proton_environment(
             "STEAM_COMPAT_CLIENT_INSTALL_PATH",
             steam_client_install_path.as_str(),
         );
+    }
+}
+
+pub fn resolve_wine_prefix_path(prefix_path: &Path) -> PathBuf {
+    if prefix_path.file_name().and_then(|value| value.to_str()) == Some("pfx") {
+        return prefix_path.to_path_buf();
+    }
+
+    let pfx_path = prefix_path.join("pfx");
+    if pfx_path.is_dir() {
+        pfx_path
+    } else {
+        prefix_path.to_path_buf()
+    }
+}
+
+fn resolve_compat_data_path(configured_prefix_path: &Path, wine_prefix_path: &Path) -> PathBuf {
+    if wine_prefix_path.file_name().and_then(|value| value.to_str()) == Some("pfx") {
+        wine_prefix_path
+            .parent()
+            .unwrap_or(configured_prefix_path)
+            .to_path_buf()
+    } else {
+        configured_prefix_path.to_path_buf()
     }
 }
 

@@ -7,7 +7,7 @@ use tokio::process::Command;
 use super::{
     runtime_helpers::{
         apply_host_environment, apply_runtime_proton_environment, apply_working_directory,
-        attach_log_stdio, new_direct_proton_command,
+        attach_log_stdio, new_direct_proton_command, resolve_wine_prefix_path,
     },
     LaunchRequest,
 };
@@ -218,7 +218,8 @@ fn stage_trainer_into_prefix(
         .parent()
         .ok_or_else(|| io_error("trainer host path is missing a parent directory"))?;
 
-    let staged_root = prefix_path
+    let wine_prefix_path = resolve_wine_prefix_path(prefix_path);
+    let staged_root = wine_prefix_path
         .join("drive_c")
         .join(PathBuf::from(STAGED_TRAINER_ROOT));
     let staged_directory = staged_root.join(trainer_base_name);
@@ -502,6 +503,64 @@ mod tests {
         assert!(envs.iter().any(|(key, value)| {
             key == "STEAM_COMPAT_CLIENT_INSTALL_PATH"
                 && value.as_deref() == Some(steam_client_path.to_string_lossy().as_ref())
+        }));
+    }
+
+    #[test]
+    fn proton_trainer_command_uses_pfx_child_when_prefix_path_is_compatdata_root() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let compatdata_root = temp_dir.path().join("compatdata-root");
+        let wine_prefix_path = compatdata_root.join("pfx");
+        let trainer_source_dir = temp_dir.path().join("trainer");
+        let trainer_path = trainer_source_dir.join("aurora.exe");
+        let proton_path = temp_dir.path().join("proton");
+        let log_path = temp_dir.path().join("trainer.log");
+
+        fs::create_dir_all(wine_prefix_path.join("drive_c")).expect("prefix dir");
+        fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
+        fs::write(&trainer_path, b"trainer").expect("trainer exe");
+        write_executable_file(&proton_path);
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: temp_dir
+                .path()
+                .join("game.exe")
+                .to_string_lossy()
+                .into_owned(),
+            trainer_path: trainer_path.to_string_lossy().into_owned(),
+            trainer_host_path: trainer_path.to_string_lossy().into_owned(),
+            steam: crate::launch::SteamLaunchConfig::default(),
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: compatdata_root.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: String::new(),
+            },
+            launch_trainer_only: true,
+            launch_game_only: false,
+        };
+
+        let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+        let envs = command
+            .as_std()
+            .get_envs()
+            .map(|(key, value)| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.map(|inner| inner.to_string_lossy().into_owned()),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert!(wine_prefix_path
+            .join("drive_c/CrossHook/StagedTrainers/aurora/aurora.exe")
+            .exists());
+        assert!(envs.iter().any(|(key, value)| {
+            key == "WINEPREFIX" && value.as_deref() == Some(wine_prefix_path.to_string_lossy().as_ref())
+        }));
+        assert!(envs.iter().any(|(key, value)| {
+            key == "STEAM_COMPAT_DATA_PATH"
+                && value.as_deref() == Some(compatdata_root.to_string_lossy().as_ref())
         }));
     }
 }
