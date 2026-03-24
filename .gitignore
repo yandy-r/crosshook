@@ -22,3 +22,6 @@ src/crosshook-native/target/
 
 # Task tracking
 tasks/todo.md
+
+# Codex
+.codex-tmp/
