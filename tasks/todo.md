@@ -9,7 +9,7 @@
 - [x] Implement minimal fixes for confirmed real issues (C1, C2, C4).
 - [x] Run targeted tests for the touched Rust/Tauri/frontend paths.
 - [x] Update `docs/pr-reviews/pr-25-review.md` with validation and fix status.
-- [ ] Commit verified progress.
+- [x] Commit verified progress.
 
 ## Review
 
@@ -26,31 +26,12 @@
 
 ## PR #25 Remaining Findings
 
-- [ ] Validate remaining frontend/type findings (I1, I2, I3, I10).
-- [ ] Validate remaining Rust/Tauri/doc/test findings from the review.
-- [ ] Implement minimal fixes only for confirmed issues.
-- [ ] Run targeted verification for touched areas.
-- [ ] Update `docs/pr-reviews/pr-25-review.md` with confirmed/fixed/invalid findings.
-- [ ] Commit verified progress for the second pass.
-
-## PR #25 Remaining Findings
-
-- [ ] Validate remaining frontend/type findings (I1, I3, I10).
-- [ ] Validate remaining Rust/Tauri/doc findings (I4, I5, I6, I7, I8, I9, I11, I12, S2, S3, S4, S5).
-- [ ] Validate remaining test-gap findings (T1, T2, T3, T4, T5, T6) against current coverage.
-- [ ] Implement only confirmed remaining issues with minimal changes.
-- [ ] Run targeted checks for the second-pass fixes.
-- [ ] Update `docs/pr-reviews/pr-25-review.md` with second-pass validation/fix status.
-- [ ] Commit second-pass verified progress.
-
-## PR #25 Remaining Findings
-
 - [x] Validate remaining frontend/type findings (I1, I2, I3, I10).
 - [x] Validate remaining Rust/Tauri/doc/test findings (I4-I12, T1-T6, S2-S5).
 - [x] Implement minimal fixes only for confirmed remaining issues.
 - [x] Run targeted checks for touched areas.
 - [x] Update `docs/pr-reviews/pr-25-review.md` with second-pass validation and fix status.
-- [ ] Commit verified follow-up progress.
+- [x] Commit verified follow-up progress.
 
 ## Second-Pass Review
 
