@@ -59,7 +59,20 @@
       "Bash(xxd)",
       "Skill(implement-plan:implement-plan)",
       "Bash(npx tsc:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(cargo build:*)",
+      "Bash(npm install:*)",
+      "Bash(node_modules/.bin/tsc --noEmit --pretty)",
+      "Bash(for branch:*)",
+      "Bash(do if:*)",
+      "Bash(then echo:*)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(do echo:*)",
+      "Bash(npx --package=typescript tsc --noEmit)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(./node_modules/.bin/tsc --noEmit --pretty)"
     ]
   }
 }
