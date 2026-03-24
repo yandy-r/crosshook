@@ -4,6 +4,8 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::launch::runtime_helpers::resolve_wine_prefix_path;
+
 const MAX_SCAN_DEPTH: usize = 8;
 const MAX_VISITED_DIRECTORIES: usize = 1_024;
 const MAX_SCANNED_FILES: usize = 4_096;
@@ -82,7 +84,7 @@ pub fn discover_game_executable_candidates(
     display_name: &str,
     installer_path: &str,
 ) -> Vec<PathBuf> {
-    let drive_c = prefix_path.join("drive_c");
+    let drive_c = resolve_wine_prefix_path(prefix_path).join("drive_c");
     if !drive_c.is_dir() {
         return Vec::new();
     }
@@ -415,6 +417,31 @@ mod tests {
                 .any(|path| path.file_name().and_then(|value| value.to_str())
                     == Some("DeepGame.exe")),
             "deep executables within the configured scan depth should still be discovered"
+        );
+    }
+
+    #[test]
+    fn discovery_uses_pfx_child_when_prefix_path_is_compatdata_root() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let compatdata_root = temp_dir.path().join("compatdata-root");
+        let drive_c = compatdata_root.join("pfx").join("drive_c");
+        let game_dir = drive_c.join("Games").join("Example Game");
+
+        fs::create_dir_all(&game_dir).expect("game dir");
+        fs::write(game_dir.join("ExampleGame.exe"), b"game").expect("game exe");
+
+        let candidates = discover_game_executable_candidates(
+            &compatdata_root,
+            "example-game",
+            "Example Game",
+            "",
+        );
+
+        assert_eq!(
+            candidates
+                .first()
+                .map(|path| path.file_name().and_then(|value| value.to_str())),
+            Some(Some("ExampleGame.exe"))
         );
     }
 }
