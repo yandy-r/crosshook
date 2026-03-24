@@ -46,7 +46,12 @@
       "Skill(write-docs:write-docs)",
       "Bash(cargo test:*)",
       "Bash(cargo check:*)",
-      "Bash(wc -l /home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete/*.md)"
+      "Bash(wc -l /home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete/*.md)",
+      "Bash(find /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/ -name *.md -type f)",
+      "Bash(get_feature_plan_dir \"launcher-delete\")",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/_shared/scripts/resolve-plans-dir.sh \"launcher-delete\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/plan-workflow/scripts/check-state.sh \"launcher-delete\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/shared-context/scripts/validate-research-artifacts.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete\" 2>&1)"
     ]
   }
 }

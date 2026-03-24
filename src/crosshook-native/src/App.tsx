@@ -92,7 +92,6 @@ export function App() {
     return defaultSteamClientInstallPath || deriveSteamClientInstallPath(profile.steam.compatdata_path);
   }, [defaultSteamClientInstallPath, profile.steam.compatdata_path]);
   const targetHomePath = useMemo(() => deriveTargetHomePath(steamClientInstallPath), [steamClientInstallPath]);
-  const shouldStretchRightRail = effectiveLaunchMethod === 'steam_applaunch' || effectiveLaunchMethod === 'proton_run';
   const shouldShowLauncherExport =
     profileEditorTab === 'install' ||
     effectiveLaunchMethod === 'steam_applaunch' ||
@@ -276,7 +275,7 @@ export function App() {
 
         {activeTab === 'main' ? (
           <div style={{ display: 'grid', gap: '24px' }}>
-            <div className="crosshook-layout" style={{ alignItems: shouldStretchRightRail ? 'stretch' : 'start' }}>
+            <div className="crosshook-layout" style={{ alignItems: 'stretch' }}>
               <div style={{ display: 'grid', gap: '24px' }}>
                 <ProfileEditorView state={profileState} onEditorTabChange={setProfileEditorTab} />
               </div>
@@ -284,8 +283,8 @@ export function App() {
                 style={{
                   display: 'grid',
                   gap: '24px',
-                  height: shouldStretchRightRail ? '100%' : undefined,
-                  minHeight: shouldStretchRightRail ? 0 : undefined,
+                  height: '100%',
+                  minHeight: 0,
                   gridTemplateRows: shouldShowLauncherExport ? 'repeat(2, minmax(0, 1fr))' : undefined,
                 }}
               >
