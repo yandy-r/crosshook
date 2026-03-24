@@ -396,7 +396,12 @@ export function useInstallGame(): UseInstallGameResult {
 
         setRequestState((current) => {
           const currentPrefixPath = current.prefix_path.trim();
-          if (prefixPathSource === 'auto' || currentPrefixPath.length === 0) {
+          const previousAutoPrefixPath = defaultPrefixPath.trim();
+          const shouldApplyResolvedPrefix =
+            currentPrefixPath.length === 0 ||
+            (previousAutoPrefixPath.length > 0 && currentPrefixPath === previousAutoPrefixPath);
+
+          if (shouldApplyResolvedPrefix) {
             return {
               ...current,
               prefix_path: resolvedPrefixPath,
@@ -415,7 +420,7 @@ export function useInstallGame(): UseInstallGameResult {
         return '';
       }
     },
-    [prefixPathSource],
+    [defaultPrefixPath],
   );
 
   const startInstall = useCallback(async () => {
