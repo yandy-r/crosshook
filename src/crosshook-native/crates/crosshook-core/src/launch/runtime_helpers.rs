@@ -38,7 +38,11 @@ pub fn apply_runtime_proton_environment(
 ) {
     let prefix = Path::new(prefix_path.trim());
     let wine_prefix_path = resolve_wine_prefix_path(prefix);
-    set_env(command, "WINEPREFIX", wine_prefix_path.to_string_lossy().as_ref());
+    set_env(
+        command,
+        "WINEPREFIX",
+        wine_prefix_path.to_string_lossy().as_ref(),
+    );
 
     let compat_data_path = resolve_compat_data_path(prefix, &wine_prefix_path);
 
@@ -73,7 +77,11 @@ pub fn resolve_wine_prefix_path(prefix_path: &Path) -> PathBuf {
 }
 
 fn resolve_compat_data_path(configured_prefix_path: &Path, wine_prefix_path: &Path) -> PathBuf {
-    if wine_prefix_path.file_name().and_then(|value| value.to_str()) == Some("pfx") {
+    if wine_prefix_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        == Some("pfx")
+    {
         wine_prefix_path
             .parent()
             .unwrap_or(configured_prefix_path)
