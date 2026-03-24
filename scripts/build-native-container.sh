@@ -143,6 +143,40 @@ fi
 set -euo pipefail
 export PATH="/usr/local/cargo/bin:/root/.cargo/bin:$PATH"
 
+fix_ownership() {
+  local path
+
+  for path in \
+    /workspace/dist \
+    /workspace/src/crosshook-native/dist \
+    /workspace/src/crosshook-native/node_modules \
+    /workspace/src/crosshook-native/src-tauri/target \
+    /workspace/src/crosshook-native/target
+  do
+    if [[ -e "$path" ]]; then
+      chown -R "${HOST_UID}:${HOST_GID}" "$path" || true
+    fi
+  done
+}
+
+cleanup() {
+  local exit_code=$?
+
+  fix_ownership
+
+  if (( exit_code == 0 )) && [[ "${KEEP_WORKTREE_ARTIFACTS}" != "1" ]]; then
+    rm -rf \
+      /workspace/src/crosshook-native/dist \
+      /workspace/src/crosshook-native/node_modules \
+      /workspace/src/crosshook-native/src-tauri/target \
+      /workspace/src/crosshook-native/target
+  fi
+
+  exit "$exit_code"
+}
+
+trap cleanup EXIT
+
 cd /workspace/src/crosshook-native
 if [[ ! -x node_modules/.bin/tauri || "${INSTALL_NODE_MODULES}" == "1" ]]; then
   npm ci
@@ -150,20 +184,6 @@ fi
 
 cd /workspace
 APPIMAGE_EXTRACT_AND_RUN=1 TARGET_TRIPLE="${TARGET_TRIPLE}" ./scripts/build-native.sh
-
-for path in /workspace/dist; do
-  if [[ -e "$path" ]]; then
-    chown -R "${HOST_UID}:${HOST_GID}" "$path"
-  fi
-done
-
-if [[ "${KEEP_WORKTREE_ARTIFACTS}" != "1" ]]; then
-  rm -rf \
-    /workspace/src/crosshook-native/dist \
-    /workspace/src/crosshook-native/node_modules \
-    /workspace/src/crosshook-native/src-tauri/target \
-    /workspace/src/crosshook-native/target
-fi
 '
 
 echo "Containerized native build complete."

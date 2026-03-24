@@ -1,0 +1,6 @@
+[workspace]
+members = ["crates/crosshook-core", "crates/crosshook-cli", "src-tauri"]
+resolver = "2"
+
+[workspace.package]
+version = "0.2.0"

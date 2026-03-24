@@ -2,6 +2,8 @@
 
 CrossHook is a native Linux application that orchestrates game and trainer launches through Steam and Proton. CrossHook itself runs directly on the host -- it does not run under WINE. Trainers are Windows executables that CrossHook launches into the game's Proton compatdata prefix using a clean environment.
 
+CrossHook also includes an `Install Game` sub-tab inside the Profile panel. That flow uses direct `proton run`, defaults new prefixes under `~/.local/share/crosshook/prefixes/<slug>`, and then returns you to the normal profile editor so you can review the generated `GameProfile` before saving it.
+
 This guide covers the three launch methods, auto-discovery, launcher export, and the console view. If you are just getting started, read the [CrossHook quickstart](../getting-started/quickstart.md) first.
 
 ## Table of Contents
@@ -61,6 +63,7 @@ This mode launches both the game and trainer directly through Proton against a s
 - Useful for non-Steam games using a standalone Proton/WINE prefix.
 - Also useful when you need full control over the prefix path and Proton version.
 - The two-step launch flow still applies: launch the game first, then launch the trainer.
+- CrossHook uses the same direct `proton run` path for `Install Game`, then returns the generated profile for explicit review and save.
 
 Required profile fields:
 

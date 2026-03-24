@@ -101,6 +101,39 @@ textarea {
   color: #fff;
 }
 
+.crosshook-subtab-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px;
+  margin-top: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.crosshook-subtab {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--crosshook-color-text-muted);
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition:
+    border-color var(--crosshook-transition-standard) ease,
+    background var(--crosshook-transition-standard) ease,
+    color var(--crosshook-transition-standard) ease;
+}
+
+.crosshook-subtab--active {
+  border-color: rgba(0, 120, 212, 0.45);
+  background: linear-gradient(135deg, var(--crosshook-color-accent) 0%, var(--crosshook-color-accent-strong) 100%);
+  color: #fff;
+}
+
 .crosshook-panel,
 .crosshook-card {
   background: linear-gradient(180deg, rgba(18, 23, 42, 0.96), rgba(12, 17, 32, 0.96));
@@ -138,6 +171,13 @@ textarea {
   color: var(--crosshook-color-text-muted);
   line-height: 1.6;
   max-width: 64ch;
+}
+
+.crosshook-help-text {
+  margin: 0;
+  color: var(--crosshook-color-text-subtle);
+  line-height: 1.55;
+  font-size: 0.92rem;
 }
 
 .crosshook-field {
@@ -234,6 +274,145 @@ textarea {
   color: var(--crosshook-color-text);
 }
 
+.crosshook-install-shell {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.crosshook-profile-shell {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.crosshook-install-intro {
+  display: grid;
+  gap: 8px;
+}
+
+.crosshook-install-section {
+  display: grid;
+  gap: 14px;
+}
+
+.crosshook-install-section-title {
+  color: var(--crosshook-color-accent-strong);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.crosshook-install-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.crosshook-install-grid > * {
+  min-width: 0;
+}
+
+.crosshook-install-runtime-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.crosshook-install-runtime-stack > * {
+  min-width: 0;
+}
+
+.crosshook-install-proton-field {
+  align-self: start;
+}
+
+.crosshook-install-prefix-field {
+  align-self: start;
+}
+
+.crosshook-install-field-control {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.crosshook-install-field-control > .crosshook-button {
+  min-width: 96px;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.crosshook-install-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 16px;
+  background: rgba(7, 12, 24, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.crosshook-install-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+  flex-wrap: wrap;
+}
+
+.crosshook-install-stage,
+.crosshook-install-pill {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.crosshook-install-stage {
+  border: 1px solid rgba(0, 120, 212, 0.28);
+  background: rgba(0, 120, 212, 0.14);
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-install-pill {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-install-review {
+  display: grid;
+  gap: 12px;
+}
+
+.crosshook-install-candidate-list {
+  display: grid;
+  gap: 10px;
+}
+
+.crosshook-install-candidate {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--crosshook-color-text-muted);
+  align-items: start;
+}
+
+.crosshook-install-candidate > span {
+  min-width: 0;
+}
+
 .crosshook-console {
   border: 1px solid rgba(0, 120, 212, 0.2);
   border-radius: var(--crosshook-radius-lg);
@@ -319,6 +498,10 @@ textarea {
   .crosshook-console__body {
     max-height: 48vh;
   }
+
+  .crosshook-install-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -341,6 +524,23 @@ textarea {
   .crosshook-select,
   .crosshook-textarea {
     min-height: 48px;
+  }
+
+  .crosshook-subtab-row {
+    width: 100%;
+  }
+
+  .crosshook-subtab {
+    flex: 1 1 0;
+  }
+
+  .crosshook-install-status {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .crosshook-install-candidate {
+    grid-template-columns: 1fr;
   }
 }
 

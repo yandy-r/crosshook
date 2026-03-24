@@ -6,6 +6,7 @@ interface LaunchPanelProps {
   profileId: string;
   method: Exclude<LaunchMethod, ''>;
   request: LaunchRequest | null;
+  context?: 'default' | 'install';
 }
 
 const panelStyles = {
@@ -23,7 +24,7 @@ const panelStyles = {
   } as const,
 };
 
-export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
+export function LaunchPanel({ profileId, method, request, context = 'default' }: LaunchPanelProps) {
   const {
     actionLabel,
     canLaunchGame,
@@ -47,6 +48,85 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
   const isSessionActive = phase === LaunchPhase.SessionActive;
   const canLaunch = isWaitingForTrainer ? canLaunchTrainer : canLaunchGame;
   const primaryAction = isWaitingForTrainer ? launchTrainer : launchGame;
+  const isInstallContext = context === 'install';
+
+  if (isInstallContext) {
+    return (
+      <section style={panelStyles.card}>
+        <div
+          style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'start', flexWrap: 'wrap' }}
+        >
+          <div>
+            <p
+              style={{
+                margin: 0,
+                textTransform: 'uppercase',
+                letterSpacing: '0.18em',
+                color: '#7bb0ff',
+                fontSize: '0.74rem',
+              }}
+            >
+              Install Workflow
+            </p>
+            <h1 style={{ margin: '10px 0 6px', fontSize: '2rem', lineHeight: 1.1 }}>CrossHook Native</h1>
+            <p style={{ margin: 0, color: '#9fb1d6', maxWidth: '56ch' }}>
+              Install Game always targets Proton. Complete the installer flow, then review the generated profile in the
+              Profile tab before saving.
+            </p>
+          </div>
+
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: '999px',
+              background: 'rgba(72, 134, 255, 0.12)',
+              border: '1px solid rgba(72, 134, 255, 0.28)',
+              color: '#cfe0ff',
+              fontSize: '0.9rem',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Review first
+          </div>
+        </div>
+
+        <div
+          style={{
+            marginTop: '24px',
+            padding: '18px',
+            borderRadius: '16px',
+            background: 'rgba(7, 12, 24, 0.55)',
+            border: '1px solid rgba(255, 255, 255, 0.07)',
+          }}
+        >
+          <p style={{ margin: 0, fontWeight: 600, color: '#eef4ff' }}>
+            Run the installer in the left panel, then hand the generated profile back for explicit review.
+          </p>
+          <p style={{ margin: '10px 0 0', color: '#9fb1d6', lineHeight: 1.6 }}>
+            The final executable stays editable after candidate selection, and nothing is persisted until you save in the
+            Profile tab.
+          </p>
+        </div>
+
+        <div style={{ marginTop: '22px', display: 'grid', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#9fb1d6' }}>
+            <span
+              style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: '#5e77ff',
+              }}
+            />
+            <span>Proton install flow selected</span>
+          </div>
+          <div style={{ color: '#7f8fb0', fontSize: '0.9rem' }}>
+            Review in Profile becomes available after the installer completes and the executable is confirmed.
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section style={panelStyles.card}>

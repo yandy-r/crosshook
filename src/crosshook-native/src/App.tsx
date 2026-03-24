@@ -75,16 +75,28 @@ export function App() {
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
   const [activeTab, setActiveTab] = useState<AppTab>('main');
+  const [profileEditorTab, setProfileEditorTab] = useState<'profile' | 'install'>('profile');
   const gamepadNav = useGamepadNav();
   const communityState = useCommunityProfiles({
     profilesDirectoryPath: DEFAULT_PROFILES_DIRECTORY,
   });
   const launchMethod = useMemo(() => resolveLaunchMethod(profile), [profile]);
+  const effectiveLaunchMethod = useMemo<Exclude<LaunchMethod, ''>>(() => {
+    if (activeTab === 'main' && profileEditorTab === 'install') {
+      return 'proton_run';
+    }
+
+    return launchMethod;
+  }, [activeTab, launchMethod, profileEditorTab]);
   const steamClientInstallPath = useMemo(() => {
     return defaultSteamClientInstallPath || deriveSteamClientInstallPath(profile.steam.compatdata_path);
   }, [defaultSteamClientInstallPath, profile.steam.compatdata_path]);
   const targetHomePath = useMemo(() => deriveTargetHomePath(steamClientInstallPath), [steamClientInstallPath]);
-  const shouldStretchRightRail = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
+  const shouldStretchRightRail = effectiveLaunchMethod === 'steam_applaunch' || effectiveLaunchMethod === 'proton_run';
+  const shouldShowLauncherExport =
+    profileEditorTab === 'install' ||
+    effectiveLaunchMethod === 'steam_applaunch' ||
+    effectiveLaunchMethod === 'proton_run';
 
   const launchRequest = useMemo<LaunchRequest | null>(() => {
     if (!profile.game.executable_path.trim()) {
@@ -92,7 +104,7 @@ export function App() {
     }
 
     return {
-      method: launchMethod,
+      method: effectiveLaunchMethod,
       game_path: profile.game.executable_path,
       trainer_path: profile.trainer.path,
       trainer_host_path: profile.trainer.path,
@@ -110,10 +122,10 @@ export function App() {
       launch_trainer_only: false,
       launch_game_only: false,
     };
-  }, [launchMethod, profile, steamClientInstallPath]);
+  }, [effectiveLaunchMethod, profile, steamClientInstallPath]);
 
   const headingTitle = (() => {
-    switch (launchMethod) {
+      switch (effectiveLaunchMethod) {
       case 'steam_applaunch':
         return 'Two-step Steam launch';
       case 'proton_run':
@@ -125,7 +137,7 @@ export function App() {
   })();
 
   const headingCopy = (() => {
-    switch (launchMethod) {
+      switch (effectiveLaunchMethod) {
       case 'steam_applaunch':
         return 'Launch the game through Steam first, then switch to trainer mode once the game reaches the main menu.';
       case 'proton_run':
@@ -266,7 +278,7 @@ export function App() {
           <div style={{ display: 'grid', gap: '24px' }}>
             <div className="crosshook-layout" style={{ alignItems: shouldStretchRightRail ? 'stretch' : 'start' }}>
               <div style={{ display: 'grid', gap: '24px' }}>
-                <ProfileEditorView state={profileState} />
+                <ProfileEditorView state={profileState} onEditorTabChange={setProfileEditorTab} />
               </div>
               <div
                 style={{
@@ -274,24 +286,22 @@ export function App() {
                   gap: '24px',
                   height: shouldStretchRightRail ? '100%' : undefined,
                   minHeight: shouldStretchRightRail ? 0 : undefined,
-                  gridTemplateRows:
-                    launchMethod === 'steam_applaunch'
-                      ? 'repeat(2, minmax(0, 1fr))'
-                      : launchMethod === 'proton_run'
-                        ? 'minmax(0, 1fr)'
-                        : undefined,
+                  gridTemplateRows: shouldShowLauncherExport ? 'repeat(2, minmax(0, 1fr))' : undefined,
                 }}
               >
                 <LaunchPanel
                   profileId={profileName || 'new-profile'}
-                  method={launchMethod}
-                  request={launchRequest}
+                  method={effectiveLaunchMethod}
+                  request={profileEditorTab === 'install' ? null : launchRequest}
+                  context={profileEditorTab === 'install' ? 'install' : 'default'}
                 />
-                {launchMethod === 'steam_applaunch' ? (
+                {shouldShowLauncherExport ? (
                   <LauncherExport
                     profile={profile}
+                    method={effectiveLaunchMethod}
                     steamClientInstallPath={steamClientInstallPath}
                     targetHomePath={targetHomePath}
+                    context={profileEditorTab === 'install' ? 'install' : 'default'}
                   />
                 ) : null}
               </div>

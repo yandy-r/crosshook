@@ -1,3 +1,4 @@
+use std::env;
 use std::error::Error;
 use std::fmt;
 use std::fs;
@@ -8,12 +9,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct SteamExternalLauncherExportRequest {
+    pub method: String,
     pub launcher_name: String,
     pub trainer_path: String,
     pub launcher_icon_path: String,
+    pub prefix_path: String,
+    pub proton_path: String,
     pub steam_app_id: String,
-    pub steam_compat_data_path: String,
-    pub steam_proton_path: String,
     pub steam_client_install_path: String,
     pub target_home_path: String,
 }
@@ -29,31 +31,29 @@ pub struct SteamExternalLauncherExportResult {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SteamExternalLauncherExportValidationError {
     TrainerPathRequired,
+    PrefixPathRequired,
+    ProtonPathRequired,
     SteamAppIdRequired,
-    SteamCompatDataPathRequired,
-    SteamProtonPathRequired,
-    SteamClientInstallPathRequired,
     TargetHomePathRequired,
     LauncherIconPathNotFound,
     LauncherIconPathInvalidExtension,
+    UnsupportedMethod(String),
 }
 
 impl SteamExternalLauncherExportValidationError {
     pub fn message(&self) -> &'static str {
         match self {
             Self::TrainerPathRequired => "External launcher export requires a trainer path.",
+            Self::PrefixPathRequired => "External launcher export requires a prefix path.",
+            Self::ProtonPathRequired => "External launcher export requires a Proton path.",
             Self::SteamAppIdRequired => "External launcher export requires a Steam App ID.",
-            Self::SteamCompatDataPathRequired => {
-                "External launcher export requires a compatdata path."
-            }
-            Self::SteamProtonPathRequired => "External launcher export requires a Proton path.",
-            Self::SteamClientInstallPathRequired => {
-                "External launcher export requires a Steam client install path."
-            }
             Self::TargetHomePathRequired => "External launcher export requires a host home path.",
             Self::LauncherIconPathNotFound => "External launcher export icon path does not exist.",
             Self::LauncherIconPathInvalidExtension => {
                 "External launcher export icon must be a PNG or JPG image."
+            }
+            Self::UnsupportedMethod(_) => {
+                "External launcher export only supports steam_applaunch and proton_run."
             }
         }
     }
@@ -61,7 +61,13 @@ impl SteamExternalLauncherExportValidationError {
 
 impl fmt::Display for SteamExternalLauncherExportValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.message())
+        match self {
+            Self::UnsupportedMethod(method) => write!(
+                f,
+                "External launcher export only supports steam_applaunch and proton_run, not '{method}'."
+            ),
+            _ => f.write_str(self.message()),
+        }
     }
 }
 
@@ -104,28 +110,35 @@ impl From<io::Error> for SteamExternalLauncherExportError {
 pub fn validate(
     request: &SteamExternalLauncherExportRequest,
 ) -> Result<(), SteamExternalLauncherExportValidationError> {
+    match request.method.trim() {
+        "steam_applaunch" | "proton_run" => {}
+        other => {
+            return Err(SteamExternalLauncherExportValidationError::UnsupportedMethod(
+                other.to_string(),
+            ))
+        }
+    }
+
     if request.trainer_path.trim().is_empty() {
         return Err(SteamExternalLauncherExportValidationError::TrainerPathRequired);
     }
 
-    if request.steam_app_id.trim().is_empty() {
-        return Err(SteamExternalLauncherExportValidationError::SteamAppIdRequired);
+    if request.prefix_path.trim().is_empty() {
+        return Err(SteamExternalLauncherExportValidationError::PrefixPathRequired);
     }
 
-    if request.steam_compat_data_path.trim().is_empty() {
-        return Err(SteamExternalLauncherExportValidationError::SteamCompatDataPathRequired);
+    if request.proton_path.trim().is_empty() {
+        return Err(SteamExternalLauncherExportValidationError::ProtonPathRequired);
     }
 
-    if request.steam_proton_path.trim().is_empty() {
-        return Err(SteamExternalLauncherExportValidationError::SteamProtonPathRequired);
-    }
-
-    if request.steam_client_install_path.trim().is_empty() {
-        return Err(SteamExternalLauncherExportValidationError::SteamClientInstallPathRequired);
-    }
-
-    if request.target_home_path.trim().is_empty() {
+    if request.target_home_path.trim().is_empty()
+        && env::var("HOME").unwrap_or_default().trim().is_empty()
+    {
         return Err(SteamExternalLauncherExportValidationError::TargetHomePathRequired);
+    }
+
+    if request.method.trim() == "steam_applaunch" && request.steam_app_id.trim().is_empty() {
+        return Err(SteamExternalLauncherExportValidationError::SteamAppIdRequired);
     }
 
     if !request.launcher_icon_path.trim().is_empty() {
@@ -220,7 +233,11 @@ fn resolve_display_name(preferred_name: &str, steam_app_id: &str, trainer_path: 
         return trainer_name;
     }
 
-    format!("steam-{steam_app_id}-trainer")
+    if !steam_app_id.trim().is_empty() {
+        format!("steam-{steam_app_id}-trainer")
+    } else {
+        "crosshook-trainer".to_string()
+    }
 }
 
 pub fn sanitize_launcher_slug(value: &str) -> String {
@@ -286,20 +303,34 @@ fn build_trainer_script_content(
     content.push_str(&format!("# {display_name} - Trainer launcher\n"));
     content.push_str("# Generated by CrossHook\n");
     content.push_str("# https://github.com/yandy-r/crosshook\n");
-    content.push_str("# Launch this after the Steam game has reached the in-game menu.\n");
+    content.push_str("# Launch this after the game has reached the in-game menu.\n");
     content.push_str("# Stages the trainer bundle into the Proton prefix before launch.\n");
     content.push_str(&format!(
-        "export STEAM_COMPAT_DATA_PATH={}\n",
-        shell_single_quoted(&request.steam_compat_data_path)
+        "PREFIX_ROOT={}\n",
+        shell_single_quoted(&request.prefix_path)
     ));
-    content.push_str(&format!(
-        "export STEAM_COMPAT_CLIENT_INSTALL_PATH={}\n",
-        shell_single_quoted(&request.steam_client_install_path)
-    ));
-    content.push_str("export WINEPREFIX=\"$STEAM_COMPAT_DATA_PATH/pfx\"\n");
+    content.push_str(
+        r#"if [[ "${PREFIX_ROOT##*/}" == "pfx" ]]; then
+  export WINEPREFIX="$PREFIX_ROOT"
+  export STEAM_COMPAT_DATA_PATH="$(dirname "$PREFIX_ROOT")"
+elif [[ -d "$PREFIX_ROOT/pfx" ]]; then
+  export WINEPREFIX="$PREFIX_ROOT/pfx"
+  export STEAM_COMPAT_DATA_PATH="$PREFIX_ROOT"
+else
+  export WINEPREFIX="$PREFIX_ROOT"
+  export STEAM_COMPAT_DATA_PATH="$PREFIX_ROOT"
+fi
+"#,
+    );
+    if !request.steam_client_install_path.trim().is_empty() {
+        content.push_str(&format!(
+            "export STEAM_COMPAT_CLIENT_INSTALL_PATH={}\n",
+            shell_single_quoted(&request.steam_client_install_path)
+        ));
+    }
     content.push_str(&format!(
         "PROTON={}\n",
-        shell_single_quoted(&request.steam_proton_path)
+        shell_single_quoted(&request.proton_path)
     ));
     content.push_str(&format!(
         "TRAINER_HOST_PATH={}\n",
@@ -365,7 +396,7 @@ trainer_host_path="$(realpath "$TRAINER_HOST_PATH")"
 trainer_file_name="$(basename "$trainer_host_path")"
 trainer_base_name="${trainer_file_name%.*}"
 trainer_source_dir="$(dirname "$trainer_host_path")"
-staged_trainer_root="$STEAM_COMPAT_DATA_PATH/pfx/drive_c/CrossHook/StagedTrainers"
+staged_trainer_root="$WINEPREFIX/drive_c/CrossHook/StagedTrainers"
 staged_trainer_dir="$staged_trainer_root/$trainer_base_name"
 staged_trainer_host_path="$staged_trainer_dir/$trainer_file_name"
 staged_trainer_windows_path="C:\\CrossHook\\StagedTrainers\\$trainer_base_name\\$trainer_file_name"
@@ -445,6 +476,13 @@ pub fn resolve_target_home_path(
         try_resolve_home_from_steam_client_install_path(&normalized_steam_client_install_path)
     {
         return derived_home_path;
+    }
+
+    if let Ok(home_path) = env::var("HOME") {
+        let normalized_home_path = normalize_host_unix_path(&home_path);
+        if looks_like_usable_host_unix_path(&normalized_home_path) {
+            return normalized_home_path;
+        }
     }
 
     normalized_preferred_home_path
@@ -542,12 +580,13 @@ mod tests {
         fs::write(&icon_path, b"icon").expect("icon");
 
         let request = SteamExternalLauncherExportRequest {
+            method: "steam_applaunch".to_string(),
             launcher_name: "Elden Ring Deluxe".to_string(),
             trainer_path: "/opt/Trainers/Trainer's Edition.exe".to_string(),
             launcher_icon_path: icon_path.to_string_lossy().into_owned(),
+            prefix_path: "/tmp/compatdata/1245620".to_string(),
+            proton_path: "/opt/Proton/proton".to_string(),
             steam_app_id: "1245620".to_string(),
-            steam_compat_data_path: "/tmp/compatdata/1245620".to_string(),
-            steam_proton_path: "/opt/Proton/proton".to_string(),
             steam_client_install_path: temp_home
                 .path()
                 .join(".local/share/Steam")
@@ -578,11 +617,14 @@ mod tests {
         );
 
         let script_content = fs::read_to_string(&result.script_path).expect("script");
-        assert!(script_content.contains("export STEAM_COMPAT_DATA_PATH='/tmp/compatdata/1245620'"));
+        assert!(script_content.contains("PREFIX_ROOT='/tmp/compatdata/1245620'"));
+        assert!(script_content.contains("elif [[ -d \"$PREFIX_ROOT/pfx\" ]]; then"));
+        assert!(script_content.contains("export WINEPREFIX=\"$PREFIX_ROOT/pfx\""));
+        assert!(script_content.contains("export STEAM_COMPAT_DATA_PATH=\"$PREFIX_ROOT\""));
         assert!(script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH='"));
         assert!(script_content.contains("PROTON='/opt/Proton/proton'"));
         assert!(script_content.contains("TRAINER_HOST_PATH='/opt/Trainers/Trainer'\"'\"'s Edition.exe'"));
-        assert!(script_content.contains("staged_trainer_root=\"$STEAM_COMPAT_DATA_PATH/pfx/drive_c/CrossHook/StagedTrainers\""));
+        assert!(script_content.contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(script_content.contains("staged_trainer_windows_path=\"C:\\\\CrossHook\\\\StagedTrainers\\\\$trainer_base_name\\\\$trainer_file_name\""));
         assert!(script_content.contains("exec \"$PROTON\" run \"$staged_trainer_windows_path\""));
 
@@ -627,5 +669,26 @@ mod tests {
             ),
             "/home/user"
         );
+    }
+
+    #[test]
+    fn proton_run_export_writes_generic_prefix_bootstrap() {
+        let request = SteamExternalLauncherExportRequest {
+            method: "proton_run".to_string(),
+            launcher_name: "Witcher 3".to_string(),
+            trainer_path: "/opt/trainers/Aurora.exe".to_string(),
+            launcher_icon_path: String::new(),
+            prefix_path: "/games/prefixes/the-witcher-3".to_string(),
+            proton_path: "/opt/proton/proton".to_string(),
+            steam_app_id: String::new(),
+            steam_client_install_path: String::new(),
+            target_home_path: "/home/user".to_string(),
+        };
+
+        let script_content = build_trainer_script_content(&request, "Witcher 3");
+        assert!(script_content.contains("PREFIX_ROOT='/games/prefixes/the-witcher-3'"));
+        assert!(script_content.contains("elif [[ -d \"$PREFIX_ROOT/pfx\" ]]; then"));
+        assert!(script_content.contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
+        assert!(!script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH="));
     }
 }
