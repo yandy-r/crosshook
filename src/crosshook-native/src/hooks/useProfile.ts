@@ -127,6 +127,14 @@ function normalizeProfileForSave(profile: GameProfile): GameProfile {
   };
 }
 
+function validateProfileForSave(profile: GameProfile): string | null {
+  if (!profile.game.executable_path.trim()) {
+    return 'Game executable path is required before saving a profile.';
+  }
+
+  return null;
+}
+
 function mergeRecentPaths(currentPaths: string[], nextPath: string): string[] {
   const trimmed = nextPath.trim();
   if (!trimmed) {
@@ -288,6 +296,12 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     const name = profileName.trim();
     if (!name) {
       setError('Profile name is required.');
+      return;
+    }
+
+    const validationError = validateProfileForSave(profile);
+    if (validationError !== null) {
+      setError(validationError);
       return;
     }
 

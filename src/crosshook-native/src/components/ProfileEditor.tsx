@@ -223,7 +223,12 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     refreshProfiles,
   } = state;
 
-  const canSave = profileName.trim().length > 0 && !saving && !deleting && !loading;
+  const canSave =
+    profileName.trim().length > 0 &&
+    profile.game.executable_path.trim().length > 0 &&
+    !saving &&
+    !deleting &&
+    !loading;
   const canDelete = profileExists && !saving && !deleting && !loading;
   const launchMethod = profile.launch.method || 'native';
   const supportsTrainerLaunch = launchMethod !== 'native';

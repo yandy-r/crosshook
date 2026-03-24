@@ -15,17 +15,17 @@ Results:
 
 - `cargo check -p crosshook-native`: passed
 - `npm run build`: passed
-- `cargo test -p crosshook-core`: failed with 1 failing test
+- `cargo test -p crosshook-core`: passed after updating the stale launcher export assertion
 
 ## Critical Issues
 
-- [tests] The branch does not currently satisfy the PR's claimed Rust test verification because `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` fails in `export::launcher::tests::export_writes_expected_paths_and_content`. The implementation changed `build_trainer_script_content()` to derive `STEAM_COMPAT_DATA_PATH` through a shell bootstrap branch, but the test still asserts the old unconditional export string, so the suite is red on the PR branch. [`src/crosshook-native/crates/crosshook-core/src/export/launcher.rs:619`](../../src/crosshook-native/crates/crosshook-core/src/export/launcher.rs#L619)
-  Status: Open
+- [tests] The branch did not initially satisfy the PR's claimed Rust test verification because `export::launcher::tests::export_writes_expected_paths_and_content` still asserted the removed unconditional `STEAM_COMPAT_DATA_PATH` export. The test has been updated to match the current `PREFIX_ROOT`/`WINEPREFIX` bootstrap. [`src/crosshook-native/crates/crosshook-core/src/export/launcher.rs:619`](../../src/crosshook-native/crates/crosshook-core/src/export/launcher.rs#L619)
+  Status: Fixed
 
 ## Important Issues
 
-- [code] The new install flow lets users bypass executable confirmation and save an unusable generated profile. `canReviewGeneratedProfile` is enabled for any successful install result, even when no executable has been confirmed, and `saveProfile()` only checks that the profile has a name. If discovery returns no candidates, or the user never picks one, `Review in Profile` still hydrates a profile with an empty `game.executable_path` and the normal save path accepts it. [`src/crosshook-native/src/components/InstallGamePanel.tsx:276`](../../src/crosshook-native/src/components/InstallGamePanel.tsx#L276) [`src/crosshook-native/src/components/InstallGamePanel.tsx:513`](../../src/crosshook-native/src/components/InstallGamePanel.tsx#L513) [`src/crosshook-native/src/hooks/useProfile.ts:287`](../../src/crosshook-native/src/hooks/useProfile.ts#L287)
-  Status: Open
+- [code] The new install flow initially let users bypass executable confirmation and save an unusable generated profile. The handoff is now gated until the executable is explicitly confirmed, and the shared save path rejects profiles whose game executable is still empty. [`src/crosshook-native/src/components/InstallGamePanel.tsx:276`](../../src/crosshook-native/src/components/InstallGamePanel.tsx#L276) [`src/crosshook-native/src/components/InstallGamePanel.tsx:517`](../../src/crosshook-native/src/components/InstallGamePanel.tsx#L517) [`src/crosshook-native/src/hooks/useProfile.ts:295`](../../src/crosshook-native/src/hooks/useProfile.ts#L295)
+  Status: Fixed
 
 ## Suggestions
 

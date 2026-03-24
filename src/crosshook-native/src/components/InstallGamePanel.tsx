@@ -274,7 +274,11 @@ export function InstallGamePanel({ onReviewGeneratedProfile }: InstallGamePanelP
   const candidateCount = candidateOptions.length;
   const logPath = result?.helper_log_path ?? '';
   const reviewableInstallResult = result?.succeeded === true && reviewProfile !== null ? result : null;
-  const canReviewGeneratedProfile = reviewableInstallResult !== null;
+  const hasConfirmedReviewExecutable = (reviewProfile?.game.executable_path.trim().length ?? 0) > 0;
+  const canReviewGeneratedProfile =
+    reviewableInstallResult !== null &&
+    stage === 'ready_to_save' &&
+    hasConfirmedReviewExecutable;
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>(detectedProtonInstalls);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
 
@@ -510,12 +514,13 @@ export function InstallGamePanel({ onReviewGeneratedProfile }: InstallGamePanelP
         <div className="crosshook-help-text" style={{ alignSelf: 'center' }}>
           {isResolvingDefaultPrefixPath ? 'Resolving the suggested prefix path before install.' : 'The generated profile stays editable until the later save step.'}
         </div>
-        {canReviewGeneratedProfile ? (
+        {reviewableInstallResult !== null ? (
           <button
             type="button"
             className="crosshook-button crosshook-button--secondary"
+            disabled={!canReviewGeneratedProfile}
             onClick={() => {
-              if (reviewableInstallResult === null || reviewProfile === null) {
+              if (!canReviewGeneratedProfile || reviewableInstallResult === null || reviewProfile === null) {
                 return;
               }
 
