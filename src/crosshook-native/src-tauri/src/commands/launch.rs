@@ -171,15 +171,20 @@ fn create_log_path(prefix: &str, target_slug: &str) -> Result<PathBuf, String> {
 }
 
 fn resolve_script_path(app: &AppHandle, script_name: &str) -> Result<PathBuf, String> {
-    let resource_path = app
-        .path()
-        .resolve(script_name, tauri::path::BaseDirectory::Resource)
-        .ok();
-
-    if let Some(path) = resource_path {
-        if path.exists() {
-            tracing::debug!(path = %path.display(), script_name, "resolved bundled launch script");
-            return Ok(path);
+    for resource_name in [
+        script_name.to_string(),
+        format!("runtime-helpers/{script_name}"),
+        format!("_up_/runtime-helpers/{script_name}"),
+    ] {
+        if let Some(path) = app
+            .path()
+            .resolve(&resource_name, tauri::path::BaseDirectory::Resource)
+            .ok()
+        {
+            if path.exists() {
+                tracing::debug!(path = %path.display(), script_name, resource_name, "resolved bundled launch script");
+                return Ok(path);
+            }
         }
     }
 
