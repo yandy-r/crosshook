@@ -26,7 +26,28 @@ pub fn profile_save(
 
 #[tauri::command]
 pub fn profile_delete(name: String, store: State<'_, ProfileStore>) -> Result<(), String> {
+    // Best-effort launcher cleanup before profile deletion.
+    // Profile deletion must succeed even if launcher cleanup fails.
+    if let Ok(profile) = store.load(&name) {
+        if profile.launch.method != "native" {
+            if let Err(e) =
+                crosshook_core::export::delete_launcher_for_profile(&profile, "", "")
+            {
+                tracing::warn!("Launcher cleanup failed for profile {name}: {e}");
+            }
+        }
+    }
+
     store.delete(&name).map_err(map_error)
+}
+
+#[tauri::command]
+pub fn profile_rename(
+    old_name: String,
+    new_name: String,
+    store: State<'_, ProfileStore>,
+) -> Result<(), String> {
+    store.rename(&old_name, &new_name).map_err(map_error)
 }
 
 #[tauri::command]

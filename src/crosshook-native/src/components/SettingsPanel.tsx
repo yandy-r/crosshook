@@ -1,4 +1,7 @@
+import { useCallback, useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type { CSSProperties, ChangeEvent } from 'react';
+import type { LauncherInfo } from '../types';
 
 interface RecentFilesState {
   gamePaths: string[];
@@ -13,6 +16,8 @@ export interface SettingsPanelProps {
   profilesDirectoryConfigured?: boolean;
   recentFiles: RecentFilesState;
   recentFilesLimit?: number;
+  targetHomePath: string;
+  steamClientInstallPath: string;
   onAutoLoadLastProfileChange: (enabled: boolean) => void;
   onProfilesDirectoryPathChange?: (path: string) => void;
   onRefreshRecentFiles?: () => void;
@@ -159,6 +164,147 @@ function RecentFilesSection({ label, paths, limit }: { label: string; paths: str
   );
 }
 
+function ManageLaunchersSection({
+  targetHomePath,
+  steamClientInstallPath,
+}: {
+  targetHomePath: string;
+  steamClientInstallPath: string;
+}) {
+  const [launchers, setLaunchers] = useState<LauncherInfo[]>([]);
+  const [expanded, setExpanded] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmSlug, setConfirmSlug] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadLaunchers = useCallback(async () => {
+    try {
+      const result = await invoke<LauncherInfo[]>('list_launchers', {
+        targetHomePath,
+        steamClientInstallPath,
+      });
+      setLaunchers(result);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [targetHomePath, steamClientInstallPath]);
+
+  useEffect(() => {
+    void loadLaunchers();
+  }, [loadLaunchers]);
+
+  async function handleDelete(slug: string) {
+    setDeleting(slug);
+    setError(null);
+    try {
+      await invoke<string[]>('delete_launcher', {
+        launcherSlug: slug,
+        targetHomePath,
+        steamClientInstallPath,
+      });
+      setConfirmSlug(null);
+      await loadLaunchers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  if (launchers.length === 0 && !error) {
+    return null;
+  }
+
+  return (
+    <section className="crosshook-panel" style={layoutStyles.sectionGrid}>
+      <div style={layoutStyles.sectionHeader}>
+        <div className="crosshook-heading-eyebrow">Manage Launchers</div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div className="crosshook-muted" style={{ fontSize: 13 }}>
+            {launchers.length} launcher{launchers.length !== 1 ? 's' : ''} on disk
+          </div>
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--ghost"
+            style={{ fontSize: 12, padding: '4px 8px' }}
+            onClick={() => setExpanded((prev) => !prev)}
+          >
+            {expanded ? 'Collapse' : 'Expand'}
+          </button>
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--ghost"
+            style={{ fontSize: 12, padding: '4px 8px' }}
+            onClick={() => void loadLaunchers()}
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <p className="crosshook-danger" style={{ margin: 0, fontSize: 13 }}>
+          {error}
+        </p>
+      ) : null}
+
+      {expanded ? (
+        <ul style={layoutStyles.recentList}>
+          {launchers.map((launcher) => (
+            <li key={launcher.launcher_slug} style={layoutStyles.recentItem}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <div>
+                  <div style={{ ...layoutStyles.recentItemLabel, fontWeight: 600 }}>
+                    {launcher.launcher_slug}
+                  </div>
+                  <div style={{ ...layoutStyles.recentItemLabel, fontSize: 12, color: 'var(--crosshook-color-text-muted)' }}>
+                    {launcher.script_exists ? truncatePath(launcher.script_path) : null}
+                    {launcher.script_exists && launcher.desktop_entry_exists ? ' | ' : null}
+                    {launcher.desktop_entry_exists ? truncatePath(launcher.desktop_entry_path) : null}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {confirmSlug === launcher.launcher_slug ? (
+                    <>
+                      <button
+                        type="button"
+                        className="crosshook-button crosshook-button--danger"
+                        style={{ fontSize: 12, padding: '4px 10px' }}
+                        disabled={deleting === launcher.launcher_slug}
+                        onClick={() => void handleDelete(launcher.launcher_slug)}
+                      >
+                        {deleting === launcher.launcher_slug ? 'Deleting...' : 'Confirm'}
+                      </button>
+                      <button
+                        type="button"
+                        className="crosshook-button crosshook-button--ghost"
+                        style={{ fontSize: 12, padding: '4px 10px' }}
+                        onClick={() => setConfirmSlug(null)}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="crosshook-button crosshook-button--ghost"
+                      style={{ fontSize: 12, padding: '4px 10px' }}
+                      onClick={() => setConfirmSlug(launcher.launcher_slug)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
 export function SettingsPanel({
   autoLoadLastProfile,
   lastUsedProfile,
@@ -166,6 +312,8 @@ export function SettingsPanel({
   profilesDirectoryConfigured = true,
   recentFiles,
   recentFilesLimit = 10,
+  targetHomePath,
+  steamClientInstallPath,
   onAutoLoadLastProfileChange,
   onProfilesDirectoryPathChange,
   onRefreshRecentFiles,
@@ -289,6 +437,11 @@ export function SettingsPanel({
               </div>
             ) : null}
           </section>
+
+          <ManageLaunchersSection
+            targetHomePath={targetHomePath}
+            steamClientInstallPath={steamClientInstallPath}
+          />
         </div>
 
         <section style={layoutStyles.recentColumn} aria-label="Recent files">

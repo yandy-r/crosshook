@@ -205,7 +205,7 @@ pub fn export_launchers(
     )?;
     write_host_text_file(
         &desktop_entry_path,
-        &build_desktop_entry_content(&display_name, &script_path, &request.launcher_icon_path),
+        &build_desktop_entry_content(&display_name, &launcher_slug, &script_path, &request.launcher_icon_path),
         0o644,
     )?;
 
@@ -217,7 +217,7 @@ pub fn export_launchers(
     })
 }
 
-fn resolve_display_name(preferred_name: &str, steam_app_id: &str, trainer_path: &str) -> String {
+pub(crate) fn resolve_display_name(preferred_name: &str, steam_app_id: &str, trainer_path: &str) -> String {
     if !preferred_name.trim().is_empty() {
         return preferred_name.trim().to_string();
     }
@@ -271,7 +271,7 @@ pub fn sanitize_launcher_slug(value: &str) -> String {
     }
 }
 
-fn combine_host_unix_path(root_path: &str, segment_one: &str, segment_two: &str) -> String {
+pub(crate) fn combine_host_unix_path(root_path: &str, segment_one: &str, segment_two: &str) -> String {
     let normalized_root_path = normalize_host_unix_path(root_path);
     let normalized_root_path = normalized_root_path.trim_end_matches('/');
     if normalized_root_path.is_empty() {
@@ -293,7 +293,7 @@ fn combine_host_unix_path(root_path: &str, segment_one: &str, segment_two: &str)
     result
 }
 
-fn build_trainer_script_content(
+pub(crate) fn build_trainer_script_content(
     request: &SteamExternalLauncherExportRequest,
     display_name: &str,
 ) -> String {
@@ -411,8 +411,9 @@ exec "$PROTON" run "$staged_trainer_windows_path"
     content
 }
 
-fn build_desktop_entry_content(
+pub(crate) fn build_desktop_entry_content(
     display_name: &str,
+    slug: &str,
     script_path: &str,
     launcher_icon_path: &str,
 ) -> String {
@@ -435,10 +436,12 @@ fn build_desktop_entry_content(
         resolve_desktop_icon_value(launcher_icon_path)
     ));
     content.push_str("StartupNotify=false\n");
+    content.push_str(&format!("X-CrossHook-Profile={display_name}\n"));
+    content.push_str(&format!("X-CrossHook-Slug={slug}\n"));
     content
 }
 
-fn write_host_text_file(host_path: &str, content: &str, mode: u32) -> Result<(), io::Error> {
+pub(crate) fn write_host_text_file(host_path: &str, content: &str, mode: u32) -> Result<(), io::Error> {
     let writable_path = PathBuf::from(host_path);
     let directory_path = writable_path.parent().ok_or_else(|| {
         io::Error::new(
@@ -633,6 +636,8 @@ mod tests {
         assert!(desktop_content.contains("Exec=/bin/bash "));
         assert!(desktop_content.contains("Icon="));
         assert!(desktop_content.contains(&icon_path.to_string_lossy().replace('\\', "\\\\")));
+        assert!(desktop_content.contains("X-CrossHook-Profile=Elden Ring Deluxe\n"));
+        assert!(desktop_content.contains("X-CrossHook-Slug=elden-ring-deluxe\n"));
 
         #[cfg(unix)]
         {
@@ -656,8 +661,20 @@ mod tests {
 
     #[test]
     fn desktop_icon_falls_back_to_applications_games() {
-        let content = build_desktop_entry_content("Test", "/tmp/launcher.sh", "");
+        let content = build_desktop_entry_content("Test", "test", "/tmp/launcher.sh", "");
         assert!(content.contains("Icon=applications-games"));
+    }
+
+    #[test]
+    fn desktop_entry_contains_crosshook_metadata_lines() {
+        let content = build_desktop_entry_content(
+            "Elden Ring Deluxe",
+            "elden-ring-deluxe",
+            "/tmp/launcher.sh",
+            "",
+        );
+        assert!(content.contains("X-CrossHook-Profile=Elden Ring Deluxe\n"));
+        assert!(content.contains("X-CrossHook-Slug=elden-ring-deluxe\n"));
     }
 
     #[test]

@@ -214,23 +214,23 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     deleting,
     error,
     profileExists,
+    pendingDelete,
     setProfileName,
     selectProfile,
     hydrateProfile,
     updateProfile,
     saveProfile,
     deleteProfile,
+    confirmDelete,
+    executeDelete,
+    cancelDelete,
     refreshProfiles,
   } = state;
 
   const canSave =
-    profileName.trim().length > 0 &&
-    profile.game.executable_path.trim().length > 0 &&
-    !saving &&
-    !deleting &&
-    !loading;
+    profileName.trim().length > 0 && profile.game.executable_path.trim().length > 0 && !saving && !deleting && !loading;
   const canDelete = profileExists && !saving && !deleting && !loading;
-  const launchMethod = profile.launch.method || 'native';
+  const launchMethod = profile.launch.method || 'proton_run';
   const supportsTrainerLaunch = launchMethod !== 'native';
   const steamClientInstallPath = deriveSteamClientInstallPath(profile.steam.compatdata_path);
   const [editorTab, setEditorTab] = useState<'profile' | 'install'>('profile');
@@ -709,7 +709,12 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
             <button type="button" style={buttonStyle} onClick={() => void saveProfile()} disabled={!canSave}>
               {saving ? 'Saving...' : 'Save'}
             </button>
-            <button type="button" style={subtleButtonStyle} onClick={() => void deleteProfile()} disabled={!canDelete}>
+            <button
+              type="button"
+              style={subtleButtonStyle}
+              onClick={() => void confirmDelete(profileName)}
+              disabled={!canDelete}
+            >
               {deleting ? 'Deleting...' : 'Delete'}
             </button>
             <div style={{ display: 'flex', alignItems: 'center', color: dirty ? '#ffd166' : '#9bb1c8' }}>
@@ -734,6 +739,74 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
         </div>
       ) : (
         <InstallGamePanel onReviewGeneratedProfile={handleInstallReview} />
+      )}
+
+      {pendingDelete && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: '#1a1a2e',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '480px',
+              width: '90%',
+            }}
+          >
+            <h3 style={{ margin: '0 0 12px' }}>Delete Profile</h3>
+            <p>
+              Delete profile <strong>{pendingDelete.name}</strong>?
+            </p>
+            {pendingDelete.launcherInfo && (
+              <div
+                style={{
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  padding: '10px',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  marginBottom: '12px',
+                }}
+              >
+                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Launcher files will also be removed:</p>
+                <p style={{ margin: '2px 0', color: '#d1d5db', wordBreak: 'break-all' }}>
+                  {pendingDelete.launcherInfo.script_path}
+                </p>
+                <p style={{ margin: '2px 0', color: '#d1d5db', wordBreak: 'break-all' }}>
+                  {pendingDelete.launcherInfo.desktop_entry_path}
+                </p>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={cancelDelete} style={{ minHeight: '44px', padding: '8px 20px' }}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void executeDelete()}
+                style={{
+                  minHeight: '44px',
+                  padding: '8px 20px',
+                  background: 'rgba(185, 28, 28, 0.16)',
+                  border: '1px solid rgba(248, 113, 113, 0.28)',
+                  color: '#fee2e2',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                {pendingDelete.launcherInfo ? 'Delete Profile and Launcher' : 'Delete Profile'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
