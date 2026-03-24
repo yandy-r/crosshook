@@ -56,7 +56,8 @@
       "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/parallel-plan/scripts/validate-analysis-artifacts.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete\" 2>&1)",
       "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/parallel-plan/scripts/persist-or-fail.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete\" 2>&1)",
       "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/plan-workflow/scripts/validate-workflow-plan.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete/parallel-plan.md\" 2>&1)",
-      "Bash(xxd)"
+      "Bash(xxd)",
+      "Skill(implement-plan:implement-plan)"
     ]
   }
 }
