@@ -366,13 +366,28 @@ method = "native"
         let profile = sample_profile();
 
         store.save("original", &profile).unwrap();
-        let original_content =
-            fs::read_to_string(store.profile_path("original").unwrap()).unwrap();
+        let original_content = fs::read_to_string(store.profile_path("original").unwrap()).unwrap();
 
         store.rename("original", "renamed").unwrap();
-        let renamed_content =
-            fs::read_to_string(store.profile_path("renamed").unwrap()).unwrap();
+        let renamed_content = fs::read_to_string(store.profile_path("renamed").unwrap()).unwrap();
 
         assert_eq!(original_content, renamed_content);
+    }
+
+    #[test]
+    fn test_rename_overwrites_existing_target_profile() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let source_profile = sample_profile();
+        let mut target_profile = sample_profile();
+        target_profile.game.name = "Different Game".to_string();
+
+        store.save("source", &source_profile).unwrap();
+        store.save("target", &target_profile).unwrap();
+
+        store.rename("source", "target").unwrap();
+
+        assert!(!store.profile_path("source").unwrap().exists());
+        assert_eq!(store.load("target").unwrap(), source_profile);
     }
 }

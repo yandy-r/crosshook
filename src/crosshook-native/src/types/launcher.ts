@@ -13,6 +13,8 @@ export interface LauncherDeleteResult {
   desktop_entry_deleted: boolean;
   script_path: string;
   desktop_entry_path: string;
+  script_skipped_reason?: string | null;
+  desktop_entry_skipped_reason?: string | null;
 }
 
 export interface LauncherRenameResult {
@@ -22,4 +24,6 @@ export interface LauncherRenameResult {
   new_desktop_entry_path: string;
   script_renamed: boolean;
   desktop_entry_renamed: boolean;
+  old_script_cleanup_warning?: string | null;
+  old_desktop_entry_cleanup_warning?: string | null;
 }

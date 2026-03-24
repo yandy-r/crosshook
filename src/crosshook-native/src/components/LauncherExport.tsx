@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { GameProfile, LaunchMethod, LauncherInfo } from '../types';
+import type { GameProfile, LaunchMethod, LauncherDeleteResult, LauncherInfo } from '../types';
 
 interface LauncherExportProps {
   profile: GameProfile;
@@ -105,6 +105,12 @@ function safeTrim(value: string | undefined | null): string {
   return value?.trim() ?? '';
 }
 
+function collectDeleteWarnings(result: LauncherDeleteResult): string[] {
+  return [result.script_skipped_reason, result.desktop_entry_skipped_reason].filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+}
+
 function deriveLauncherName(profile: GameProfile): string {
   const explicitName = safeTrim(profile.steam.launcher.display_name);
   if (explicitName) {
@@ -183,7 +189,8 @@ export function LauncherExport({
         steamClientInstallPath: steamClientInstallPath || '',
       });
       setLauncherStatus(info);
-    } catch {
+    } catch (error) {
+      console.error('Failed to refresh launcher status.', error);
       setLauncherStatus(null);
     }
   }, [profile, targetHomePath, steamClientInstallPath, context]);
@@ -361,14 +368,26 @@ export function LauncherExport({
     setStatusMessage(null);
 
     try {
-      await invoke('delete_launcher', {
+      const result = await invoke<LauncherDeleteResult>('delete_launcher', {
         displayName: profile.steam?.launcher?.display_name || '',
         steamAppId: profile.steam?.app_id || '',
         trainerPath: profile.trainer?.path || '',
         targetHomePath: targetHomePath || '',
         steamClientInstallPath: steamClientInstallPath || '',
       });
-      setStatusMessage('Launcher deleted.');
+      const warnings = collectDeleteWarnings(result);
+      const deletedAny = result.script_deleted || result.desktop_entry_deleted;
+
+      if (deletedAny && warnings.length === 0) {
+        setStatusMessage('Launcher deleted.');
+      } else if (deletedAny) {
+        setStatusMessage(`Launcher deleted with warnings: ${warnings.join(' ')}`);
+      } else if (warnings.length > 0) {
+        setErrorMessage(`Launcher was not deleted: ${warnings.join(' ')}`);
+      } else {
+        setStatusMessage('Launcher files were already absent.');
+      }
+
       void refreshLauncherStatus();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));

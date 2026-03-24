@@ -390,8 +390,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         setPendingDelete({ name: trimmed, launcherInfo });
         return;
       }
-    } catch {
-      // Backend command not available or no launcher found — proceed without launcher info
+    } catch (err) {
+      console.error('Failed to inspect launcher state before profile delete.', err);
     }
 
     setPendingDelete({ name: trimmed, launcherInfo: null });

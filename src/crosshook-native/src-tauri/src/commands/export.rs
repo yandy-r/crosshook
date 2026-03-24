@@ -8,11 +8,13 @@ use crosshook_core::export::{
 use crosshook_core::profile::ProfileStore;
 use tauri::State;
 
+/// Validates whether a launcher export request has the required trainer/runtime inputs.
 #[tauri::command]
 pub fn validate_launcher_export(request: SteamExternalLauncherExportRequest) -> Result<(), String> {
     validate_launcher_export_core(&request).map_err(|error| error.to_string())
 }
 
+/// Exports the launcher shell script and desktop entry for the provided request.
 #[tauri::command]
 pub fn export_launchers(
     request: SteamExternalLauncherExportRequest,
@@ -20,6 +22,7 @@ pub fn export_launchers(
     export_launchers_core(&request).map_err(|error| error.to_string())
 }
 
+/// Checks whether the launcher files derived from the supplied profile fields exist on disk.
 #[tauri::command]
 pub fn check_launcher_exists(
     display_name: String,
@@ -27,7 +30,7 @@ pub fn check_launcher_exists(
     trainer_path: String,
     target_home_path: String,
     steam_client_install_path: String,
-) -> LauncherInfo {
+) -> Result<LauncherInfo, String> {
     crosshook_core::export::check_launcher_exists(
         &display_name,
         &steam_app_id,
@@ -35,17 +38,20 @@ pub fn check_launcher_exists(
         &target_home_path,
         &steam_client_install_path,
     )
+    .map_err(|error| error.to_string())
 }
 
+/// Loads a saved profile and checks whether its exported launcher files exist on disk.
 #[tauri::command]
 pub fn check_launcher_for_profile(
     name: String,
     store: State<'_, ProfileStore>,
 ) -> Result<LauncherInfo, String> {
     let profile = store.load(&name).map_err(|error| error.to_string())?;
-    Ok(check_launcher_for_profile_core(&profile, "", ""))
+    check_launcher_for_profile_core(&profile, "", "").map_err(|error| error.to_string())
 }
 
+/// Deletes the launcher files derived from the supplied profile fields.
 #[tauri::command]
 pub fn delete_launcher(
     display_name: String,
@@ -64,6 +70,7 @@ pub fn delete_launcher(
     .map_err(|error| error.to_string())
 }
 
+/// Deletes launcher files directly from a known launcher slug.
 #[tauri::command]
 pub fn delete_launcher_by_slug(
     launcher_slug: String,
@@ -78,6 +85,7 @@ pub fn delete_launcher_by_slug(
     .map_err(|error| error.to_string())
 }
 
+/// Rewrites launcher files for a renamed launcher and optionally cleans up old paths.
 #[tauri::command]
 pub fn rename_launcher(
     old_launcher_slug: String,
@@ -114,6 +122,7 @@ pub fn rename_launcher(
     .map_err(|error| error.to_string())
 }
 
+/// Lists launcher files found under the resolved launcher directory.
 #[tauri::command]
 pub fn list_launchers(
     target_home_path: String,
@@ -122,6 +131,7 @@ pub fn list_launchers(
     crosshook_core::export::list_launchers(&target_home_path, &steam_client_install_path)
 }
 
+/// Lists launcher files whose slugs do not match the supplied known profile slugs.
 #[tauri::command]
 pub fn find_orphaned_launchers(
     known_profile_slugs: Vec<String>,
@@ -147,7 +157,8 @@ mod tests {
             as fn(
                 SteamExternalLauncherExportRequest,
             ) -> Result<SteamExternalLauncherExportResult, String>;
-        let _ = check_launcher_exists as fn(String, String, String, String, String) -> LauncherInfo;
+        let _ = check_launcher_exists
+            as fn(String, String, String, String, String) -> Result<LauncherInfo, String>;
         let _ = check_launcher_for_profile
             as fn(String, State<'_, ProfileStore>) -> Result<LauncherInfo, String>;
         let _ = delete_launcher

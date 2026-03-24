@@ -11,6 +11,8 @@ This PR implements launcher lifecycle management for CrossHook's exported `.sh` 
 
 Validation update on 2026-03-24: C1, C2, and C4 were confirmed against the current code and fixed in the workspace. C3 was not reproducible as written; launcher file paths are derived from launcher metadata, not the profile TOML filename.
 
+Second-pass update on 2026-03-24: the remaining findings were revalidated against the current workspace rather than taken at face value. Items that were still real were fixed; items already addressed by the current branch state were marked fixed after verification.
+
 Five specialized review agents analyzed the changes in parallel:
 
 | Agent                 | Focus                                              |
@@ -110,7 +112,7 @@ The doc comment's first two lines describe `extract_display_name_from_desktop` (
 - Passed: `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core delete_launcher_by_slug_deletes_matching_files`
 - Passed: `npm exec --yes tsc -- --noEmit`
 - Passed: `cargo check --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native --lib`
-- Blocked by pre-existing unrelated test failures: `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native command_names_match_expected_ipc_contract` currently fails in `src-tauri/src/startup.rs` tests because `tempfile` is missing and several `AppSettingsData` test initializers are stale.
+- Follow-up validation resolved the earlier `crosshook-native` test blocker; the full `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native` target now passes.
 
 ---
 
@@ -118,7 +120,7 @@ The doc comment's first two lines describe `extract_display_name_from_desktop` (
 
 ### I1. Empty catch blocks mask real bugs
 
-**Status**: Open
+**Status**: Fixed
 **Agents**: Silent Failure Hunter, Code Reviewer
 **Files**: `useProfile.ts:401-403`, `LauncherExport.tsx:186-188`
 
@@ -135,7 +137,7 @@ Per CLAUDE.md: _"ALWAYS throw errors early and often. Do not use fallbacks."_
 
 ### I2. Duplicate `LauncherInfo` type in `useProfile.ts` diverges from canonical type
 
-**Status**: Open
+**Status**: Fixed
 **Agents**: Code Reviewer (88%), Comment Analyzer
 **File**: `src/crosshook-native/src/hooks/useProfile.ts:5-11`
 
@@ -147,7 +149,7 @@ The hook defines its own `LauncherInfo` missing `display_name` and `launcher_slu
 
 ### I3. TypeScript `LauncherDeleteResult` missing skip reason fields
 
-**Status**: Open
+**Status**: Fixed
 **Agents**: Code Reviewer (82%), Type Design Analyzer, Comment Analyzer
 **File**: `src/crosshook-native/src/types/launcher.ts:11-16`
 
@@ -159,7 +161,7 @@ The Rust struct includes `script_skipped_reason: Option<String>` and `desktop_en
 
 ### I4. `rename_launcher_files` silently ignores old file deletion errors
 
-**Status**: Open
+**Status**: Fixed
 **Agents**: Code Reviewer (81%), Silent Failure Hunter
 **File**: `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs:312-317`
 
@@ -175,7 +177,7 @@ The `let _ =` pattern discards the `Result`. If old files cannot be deleted, the
 
 ### I5. `rename_launcher_files` skips watermark verification before deleting old files
 
-**Status**: Open
+**Status**: Fixed
 **Agents**: Code Reviewer (80%), Silent Failure Hunter
 **File**: `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs:310-318`
 
@@ -187,7 +189,7 @@ The `let _ =` pattern discards the `Result`. If old files cannot be deleted, the
 
 ### I6. `delete_launcher_for_profile` called with empty strings for home/steam paths
 
-**Status**: Open
+**Status**: Fixed
 **Agents**: Silent Failure Hunter, Test Analyzer
 **File**: `src/crosshook-native/src-tauri/src/commands/profile.rs:34`
 
@@ -203,7 +205,7 @@ The cascade delete passes empty strings for both path arguments. `resolve_target
 
 ### I7. `is_stale` always `false` in `list_launchers` but computed in `check_launcher_exists`
 
-**Status**: Open
+**Status**: Fixed
 **Agents**: Type Design Analyzer, Comment Analyzer
 **File**: `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs:406`
 
@@ -215,7 +217,7 @@ The cascade delete passes empty strings for both path arguments. `resolve_target
 
 ### I8. `list_launchers` silently returns empty Vec on directory read errors
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Silent Failure Hunter
 **File**: `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs:350-353`
 
@@ -231,7 +233,7 @@ Any error reading the launchers directory (permissions, I/O) returns an empty li
 
 ### I9. Stale detection uses wrong default on read failure
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Silent Failure Hunter
 **File**: `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs:152-154`
 
@@ -247,7 +249,7 @@ If the `.desktop` file exists but cannot be read (permissions, encoding), the la
 
 ### I10. `delete_launcher` result not inspected by frontend
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Silent Failure Hunter
 **File**: `src/crosshook-native/src/components/LauncherExport.tsx:364-371`
 
@@ -259,7 +261,7 @@ The `delete_launcher` invoke call discards the `LauncherDeleteResult` and always
 
 ### I11. `verify_crosshook_file` doc comment incomplete about NotFound behavior
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Comment Analyzer
 **File**: `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs:445-449`
 
@@ -271,7 +273,7 @@ The doc says `Ok(None)` means "safe to delete" but the function also returns `Ok
 
 ### I12. No doc comments on Tauri command functions in `commands/export.rs`
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Comment Analyzer
 **File**: `src/crosshook-native/src-tauri/src/commands/export.rs`
 
@@ -285,7 +287,7 @@ Seven Tauri command functions have zero doc comments. For IPC boundary functions
 
 ### T1. `find_orphaned_launchers` has zero tests — Criticality: 9/10
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Test Analyzer
 **File**: `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs:416-426`
 
@@ -295,7 +297,7 @@ No test verifies the orphan detection logic. If the slug-matching filter were ac
 
 ### T2. Staleness detection (`is_stale`) never asserted — Criticality: 8/10
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Test Analyzer
 
 The `check_when_both_files_exist` test uses placeholder content (no `Name=` line), so `is_stale` defaults to `false` and the detection path is never exercised.
@@ -304,7 +306,7 @@ The `check_when_both_files_exist` test uses placeholder content (no `Name=` line
 
 ### T3. `profile_delete` cascade untested — Criticality: 8/10
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Test Analyzer
 **File**: `src/crosshook-native/src-tauri/src/commands/profile.rs:28-42`
 
@@ -314,7 +316,7 @@ The empty-string home path arguments, native method skip, and error swallowing b
 
 ### T4. Rename partial-state untested — Criticality: 7/10
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Test Analyzer
 
 Only the both-files-exist case is tested. Partial state (script exists, desktop doesn't, or vice versa) is realistic but untested.
@@ -323,7 +325,7 @@ Only the both-files-exist case is tested. Partial state (script exists, desktop 
 
 ### T5. `rename` overwriting an existing profile — Criticality: 6/10
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Test Analyzer
 **File**: `src/crosshook-native/crates/crosshook-core/src/profile/toml_store.rs:138`
 
@@ -333,10 +335,27 @@ Only the both-files-exist case is tested. Partial state (script exists, desktop 
 
 ### T6. `extract_display_name_from_desktop` edge cases — Criticality: 6/10
 
-**Status**: Open
+**Status**: Fixed
 **Agent**: Test Analyzer
 
 Only the `Name=Foo - Trainer` case is indirectly tested. The "no suffix" and "no Name= line" branches are never exercised.
+
+---
+
+## Second-Pass Validation
+
+- Verified I1/I10 were already addressed in the current workspace state: launcher delete warnings are surfaced in `LauncherExport.tsx`, and the remaining catch blocks now log instead of silently swallowing errors.
+- Fixed I4/I5 by making rename cleanup verify watermarks, preserve unmanaged files, and return cleanup warnings in `LauncherRenameResult`.
+- Fixed I6/S3 by deriving launcher cleanup paths from Steam compatdata when available and logging native-profile skip behavior in `profile.rs`.
+- Fixed I8/S2/I9/S5 by surfacing filesystem errors through `Result`, logging directory-read failures, and treating unreadable desktop entries as stale.
+- Fixed I12 by documenting the Tauri export command boundary with `///` comments.
+- Closed T1-T6 with direct regression coverage for orphan detection, stale detection, rename partial states, profile rename overwrite behavior, profile-delete cleanup, and desktop-name parsing edge cases.
+
+## Second-Pass Verification
+
+- Passed: `npm exec --yes tsc -- --noEmit`
+- Passed: `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+- Passed: `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native`
 
 ---
 
@@ -362,29 +381,29 @@ Key type design recommendations:
 
 ### S1. Test name references stale C# heritage
 
-**Status**: Open
+**Status**: Fixed
 **File**: `src/crosshook-native/crates/crosshook-core/src/export/launcher.rs:572`
 
 `desktop_exec_escaping_matches_csharp_rules` references C# — a language no longer in the project. Rename to `desktop_exec_escaping_follows_freedesktop_spec`.
 
 ### S2. `list_launchers` iterator silently skips failed directory entries
 
-**Status**: Open
+**Status**: Fixed
 **File**: `launcher_store.rs:357` — `.flatten()` discards `Err` variants from `DirEntry` reads.
 
 ### S3. No logging when cascade delete skipped for native profiles
 
-**Status**: Open
+**Status**: Fixed
 **File**: `profile.rs:32` — Silent skip with no `tracing::debug!`.
 
 ### S4. `rename_launcher_files` doc comment doesn't mention same-slug case
 
-**Status**: Open
+**Status**: Fixed
 **File**: `launcher_store.rs:232-234` — Should note that when slug is unchanged, files are rewritten in place without deletion.
 
 ### S5. `check_launcher_exists` Tauri command never returns an error
 
-**Status**: Open
+**Status**: Fixed
 **File**: `export.rs:20-34` — Returns `LauncherInfo` directly (not `Result`), so filesystem errors are silently degraded.
 
 ---
@@ -408,6 +427,8 @@ All five agents highlighted positive aspects:
 ---
 
 ## Recommended Action
+
+Validation status on 2026-03-24: the actionable items in this review have been addressed in the workspace, with C3 explicitly invalidated rather than implemented.
 
 ### Before merge (Critical)
 

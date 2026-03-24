@@ -113,9 +113,9 @@ pub fn validate(
     match request.method.trim() {
         "steam_applaunch" | "proton_run" => {}
         other => {
-            return Err(SteamExternalLauncherExportValidationError::UnsupportedMethod(
-                other.to_string(),
-            ))
+            return Err(
+                SteamExternalLauncherExportValidationError::UnsupportedMethod(other.to_string()),
+            )
         }
     }
 
@@ -205,7 +205,12 @@ pub fn export_launchers(
     )?;
     write_host_text_file(
         &desktop_entry_path,
-        &build_desktop_entry_content(&display_name, &launcher_slug, &script_path, &request.launcher_icon_path),
+        &build_desktop_entry_content(
+            &display_name,
+            &launcher_slug,
+            &script_path,
+            &request.launcher_icon_path,
+        ),
         0o644,
     )?;
 
@@ -217,7 +222,11 @@ pub fn export_launchers(
     })
 }
 
-pub(crate) fn resolve_display_name(preferred_name: &str, steam_app_id: &str, trainer_path: &str) -> String {
+pub(crate) fn resolve_display_name(
+    preferred_name: &str,
+    steam_app_id: &str,
+    trainer_path: &str,
+) -> String {
     if !preferred_name.trim().is_empty() {
         return preferred_name.trim().to_string();
     }
@@ -271,7 +280,11 @@ pub fn sanitize_launcher_slug(value: &str) -> String {
     }
 }
 
-pub(crate) fn combine_host_unix_path(root_path: &str, segment_one: &str, segment_two: &str) -> String {
+pub(crate) fn combine_host_unix_path(
+    root_path: &str,
+    segment_one: &str,
+    segment_two: &str,
+) -> String {
     let normalized_root_path = normalize_host_unix_path(root_path);
     let normalized_root_path = normalized_root_path.trim_end_matches('/');
     if normalized_root_path.is_empty() {
@@ -441,7 +454,11 @@ pub(crate) fn build_desktop_entry_content(
     content
 }
 
-pub(crate) fn write_host_text_file(host_path: &str, content: &str, mode: u32) -> Result<(), io::Error> {
+pub(crate) fn write_host_text_file(
+    host_path: &str,
+    content: &str,
+    mode: u32,
+) -> Result<(), io::Error> {
     let writable_path = PathBuf::from(host_path);
     let directory_path = writable_path.parent().ok_or_else(|| {
         io::Error::new(
@@ -569,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn desktop_exec_escaping_matches_csharp_rules() {
+    fn desktop_exec_escaping_follows_freedesktop_spec() {
         assert_eq!(
             escape_desktop_exec_argument("/tmp/Cross Hook/runner\".sh"),
             "/tmp/Cross\\ Hook/runner\\\".sh"
@@ -626,8 +643,10 @@ mod tests {
         assert!(script_content.contains("export STEAM_COMPAT_DATA_PATH=\"$PREFIX_ROOT\""));
         assert!(script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH='"));
         assert!(script_content.contains("PROTON='/opt/Proton/proton'"));
-        assert!(script_content.contains("TRAINER_HOST_PATH='/opt/Trainers/Trainer'\"'\"'s Edition.exe'"));
-        assert!(script_content.contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
+        assert!(script_content
+            .contains("TRAINER_HOST_PATH='/opt/Trainers/Trainer'\"'\"'s Edition.exe'"));
+        assert!(script_content
+            .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(script_content.contains("staged_trainer_windows_path=\"C:\\\\CrossHook\\\\StagedTrainers\\\\$trainer_base_name\\\\$trainer_file_name\""));
         assert!(script_content.contains("exec \"$PROTON\" run \"$staged_trainer_windows_path\""));
 
@@ -655,7 +674,10 @@ mod tests {
                 .permissions()
                 .mode()
                 & 0o777;
-            assert_eq!(desktop_mode, 0o644, ".desktop files should not be executable");
+            assert_eq!(
+                desktop_mode, 0o644,
+                ".desktop files should not be executable"
+            );
         }
     }
 
@@ -705,7 +727,8 @@ mod tests {
         let script_content = build_trainer_script_content(&request, "Witcher 3");
         assert!(script_content.contains("PREFIX_ROOT='/games/prefixes/the-witcher-3'"));
         assert!(script_content.contains("elif [[ -d \"$PREFIX_ROOT/pfx\" ]]; then"));
-        assert!(script_content.contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
+        assert!(script_content
+            .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(!script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH="));
     }
 }
