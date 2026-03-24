@@ -618,7 +618,9 @@ mod tests {
 
         let script_content = fs::read_to_string(&result.script_path).expect("script");
         assert!(script_content.contains("PREFIX_ROOT='/tmp/compatdata/1245620'"));
-        assert!(script_content.contains("export STEAM_COMPAT_DATA_PATH='/tmp/compatdata/1245620'"));
+        assert!(script_content.contains("elif [[ -d \"$PREFIX_ROOT/pfx\" ]]; then"));
+        assert!(script_content.contains("export WINEPREFIX=\"$PREFIX_ROOT/pfx\""));
+        assert!(script_content.contains("export STEAM_COMPAT_DATA_PATH=\"$PREFIX_ROOT\""));
         assert!(script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH='"));
         assert!(script_content.contains("PROTON='/opt/Proton/proton'"));
         assert!(script_content.contains("TRAINER_HOST_PATH='/opt/Trainers/Trainer'\"'\"'s Edition.exe'"));
