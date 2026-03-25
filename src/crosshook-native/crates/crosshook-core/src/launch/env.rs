@@ -45,6 +45,23 @@ pub const REQUIRED_PROTON_VARS: &[&str] = &[
     "WINEPREFIX",
 ];
 
+pub const LAUNCH_OPTIMIZATION_ENV_VARS: &[&str] = &[
+    "PROTON_NO_STEAMINPUT",
+    "PROTON_PREFER_SDL",
+    "PROTON_NO_WM_DECORATION",
+    "PROTON_ENABLE_HDR",
+    "PROTON_ENABLE_WAYLAND",
+    "PROTON_USE_NTSYNC",
+    "PROTON_LOCAL_SHADER_CACHE",
+    "PROTON_FSR4_UPGRADE",
+    "PROTON_FSR4_RDNA3_UPGRADE",
+    "PROTON_XESS_UPGRADE",
+    "PROTON_DLSS_UPGRADE",
+    "PROTON_DLSS_INDICATOR",
+    "PROTON_NVIDIA_LIBS",
+    "SteamDeck",
+];
+
 pub const PASSTHROUGH_DISPLAY_VARS: &[&str] = &[
     "DISPLAY",
     "WAYLAND_DISPLAY",
@@ -54,7 +71,10 @@ pub const PASSTHROUGH_DISPLAY_VARS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::{PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS, WINE_ENV_VARS_TO_CLEAR};
+    use super::{
+        LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
+        WINE_ENV_VARS_TO_CLEAR,
+    };
 
     #[test]
     fn wine_env_vars_match_expected_list() {
@@ -75,6 +95,14 @@ mod tests {
                 "WINEPREFIX",
             ]
         );
+    }
+
+    #[test]
+    fn launch_optimization_vars_match_expected_list() {
+        assert_eq!(LAUNCH_OPTIMIZATION_ENV_VARS.len(), 14);
+        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_NO_STEAMINPUT"));
+        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_ENABLE_HDR"));
+        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"SteamDeck"));
     }
 
     #[test]

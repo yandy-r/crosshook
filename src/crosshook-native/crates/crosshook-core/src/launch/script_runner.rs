@@ -5,11 +5,13 @@ use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
 use super::{
+    resolve_launch_directives,
     runtime_helpers::{
-        apply_host_environment, apply_runtime_proton_environment, apply_working_directory,
-        attach_log_stdio, new_direct_proton_command, resolve_wine_prefix_path,
+        apply_host_environment, apply_launch_optimization_environment,
+        apply_runtime_proton_environment, apply_working_directory, attach_log_stdio,
+        new_direct_proton_command_with_wrappers, resolve_wine_prefix_path,
     },
-    LaunchRequest,
+    LaunchRequest, ValidationError,
 };
 
 const BASH_EXECUTABLE: &str = "/bin/bash";
@@ -59,7 +61,11 @@ pub fn build_proton_game_command(
     request: &LaunchRequest,
     log_path: &Path,
 ) -> std::io::Result<Command> {
-    let mut command = new_direct_proton_command(request.runtime.proton_path.trim());
+    let directives = resolve_launch_directives(request).map_err(validation_error_to_io_error)?;
+    let mut command = new_direct_proton_command_with_wrappers(
+        request.runtime.proton_path.trim(),
+        &directives.wrappers,
+    );
     command.arg(request.game_path.trim());
     apply_host_environment(&mut command);
     apply_runtime_proton_environment(
@@ -67,6 +73,7 @@ pub fn build_proton_game_command(
         request.runtime.prefix_path.trim(),
         request.steam.steam_client_install_path.trim(),
     );
+    apply_launch_optimization_environment(&mut command, &directives.env);
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -80,12 +87,16 @@ pub fn build_proton_trainer_command(
     request: &LaunchRequest,
     log_path: &Path,
 ) -> std::io::Result<Command> {
+    let directives = resolve_launch_directives(request).map_err(validation_error_to_io_error)?;
     let staged_trainer_path = stage_trainer_into_prefix(
         Path::new(request.runtime.prefix_path.trim()),
         Path::new(request.trainer_host_path.trim()),
     )?;
 
-    let mut command = new_direct_proton_command(request.runtime.proton_path.trim());
+    let mut command = new_direct_proton_command_with_wrappers(
+        request.runtime.proton_path.trim(),
+        &directives.wrappers,
+    );
     command.arg(staged_trainer_path);
     apply_host_environment(&mut command);
     apply_runtime_proton_environment(
@@ -93,6 +104,7 @@ pub fn build_proton_trainer_command(
         request.runtime.prefix_path.trim(),
         request.steam.steam_client_install_path.trim(),
     );
+    apply_launch_optimization_environment(&mut command, &directives.env);
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -309,6 +321,10 @@ fn io_error(message: &str) -> std::io::Error {
     std::io::Error::new(std::io::ErrorKind::InvalidInput, message)
 }
 
+fn validation_error_to_io_error(error: ValidationError) -> std::io::Error {
+    io_error(&error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,9 +355,202 @@ mod tests {
                 steam_client_install_path: "/tmp/steam".to_string(),
             },
             runtime: crate::launch::RuntimeLaunchConfig::default(),
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: false,
             launch_game_only: true,
         }
+    }
+
+    fn command_env_value(command: &Command, key: &str) -> Option<String> {
+        command
+            .as_std()
+            .get_envs()
+            .find_map(|(env_key, env_value)| {
+                (env_key == std::ffi::OsStr::new(key)).then(|| {
+                    env_value.map(|value| value.to_string_lossy().into_owned())
+                })
+            })
+            .flatten()
+    }
+
+    #[test]
+    fn proton_game_command_applies_optimization_wrappers_and_env() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let wrapper_dir = temp_dir.path().join("wrappers");
+        let prefix_path = temp_dir.path().join("prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let game_path = temp_dir.path().join("game.exe");
+        let log_path = temp_dir.path().join("game.log");
+        let steam_client_path = temp_dir.path().join("steam-client");
+        let workspace_dir = prefix_path.join("workspace");
+
+        fs::create_dir_all(&wrapper_dir).expect("wrapper dir");
+        fs::create_dir_all(&prefix_path).expect("prefix dir");
+        fs::create_dir_all(&workspace_dir).expect("workspace dir");
+        fs::create_dir_all(&steam_client_path).expect("steam client dir");
+        write_executable_file(&wrapper_dir.join("mangohud"));
+        write_executable_file(&wrapper_dir.join("gamemoderun"));
+        write_executable_file(&proton_path);
+        fs::write(&game_path, b"game").expect("game exe");
+
+        let _command_search_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(&wrapper_dir);
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: game_path.to_string_lossy().into_owned(),
+            trainer_path: String::new(),
+            trainer_host_path: String::new(),
+            steam: crate::launch::SteamLaunchConfig {
+                app_id: String::new(),
+                compatdata_path: String::new(),
+                proton_path: String::new(),
+                steam_client_install_path: steam_client_path.to_string_lossy().into_owned(),
+            },
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: workspace_dir.to_string_lossy().into_owned(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest {
+                enabled_option_ids: vec![
+                    "show_mangohud_overlay".to_string(),
+                    "use_gamemode".to_string(),
+                    "disable_steam_input".to_string(),
+                ],
+            },
+            launch_trainer_only: false,
+            launch_game_only: true,
+        };
+
+        let command = build_proton_game_command(&request, &log_path).expect("game command");
+
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(command.as_std().get_program().to_string_lossy(), "mangohud");
+        assert_eq!(
+            args,
+            vec![
+                "gamemoderun".to_string(),
+                proton_path.to_string_lossy().into_owned(),
+                "run".to_string(),
+                game_path.to_string_lossy().into_owned(),
+            ]
+        );
+        assert_eq!(
+            command.as_std().get_current_dir().map(|path| path.to_string_lossy().into_owned()),
+            Some(workspace_dir.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTON_NO_STEAMINPUT"),
+            Some("1".to_string())
+        );
+        assert_eq!(
+            command_env_value(&command, "STEAM_COMPAT_DATA_PATH"),
+            Some(prefix_path.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            command_env_value(&command, "WINEPREFIX"),
+            Some(prefix_path.to_string_lossy().into_owned())
+        );
+    }
+
+    #[test]
+    fn proton_trainer_command_applies_optimization_wrappers_and_env() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let wrapper_dir = temp_dir.path().join("wrappers");
+        let prefix_path = temp_dir.path().join("prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let trainer_source_dir = temp_dir.path().join("trainer");
+        let trainer_host_path = trainer_source_dir.join("sample.exe");
+        let trainer_support_path = trainer_source_dir.join("sample.ini");
+        let log_path = temp_dir.path().join("trainer.log");
+        let workspace_dir = prefix_path.join("workspace");
+        let wine_prefix_path = prefix_path.join("pfx");
+
+        fs::create_dir_all(&wrapper_dir).expect("wrapper dir");
+        fs::create_dir_all(wine_prefix_path.join("drive_c")).expect("wine prefix dir");
+        fs::create_dir_all(&trainer_source_dir).expect("trainer dir");
+        fs::create_dir_all(&workspace_dir).expect("workspace dir");
+        write_executable_file(&wrapper_dir.join("mangohud"));
+        write_executable_file(&wrapper_dir.join("gamemoderun"));
+        write_executable_file(&proton_path);
+        fs::write(&trainer_host_path, b"trainer").expect("trainer exe");
+        fs::write(&trainer_support_path, b"config").expect("trainer config");
+
+        let _command_search_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(&wrapper_dir);
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: temp_dir
+                .path()
+                .join("game.exe")
+                .to_string_lossy()
+                .into_owned(),
+            trainer_path: trainer_host_path.to_string_lossy().into_owned(),
+            trainer_host_path: trainer_host_path.to_string_lossy().into_owned(),
+            steam: crate::launch::SteamLaunchConfig {
+                app_id: String::new(),
+                compatdata_path: String::new(),
+                proton_path: String::new(),
+                steam_client_install_path: String::new(),
+            },
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: workspace_dir.to_string_lossy().into_owned(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest {
+                enabled_option_ids: vec![
+                    "disable_steam_input".to_string(),
+                    "show_mangohud_overlay".to_string(),
+                    "use_gamemode".to_string(),
+                ],
+            },
+            launch_trainer_only: true,
+            launch_game_only: false,
+        };
+
+        let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(command.as_std().get_program().to_string_lossy(), "mangohud");
+        assert_eq!(
+            args,
+            vec![
+                "gamemoderun".to_string(),
+                proton_path.to_string_lossy().into_owned(),
+                "run".to_string(),
+                "C:\\CrossHook\\StagedTrainers\\sample\\sample.exe".to_string(),
+            ]
+        );
+        assert_eq!(
+            command.as_std().get_current_dir().map(|path| path.to_string_lossy().into_owned()),
+            Some(workspace_dir.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTON_NO_STEAMINPUT"),
+            Some("1".to_string())
+        );
+        assert_eq!(
+            command_env_value(&command, "STEAM_COMPAT_DATA_PATH"),
+            Some(prefix_path.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            command_env_value(&command, "WINEPREFIX"),
+            Some(wine_prefix_path.to_string_lossy().into_owned())
+        );
+        assert!(wine_prefix_path
+            .join("drive_c/CrossHook/StagedTrainers/sample/sample.ini")
+            .exists());
     }
 
     #[test]
@@ -421,6 +630,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
             },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
             launch_game_only: false,
         };
@@ -477,6 +687,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
             },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: false,
             launch_game_only: true,
         };
@@ -536,6 +747,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
             },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
             launch_game_only: false,
         };

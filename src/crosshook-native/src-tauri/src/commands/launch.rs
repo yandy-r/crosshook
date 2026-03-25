@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crosshook_core::launch::{
+    build_steam_launch_options_command as build_steam_launch_options_command_core,
     script_runner::{
         build_helper_command, build_native_game_command, build_proton_game_command,
         build_proton_trainer_command, build_trainer_command,
@@ -22,6 +23,12 @@ pub struct LaunchResult {
 #[tauri::command]
 pub fn validate_launch(request: LaunchRequest) -> Result<(), String> {
     validate(&request).map_err(|error| error.to_string())
+}
+
+/// Builds a Steam per-game “Launch Options” line from the same optimization IDs as `proton_run`.
+#[tauri::command]
+pub fn build_steam_launch_options_command(enabled_option_ids: Vec<String>) -> Result<String, String> {
+    build_steam_launch_options_command_core(&enabled_option_ids).map_err(|error| error.to_string())
 }
 
 #[tauri::command]

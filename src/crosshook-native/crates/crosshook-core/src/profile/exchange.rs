@@ -355,6 +355,7 @@ mod tests {
             },
             launch: crate::profile::LaunchSection {
                 method: "steam_applaunch".to_string(),
+                ..Default::default()
             },
         }
     }

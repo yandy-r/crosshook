@@ -16,7 +16,7 @@ pub use exchange::{
 };
 pub use legacy::{delete, list, load, save, validate_name};
 pub use models::{
-    GameProfile, GameSection, InjectionSection, LaunchSection, LauncherSection, LegacyProfileData,
-    RuntimeSection, SteamSection, TrainerSection,
+    GameProfile, GameSection, InjectionSection, LaunchOptimizationsSection, LaunchSection,
+    LauncherSection, LegacyProfileData, RuntimeSection, SteamSection, TrainerSection,
 };
 pub use toml_store::{ProfileStore, ProfileStoreError};

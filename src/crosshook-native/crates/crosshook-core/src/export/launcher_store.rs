@@ -857,6 +857,7 @@ mod tests {
             },
             launch: LaunchSection {
                 method: "steam_applaunch".to_string(),
+                ..Default::default()
             },
             ..Default::default()
         };
@@ -907,6 +908,7 @@ mod tests {
             },
             launch: LaunchSection {
                 method: "steam_applaunch".to_string(),
+                ..Default::default()
             },
             ..Default::default()
         };
