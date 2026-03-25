@@ -6,6 +6,7 @@ import CommunityBrowser from './components/CommunityBrowser';
 import CompatibilityViewer from './components/CompatibilityViewer';
 import LaunchPanel from './components/LaunchPanel';
 import LauncherExport from './components/LauncherExport';
+import { deriveSteamClientInstallPath } from './components/ProfileFormSections';
 import { ProfileEditorView } from './components/ProfileEditor';
 import { SettingsPanel } from './components/SettingsPanel';
 import { useCommunityProfiles } from './hooks/useCommunityProfiles';
@@ -28,14 +29,6 @@ const DEFAULT_RECENT_FILES: RecentFilesData = {
 };
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
-
-function deriveSteamClientInstallPath(compatdataPath: string): string {
-  const marker = '/steamapps/compatdata/';
-  const normalized = compatdataPath.trim().replace(/\\/g, '/');
-  const index = normalized.indexOf(marker);
-
-  return index >= 0 ? normalized.slice(0, index) : '';
-}
 
 function deriveTargetHomePath(steamClientInstallPath: string): string {
   const normalized = steamClientInstallPath.trim().replace(/\\/g, '/');
@@ -67,6 +60,14 @@ function resolveLaunchMethod(profile: GameProfile): Exclude<LaunchMethod, ''> {
   return 'native';
 }
 
+function handleGamepadBack(): void {
+  const closeButtons = document.querySelectorAll<HTMLButtonElement>(
+    '[data-crosshook-focus-root="modal"] [data-crosshook-modal-close]',
+  );
+  const closeButton = closeButtons[closeButtons.length - 1];
+  closeButton?.click();
+}
+
 export function App() {
   const profileState = useProfile({ autoSelectFirstProfile: false });
   const { profile, profileName, selectProfile } = profileState;
@@ -76,7 +77,7 @@ export function App() {
   const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
   const [activeTab, setActiveTab] = useState<AppTab>('main');
   const [profileEditorTab, setProfileEditorTab] = useState<'profile' | 'install'>('profile');
-  const gamepadNav = useGamepadNav();
+  const gamepadNav = useGamepadNav({ onBack: handleGamepadBack });
   const communityState = useCommunityProfiles({
     profilesDirectoryPath: DEFAULT_PROFILES_DIRECTORY,
   });
@@ -96,6 +97,7 @@ export function App() {
     profileEditorTab === 'install' ||
     effectiveLaunchMethod === 'steam_applaunch' ||
     effectiveLaunchMethod === 'proton_run';
+  const isInstallEditorContext = activeTab === 'main' && profileEditorTab === 'install';
 
   const launchRequest = useMemo<LaunchRequest | null>(() => {
     if (!profile.game.executable_path.trim()) {
@@ -124,6 +126,10 @@ export function App() {
   }, [effectiveLaunchMethod, profile, steamClientInstallPath]);
 
   const headingTitle = (() => {
+      if (isInstallEditorContext) {
+        return 'Install Windows Game';
+      }
+
       switch (effectiveLaunchMethod) {
       case 'steam_applaunch':
         return 'Two-step Steam launch';
@@ -136,6 +142,10 @@ export function App() {
   })();
 
   const headingCopy = (() => {
+      if (isInstallEditorContext) {
+        return 'Build a Proton-backed game profile in one flow: run the installer, review the generated profile in the modal, then save and open the Profile tab for normal launch controls.';
+      }
+
       switch (effectiveLaunchMethod) {
       case 'steam_applaunch':
         return 'Launch the game through Steam first, then switch to trainer mode once the game reaches the main menu.';

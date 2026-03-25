@@ -1,205 +1,48 @@
-import { useEffect, useState, type CSSProperties, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
-import AutoPopulate from './AutoPopulate';
 import InstallGamePanel from './InstallGamePanel';
+import ProfileReviewModal, { type ProfileReviewModalConfirmation } from './ProfileReviewModal';
+import ProfileFormSections, {
+  deriveSteamClientInstallPath,
+  type ProtonInstallOption,
+} from './ProfileFormSections';
 import { useProfile, type UseProfileResult } from '../hooks/useProfile';
 import type { GameProfile } from '../types';
+import type { InstallProfileReviewPayload } from '../types/install';
+import type { ProfileReviewSession } from '../types/profile-review';
+import { profilesEqual } from '../utils/profile-compare';
 
-const panelStyle: CSSProperties = {
-  background: 'rgba(13, 20, 31, 0.92)',
-  border: '1px solid rgba(120, 145, 177, 0.2)',
-  borderRadius: 18,
-  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
-  padding: 20,
-};
+function updateProfileReviewSession(
+  set: Dispatch<SetStateAction<ProfileReviewSession | null>>,
+  updater: (session: ProfileReviewSession) => ProfileReviewSession,
+) {
+  set((current) => (current === null ? current : updater(current)));
+}
 
-const fieldStyle: CSSProperties = {
-  display: 'grid',
-  gap: 8,
-};
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  minWidth: 0,
-  minHeight: 44,
-  borderRadius: 12,
-  border: '1px solid rgba(120, 145, 177, 0.35)',
-  background: '#08111c',
-  color: '#f3f6fb',
-  padding: '0 14px',
-  boxSizing: 'border-box',
-};
-
-const labelStyle: CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
-  color: '#b8c4d7',
-  letterSpacing: '0.02em',
-};
-
-const buttonStyle: CSSProperties = {
-  minHeight: 42,
-  borderRadius: 12,
-  border: '1px solid rgba(120, 145, 177, 0.35)',
-  background: 'linear-gradient(180deg, #1a2b45 0%, #132034 100%)',
-  color: '#f3f6fb',
-  padding: '0 14px',
-  cursor: 'pointer',
-};
-
-const subtleButtonStyle: CSSProperties = {
-  ...buttonStyle,
-  background: '#0b1624',
-};
-
-const helperStyle: CSSProperties = {
-  margin: 0,
-  color: '#99a8bd',
-  fontSize: 13,
-  lineHeight: 1.5,
-};
-
-const launcherNameHelperText =
-  'CrossHook appends " - Trainer" to the exported launcher title. Enter only the base launcher name here.';
-
-function FieldRow(props: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  helperText?: string;
-  browseLabel?: string;
-  onBrowse?: () => Promise<void>;
-}) {
+function isProfileReviewSessionDirty(session: ProfileReviewSession): boolean {
   return (
-    <div style={fieldStyle}>
-      <label style={labelStyle}>{props.label}</label>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <input
-          style={{ ...inputStyle, flex: 1 }}
-          value={props.value}
-          placeholder={props.placeholder}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange(event.target.value)}
-        />
-        {props.onBrowse ? (
-          <button type="button" style={subtleButtonStyle} onClick={props.onBrowse}>
-            {props.browseLabel ?? 'Browse'}
-          </button>
-        ) : null}
-      </div>
-      {props.helperText ? <p style={helperStyle}>{props.helperText}</p> : null}
-    </div>
+    session.profileName.trim() !== session.originalProfileName.trim() ||
+    !profilesEqual(session.draftProfile, session.originalProfile)
   );
 }
 
-interface ProtonInstallOption {
-  name: string;
-  path: string;
-  is_official: boolean;
-}
+type ReviewConfirmationState = ProfileReviewModalConfirmation & {
+  restoreIsOpen: boolean;
+};
 
-function formatProtonInstallLabel(install: ProtonInstallOption, duplicateNameCounts: Record<string, number>): string {
-  const baseLabel = install.name.trim() || 'Unnamed Proton install';
-  if ((duplicateNameCounts[baseLabel] ?? 0) <= 1) {
-    return baseLabel;
-  }
-
-  return `${baseLabel} (${install.is_official ? 'Steam' : 'Custom'})`;
-}
-
-function ProtonPathField(props: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  installs: ProtonInstallOption[];
-  error: string | null;
-  onBrowse: () => Promise<void>;
-}) {
-  const duplicateNameCounts = props.installs.reduce<Record<string, number>>((counts, install) => {
-    const key = install.name.trim() || 'Unnamed Proton install';
-    counts[key] = (counts[key] ?? 0) + 1;
-    return counts;
-  }, {});
-  const selectedInstallPath = props.installs.find((install) => install.path.trim() === props.value.trim())?.path ?? '';
-
-  return (
-    <div style={{ ...fieldStyle, marginTop: 16 }}>
-      <label style={labelStyle}>{props.label}</label>
-      <div style={{ display: 'grid', gap: 10 }}>
-        <select
-          style={inputStyle}
-          value={selectedInstallPath}
-          onChange={(event) => {
-            if (event.target.value.trim().length > 0) {
-              props.onChange(event.target.value);
-            }
-          }}
-        >
-          <option value="">Detected Proton install</option>
-          {props.installs.map((install) => (
-            <option key={install.path} value={install.path}>
-              {formatProtonInstallLabel(install, duplicateNameCounts)}
-            </option>
-          ))}
-        </select>
-
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <input
-            style={{ ...inputStyle, flex: 1 }}
-            value={props.value}
-            placeholder={props.placeholder}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange(event.target.value)}
-          />
-          <button type="button" style={subtleButtonStyle} onClick={props.onBrowse}>
-            Browse
-          </button>
-        </div>
-      </div>
-      <p style={{ ...helperStyle, marginTop: 8 }}>
-        Pick a detected Proton install to fill this field automatically, or edit the path manually.
-      </p>
-      {props.error ? <p style={{ ...helperStyle, marginTop: 8, color: '#ffb4b4' }}>{props.error}</p> : null}
-    </div>
-  );
-}
-
-async function chooseFile(title: string, filters?: { name: string; extensions: string[] }[]) {
-  const result = await open({
-    directory: false,
-    multiple: false,
-    title,
-    filters,
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
-}
-
-async function chooseDirectory(title: string) {
-  const result = await open({
-    directory: true,
-    multiple: false,
-    title,
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
-}
-
-function deriveSteamClientInstallPath(compatdataPath: string): string {
-  const marker = '/steamapps/compatdata/';
-  const normalized = compatdataPath.trim().replace(/\\/g, '/');
-  const index = normalized.indexOf(marker);
-
-  return index >= 0 ? normalized.slice(0, index) : '';
+function createProfileReviewSessionState(payload: InstallProfileReviewPayload): ProfileReviewSession {
+  return {
+    isOpen: true,
+    source: payload.source,
+    profileName: payload.profileName,
+    originalProfileName: payload.profileName,
+    originalProfile: payload.generatedProfile,
+    draftProfile: payload.generatedProfile,
+    candidateOptions: payload.candidateOptions,
+    helperLogPath: payload.helperLogPath,
+    installMessage: payload.message,
+    saveError: null,
+  };
 }
 
 export interface ProfileEditorProps {
@@ -222,10 +65,8 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     pendingDelete,
     setProfileName,
     selectProfile,
-    hydrateProfile,
     updateProfile,
     saveProfile,
-    deleteProfile,
     confirmDelete,
     executeDelete,
     cancelDelete,
@@ -236,18 +77,240 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     profileName.trim().length > 0 && profile.game.executable_path.trim().length > 0 && !saving && !deleting && !loading;
   const canDelete = profileExists && !saving && !deleting && !loading;
   const launchMethod = profile.launch.method || 'proton_run';
-  const supportsTrainerLaunch = launchMethod !== 'native';
   const steamClientInstallPath = deriveSteamClientInstallPath(profile.steam.compatdata_path);
   const [editorTab, setEditorTab] = useState<'profile' | 'install'>('profile');
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
+  const [profileReviewSession, setProfileReviewSession] = useState<ProfileReviewSession | null>(null);
+  const [reviewConfirmation, setReviewConfirmation] = useState<ReviewConfirmationState | null>(null);
+  const reviewConfirmationResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
 
   useEffect(() => {
     onEditorTabChange?.(editorTab);
   }, [editorTab, onEditorTabChange]);
 
-  function handleInstallReview(profileNameValue: string, generatedProfile: GameProfile) {
-    hydrateProfile(profileNameValue, generatedProfile);
+  function resolveReviewConfirmation(confirmed: boolean) {
+    const confirmation = reviewConfirmation;
+    const resolver = reviewConfirmationResolverRef.current;
+
+    reviewConfirmationResolverRef.current = null;
+    setReviewConfirmation(null);
+
+    if (confirmation === null) {
+      resolver?.(confirmed);
+      return;
+    }
+
+    if (confirmed) {
+      confirmation.onConfirm();
+    } else {
+      updateProfileReviewSession(setProfileReviewSession, (current) => ({
+        ...current,
+        isOpen: confirmation.restoreIsOpen,
+      }));
+      confirmation.onCancel();
+    }
+
+    resolver?.(confirmed);
+  }
+
+  function requestReviewConfirmation(confirmation: ReviewConfirmationState) {
+    if (reviewConfirmationResolverRef.current !== null) {
+      return Promise.resolve(false);
+    }
+
+    setEditorTab('install');
+    updateProfileReviewSession(setProfileReviewSession, (current) => ({
+      ...current,
+      isOpen: true,
+    }));
+
+    setReviewConfirmation(confirmation);
+
+    return new Promise<boolean>((resolve) => {
+      reviewConfirmationResolverRef.current = resolve;
+    });
+  }
+
+  async function handleOpenProfileReview(payload: InstallProfileReviewPayload) {
+    if (payload.source === 'manual-verify') {
+      const currentSession = profileReviewSession;
+      const sameReviewResult =
+        currentSession !== null && currentSession.helperLogPath === payload.helperLogPath;
+
+      if (currentSession !== null && !sameReviewResult) {
+        if (isProfileReviewSessionDirty(currentSession)) {
+          return requestReviewConfirmation({
+            title: 'Open the latest review draft?',
+            body: `A newer install result is ready for ${payload.profileName}. Opening it will discard the unsaved review draft that is currently loaded.`,
+            confirmLabel: 'Open latest draft',
+            cancelLabel: 'Keep current draft',
+            tone: 'warning',
+            restoreIsOpen: currentSession.isOpen,
+            onConfirm: () => {
+              setProfileReviewSession(createProfileReviewSessionState(payload));
+              setEditorTab('install');
+            },
+            onCancel: () => {
+              updateProfileReviewSession(setProfileReviewSession, (current) => ({
+                ...current,
+                isOpen: true,
+              }));
+            },
+          });
+        }
+
+        setProfileReviewSession(createProfileReviewSessionState(payload));
+        setEditorTab('install');
+        return true;
+      }
+
+      setProfileReviewSession((current) => {
+        if (current !== null) {
+          return {
+            ...current,
+            isOpen: true,
+            source: payload.source,
+            candidateOptions: payload.candidateOptions,
+            helperLogPath: payload.helperLogPath,
+            installMessage: payload.message,
+            saveError: null,
+          };
+        }
+
+        return createProfileReviewSessionState(payload);
+      });
+      setEditorTab('install');
+      return true;
+    }
+
+    const currentSession = profileReviewSession;
+    if (currentSession !== null && isProfileReviewSessionDirty(currentSession)) {
+      return requestReviewConfirmation({
+        title: 'Replace the current review draft?',
+        body: `A newer install result is ready for ${payload.profileName}. Replacing it will discard the unsaved review draft that is open now.`,
+        confirmLabel: 'Replace draft',
+        cancelLabel: 'Keep current draft',
+        tone: 'warning',
+        restoreIsOpen: currentSession.isOpen,
+        onConfirm: () => {
+          setProfileReviewSession(createProfileReviewSessionState(payload));
+          setEditorTab('install');
+        },
+        onCancel: () => undefined,
+      });
+    }
+
+    setProfileReviewSession(createProfileReviewSessionState(payload));
+    setEditorTab('install');
+    return true;
+  }
+
+  function handleCloseProfileReview() {
+    if (profileReviewSession === null) {
+      return;
+    }
+
+    if (!isProfileReviewSessionDirty(profileReviewSession)) {
+      updateProfileReviewSession(setProfileReviewSession, (current) => ({
+        ...current,
+        isOpen: false,
+      }));
+      return;
+    }
+
+    void requestReviewConfirmation({
+      title: 'Hide the review?',
+      body: 'Your review draft has unsaved edits. Hide the modal and reopen it later from Verify if you want to continue editing.',
+      confirmLabel: 'Hide review',
+      cancelLabel: 'Keep editing',
+      tone: 'warning',
+      restoreIsOpen: profileReviewSession.isOpen,
+      onConfirm: () => {
+        updateProfileReviewSession(setProfileReviewSession, (current) => ({
+          ...current,
+          isOpen: false,
+        }));
+      },
+      onCancel: () => undefined,
+    });
+  }
+
+  function handleProfileReviewNameChange(value: string) {
+    updateProfileReviewSession(setProfileReviewSession, (current) => ({
+      ...current,
+      profileName: value,
+      saveError: null,
+    }));
+  }
+
+  function handleProfileReviewUpdate(updater: (current: GameProfile) => GameProfile) {
+    updateProfileReviewSession(setProfileReviewSession, (current) => ({
+      ...current,
+      draftProfile: updater(current.draftProfile),
+      saveError: null,
+    }));
+  }
+
+  async function handleInstallActionConfirmation(action: 'retry' | 'reset') {
+    if (profileReviewSession === null || !isProfileReviewSessionDirty(profileReviewSession)) {
+      return true;
+    }
+
+    const confirmationText =
+      action === 'retry'
+        ? 'Starting another install will discard the current review draft before the new result arrives.'
+        : 'Resetting the install form will discard the current review draft and clear the install session.';
+
+    return requestReviewConfirmation({
+      title: action === 'retry' ? 'Start a new install?' : 'Reset the install session?',
+      body: confirmationText,
+      confirmLabel: action === 'retry' ? 'Start retry' : 'Reset form',
+      cancelLabel: 'Keep current draft',
+      tone: 'danger',
+      restoreIsOpen: profileReviewSession.isOpen,
+      onConfirm: () => {
+        setProfileReviewSession(null);
+      },
+      onCancel: () => undefined,
+    });
+  }
+
+  async function handleSaveProfileReview() {
+    if (profileReviewSession === null) {
+      return;
+    }
+
+    const profileNameTrimmed = profileReviewSession.profileName.trim();
+    const executablePathTrimmed = profileReviewSession.draftProfile.game.executable_path.trim();
+
+    if (!profileNameTrimmed || !executablePathTrimmed) {
+      updateProfileReviewSession(setProfileReviewSession, (current) => ({
+        ...current,
+        saveError: !profileNameTrimmed
+          ? 'Profile name is required before saving the review draft.'
+          : 'Select the final executable before saving the review draft.',
+      }));
+      return;
+    }
+
+    const { profileName: draftProfileName, draftProfile } = profileReviewSession;
+    updateProfileReviewSession(setProfileReviewSession, (current) => ({
+      ...current,
+      saveError: null,
+    }));
+
+    const persistResult = await state.persistProfileDraft(draftProfileName, draftProfile);
+
+    if (!persistResult.ok) {
+      updateProfileReviewSession(setProfileReviewSession, (current) => ({
+        ...current,
+        saveError: persistResult.error,
+      }));
+      return;
+    }
+
+    setProfileReviewSession(null);
     setEditorTab('profile');
   }
 
@@ -290,14 +353,47 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     };
   }, [steamClientInstallPath]);
 
+  const reviewDirty = useMemo(
+    () => profileReviewSession !== null && isProfileReviewSessionDirty(profileReviewSession),
+    [profileReviewSession],
+  );
+
+  const reviewCanSave =
+    profileReviewSession !== null &&
+    profileReviewSession.profileName.trim().length > 0 &&
+    profileReviewSession.draftProfile.game.executable_path.trim().length > 0 &&
+    !saving &&
+    !deleting &&
+    !loading;
+  const reviewFinalExecutableMissing =
+    profileReviewSession !== null && profileReviewSession.draftProfile.game.executable_path.trim().length === 0;
+
+  let reviewDescription = '';
+  let reviewModalStatusTone: 'neutral' | 'success' | 'warning' | 'danger' = 'neutral';
+  if (profileReviewSession !== null) {
+    if (reviewFinalExecutableMissing) {
+      reviewDescription =
+        'The review draft is still incomplete. Select the final executable before saving, and the draft will stay open until you finish.';
+    } else {
+      reviewDescription = `${profileReviewSession.installMessage} Saving persists the profile and returns you to the Profile tab.`.trim();
+    }
+    if (profileReviewSession.saveError) {
+      reviewModalStatusTone = 'danger';
+    } else if (reviewFinalExecutableMissing || reviewDirty) {
+      reviewModalStatusTone = 'warning';
+    } else {
+      reviewModalStatusTone = 'neutral';
+    }
+  }
+
   return (
-    <section style={panelStyle}>
+    <section className="crosshook-profile-editor-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
         <div style={{ display: 'grid', gap: 6 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Profile</h2>
-          <p style={helperStyle}>Select an existing profile or type a new name before saving.</p>
+          <p className="crosshook-help-text">Select an existing profile or type a new name before saving.</p>
         </div>
-        <button type="button" style={subtleButtonStyle} onClick={() => void refreshProfiles()}>
+        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={() => void refreshProfiles()}>
           Refresh
         </button>
       </div>
@@ -324,400 +420,28 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
       </div>
 
       {editorTab === 'profile' ? (
-        <div className="crosshook-profile-shell">
-          <div className="crosshook-install-section-title">Profile Identity</div>
-          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: '1fr auto' }}>
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Profile Name</label>
-              <input
-                style={inputStyle}
-                list="crosshook-profiles"
-                value={profileName}
-                placeholder="Enter or choose a profile name"
-                onChange={(event) => setProfileName(event.target.value)}
-              />
-              <datalist id="crosshook-profiles">
-                {profiles.map((name) => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
-            </div>
-
-            <div style={fieldStyle}>
-              <label style={labelStyle}>Load Profile</label>
-              <select
-                style={inputStyle}
-                value={selectedProfile}
-                onChange={(event) => void selectProfile(event.target.value)}
-              >
-                <option value="">Create New</option>
-                {profiles.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="crosshook-install-section-title">Game</div>
-          <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
-            <FieldRow
-              label="Game Name"
-              value={profile.game.name}
-              onChange={(value) =>
-                updateProfile((current) => ({
-                  ...current,
-                  game: { ...current.game, name: value },
-                }))
-              }
-              placeholder="God of War Ragnarok"
-            />
-
-            <FieldRow
-              label="Game Path"
-              value={profile.game.executable_path}
-              onChange={(value) =>
-                updateProfile((current) => ({
-                  ...current,
-                  game: { ...current.game, executable_path: value },
-                }))
-              }
-              placeholder="/path/to/game.exe"
-              browseLabel="Browse"
-              onBrowse={async () => {
-                const path =
-                  launchMethod === 'native'
-                    ? await chooseFile('Select Linux Game Executable')
-                    : await chooseFile('Select Game Executable', [{ name: 'Windows Executable', extensions: ['exe'] }]);
-
-                if (path) {
-                  updateProfile((current) => ({
-                    ...current,
-                    game: { ...current.game, executable_path: path },
-                  }));
-                }
-              }}
-            />
-          </div>
-
-          <div style={{ ...fieldStyle, marginTop: 16 }}>
-            <label style={labelStyle}>Runner Method</label>
-            <select
-              style={inputStyle}
-              value={launchMethod}
-              onChange={(event) =>
-                updateProfile((current) => ({
-                  ...current,
-                  steam: { ...current.steam, enabled: event.target.value === 'steam_applaunch' },
-                  launch: {
-                    ...current.launch,
-                    method: event.target.value as typeof current.launch.method,
-                  },
-                }))
-              }
-            >
-              <option value="steam_applaunch">Steam app launch</option>
-              <option value="proton_run">Proton runtime launch</option>
-              <option value="native">Native Linux launch</option>
-            </select>
-            <p style={helperStyle}>
-              Choose the runner explicitly so CrossHook saves the correct launch method and only shows the relevant
-              fields.
-            </p>
-          </div>
-
-          {supportsTrainerLaunch ? <div className="crosshook-install-section-title">Trainer</div> : null}
-          {supportsTrainerLaunch ? (
-            <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
-              <FieldRow
-                label="Trainer Path"
-                value={profile.trainer.path}
-                onChange={(value) =>
-                  updateProfile((current) => ({
-                    ...current,
-                    trainer: { ...current.trainer, path: value },
-                  }))
-                }
-                placeholder="/path/to/trainer.exe"
-                browseLabel="Browse"
-                onBrowse={async () => {
-                  const path = await chooseFile('Select Trainer Executable', [
-                    { name: 'Windows Executable', extensions: ['exe'] },
-                  ]);
-
-                  if (path) {
-                    updateProfile((current) => ({
-                      ...current,
-                      trainer: { ...current.trainer, path },
-                    }));
-                  }
-                }}
-              />
-            </div>
-          ) : null}
-
-          <div className="crosshook-install-section-title">
-            {launchMethod === 'steam_applaunch'
-              ? 'Steam Runtime'
-              : launchMethod === 'proton_run'
-                ? 'Proton Runtime'
-                : 'Native Runtime'}
-          </div>
-          {launchMethod === 'steam_applaunch' ? (
-            <>
-              <div
-                style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}
-              >
-                <FieldRow
-                  label="Steam App ID"
-                  value={profile.steam.app_id}
-                  onChange={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      steam: { ...current.steam, app_id: value },
-                    }))
-                  }
-                  placeholder="1245620"
-                />
-
-                <FieldRow
-                  label="Prefix Path"
-                  value={profile.steam.compatdata_path}
-                  onChange={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      steam: { ...current.steam, compatdata_path: value },
-                    }))
-                  }
-                  placeholder="/home/user/.local/share/Steam/steamapps/compatdata/1245620"
-                  browseLabel="Browse"
-                  onBrowse={async () => {
-                    const path = await chooseDirectory('Select Steam Prefix Directory');
-
-                    if (path) {
-                      updateProfile((current) => ({
-                        ...current,
-                        steam: { ...current.steam, compatdata_path: path },
-                      }));
-                    }
-                  }}
-                />
-
-                <FieldRow
-                  label="Launcher Name"
-                  value={profile.steam.launcher.display_name}
-                  onChange={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      steam: {
-                        ...current.steam,
-                        launcher: { ...current.steam.launcher, display_name: value },
-                      },
-                    }))
-                  }
-                  placeholder="God of War Ragnarok"
-                  helperText={launcherNameHelperText}
-                />
-
-                <FieldRow
-                  label="Launcher Icon"
-                  value={profile.steam.launcher.icon_path}
-                  onChange={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      steam: {
-                        ...current.steam,
-                        launcher: { ...current.steam.launcher, icon_path: value },
-                      },
-                    }))
-                  }
-                  placeholder="/path/to/icon.png"
-                  browseLabel="Browse"
-                  onBrowse={async () => {
-                    const path = await chooseFile('Select Launcher Icon', [
-                      { name: 'Images', extensions: ['png', 'jpg', 'jpeg'] },
-                    ]);
-
-                    if (path) {
-                      updateProfile((current) => ({
-                        ...current,
-                        steam: {
-                          ...current.steam,
-                          launcher: { ...current.steam.launcher, icon_path: path },
-                        },
-                      }));
-                    }
-                  }}
-                />
-              </div>
-
-              <ProtonPathField
-                label="Proton Path"
-                value={profile.steam.proton_path}
-                onChange={(value) =>
-                  updateProfile((current) => ({
-                    ...current,
-                    steam: { ...current.steam, proton_path: value },
-                  }))
-                }
-                placeholder="/home/user/.steam/root/steamapps/common/Proton - Experimental/proton"
-                installs={protonInstalls}
-                error={protonInstallsError}
-                onBrowse={async () => {
-                  const path = await chooseFile('Select Proton Executable');
-
-                  if (path) {
-                    updateProfile((current) => ({
-                      ...current,
-                      steam: { ...current.steam, proton_path: path },
-                    }));
-                  }
-                }}
-              />
-
-              <div style={{ display: 'grid', gap: 16, marginTop: 18 }}>
-                <AutoPopulate
-                  gamePath={profile.game.executable_path}
-                  steamClientInstallPath={steamClientInstallPath}
-                  currentAppId={profile.steam.app_id}
-                  currentCompatdataPath={profile.steam.compatdata_path}
-                  currentProtonPath={profile.steam.proton_path}
-                  onApplyAppId={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      steam: { ...current.steam, app_id: value },
-                    }))
-                  }
-                  onApplyCompatdataPath={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      steam: { ...current.steam, compatdata_path: value },
-                    }))
-                  }
-                  onApplyProtonPath={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      steam: { ...current.steam, proton_path: value },
-                    }))
-                  }
-                />
-              </div>
-            </>
-          ) : null}
-
-          {launchMethod === 'proton_run' ? (
-            <>
-              <div
-                style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}
-              >
-                <FieldRow
-                  label="Prefix Path"
-                  value={profile.runtime.prefix_path}
-                  onChange={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      runtime: { ...current.runtime, prefix_path: value },
-                    }))
-                  }
-                  placeholder="/path/to/prefix"
-                  browseLabel="Browse"
-                  onBrowse={async () => {
-                    const path = await chooseDirectory('Select Proton Prefix Directory');
-
-                    if (path) {
-                      updateProfile((current) => ({
-                        ...current,
-                        runtime: { ...current.runtime, prefix_path: path },
-                      }));
-                    }
-                  }}
-                />
-
-                <FieldRow
-                  label="Working Directory"
-                  value={profile.runtime.working_directory}
-                  onChange={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      runtime: { ...current.runtime, working_directory: value },
-                    }))
-                  }
-                  placeholder="Optional override"
-                  browseLabel="Browse"
-                  onBrowse={async () => {
-                    const path = await chooseDirectory('Select Working Directory');
-
-                    if (path) {
-                      updateProfile((current) => ({
-                        ...current,
-                        runtime: { ...current.runtime, working_directory: path },
-                      }));
-                    }
-                  }}
-                />
-              </div>
-
-              <ProtonPathField
-                label="Proton Path"
-                value={profile.runtime.proton_path}
-                onChange={(value) =>
-                  updateProfile((current) => ({
-                    ...current,
-                    runtime: { ...current.runtime, proton_path: value },
-                  }))
-                }
-                placeholder="/path/to/proton"
-                installs={protonInstalls}
-                error={protonInstallsError}
-                onBrowse={async () => {
-                  const path = await chooseFile('Select Proton Executable');
-
-                  if (path) {
-                    updateProfile((current) => ({
-                      ...current,
-                      runtime: { ...current.runtime, proton_path: path },
-                    }));
-                  }
-                }}
-              />
-            </>
-          ) : null}
-
-          {launchMethod === 'native' ? (
-            <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', marginTop: 16 }}>
-              <FieldRow
-                label="Working Directory"
-                value={profile.runtime.working_directory}
-                onChange={(value) =>
-                  updateProfile((current) => ({
-                    ...current,
-                    runtime: { ...current.runtime, working_directory: value },
-                  }))
-                }
-                placeholder="Optional override"
-                browseLabel="Browse"
-                onBrowse={async () => {
-                  const path = await chooseDirectory('Select Working Directory');
-
-                  if (path) {
-                    updateProfile((current) => ({
-                      ...current,
-                      runtime: { ...current.runtime, working_directory: path },
-                    }));
-                  }
-                }}
-              />
-            </div>
-          ) : null}
-
+        <div>
+          <ProfileFormSections
+            profileName={profileName}
+            profile={profile}
+            launchMethod={launchMethod}
+            protonInstalls={protonInstalls}
+            protonInstallsError={protonInstallsError}
+            profileSelector={{
+              profiles,
+              selectedProfile,
+              onSelectProfile: selectProfile,
+            }}
+            onProfileNameChange={setProfileName}
+            onUpdateProfile={updateProfile}
+          />
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
-            <button type="button" style={buttonStyle} onClick={() => void saveProfile()} disabled={!canSave}>
+            <button type="button" className="crosshook-button" onClick={() => void saveProfile()} disabled={!canSave}>
               {saving ? 'Saving...' : 'Save'}
             </button>
             <button
               type="button"
-              style={subtleButtonStyle}
+              className="crosshook-button crosshook-button--secondary"
               onClick={() => void confirmDelete(profileName)}
               disabled={!canDelete}
             >
@@ -728,60 +452,92 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
             </div>
           </div>
 
-          {error ? (
-            <div
-              style={{
-                marginTop: 16,
-                borderRadius: 12,
-                padding: 12,
-                background: 'rgba(140, 40, 40, 0.2)',
-                border: '1px solid rgba(255, 90, 90, 0.3)',
-                color: '#ffd4d4',
-              }}
-            >
-              {error}
-            </div>
-          ) : null}
+          {error ? <div className="crosshook-error-banner crosshook-error-banner--section">{error}</div> : null}
         </div>
       ) : (
-        <InstallGamePanel onReviewGeneratedProfile={handleInstallReview} />
+        <InstallGamePanel
+          onOpenProfileReview={handleOpenProfileReview}
+          onRequestInstallAction={handleInstallActionConfirmation}
+        />
       )}
 
-      {pendingDelete && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
+      {profileReviewSession !== null && (profileReviewSession.isOpen || reviewConfirmation !== null) ? (
+        <ProfileReviewModal
+          open={profileReviewSession.isOpen || reviewConfirmation !== null}
+          title="Review Generated Profile"
+          statusLabel={profileReviewSession.source === 'manual-verify' ? 'Manual verify' : 'Install complete'}
+          profileName={profileReviewSession.profileName}
+          executablePath={profileReviewSession.draftProfile.game.executable_path}
+          prefixPath={profileReviewSession.draftProfile.runtime.prefix_path}
+          helperLogPath={profileReviewSession.helperLogPath}
+          description={reviewDescription}
+          statusTone={reviewModalStatusTone}
+          onClose={handleCloseProfileReview}
+          confirmation={
+            reviewConfirmation
+              ? {
+                  title: reviewConfirmation.title,
+                  body: reviewConfirmation.body,
+                  confirmLabel: reviewConfirmation.confirmLabel,
+                  cancelLabel: reviewConfirmation.cancelLabel,
+                  tone: reviewConfirmation.tone,
+                  onConfirm: () => resolveReviewConfirmation(true),
+                  onCancel: () => resolveReviewConfirmation(false),
+                }
+              : null
+          }
+          footer={
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--secondary"
+                onClick={handleCloseProfileReview}
+                disabled={saving}
+              >
+                Close Review
+              </button>
+              <button
+                type="button"
+                className="crosshook-button"
+                onClick={() => void handleSaveProfileReview()}
+                disabled={!reviewCanSave}
+              >
+                {saving ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          }
         >
-          <div
-            style={{
-              background: '#1a1a2e',
-              borderRadius: '12px',
-              padding: '24px',
-              maxWidth: '480px',
-              width: '90%',
-            }}
-          >
+          <div style={{ display: 'grid', gap: 16 }}>
+            {profileReviewSession.saveError ? (
+              <div className="crosshook-error-banner">{profileReviewSession.saveError}</div>
+            ) : null}
+
+            <ProfileFormSections
+              profileName={profileReviewSession.profileName}
+              profile={profileReviewSession.draftProfile}
+              launchMethod={profileReviewSession.draftProfile.launch.method || 'proton_run'}
+              protonInstalls={protonInstalls}
+              protonInstallsError={protonInstallsError}
+              reviewMode
+              onProfileNameChange={handleProfileReviewNameChange}
+              onUpdateProfile={handleProfileReviewUpdate}
+            />
+            {reviewFinalExecutableMissing ? (
+              <div className="crosshook-warning-banner">Save is blocked until the final executable is selected.</div>
+            ) : null}
+          </div>
+        </ProfileReviewModal>
+      ) : null}
+
+      {pendingDelete && (
+        <div className="crosshook-profile-editor-delete-overlay" data-crosshook-focus-root="modal">
+          <div className="crosshook-profile-editor-delete-dialog">
             <h3 style={{ margin: '0 0 12px' }}>Delete Profile</h3>
             <p>
               Delete profile <strong>{pendingDelete.name}</strong>?
             </p>
             {pendingDelete.launcherInfo && (
-              <div
-                style={{
-                  background: 'rgba(245, 158, 11, 0.08)',
-                  padding: '10px',
-                  borderRadius: '6px',
-                  fontSize: '0.85rem',
-                  marginBottom: '12px',
-                }}
-              >
+              <div className="crosshook-profile-editor-delete-warning">
                 <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Launcher files will also be removed:</p>
                 <p style={{ margin: '2px 0', color: '#d1d5db', wordBreak: 'break-all' }}>
                   {pendingDelete.launcherInfo.script_path}
@@ -791,23 +547,16 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
                 </p>
               </div>
             )}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={cancelDelete} style={{ minHeight: '44px', padding: '8px 20px' }}>
-                Cancel
-              </button>
+            <div className="crosshook-profile-editor-delete-actions">
               <button
                 type="button"
-                onClick={() => void executeDelete()}
-                style={{
-                  minHeight: '44px',
-                  padding: '8px 20px',
-                  background: 'rgba(185, 28, 28, 0.16)',
-                  border: '1px solid rgba(248, 113, 113, 0.28)',
-                  color: '#fee2e2',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                }}
+                className="crosshook-button crosshook-button--secondary"
+                onClick={cancelDelete}
+                data-crosshook-modal-close
               >
+                Cancel
+              </button>
+              <button type="button" className="crosshook-profile-editor-delete-confirm" onClick={() => void executeDelete()}>
                 {pendingDelete.launcherInfo ? 'Delete Profile and Launcher' : 'Delete Profile'}
               </button>
             </div>
@@ -821,22 +570,12 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
 export function ProfileEditor() {
   const state = useProfile();
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        padding: 24,
-        background:
-          'radial-gradient(circle at top, rgba(27, 59, 108, 0.35), transparent 35%), linear-gradient(180deg, #08111c 0%, #0b1320 100%)',
-        color: '#f3f6fb',
-      }}
-    >
+    <div className="crosshook-profile-editor-page">
       <div style={{ display: 'grid', gap: 18, maxWidth: 1180, margin: '0 auto' }}>
         <header style={{ display: 'grid', gap: 8 }}>
-          <div style={{ color: '#60a5fa', fontSize: 12, letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-            CrossHook Native
-          </div>
+          <div className="crosshook-profile-editor-eyebrow">CrossHook Native</div>
           <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800 }}>Profile Editor</h1>
-          <p style={{ ...helperStyle, maxWidth: 760 }}>
+          <p className="crosshook-help-text" style={{ maxWidth: 760 }}>
             Edit a profile, save it to Tauri storage, and configure the correct Steam, Proton, or native runner path.
           </p>
         </header>

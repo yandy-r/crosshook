@@ -1,6 +1,6 @@
 # CrossHook Quickstart
 
-CrossHook is a native Linux desktop application that launches game trainers alongside Steam/Proton games. CrossHook runs directly on your Linux system -- no WINE or Proton required for CrossHook itself. Trainers still run under Proton, targeting the game's compatdata prefix. The same direct Proton path is used by the `Install Game` sub-tab inside the Profile panel when you are setting up a new Windows game.
+CrossHook is a native Linux desktop application that launches game trainers alongside Steam/Proton games. CrossHook runs directly on your Linux system -- no WINE or Proton required for CrossHook itself. Trainers still run under Proton, targeting the game's compatdata prefix. The same direct Proton path is used by the `Install Game` sub-tab inside the Profile panel when you are setting up a new Windows game, but that flow now opens a review modal so you can confirm the generated profile before saving it.
 
 If you want the deeper Steam-specific workflow details, jump to the [Steam / Proton feature guide](../features/steam-proton-trainer-launch.doc.md).
 
@@ -84,7 +84,7 @@ Profiles save your game, trainer, and launch configuration so you can reuse the 
 4. Choose a launch mode (see [Launch modes](#launch-modes) below).
 5. Save the profile with a descriptive name.
 
-Profiles are saved as TOML files in `~/.config/crosshook/profiles/`. When you use `Install Game`, CrossHook defaults the prefix under `~/.local/share/crosshook/prefixes/<slug>`, runs the installer through `proton run`, then returns to the normal profile editor so you can review the generated profile and save it explicitly. You can edit saved profiles by hand if needed. A profile looks like this:
+Profiles are saved as TOML files in `~/.config/crosshook/profiles/`. When you use `Install Game`, CrossHook defaults the prefix under `~/.local/share/crosshook/prefixes/<slug>`, runs the installer through `proton run`, then opens the generated profile in a review modal. You can adjust the draft there and save it explicitly; once save succeeds, CrossHook opens the Profile tab with that new profile selected. You can edit saved profiles by hand if needed. A profile looks like this:
 
 ```toml
 [game]
@@ -112,7 +112,7 @@ CrossHook uses a two-step launch flow for Steam/Proton games:
 1. **Launch the game.** Click the launch button. CrossHook starts the game through Steam (or Proton directly, depending on the mode). Wait for the game to reach the in-game menu.
 2. **Launch the trainer.** Once the game is running, click the launch button again. CrossHook stages the trainer into the game's compatdata prefix and runs it through Proton with a clean environment.
 
-If you used `Install Game` first, make sure you save the reviewed profile before launching.
+If you used `Install Game` first, make sure you save the reviewed profile before launching. After a successful save, CrossHook switches you to the Profile tab with that profile selected.
 
 The console view in CrossHook streams the runner output in real-time so you can see exactly what is happening at each step.
 
@@ -135,7 +135,7 @@ For launching games and trainers directly through Proton without going through t
 - CrossHook launches the game (and trainer) using `proton run` against a specified WINE prefix.
 - Useful for non-Steam games that use a standalone Proton/WINE prefix, or when you need full control over the prefix path.
 - Requires: a WINE/Proton prefix path and the Proton runner path.
-- The `Install Game` flow uses the same direct Proton path, then hands the generated profile back for review before save.
+- The `Install Game` flow uses the same direct Proton path, then opens a review modal for the generated profile before save. Saving the modal draft opens the Profile tab with the saved profile selected.
 
 ### Native (`native`)
 

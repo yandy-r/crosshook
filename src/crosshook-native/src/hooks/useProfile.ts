@@ -7,6 +7,10 @@ export interface PendingDelete {
   launcherInfo: LauncherInfo | null;
 }
 
+export type PersistProfileDraftResult = { ok: true } | { ok: false; error: string };
+
+export type PersistProfileDraft = (name: string, profile: GameProfile) => Promise<PersistProfileDraftResult>;
+
 export interface UseProfileResult {
   profiles: string[];
   selectedProfile: string;
@@ -24,7 +28,7 @@ export interface UseProfileResult {
   hydrateProfile: (name: string, profile: GameProfile) => void;
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   saveProfile: () => Promise<void>;
-  deleteProfile: () => Promise<void>;
+  persistProfileDraft: PersistProfileDraft;
   confirmDelete: (name: string) => Promise<void>;
   executeDelete: () => Promise<void>;
   cancelDelete: () => void;
@@ -231,58 +235,98 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     });
   }, []);
 
-  const loadProfile = useCallback(async (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setSelectedProfile('');
-      setProfileName('');
-      setProfile(createEmptyProfile());
-      setDirty(false);
-      return;
-    }
+  const loadProfile = useCallback(
+    async (name: string, loadOptions?: { loadErrorContext?: string }) => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        setSelectedProfile('');
+        setProfileName('');
+        setProfile(createEmptyProfile());
+        setDirty(false);
+        return;
+      }
 
-    setLoading(true);
-    setError(null);
+      setLoading(true);
+      setError(null);
 
-    try {
-      const loaded = await invoke<GameProfile>('profile_load', { name: trimmed });
-      const normalized = normalizeProfileForEdit(loaded);
-      setSelectedProfile(trimmed);
-      setProfileName(trimmed);
-      setProfile(normalized);
-      setDirty(false);
-      await syncProfileMetadata(trimmed, normalized);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      const formatLoadError = (err: unknown) =>
+        err instanceof Error ? err.message : String(err);
+
+      try {
+        const loaded = await invoke<GameProfile>('profile_load', { name: trimmed });
+        const normalized = normalizeProfileForEdit(loaded);
+        setSelectedProfile(trimmed);
+        setProfileName(trimmed);
+        setProfile(normalized);
+        setDirty(false);
+
+        try {
+          await syncProfileMetadata(trimmed, normalized);
+        } catch (syncErr) {
+          console.error('Failed to sync profile metadata (last-used profile, recent files)', syncErr);
+        }
+      } catch (err) {
+        const msg = formatLoadError(err);
+        setError(loadOptions?.loadErrorContext ? `${loadOptions.loadErrorContext}: ${msg}` : msg);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [syncProfileMetadata]
+  );
 
   const refreshProfiles = useCallback(async () => {
-    const names = await invoke<string[]>('profile_list');
-    setProfiles(names);
+    try {
+      const names = await invoke<string[]>('profile_list');
+      setProfiles(names);
 
-    if (names.length === 0) {
-      setSelectedProfile('');
-      setProfileName('');
-      setProfile(createEmptyProfile());
-      setDirty(false);
-      return;
-    }
+      if (names.length === 0) {
+        setSelectedProfile('');
+        setProfileName('');
+        setProfile(createEmptyProfile());
+        setDirty(false);
+        return;
+      }
 
-    if (selectedProfile && names.includes(selectedProfile)) {
-      return;
-    }
+      if (selectedProfile && names.includes(selectedProfile)) {
+        return;
+      }
 
-    if (options.autoSelectFirstProfile ?? true) {
-      await loadProfile(names[0]);
+      if (options.autoSelectFirstProfile ?? true) {
+        await loadProfile(names[0]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }, [loadProfile, options.autoSelectFirstProfile, selectedProfile]);
 
-  const selectProfile = useCallback(
+  const selectProfile = loadProfile;
+
+  const finalizeProfileDeletion = useCallback(
     async (name: string) => {
-      await loadProfile(name);
+      const settings = await invoke<AppSettingsData>('settings_load');
+      if (settings.last_used_profile === name) {
+        await invoke('settings_save', {
+          data: {
+            ...settings,
+            last_used_profile: '',
+          } satisfies AppSettingsData,
+        });
+      }
+      const names = await invoke<string[]>('profile_list');
+      setProfiles(names);
+
+      if (names.length === 0) {
+        setSelectedProfile('');
+        setProfileName('');
+        setProfile(createEmptyProfile());
+        setDirty(false);
+        return;
+      }
+
+      await loadProfile(names[0], {
+        loadErrorContext: 'Profile deleted, but loading the next profile failed',
+      });
     },
     [loadProfile]
   );
@@ -311,75 +355,45 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     setDirty(true);
   }, []);
 
+  const persistProfileDraft = useCallback(
+    async (name: string, draftProfile: GameProfile): Promise<PersistProfileDraftResult> => {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        const message = 'Profile name is required.';
+        setError(message);
+        return { ok: false, error: message };
+      }
+
+      const validationError = validateProfileForSave(draftProfile);
+      if (validationError !== null) {
+        setError(validationError);
+        return { ok: false, error: validationError };
+      }
+
+      setSaving(true);
+      setError(null);
+
+      try {
+        const normalizedProfile = normalizeProfileForSave(draftProfile);
+        await invoke('profile_save', { name: trimmedName, data: normalizedProfile });
+        await syncProfileMetadata(trimmedName, normalizedProfile);
+        await refreshProfiles();
+        await loadProfile(trimmedName);
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        return { ok: false, error: message };
+      } finally {
+        setSaving(false);
+      }
+    },
+    [loadProfile, refreshProfiles, syncProfileMetadata]
+  );
+
   const saveProfile = useCallback(async () => {
-    const name = profileName.trim();
-    if (!name) {
-      setError('Profile name is required.');
-      return;
-    }
-
-    const validationError = validateProfileForSave(profile);
-    if (validationError !== null) {
-      setError(validationError);
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-
-    try {
-      const normalizedProfile = normalizeProfileForSave(profile);
-      setProfile(normalizedProfile);
-      await invoke('profile_save', { name, data: normalizedProfile });
-      await syncProfileMetadata(name, normalizedProfile);
-      await refreshProfiles();
-      await loadProfile(name);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
-    }
-  }, [profile, profileName, refreshProfiles]);
-
-  const deleteProfile = useCallback(async () => {
-    const name = profileName.trim();
-    if (!name) {
-      setError('Select a profile to delete.');
-      return;
-    }
-
-    setDeleting(true);
-    setError(null);
-
-    try {
-      await invoke('profile_delete', { name });
-      const settings = await invoke<AppSettingsData>('settings_load');
-      if (settings.last_used_profile === name) {
-        await invoke('settings_save', {
-          data: {
-            ...settings,
-            last_used_profile: '',
-          } satisfies AppSettingsData,
-        });
-      }
-      const names = await invoke<string[]>('profile_list');
-      setProfiles(names);
-
-      if (names.length === 0) {
-        setSelectedProfile('');
-        setProfileName('');
-        setProfile(createEmptyProfile());
-        setDirty(false);
-        return;
-      }
-
-      await loadProfile(names[0]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeleting(false);
-    }
-  }, [loadProfile, profileName]);
+    await persistProfileDraft(profileName, profile);
+  }, [persistProfileDraft, profile, profileName]);
 
   const confirmDelete = useCallback(async (name: string) => {
     const trimmed = name.trim();
@@ -400,7 +414,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         return;
       }
     } catch (err) {
-      console.error('Failed to inspect launcher state before profile delete.', err);
+      setError(err instanceof Error ? err.message : String(err));
+      return;
     }
 
     setPendingDelete({ name: trimmed, launcherInfo: null });
@@ -418,33 +433,13 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
     try {
       await invoke('profile_delete', { name });
-      const settings = await invoke<AppSettingsData>('settings_load');
-      if (settings.last_used_profile === name) {
-        await invoke('settings_save', {
-          data: {
-            ...settings,
-            last_used_profile: '',
-          } satisfies AppSettingsData,
-        });
-      }
-      const names = await invoke<string[]>('profile_list');
-      setProfiles(names);
-
-      if (names.length === 0) {
-        setSelectedProfile('');
-        setProfileName('');
-        setProfile(createEmptyProfile());
-        setDirty(false);
-        return;
-      }
-
-      await loadProfile(names[0]);
+      await finalizeProfileDeletion(name);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setDeleting(false);
     }
-  }, [loadProfile, pendingDelete]);
+  }, [finalizeProfileDeletion, pendingDelete]);
 
   const cancelDelete = useCallback(() => {
     setPendingDelete(null);
@@ -475,7 +470,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     hydrateProfile,
     updateProfile,
     saveProfile,
-    deleteProfile,
+    persistProfileDraft,
     confirmDelete,
     executeDelete,
     cancelDelete,

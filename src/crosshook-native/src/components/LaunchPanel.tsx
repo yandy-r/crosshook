@@ -70,8 +70,7 @@ export function LaunchPanel({ profileId, method, request, context = 'default' }:
             </p>
             <h1 style={{ margin: '10px 0 6px', fontSize: '2rem', lineHeight: 1.1 }}>CrossHook Native</h1>
             <p style={{ margin: 0, color: '#9fb1d6', maxWidth: '56ch' }}>
-              Install Game always targets Proton. Complete the installer flow, then review the generated profile in the
-              Profile tab before saving.
+              Install Game always targets Proton. Complete the installer flow, then review the generated profile in the modal before saving.
             </p>
           </div>
 
@@ -100,11 +99,10 @@ export function LaunchPanel({ profileId, method, request, context = 'default' }:
           }}
         >
           <p style={{ margin: 0, fontWeight: 600, color: '#eef4ff' }}>
-            Run the installer in the left panel, then hand the generated profile back for explicit review.
+            Run the installer in the left panel, then review the generated profile in the modal before saving.
           </p>
           <p style={{ margin: '10px 0 0', color: '#9fb1d6', lineHeight: 1.6 }}>
-            The final executable stays editable after candidate selection, and nothing is persisted until you save in the
-            Profile tab.
+            The install creates a reviewable draft, the final executable stays editable after candidate selection, and nothing is persisted until you save and open the Profile tab.
           </p>
         </div>
 
@@ -121,7 +119,7 @@ export function LaunchPanel({ profileId, method, request, context = 'default' }:
             <span>Proton install flow selected</span>
           </div>
           <div style={{ color: '#7f8fb0', fontSize: '0.9rem' }}>
-            Review in Profile becomes available after the installer completes and the executable is confirmed.
+            Review in the modal becomes available after the installer completes and the executable is confirmed.
           </div>
         </div>
       </section>
