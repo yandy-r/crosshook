@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type UIEvent,
+} from "react";
 import { listen } from "@tauri-apps/api/event";
 
 type ConsoleLine = {
@@ -54,7 +61,27 @@ export function ConsoleView() {
   const [collapsed, setCollapsed] = useState(false);
   const [lines, setLines] = useState<ConsoleLine[]>([]);
   const nextId = useRef(1);
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const shouldFollowRef = useRef(true);
+
+  function scrollToBottom() {
+    const body = bodyRef.current;
+    if (!body) {
+      return;
+    }
+
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function updateFollowState(element: HTMLDivElement) {
+    const distanceFromBottom =
+      element.scrollHeight - (element.scrollTop + element.clientHeight);
+    shouldFollowRef.current = distanceFromBottom <= 24;
+  }
+
+  function handleBodyScroll(event: UIEvent<HTMLDivElement>) {
+    updateFollowState(event.currentTarget);
+  }
 
   useEffect(() => {
     let active = true;
@@ -82,9 +109,9 @@ export function ConsoleView() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!collapsed) {
-      endRef.current?.scrollIntoView({ block: "end" });
+  useLayoutEffect(() => {
+    if (!collapsed && shouldFollowRef.current) {
+      scrollToBottom();
     }
   }, [collapsed, lines.length]);
 
@@ -153,6 +180,7 @@ export function ConsoleView() {
 
       {!collapsed ? (
         <div
+		ref={bodyRef} onScroll={handleBodyScroll}
           style={{
             minHeight: "280px",
             maxHeight: "52vh",
@@ -219,7 +247,6 @@ export function ConsoleView() {
                   </pre>
                 </div>
               ))}
-              <div ref={endRef} />
             </div>
           )}
         </div>
