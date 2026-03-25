@@ -236,52 +236,68 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     });
   }, []);
 
-  const loadProfile = useCallback(async (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setSelectedProfile('');
-      setProfileName('');
-      setProfile(createEmptyProfile());
-      setDirty(false);
-      return;
-    }
+  const loadProfile = useCallback(
+    async (name: string, loadOptions?: { loadErrorContext?: string }) => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        setSelectedProfile('');
+        setProfileName('');
+        setProfile(createEmptyProfile());
+        setDirty(false);
+        return;
+      }
 
-    setLoading(true);
-    setError(null);
+      setLoading(true);
+      setError(null);
 
-    try {
-      const loaded = await invoke<GameProfile>('profile_load', { name: trimmed });
-      const normalized = normalizeProfileForEdit(loaded);
-      setSelectedProfile(trimmed);
-      setProfileName(trimmed);
-      setProfile(normalized);
-      setDirty(false);
-      await syncProfileMetadata(trimmed, normalized);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      const formatLoadError = (err: unknown) =>
+        err instanceof Error ? err.message : String(err);
+
+      try {
+        const loaded = await invoke<GameProfile>('profile_load', { name: trimmed });
+        const normalized = normalizeProfileForEdit(loaded);
+        setSelectedProfile(trimmed);
+        setProfileName(trimmed);
+        setProfile(normalized);
+        setDirty(false);
+
+        try {
+          await syncProfileMetadata(trimmed, normalized);
+        } catch (syncErr) {
+          console.error('Failed to sync profile metadata (last-used profile, recent files)', syncErr);
+        }
+      } catch (err) {
+        const msg = formatLoadError(err);
+        setError(loadOptions?.loadErrorContext ? `${loadOptions.loadErrorContext}: ${msg}` : msg);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [syncProfileMetadata]
+  );
 
   const refreshProfiles = useCallback(async () => {
-    const names = await invoke<string[]>('profile_list');
-    setProfiles(names);
+    try {
+      const names = await invoke<string[]>('profile_list');
+      setProfiles(names);
 
-    if (names.length === 0) {
-      setSelectedProfile('');
-      setProfileName('');
-      setProfile(createEmptyProfile());
-      setDirty(false);
-      return;
-    }
+      if (names.length === 0) {
+        setSelectedProfile('');
+        setProfileName('');
+        setProfile(createEmptyProfile());
+        setDirty(false);
+        return;
+      }
 
-    if (selectedProfile && names.includes(selectedProfile)) {
-      return;
-    }
+      if (selectedProfile && names.includes(selectedProfile)) {
+        return;
+      }
 
-    if (options.autoSelectFirstProfile ?? true) {
-      await loadProfile(names[0]);
+      if (options.autoSelectFirstProfile ?? true) {
+        await loadProfile(names[0]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }, [loadProfile, options.autoSelectFirstProfile, selectedProfile]);
 
@@ -388,7 +404,9 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         return;
       }
 
-      await loadProfile(names[0]);
+      await loadProfile(names[0], {
+        loadErrorContext: 'Profile deleted, but loading the next profile failed',
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -454,7 +472,9 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         return;
       }
 
-      await loadProfile(names[0]);
+      await loadProfile(names[0], {
+        loadErrorContext: 'Profile deleted, but loading the next profile failed',
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

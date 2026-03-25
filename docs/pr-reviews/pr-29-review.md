@@ -122,6 +122,8 @@ Identical Tauri dialog helpers duplicated across both files. Neither copy has er
 
 ### I5. `syncProfileMetadata` failure blocks and conflates profile load errors
 
+**Status:** Resolved — After a successful `profile_load`, `syncProfileMetadata` runs in its own `try/catch`; failures are `console.error` only and do not clear the loaded profile or reuse the profile-load error path.
+
 **Agent**: Silent Failure Hunter (HIGH)
 **File**: `src/crosshook-native/src/hooks/useProfile.ts:215-263`
 
@@ -131,6 +133,8 @@ If `syncProfileMetadata` fails (e.g., `settings_save` rejects), the entire `load
 
 ### I6. `refreshProfiles` has no internal try/catch; Refresh button produces unhandled rejection
 
+**Status:** Resolved — `refreshProfiles` wraps `profile_list` and follow-up logic in `try/catch` and calls `setError` on failure.
+
 **Agent**: Silent Failure Hunter (HIGH)
 **File**: `src/crosshook-native/src/hooks/useProfile.ts:265-284`
 
@@ -139,6 +143,8 @@ If `syncProfileMetadata` fails (e.g., `settings_save` rejects), the entire `load
 ---
 
 ### I7. Post-delete auto-load failure masquerades as delete failure
+
+**Status:** Resolved — `deleteProfile` / `executeDelete` call `loadProfile` with `loadErrorContext: 'Profile deleted, but loading the next profile failed'` so a failed auto-load is not mistaken for a failed delete.
 
 **Agent**: Silent Failure Hunter (MEDIUM)
 **File**: `src/crosshook-native/src/hooks/useProfile.ts:353-391, 418-456`
@@ -274,18 +280,18 @@ The `mapValidationErrorToField` function at `useInstallGame.ts:91-127` does raw 
 
 The comment analyzer found that **none of the six modified source files contain a single code comment**. While the code is generally clean and self-documenting, several complex patterns would benefit from brief explanatory comments:
 
-| Location                         | What needs a comment                                                                 |
-| -------------------------------- | ------------------------------------------------------------------------------------ |
-| _(removed)_                    | Previously `profileSaveStateRef` — replaced by `PersistProfileDraftResult` from `persistProfileDraft` (C1 fix). |
-| `ProfileEditor.tsx:121-174`      | The promise-resolver confirmation handshake pattern                                  |
-| `ProfileEditor.tsx:176-253`      | The three branches of `handleOpenProfileReview` and the `sameReviewResult` heuristic |
-| `ProfileReviewModal.tsx:166-233` | Modal accessibility lifecycle (inert, aria-hidden, focus trap, scroll lock)          |
-| `ProfileReviewModal.tsx:235-278` | Focus trap scoping between confirmation overlay and main surface                     |
-| `useProfile.ts:77-93`            | The `resolveLaunchMethod` fallback chain heuristic                                   |
-| `useProfile.ts:95-149`           | Relationship between `normalizeProfileForEdit` and `normalizeProfileForSave`         |
-| `useGamepadNav.ts:102-132`       | The multi-signal Steam Deck detection heuristic and known limitations                |
-| `useGamepadNav.ts:379-453`       | Gamepad polling loop (edge detection, analog threshold, stale cleanup)               |
-| `ProfileFormSections.tsx:58-75`  | Auto-derive working directory from executable path logic                             |
+| Location                         | What needs a comment                                                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| _(removed)_                      | Previously `profileSaveStateRef` — replaced by `PersistProfileDraftResult` from `persistProfileDraft` (C1 fix). |
+| `ProfileEditor.tsx:121-174`      | The promise-resolver confirmation handshake pattern                                                             |
+| `ProfileEditor.tsx:176-253`      | The three branches of `handleOpenProfileReview` and the `sameReviewResult` heuristic                            |
+| `ProfileReviewModal.tsx:166-233` | Modal accessibility lifecycle (inert, aria-hidden, focus trap, scroll lock)                                     |
+| `ProfileReviewModal.tsx:235-278` | Focus trap scoping between confirmation overlay and main surface                                                |
+| `useProfile.ts:77-93`            | The `resolveLaunchMethod` fallback chain heuristic                                                              |
+| `useProfile.ts:95-149`           | Relationship between `normalizeProfileForEdit` and `normalizeProfileForSave`                                    |
+| `useGamepadNav.ts:102-132`       | The multi-signal Steam Deck detection heuristic and known limitations                                           |
+| `useGamepadNav.ts:379-453`       | Gamepad polling loop (edge detection, analog threshold, stale cleanup)                                          |
+| `ProfileFormSections.tsx:58-75`  | Auto-derive working directory from executable path logic                                                        |
 
 Additional note: The user-facing text at `ProfileEditor.tsx:736` says "save it to Tauri storage" -- profiles are actually saved as TOML files on disk via Tauri IPC, not through Tauri's storage plugin. Consider "save it to disk" for accuracy.
 
@@ -314,6 +320,6 @@ The `FOCUSABLE_SELECTOR` constants in `ProfileReviewModal.tsx:46` and `useGamepa
 
 1. ~~**Fix C1 and C2 first**~~ **Done** — explicit persist result and launcher-check errors surfaced (see Critical Issues above).
 2. ~~**Address I1-I4**~~ **Done** — see Important Issues above (Proton field errors, shared `deriveSteamClientInstallPath`, `utils/dialog`, shared Proton install helpers).
-3. **Consider I5-I7** -- error handling improvements that prevent confusing error messages.
+3. ~~**Consider I5-I7**~~ **Done** — metadata sync is non-blocking; `refreshProfiles` surfaces errors; post-delete load errors are prefixed (see Important Issues above).
 4. **M1-M6 and L1-L6** are cleanup items that can be addressed in a follow-up refactoring pass.
 5. **Add comments** to the 10 locations identified in the Documentation Gaps section.
