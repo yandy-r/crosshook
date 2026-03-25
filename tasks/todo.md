@@ -75,3 +75,37 @@
   - modal layout remains usable at `1280x800` with only the body scrolling
 - [ ] `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` was not run because this verification task only touched frontend modal workflow behavior and no backend/shared-core contract changes were introduced in scope.
 - [ ] Residual risk: focus trapping, controller suppression, and viewport behavior still need a real GUI pass in the Tauri shell before the feature can be considered fully closed out.
+
+## 2026-03-25 - proton-optimizations planning workflow
+
+- [x] Review the feature research, clarified scope, and repo lessons for `proton_run`-only launch optimizations.
+- [x] Generate and validate `docs/plans/proton-optimizations/shared.md`.
+- [x] Generate analysis artifacts:
+  - `docs/plans/proton-optimizations/analysis-context.md`
+  - `docs/plans/proton-optimizations/analysis-code.md`
+  - `docs/plans/proton-optimizations/analysis-tasks.md`
+- [x] Synthesize `docs/plans/proton-optimizations/parallel-plan.md`.
+- [x] Validate plan structure and run path/dependency/completeness checks.
+- [x] Add final planning review summary.
+
+## Review
+
+- `docs/plans/proton-optimizations/shared.md` was created and validated with zero warnings.
+- `analysis-context.md`, `analysis-code.md`, and `analysis-tasks.md` were created from the planning docs and current codebase.
+- `parallel-plan.md` was created and passed structural validation with zero warnings.
+- Plan validation findings were folded back into `parallel-plan.md`:
+  - `Task 2.1` now depends on both contract-definition tasks so option IDs stay aligned between TS and Rust
+  - the Rust module-export step for `launch/mod.rs` is explicit
+  - `READ THESE BEFORE TASK` sections no longer point at files that only exist after earlier tasks
+  - the plan stays strictly `proton_run`-scoped, with Steam parity left as optional future work
+- Final plan stats:
+  - 4 phases
+  - 11 tasks
+  - 2 independent tasks
+- Validation result:
+  - structural validation passed with zero warnings
+  - dependency review passed after serializing `2.1` behind both shared-contract tasks
+  - path review found only expected “modify later-created file” cases for `launch/optimizations.rs` and `LaunchOptimizationsPanel.tsx`
+  - task completeness review passed after tightening the backend module-registration and path-readability details
+- Residual caveat:
+  - a naive current-branch path checker will still flag future-created files when later tasks modify them, but those references are dependency-consistent and execution-ready within the plan.

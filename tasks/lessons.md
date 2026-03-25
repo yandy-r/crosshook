@@ -25,3 +25,7 @@
 - When auto-detecting Proton tools for Steam mode, do not assume every compat tool lives under the user’s Steam root. Also scan system-wide Steam compatibility tool directories such as `/usr/share/steam/compatibilitytools.d` before declaring a Proton mapping unresolved.
 - When a repo already treats `CHANGELOG.md` as the release source of truth, do not introduce a parallel `release_notes.md` flow. Publish the tagged `CHANGELOG.md` section directly so the workflow and human edits stay aligned.
 - When `CHANGELOG.md` is generated from commit history, treat commit messages as release-note copy. Use descriptive conventional commits for user-facing work, and route internal planning/release churn into skipped forms like `chore(...)` or `docs(internal): ...` so `git-cliff` and release validation stay clean.
+
+## 2026-03-25
+
+- When a user narrows a feature’s required scope, immediately rewrite the plan/spec around the narrowed scope instead of continuing to treat optional stretch goals as core requirements. In this repo, if the user says a launch feature is only required for `proton_run`, do not keep Steam parity as a gating decision in the main spec.
