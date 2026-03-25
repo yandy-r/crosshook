@@ -12,6 +12,8 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** Keep launch panel anchored while logs stream ([#27](https://github.com/yandy-r/crosshook/issues/27)) ([`746672a`](https://github.com/yandy-r/crosshook/commit/746672aaf6428fa5b7d0db7e2aa41da46f727013))
 
+- **release:** Restore and validate native workspace manifest ([`7432cbb`](https://github.com/yandy-r/crosshook/commit/7432cbbc68b412e4fdb519609683d644b53be962))
+
 
 ### Features
 
