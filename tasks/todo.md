@@ -59,3 +59,16 @@
 - Fixed `I12` with Tauri command doc comments.
 - Closed `T1`, `T2`, `T4`, `T5`, and `T6` with focused regression tests.
 - Verification now passes for `npm exec --yes tsc -- --noEmit`, `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`, and `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native`.
+
+## Launch Panel Console Follow Behavior
+
+- [x] Confirm the current launch/console implementation and identify the source of viewport movement.
+- [x] Replace console viewport-follow behavior with container-local auto-follow logic.
+- [x] Run a focused frontend verification check.
+
+## Review
+
+- Replaced the console's `scrollIntoView`-based follow behavior with scroll-container-local bottom tracking so incoming `launch-log` events no longer move the page viewport away from the launch panel.
+- Preserved live log following when the console is already pinned near the bottom, and preserved the user's position when they intentionally scroll up inside the console.
+- Verification passed:
+- `npm run build`
