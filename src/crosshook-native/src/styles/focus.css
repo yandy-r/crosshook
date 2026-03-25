@@ -65,6 +65,14 @@
   box-shadow: 0 0 0 4px var(--crosshook-color-accent-soft);
 }
 
+.crosshook-modal__surface {
+  outline: none;
+}
+
+.crosshook-modal__body :is(button, input, select, textarea, [href], [tabindex='0']) {
+  scroll-margin-block: 20px;
+}
+
 .crosshook-controller-prompts {
   display: inline-flex;
   align-items: center;

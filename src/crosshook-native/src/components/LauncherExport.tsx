@@ -283,7 +283,7 @@ export function LauncherExport({
           </div>
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Review and save the generated profile</h2>
           <p style={helperStyle}>
-            Install Game keeps the profile editable until you confirm the executable and save it in the Profile tab.
+            Install Game keeps the profile editable until you confirm the executable and save it from the modal.
           </p>
         </header>
 
@@ -313,7 +313,7 @@ export function LauncherExport({
                 color: '#f8fafc',
               }}
             >
-              Nothing is persisted until you switch back to Profile and click Save.
+              Nothing is persisted until you save the draft and open the Profile tab.
             </div>
           </div>
 
@@ -328,7 +328,7 @@ export function LauncherExport({
                 color: '#f8fafc',
               }}
             >
-              The normal launch and launcher export flow becomes available once the generated profile is saved.
+              Save and Open Profile Tab makes the draft a normal profile and unlocks the normal launch and launcher export flow.
             </div>
           </div>
         </div>

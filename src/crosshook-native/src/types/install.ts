@@ -1,5 +1,7 @@
 import type { GameProfile } from './profile';
 
+export type ProfileReviewSource = 'install-complete' | 'manual-verify';
+
 export interface InstallGameRequest {
   profile_name: string;
   display_name: string;
@@ -18,6 +20,15 @@ export interface InstallGameResult {
   needs_executable_confirmation: boolean;
   discovered_game_executable_candidates: string[];
   profile: GameProfile;
+}
+
+export interface InstallProfileReviewPayload {
+  source: ProfileReviewSource;
+  profileName: string;
+  generatedProfile: GameProfile;
+  candidateOptions: InstallGameExecutableCandidate[];
+  helperLogPath: string;
+  message: string;
 }
 
 export interface InstallGameExecutableCandidate {

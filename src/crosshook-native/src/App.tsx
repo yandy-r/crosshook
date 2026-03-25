@@ -67,6 +67,14 @@ function resolveLaunchMethod(profile: GameProfile): Exclude<LaunchMethod, ''> {
   return 'native';
 }
 
+function handleGamepadBack(): void {
+  const closeButton = document.querySelector<HTMLButtonElement>(
+    '[data-crosshook-focus-root="modal"] [data-crosshook-modal-close]',
+  );
+
+  closeButton?.click();
+}
+
 export function App() {
   const profileState = useProfile({ autoSelectFirstProfile: false });
   const { profile, profileName, selectProfile } = profileState;
@@ -76,7 +84,7 @@ export function App() {
   const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
   const [activeTab, setActiveTab] = useState<AppTab>('main');
   const [profileEditorTab, setProfileEditorTab] = useState<'profile' | 'install'>('profile');
-  const gamepadNav = useGamepadNav();
+  const gamepadNav = useGamepadNav({ onBack: handleGamepadBack });
   const communityState = useCommunityProfiles({
     profilesDirectoryPath: DEFAULT_PROFILES_DIRECTORY,
   });
@@ -96,6 +104,7 @@ export function App() {
     profileEditorTab === 'install' ||
     effectiveLaunchMethod === 'steam_applaunch' ||
     effectiveLaunchMethod === 'proton_run';
+  const isInstallEditorContext = activeTab === 'main' && profileEditorTab === 'install';
 
   const launchRequest = useMemo<LaunchRequest | null>(() => {
     if (!profile.game.executable_path.trim()) {
@@ -124,6 +133,10 @@ export function App() {
   }, [effectiveLaunchMethod, profile, steamClientInstallPath]);
 
   const headingTitle = (() => {
+      if (isInstallEditorContext) {
+        return 'Install Windows Game';
+      }
+
       switch (effectiveLaunchMethod) {
       case 'steam_applaunch':
         return 'Two-step Steam launch';
@@ -136,6 +149,10 @@ export function App() {
   })();
 
   const headingCopy = (() => {
+      if (isInstallEditorContext) {
+        return 'Build a Proton-backed game profile in one flow: run the installer, review the generated profile in the modal, then save and open the Profile tab for normal launch controls.';
+      }
+
       switch (effectiveLaunchMethod) {
       case 'steam_applaunch':
         return 'Launch the game through Steam first, then switch to trainer mode once the game reaches the main menu.';
