@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import InstallGamePanel from './InstallGamePanel';
 import ProfileReviewModal, { type ProfileReviewModalConfirmation } from './ProfileReviewModal';
@@ -10,36 +10,21 @@ import { useProfile, type UseProfileResult } from '../hooks/useProfile';
 import type { GameProfile } from '../types';
 import type { InstallProfileReviewPayload } from '../types/install';
 import type { ProfileReviewSession } from '../types/profile-review';
+import { profilesEqual } from '../utils/profile-compare';
 
-const panelStyle: CSSProperties = {
-  background: 'rgba(13, 20, 31, 0.92)',
-  border: '1px solid rgba(120, 145, 177, 0.2)',
-  borderRadius: 18,
-  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
-  padding: 20,
-};
+function updateProfileReviewSession(
+  set: Dispatch<SetStateAction<ProfileReviewSession | null>>,
+  updater: (session: ProfileReviewSession) => ProfileReviewSession,
+) {
+  set((current) => (current === null ? current : updater(current)));
+}
 
-const buttonStyle: CSSProperties = {
-  minHeight: 42,
-  borderRadius: 12,
-  border: '1px solid rgba(120, 145, 177, 0.35)',
-  background: 'linear-gradient(180deg, #1a2b45 0%, #132034 100%)',
-  color: '#f3f6fb',
-  padding: '0 14px',
-  cursor: 'pointer',
-};
-
-const subtleButtonStyle: CSSProperties = {
-  ...buttonStyle,
-  background: '#0b1624',
-};
-
-const helperStyle: CSSProperties = {
-  margin: 0,
-  color: '#99a8bd',
-  fontSize: 13,
-  lineHeight: 1.5,
-};
+function isProfileReviewSessionDirty(session: ProfileReviewSession): boolean {
+  return (
+    session.profileName.trim() !== session.originalProfileName.trim() ||
+    !profilesEqual(session.draftProfile, session.originalProfile)
+  );
+}
 
 type ReviewConfirmationState = ProfileReviewModalConfirmation & {
   restoreIsOpen: boolean;
@@ -50,12 +35,12 @@ function createProfileReviewSessionState(payload: InstallProfileReviewPayload): 
     isOpen: true,
     source: payload.source,
     profileName: payload.profileName,
+    originalProfileName: payload.profileName,
     originalProfile: payload.generatedProfile,
     draftProfile: payload.generatedProfile,
     candidateOptions: payload.candidateOptions,
     helperLogPath: payload.helperLogPath,
     installMessage: payload.message,
-    dirty: false,
     saveError: null,
   };
 }
@@ -82,7 +67,6 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     selectProfile,
     updateProfile,
     saveProfile,
-    deleteProfile,
     confirmDelete,
     executeDelete,
     cancelDelete,
@@ -120,16 +104,10 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     if (confirmed) {
       confirmation.onConfirm();
     } else {
-      setProfileReviewSession((current) => {
-        if (current === null) {
-          return current;
-        }
-
-        return {
-          ...current,
-          isOpen: confirmation.restoreIsOpen,
-        };
-      });
+      updateProfileReviewSession(setProfileReviewSession, (current) => ({
+        ...current,
+        isOpen: confirmation.restoreIsOpen,
+      }));
       confirmation.onCancel();
     }
 
@@ -142,16 +120,10 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     }
 
     setEditorTab('install');
-    setProfileReviewSession((current) => {
-      if (current === null) {
-        return current;
-      }
-
-      return {
-        ...current,
-        isOpen: true,
-      };
-    });
+    updateProfileReviewSession(setProfileReviewSession, (current) => ({
+      ...current,
+      isOpen: true,
+    }));
 
     setReviewConfirmation(confirmation);
 
@@ -167,7 +139,7 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
         currentSession !== null && currentSession.helperLogPath === payload.helperLogPath;
 
       if (currentSession !== null && !sameReviewResult) {
-        if (currentSession.dirty) {
+        if (isProfileReviewSessionDirty(currentSession)) {
           return requestReviewConfirmation({
             title: 'Open the latest review draft?',
             body: `A newer install result is ready for ${payload.profileName}. Opening it will discard the unsaved review draft that is currently loaded.`,
@@ -180,16 +152,10 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
               setEditorTab('install');
             },
             onCancel: () => {
-              setProfileReviewSession((current) => {
-                if (current === null) {
-                  return current;
-                }
-
-                return {
-                  ...current,
-                  isOpen: true,
-                };
-              });
+              updateProfileReviewSession(setProfileReviewSession, (current) => ({
+                ...current,
+                isOpen: true,
+              }));
             },
           });
         }
@@ -219,7 +185,7 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     }
 
     const currentSession = profileReviewSession;
-    if (currentSession?.dirty) {
+    if (currentSession !== null && isProfileReviewSessionDirty(currentSession)) {
       return requestReviewConfirmation({
         title: 'Replace the current review draft?',
         body: `A newer install result is ready for ${payload.profileName}. Replacing it will discard the unsaved review draft that is open now.`,
@@ -245,17 +211,11 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
       return;
     }
 
-    if (!profileReviewSession.dirty) {
-      setProfileReviewSession((current) => {
-        if (current === null) {
-          return current;
-        }
-
-        return {
-          ...current,
-          isOpen: false,
-        };
-      });
+    if (!isProfileReviewSessionDirty(profileReviewSession)) {
+      updateProfileReviewSession(setProfileReviewSession, (current) => ({
+        ...current,
+        isOpen: false,
+      }));
       return;
     }
 
@@ -267,53 +227,33 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
       tone: 'warning',
       restoreIsOpen: profileReviewSession.isOpen,
       onConfirm: () => {
-        setProfileReviewSession((current) => {
-          if (current === null) {
-            return current;
-          }
-
-          return {
-            ...current,
-            isOpen: false,
-          };
-        });
+        updateProfileReviewSession(setProfileReviewSession, (current) => ({
+          ...current,
+          isOpen: false,
+        }));
       },
       onCancel: () => undefined,
     });
   }
 
   function handleProfileReviewNameChange(value: string) {
-    setProfileReviewSession((current) => {
-      if (current === null) {
-        return current;
-      }
-
-      return {
-        ...current,
-        profileName: value,
-        dirty: true,
-        saveError: null,
-      };
-    });
+    updateProfileReviewSession(setProfileReviewSession, (current) => ({
+      ...current,
+      profileName: value,
+      saveError: null,
+    }));
   }
 
   function handleProfileReviewUpdate(updater: (current: GameProfile) => GameProfile) {
-    setProfileReviewSession((current) => {
-      if (current === null) {
-        return current;
-      }
-
-      return {
-        ...current,
-        draftProfile: updater(current.draftProfile),
-        dirty: true,
-        saveError: null,
-      };
-    });
+    updateProfileReviewSession(setProfileReviewSession, (current) => ({
+      ...current,
+      draftProfile: updater(current.draftProfile),
+      saveError: null,
+    }));
   }
 
   async function handleInstallActionConfirmation(action: 'retry' | 'reset') {
-    if (profileReviewSession === null || !profileReviewSession.dirty) {
+    if (profileReviewSession === null || !isProfileReviewSessionDirty(profileReviewSession)) {
       return true;
     }
 
@@ -345,46 +285,28 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     const executablePathTrimmed = profileReviewSession.draftProfile.game.executable_path.trim();
 
     if (!profileNameTrimmed || !executablePathTrimmed) {
-      setProfileReviewSession((current) => {
-        if (current === null) {
-          return current;
-        }
-
-        return {
-          ...current,
-          saveError: !profileNameTrimmed
-            ? 'Profile name is required before saving the review draft.'
-            : 'Select the final executable before saving the review draft.',
-        };
-      });
+      updateProfileReviewSession(setProfileReviewSession, (current) => ({
+        ...current,
+        saveError: !profileNameTrimmed
+          ? 'Profile name is required before saving the review draft.'
+          : 'Select the final executable before saving the review draft.',
+      }));
       return;
     }
 
     const { profileName: draftProfileName, draftProfile } = profileReviewSession;
-    setProfileReviewSession((current) => {
-      if (current === null) {
-        return current;
-      }
-
-      return {
-        ...current,
-        saveError: null,
-      };
-    });
+    updateProfileReviewSession(setProfileReviewSession, (current) => ({
+      ...current,
+      saveError: null,
+    }));
 
     const persistResult = await state.persistProfileDraft(draftProfileName, draftProfile);
 
     if (!persistResult.ok) {
-      setProfileReviewSession((current) => {
-        if (current === null) {
-          return current;
-        }
-
-        return {
-          ...current,
-          saveError: persistResult.error,
-        };
-      });
+      updateProfileReviewSession(setProfileReviewSession, (current) => ({
+        ...current,
+        saveError: persistResult.error,
+      }));
       return;
     }
 
@@ -431,6 +353,11 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     };
   }, [steamClientInstallPath]);
 
+  const reviewDirty = useMemo(
+    () => profileReviewSession !== null && isProfileReviewSessionDirty(profileReviewSession),
+    [profileReviewSession],
+  );
+
   const reviewCanSave =
     profileReviewSession !== null &&
     profileReviewSession.profileName.trim().length > 0 &&
@@ -440,21 +367,33 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     !loading;
   const reviewFinalExecutableMissing =
     profileReviewSession !== null && profileReviewSession.draftProfile.game.executable_path.trim().length === 0;
-  const reviewDescription =
-    profileReviewSession === null
-      ? ''
-      : reviewFinalExecutableMissing
-        ? 'The review draft is still incomplete. Select the final executable before saving, and the draft will stay open until you finish.'
-        : `${profileReviewSession.installMessage} Saving persists the profile and returns you to the Profile tab.`.trim();
+
+  let reviewDescription = '';
+  let reviewModalStatusTone: 'neutral' | 'success' | 'warning' | 'danger' = 'neutral';
+  if (profileReviewSession !== null) {
+    if (reviewFinalExecutableMissing) {
+      reviewDescription =
+        'The review draft is still incomplete. Select the final executable before saving, and the draft will stay open until you finish.';
+    } else {
+      reviewDescription = `${profileReviewSession.installMessage} Saving persists the profile and returns you to the Profile tab.`.trim();
+    }
+    if (profileReviewSession.saveError) {
+      reviewModalStatusTone = 'danger';
+    } else if (reviewFinalExecutableMissing || reviewDirty) {
+      reviewModalStatusTone = 'warning';
+    } else {
+      reviewModalStatusTone = 'neutral';
+    }
+  }
 
   return (
-    <section style={panelStyle}>
+    <section className="crosshook-profile-editor-panel">
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
         <div style={{ display: 'grid', gap: 6 }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Profile</h2>
-          <p style={helperStyle}>Select an existing profile or type a new name before saving.</p>
+          <p className="crosshook-help-text">Select an existing profile or type a new name before saving.</p>
         </div>
-        <button type="button" style={subtleButtonStyle} onClick={() => void refreshProfiles()}>
+        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={() => void refreshProfiles()}>
           Refresh
         </button>
       </div>
@@ -484,23 +423,25 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
         <div>
           <ProfileFormSections
             profileName={profileName}
-            profiles={profiles}
-            selectedProfile={selectedProfile}
             profile={profile}
             launchMethod={launchMethod}
             protonInstalls={protonInstalls}
             protonInstallsError={protonInstallsError}
+            profileSelector={{
+              profiles,
+              selectedProfile,
+              onSelectProfile: selectProfile,
+            }}
             onProfileNameChange={setProfileName}
-            onSelectProfile={selectProfile}
             onUpdateProfile={updateProfile}
           />
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
-            <button type="button" style={buttonStyle} onClick={() => void saveProfile()} disabled={!canSave}>
+            <button type="button" className="crosshook-button" onClick={() => void saveProfile()} disabled={!canSave}>
               {saving ? 'Saving...' : 'Save'}
             </button>
             <button
               type="button"
-              style={subtleButtonStyle}
+              className="crosshook-button crosshook-button--secondary"
               onClick={() => void confirmDelete(profileName)}
               disabled={!canDelete}
             >
@@ -511,20 +452,7 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
             </div>
           </div>
 
-          {error ? (
-            <div
-              style={{
-                marginTop: 16,
-                borderRadius: 12,
-                padding: 12,
-                background: 'rgba(140, 40, 40, 0.2)',
-                border: '1px solid rgba(255, 90, 90, 0.3)',
-                color: '#ffd4d4',
-              }}
-            >
-              {error}
-            </div>
-          ) : null}
+          {error ? <div className="crosshook-error-banner crosshook-error-banner--section">{error}</div> : null}
         </div>
       ) : (
         <InstallGamePanel
@@ -543,13 +471,7 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
           prefixPath={profileReviewSession.draftProfile.runtime.prefix_path}
           helperLogPath={profileReviewSession.helperLogPath}
           description={reviewDescription}
-          statusTone={
-            profileReviewSession.saveError
-              ? 'danger'
-              : reviewFinalExecutableMissing || profileReviewSession.dirty
-                ? 'warning'
-                : 'neutral'
-          }
+          statusTone={reviewModalStatusTone}
           onClose={handleCloseProfileReview}
           confirmation={
             reviewConfirmation
@@ -587,17 +509,7 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
         >
           <div style={{ display: 'grid', gap: 16 }}>
             {profileReviewSession.saveError ? (
-              <div
-                style={{
-                  borderRadius: 12,
-                  padding: 12,
-                  background: 'rgba(140, 40, 40, 0.2)',
-                  border: '1px solid rgba(255, 90, 90, 0.3)',
-                  color: '#ffd4d4',
-                }}
-              >
-                {profileReviewSession.saveError}
-              </div>
+              <div className="crosshook-error-banner">{profileReviewSession.saveError}</div>
             ) : null}
 
             <ProfileFormSections
@@ -611,57 +523,21 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
               onUpdateProfile={handleProfileReviewUpdate}
             />
             {reviewFinalExecutableMissing ? (
-              <div
-                style={{
-                  borderRadius: 12,
-                  padding: 12,
-                  background: 'rgba(245, 158, 11, 0.12)',
-                  border: '1px solid rgba(245, 158, 11, 0.26)',
-                  color: '#fcd34d',
-                }}
-              >
-                Save is blocked until the final executable is selected.
-              </div>
+              <div className="crosshook-warning-banner">Save is blocked until the final executable is selected.</div>
             ) : null}
           </div>
         </ProfileReviewModal>
       ) : null}
 
       {pendingDelete && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: '#1a1a2e',
-              borderRadius: '12px',
-              padding: '24px',
-              maxWidth: '480px',
-              width: '90%',
-            }}
-          >
+        <div className="crosshook-profile-editor-delete-overlay" data-crosshook-focus-root="modal">
+          <div className="crosshook-profile-editor-delete-dialog">
             <h3 style={{ margin: '0 0 12px' }}>Delete Profile</h3>
             <p>
               Delete profile <strong>{pendingDelete.name}</strong>?
             </p>
             {pendingDelete.launcherInfo && (
-              <div
-                style={{
-                  background: 'rgba(245, 158, 11, 0.08)',
-                  padding: '10px',
-                  borderRadius: '6px',
-                  fontSize: '0.85rem',
-                  marginBottom: '12px',
-                }}
-              >
+              <div className="crosshook-profile-editor-delete-warning">
                 <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Launcher files will also be removed:</p>
                 <p style={{ margin: '2px 0', color: '#d1d5db', wordBreak: 'break-all' }}>
                   {pendingDelete.launcherInfo.script_path}
@@ -671,23 +547,16 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
                 </p>
               </div>
             )}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={cancelDelete} style={{ minHeight: '44px', padding: '8px 20px' }}>
-                Cancel
-              </button>
+            <div className="crosshook-profile-editor-delete-actions">
               <button
                 type="button"
-                onClick={() => void executeDelete()}
-                style={{
-                  minHeight: '44px',
-                  padding: '8px 20px',
-                  background: 'rgba(185, 28, 28, 0.16)',
-                  border: '1px solid rgba(248, 113, 113, 0.28)',
-                  color: '#fee2e2',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                }}
+                className="crosshook-button crosshook-button--secondary"
+                onClick={cancelDelete}
+                data-crosshook-modal-close
               >
+                Cancel
+              </button>
+              <button type="button" className="crosshook-profile-editor-delete-confirm" onClick={() => void executeDelete()}>
                 {pendingDelete.launcherInfo ? 'Delete Profile and Launcher' : 'Delete Profile'}
               </button>
             </div>
@@ -701,22 +570,12 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
 export function ProfileEditor() {
   const state = useProfile();
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        padding: 24,
-        background:
-          'radial-gradient(circle at top, rgba(27, 59, 108, 0.35), transparent 35%), linear-gradient(180deg, #08111c 0%, #0b1320 100%)',
-        color: '#f3f6fb',
-      }}
-    >
+    <div className="crosshook-profile-editor-page">
       <div style={{ display: 'grid', gap: 18, maxWidth: 1180, margin: '0 auto' }}>
         <header style={{ display: 'grid', gap: 8 }}>
-          <div style={{ color: '#60a5fa', fontSize: 12, letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-            CrossHook Native
-          </div>
+          <div className="crosshook-profile-editor-eyebrow">CrossHook Native</div>
           <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800 }}>Profile Editor</h1>
-          <p style={{ ...helperStyle, maxWidth: 760 }}>
+          <p className="crosshook-help-text" style={{ maxWidth: 760 }}>
             Edit a profile, save it to Tauri storage, and configure the correct Steam, Proton, or native runner path.
           </p>
         </header>

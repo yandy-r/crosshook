@@ -61,10 +61,10 @@ function resolveLaunchMethod(profile: GameProfile): Exclude<LaunchMethod, ''> {
 }
 
 function handleGamepadBack(): void {
-  const closeButton = document.querySelector<HTMLButtonElement>(
+  const closeButtons = document.querySelectorAll<HTMLButtonElement>(
     '[data-crosshook-focus-root="modal"] [data-crosshook-modal-close]',
   );
-
+  const closeButton = closeButtons[closeButtons.length - 1];
   closeButton?.click();
 }
 

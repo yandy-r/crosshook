@@ -17,8 +17,6 @@ export interface InstallGamePanelProps {
   onRequestInstallAction?: (action: 'retry' | 'reset') => boolean | Promise<boolean>;
 }
 
-const detectedProtonInstalls: ProtonInstallOption[] = [];
-
 function stageLabel(stage: InstallGameStage): string {
   switch (stage) {
     case 'preparing':
@@ -240,7 +238,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
   const reviewableInstallResult = result?.succeeded === true && reviewProfile !== null ? result : null;
   const canReviewGeneratedProfile = reviewableInstallResult !== null && reviewProfile !== null;
   const lastAutoOpenReviewKeyRef = useRef<string | null>(null);
-  const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>(detectedProtonInstalls);
+  const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
 
   const openReviewPayload = useCallback(

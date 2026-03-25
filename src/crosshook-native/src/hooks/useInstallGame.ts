@@ -2,13 +2,16 @@ import { invoke } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { GameProfile } from '../types/profile';
-import type {
-  InstallGameExecutableCandidate,
-  InstallGamePrefixPathState,
-  InstallGameRequest,
-  InstallGameResult,
-  InstallGameStage,
-  InstallGameValidationState,
+import {
+  INSTALL_GAME_VALIDATION_FIELD,
+  INSTALL_GAME_VALIDATION_MESSAGES,
+  type InstallGameExecutableCandidate,
+  type InstallGamePrefixPathState,
+  type InstallGameRequest,
+  type InstallGameResult,
+  type InstallGameStage,
+  type InstallGameValidationError,
+  type InstallGameValidationState,
 } from '../types/install';
 
 type PrefixPathSource = 'auto' | 'manual';
@@ -89,6 +92,13 @@ function normalizeErrorMessage(error: unknown): string {
 }
 
 function mapValidationErrorToField(message: string): keyof InstallGameRequest | null {
+  const variants = Object.keys(INSTALL_GAME_VALIDATION_MESSAGES) as InstallGameValidationError[];
+  for (const variant of variants) {
+    if (message === INSTALL_GAME_VALIDATION_MESSAGES[variant]) {
+      return INSTALL_GAME_VALIDATION_FIELD[variant];
+    }
+  }
+
   const normalized = message.toLowerCase();
 
   if (

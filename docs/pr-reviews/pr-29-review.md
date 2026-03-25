@@ -157,6 +157,8 @@ After deleting a profile, both `deleteProfile` and `executeDelete` auto-select t
 
 ### M1. 11x repeated null-guard `setProfileReviewSession` pattern
 
+**Status:** Resolved — Added `updateProfileReviewSession` helper and routed null-guard updates through it.
+
 **Agents**: Code Simplifier, Type Design Analyzer
 **File**: `src/crosshook-native/src/components/ProfileEditor.tsx` (11 call sites)
 
@@ -175,6 +177,8 @@ A helper function or reducer would eliminate the null-check repetition and centr
 
 ### M2. `ProfileReviewSession.dirty` is manually tracked instead of derived
 
+**Status:** Resolved — Removed stored `dirty`; derive review dirty state with `useMemo` via `originalProfileName`, `originalProfile`, and `profilesEqual()`.
+
 **Agents**: Type Design Analyzer (encapsulation: 4/10, enforcement: 3/10)
 **File**: `src/crosshook-native/src/types/profile-review.ts:13`
 
@@ -186,6 +190,8 @@ A helper function or reducer would eliminate the null-check repetition and centr
 
 ### M3. `ProfileFormSectionsProps` profile-selector triad is not type-safe
 
+**Status:** Resolved — Replaced optional triad with a single optional `profileSelector` object (profiles, selectedProfile, onSelectProfile).
+
 **Agent**: Type Design Analyzer (invariant expression: 4/10)
 **File**: `src/crosshook-native/src/components/ProfileFormSections.tsx:19-22`
 
@@ -194,6 +200,8 @@ A helper function or reducer would eliminate the null-check repetition and centr
 ---
 
 ### M4. `handleGamepadBack` does not account for confirmation sub-dialog layer
+
+**Status:** Resolved — `handleGamepadBack` clicks the last matching modal close control (topmost layer); delete confirmation overlay uses `data-crosshook-focus-root="modal"` and Cancel uses `data-crosshook-modal-close`.
 
 **Agent**: Silent Failure Hunter (MEDIUM)
 **File**: `src/crosshook-native/src/App.tsx:70-76`
@@ -204,6 +212,8 @@ The gamepad Back button targets `[data-crosshook-modal-close]`, which is only on
 
 ### M5. `deleteProfile` and `executeDelete` contain duplicated delete-and-refresh logic
 
+**Status:** Resolved — Shared `finalizeProfileDeletion`; removed unused `deleteProfile`; `executeDelete` is the sole delete path.
+
 **Agents**: Code Simplifier, Type Design Analyzer
 **File**: `src/crosshook-native/src/hooks/useProfile.ts:353-391 vs 418-456`
 
@@ -212,6 +222,8 @@ Nearly identical implementations. `deleteProfile` also appears to be unused dead
 ---
 
 ### M6. Inline error/warning banner styles duplicated 3x
+
+**Status:** Resolved — Added `.crosshook-error-banner` / `.crosshook-warning-banner` in `theme.css` and replaced inline styles in `ProfileEditor.tsx`.
 
 **Agent**: Code Simplifier
 **File**: `src/crosshook-native/src/components/ProfileEditor.tsx:531-542, 606-614, 630-637`
@@ -224,6 +236,8 @@ The error banner `{ borderRadius: 12, padding: 12, background: 'rgba(140, 40, 40
 
 ### L1. `ProfileReviewSession.originalProfile` is never read
 
+**Status:** Resolved — Used for structural equality in derived dirty state (`profilesEqual` vs `draftProfile`).
+
 **Agent**: Code Simplifier
 **File**: `src/crosshook-native/src/types/profile-review.ts:8`
 
@@ -232,6 +246,8 @@ Set at construction but never accessed. Likely intended for a "reset to original
 ---
 
 ### L2. `selectProfile` is a trivial wrapper around `loadProfile`
+
+**Status:** Resolved — `selectProfile` is assigned the `loadProfile` function reference (no extra `useCallback`).
 
 **Agent**: Code Simplifier
 **File**: `src/crosshook-native/src/hooks/useProfile.ts:286-291`
@@ -242,6 +258,8 @@ A `useCallback` that wraps `loadProfile` with zero additional logic.
 
 ### L3. Module-level `detectedProtonInstalls` constant is misleading
 
+**Status:** Resolved — Removed module constant; `useState<ProtonInstallOption[]>([])`.
+
 **Agent**: Code Reviewer (82%)
 **File**: `src/crosshook-native/src/components/InstallGamePanel.tsx:25`
 
@@ -250,6 +268,8 @@ Module-scoped empty array used only as `useState` initial value. Using `[]` inli
 ---
 
 ### L4. Nested ternaries for `reviewDescription` and `statusTone`
+
+**Status:** Resolved — Replaced with an `if` block setting `reviewDescription` and `reviewModalStatusTone`.
 
 **Agent**: Code Simplifier
 **File**: `src/crosshook-native/src/components/ProfileEditor.tsx:459-464, 562-568`
@@ -260,6 +280,8 @@ Nested ternaries reduce readability. An `if/else` chain would be clearer.
 
 ### L5. `panelStyle`/`buttonStyle`/`helperStyle` inline objects overlap with CSS classes
 
+**Status:** Resolved — Profile editor shell uses `crosshook-profile-editor-panel`, `crosshook-button` / `crosshook-help-text`, and page classes in `theme.css`.
+
 **Agent**: Code Simplifier
 **File**: `src/crosshook-native/src/components/ProfileEditor.tsx:14-42`
 
@@ -268,6 +290,8 @@ Four style constants duplicate what `.crosshook-panel`, `.crosshook-button`, and
 ---
 
 ### L6. `InstallGameValidationError` union defined but unused
+
+**Status:** Resolved — Added `INSTALL_GAME_VALIDATION_MESSAGES` / `INSTALL_GAME_VALIDATION_FIELD`; `mapValidationErrorToField` matches exact Rust `message()` strings first, then keeps substring fallback.
 
 **Agent**: Type Design Analyzer
 **File**: `src/crosshook-native/src/types/install.ts:40-56`

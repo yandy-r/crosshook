@@ -29,7 +29,6 @@ export interface UseProfileResult {
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   saveProfile: () => Promise<void>;
   persistProfileDraft: PersistProfileDraft;
-  deleteProfile: () => Promise<void>;
   confirmDelete: (name: string) => Promise<void>;
   executeDelete: () => Promise<void>;
   cancelDelete: () => void;
@@ -301,9 +300,33 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     }
   }, [loadProfile, options.autoSelectFirstProfile, selectedProfile]);
 
-  const selectProfile = useCallback(
+  const selectProfile = loadProfile;
+
+  const finalizeProfileDeletion = useCallback(
     async (name: string) => {
-      await loadProfile(name);
+      const settings = await invoke<AppSettingsData>('settings_load');
+      if (settings.last_used_profile === name) {
+        await invoke('settings_save', {
+          data: {
+            ...settings,
+            last_used_profile: '',
+          } satisfies AppSettingsData,
+        });
+      }
+      const names = await invoke<string[]>('profile_list');
+      setProfiles(names);
+
+      if (names.length === 0) {
+        setSelectedProfile('');
+        setProfileName('');
+        setProfile(createEmptyProfile());
+        setDirty(false);
+        return;
+      }
+
+      await loadProfile(names[0], {
+        loadErrorContext: 'Profile deleted, but loading the next profile failed',
+      });
     },
     [loadProfile]
   );
@@ -372,48 +395,6 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     await persistProfileDraft(profileName, profile);
   }, [persistProfileDraft, profile, profileName]);
 
-  const deleteProfile = useCallback(async () => {
-    const name = profileName.trim();
-    if (!name) {
-      setError('Select a profile to delete.');
-      return;
-    }
-
-    setDeleting(true);
-    setError(null);
-
-    try {
-      await invoke('profile_delete', { name });
-      const settings = await invoke<AppSettingsData>('settings_load');
-      if (settings.last_used_profile === name) {
-        await invoke('settings_save', {
-          data: {
-            ...settings,
-            last_used_profile: '',
-          } satisfies AppSettingsData,
-        });
-      }
-      const names = await invoke<string[]>('profile_list');
-      setProfiles(names);
-
-      if (names.length === 0) {
-        setSelectedProfile('');
-        setProfileName('');
-        setProfile(createEmptyProfile());
-        setDirty(false);
-        return;
-      }
-
-      await loadProfile(names[0], {
-        loadErrorContext: 'Profile deleted, but loading the next profile failed',
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeleting(false);
-    }
-  }, [loadProfile, profileName]);
-
   const confirmDelete = useCallback(async (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -452,35 +433,13 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
     try {
       await invoke('profile_delete', { name });
-      const settings = await invoke<AppSettingsData>('settings_load');
-      if (settings.last_used_profile === name) {
-        await invoke('settings_save', {
-          data: {
-            ...settings,
-            last_used_profile: '',
-          } satisfies AppSettingsData,
-        });
-      }
-      const names = await invoke<string[]>('profile_list');
-      setProfiles(names);
-
-      if (names.length === 0) {
-        setSelectedProfile('');
-        setProfileName('');
-        setProfile(createEmptyProfile());
-        setDirty(false);
-        return;
-      }
-
-      await loadProfile(names[0], {
-        loadErrorContext: 'Profile deleted, but loading the next profile failed',
-      });
+      await finalizeProfileDeletion(name);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setDeleting(false);
     }
-  }, [loadProfile, pendingDelete]);
+  }, [finalizeProfileDeletion, pendingDelete]);
 
   const cancelDelete = useCallback(() => {
     setPendingDelete(null);
@@ -512,7 +471,6 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     updateProfile,
     saveProfile,
     persistProfileDraft,
-    deleteProfile,
     confirmDelete,
     executeDelete,
     cancelDelete,

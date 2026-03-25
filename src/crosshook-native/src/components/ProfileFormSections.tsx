@@ -10,19 +10,26 @@ export interface ProtonInstallOption {
   is_official: boolean;
 }
 
-export interface ProfileFormSectionsProps {
+export type ProfileFormSectionsProfileSelector = {
+  profiles: string[];
+  selectedProfile: string;
+  onSelectProfile: (name: string) => Promise<void>;
+};
+
+type ProfileFormSectionsBaseProps = {
   profileName: string;
   profile: GameProfile;
   launchMethod: LaunchMethod;
   protonInstalls: ProtonInstallOption[];
   protonInstallsError: string | null;
-  profiles?: string[];
-  selectedProfile?: string;
   reviewMode?: boolean;
   onProfileNameChange: (value: string) => void;
-  onSelectProfile?: (name: string) => Promise<void>;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
-}
+};
+
+export type ProfileFormSectionsProps =
+  | (ProfileFormSectionsBaseProps & { profileSelector: ProfileFormSectionsProfileSelector })
+  | (ProfileFormSectionsBaseProps & { profileSelector?: undefined });
 
 const launcherNameHelperText =
   'CrossHook appends " - Trainer" to the exported launcher title. Enter only the base launcher name here.';
@@ -221,21 +228,22 @@ function OptionalSection(props: {
   );
 }
 
-export function ProfileFormSections({
-  profileName,
-  profile,
-  launchMethod,
-  protonInstalls,
-  protonInstallsError,
-  profiles,
-  selectedProfile,
-  reviewMode = false,
-  onProfileNameChange,
-  onSelectProfile,
-  onUpdateProfile,
-}: ProfileFormSectionsProps) {
+export function ProfileFormSections(props: ProfileFormSectionsProps) {
+  const {
+    profileName,
+    profile,
+    launchMethod,
+    protonInstalls,
+    protonInstallsError,
+    reviewMode = false,
+    onProfileNameChange,
+    onUpdateProfile,
+  } = props;
+  const profileSelector = 'profileSelector' in props ? props.profileSelector : undefined;
   const profileNamesListId = useId();
-  const showProfileSelector = profiles !== undefined && selectedProfile !== undefined && onSelectProfile !== undefined;
+  const showProfileSelector = profileSelector !== undefined;
+  const profiles = profileSelector?.profiles;
+  const selectedProfile = profileSelector?.selectedProfile;
   const supportsTrainerLaunch = launchMethod !== 'native';
   const steamClientInstallPath = deriveSteamClientInstallPath(profile.steam.compatdata_path);
   const trainerCollapsed = reviewMode && profile.trainer.path.trim().length === 0;
@@ -279,7 +287,7 @@ export function ProfileFormSections({
           ) : null}
         </div>
 
-        {showProfileSelector ? (
+        {profileSelector ? (
           <div className="crosshook-field">
             <label className="crosshook-label" htmlFor={`${profileNamesListId}-selector`}>
               Load Profile
@@ -288,10 +296,10 @@ export function ProfileFormSections({
               id={`${profileNamesListId}-selector`}
               className="crosshook-select"
               value={selectedProfile}
-              onChange={(event) => void onSelectProfile(event.target.value)}
+              onChange={(event) => void profileSelector.onSelectProfile(event.target.value)}
             >
               <option value="">Create New</option>
-              {profiles.map((name) => (
+              {profileSelector.profiles.map((name) => (
                 <option key={name} value={name}>
                   {name}
                 </option>
