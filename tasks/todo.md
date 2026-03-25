@@ -1,5 +1,24 @@
 # TODO
 
+## Restore Native Workspace Manifest
+
+- [x] Reproduce the native container-build failure and confirm the root cause.
+- [x] Restore the missing Rust workspace manifest at `src/crosshook-native/Cargo.toml`.
+- [x] Verify `cargo metadata` succeeds against the restored workspace manifest.
+- [x] Verify the container build path no longer fails at manifest parsing.
+- [x] Trace the regression back to `scripts/prepare-release.sh`.
+- [x] Patch the release-prep manifest update logic so it cannot truncate the workspace manifest again.
+- [x] Verify the release-prep manifest update logic on temp copies without touching tracked manifests.
+
+## Review
+
+- Restored the missing Rust workspace manifest in `src/crosshook-native/Cargo.toml`, which had been committed as an empty file in `ee40b65` (`chore(release): prepare v0.2.1`).
+- Verified the restored manifest with `cargo metadata --manifest-path src/crosshook-native/Cargo.toml --no-deps --format-version 1`.
+- Verified the original failing path now succeeds with `scripts/build-native-container.sh`, which completed and produced `dist/CrossHook_0.2.0_amd64.AppImage`.
+- Traced the regression to `scripts/prepare-release.sh`: the `perl -0pi -e '... exit(...)'` pattern can truncate the first file when used with in-place editing.
+- Patched the release script to remove the unsafe `exit(...)` from the in-place Perl edit and added explicit sanity checks that fail if the workspace headers or expected versions are missing after the update.
+- Reproduced the release-edit logic on temp manifest copies and confirmed the workspace manifest remains non-empty and updates to the requested version.
+
 ## Launcher Naming Normalization
 
 - [x] Normalize the launcher display-name label between the profile and launcher export panels.

@@ -49,11 +49,17 @@ set_native_workspace_version() {
 
   CROSSHOOK_RELEASE_VERSION="$version" perl -0pi -e '
     my $version = $ENV{CROSSHOOK_RELEASE_VERSION};
-    my $count = 0;
-    $count += s/(\[workspace\.package\]\s*version = ")[^"]+(")/${1}${version}${2}/g;
-    $count += s/(\[package\]\s*name = "[^"]+"\s*version = ")[^"]+(")/${1}${version}${2}/g;
-    exit($count ? 0 : 1);
+    s/(\[workspace\.package\]\s*version = ")[^"]+(")/${1}${version}${2}/g;
+    s/(\[package\]\s*name = "[^"]+"\s*version = ")[^"]+(")/${1}${version}${2}/g;
   ' "${NATIVE_CARGO_MANIFESTS[@]}" || die "failed to update native Cargo manifest versions"
+
+  grep -Fqx "[workspace]" "$NATIVE_WORKSPACE_MANIFEST" || die "workspace manifest lost [workspace] header: $NATIVE_WORKSPACE_MANIFEST"
+  grep -Fqx "[workspace.package]" "$NATIVE_WORKSPACE_MANIFEST" || die "workspace manifest lost [workspace.package] header: $NATIVE_WORKSPACE_MANIFEST"
+  grep -Eq "^version = \"$version\"$" "$NATIVE_WORKSPACE_MANIFEST" || die "workspace manifest version was not updated to $version"
+
+  for manifest in "${NATIVE_CARGO_MANIFESTS[@]:1}"; do
+    grep -Eq "^version = \"$version\"$" "$manifest" || die "package manifest version was not updated to $version: $manifest"
+  done
 }
 
 normalize_tag() {
