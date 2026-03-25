@@ -180,17 +180,17 @@ pub fn is_known_launch_optimization_id(option_id: &str) -> bool {
         .any(|definition| definition.id == option_id)
 }
 
-pub fn resolve_launch_directives(request: &LaunchRequest) -> Result<LaunchDirectives, ValidationError> {
-    let enabled_option_ids = &request.optimizations.enabled_option_ids;
+/// Resolves launch optimization directives for a given method (e.g. `proton_run`).
+///
+/// Used by `resolve_launch_directives` for direct Proton launches and by
+/// [`build_steam_launch_options_command`] so Steam “Launch Options” strings stay aligned
+/// with the same env/wrapper semantics.
+pub fn resolve_launch_directives_for_method(
+    enabled_option_ids: &[String],
+    resolved_method: &str,
+) -> Result<LaunchDirectives, ValidationError> {
     if enabled_option_ids.is_empty() {
         return Ok(LaunchDirectives::default());
-    }
-
-    let resolved_method = request.resolved_method();
-    if resolved_method != METHOD_PROTON_RUN {
-        return Err(ValidationError::LaunchOptimizationsUnsupportedForMethod(
-            resolved_method.to_string(),
-        ));
     }
 
     let mut seen_ids = HashSet::new();
@@ -256,6 +256,39 @@ pub fn resolve_launch_directives(request: &LaunchRequest) -> Result<LaunchDirect
     }
 
     Ok(directives)
+}
+
+pub fn resolve_launch_directives(request: &LaunchRequest) -> Result<LaunchDirectives, ValidationError> {
+    let enabled_option_ids = &request.optimizations.enabled_option_ids;
+    if enabled_option_ids.is_empty() {
+        return Ok(LaunchDirectives::default());
+    }
+
+    let resolved_method = request.resolved_method();
+    if resolved_method != METHOD_PROTON_RUN {
+        return Err(ValidationError::LaunchOptimizationsUnsupportedForMethod(
+            resolved_method.to_string(),
+        ));
+    }
+
+    resolve_launch_directives_for_method(enabled_option_ids, resolved_method)
+}
+
+/// Builds a single-line Steam per-game “Launch Options” string: `KEY=val ... wrappers %command%`.
+///
+/// Uses the same option-ID → env/wrapper mapping as `proton_run` launches.
+pub fn build_steam_launch_options_command(
+    enabled_option_ids: &[String],
+) -> Result<String, ValidationError> {
+    let directives = resolve_launch_directives_for_method(enabled_option_ids, METHOD_PROTON_RUN)?;
+    let mut parts: Vec<String> = directives
+        .env
+        .iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect();
+    parts.extend(directives.wrappers);
+    parts.push("%command%".to_string());
+    Ok(parts.join(" "))
 }
 
 fn is_command_available(binary: &str) -> bool {
@@ -389,6 +422,54 @@ mod tests {
 
         let request = optimization_request(vec!["show_mangohud_overlay"]);
         let error = resolve_launch_directives(&request).expect_err("missing wrapper should fail");
+
+        assert_eq!(
+            error,
+            ValidationError::LaunchOptimizationDependencyMissing {
+                option_id: "show_mangohud_overlay".to_string(),
+                dependency: "mangohud".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn steam_launch_options_empty_is_percent_command_percent() {
+        let command = build_steam_launch_options_command(&[]).expect("empty steam command");
+        assert_eq!(command, "%command%");
+    }
+
+    #[test]
+    fn steam_launch_options_orders_env_then_wrappers_then_placeholder() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let mangohud_path = temp_dir.path().join("mangohud");
+        let game_perf_path = temp_dir.path().join("game-performance");
+        write_executable_file(&mangohud_path);
+        write_executable_file(&game_perf_path);
+        let _command_search_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
+
+        let ids = vec![
+            "disable_steam_input".to_string(),
+            "enable_hdr".to_string(),
+            "show_mangohud_overlay".to_string(),
+            "use_game_performance".to_string(),
+        ];
+        let command = build_steam_launch_options_command(&ids).expect("steam command");
+
+        assert_eq!(
+            command,
+            "PROTON_NO_STEAMINPUT=1 PROTON_ENABLE_HDR=1 mangohud game-performance %command%"
+        );
+    }
+
+    #[test]
+    fn steam_launch_options_rejects_missing_wrapper_like_resolver() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let _command_search_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
+
+        let error = build_steam_launch_options_command(&["show_mangohud_overlay".to_string()])
+            .expect_err("missing mangohud should fail");
 
         assert_eq!(
             error,

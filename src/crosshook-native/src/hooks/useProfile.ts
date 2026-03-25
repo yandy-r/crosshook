@@ -190,11 +190,11 @@ function buildLaunchOptimizationsStatus(
   method: ResolvedLaunchMethod,
   hasExistingSavedProfile: boolean
 ): LaunchOptimizationsStatus {
-  if (method !== 'proton_run') {
+  if (method !== 'proton_run' && method !== 'steam_applaunch') {
     return {
       tone: 'warning',
       label: 'Unavailable for current method',
-      detail: 'Launch optimizations are only editable when the profile method is proton_run.',
+      detail: 'Launch optimizations are only editable when the profile method is proton_run or steam_applaunch.',
     };
   }
 
@@ -209,7 +209,10 @@ function buildLaunchOptimizationsStatus(
   return {
     tone: 'idle',
     label: 'Ready to autosave',
-    detail: 'Only launch.optimizations will be written automatically for this saved profile.',
+    detail:
+      method === 'steam_applaunch'
+        ? 'Only launch.optimizations will be written automatically; paste the generated line into Steam yourself.'
+        : 'Only launch.optimizations will be written automatically for this saved profile.',
   };
 }
 
@@ -632,7 +635,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       launchOptimizationsAutosaveTimerRef.current = null;
     }
 
-    if (method !== 'proton_run' || !hasExistingSavedProfile) {
+    if ((method !== 'proton_run' && method !== 'steam_applaunch') || !hasExistingSavedProfile) {
       setLaunchOptimizationsStatus(buildLaunchOptimizationsStatus(method, hasExistingSavedProfile));
       return;
     }

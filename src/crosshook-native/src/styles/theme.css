@@ -399,6 +399,46 @@ textarea {
   margin: 0;
 }
 
+.crosshook-steam-launch-options {
+  display: grid;
+  gap: 16px;
+}
+
+.crosshook-steam-launch-options__header {
+  display: grid;
+  gap: 8px;
+}
+
+.crosshook-steam-launch-options__title {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  font-size: clamp(1.2rem, 1.4vw, 1.45rem);
+  line-height: 1.15;
+}
+
+.crosshook-steam-launch-options__intro code {
+  font-size: 0.9em;
+}
+
+.crosshook-steam-launch-options__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.crosshook-steam-launch-options__preview {
+  flex: 1;
+  min-width: min(100%, 220px);
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--crosshook-radius-md);
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(224, 224, 224, 0.1);
+  min-height: 3.25rem;
+  line-height: 1.5;
+}
+
 .crosshook-launch-optimizations__sections {
   display: grid;
   gap: 16px;

@@ -12,7 +12,10 @@ pub use env::{
     LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
     WINE_ENV_VARS_TO_CLEAR,
 };
-pub use optimizations::{is_known_launch_optimization_id, resolve_launch_directives, LaunchDirectives};
+pub use optimizations::{
+    build_steam_launch_options_command, is_known_launch_optimization_id, resolve_launch_directives,
+    resolve_launch_directives_for_method, LaunchDirectives,
+};
 pub use request::{
     validate, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest,
     ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,

@@ -10,6 +10,7 @@ import {
   type LaunchOptimizationCategory,
   type LaunchOptimizationConflict,
   type LaunchOptimizationId,
+  type LaunchOptimizationLaunchMethod,
   type LaunchOptimizationOption,
 } from '../types/launch-optimizations';
 
@@ -38,22 +39,22 @@ const DEFAULT_STATUS: Record<LaunchMethod, LaunchOptimizationsPanelStatus> = {
   '': {
     tone: 'warning',
     label: 'Profile method is not set',
-    detail: 'Launch optimizations are only available for Proton-backed profiles.',
+    detail: 'Launch optimizations apply to proton_run and steam_applaunch profiles.',
   },
   native: {
     tone: 'warning',
     label: 'Unavailable for native launches',
-    detail: 'Switch the launch method to proton_run to edit these Proton-specific toggles.',
+    detail: 'Switch the launch method to proton_run or steam_applaunch to edit these toggles.',
   },
   proton_run: {
     tone: 'idle',
     label: 'Ready for Proton-backed launches',
-    detail: 'These settings stay profile-scoped and only apply when the method is proton_run.',
+    detail: 'These settings stay profile-scoped and apply to direct proton_run launches.',
   },
   steam_applaunch: {
-    tone: 'warning',
-    label: 'Unavailable for Steam launches',
-    detail: 'Switch the launch method to proton_run to edit these Proton-specific toggles.',
+    tone: 'idle',
+    label: 'Ready for Steam launch options',
+    detail: 'Use the Steam launch options panel below to copy a line into Steam; CrossHook does not inject it automatically.',
   },
 };
 
@@ -116,6 +117,7 @@ function OptionGroup(props: {
   enabledIds: Set<LaunchOptimizationId>;
   selectedConflicts: readonly LaunchOptimizationConflict[];
   isMethodSupported: boolean;
+  method: LaunchMethod;
   onToggleOption: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
   tooltipIdPrefix: string;
   tooltipId: LaunchOptimizationId | null;
@@ -127,6 +129,7 @@ function OptionGroup(props: {
     enabledIds,
     selectedConflicts,
     isMethodSupported,
+    method,
     onToggleOption,
     tooltipIdPrefix,
     tooltipId,
@@ -163,7 +166,7 @@ function OptionGroup(props: {
           const isBlockedByConflict = !isEnabled && blockedByLabels.length > 0;
           const isSupported =
             isMethodSupported &&
-            option.applicableMethods.includes('proton_run') &&
+            option.applicableMethods.includes(method as LaunchOptimizationLaunchMethod) &&
             !isBlockedByConflict;
           const checkboxId = `${tooltipIdPrefix}-${option.id}`;
           const tooltipIdValue = `${tooltipIdPrefix}-${option.id}-tooltip`;
@@ -220,7 +223,11 @@ function OptionGroup(props: {
                     ) : null}
                     {!isSupported ? (
                       <span className="crosshook-launch-optimizations__option-pill crosshook-launch-optimizations__option-pill--disabled">
-                        {isBlockedByConflict ? 'Resolve conflict first' : 'Proton only'}
+                        {isBlockedByConflict
+                          ? 'Resolve conflict first'
+                          : isMethodSupported
+                            ? 'Unavailable'
+                            : 'Not for this method'}
                       </span>
                     ) : null}
                   </div>
@@ -294,7 +301,7 @@ export function LaunchOptimizationsPanel({
   const tooltipIdPrefix = useId();
   const [tooltipId, setTooltipId] = useState<LaunchOptimizationId | null>(null);
 
-  const isMethodSupported = method === 'proton_run';
+  const isMethodSupported = method === 'proton_run' || method === 'steam_applaunch';
   const seen = new Set<LaunchOptimizationId>();
   const selectedOptionIds = enabledOptionIds.filter((optionId) => {
     if (!LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId] || seen.has(optionId)) {
@@ -356,7 +363,8 @@ export function LaunchOptimizationsPanel({
 
       {!isMethodSupported ? (
         <div className="crosshook-warning-banner crosshook-launch-optimizations__method-warning">
-          Proton launch optimizations are only editable when the profile method is <code>proton_run</code>.
+          Launch optimizations are only editable when the profile method is <code>proton_run</code> or{' '}
+          <code>steam_applaunch</code>.
         </div>
       ) : null}
 
@@ -374,6 +382,7 @@ export function LaunchOptimizationsPanel({
                 enabledIds={enabledIdSet}
                 selectedConflicts={selectedConflicts}
                 isMethodSupported={isMethodSupported}
+                method={method}
                 onToggleOption={onToggleOption}
                 tooltipIdPrefix={tooltipIdPrefix}
                 tooltipId={tooltipId}
@@ -402,6 +411,7 @@ export function LaunchOptimizationsPanel({
                 enabledIds={enabledIdSet}
                 selectedConflicts={selectedConflicts}
                 isMethodSupported={isMethodSupported}
+                method={method}
                 onToggleOption={onToggleOption}
                 tooltipIdPrefix={tooltipIdPrefix}
                 tooltipId={tooltipId}

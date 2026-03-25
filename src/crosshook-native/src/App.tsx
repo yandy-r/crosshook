@@ -6,6 +6,7 @@ import CommunityBrowser from './components/CommunityBrowser';
 import CompatibilityViewer from './components/CompatibilityViewer';
 import LaunchPanel from './components/LaunchPanel';
 import LaunchOptimizationsPanel from './components/LaunchOptimizationsPanel';
+import SteamLaunchOptionsPanel from './components/SteamLaunchOptionsPanel';
 import LauncherExport from './components/LauncherExport';
 import { deriveSteamClientInstallPath } from './components/ProfileFormSections';
 import { ProfileEditorView } from './components/ProfileEditor';
@@ -106,7 +107,10 @@ export function App() {
     effectiveLaunchMethod === 'proton_run';
   const isInstallEditorContext = activeTab === 'main' && profileEditorTab === 'install';
   const shouldShowLaunchOptimizations =
-    !isInstallEditorContext && effectiveLaunchMethod === 'proton_run';
+    !isInstallEditorContext &&
+    (effectiveLaunchMethod === 'proton_run' || effectiveLaunchMethod === 'steam_applaunch');
+  const shouldShowSteamLaunchOptions =
+    !isInstallEditorContext && effectiveLaunchMethod === 'steam_applaunch';
 
   const launchRequest = useMemo<LaunchRequest | null>(() => {
     if (!profile.game.executable_path.trim()) {
@@ -364,6 +368,11 @@ export function App() {
                 enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
                 onToggleOption={toggleLaunchOptimization}
                 status={launchOptimizationsStatus}
+              />
+            ) : null}
+            {shouldShowSteamLaunchOptions ? (
+              <SteamLaunchOptionsPanel
+                enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
               />
             ) : null}
           </div>

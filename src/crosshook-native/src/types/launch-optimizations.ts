@@ -16,9 +16,10 @@ export const LAUNCH_OPTIMIZATION_CATEGORY_LABELS: Record<LaunchOptimizationCateg
   compatibility: 'Compatibility Workarounds',
 };
 
-export const PROTON_RUN_ONLY_METHODS = ['proton_run'] as const;
+// Launch methods where profile-scoped optimization toggles apply (direct Proton or Steam copy/paste line).
+export const LAUNCH_OPTIMIZATION_APPLICABLE_METHODS = ['proton_run', 'steam_applaunch'] as const;
 
-export type LaunchOptimizationLaunchMethod = (typeof PROTON_RUN_ONLY_METHODS)[number];
+export type LaunchOptimizationLaunchMethod = (typeof LAUNCH_OPTIMIZATION_APPLICABLE_METHODS)[number];
 
 export const LAUNCH_OPTIMIZATION_IDS = [
   'disable_steam_input',
@@ -73,7 +74,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'input',
     advanced: false,
     community: false,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'prefer_sdl_input',
@@ -84,7 +85,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'input',
     advanced: false,
     community: false,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'hide_window_decorations',
@@ -95,7 +96,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'display',
     advanced: false,
     community: false,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'show_mangohud_overlay',
@@ -106,7 +107,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'performance',
     advanced: false,
     community: false,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'use_gamemode',
@@ -117,7 +118,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'performance',
     advanced: false,
     community: false,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
     conflictsWith: ['use_game_performance'],
   },
   {
@@ -129,7 +130,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'performance',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
     conflictsWith: ['use_gamemode'],
   },
   {
@@ -141,7 +142,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'graphics',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'enable_wayland_driver',
@@ -152,7 +153,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'compatibility',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'use_ntsync',
@@ -163,7 +164,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'compatibility',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'enable_local_shader_cache',
@@ -174,7 +175,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'graphics',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'enable_fsr4_upgrade',
@@ -185,7 +186,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'graphics',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
     conflictsWith: ['enable_fsr4_rdna3_upgrade'],
   },
   {
@@ -197,7 +198,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'graphics',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
     conflictsWith: ['enable_fsr4_upgrade'],
   },
   {
@@ -209,7 +210,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'graphics',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'enable_dlss_upgrade',
@@ -220,7 +221,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'graphics',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'show_dlss_indicator',
@@ -231,7 +232,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'graphics',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'enable_nvidia_libs',
@@ -242,7 +243,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'graphics',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
     id: 'steamdeck_compat_mode',
@@ -253,7 +254,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     category: 'compatibility',
     advanced: true,
     community: true,
-    applicableMethods: PROTON_RUN_ONLY_METHODS,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
 ] as const;
 
