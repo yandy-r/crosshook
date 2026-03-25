@@ -1,29 +1,20 @@
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
 
+import { formatProtonInstallLabel, type ProtonInstallOption } from './ProfileFormSections';
+import { chooseDirectory, chooseFile } from '../utils/dialog';
 import { useInstallGame } from '../hooks/useInstallGame';
-import type { GameProfile } from '../types/profile';
-import type { InstallGameExecutableCandidate, InstallGamePrefixPathState, InstallGameStage } from '../types/install';
+import type {
+  InstallGameExecutableCandidate,
+  InstallGamePrefixPathState,
+  InstallGameStage,
+  InstallProfileReviewPayload,
+  ProfileReviewSource,
+} from '../types/install';
 
 export interface InstallGamePanelProps {
-  onReviewGeneratedProfile: (profileName: string, profile: GameProfile) => void;
-}
-
-type ProtonInstallOption = {
-  name: string;
-  path: string;
-  is_official: boolean;
-};
-
-const detectedProtonInstalls: ProtonInstallOption[] = [];
-function formatProtonInstallLabel(install: ProtonInstallOption, duplicateNameCounts: Record<string, number>): string {
-  const baseLabel = install.name.trim() || 'Unnamed Proton install';
-  if ((duplicateNameCounts[baseLabel] ?? 0) <= 1) {
-    return baseLabel;
-  }
-
-  return `${baseLabel} (${install.is_official ? 'Steam' : 'Custom'})`;
+  onOpenProfileReview: (payload: InstallProfileReviewPayload) => void | Promise<boolean>;
+  onRequestInstallAction?: (action: 'retry' | 'reset') => boolean | Promise<boolean>;
 }
 
 function stageLabel(stage: InstallGameStage): string {
@@ -67,35 +58,6 @@ function prefixStateLabel(state: InstallGamePrefixPathState): string {
     default:
       return 'Awaiting profile name';
   }
-}
-
-async function chooseFile(title: string, filters?: { name: string; extensions: string[] }[]) {
-  const result = await open({
-    directory: false,
-    multiple: false,
-    title,
-    filters,
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
-}
-
-async function chooseDirectory(title: string) {
-  const result = await open({
-    directory: true,
-    multiple: false,
-    title,
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
 }
 
 function InstallField(props: {
@@ -248,7 +210,7 @@ function CandidateRow(props: {
   );
 }
 
-export function InstallGamePanel({ onReviewGeneratedProfile }: InstallGamePanelProps) {
+export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }: InstallGamePanelProps) {
   const {
     request,
     updateRequest,
@@ -274,13 +236,48 @@ export function InstallGamePanel({ onReviewGeneratedProfile }: InstallGamePanelP
   const candidateCount = candidateOptions.length;
   const logPath = result?.helper_log_path ?? '';
   const reviewableInstallResult = result?.succeeded === true && reviewProfile !== null ? result : null;
-  const hasConfirmedReviewExecutable = (reviewProfile?.game.executable_path.trim().length ?? 0) > 0;
-  const canReviewGeneratedProfile =
-    reviewableInstallResult !== null &&
-    stage === 'ready_to_save' &&
-    hasConfirmedReviewExecutable;
-  const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>(detectedProtonInstalls);
+  const canReviewGeneratedProfile = reviewableInstallResult !== null && reviewProfile !== null;
+  const lastAutoOpenReviewKeyRef = useRef<string | null>(null);
+  const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
+
+  const openReviewPayload = useCallback(
+    (source: ProfileReviewSource) => {
+      if (reviewableInstallResult === null || reviewProfile === null) {
+        return;
+      }
+
+      void onOpenProfileReview({
+        source,
+        profileName: reviewableInstallResult.profile_name.trim() || request.profile_name.trim(),
+        generatedProfile: reviewProfile,
+        candidateOptions,
+        helperLogPath: logPath,
+        message: reviewableInstallResult.message,
+      });
+    },
+    [candidateOptions, logPath, onOpenProfileReview, request.profile_name, reviewProfile, reviewableInstallResult],
+  );
+
+  useEffect(() => {
+    if (reviewableInstallResult === null || reviewProfile === null) {
+      lastAutoOpenReviewKeyRef.current = null;
+      return;
+    }
+
+    const autoOpenReviewKey = [
+      reviewableInstallResult.profile_name.trim(),
+      reviewableInstallResult.helper_log_path.trim(),
+      reviewableInstallResult.message.trim(),
+    ].join('::');
+
+    if (lastAutoOpenReviewKeyRef.current === autoOpenReviewKey) {
+      return;
+    }
+
+    lastAutoOpenReviewKeyRef.current = autoOpenReviewKey;
+    openReviewPayload('install-complete');
+  }, [openReviewPayload, reviewableInstallResult, reviewProfile]);
 
   useEffect(() => {
     let active = true;
@@ -503,31 +500,43 @@ export function InstallGamePanel({ onReviewGeneratedProfile }: InstallGamePanelP
         <button
           type="button"
           className="crosshook-button"
-          onClick={() => void startInstall()}
+          onClick={async () => {
+            const shouldProceed = await Promise.resolve(onRequestInstallAction?.('retry') ?? true);
+            if (!shouldProceed) {
+              return;
+            }
+
+            await startInstall();
+          }}
           disabled={isRunningInstaller || isResolvingDefaultPrefixPath}
         >
           {actionLabel}
         </button>
-        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={() => reset()}>
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={async () => {
+            const shouldProceed = await Promise.resolve(onRequestInstallAction?.('reset') ?? true);
+            if (!shouldProceed) {
+              return;
+            }
+
+            reset();
+          }}
+        >
           Reset Form
         </button>
         <div className="crosshook-help-text" style={{ alignSelf: 'center' }}>
-          {isResolvingDefaultPrefixPath ? 'Resolving the suggested prefix path before install.' : 'The generated profile stays editable until the later save step.'}
+          {isResolvingDefaultPrefixPath ? 'Resolving the suggested prefix path before install.' : 'The generated profile stays editable until the modal save step.'}
         </div>
         {reviewableInstallResult !== null ? (
           <button
             type="button"
             className="crosshook-button crosshook-button--secondary"
             disabled={!canReviewGeneratedProfile}
-            onClick={() => {
-              if (!canReviewGeneratedProfile || reviewableInstallResult === null || reviewProfile === null) {
-                return;
-              }
-
-              onReviewGeneratedProfile(reviewableInstallResult.profile_name, reviewProfile);
-            }}
+            onClick={() => openReviewPayload('manual-verify')}
           >
-            Review in Profile
+            Review in Modal
           </button>
         ) : null}
       </div>

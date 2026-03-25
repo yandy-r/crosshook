@@ -41,6 +41,7 @@ const GAMEPAD_DPAD_DOWN = 13;
 const GAMEPAD_DPAD_LEFT = 14;
 const GAMEPAD_DPAD_RIGHT = 15;
 const AXIS_ACTIVATION_THRESHOLD = 0.5;
+const MODAL_FOCUS_ROOT_SELECTOR = '[data-crosshook-focus-root="modal"]';
 
 function isVisible(element: HTMLElement): boolean {
   const style = window.getComputedStyle(element);
@@ -67,6 +68,11 @@ function isFocusable(element: HTMLElement): boolean {
 
 function getRootElement(rootRef: MutableRefObject<HTMLElement | null>): HTMLElement | null {
   return rootRef.current;
+}
+
+function getNavigationRoot(rootRef: MutableRefObject<HTMLElement | null>): HTMLElement | null {
+  const modalRoots = document.querySelectorAll<HTMLElement>(MODAL_FOCUS_ROOT_SELECTOR);
+  return modalRoots.item(modalRoots.length - 1) ?? getRootElement(rootRef);
 }
 
 function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
@@ -228,7 +234,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
   }, [controllerMode]);
 
   const updateActiveState = useCallback(() => {
-    const root = getRootElement(rootRef);
+    const root = getNavigationRoot(rootRef);
     const focusables = getFocusableElements(root);
     const current = document.activeElement;
     const index = getCurrentIndex(focusables, current);
@@ -238,7 +244,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
 
   const focusByIndex = useCallback(
     (index: number) => {
-      const root = getRootElement(rootRef);
+      const root = getNavigationRoot(rootRef);
       const focusables = getFocusableElements(root);
       if (focusables.length === 0) {
         return;
@@ -260,7 +266,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
 
   const focusFirst = useCallback(() => focusByIndex(0), [focusByIndex]);
   const focusLast = useCallback(() => {
-    const root = getRootElement(rootRef);
+    const root = getNavigationRoot(rootRef);
     const focusables = getFocusableElements(root);
     if (focusables.length === 0) {
       return;
@@ -269,7 +275,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
     focusByIndex(focusables.length - 1);
   }, [focusByIndex]);
   const focusNext = useCallback(() => {
-    const root = getRootElement(rootRef);
+    const root = getNavigationRoot(rootRef);
     const focusables = getFocusableElements(root);
     if (focusables.length === 0) {
       return;
@@ -284,7 +290,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
     }
   }, [focusByIndex, options.wrap]);
   const focusPrevious = useCallback(() => {
-    const root = getRootElement(rootRef);
+    const root = getNavigationRoot(rootRef);
     const focusables = getFocusableElements(root);
     if (focusables.length === 0) {
       return;
