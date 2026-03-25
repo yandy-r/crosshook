@@ -556,7 +556,8 @@ mod tests {
             .join("drive_c/CrossHook/StagedTrainers/aurora/aurora.exe")
             .exists());
         assert!(envs.iter().any(|(key, value)| {
-            key == "WINEPREFIX" && value.as_deref() == Some(wine_prefix_path.to_string_lossy().as_ref())
+            key == "WINEPREFIX"
+                && value.as_deref() == Some(wine_prefix_path.to_string_lossy().as_ref())
         }));
         assert!(envs.iter().any(|(key, value)| {
             key == "STEAM_COMPAT_DATA_PATH"

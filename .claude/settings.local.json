@@ -51,7 +51,28 @@
       "Bash(get_feature_plan_dir \"launcher-delete\")",
       "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/_shared/scripts/resolve-plans-dir.sh \"launcher-delete\" 2>&1)",
       "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/plan-workflow/scripts/check-state.sh \"launcher-delete\" 2>&1)",
-      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/shared-context/scripts/validate-research-artifacts.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete\" 2>&1)"
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/shared-context/scripts/validate-research-artifacts.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/plan-workflow/scripts/validate-shared.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete/shared.md\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/parallel-plan/scripts/validate-analysis-artifacts.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/parallel-plan/scripts/persist-or-fail.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete\" 2>&1)",
+      "Bash(bash /home/yandy/.claude/plugins/cache/yandy-plugins/plan-workflow/1.0.0/skills/plan-workflow/scripts/validate-workflow-plan.sh \"/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/launcher-delete/parallel-plan.md\" 2>&1)",
+      "Bash(xxd)",
+      "Skill(implement-plan:implement-plan)",
+      "Bash(npx tsc:*)",
+      "Bash(npm ls:*)",
+      "Bash(cargo build:*)",
+      "Bash(npm install:*)",
+      "Bash(node_modules/.bin/tsc --noEmit --pretty)",
+      "Bash(for branch:*)",
+      "Bash(do if:*)",
+      "Bash(then echo:*)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(do echo:*)",
+      "Bash(npx --package=typescript tsc --noEmit)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(./node_modules/.bin/tsc --noEmit --pretty)"
     ]
   }
 }

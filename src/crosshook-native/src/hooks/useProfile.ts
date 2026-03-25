@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { AppSettingsData, GameProfile, RecentFilesData } from '../types';
+import type { AppSettingsData, GameProfile, LauncherInfo, RecentFilesData } from '../types';
+
+export interface PendingDelete {
+  name: string;
+  launcherInfo: LauncherInfo | null;
+}
 
 export interface UseProfileResult {
   profiles: string[];
@@ -13,12 +18,16 @@ export interface UseProfileResult {
   deleting: boolean;
   error: string | null;
   profileExists: boolean;
+  pendingDelete: PendingDelete | null;
   setProfileName: (name: string) => void;
   selectProfile: (name: string) => Promise<void>;
   hydrateProfile: (name: string, profile: GameProfile) => void;
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   saveProfile: () => Promise<void>;
   deleteProfile: () => Promise<void>;
+  confirmDelete: (name: string) => Promise<void>;
+  executeDelete: () => Promise<void>;
+  cancelDelete: () => void;
   refreshProfiles: () => Promise<void>;
 }
 
@@ -27,9 +36,17 @@ export interface UseProfileOptions {
 }
 
 type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
+const automaticLauncherSuffix = ' - Trainer';
 
 function looksLikeWindowsExecutable(path: string): boolean {
   return path.trim().toLowerCase().endsWith('.exe');
+}
+
+function stripAutomaticLauncherSuffix(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.endsWith(automaticLauncherSuffix)
+    ? trimmed.slice(0, -automaticLauncherSuffix.length).trimEnd()
+    : trimmed;
 }
 
 function deriveDisplayNameFromPath(path: string): string {
@@ -48,9 +65,9 @@ function deriveGameName(profile: GameProfile): string {
 
 function deriveLauncherDisplayName(profile: GameProfile): string {
   return (
-    profile.steam.launcher.display_name.trim() ||
+    stripAutomaticLauncherSuffix(profile.steam.launcher.display_name) ||
     deriveGameName(profile) ||
-    deriveDisplayNameFromPath(profile.trainer.path)
+    stripAutomaticLauncherSuffix(deriveDisplayNameFromPath(profile.trainer.path))
   );
 }
 
@@ -91,6 +108,7 @@ function normalizeProfileForEdit(profile: GameProfile): GameProfile {
       enabled: method === 'steam_applaunch',
       launcher: {
         ...profile.steam.launcher,
+        display_name: stripAutomaticLauncherSuffix(profile.steam.launcher.display_name),
       },
     },
     runtime: {
@@ -174,7 +192,7 @@ function createEmptyProfile(): GameProfile {
       working_directory: '',
     },
     launch: {
-      method: '',
+      method: 'proton_run',
     },
   };
 }
@@ -189,6 +207,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
   const syncProfileMetadata = useCallback(async (name: string, currentProfile: GameProfile) => {
     const settings = await invoke<AppSettingsData>('settings_load');
@@ -362,6 +381,75 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     }
   }, [loadProfile, profileName]);
 
+  const confirmDelete = useCallback(async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError('Select a profile to delete.');
+      return;
+    }
+
+    setError(null);
+
+    try {
+      const launcherInfo = await invoke<LauncherInfo>('check_launcher_for_profile', {
+        name: trimmed,
+      });
+
+      if (launcherInfo.script_exists || launcherInfo.desktop_entry_exists) {
+        setPendingDelete({ name: trimmed, launcherInfo });
+        return;
+      }
+    } catch (err) {
+      console.error('Failed to inspect launcher state before profile delete.', err);
+    }
+
+    setPendingDelete({ name: trimmed, launcherInfo: null });
+  }, []);
+
+  const executeDelete = useCallback(async () => {
+    if (!pendingDelete) {
+      return;
+    }
+
+    const { name } = pendingDelete;
+    setPendingDelete(null);
+    setDeleting(true);
+    setError(null);
+
+    try {
+      await invoke('profile_delete', { name });
+      const settings = await invoke<AppSettingsData>('settings_load');
+      if (settings.last_used_profile === name) {
+        await invoke('settings_save', {
+          data: {
+            ...settings,
+            last_used_profile: '',
+          } satisfies AppSettingsData,
+        });
+      }
+      const names = await invoke<string[]>('profile_list');
+      setProfiles(names);
+
+      if (names.length === 0) {
+        setSelectedProfile('');
+        setProfileName('');
+        setProfile(createEmptyProfile());
+        setDirty(false);
+        return;
+      }
+
+      await loadProfile(names[0]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
+    }
+  }, [loadProfile, pendingDelete]);
+
+  const cancelDelete = useCallback(() => {
+    setPendingDelete(null);
+  }, []);
+
   useEffect(() => {
     void refreshProfiles().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : String(err));
@@ -381,12 +469,16 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     deleting,
     error,
     profileExists,
+    pendingDelete,
     setProfileName,
     selectProfile,
     hydrateProfile,
     updateProfile,
     saveProfile,
     deleteProfile,
+    confirmDelete,
+    executeDelete,
+    cancelDelete,
     refreshProfiles,
   };
 }

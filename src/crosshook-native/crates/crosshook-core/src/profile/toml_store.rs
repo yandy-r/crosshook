@@ -122,6 +122,23 @@ impl ProfileStore {
         Ok(())
     }
 
+    pub fn rename(&self, old_name: &str, new_name: &str) -> Result<(), ProfileStoreError> {
+        let old_name = old_name.trim();
+        let new_name = new_name.trim();
+        validate_name(old_name)?;
+        validate_name(new_name)?;
+        let old_path = self.profile_path(old_name)?;
+        let new_path = self.profile_path(new_name)?;
+        if !old_path.exists() {
+            return Err(ProfileStoreError::NotFound(old_path));
+        }
+        if old_name == new_name {
+            return Ok(()); // no-op
+        }
+        fs::rename(&old_path, &new_path)?;
+        Ok(())
+    }
+
     pub fn import_legacy(&self, legacy_path: &Path) -> Result<GameProfile, ProfileStoreError> {
         let profile_name = legacy_path
             .file_stem()
@@ -300,5 +317,77 @@ method = "native"
         assert!(validate_name("foo/bar").is_err());
         assert!(validate_name("foo\\bar").is_err());
         assert!(validate_name("foo:bar").is_err());
+    }
+
+    #[test]
+    fn test_rename_success() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("old-name", &profile).unwrap();
+        assert!(store.profile_path("old-name").unwrap().exists());
+
+        store.rename("old-name", "new-name").unwrap();
+        assert!(!store.profile_path("old-name").unwrap().exists());
+        assert!(store.profile_path("new-name").unwrap().exists());
+
+        let loaded = store.load("new-name").unwrap();
+        assert_eq!(loaded, profile);
+    }
+
+    #[test]
+    fn test_rename_not_found() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        fs::create_dir_all(&store.base_path).unwrap();
+
+        let result = store.rename("nonexistent", "new-name");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_rename_same_name() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("same-name", &profile).unwrap();
+
+        let result = store.rename("same-name", "same-name");
+        assert!(result.is_ok());
+        assert!(store.profile_path("same-name").unwrap().exists());
+    }
+
+    #[test]
+    fn test_rename_preserves_content() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("original", &profile).unwrap();
+        let original_content = fs::read_to_string(store.profile_path("original").unwrap()).unwrap();
+
+        store.rename("original", "renamed").unwrap();
+        let renamed_content = fs::read_to_string(store.profile_path("renamed").unwrap()).unwrap();
+
+        assert_eq!(original_content, renamed_content);
+    }
+
+    #[test]
+    fn test_rename_overwrites_existing_target_profile() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let source_profile = sample_profile();
+        let mut target_profile = sample_profile();
+        target_profile.game.name = "Different Game".to_string();
+
+        store.save("source", &source_profile).unwrap();
+        store.save("target", &target_profile).unwrap();
+
+        store.rename("source", "target").unwrap();
+
+        assert!(!store.profile_path("source").unwrap().exists());
+        assert_eq!(store.load("target").unwrap(), source_profile);
     }
 }
