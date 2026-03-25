@@ -1,5 +1,20 @@
 # Task Plan
 
+## 2026-03-25 - proton launcher icon parity
+
+- [x] Confirm how launcher metadata is stored and consumed for Steam and Proton profiles.
+- [x] Update the profile form so Proton mode exposes launcher export metadata, including `Launcher Icon`.
+- [x] Run focused verification for the affected frontend paths.
+- [x] Add a short review note with outcome and residual risk.
+
+## Review
+
+- `ProfileFormSections.tsx` now reuses the existing launcher metadata fields for both Steam and Proton profile editing, while still keeping install review mode limited to launch-critical fields.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` passed in `src/crosshook-native`
+- Residual risk:
+  - No graphical Tauri pass was run in this environment, so the exact Proton form spacing and wrap behavior still need a manual UI check at normal app window sizes.
+
 ## 2026-03-25 - profile-modal planning workflow
 
 - [x] Review existing install-flow code, planning artifacts, and repo lessons.
