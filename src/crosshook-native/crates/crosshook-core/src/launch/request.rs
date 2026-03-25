@@ -5,6 +5,8 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use super::optimizations::resolve_launch_directives;
+
 pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
 pub const METHOD_PROTON_RUN: &str = "proton_run";
 pub const METHOD_NATIVE: &str = "native";
@@ -23,6 +25,8 @@ pub struct LaunchRequest {
     pub steam: SteamLaunchConfig,
     #[serde(default)]
     pub runtime: RuntimeLaunchConfig,
+    #[serde(default)]
+    pub optimizations: LaunchOptimizationsRequest,
     #[serde(default)]
     pub launch_trainer_only: bool,
     #[serde(default)]
@@ -51,6 +55,16 @@ pub struct RuntimeLaunchConfig {
     pub proton_path: String,
     #[serde(default)]
     pub working_directory: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LaunchOptimizationsRequest {
+    #[serde(
+        rename = "enabled_option_ids",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub enabled_option_ids: Vec<String>,
 }
 
 impl LaunchRequest {
@@ -142,6 +156,12 @@ pub enum ValidationError {
     RuntimeProtonPathRequired,
     RuntimeProtonPathMissing,
     RuntimeProtonPathNotExecutable,
+    UnknownLaunchOptimization(String),
+    DuplicateLaunchOptimization(String),
+    LaunchOptimizationsUnsupportedForMethod(String),
+    LaunchOptimizationNotSupportedForMethod { option_id: String, method: String },
+    IncompatibleLaunchOptimizations { first: String, second: String },
+    LaunchOptimizationDependencyMissing { option_id: String, dependency: String },
     NativeWindowsExecutableNotSupported,
     NativeTrainerLaunchUnsupported,
     UnsupportedMethod(String),
@@ -196,6 +216,27 @@ impl ValidationError {
             Self::RuntimeProtonPathMissing => "The runtime Proton path does not exist.".to_string(),
             Self::RuntimeProtonPathNotExecutable => {
                 "The runtime Proton path must be executable.".to_string()
+            }
+            Self::UnknownLaunchOptimization(option_id) => {
+                format!("Unknown launch optimization '{option_id}'.")
+            }
+            Self::DuplicateLaunchOptimization(option_id) => {
+                format!("Launch optimization '{option_id}' was selected more than once.")
+            }
+            Self::LaunchOptimizationsUnsupportedForMethod(method) => {
+                format!("Launch optimizations are only supported for proton_run launches, not '{method}'.")
+            }
+            Self::LaunchOptimizationNotSupportedForMethod { option_id, method } => {
+                format!("Launch optimization '{option_id}' is not supported for '{method}' launches.")
+            }
+            Self::IncompatibleLaunchOptimizations { first, second } => {
+                format!("Launch optimizations '{first}' and '{second}' cannot be enabled together.")
+            }
+            Self::LaunchOptimizationDependencyMissing {
+                option_id,
+                dependency,
+            } => {
+                format!("Launch optimization '{option_id}' requires '{dependency}' to be installed and available on PATH.")
             }
             Self::NativeWindowsExecutableNotSupported => {
                 "Native launch only supports Linux-native executables, not Windows .exe files."
@@ -260,6 +301,9 @@ fn validate_steam_applaunch(request: &LaunchRequest) -> Result<(), ValidationErr
     if request.steam.steam_client_install_path.trim().is_empty() {
         return Err(ValidationError::SteamClientInstallPathRequired);
     }
+
+    reject_launch_optimizations_for_method(request, METHOD_STEAM_APPLAUNCH)?;
+
     Ok(())
 }
 
@@ -281,6 +325,8 @@ fn validate_proton_run(request: &LaunchRequest) -> Result<(), ValidationError> {
         ValidationError::RuntimeProtonPathNotExecutable,
     )?;
 
+    resolve_launch_directives(request)?;
+
     Ok(())
 }
 
@@ -295,7 +341,22 @@ fn validate_native(request: &LaunchRequest) -> Result<(), ValidationError> {
         return Err(ValidationError::NativeWindowsExecutableNotSupported);
     }
 
+    reject_launch_optimizations_for_method(request, METHOD_NATIVE)?;
+
     Ok(())
+}
+
+fn reject_launch_optimizations_for_method(
+    request: &LaunchRequest,
+    method: &str,
+) -> Result<(), ValidationError> {
+    if request.optimizations.enabled_option_ids.is_empty() {
+        return Ok(());
+    }
+
+    Err(ValidationError::LaunchOptimizationsUnsupportedForMethod(
+        method.to_string(),
+    ))
 }
 
 fn require_game_path_if_needed(
@@ -487,6 +548,7 @@ mod tests {
                     steam_client_install_path,
                 },
                 runtime: RuntimeLaunchConfig::default(),
+                optimizations: LaunchOptimizationsRequest::default(),
                 launch_trainer_only: false,
                 launch_game_only: false,
             },
@@ -539,6 +601,52 @@ mod tests {
     }
 
     #[test]
+    fn proton_run_rejects_unknown_launch_optimization() {
+        let (_temp_dir, mut request) = proton_request();
+        request.optimizations.enabled_option_ids = vec!["unknown_toggle".to_string()];
+
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::UnknownLaunchOptimization(
+                "unknown_toggle".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn proton_run_rejects_duplicate_launch_optimizations() {
+        let (_temp_dir, mut request) = proton_request();
+        request.optimizations.enabled_option_ids = vec![
+            "disable_steam_input".to_string(),
+            "disable_steam_input".to_string(),
+        ];
+
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::DuplicateLaunchOptimization(
+                "disable_steam_input".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn proton_run_rejects_conflicting_launch_optimizations() {
+        let (_temp_dir, mut request) = proton_request();
+        request.optimizations.enabled_option_ids = vec![
+            "use_gamemode".to_string(),
+            "use_game_performance".to_string(),
+        ];
+
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::IncompatibleLaunchOptimizations {
+                first: "use_gamemode".to_string(),
+                second: "use_game_performance".to_string(),
+            })
+        );
+    }
+
+    #[test]
     fn proton_run_requires_runtime_prefix_path() {
         let (_temp_dir, mut request) = proton_request();
         request.runtime.prefix_path.clear();
@@ -573,6 +681,19 @@ mod tests {
     }
 
     #[test]
+    fn native_rejects_launch_optimizations() {
+        let (_temp_dir, mut request) = native_request();
+        request.optimizations.enabled_option_ids = vec!["disable_steam_input".to_string()];
+
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::LaunchOptimizationsUnsupportedForMethod(
+                METHOD_NATIVE.to_string()
+            ))
+        );
+    }
+
+    #[test]
     fn rejects_unsupported_method() {
         let (_temp_dir, mut request) = steam_request();
         request.method = "direct".to_string();
@@ -587,6 +708,7 @@ mod tests {
     fn request_uses_last_path_segment_for_executable_name() {
         let request = LaunchRequest {
             game_path: r"Z:\Games\Test Game\game.exe".to_string(),
+            optimizations: LaunchOptimizationsRequest::default(),
             ..LaunchRequest::default()
         };
 
@@ -598,6 +720,7 @@ mod tests {
         let request = LaunchRequest {
             method: METHOD_PROTON_RUN.to_string(),
             game_path: "/games/Example Game/game.exe".to_string(),
+            optimizations: LaunchOptimizationsRequest::default(),
             ..LaunchRequest::default()
         };
 

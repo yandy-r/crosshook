@@ -5,6 +5,7 @@ import ConsoleView from './components/ConsoleView';
 import CommunityBrowser from './components/CommunityBrowser';
 import CompatibilityViewer from './components/CompatibilityViewer';
 import LaunchPanel from './components/LaunchPanel';
+import LaunchOptimizationsPanel from './components/LaunchOptimizationsPanel';
 import LauncherExport from './components/LauncherExport';
 import { deriveSteamClientInstallPath } from './components/ProfileFormSections';
 import { ProfileEditorView } from './components/ProfileEditor';
@@ -14,7 +15,7 @@ import { useGamepadNav } from './hooks/useGamepadNav';
 import { useProfile } from './hooks/useProfile';
 import type { AppSettingsData, GameProfile, LaunchMethod, LaunchRequest, RecentFilesData } from './types';
 
-type AppTab = 'main' | 'settings' | 'community';
+type AppTab = 'main' | 'logs' | 'settings' | 'community';
 
 const DEFAULT_SETTINGS: AppSettingsData = {
   auto_load_last_profile: false,
@@ -70,7 +71,13 @@ function handleGamepadBack(): void {
 
 export function App() {
   const profileState = useProfile({ autoSelectFirstProfile: false });
-  const { profile, profileName, selectProfile } = profileState;
+  const {
+    profile,
+    profileName,
+    selectProfile,
+    launchOptimizationsStatus,
+    toggleLaunchOptimization,
+  } = profileState;
   const [settings, setSettings] = useState<AppSettingsData>(DEFAULT_SETTINGS);
   const [recentFiles, setRecentFiles] = useState<RecentFilesData>(DEFAULT_RECENT_FILES);
   const [settingsError, setSettingsError] = useState<string | null>(null);
@@ -98,6 +105,8 @@ export function App() {
     effectiveLaunchMethod === 'steam_applaunch' ||
     effectiveLaunchMethod === 'proton_run';
   const isInstallEditorContext = activeTab === 'main' && profileEditorTab === 'install';
+  const shouldShowLaunchOptimizations =
+    !isInstallEditorContext && effectiveLaunchMethod === 'proton_run';
 
   const launchRequest = useMemo<LaunchRequest | null>(() => {
     if (!profile.game.executable_path.trim()) {
@@ -120,17 +129,35 @@ export function App() {
         proton_path: profile.runtime.proton_path,
         working_directory: profile.runtime.working_directory,
       },
+      optimizations: {
+        enabled_option_ids:
+          effectiveLaunchMethod === 'proton_run'
+            ? profile.launch.optimizations.enabled_option_ids
+            : [],
+      },
       launch_trainer_only: false,
       launch_game_only: false,
     };
   }, [effectiveLaunchMethod, profile, steamClientInstallPath]);
 
   const headingTitle = (() => {
-      if (isInstallEditorContext) {
-        return 'Install Windows Game';
-      }
+    if (activeTab === 'logs') {
+      return 'Runtime console';
+    }
 
-      switch (effectiveLaunchMethod) {
+    if (activeTab === 'settings') {
+      return 'Settings';
+    }
+
+    if (activeTab === 'community') {
+      return 'Community profiles';
+    }
+
+    if (isInstallEditorContext) {
+      return 'Install Windows Game';
+    }
+
+    switch (effectiveLaunchMethod) {
       case 'steam_applaunch':
         return 'Two-step Steam launch';
       case 'proton_run':
@@ -142,11 +169,23 @@ export function App() {
   })();
 
   const headingCopy = (() => {
-      if (isInstallEditorContext) {
-        return 'Build a Proton-backed game profile in one flow: run the installer, review the generated profile in the modal, then save and open the Profile tab for normal launch controls.';
-      }
+    if (activeTab === 'logs') {
+      return 'Review the live helper log stream without competing with the profile editor, launcher controls, or launch optimization panel.';
+    }
 
-      switch (effectiveLaunchMethod) {
+    if (activeTab === 'settings') {
+      return 'Manage CrossHook preferences, recent files, and environment defaults for the native app.';
+    }
+
+    if (activeTab === 'community') {
+      return 'Browse, sync, and import community-maintained profile taps without leaving the native app.';
+    }
+
+    if (isInstallEditorContext) {
+      return 'Build a Proton-backed game profile in one flow: run the installer, review the generated profile in the modal, then save and open the Profile tab for normal launch controls.';
+    }
+
+    switch (effectiveLaunchMethod) {
       case 'steam_applaunch':
         return 'Launch the game through Steam first, then switch to trainer mode once the game reaches the main menu.';
       case 'proton_run':
@@ -246,9 +285,7 @@ export function App() {
         <header style={{ display: 'grid', gap: '8px' }}>
           <div className="crosshook-heading-eyebrow">CrossHook Native</div>
           <h1 className="crosshook-heading-title">{headingTitle}</h1>
-          <p className="crosshook-heading-copy">
-            {headingCopy} The console below streams launcher output when a runner writes logs.
-          </p>
+          <p className="crosshook-heading-copy">{headingCopy}</p>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <span className="crosshook-status-chip">Controller mode: {gamepadNav.controllerMode ? 'On' : 'Off'}</span>
             <span className="crosshook-status-chip">Last profile: {settings.last_used_profile || 'none'}</span>
@@ -266,6 +303,13 @@ export function App() {
             onClick={() => setActiveTab('main')}
           >
             Main
+          </button>
+          <button
+            type="button"
+            className={`crosshook-tab ${activeTab === 'logs' ? 'crosshook-tab--active' : ''}`}
+            onClick={() => setActiveTab('logs')}
+          >
+            Logs
           </button>
           <button
             type="button"
@@ -295,7 +339,6 @@ export function App() {
                   gap: '24px',
                   height: '100%',
                   minHeight: 0,
-                  gridTemplateRows: shouldShowLauncherExport ? 'repeat(2, minmax(0, 1fr))' : undefined,
                 }}
               >
                 <LaunchPanel
@@ -315,9 +358,18 @@ export function App() {
                 ) : null}
               </div>
             </div>
-            <ConsoleView />
+            {shouldShowLaunchOptimizations ? (
+              <LaunchOptimizationsPanel
+                method={effectiveLaunchMethod}
+                enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
+                onToggleOption={toggleLaunchOptimization}
+                status={launchOptimizationsStatus}
+              />
+            ) : null}
           </div>
         ) : null}
+
+        {activeTab === 'logs' ? <ConsoleView /> : null}
 
         {activeTab === 'settings' ? (
           <SettingsPanel

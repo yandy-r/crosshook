@@ -92,6 +92,7 @@ pub fn run() {
             commands::profile::profile_load,
             commands::profile::profile_rename,
             commands::profile::profile_save,
+            commands::profile::profile_save_launch_optimizations,
             commands::settings::recent_files_load,
             commands::settings::recent_files_save,
             commands::settings::settings_load,

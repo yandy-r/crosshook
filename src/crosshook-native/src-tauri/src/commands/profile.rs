@@ -1,4 +1,5 @@
 use crosshook_core::profile::{GameProfile, ProfileStore, ProfileStoreError};
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
@@ -52,6 +53,26 @@ fn cleanup_launchers_for_profile_delete(
     .map_err(|error| error.to_string())
 }
 
+fn save_launch_optimizations_for_profile(
+    name: &str,
+    optimizations: &LaunchOptimizationsPayload,
+    store: &ProfileStore,
+) -> Result<(), String> {
+    store
+        .save_launch_optimizations(name, optimizations.enabled_option_ids.clone())
+        .map_err(map_error)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LaunchOptimizationsPayload {
+    #[serde(
+        rename = "enabled_option_ids",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub enabled_option_ids: Vec<String>,
+}
+
 #[tauri::command]
 pub fn profile_list(store: State<'_, ProfileStore>) -> Result<Vec<String>, String> {
     store.list().map_err(map_error)
@@ -69,6 +90,15 @@ pub fn profile_save(
     store: State<'_, ProfileStore>,
 ) -> Result<(), String> {
     store.save(&name, &data).map_err(map_error)
+}
+
+#[tauri::command]
+pub fn profile_save_launch_optimizations(
+    name: String,
+    optimizations: LaunchOptimizationsPayload,
+    store: State<'_, ProfileStore>,
+) -> Result<(), String> {
+    save_launch_optimizations_for_profile(&name, &optimizations, &store)
 }
 
 #[tauri::command]
@@ -134,6 +164,7 @@ mod tests {
             },
             launch: LaunchSection {
                 method: "steam_applaunch".to_string(),
+                ..Default::default()
             },
             ..Default::default()
         }
@@ -194,6 +225,7 @@ mod tests {
         let profile = GameProfile {
             launch: LaunchSection {
                 method: "native".to_string(),
+                ..Default::default()
             },
             ..GameProfile::default()
         };
@@ -202,5 +234,54 @@ mod tests {
             .expect("native cleanup should not fail");
 
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn save_launch_optimizations_for_profile_updates_only_launch_section() {
+        let temp = tempdir().expect("temp dir");
+        let store = ProfileStore::with_base_path(temp.path().join("profiles"));
+        let home = temp.path().to_string_lossy().into_owned();
+        let profile = steam_profile(&home);
+
+        store.save("test-profile", &profile).expect("save profile");
+
+        let optimizations = LaunchOptimizationsPayload {
+            enabled_option_ids: vec![
+                "disable_steam_input".to_string(),
+                "use_gamemode".to_string(),
+            ],
+        };
+
+        save_launch_optimizations_for_profile("test-profile", &optimizations, &store)
+            .expect("save launch optimizations");
+
+        let loaded = store.load("test-profile").expect("load profile");
+        assert_eq!(loaded.game, profile.game);
+        assert_eq!(loaded.trainer, profile.trainer);
+        assert_eq!(loaded.injection, profile.injection);
+        assert_eq!(loaded.steam, profile.steam);
+        assert_eq!(loaded.runtime, profile.runtime);
+        assert_eq!(loaded.launch.method, profile.launch.method);
+        assert_eq!(
+            loaded.launch.optimizations.enabled_option_ids,
+            optimizations.enabled_option_ids
+        );
+    }
+
+    #[test]
+    fn save_launch_optimizations_for_profile_rejects_missing_profiles() {
+        let temp = tempdir().expect("temp dir");
+        let store = ProfileStore::with_base_path(temp.path().join("profiles"));
+
+        let error = save_launch_optimizations_for_profile(
+            "missing-profile",
+            &LaunchOptimizationsPayload {
+                enabled_option_ids: vec!["use_gamemode".to_string()],
+            },
+            &store,
+        )
+        .expect_err("missing profile should fail");
+
+        assert!(error.contains("profile file not found"));
     }
 }

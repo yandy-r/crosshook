@@ -1,3 +1,5 @@
+import type { LaunchOptimizations } from './launch-optimizations';
+
 export interface ProfileData {
   GamePath: string;
   TrainerPath: string;
@@ -45,5 +47,6 @@ export interface GameProfile {
   };
   launch: {
     method: LaunchMethod;
+    optimizations: LaunchOptimizations;
   };
 }

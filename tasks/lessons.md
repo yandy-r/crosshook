@@ -29,3 +29,5 @@
 ## 2026-03-25
 
 - When a user narrows a feature’s required scope, immediately rewrite the plan/spec around the narrowed scope instead of continuing to treat optional stretch goals as core requirements. In this repo, if the user says a launch feature is only required for `proton_run`, do not keep Steam parity as a gating decision in the main spec.
+- When adding a dense new panel to the native app, do not default to stacking it in the right column beneath existing launch cards. First check whether that pushes important actions below the fold; if it does, move the dense panel into a full-width slot or move low-frequency surfaces like logs into their own tab.
+- Before tightening a UI layout based on one screenshot, verify whether the apparent imbalance is actually intentional grouping. In this repo, do not replace `auto-fit` card grids with fixed column counts if sparse rows are category-specific sections rather than accidental leftovers.

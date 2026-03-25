@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { AppSettingsData, GameProfile, LauncherInfo, RecentFilesData } from '../types';
+import { LAUNCH_OPTIMIZATION_OPTIONS_BY_ID, type LaunchOptimizationId } from '../types/launch-optimizations';
 
 export interface PendingDelete {
   name: string;
@@ -23,10 +24,12 @@ export interface UseProfileResult {
   error: string | null;
   profileExists: boolean;
   pendingDelete: PendingDelete | null;
+  launchOptimizationsStatus: LaunchOptimizationsStatus;
   setProfileName: (name: string) => void;
   selectProfile: (name: string) => Promise<void>;
   hydrateProfile: (name: string, profile: GameProfile) => void;
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
+  toggleLaunchOptimization: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
   saveProfile: () => Promise<void>;
   persistProfileDraft: PersistProfileDraft;
   confirmDelete: (name: string) => Promise<void>;
@@ -41,6 +44,15 @@ export interface UseProfileOptions {
 
 type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
 const automaticLauncherSuffix = ' - Trainer';
+const launchOptimizationsAutosaveDelayMs = 350;
+
+export type LaunchOptimizationsStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
+
+export interface LaunchOptimizationsStatus {
+  tone: LaunchOptimizationsStatusTone;
+  label: string;
+  detail?: string;
+}
 
 function looksLikeWindowsExecutable(path: string): boolean {
   return path.trim().toLowerCase().endsWith('.exe');
@@ -93,6 +105,71 @@ function resolveLaunchMethod(profile: GameProfile): ResolvedLaunchMethod {
   return 'native';
 }
 
+function normalizeLaunchOptimizationIds(
+  ids: readonly string[] | undefined
+): LaunchOptimizationId[] {
+  if (ids === undefined) {
+    return [];
+  }
+
+  const normalized: LaunchOptimizationId[] = [];
+  const seenIds = new Set<LaunchOptimizationId>();
+
+  for (const optionId of ids) {
+    if (!(optionId in LAUNCH_OPTIMIZATION_OPTIONS_BY_ID)) {
+      continue;
+    }
+
+    const typedOptionId = optionId as LaunchOptimizationId;
+    if (seenIds.has(typedOptionId)) {
+      continue;
+    }
+
+    seenIds.add(typedOptionId);
+    normalized.push(typedOptionId);
+  }
+
+  return normalized;
+}
+
+function areLaunchOptimizationIdsEqual(
+  left: readonly LaunchOptimizationId[],
+  right: readonly LaunchOptimizationId[]
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((optionId, index) => optionId === right[index]);
+}
+
+function buildLaunchOptimizationsStatus(
+  method: ResolvedLaunchMethod,
+  hasExistingSavedProfile: boolean
+): LaunchOptimizationsStatus {
+  if (method !== 'proton_run') {
+    return {
+      tone: 'warning',
+      label: 'Unavailable for current method',
+      detail: 'Launch optimizations are only editable when the profile method is proton_run.',
+    };
+  }
+
+  if (!hasExistingSavedProfile) {
+    return {
+      tone: 'warning',
+      label: 'Save profile first to enable autosave',
+      detail: 'Optimization changes stay local until the profile has been saved once.',
+    };
+  }
+
+  return {
+    tone: 'idle',
+    label: 'Ready to autosave',
+    detail: 'Only launch.optimizations will be written automatically for this saved profile.',
+  };
+}
+
 function normalizeProfileForEdit(profile: GameProfile): GameProfile {
   const method = resolveLaunchMethod(profile);
   const runtime = profile.runtime ?? {
@@ -100,6 +177,9 @@ function normalizeProfileForEdit(profile: GameProfile): GameProfile {
     proton_path: '',
     working_directory: '',
   };
+  const enabledOptionIds = normalizeLaunchOptimizationIds(
+    profile.launch.optimizations?.enabled_option_ids
+  );
 
   return {
     ...profile,
@@ -123,6 +203,9 @@ function normalizeProfileForEdit(profile: GameProfile): GameProfile {
     launch: {
       ...profile.launch,
       method,
+      optimizations: {
+        enabled_option_ids: enabledOptionIds,
+      },
     },
   };
 }
@@ -197,6 +280,9 @@ function createEmptyProfile(): GameProfile {
     },
     launch: {
       method: 'proton_run',
+      optimizations: {
+        enabled_option_ids: [],
+      },
     },
   };
 }
@@ -212,6 +298,11 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  const [launchOptimizationsStatus, setLaunchOptimizationsStatus] = useState<LaunchOptimizationsStatus>(
+    buildLaunchOptimizationsStatus('proton_run', false)
+  );
+  const launchOptimizationsAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedLaunchOptimizationIdsRef = useRef<LaunchOptimizationId[]>([]);
 
   const syncProfileMetadata = useCallback(async (name: string, currentProfile: GameProfile) => {
     const settings = await invoke<AppSettingsData>('settings_load');
@@ -243,6 +334,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         setProfileName('');
         setProfile(createEmptyProfile());
         setDirty(false);
+        lastSavedLaunchOptimizationIdsRef.current = [];
         return;
       }
 
@@ -259,6 +351,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         setProfileName(trimmed);
         setProfile(normalized);
         setDirty(false);
+        lastSavedLaunchOptimizationIdsRef.current = normalized.launch.optimizations.enabled_option_ids;
 
         try {
           await syncProfileMetadata(trimmed, normalized);
@@ -285,6 +378,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         setProfileName('');
         setProfile(createEmptyProfile());
         setDirty(false);
+        lastSavedLaunchOptimizationIdsRef.current = [];
         return;
       }
 
@@ -321,6 +415,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         setProfileName('');
         setProfile(createEmptyProfile());
         setDirty(false);
+        lastSavedLaunchOptimizationIdsRef.current = [];
         return;
       }
 
@@ -344,6 +439,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setSelectedProfile(profiles.includes(trimmedName) ? trimmedName : '');
       setProfileName(trimmedName);
       setProfile(normalizedProfile);
+      lastSavedLaunchOptimizationIdsRef.current =
+        normalizedProfile.launch.optimizations.enabled_option_ids;
       setDirty(true);
       setError(null);
     },
@@ -354,6 +451,39 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     setProfile((current) => updater(current));
     setDirty(true);
   }, []);
+
+  const hasExistingSavedProfile = useMemo(() => {
+    const trimmedName = profileName.trim();
+    return (
+      trimmedName.length > 0 &&
+      selectedProfile.trim().length > 0 &&
+      trimmedName === selectedProfile &&
+      profiles.includes(trimmedName)
+    );
+  }, [profileName, profiles, selectedProfile]);
+
+  const toggleLaunchOptimization = useCallback(
+    (optionId: LaunchOptimizationId, nextEnabled: boolean) => {
+      setProfile((current) => {
+        const currentIds = current.launch.optimizations.enabled_option_ids;
+        const nextIds = nextEnabled
+          ? normalizeLaunchOptimizationIds([...currentIds, optionId])
+          : currentIds.filter((currentOptionId) => currentOptionId !== optionId);
+
+        return {
+          ...current,
+          launch: {
+            ...current.launch,
+            optimizations: {
+              enabled_option_ids: nextIds,
+            },
+          },
+        };
+      });
+      setDirty((currentDirty) => currentDirty || !hasExistingSavedProfile);
+    },
+    [hasExistingSavedProfile]
+  );
 
   const persistProfileDraft = useCallback(
     async (name: string, draftProfile: GameProfile): Promise<PersistProfileDraftResult> => {
@@ -376,6 +506,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       try {
         const normalizedProfile = normalizeProfileForSave(draftProfile);
         await invoke('profile_save', { name: trimmedName, data: normalizedProfile });
+        lastSavedLaunchOptimizationIdsRef.current =
+          normalizedProfile.launch.optimizations.enabled_option_ids;
         await syncProfileMetadata(trimmedName, normalizedProfile);
         await refreshProfiles();
         await loadProfile(trimmedName);
@@ -451,6 +583,79 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     });
   }, [refreshProfiles]);
 
+  useEffect(() => {
+    const method = resolveLaunchMethod(profile);
+    const currentIds = profile.launch.optimizations.enabled_option_ids;
+
+    if (launchOptimizationsAutosaveTimerRef.current !== null) {
+      clearTimeout(launchOptimizationsAutosaveTimerRef.current);
+      launchOptimizationsAutosaveTimerRef.current = null;
+    }
+
+    if (method !== 'proton_run' || !hasExistingSavedProfile) {
+      setLaunchOptimizationsStatus(buildLaunchOptimizationsStatus(method, hasExistingSavedProfile));
+      return;
+    }
+
+    if (areLaunchOptimizationIdsEqual(currentIds, lastSavedLaunchOptimizationIdsRef.current)) {
+      setLaunchOptimizationsStatus(buildLaunchOptimizationsStatus(method, true));
+      return;
+    }
+
+    setLaunchOptimizationsStatus({
+      tone: 'saving',
+      label: 'Saving...',
+      detail: 'Persisting only launch.optimizations for the current saved profile.',
+    });
+
+    const trimmedName = profileName.trim();
+    const normalizedIds = [...currentIds];
+    let cancelled = false;
+
+    launchOptimizationsAutosaveTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          await invoke('profile_save_launch_optimizations', {
+            name: trimmedName,
+            optimizations: {
+              enabled_option_ids: normalizedIds,
+            },
+          });
+
+          if (cancelled) {
+            return;
+          }
+
+          lastSavedLaunchOptimizationIdsRef.current = normalizedIds;
+          setLaunchOptimizationsStatus({
+            tone: 'success',
+            label: 'Saved automatically',
+            detail: 'Only the Launch Optimizations section was written to disk.',
+          });
+        } catch (err) {
+          if (cancelled) {
+            return;
+          }
+
+          setDirty(true);
+          setLaunchOptimizationsStatus({
+            tone: 'error',
+            label: 'Failed to save',
+            detail: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })();
+    }, launchOptimizationsAutosaveDelayMs);
+
+    return () => {
+      cancelled = true;
+      if (launchOptimizationsAutosaveTimerRef.current !== null) {
+        clearTimeout(launchOptimizationsAutosaveTimerRef.current);
+        launchOptimizationsAutosaveTimerRef.current = null;
+      }
+    };
+  }, [hasExistingSavedProfile, profile, profileName]);
+
   const profileExists = useMemo(() => profiles.includes(profileName.trim()), [profileName, profiles]);
 
   return {
@@ -465,10 +670,12 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     error,
     profileExists,
     pendingDelete,
+    launchOptimizationsStatus,
     setProfileName,
     selectProfile,
     hydrateProfile,
     updateProfile,
+    toggleLaunchOptimization,
     saveProfile,
     persistProfileDraft,
     confirmDelete,

@@ -1,3 +1,4 @@
+import type { LaunchOptimizations } from './launch-optimizations';
 import type { LaunchMethod } from './profile';
 
 export enum LaunchPhase {
@@ -24,6 +25,7 @@ export interface LaunchRequest {
     proton_path: string;
     working_directory: string;
   };
+  optimizations: LaunchOptimizations;
   launch_trainer_only: boolean;
   launch_game_only: boolean;
 }

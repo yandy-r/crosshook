@@ -105,6 +105,8 @@ proton_path = "/mnt/games/SteamLibrary/steamapps/common/Proton 9.0-4/proton"
 method = "steam_applaunch"
 ```
 
+When a profile uses `proton_run`, the Profile editor also shows a `Launch Optimizations` panel in the right column. The panel is limited to `proton_run` profiles, and each visible option has an info tooltip that explains what it does, when it helps, and the main caveat. Existing saved profiles autosave only the optimization section, while new unsaved profiles show `Save profile first to enable autosave` until you save them once.
+
 ## Launch a Game with a Trainer
 
 CrossHook uses a two-step launch flow for Steam/Proton games:
@@ -136,6 +138,7 @@ For launching games and trainers directly through Proton without going through t
 - Useful for non-Steam games that use a standalone Proton/WINE prefix, or when you need full control over the prefix path.
 - Requires: a WINE/Proton prefix path and the Proton runner path.
 - The `Install Game` flow uses the same direct Proton path, then opens a review modal for the generated profile before save. Saving the modal draft opens the Profile tab with the saved profile selected.
+- The `Launch Optimizations` panel is available here and nowhere else; it stays scoped to `proton_run`, shows per-option help icons, and only autosaves after the profile already exists.
 
 ### Native (`native`)
 

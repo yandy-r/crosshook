@@ -1,4 +1,5 @@
 use crate::profile::{legacy, GameProfile};
+use super::models::LaunchOptimizationsSection;
 use directories::BaseDirs;
 use std::fmt;
 use std::fs;
@@ -89,6 +90,18 @@ impl ProfileStore {
         fs::create_dir_all(&self.base_path)?;
         fs::write(path, toml::to_string_pretty(profile)?)?;
         Ok(())
+    }
+
+    pub fn save_launch_optimizations(
+        &self,
+        name: &str,
+        enabled_option_ids: Vec<String>,
+    ) -> Result<(), ProfileStoreError> {
+        let mut profile = self.load(name)?;
+        profile.launch.optimizations = LaunchOptimizationsSection {
+            enabled_option_ids,
+        };
+        self.save(name, &profile)
     }
 
     pub fn list(&self) -> Result<Vec<String>, ProfileStoreError> {
@@ -224,6 +237,7 @@ mod tests {
             },
             launch: crate::profile::LaunchSection {
                 method: "steam_applaunch".to_string(),
+                ..Default::default()
             },
         }
     }
@@ -389,5 +403,49 @@ method = "native"
 
         assert!(!store.profile_path("source").unwrap().exists());
         assert_eq!(store.load("target").unwrap(), source_profile);
+    }
+
+    #[test]
+    fn save_launch_optimizations_merges_only_launch_section() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("elden-ring", &profile).unwrap();
+
+        let optimizations = LaunchOptimizationsSection {
+            enabled_option_ids: vec![
+                "disable_steam_input".to_string(),
+                "use_gamemode".to_string(),
+            ],
+        };
+        store
+            .save_launch_optimizations(
+                "elden-ring",
+                optimizations.enabled_option_ids.clone(),
+            )
+            .unwrap();
+
+        let loaded = store.load("elden-ring").unwrap();
+        assert_eq!(loaded.game, profile.game);
+        assert_eq!(loaded.trainer, profile.trainer);
+        assert_eq!(loaded.injection, profile.injection);
+        assert_eq!(loaded.steam, profile.steam);
+        assert_eq!(loaded.runtime, profile.runtime);
+        assert_eq!(loaded.launch.method, profile.launch.method);
+        assert_eq!(loaded.launch.optimizations, optimizations);
+    }
+
+    #[test]
+    fn save_launch_optimizations_rejects_missing_profiles() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+
+        let result = store.save_launch_optimizations(
+            "missing-profile",
+            vec!["use_gamemode".to_string()],
+        );
+
+        assert!(matches!(result, Err(ProfileStoreError::NotFound(_))));
     }
 }

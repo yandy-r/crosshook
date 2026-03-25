@@ -65,6 +65,10 @@ This mode launches both the game and trainer directly through Proton against a s
 - Also useful when you need full control over the prefix path and Proton version.
 - The two-step launch flow still applies: launch the game first, then launch the trainer.
 - CrossHook uses the same direct `proton run` path for `Install Game`, then opens a review modal for explicit review and save. Saving that draft takes you to the Profile tab with the saved profile selected.
+- The Profile editor also shows a `Launch Optimizations` panel for `proton_run` profiles. It is not part of Steam App Launch or Native mode.
+- Each visible optimization has an info tooltip that explains what it does, when it helps, and its main caveat.
+- Existing saved profiles autosave checkbox changes for this section only. New unsaved profiles stay in draft mode until the first manual save.
+- The v1 option catalog is intentionally conservative. Common launch fixes are shown first, while advanced or community-documented options are grouped separately and may be hardware-specific or experimental.
 
 Required profile fields:
 
@@ -73,6 +77,16 @@ Required profile fields:
 prefix_path = "/home/user/.wine-prefixes/mygame"
 proton_path = "/home/user/.steam/root/compatibilitytools.d/GE-Proton9-18/proton"
 ```
+
+## Launch Optimizations
+
+`Launch Optimizations` is a `proton_run`-only panel in the right column of the Profile editor.
+
+- It presents curated toggles instead of raw env-var editing.
+- It keeps the option labels readable and grouped by area such as input, performance, display, graphics, and compatibility.
+- Every visible option has an info icon that opens help text in place.
+- Saved profiles autosave this section after a short debounce; new profiles show a save-first warning until they are written once.
+- Advanced and community-documented entries are still available, but they are visually separated so the common options stay obvious.
 
 ### Native (`native`)
 
