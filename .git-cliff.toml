@@ -25,7 +25,7 @@ trim = true
 
 [git]
 conventional_commits = true
-filter_unconventional = false
+filter_unconventional = true
 split_commits = false
 topo_order = false
 sort_commits = "oldest"
@@ -37,6 +37,15 @@ commit_preprocessors = [
 ]
 
 commit_parsers = [
+  { message = "^merge:", skip = true },
+  { message = "^Merge", skip = true },
+  { message = "^chore\\(release\\):", skip = true },
+  { message = "^chore\\(", skip = true },
+  { message = "^chore:", skip = true },
+  { message = "^docs\\(internal\\):", skip = true },
+  { message = "^docs\\(research\\):", skip = true },
+  { message = "^docs\\(plan\\):", skip = true },
+  { message = "^style", skip = true },
   { message = "^feat", group = "Features" },
   { message = "^fix", group = "Bug Fixes" },
   { message = "^docs?", group = "Documentation" },
@@ -47,8 +56,4 @@ commit_parsers = [
   { message = "^ci", group = "CI" },
   { message = "^v[0-9]", group = "Release" },
   { message = "^revert", group = "Reverts" },
-  { message = "^chore\\(release\\): prepare", skip = true },
-  { message = "^merge:", skip = true },
-  { message = "^Merge", skip = true },
-  { message = "^[A-Z]", group = "Other" },
 ]

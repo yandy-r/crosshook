@@ -72,7 +72,8 @@ Options:
 2. Installs Linux build prerequisites
 3. Runs `cargo test -p crosshook-core`
 4. Builds AppImage via `./scripts/build-native.sh`
-5. Uploads AppImage to GitHub Release
+5. Extracts the matching tagged section from `CHANGELOG.md`
+6. Uploads the AppImage and publishes that changelog section as the GitHub Release body
 
 ## Artifact Shape
 
@@ -104,8 +105,11 @@ The script sequence is:
 
 1. Update the native workspace version to `X.Y.Z`
 2. Regenerate `CHANGELOG.md` from git history using `.git-cliff.toml`
-3. Commit the release metadata update as `chore(release): prepare vX.Y.Z`
-4. Create the annotated tag `vX.Y.Z`
-5. If `--push` is used, push the branch first and the tag second
+3. Validate the tagged release-notes section with `./scripts/validate-release-notes.sh`
+4. Commit the release metadata update as `chore(release): prepare vX.Y.Z`
+5. Create the annotated tag `vX.Y.Z`
+6. If `--push` is used, push the branch first and the tag second
 
 That keeps the tag-triggered GitHub Release workflow pointed at the commit that already contains the matching native app version and changelog update.
+
+For release publishing, `CHANGELOG.md` is the single source of truth. The workflow uses `scripts/render-release-notes.sh` to extract the tagged section and publish it as the release notes body.

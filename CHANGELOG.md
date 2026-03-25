@@ -3,8 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+
 ## [v0.2.1] - 2026-03-25
 
+This release adds guided native install setup and launcher lifecycle management while tightening the Linux AppImage release path and launch-console behavior.
+
+### Features
+
+- **native:** Implement install game workflow ([#23](https://github.com/yandy-r/crosshook/issues/23)) ([`97fc609`](https://github.com/yandy-r/crosshook/commit/97fc60901a77ab853a19cdc10de71a7c816cfdf0))
+
+- **launcher:** Implement launcher lifecycle management ([#25](https://github.com/yandy-r/crosshook/issues/25)) ([`28b6beb`](https://github.com/yandy-r/crosshook/commit/28b6beb45a6bf57bd8a3003f9f76b25e4750a316))
 
 ### Bug Fixes
 
@@ -14,25 +22,7 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **release:** Restore and validate native workspace manifest ([`7432cbb`](https://github.com/yandy-r/crosshook/commit/7432cbbc68b412e4fdb519609683d644b53be962))
 
-
-### Features
-
-- **native:** Implement install game workflow ([#23](https://github.com/yandy-r/crosshook/issues/23)) ([`97fc609`](https://github.com/yandy-r/crosshook/commit/97fc60901a77ab853a19cdc10de71a7c816cfdf0))
-
-- **launcher:** Implement launcher lifecycle management ([#25](https://github.com/yandy-r/crosshook/issues/25)) ([`28b6beb`](https://github.com/yandy-r/crosshook/commit/28b6beb45a6bf57bd8a3003f9f76b25e4750a316))
-
-
-### chore
-
-- **release:** Update release notes for v0.2.0, highlighting the transition to a native Linux application and new features ([`d9f6292`](https://github.com/yandy-r/crosshook/commit/d9f6292ccdc1dd88810cf46ba76102a979713f76))
-
-- **settings:** Add line count check for launcher delete plans documentation ([`1408a59`](https://github.com/yandy-r/crosshook/commit/1408a594069dff3cc2bcd648fa4edbca767ba80a))
-
-- **settings:** Enhance launcher delete plans with additional Bash commands ([`e8b9fc6`](https://github.com/yandy-r/crosshook/commit/e8b9fc66868f5b071878b72e5938853ebcc63c76))
-
-
 ## [v0.2.0] - 2026-03-23
-
 
 ### Bug Fixes
 
@@ -40,31 +30,25 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **native:** Restore workspace release manifest ([`dccd475`](https://github.com/yandy-r/crosshook/commit/dccd475b659c5fe48c7d29e74d44d58abfd0a609))
 
-
 ### Features
 
 - Implement the platform-native-ui native app feature set ([#20](https://github.com/yandy-r/crosshook/issues/20)) ([`246a5ea`](https://github.com/yandy-r/crosshook/commit/246a5ea374ab9606e9a51d79642a69e624fa8926))
-
 
 ### Other
 
 - Bump esbuild ([#21](https://github.com/yandy-r/crosshook/issues/21)) ([`7871738`](https://github.com/yandy-r/crosshook/commit/78717382dba3bfde0e5c759ab98e8b59d432a152))
 
-
 ## [v0.1.1] - 2026-03-23
-
 
 ### Bug Fixes
 
 - Update repository links and paths to reflect rebranding from CrossHook Loader to CrossHook ([`33cb0c6`](https://github.com/yandy-r/crosshook/commit/33cb0c6e66499785d701beb900a03c8621e0b342))
-
 
 ### Documentation
 
 - Update README with new version and repository links ([`04d3fba`](https://github.com/yandy-r/crosshook/commit/04d3fba6cfd6c58b82f45413844f71b12366ffa6))
 
 - Update environment variable examples and README links for rebranding ([`fff65cd`](https://github.com/yandy-r/crosshook/commit/fff65cdbecccd95f5fec2ed103a760e5d95a8c69))
-
 
 ### Features
 
@@ -76,11 +60,9 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - Expand platform-native UI analysis and documentation ([`b88bd7c`](https://github.com/yandy-r/crosshook/commit/b88bd7c4d784733cf6d6759dd2c1dfc7adfbfc06))
 
-
 ### Other
 
 - Adds native Linux UI plan documentation ([`d6fec34`](https://github.com/yandy-r/crosshook/commit/d6fec347ca63d6602c80858e46b2779fcffbe26c))
-
 
 ### chore
 
@@ -94,14 +76,11 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - Enhance local settings with additional Bash command for line count check ([`d490178`](https://github.com/yandy-r/crosshook/commit/d4901785cb8bb287303d29488baea6f0211ff9bd))
 
-
 ## [v0.1.0] - 2026-03-19
-
 
 ### Features
 
 - **build:** Complete dotnet migration plan ([#8](https://github.com/yandy-r/crosshook/issues/8)) ([`fa74fd0`](https://github.com/yandy-r/crosshook/commit/fa74fd0d48a0a692ffdc759c7c092ffa9a9359ca))
-
 
 ### Other
 
@@ -137,29 +116,23 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - Add GitHub workflow documentation for issue and pull request management ([`a0a372e`](https://github.com/yandy-r/crosshook/commit/a0a372e4191ca021805ba395dfaf328dfa55bdeb))
 
-
 ### Refactoring
 
 - Rebrand ChooChoo to CrossHook with gaming logo and Steam artwork ([#9](https://github.com/yandy-r/crosshook/issues/9)) ([`eb5b2af`](https://github.com/yandy-r/crosshook/commit/eb5b2af5ac78de84740013037d1fc67c8fed6260))
-
 
 ### Release
 
 - Remove controller support and TV mode, streamline executable name ([`dafbae5`](https://github.com/yandy-r/crosshook/commit/dafbae55e7a925294313206ec5f7df760a6423e5))
 
-
 ## [v5.0] - 2025-04-04
-
 
 ### Documentation
 
 - Update README with new badges and download button ([`b5221b9`](https://github.com/yandy-r/crosshook/commit/b5221b93908d24c1860d541d0b760104feb963b1))
 
-
 ### Features
 
 - Rename executable to choochoo.exe ([`2d953fb`](https://github.com/yandy-r/crosshook/commit/2d953fb661a86e519181d4b5b4d7316267562a88))
-
 
 ### Other
 
@@ -272,6 +245,5 @@ This file is generated with `git-cliff` from the repository history and release 
 - Add .gitignore file ([`27534b4`](https://github.com/yandy-r/crosshook/commit/27534b49f99d54e0d40100d034d138c462941784))
 
 - Update LICENSE ([`c06f1f9`](https://github.com/yandy-r/crosshook/commit/c06f1f908b0277255099360199a5d995722f3552))
-
 
 <!-- generated by git-cliff -->
