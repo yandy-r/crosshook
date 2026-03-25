@@ -60,11 +60,15 @@ const helperStyle: CSSProperties = {
   lineHeight: 1.5,
 };
 
+const launcherNameHelperText =
+  'CrossHook appends " - Trainer" to the exported launcher title. Enter only the base launcher name here.';
+
 function FieldRow(props: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  helperText?: string;
   browseLabel?: string;
   onBrowse?: () => Promise<void>;
 }) {
@@ -84,6 +88,7 @@ function FieldRow(props: {
           </button>
         ) : null}
       </div>
+      {props.helperText ? <p style={helperStyle}>{props.helperText}</p> : null}
     </div>
   );
 }
@@ -500,7 +505,7 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
                 />
 
                 <FieldRow
-                  label="Launcher Display Name"
+                  label="Launcher Name"
                   value={profile.steam.launcher.display_name}
                   onChange={(value) =>
                     updateProfile((current) => ({
@@ -511,7 +516,8 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
                       },
                     }))
                   }
-                  placeholder="God of War Ragnarok Trainer"
+                  placeholder="God of War Ragnarok"
+                  helperText={launcherNameHelperText}
                 />
 
                 <FieldRow

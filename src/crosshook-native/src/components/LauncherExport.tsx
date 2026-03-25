@@ -101,8 +101,27 @@ const helperStyle: CSSProperties = {
   lineHeight: 1.5,
 };
 
+const infoCalloutStyle: CSSProperties = {
+  borderRadius: 12,
+  padding: 12,
+  background: 'rgba(37, 99, 235, 0.12)',
+  border: '1px solid rgba(96, 165, 250, 0.24)',
+  color: '#dbeafe',
+};
+
+const automaticLauncherSuffix = ' - Trainer';
+const launcherNameHelperText =
+  'CrossHook appends " - Trainer" to the exported launcher title. Enter only the base launcher name here.';
+
 function safeTrim(value: string | undefined | null): string {
   return value?.trim() ?? '';
+}
+
+function stripAutomaticLauncherSuffix(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.endsWith(automaticLauncherSuffix)
+    ? trimmed.slice(0, -automaticLauncherSuffix.length).trimEnd()
+    : trimmed;
 }
 
 function collectDeleteWarnings(result: LauncherDeleteResult): string[] {
@@ -112,7 +131,7 @@ function collectDeleteWarnings(result: LauncherDeleteResult): string[] {
 }
 
 function deriveLauncherName(profile: GameProfile): string {
-  const explicitName = safeTrim(profile.steam.launcher.display_name);
+  const explicitName = stripAutomaticLauncherSuffix(safeTrim(profile.steam.launcher.display_name));
   if (explicitName) {
     return explicitName;
   }
@@ -122,11 +141,11 @@ function deriveLauncherName(profile: GameProfile): string {
     return gameName;
   }
 
-  const trainerStem = safeTrim(profile.trainer.path)
+  const trainerStem = stripAutomaticLauncherSuffix(safeTrim(profile.trainer.path)
     .split(/[\\/]/)
     .pop()
     ?.replace(/\.[^.]+$/, '')
-    .trim();
+    .trim() ?? '');
   if (trainerStem) {
     return trainerStem;
   }
@@ -423,9 +442,11 @@ export function LauncherExport({
             style={inputStyle}
             value={launcherName}
             onChange={(event) => setLauncherName(event.target.value)}
-            placeholder="Elden Ring Trainer"
+            placeholder="Elden Ring"
           />
         </div>
+
+        <div style={infoCalloutStyle}>{launcherNameHelperText}</div>
 
         <div style={sectionStyle}>
           <label style={labelStyle}>Launcher Icon</label>

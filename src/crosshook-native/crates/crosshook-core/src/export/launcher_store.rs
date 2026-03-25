@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::launcher::{
     build_desktop_entry_content, build_trainer_script_content, combine_host_unix_path,
-    resolve_display_name, resolve_target_home_path, sanitize_launcher_slug, write_host_text_file,
-    SteamExternalLauncherExportRequest,
+    resolve_display_name, resolve_target_home_path, sanitize_launcher_slug, strip_trainer_suffix,
+    write_host_text_file, SteamExternalLauncherExportRequest,
 };
 use crate::profile::GameProfile;
 
@@ -531,12 +531,7 @@ fn extract_display_name_from_desktop(desktop_path: &str) -> Result<Option<String
 fn parse_display_name_from_desktop_content(content: &str) -> Option<String> {
     for line in content.lines() {
         if let Some(name_value) = line.strip_prefix("Name=") {
-            let name = name_value.trim();
-            // Strip the " - Trainer" suffix if present
-            if let Some(display_name) = name.strip_suffix(" - Trainer") {
-                return Some(display_name.to_string());
-            }
-            return Some(name.to_string());
+            return Some(strip_trainer_suffix(name_value));
         }
     }
 

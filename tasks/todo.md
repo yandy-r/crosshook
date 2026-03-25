@@ -1,5 +1,22 @@
 # TODO
 
+## Launcher Naming Normalization
+
+- [x] Normalize the launcher display-name label between the profile and launcher export panels.
+- [x] Add UI guidance that exported launchers automatically append ` - Trainer` to the visible launcher title.
+- [x] Prevent duplicate ` - Trainer` suffixes when the entered launcher name already includes it.
+- [x] Run targeted verification for the touched frontend and Rust export paths.
+
+## Review
+
+- Normalized the shared launcher field label to `Launcher Name` in both the profile editor and launcher export panels.
+- Added helper copy in the profile editor and a styled info callout in launcher export to explain that CrossHook appends ` - Trainer` to the exported launcher title.
+- Normalized launcher names on the frontend edit/save path and in the Rust export resolver so an entered or derived name that already ends with ` - Trainer` is reduced to its base name before export metadata is generated.
+- Verification passed:
+- `npm exec --yes tsc -- --noEmit`
+- `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core trainer_suffix`
+- `git -c core.whitespace=trailing-space diff --check`
+
 ## PR #25 Critical Validation + Fix
 
 - [x] Validate C1 against current `useProfile.ts` and Tauri `check_launcher_exists` command contract.

@@ -36,9 +36,17 @@ export interface UseProfileOptions {
 }
 
 type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
+const automaticLauncherSuffix = ' - Trainer';
 
 function looksLikeWindowsExecutable(path: string): boolean {
   return path.trim().toLowerCase().endsWith('.exe');
+}
+
+function stripAutomaticLauncherSuffix(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.endsWith(automaticLauncherSuffix)
+    ? trimmed.slice(0, -automaticLauncherSuffix.length).trimEnd()
+    : trimmed;
 }
 
 function deriveDisplayNameFromPath(path: string): string {
@@ -57,9 +65,9 @@ function deriveGameName(profile: GameProfile): string {
 
 function deriveLauncherDisplayName(profile: GameProfile): string {
   return (
-    profile.steam.launcher.display_name.trim() ||
+    stripAutomaticLauncherSuffix(profile.steam.launcher.display_name) ||
     deriveGameName(profile) ||
-    deriveDisplayNameFromPath(profile.trainer.path)
+    stripAutomaticLauncherSuffix(deriveDisplayNameFromPath(profile.trainer.path))
   );
 }
 
@@ -100,6 +108,7 @@ function normalizeProfileForEdit(profile: GameProfile): GameProfile {
       enabled: method === 'steam_applaunch',
       launcher: {
         ...profile.steam.launcher,
+        display_name: stripAutomaticLauncherSuffix(profile.steam.launcher.display_name),
       },
     },
     runtime: {

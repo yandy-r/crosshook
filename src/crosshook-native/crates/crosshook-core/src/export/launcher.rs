@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+const TRAINER_SUFFIX: &str = " - Trainer";
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct SteamExternalLauncherExportRequest {
     pub method: String,
@@ -228,18 +230,17 @@ pub(crate) fn resolve_display_name(
     trainer_path: &str,
 ) -> String {
     if !preferred_name.trim().is_empty() {
-        return preferred_name.trim().to_string();
+        return strip_trainer_suffix(preferred_name);
     }
 
     let trainer_name = Path::new(trainer_path)
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or_default()
-        .trim()
-        .to_string();
+        .trim();
 
     if !trainer_name.is_empty() {
-        return trainer_name;
+        return strip_trainer_suffix(trainer_name);
     }
 
     if !steam_app_id.trim().is_empty() {
@@ -247,6 +248,15 @@ pub(crate) fn resolve_display_name(
     } else {
         "crosshook-trainer".to_string()
     }
+}
+
+pub(crate) fn strip_trainer_suffix(value: &str) -> String {
+    let trimmed = value.trim();
+    trimmed
+        .strip_suffix(TRAINER_SUFFIX)
+        .unwrap_or(trimmed)
+        .trim_end()
+        .to_string()
 }
 
 pub fn sanitize_launcher_slug(value: &str) -> String {
@@ -679,6 +689,42 @@ mod tests {
                 ".desktop files should not be executable"
             );
         }
+    }
+
+    #[test]
+    fn export_does_not_duplicate_trainer_suffix_when_name_already_has_it() {
+        let temp_home = tempdir().expect("temp home");
+        let request = SteamExternalLauncherExportRequest {
+            method: "steam_applaunch".to_string(),
+            launcher_name: "Elden Ring - Trainer".to_string(),
+            trainer_path: "/opt/trainers/Elden Ring.exe".to_string(),
+            launcher_icon_path: String::new(),
+            prefix_path: "/tmp/compatdata/1245620".to_string(),
+            proton_path: "/opt/Proton/proton".to_string(),
+            steam_app_id: "1245620".to_string(),
+            steam_client_install_path: temp_home
+                .path()
+                .join(".local/share/Steam")
+                .to_string_lossy()
+                .into_owned(),
+            target_home_path: temp_home.path().to_string_lossy().into_owned(),
+        };
+
+        let result = export_launchers(&request).expect("export");
+        assert_eq!(result.display_name, "Elden Ring");
+        assert_eq!(result.launcher_slug, "elden-ring");
+
+        let desktop_content = fs::read_to_string(&result.desktop_entry_path).expect("desktop");
+        assert!(desktop_content.contains("Name=Elden Ring - Trainer\n"));
+        assert!(!desktop_content.contains("Name=Elden Ring - Trainer - Trainer\n"));
+    }
+
+    #[test]
+    fn resolve_display_name_strips_trainer_suffix_from_trainer_stem() {
+        assert_eq!(
+            resolve_display_name("", "1245620", "/opt/trainers/Game Name - Trainer.exe"),
+            "Game Name"
+        );
     }
 
     #[test]
