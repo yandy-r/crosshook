@@ -5,14 +5,42 @@ use std::process::Stdio;
 
 use tokio::process::Command;
 
-const DEFAULT_PATH: &str = "/usr/bin:/bin";
+/// Default `PATH` used when the host environment does not set `PATH` (matches `apply_host_environment`).
+pub const DEFAULT_HOST_PATH: &str = "/usr/bin:/bin";
 const DEFAULT_SHELL: &str = "/bin/bash";
 
 pub fn new_direct_proton_command(proton_path: &str) -> Command {
-    let mut command = Command::new(proton_path.trim());
+    new_direct_proton_command_with_wrappers(proton_path, &[])
+}
+
+pub fn new_direct_proton_command_with_wrappers(
+    proton_path: &str,
+    wrappers: &[String],
+) -> Command {
+    if wrappers.is_empty() {
+        let mut command = Command::new(proton_path.trim());
+        command.arg("run");
+        command.env_clear();
+        return command;
+    }
+
+    let mut command = Command::new(wrappers[0].trim());
+    for wrapper in wrappers.iter().skip(1) {
+        command.arg(wrapper.trim());
+    }
+    command.arg(proton_path.trim());
     command.arg("run");
     command.env_clear();
     command
+}
+
+pub fn apply_launch_optimization_environment(
+    command: &mut Command,
+    env_pairs: &[(String, String)],
+) {
+    for (key, value) in env_pairs {
+        set_env(command, key, value);
+    }
 }
 
 pub fn apply_host_environment(command: &mut Command) {
@@ -20,7 +48,7 @@ pub fn apply_host_environment(command: &mut Command) {
     set_env(command, "USER", env_value("USER", ""));
     set_env(command, "LOGNAME", env_value("LOGNAME", ""));
     set_env(command, "SHELL", env_value("SHELL", DEFAULT_SHELL));
-    set_env(command, "PATH", env_value("PATH", DEFAULT_PATH));
+    set_env(command, "PATH", env_value("PATH", DEFAULT_HOST_PATH));
     set_env(command, "DISPLAY", env_value("DISPLAY", ""));
     set_env(command, "WAYLAND_DISPLAY", env_value("WAYLAND_DISPLAY", ""));
     set_env(command, "XDG_RUNTIME_DIR", env_value("XDG_RUNTIME_DIR", ""));

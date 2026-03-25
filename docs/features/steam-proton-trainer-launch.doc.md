@@ -23,11 +23,11 @@ This guide covers the three launch methods, auto-discovery, launcher export, and
 
 CrossHook supports three launch methods:
 
-| Method | Key | When to use |
-| --- | --- | --- |
-| Steam App Launch | `steam_applaunch` | Games installed through Steam where Steam must own the game launch (DRM, overlay, Proton runtime) |
-| Proton Run | `proton_run` | Games or trainers that should run directly through Proton against a specific prefix, without going through the Steam client |
-| Native | `native` | Linux-native executables that do not need Proton or WINE |
+| Method           | Key               | When to use                                                                                                                 |
+| ---------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Steam App Launch | `steam_applaunch` | Games installed through Steam where Steam must own the game launch (DRM, overlay, Proton runtime)                           |
+| Proton Run       | `proton_run`      | Games or trainers that should run directly through Proton against a specific prefix, without going through the Steam client |
+| Native           | `native`          | Linux-native executables that do not need Proton or WINE                                                                    |
 
 All three methods are set per-profile in the `[launch]` section:
 
@@ -44,6 +44,8 @@ This is the primary mode for Steam-managed games. The workflow has two phases:
 
 1. **Game launch**: CrossHook runs `steam -applaunch <appid>` to start the game. Steam initializes DRM, the Steam overlay, and the correct Proton runtime.
 2. **Trainer launch**: Once the game process is detected, CrossHook stages the trainer into the game's compatdata prefix at `pfx/drive_c/CrossHook/StagedTrainers/`, strips all inherited WINE/Proton environment variables, and runs the trainer through Proton with a clean environment.
+
+**Steam Launch Options (optional):** For the same curated toggles as direct Proton launches, use the **Steam launch options** panel in the main view. CrossHook does not write into Steam; copy the generated single line into the game’s **Properties → General → Launch Options** in the Steam client. The line uses the same env vars and wrapper order as `proton_run` (for example `PROTON_*=1` assignments, then `mangohud` / `gamemoderun` / `game-performance` when enabled) and always ends with `%command%`.
 
 Required profile fields:
 
@@ -65,6 +67,10 @@ This mode launches both the game and trainer directly through Proton against a s
 - Also useful when you need full control over the prefix path and Proton version.
 - The two-step launch flow still applies: launch the game first, then launch the trainer.
 - CrossHook uses the same direct `proton run` path for `Install Game`, then opens a review modal for explicit review and save. Saving that draft takes you to the Profile tab with the saved profile selected.
+- The Profile editor shows a **Launch Optimizations** panel for `proton_run` profiles (toggles apply to the built `proton run` command). For `steam_applaunch`, the same toggles are available and a separate **Steam launch options** panel generates a copy/paste line for Steam’s Launch Options field (CrossHook does not inject into Steam).
+- Each visible optimization has an info tooltip that explains what it does, when it helps, and its main caveat.
+- Existing saved profiles autosave checkbox changes for `launch.optimizations` only (debounced). New unsaved profiles stay in draft mode until the first manual save.
+- The initial option catalog is intentionally conservative. Common launch fixes are shown first, while advanced or community-documented options are grouped separately and may be hardware-specific or experimental.
 
 Required profile fields:
 
@@ -81,6 +87,17 @@ This mode launches a Linux-native executable directly on the host system without
 - Does not support the two-step trainer workflow. Trainers are Windows executables and require Proton.
 - Rejects `.exe` files -- only Linux-native binaries are accepted.
 - Useful for running native games or tools alongside CrossHook's profile management.
+
+## Launch Optimizations
+
+The **Launch Optimizations** panel appears in the right column for `proton_run` and `steam_applaunch` profiles.
+
+- It presents curated toggles instead of raw env-var editing, using the same mapping to Proton env vars and host wrappers as the `proton_run` launch path.
+- For **`proton_run`**, selections apply when CrossHook builds the game/trainer `proton run` commands.
+- For **`steam_applaunch`**, CrossHook does not apply those settings to the `steam -applaunch` step automatically. Use the **Steam launch options** panel to copy a one-line string into Steam’s per-game Launch Options; it ends with `%command%` so Steam prepends your env vars and wrappers correctly.
+- Option labels stay grouped by area (input, performance, display, graphics, compatibility). Every visible option has an info icon with help text.
+- Saved profiles autosave this section after a short debounce; new profiles show a save-first warning until they are written once.
+- Advanced and community-documented entries stay visually separated. Wrapper-based toggles require the matching binaries on `PATH`; the Steam line generator surfaces a clear error if a dependency is missing.
 
 ## Auto-Populate and Steam Discovery
 
@@ -154,10 +171,10 @@ CrossHook generates standalone shell scripts and `.desktop` entries from your pr
 
 ### Output locations
 
-| File type | Path | Naming pattern |
-| --- | --- | --- |
-| Shell script | `~/.local/share/crosshook/launchers/` | `<slug>-trainer.sh` |
-| Desktop entry | `~/.local/share/applications/` | `crosshook-<slug>-trainer.desktop` |
+| File type     | Path                                  | Naming pattern                     |
+| ------------- | ------------------------------------- | ---------------------------------- |
+| Shell script  | `~/.local/share/crosshook/launchers/` | `<slug>-trainer.sh`                |
+| Desktop entry | `~/.local/share/applications/`        | `crosshook-<slug>-trainer.desktop` |
 
 ### Generated script structure
 
@@ -186,12 +203,12 @@ CrossHook tracks the state of exported launcher files and provides tools for del
 
 After you export a launcher, CrossHook monitors the generated files and reports one of four statuses:
 
-| Status | Meaning |
-| --- | --- |
-| **Exported** | Both the `.sh` script and `.desktop` entry exist and match the current profile |
-| **Not Exported** | Neither file exists yet -- the profile has not been exported |
-| **Partial** | Only one of the two files exists (the other was deleted externally or failed to write) |
-| **Stale** | The files exist but their content no longer matches the current profile (e.g., the display name changed) |
+| Status           | Meaning                                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------------------- |
+| **Exported**     | Both the `.sh` script and `.desktop` entry exist and match the current profile                           |
+| **Not Exported** | Neither file exists yet -- the profile has not been exported                                             |
+| **Partial**      | Only one of the two files exists (the other was deleted externally or failed to write)                   |
+| **Stale**        | The files exist but their content no longer matches the current profile (e.g., the display name changed) |
 
 The status badge appears in the Launcher Export panel. When a launcher is stale, CrossHook displays a notification with a **Re-export Launcher** button so you can regenerate the files with the updated profile data.
 
@@ -254,16 +271,16 @@ You can review and clean up orphaned launchers from the Settings panel.
 
 ### Summary of lifecycle operations
 
-| Operation | Trigger | What happens |
-| --- | --- | --- |
-| Status check | Opening the Launcher Export panel | Checks if `.sh` and `.desktop` files exist and whether they are stale |
-| Export | Clicking "Export Launcher" | Generates new `.sh` and `.desktop` files from the current profile |
-| Re-export | Clicking "Re-export Launcher" on a stale notification | Overwrites existing files with updated content |
-| Delete | Clicking "Delete Launcher" (with confirmation) | Removes `.sh` and `.desktop` files after watermark verification |
-| Profile delete cascade | Deleting a profile | Best-effort removal of the profile's launcher files |
-| Rename | Changing a profile's display name | Write-then-delete regeneration of launcher files under the new slug |
-| List | Settings panel or internal scan | Enumerates all CrossHook launcher scripts on disk |
-| Orphan detection | Settings panel | Identifies launchers that no longer match any saved profile |
+| Operation              | Trigger                                               | What happens                                                          |
+| ---------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| Status check           | Opening the Launcher Export panel                     | Checks if `.sh` and `.desktop` files exist and whether they are stale |
+| Export                 | Clicking "Export Launcher"                            | Generates new `.sh` and `.desktop` files from the current profile     |
+| Re-export              | Clicking "Re-export Launcher" on a stale notification | Overwrites existing files with updated content                        |
+| Delete                 | Clicking "Delete Launcher" (with confirmation)        | Removes `.sh` and `.desktop` files after watermark verification       |
+| Profile delete cascade | Deleting a profile                                    | Best-effort removal of the profile's launcher files                   |
+| Rename                 | Changing a profile's display name                     | Write-then-delete regeneration of launcher files under the new slug   |
+| List                   | Settings panel or internal scan                       | Enumerates all CrossHook launcher scripts on disk                     |
+| Orphan detection       | Settings panel                                        | Identifies launchers that no longer match any saved profile           |
 
 ## Console View
 

@@ -112,6 +112,7 @@ impl InstallGameRequest {
             },
             launch: LaunchSection {
                 method: "proton_run".to_string(),
+                ..Default::default()
             },
         }
     }

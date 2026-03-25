@@ -45,6 +45,22 @@ pub struct GameProfile {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LaunchOptimizationsSection {
+    #[serde(
+        rename = "enabled_option_ids",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub enabled_option_ids: Vec<String>,
+}
+
+impl LaunchOptimizationsSection {
+    pub fn is_empty(&self) -> bool {
+        self.enabled_option_ids.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct GameSection {
     #[serde(default)]
     pub name: String,
@@ -112,6 +128,8 @@ impl RuntimeSection {
 pub struct LaunchSection {
     #[serde(default)]
     pub method: String,
+    #[serde(default, skip_serializing_if = "LaunchOptimizationsSection::is_empty")]
+    pub optimizations: LaunchOptimizationsSection,
 }
 
 impl From<LegacyProfileData> for GameProfile {
@@ -142,7 +160,10 @@ impl From<LegacyProfileData> for GameProfile {
                 },
             },
             runtime: RuntimeSection::default(),
-            launch: LaunchSection { method },
+            launch: LaunchSection {
+                method,
+                ..Default::default()
+            },
         }
     }
 }

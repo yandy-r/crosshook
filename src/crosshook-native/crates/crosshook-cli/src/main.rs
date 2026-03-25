@@ -12,6 +12,7 @@ use clap::Parser;
 use crosshook_core::launch::{
     self, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, METHOD_STEAM_APPLAUNCH,
 };
+use crosshook_core::launch::request::LaunchOptimizationsRequest;
 use crosshook_core::profile::{GameProfile, ProfileStore};
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
@@ -169,6 +170,7 @@ fn steam_launch_request_from_profile(
             steam_client_install_path: steam_client_install_path.to_string_lossy().into_owned(),
         },
         runtime: RuntimeLaunchConfig::default(),
+        optimizations: LaunchOptimizationsRequest::default(),
         launch_trainer_only: false,
         launch_game_only: true,
     })

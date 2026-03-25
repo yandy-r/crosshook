@@ -57,6 +57,8 @@ Runs the trainer directly using `proton run <trainer.exe>` against the game's co
 
 The same direct Proton path is used by the `Install Game` workflow in the Profile panel. That flow writes the prefix under `~/.local/share/crosshook/prefixes/<slug>` and hands you back a normal `GameProfile` for review and save.
 
+Profiles that use `proton_run` also show a `Launch Optimizations` panel in the right column. It uses a curated v1 option catalog, shows an info tooltip on every visible option, and autosaves checkbox changes only after the profile already exists on disk.
+
 ### Native
 
 For trainers or tools that run natively on Linux without WINE/Proton. CrossHook launches them as regular Linux processes alongside the game.
@@ -66,6 +68,7 @@ For trainers or tools that run natively on Linux without WINE/Proton. CrossHook 
 - **Steam Library Auto-Populate** -- Discovers installed Steam games, their App IDs, Proton versions, and compatdata paths automatically.
 - **Profile Management** -- Save and load launch configurations per game. Switch between trainer setups instantly.
 - **Install Game Workflow** -- Install a Windows game from the Profile panel, review the generated profile, and save it explicitly after install.
+- **Launch Optimizations** -- Adjust curated `proton_run` tweaks with readable labels, per-option info tooltips, and autosave for already-saved profiles.
 - **Launcher Export** -- Generate standalone shell scripts and `.desktop` entries from any profile for one-click launching without opening CrossHook.
 - **Community Profile Sharing** -- Share and import launch profiles with other users.
 - **Proton Selector** -- Choose which Proton version to use for each trainer, with auto-detection of installed versions.
