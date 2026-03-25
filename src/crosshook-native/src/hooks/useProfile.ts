@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { AppSettingsData, GameProfile, LauncherInfo, RecentFilesData } from '../types';
-import { LAUNCH_OPTIMIZATION_OPTIONS_BY_ID, type LaunchOptimizationId } from '../types/launch-optimizations';
+import {
+  LAUNCH_OPTIMIZATION_OPTIONS_BY_ID,
+  getConflictingLaunchOptimizationIds,
+  type LaunchOptimizationId,
+} from '../types/launch-optimizations';
 
 export interface PendingDelete {
   name: string;
@@ -466,6 +470,22 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     (optionId: LaunchOptimizationId, nextEnabled: boolean) => {
       setProfile((current) => {
         const currentIds = current.launch.optimizations.enabled_option_ids;
+        const conflictingIds = nextEnabled
+          ? getConflictingLaunchOptimizationIds(optionId, currentIds)
+          : [];
+
+        if (conflictingIds.length > 0) {
+          const conflictLabels = conflictingIds.map(
+            (conflictingId) => LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflictingId].label
+          );
+          setLaunchOptimizationsStatus({
+            tone: 'warning',
+            label: 'Conflicting option blocked',
+            detail: `Disable ${conflictLabels.join(' or ')} before enabling ${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId].label}.`,
+          });
+          return current;
+        }
+
         const nextIds = nextEnabled
           ? normalizeLaunchOptimizationIds([...currentIds, optionId])
           : currentIds.filter((currentOptionId) => currentOptionId !== optionId);

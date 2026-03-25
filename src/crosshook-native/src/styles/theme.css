@@ -455,6 +455,10 @@ textarea {
   letter-spacing: 0.01em;
 }
 
+.crosshook-launch-optimizations__group-warning {
+  margin: 0;
+}
+
 .crosshook-launch-optimizations__option-list {
   display: grid;
   gap: 12px;

@@ -192,3 +192,17 @@
 - The `Launch Optimizations` panel now renders in the full-width row below the main two-column layout, which preserves the right-column space for `LaunchPanel` and `LauncherExport` and gives the option grid much more horizontal room.
 - Verification:
   - `npm exec --yes tsc -- --noEmit` passed in `src/crosshook-native`
+
+## 2026-03-25 - optimization conflict feedback
+
+- [x] Add a frontend conflict matrix for mutually exclusive launch optimizations.
+- [x] Block incompatible selections immediately in the optimization panel instead of waiting for launch-time validation.
+- [x] Run focused frontend verification for the new conflict feedback path.
+
+## Review
+
+- The launch-optimization contract now exposes a conflict matrix helper so the UI and hook use the same mutually-exclusive option relationships as the panel metadata.
+- The panel now disables blocked options, labels them with the active blocker, and renders conflict warnings inside each affected option group instead of only at the top of the panel.
+- `useProfile.ts` now guards toggle attempts and surfaces a panel-local warning state instead of letting a conflicting selection persist until launch.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` passed in `src/crosshook-native`

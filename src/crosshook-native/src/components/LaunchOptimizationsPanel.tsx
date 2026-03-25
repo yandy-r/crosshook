@@ -3,9 +3,12 @@ import type { LaunchMethod } from '../types';
 import {
   LAUNCH_OPTIMIZATION_CATEGORIES,
   LAUNCH_OPTIMIZATION_CATEGORY_LABELS,
+  findLaunchOptimizationConflicts,
+  getConflictingLaunchOptimizationIds,
   LAUNCH_OPTIMIZATION_OPTIONS,
   LAUNCH_OPTIMIZATION_OPTIONS_BY_ID,
   type LaunchOptimizationCategory,
+  type LaunchOptimizationConflict,
   type LaunchOptimizationId,
   type LaunchOptimizationOption,
 } from '../types/launch-optimizations';
@@ -88,13 +91,30 @@ function getMainCaveat(option: LaunchOptimizationOption, conflictLabels: string[
   return 'Use this only when the matching launch issue is present; otherwise leave it off.';
 }
 
+function formatConflictLabels(conflictLabels: readonly string[]): string {
+  if (conflictLabels.length <= 1) {
+    return conflictLabels[0] ?? '';
+  }
+
+  if (conflictLabels.length === 2) {
+    return `${conflictLabels[0]} or ${conflictLabels[1]}`;
+  }
+
+  return `${conflictLabels.slice(0, -1).join(', ')}, or ${conflictLabels[conflictLabels.length - 1]}`;
+}
+
 function getStatusToneClass(tone: LaunchOptimizationsPanelStatusTone): string {
   return `crosshook-launch-optimizations__status-chip--${tone}`;
+}
+
+function formatConflictSummary(conflict: LaunchOptimizationConflict): string {
+  return `${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflict.optionId].label} conflicts with ${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflict.conflictsWith].label}.`;
 }
 
 function OptionGroup(props: {
   group: GroupedOptions;
   enabledIds: Set<LaunchOptimizationId>;
+  selectedConflicts: readonly LaunchOptimizationConflict[];
   isMethodSupported: boolean;
   onToggleOption: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
   tooltipIdPrefix: string;
@@ -102,17 +122,49 @@ function OptionGroup(props: {
   setTooltipId: (optionId: LaunchOptimizationId | null) => void;
   sectionTone: 'default' | 'advanced';
 }) {
-  const { group, enabledIds, isMethodSupported, onToggleOption, tooltipIdPrefix, tooltipId, setTooltipId, sectionTone } =
-    props;
+  const {
+    group,
+    enabledIds,
+    selectedConflicts,
+    isMethodSupported,
+    onToggleOption,
+    tooltipIdPrefix,
+    tooltipId,
+    setTooltipId,
+    sectionTone,
+  } = props;
+  const groupOptionIds = group.options.map((option) => option.id);
+  const groupConflicts = selectedConflicts.filter((conflict) => {
+    return (
+      groupOptionIds.includes(conflict.optionId) ||
+      groupOptionIds.includes(conflict.conflictsWith)
+    );
+  });
 
   return (
     <fieldset className={joinClasses('crosshook-launch-optimizations__group', `crosshook-launch-optimizations__group--${sectionTone}`)}>
       <legend className="crosshook-launch-optimizations__group-title">{LAUNCH_OPTIMIZATION_CATEGORY_LABELS[group.category]}</legend>
+      {groupConflicts.length > 0 ? (
+        <div className="crosshook-warning-banner crosshook-launch-optimizations__group-warning">
+          {groupConflicts.map(formatConflictSummary).join(' ')}
+        </div>
+      ) : null}
       <div className="crosshook-launch-optimizations__option-list">
         {group.options.map((option) => {
           const isEnabled = enabledIds.has(option.id);
           const isTooltipOpen = tooltipId === option.id;
-          const isSupported = isMethodSupported && option.applicableMethods.includes('proton_run');
+          const conflictingIds = getConflictingLaunchOptimizationIds(
+            option.id,
+            [...enabledIds].filter((enabledOptionId) => enabledOptionId !== option.id)
+          );
+          const blockedByLabels = conflictingIds.map(
+            (conflictingId) => LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflictingId].label
+          );
+          const isBlockedByConflict = !isEnabled && blockedByLabels.length > 0;
+          const isSupported =
+            isMethodSupported &&
+            option.applicableMethods.includes('proton_run') &&
+            !isBlockedByConflict;
           const checkboxId = `${tooltipIdPrefix}-${option.id}`;
           const tooltipIdValue = `${tooltipIdPrefix}-${option.id}-tooltip`;
           const conflictLabels = getConflictLabels(option);
@@ -161,9 +213,14 @@ function OptionGroup(props: {
                         Conflicts with {conflictLabels.join(', ')}
                       </span>
                     ) : null}
+                    {blockedByLabels.length > 0 ? (
+                      <span className="crosshook-launch-optimizations__option-pill crosshook-launch-optimizations__option-pill--warning">
+                        Blocked by {formatConflictLabels(blockedByLabels)}
+                      </span>
+                    ) : null}
                     {!isSupported ? (
                       <span className="crosshook-launch-optimizations__option-pill crosshook-launch-optimizations__option-pill--disabled">
-                        Proton only
+                        {isBlockedByConflict ? 'Resolve conflict first' : 'Proton only'}
                       </span>
                     ) : null}
                   </div>
@@ -207,6 +264,11 @@ function OptionGroup(props: {
                 <p className="crosshook-launch-optimizations__tooltip-copy">
                   {getMainCaveat(option, conflictLabels)}
                 </p>
+                {blockedByLabels.length > 0 ? (
+                  <p className="crosshook-launch-optimizations__tooltip-copy">
+                    Selection is currently blocked by {formatConflictLabels(blockedByLabels)}.
+                  </p>
+                ) : null}
                 {conflictLabels.length > 0 ? (
                   <p className="crosshook-launch-optimizations__tooltip-copy">
                     Conflict note: {conflictLabels.join(', ')} should not be enabled together with this option.
@@ -244,6 +306,7 @@ export function LaunchOptimizationsPanel({
   });
   const enabledIdSet = new Set(selectedOptionIds);
   const selectedOptions = selectedOptionIds.map((optionId) => LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId]);
+  const selectedConflicts = findLaunchOptimizationConflicts(selectedOptionIds);
   const commonOptions = LAUNCH_OPTIMIZATION_OPTIONS.filter((option) => !option.advanced);
   const advancedOptions = LAUNCH_OPTIMIZATION_OPTIONS.filter((option) => option.advanced);
   const commonGroups = groupOptions(commonOptions);
@@ -310,6 +373,7 @@ export function LaunchOptimizationsPanel({
                 key={group.category}
                 group={group}
                 enabledIds={enabledIdSet}
+                selectedConflicts={selectedConflicts}
                 isMethodSupported={isMethodSupported}
                 onToggleOption={onToggleOption}
                 tooltipIdPrefix={tooltipIdPrefix}
@@ -337,6 +401,7 @@ export function LaunchOptimizationsPanel({
                 key={group.category}
                 group={group}
                 enabledIds={enabledIdSet}
+                selectedConflicts={selectedConflicts}
                 isMethodSupported={isMethodSupported}
                 onToggleOption={onToggleOption}
                 tooltipIdPrefix={tooltipIdPrefix}

@@ -58,6 +58,11 @@ export interface LaunchOptimizationOption {
   conflictsWith?: readonly LaunchOptimizationId[];
 }
 
+export interface LaunchOptimizationConflict {
+  optionId: LaunchOptimizationId;
+  conflictsWith: LaunchOptimizationId;
+}
+
 export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = [
   {
     id: 'disable_steam_input',
@@ -256,3 +261,45 @@ export const LAUNCH_OPTIMIZATION_OPTIONS_BY_ID: Record<LaunchOptimizationId, Lau
     LaunchOptimizationId,
     LaunchOptimizationOption
   >;
+
+export const LAUNCH_OPTIMIZATION_CONFLICT_MATRIX: Readonly<
+  Record<LaunchOptimizationId, readonly LaunchOptimizationId[]>
+> = Object.fromEntries(
+  LAUNCH_OPTIMIZATION_IDS.map((optionId) => [
+    optionId,
+    LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId].conflictsWith ?? [],
+  ])
+) as Record<LaunchOptimizationId, readonly LaunchOptimizationId[]>;
+
+export function getConflictingLaunchOptimizationIds(
+  optionId: LaunchOptimizationId,
+  enabledOptionIds: readonly LaunchOptimizationId[]
+): LaunchOptimizationId[] {
+  const conflictsWith = LAUNCH_OPTIMIZATION_CONFLICT_MATRIX[optionId];
+  if (conflictsWith.length === 0) {
+    return [];
+  }
+
+  return enabledOptionIds.filter((enabledOptionId) => conflictsWith.includes(enabledOptionId));
+}
+
+export function findLaunchOptimizationConflicts(
+  enabledOptionIds: readonly LaunchOptimizationId[]
+): LaunchOptimizationConflict[] {
+  const conflicts: LaunchOptimizationConflict[] = [];
+
+  for (const optionId of enabledOptionIds) {
+    for (const conflictingId of getConflictingLaunchOptimizationIds(optionId, enabledOptionIds)) {
+      if (optionId >= conflictingId) {
+        continue;
+      }
+
+      conflicts.push({
+        optionId,
+        conflictsWith: conflictingId,
+      });
+    }
+  }
+
+  return conflicts;
+}
