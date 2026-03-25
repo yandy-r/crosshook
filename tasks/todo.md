@@ -45,3 +45,18 @@
   - task completeness review passed after tightening Tasks `1.1`, `1.2`, `2.2`, `3.2`, and adding `4.4`
 - Residual caveat:
   - path validation still notes that some later tasks modify files created by earlier tasks, which is dependency-consistent but not “current branch exists now” clean. The plan is still execution-ready.
+
+## 2026-03-25 - profile-modal final verification
+
+- [x] Frontend build proof completed with `npm run build` in `src/crosshook-native` (`tsc && vite build` passed).
+- [x] Dev shell verification path was attempted with `./scripts/dev-native.sh`; Vite started and Cargo compilation began, but the run timed out before the Tauri window could be interacted with in this environment.
+- [ ] Manual UI regression checks are still pending in a local graphical session:
+  - install success auto-opens the modal when a reviewable draft exists
+  - dismiss and manual reopen restore the same draft
+  - dirty-dismiss and retry/reset replacement confirmations behave correctly
+  - save failure keeps the modal open and preserves edits
+  - save success persists, reloads/selects the saved profile, and opens the Profile tab
+  - controller, keyboard `Tab`, and `Escape` do not reach background controls
+  - modal layout remains usable at `1280x800` with only the body scrolling
+- [ ] `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` was not run because this verification task only touched frontend modal workflow behavior and no backend/shared-core contract changes were introduced in scope.
+- [ ] Residual risk: focus trapping, controller suppression, and viewport behavior still need a real GUI pass in the Tauri shell before the feature can be considered fully closed out.
