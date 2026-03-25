@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-dialog';
 
+import { formatProtonInstallLabel, type ProtonInstallOption } from './ProfileFormSections';
+import { chooseDirectory, chooseFile } from '../utils/dialog';
 import { useInstallGame } from '../hooks/useInstallGame';
 import type {
   InstallGameExecutableCandidate,
@@ -16,21 +17,7 @@ export interface InstallGamePanelProps {
   onRequestInstallAction?: (action: 'retry' | 'reset') => boolean | Promise<boolean>;
 }
 
-type ProtonInstallOption = {
-  name: string;
-  path: string;
-  is_official: boolean;
-};
-
 const detectedProtonInstalls: ProtonInstallOption[] = [];
-function formatProtonInstallLabel(install: ProtonInstallOption, duplicateNameCounts: Record<string, number>): string {
-  const baseLabel = install.name.trim() || 'Unnamed Proton install';
-  if ((duplicateNameCounts[baseLabel] ?? 0) <= 1) {
-    return baseLabel;
-  }
-
-  return `${baseLabel} (${install.is_official ? 'Steam' : 'Custom'})`;
-}
 
 function stageLabel(stage: InstallGameStage): string {
   switch (stage) {
@@ -73,35 +60,6 @@ function prefixStateLabel(state: InstallGamePrefixPathState): string {
     default:
       return 'Awaiting profile name';
   }
-}
-
-async function chooseFile(title: string, filters?: { name: string; extensions: string[] }[]) {
-  const result = await open({
-    directory: false,
-    multiple: false,
-    title,
-    filters,
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
-}
-
-async function chooseDirectory(title: string) {
-  const result = await open({
-    directory: true,
-    multiple: false,
-    title,
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
 }
 
 function InstallField(props: {

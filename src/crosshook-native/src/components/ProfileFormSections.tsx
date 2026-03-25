@@ -1,7 +1,7 @@
 import { useId, type ChangeEvent, type ReactNode } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
 
 import AutoPopulate from './AutoPopulate';
+import { chooseDirectory, chooseFile } from '../utils/dialog';
 import type { GameProfile, LaunchMethod } from '../types';
 
 export interface ProtonInstallOption {
@@ -74,35 +74,6 @@ function updateGameExecutablePath(current: GameProfile, nextExecutablePath: stri
   };
 }
 
-async function chooseFile(title: string, filters?: { name: string; extensions: string[] }[]) {
-  const result = await open({
-    directory: false,
-    multiple: false,
-    title,
-    filters,
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
-}
-
-async function chooseDirectory(title: string) {
-  const result = await open({
-    directory: true,
-    multiple: false,
-    title,
-  });
-
-  if (Array.isArray(result)) {
-    return result[0] ?? null;
-  }
-
-  return result ?? null;
-}
-
 export function deriveSteamClientInstallPath(compatdataPath: string): string {
   const marker = '/steamapps/compatdata/';
   const normalized = compatdataPath.trim().replace(/\\/g, '/');
@@ -111,7 +82,7 @@ export function deriveSteamClientInstallPath(compatdataPath: string): string {
   return index >= 0 ? normalized.slice(0, index) : '';
 }
 
-function formatProtonInstallLabel(install: ProtonInstallOption, duplicateNameCounts: Record<string, number>): string {
+export function formatProtonInstallLabel(install: ProtonInstallOption, duplicateNameCounts: Record<string, number>): string {
   const baseLabel = install.name.trim() || 'Unnamed Proton install';
   if ((duplicateNameCounts[baseLabel] ?? 0) <= 1) {
     return baseLabel;
@@ -533,7 +504,7 @@ export function ProfileFormSections({
               }
               placeholder="/home/user/.steam/root/steamapps/common/Proton - Experimental/proton"
               installs={protonInstalls}
-              error={protonInstallsError}
+              error={null}
               installsError={protonInstallsError}
               onBrowse={async () => {
                 const path = await chooseFile('Select Proton Executable');
@@ -640,7 +611,7 @@ export function ProfileFormSections({
               }
               placeholder="/path/to/proton"
               installs={protonInstalls}
-              error={protonInstallsError}
+              error={null}
               installsError={protonInstallsError}
               onBrowse={async () => {
                 const path = await chooseFile('Select Proton Executable');

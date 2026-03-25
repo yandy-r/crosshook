@@ -6,6 +6,7 @@ import CommunityBrowser from './components/CommunityBrowser';
 import CompatibilityViewer from './components/CompatibilityViewer';
 import LaunchPanel from './components/LaunchPanel';
 import LauncherExport from './components/LauncherExport';
+import { deriveSteamClientInstallPath } from './components/ProfileFormSections';
 import { ProfileEditorView } from './components/ProfileEditor';
 import { SettingsPanel } from './components/SettingsPanel';
 import { useCommunityProfiles } from './hooks/useCommunityProfiles';
@@ -28,14 +29,6 @@ const DEFAULT_RECENT_FILES: RecentFilesData = {
 };
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
-
-function deriveSteamClientInstallPath(compatdataPath: string): string {
-  const marker = '/steamapps/compatdata/';
-  const normalized = compatdataPath.trim().replace(/\\/g, '/');
-  const index = normalized.indexOf(marker);
-
-  return index >= 0 ? normalized.slice(0, index) : '';
-}
 
 function deriveTargetHomePath(steamClientInstallPath: string): string {
   const normalized = steamClientInstallPath.trim().replace(/\\/g, '/');

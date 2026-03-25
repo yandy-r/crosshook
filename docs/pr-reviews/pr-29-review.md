@@ -78,6 +78,8 @@ If the launcher check fails (permissions, TOML deserialization, IPC routing), th
 
 ### I1. `ProtonPathField` passes the same value to both `error` and `installsError` props
 
+**Status:** Resolved — Steam and `proton_run` `ProtonPathField` call sites pass `error={null}` and `installsError={protonInstallsError}` so list-load errors render once.
+
 **Agent**: Code Reviewer (92%)
 **File**: `src/crosshook-native/src/components/ProfileFormSections.tsx:536-537, 642-644`
 
@@ -87,6 +89,8 @@ Both `ProtonPathField` call sites pass `protonInstallsError` to both the `error`
 
 ### I2. `deriveSteamClientInstallPath` duplicated in App.tsx and ProfileFormSections.tsx
 
+**Status:** Resolved — `App.tsx` imports `deriveSteamClientInstallPath` from `ProfileFormSections.tsx`.
+
 **Agents**: Code Reviewer (85%), Code Simplifier
 **Files**: `src/crosshook-native/src/App.tsx:32-38`, `src/crosshook-native/src/components/ProfileFormSections.tsx:106-112`
 
@@ -95,6 +99,8 @@ Identical implementations. `ProfileEditor.tsx` already imports from `ProfileForm
 ---
 
 ### I3. `chooseFile`/`chooseDirectory` duplicated with zero error handling
+
+**Status:** Resolved — Shared [`utils/dialog.ts`](../../src/crosshook-native/src/utils/dialog.ts) wraps `open()`, catches failures, logs, alerts, and returns `null`. `ProfileFormSections` and `InstallGamePanel` import from it.
 
 **Agents**: Code Reviewer (84%), Silent Failure Hunter (MEDIUM), Code Simplifier
 **Files**: `src/crosshook-native/src/components/ProfileFormSections.tsx:77-104`, `src/crosshook-native/src/components/InstallGamePanel.tsx:78-105`
@@ -307,7 +313,7 @@ The `FOCUSABLE_SELECTOR` constants in `ProfileReviewModal.tsx:46` and `useGamepa
 ## Recommended Action
 
 1. ~~**Fix C1 and C2 first**~~ **Done** — explicit persist result and launcher-check errors surfaced (see Critical Issues above).
-2. **Address I1-I4** -- the duplicated code and double-error display are straightforward fixes that reduce maintenance burden.
+2. ~~**Address I1-I4**~~ **Done** — see Important Issues above (Proton field errors, shared `deriveSteamClientInstallPath`, `utils/dialog`, shared Proton install helpers).
 3. **Consider I5-I7** -- error handling improvements that prevent confusing error messages.
 4. **M1-M6 and L1-L6** are cleanup items that can be addressed in a follow-up refactoring pass.
 5. **Add comments** to the 10 locations identified in the Documentation Gaps section.
