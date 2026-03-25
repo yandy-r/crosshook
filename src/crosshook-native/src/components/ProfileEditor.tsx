@@ -88,11 +88,6 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     cancelDelete,
     refreshProfiles,
   } = state;
-  const profileSaveStateRef = useRef({
-    error,
-    profileName,
-    selectedProfile,
-  });
 
   const canSave =
     profileName.trim().length > 0 && profile.game.executable_path.trim().length > 0 && !saving && !deleting && !loading;
@@ -109,14 +104,6 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
   useEffect(() => {
     onEditorTabChange?.(editorTab);
   }, [editorTab, onEditorTabChange]);
-
-  useEffect(() => {
-    profileSaveStateRef.current = {
-      error,
-      profileName,
-      selectedProfile,
-    };
-  }, [error, profileName, selectedProfile]);
 
   function resolveReviewConfirmation(confirmed: boolean) {
     const confirmation = reviewConfirmation;
@@ -385,12 +372,9 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
       };
     });
 
-    await state.persistProfileDraft(draftProfileName, draftProfile);
-    await new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => resolve());
-    });
+    const persistResult = await state.persistProfileDraft(draftProfileName, draftProfile);
 
-    if (profileSaveStateRef.current.error) {
+    if (!persistResult.ok) {
       setProfileReviewSession((current) => {
         if (current === null) {
           return current;
@@ -398,7 +382,7 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
 
         return {
           ...current,
-          saveError: profileSaveStateRef.current.error,
+          saveError: persistResult.error,
         };
       });
       return;

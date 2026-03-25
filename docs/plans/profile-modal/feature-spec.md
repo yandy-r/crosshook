@@ -231,7 +231,9 @@ type InstallGamePanelProps = {
 **Signature:**
 
 ```ts
-type PersistProfileDraft = (name: string, profile: GameProfile) => Promise<void>;
+type PersistProfileDraftResult = { ok: true } | { ok: false; error: string };
+
+type PersistProfileDraft = (name: string, profile: GameProfile) => Promise<PersistProfileDraftResult>;
 ```
 
 **Behavior:**

@@ -25,6 +25,8 @@ Five specialized review agents analyzed the changes in parallel:
 
 ### C1. Race condition: `handleSaveProfileReview` uses `requestAnimationFrame` to poll save result
 
+**Status:** Resolved — `persistProfileDraft` returns `PersistProfileDraftResult`; `handleSaveProfileReview` branches on `result.ok` and sets `saveError` from `result.error`. The `profileSaveStateRef` mirror and `requestAnimationFrame` polling were removed.
+
 **Agents**: Code Reviewer (95%), Silent Failure Hunter (HIGH), Code Simplifier
 **File**: `src/crosshook-native/src/components/ProfileEditor.tsx:388-405`
 
@@ -49,6 +51,8 @@ React 18's batched/concurrent updates do not guarantee that `setError` inside `p
 ---
 
 ### C2. `confirmDelete` silently swallows launcher inspection errors
+
+**Status:** Resolved — On `check_launcher_for_profile` failure, the hook calls `setError` with the failure message and returns without opening the delete dialog.
 
 **Agents**: Silent Failure Hunter (CRITICAL)
 **File**: `src/crosshook-native/src/hooks/useProfile.ts:402-413`
@@ -266,7 +270,7 @@ The comment analyzer found that **none of the six modified source files contain 
 
 | Location                         | What needs a comment                                                                 |
 | -------------------------------- | ------------------------------------------------------------------------------------ |
-| `ProfileEditor.tsx:91-95`        | Why `profileSaveStateRef` exists (bridging React state across await boundaries)      |
+| _(removed)_                    | Previously `profileSaveStateRef` — replaced by `PersistProfileDraftResult` from `persistProfileDraft` (C1 fix). |
 | `ProfileEditor.tsx:121-174`      | The promise-resolver confirmation handshake pattern                                  |
 | `ProfileEditor.tsx:176-253`      | The three branches of `handleOpenProfileReview` and the `sameReviewResult` heuristic |
 | `ProfileReviewModal.tsx:166-233` | Modal accessibility lifecycle (inert, aria-hidden, focus trap, scroll lock)          |
@@ -302,7 +306,7 @@ The `FOCUSABLE_SELECTOR` constants in `ProfileReviewModal.tsx:46` and `useGamepa
 
 ## Recommended Action
 
-1. **Fix C1 and C2 first** -- these are the highest-impact issues (race condition losing user data, silent error swallowing orphaning launcher files).
+1. ~~**Fix C1 and C2 first**~~ **Done** — explicit persist result and launcher-check errors surfaced (see Critical Issues above).
 2. **Address I1-I4** -- the duplicated code and double-error display are straightforward fixes that reduce maintenance burden.
 3. **Consider I5-I7** -- error handling improvements that prevent confusing error messages.
 4. **M1-M6 and L1-L6** are cleanup items that can be addressed in a follow-up refactoring pass.

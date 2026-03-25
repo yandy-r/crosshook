@@ -7,7 +7,9 @@ export interface PendingDelete {
   launcherInfo: LauncherInfo | null;
 }
 
-export type PersistProfileDraft = (name: string, profile: GameProfile) => Promise<void>;
+export type PersistProfileDraftResult = { ok: true } | { ok: false; error: string };
+
+export type PersistProfileDraft = (name: string, profile: GameProfile) => Promise<PersistProfileDraftResult>;
 
 export interface UseProfileResult {
   profiles: string[];
@@ -315,17 +317,18 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   }, []);
 
   const persistProfileDraft = useCallback(
-    async (name: string, draftProfile: GameProfile) => {
+    async (name: string, draftProfile: GameProfile): Promise<PersistProfileDraftResult> => {
       const trimmedName = name.trim();
       if (!trimmedName) {
-        setError('Profile name is required.');
-        return;
+        const message = 'Profile name is required.';
+        setError(message);
+        return { ok: false, error: message };
       }
 
       const validationError = validateProfileForSave(draftProfile);
       if (validationError !== null) {
         setError(validationError);
-        return;
+        return { ok: false, error: validationError };
       }
 
       setSaving(true);
@@ -337,8 +340,11 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         await syncProfileMetadata(trimmedName, normalizedProfile);
         await refreshProfiles();
         await loadProfile(trimmedName);
+        return { ok: true };
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        return { ok: false, error: message };
       } finally {
         setSaving(false);
       }
@@ -409,7 +415,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         return;
       }
     } catch (err) {
-      console.error('Failed to inspect launcher state before profile delete.', err);
+      setError(err instanceof Error ? err.message : String(err));
+      return;
     }
 
     setPendingDelete({ name: trimmed, launcherInfo: null });
