@@ -3,6 +3,32 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+## [v0.2.1] - 2026-03-25
+
+
+### Bug Fixes
+
+- **release:** Update AppImage upload step to use specific asset path ([`dd6b5bb`](https://github.com/yandy-r/crosshook/commit/dd6b5bbaa43278fc1f66e0542be9edab147f7ffd))
+
+- **ui:** Keep launch panel anchored while logs stream ([#27](https://github.com/yandy-r/crosshook/issues/27)) ([`746672a`](https://github.com/yandy-r/crosshook/commit/746672aaf6428fa5b7d0db7e2aa41da46f727013))
+
+
+### Features
+
+- **native:** Implement install game workflow ([#23](https://github.com/yandy-r/crosshook/issues/23)) ([`97fc609`](https://github.com/yandy-r/crosshook/commit/97fc60901a77ab853a19cdc10de71a7c816cfdf0))
+
+- **launcher:** Implement launcher lifecycle management ([#25](https://github.com/yandy-r/crosshook/issues/25)) ([`28b6beb`](https://github.com/yandy-r/crosshook/commit/28b6beb45a6bf57bd8a3003f9f76b25e4750a316))
+
+
+### chore
+
+- **release:** Update release notes for v0.2.0, highlighting the transition to a native Linux application and new features ([`d9f6292`](https://github.com/yandy-r/crosshook/commit/d9f6292ccdc1dd88810cf46ba76102a979713f76))
+
+- **settings:** Add line count check for launcher delete plans documentation ([`1408a59`](https://github.com/yandy-r/crosshook/commit/1408a594069dff3cc2bcd648fa4edbca767ba80a))
+
+- **settings:** Enhance launcher delete plans with additional Bash commands ([`e8b9fc6`](https://github.com/yandy-r/crosshook/commit/e8b9fc66868f5b071878b72e5938853ebcc63c76))
+
+
 ## [v0.2.0] - 2026-03-23
 
 
