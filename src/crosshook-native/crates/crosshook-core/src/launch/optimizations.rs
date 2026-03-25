@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::env;
+use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 #[cfg(test)]
@@ -8,8 +9,9 @@ use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
 use super::{
-    request::{LaunchRequest, ValidationError, METHOD_PROTON_RUN},
     env::LAUNCH_OPTIMIZATION_ENV_VARS,
+    request::{LaunchRequest, ValidationError, METHOD_PROTON_RUN},
+    runtime_helpers::DEFAULT_HOST_PATH,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -261,9 +263,7 @@ fn is_command_available(binary: &str) -> bool {
         }
     }
 
-    let Some(path_value) = env::var_os("PATH") else {
-        return false;
-    };
+    let path_value = env::var_os("PATH").unwrap_or_else(|| OsString::from(DEFAULT_HOST_PATH));
 
     env::split_paths(&path_value).any(|directory| is_executable_file(&directory.join(binary)))
 }
