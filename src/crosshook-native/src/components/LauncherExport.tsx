@@ -1,6 +1,6 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { GameProfile, LaunchMethod } from '../types';
+import type { GameProfile, LaunchMethod, LauncherDeleteResult, LauncherInfo } from '../types';
 
 interface LauncherExportProps {
   profile: GameProfile;
@@ -82,6 +82,18 @@ const subtleButtonStyle: CSSProperties = {
   background: 'rgba(15, 23, 42, 0.9)',
 };
 
+const deleteButtonStyle: CSSProperties = {
+  ...buttonStyle,
+  background: 'rgba(185, 28, 28, 0.16)',
+  border: '1px solid rgba(248, 113, 113, 0.28)',
+  color: '#fee2e2',
+};
+
+const deleteButtonConfirmingStyle: CSSProperties = {
+  ...deleteButtonStyle,
+  background: 'rgba(185, 28, 28, 0.28)',
+};
+
 const helperStyle: CSSProperties = {
   margin: 0,
   color: '#94a3b8',
@@ -89,12 +101,37 @@ const helperStyle: CSSProperties = {
   lineHeight: 1.5,
 };
 
+const infoCalloutStyle: CSSProperties = {
+  borderRadius: 12,
+  padding: 12,
+  background: 'rgba(37, 99, 235, 0.12)',
+  border: '1px solid rgba(96, 165, 250, 0.24)',
+  color: '#dbeafe',
+};
+
+const automaticLauncherSuffix = ' - Trainer';
+const launcherNameHelperText =
+  'CrossHook appends " - Trainer" to the exported launcher title. Enter only the base launcher name here.';
+
 function safeTrim(value: string | undefined | null): string {
   return value?.trim() ?? '';
 }
 
+function stripAutomaticLauncherSuffix(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.endsWith(automaticLauncherSuffix)
+    ? trimmed.slice(0, -automaticLauncherSuffix.length).trimEnd()
+    : trimmed;
+}
+
+function collectDeleteWarnings(result: LauncherDeleteResult): string[] {
+  return [result.script_skipped_reason, result.desktop_entry_skipped_reason].filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+}
+
 function deriveLauncherName(profile: GameProfile): string {
-  const explicitName = safeTrim(profile.steam.launcher.display_name);
+  const explicitName = stripAutomaticLauncherSuffix(safeTrim(profile.steam.launcher.display_name));
   if (explicitName) {
     return explicitName;
   }
@@ -104,11 +141,11 @@ function deriveLauncherName(profile: GameProfile): string {
     return gameName;
   }
 
-  const trainerStem = safeTrim(profile.trainer.path)
+  const trainerStem = stripAutomaticLauncherSuffix(safeTrim(profile.trainer.path)
     .split(/[\\/]/)
     .pop()
     ?.replace(/\.[^.]+$/, '')
-    .trim();
+    .trim() ?? '');
   if (trainerStem) {
     return trainerStem;
   }
@@ -156,6 +193,42 @@ export function LauncherExport({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [result, setResult] = useState<SteamExternalLauncherExportResult | null>(null);
+  const [launcherStatus, setLauncherStatus] = useState<LauncherInfo | null>(null);
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
+  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refreshLauncherStatus = useCallback(async () => {
+    if (context !== 'default' || !profile) return;
+    try {
+      const info = await invoke<LauncherInfo>('check_launcher_exists', {
+        displayName: profile.steam?.launcher?.display_name || '',
+        steamAppId: profile.steam?.app_id || '',
+        trainerPath: profile.trainer?.path || '',
+        targetHomePath: targetHomePath || '',
+        steamClientInstallPath: steamClientInstallPath || '',
+      });
+      setLauncherStatus(info);
+    } catch (error) {
+      console.error('Failed to refresh launcher status.', error);
+      setLauncherStatus(null);
+    }
+  }, [profile, targetHomePath, steamClientInstallPath, context]);
+
+  useEffect(() => {
+    setLauncherName(deriveLauncherName(profile));
+  }, [profile]);
+
+  useEffect(() => {
+    void refreshLauncherStatus();
+  }, [refreshLauncherStatus]);
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimeoutRef.current !== null) {
+        clearTimeout(deleteTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const request = buildExportRequest(
     profile,
@@ -190,6 +263,9 @@ export function LauncherExport({
     request.proton_path.length > 0 &&
     (method !== 'steam_applaunch' || request.steam_app_id.length > 0) &&
     !isExporting;
+
+  const showDeleteButton =
+    (launcherStatus?.script_exists || launcherStatus?.desktop_entry_exists) && context === 'default';
 
   if (context === 'install') {
     return (
@@ -271,10 +347,69 @@ export function LauncherExport({
       const exported = await invoke<SteamExternalLauncherExportResult>('export_launchers', { request });
       setResult(exported);
       setStatusMessage('Launcher export completed.');
+      void refreshLauncherStatus();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setIsExporting(false);
+    }
+  }
+
+  function handleDeleteClick() {
+    if (deleteConfirming) {
+      if (deleteTimeoutRef.current !== null) {
+        clearTimeout(deleteTimeoutRef.current);
+        deleteTimeoutRef.current = null;
+      }
+      setDeleteConfirming(false);
+      void handleDeleteLauncher();
+    } else {
+      setDeleteConfirming(true);
+      deleteTimeoutRef.current = setTimeout(() => {
+        setDeleteConfirming(false);
+        deleteTimeoutRef.current = null;
+      }, 3000);
+    }
+  }
+
+  function handleDeleteBlur() {
+    if (deleteConfirming) {
+      if (deleteTimeoutRef.current !== null) {
+        clearTimeout(deleteTimeoutRef.current);
+        deleteTimeoutRef.current = null;
+      }
+      setDeleteConfirming(false);
+    }
+  }
+
+  async function handleDeleteLauncher() {
+    setErrorMessage(null);
+    setStatusMessage(null);
+
+    try {
+      const result = await invoke<LauncherDeleteResult>('delete_launcher', {
+        displayName: profile.steam?.launcher?.display_name || '',
+        steamAppId: profile.steam?.app_id || '',
+        trainerPath: profile.trainer?.path || '',
+        targetHomePath: targetHomePath || '',
+        steamClientInstallPath: steamClientInstallPath || '',
+      });
+      const warnings = collectDeleteWarnings(result);
+      const deletedAny = result.script_deleted || result.desktop_entry_deleted;
+
+      if (deletedAny && warnings.length === 0) {
+        setStatusMessage('Launcher deleted.');
+      } else if (deletedAny) {
+        setStatusMessage(`Launcher deleted with warnings: ${warnings.join(' ')}`);
+      } else if (warnings.length > 0) {
+        setErrorMessage(`Launcher was not deleted: ${warnings.join(' ')}`);
+      } else {
+        setStatusMessage('Launcher files were already absent.');
+      }
+
+      void refreshLauncherStatus();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -307,9 +442,11 @@ export function LauncherExport({
             style={inputStyle}
             value={launcherName}
             onChange={(event) => setLauncherName(event.target.value)}
-            placeholder="Elden Ring Trainer"
+            placeholder="Elden Ring"
           />
         </div>
+
+        <div style={infoCalloutStyle}>{launcherNameHelperText}</div>
 
         <div style={sectionStyle}>
           <label style={labelStyle}>Launcher Icon</label>
@@ -369,6 +506,16 @@ export function LauncherExport({
         >
           Reset
         </button>
+        {showDeleteButton ? (
+          <button
+            type="button"
+            style={deleteConfirming ? deleteButtonConfirmingStyle : deleteButtonStyle}
+            onClick={handleDeleteClick}
+            onBlur={handleDeleteBlur}
+          >
+            {deleteConfirming ? 'Click again to confirm' : 'Delete Launcher'}
+          </button>
+        ) : null}
       </div>
 
       {statusMessage ? (
@@ -422,6 +569,85 @@ export function LauncherExport({
           </div>
         </div>
       ) : null}
+
+      {context === 'default' && launcherStatus && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '6px 10px',
+          borderRadius: '6px',
+          background: launcherStatus.is_stale
+            ? 'rgba(245, 158, 11, 0.12)'
+            : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
+            ? 'rgba(16, 185, 129, 0.12)'
+            : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
+            ? 'rgba(107, 114, 128, 0.12)'
+            : 'rgba(245, 158, 11, 0.12)',
+          marginTop: '8px',
+        }}>
+          <span style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: launcherStatus.is_stale
+              ? '#f59e0b'
+              : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
+              ? '#10b981'
+              : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
+              ? '#6b7280'
+              : '#f59e0b',
+          }} />
+          <span style={{
+            fontSize: '0.85rem',
+            color: launcherStatus.is_stale
+              ? '#fef3c7'
+              : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
+              ? '#d1fae5'
+              : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
+              ? '#d1d5db'
+              : '#fef3c7',
+          }}>
+            {launcherStatus.is_stale
+              ? 'Stale'
+              : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
+              ? 'Exported'
+              : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
+              ? 'Not Exported'
+              : 'Partial'}
+          </span>
+        </div>
+      )}
+      {launcherStatus?.is_stale && context === 'default' && (
+        <div style={{
+          background: 'rgba(245, 158, 11, 0.08)',
+          border: '1px solid rgba(245, 158, 11, 0.2)',
+          borderRadius: '8px',
+          padding: '12px',
+          marginTop: '8px',
+        }}>
+          <p style={{ margin: '0 0 8px', fontSize: '0.85rem', color: '#fef3c7' }}>
+            Launcher files are out of date with the current profile.
+          </p>
+          <p style={{ margin: '0 0 8px', fontSize: '0.8rem', color: '#d1d5db' }}>
+            Current slug: <code>{launcherStatus.launcher_slug}</code>
+          </p>
+          <button
+            onClick={handleExport}
+            style={{
+              padding: '6px 16px',
+              minHeight: '44px',
+              background: 'rgba(245, 158, 11, 0.16)',
+              border: '1px solid rgba(245, 158, 11, 0.28)',
+              color: '#fef3c7',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            Re-export Launcher
+          </button>
+        </div>
+      )}
     </section>
   );
 }

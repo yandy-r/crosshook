@@ -47,9 +47,9 @@ src/crosshook-native/
   crates/crosshook-core/        # Shared Rust library (all business logic)
     src/
       community/                # Community profile taps (index.rs, taps.rs)
-      export/                   # Launcher export — shell script + .desktop entry generation (launcher.rs)
+      export/                   # Launcher export — shell script + .desktop entry generation (launcher.rs, launcher_store.rs)
       launch/                   # Launch orchestration (env.rs, request.rs, script_runner.rs)
-      profile/                  # Profile management (models.rs, toml_store.rs, legacy.rs, exchange.rs, community_schema.rs)
+      profile/                  # Profile management (models.rs, toml_store.rs [includes rename], legacy.rs, exchange.rs, community_schema.rs)
       settings/                 # App settings + recent files (mod.rs, recent.rs)
       steam/                    # Steam integration (discovery, libraries, manifest, proton, vdf, auto_populate, diagnostics)
       logging.rs                # Structured logging
@@ -96,6 +96,7 @@ src/crosshook-native/
       launch.ts                 # Launch-related types
       profile.ts                # Profile types
       settings.ts               # Settings types
+      launcher.ts               # Launcher lifecycle types (info, delete, rename results)
 ```
 
 ### Key Patterns
@@ -107,6 +108,7 @@ src/crosshook-native/
 - **Community taps**: Git-based profile sharing repositories with index manifests
 - **Gamepad navigation**: Full controller support via the `useGamepadNav` hook for Steam Deck usage
 - **Launcher export**: Generates standalone `.sh` scripts and `.desktop` entries from profiles
+- **Launcher lifecycle**: `launcher_store.rs` manages check/delete/rename/list/orphan-detection for exported launchers; profile deletion and renaming cascade to launcher cleanup via Tauri commands
 - **Workspace crate separation**: `crosshook-core` contains all business logic; `crosshook-cli` and `src-tauri` are thin consumers
 
 ## Code Conventions

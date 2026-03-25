@@ -320,6 +320,8 @@ export function App() {
               trainerPaths: recentFiles.trainer_paths,
               dllPaths: recentFiles.dll_paths,
             }}
+            targetHomePath={targetHomePath}
+            steamClientInstallPath={steamClientInstallPath}
             onAutoLoadLastProfileChange={(enabled) => {
               void handleAutoLoadChange(enabled).catch((error) => {
                 setSettingsError(error instanceof Error ? error.message : String(error));

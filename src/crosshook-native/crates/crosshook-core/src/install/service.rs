@@ -402,7 +402,11 @@ mod tests {
         ));
 
         let mut request = base_request.clone();
-        request.proton_path = temp_dir.path().join("proton-dir").to_string_lossy().into_owned();
+        request.proton_path = temp_dir
+            .path()
+            .join("proton-dir")
+            .to_string_lossy()
+            .into_owned();
         fs::create_dir_all(&request.proton_path).expect("proton dir");
         assert!(matches!(
             validate_install_request(&request),
@@ -410,7 +414,11 @@ mod tests {
         ));
 
         let mut request = base_request;
-        request.installed_game_executable_path = temp_dir.path().join("candidate").to_string_lossy().into_owned();
+        request.installed_game_executable_path = temp_dir
+            .path()
+            .join("candidate")
+            .to_string_lossy()
+            .into_owned();
         fs::create_dir_all(&request.installed_game_executable_path).expect("candidate dir");
         assert!(matches!(
             validate_install_request(&request),
@@ -452,10 +460,7 @@ mod tests {
                 .map(|path| path.as_str()),
             Some(expected_game_path.as_str())
         );
-        assert_eq!(
-            result.profile.game.executable_path,
-            expected_game_path
-        );
+        assert_eq!(result.profile.game.executable_path, expected_game_path);
         assert_eq!(
             result.profile.runtime.working_directory,
             prefix_path
@@ -467,7 +472,11 @@ mod tests {
         assert_eq!(result.profile.game.name, "Example Game");
         assert_eq!(
             result.profile.trainer.path,
-            temp_dir.path().join("trainer.exe").to_string_lossy().into_owned()
+            temp_dir
+                .path()
+                .join("trainer.exe")
+                .to_string_lossy()
+                .into_owned()
         );
     }
 }

@@ -24,11 +24,13 @@ Go through the @docs/plans/theming plan and lets create github issues to track t
 
 ## Issue Creation Template - Single
 
-Go through the @docs/plans/progressive-disclosure plan and lets create a github issue to track the feature implementation.
+Go through the @docs/plans/launcher-delete plan and lets create a github issue to track the feature implementation.
 
 - Make sure the issue is properly labeled
+- Create the necessary labels as needed for the issue
 - Labels must include feat:{feature-name} additive of any other labels
 - Make sure the issue is properly prioritized
+- Labels must include feat:{feature-name} additive of any other labels
 - Make it detailed and include tasks details the body
 - The task must include the numbers, such as 1.1, 1.2, 2.1 - 2.4, etc.
 - This will be read by AI agents so make it consumable and actionable for them to execute

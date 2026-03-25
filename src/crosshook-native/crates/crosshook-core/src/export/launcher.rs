@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+const TRAINER_SUFFIX: &str = " - Trainer";
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct SteamExternalLauncherExportRequest {
     pub method: String,
@@ -113,9 +115,9 @@ pub fn validate(
     match request.method.trim() {
         "steam_applaunch" | "proton_run" => {}
         other => {
-            return Err(SteamExternalLauncherExportValidationError::UnsupportedMethod(
-                other.to_string(),
-            ))
+            return Err(
+                SteamExternalLauncherExportValidationError::UnsupportedMethod(other.to_string()),
+            )
         }
     }
 
@@ -205,7 +207,12 @@ pub fn export_launchers(
     )?;
     write_host_text_file(
         &desktop_entry_path,
-        &build_desktop_entry_content(&display_name, &script_path, &request.launcher_icon_path),
+        &build_desktop_entry_content(
+            &display_name,
+            &launcher_slug,
+            &script_path,
+            &request.launcher_icon_path,
+        ),
         0o644,
     )?;
 
@@ -217,20 +224,23 @@ pub fn export_launchers(
     })
 }
 
-fn resolve_display_name(preferred_name: &str, steam_app_id: &str, trainer_path: &str) -> String {
+pub(crate) fn resolve_display_name(
+    preferred_name: &str,
+    steam_app_id: &str,
+    trainer_path: &str,
+) -> String {
     if !preferred_name.trim().is_empty() {
-        return preferred_name.trim().to_string();
+        return strip_trainer_suffix(preferred_name);
     }
 
     let trainer_name = Path::new(trainer_path)
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or_default()
-        .trim()
-        .to_string();
+        .trim();
 
     if !trainer_name.is_empty() {
-        return trainer_name;
+        return strip_trainer_suffix(trainer_name);
     }
 
     if !steam_app_id.trim().is_empty() {
@@ -238,6 +248,15 @@ fn resolve_display_name(preferred_name: &str, steam_app_id: &str, trainer_path: 
     } else {
         "crosshook-trainer".to_string()
     }
+}
+
+pub(crate) fn strip_trainer_suffix(value: &str) -> String {
+    let trimmed = value.trim();
+    trimmed
+        .strip_suffix(TRAINER_SUFFIX)
+        .unwrap_or(trimmed)
+        .trim_end()
+        .to_string()
 }
 
 pub fn sanitize_launcher_slug(value: &str) -> String {
@@ -271,7 +290,11 @@ pub fn sanitize_launcher_slug(value: &str) -> String {
     }
 }
 
-fn combine_host_unix_path(root_path: &str, segment_one: &str, segment_two: &str) -> String {
+pub(crate) fn combine_host_unix_path(
+    root_path: &str,
+    segment_one: &str,
+    segment_two: &str,
+) -> String {
     let normalized_root_path = normalize_host_unix_path(root_path);
     let normalized_root_path = normalized_root_path.trim_end_matches('/');
     if normalized_root_path.is_empty() {
@@ -293,7 +316,7 @@ fn combine_host_unix_path(root_path: &str, segment_one: &str, segment_two: &str)
     result
 }
 
-fn build_trainer_script_content(
+pub(crate) fn build_trainer_script_content(
     request: &SteamExternalLauncherExportRequest,
     display_name: &str,
 ) -> String {
@@ -411,8 +434,9 @@ exec "$PROTON" run "$staged_trainer_windows_path"
     content
 }
 
-fn build_desktop_entry_content(
+pub(crate) fn build_desktop_entry_content(
     display_name: &str,
+    slug: &str,
     script_path: &str,
     launcher_icon_path: &str,
 ) -> String {
@@ -435,10 +459,16 @@ fn build_desktop_entry_content(
         resolve_desktop_icon_value(launcher_icon_path)
     ));
     content.push_str("StartupNotify=false\n");
+    content.push_str(&format!("X-CrossHook-Profile={display_name}\n"));
+    content.push_str(&format!("X-CrossHook-Slug={slug}\n"));
     content
 }
 
-fn write_host_text_file(host_path: &str, content: &str, mode: u32) -> Result<(), io::Error> {
+pub(crate) fn write_host_text_file(
+    host_path: &str,
+    content: &str,
+    mode: u32,
+) -> Result<(), io::Error> {
     let writable_path = PathBuf::from(host_path);
     let directory_path = writable_path.parent().ok_or_else(|| {
         io::Error::new(
@@ -566,7 +596,7 @@ mod tests {
     }
 
     #[test]
-    fn desktop_exec_escaping_matches_csharp_rules() {
+    fn desktop_exec_escaping_follows_freedesktop_spec() {
         assert_eq!(
             escape_desktop_exec_argument("/tmp/Cross Hook/runner\".sh"),
             "/tmp/Cross\\ Hook/runner\\\".sh"
@@ -623,8 +653,10 @@ mod tests {
         assert!(script_content.contains("export STEAM_COMPAT_DATA_PATH=\"$PREFIX_ROOT\""));
         assert!(script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH='"));
         assert!(script_content.contains("PROTON='/opt/Proton/proton'"));
-        assert!(script_content.contains("TRAINER_HOST_PATH='/opt/Trainers/Trainer'\"'\"'s Edition.exe'"));
-        assert!(script_content.contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
+        assert!(script_content
+            .contains("TRAINER_HOST_PATH='/opt/Trainers/Trainer'\"'\"'s Edition.exe'"));
+        assert!(script_content
+            .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(script_content.contains("staged_trainer_windows_path=\"C:\\\\CrossHook\\\\StagedTrainers\\\\$trainer_base_name\\\\$trainer_file_name\""));
         assert!(script_content.contains("exec \"$PROTON\" run \"$staged_trainer_windows_path\""));
 
@@ -633,6 +665,8 @@ mod tests {
         assert!(desktop_content.contains("Exec=/bin/bash "));
         assert!(desktop_content.contains("Icon="));
         assert!(desktop_content.contains(&icon_path.to_string_lossy().replace('\\', "\\\\")));
+        assert!(desktop_content.contains("X-CrossHook-Profile=Elden Ring Deluxe\n"));
+        assert!(desktop_content.contains("X-CrossHook-Slug=elden-ring-deluxe\n"));
 
         #[cfg(unix)]
         {
@@ -650,14 +684,65 @@ mod tests {
                 .permissions()
                 .mode()
                 & 0o777;
-            assert_eq!(desktop_mode, 0o644, ".desktop files should not be executable");
+            assert_eq!(
+                desktop_mode, 0o644,
+                ".desktop files should not be executable"
+            );
         }
     }
 
     #[test]
+    fn export_does_not_duplicate_trainer_suffix_when_name_already_has_it() {
+        let temp_home = tempdir().expect("temp home");
+        let request = SteamExternalLauncherExportRequest {
+            method: "steam_applaunch".to_string(),
+            launcher_name: "Elden Ring - Trainer".to_string(),
+            trainer_path: "/opt/trainers/Elden Ring.exe".to_string(),
+            launcher_icon_path: String::new(),
+            prefix_path: "/tmp/compatdata/1245620".to_string(),
+            proton_path: "/opt/Proton/proton".to_string(),
+            steam_app_id: "1245620".to_string(),
+            steam_client_install_path: temp_home
+                .path()
+                .join(".local/share/Steam")
+                .to_string_lossy()
+                .into_owned(),
+            target_home_path: temp_home.path().to_string_lossy().into_owned(),
+        };
+
+        let result = export_launchers(&request).expect("export");
+        assert_eq!(result.display_name, "Elden Ring");
+        assert_eq!(result.launcher_slug, "elden-ring");
+
+        let desktop_content = fs::read_to_string(&result.desktop_entry_path).expect("desktop");
+        assert!(desktop_content.contains("Name=Elden Ring - Trainer\n"));
+        assert!(!desktop_content.contains("Name=Elden Ring - Trainer - Trainer\n"));
+    }
+
+    #[test]
+    fn resolve_display_name_strips_trainer_suffix_from_trainer_stem() {
+        assert_eq!(
+            resolve_display_name("", "1245620", "/opt/trainers/Game Name - Trainer.exe"),
+            "Game Name"
+        );
+    }
+
+    #[test]
     fn desktop_icon_falls_back_to_applications_games() {
-        let content = build_desktop_entry_content("Test", "/tmp/launcher.sh", "");
+        let content = build_desktop_entry_content("Test", "test", "/tmp/launcher.sh", "");
         assert!(content.contains("Icon=applications-games"));
+    }
+
+    #[test]
+    fn desktop_entry_contains_crosshook_metadata_lines() {
+        let content = build_desktop_entry_content(
+            "Elden Ring Deluxe",
+            "elden-ring-deluxe",
+            "/tmp/launcher.sh",
+            "",
+        );
+        assert!(content.contains("X-CrossHook-Profile=Elden Ring Deluxe\n"));
+        assert!(content.contains("X-CrossHook-Slug=elden-ring-deluxe\n"));
     }
 
     #[test]
@@ -688,7 +773,8 @@ mod tests {
         let script_content = build_trainer_script_content(&request, "Witcher 3");
         assert!(script_content.contains("PREFIX_ROOT='/games/prefixes/the-witcher-3'"));
         assert!(script_content.contains("elif [[ -d \"$PREFIX_ROOT/pfx\" ]]; then"));
-        assert!(script_content.contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
+        assert!(script_content
+            .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(!script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH="));
     }
 }
