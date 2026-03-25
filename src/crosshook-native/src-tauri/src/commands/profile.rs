@@ -26,7 +26,15 @@ fn derive_target_home_path(steam_client_install_path: &str) -> String {
         }
     }
 
-    std::env::var("HOME").unwrap_or_default()
+    match std::env::var("HOME") {
+        Ok(home) if !home.is_empty() => home,
+        _ => {
+            tracing::warn!(
+                "HOME is unset or empty and Steam client path did not match known patterns; derived home for launcher cleanup will be empty"
+            );
+            String::new()
+        }
+    }
 }
 
 fn cleanup_launchers_for_profile_delete(

@@ -1,3 +1,4 @@
+use crate::launch::is_known_launch_optimization_id;
 use crate::profile::{legacy, GameProfile};
 use super::models::LaunchOptimizationsSection;
 use directories::BaseDirs;
@@ -14,6 +15,7 @@ pub struct ProfileStore {
 pub enum ProfileStoreError {
     InvalidName(String),
     NotFound(PathBuf),
+    InvalidLaunchOptimizationId(String),
     Io(std::io::Error),
     TomlDe(toml::de::Error),
     TomlSer(toml::ser::Error),
@@ -24,6 +26,9 @@ impl fmt::Display for ProfileStoreError {
         match self {
             Self::InvalidName(name) => write!(f, "invalid profile name: {name}"),
             Self::NotFound(path) => write!(f, "profile file not found: {}", path.display()),
+            Self::InvalidLaunchOptimizationId(id) => {
+                write!(f, "unknown launch optimization id: {id}")
+            }
             Self::Io(error) => write!(f, "{error}"),
             Self::TomlDe(error) => write!(f, "{error}"),
             Self::TomlSer(error) => write!(f, "{error}"),
@@ -92,11 +97,20 @@ impl ProfileStore {
         Ok(())
     }
 
+    /// Loads the profile, replaces launch optimizations, and saves. Concurrent `save` or
+    /// `save_launch_optimizations` calls for the same profile are not synchronized; the last
+    /// completed write wins.
     pub fn save_launch_optimizations(
         &self,
         name: &str,
         enabled_option_ids: Vec<String>,
     ) -> Result<(), ProfileStoreError> {
+        for id in &enabled_option_ids {
+            if !is_known_launch_optimization_id(id) {
+                return Err(ProfileStoreError::InvalidLaunchOptimizationId(id.clone()));
+            }
+        }
+
         let mut profile = self.load(name)?;
         profile.launch.optimizations = LaunchOptimizationsSection {
             enabled_option_ids,
@@ -447,5 +461,24 @@ method = "native"
         );
 
         assert!(matches!(result, Err(ProfileStoreError::NotFound(_))));
+    }
+
+    #[test]
+    fn save_launch_optimizations_rejects_unknown_option_ids() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("elden-ring", &profile).unwrap();
+
+        let result = store.save_launch_optimizations(
+            "elden-ring",
+            vec!["not_a_real_launch_optimization".to_string()],
+        );
+
+        assert!(matches!(
+            result,
+            Err(ProfileStoreError::InvalidLaunchOptimizationId(id)) if id == "not_a_real_launch_optimization"
+        ));
     }
 }

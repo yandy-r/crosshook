@@ -186,6 +186,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     advanced: true,
     community: true,
     applicableMethods: PROTON_RUN_ONLY_METHODS,
+    conflictsWith: ['enable_fsr4_rdna3_upgrade'],
   },
   {
     id: 'enable_fsr4_rdna3_upgrade',

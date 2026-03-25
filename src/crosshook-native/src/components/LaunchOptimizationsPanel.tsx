@@ -322,7 +322,6 @@ export function LaunchOptimizationsPanel({
     <section className={rootClassName} aria-labelledby={titleId} data-method={method}>
       <div className="crosshook-launch-optimizations__header">
         <div className="crosshook-launch-optimizations__heading">
-          <div className="crosshook-install-section-title">Launch Optimizations</div>
           <h2 id={titleId} className="crosshook-launch-optimizations__title">
             Launch Optimizations
           </h2>

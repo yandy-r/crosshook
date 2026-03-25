@@ -174,6 +174,12 @@ const LAUNCH_OPTIMIZATION_DEFINITIONS: &[LaunchOptimizationDefinition] = &[
     },
 ];
 
+pub fn is_known_launch_optimization_id(option_id: &str) -> bool {
+    LAUNCH_OPTIMIZATION_DEFINITIONS
+        .iter()
+        .any(|definition| definition.id == option_id)
+}
+
 pub fn resolve_launch_directives(request: &LaunchRequest) -> Result<LaunchDirectives, ValidationError> {
     let enabled_option_ids = &request.optimizations.enabled_option_ids;
     if enabled_option_ids.is_empty() {

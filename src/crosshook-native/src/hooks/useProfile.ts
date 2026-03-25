@@ -136,6 +136,45 @@ function normalizeLaunchOptimizationIds(
   return normalized;
 }
 
+type ApplyLaunchOptimizationToggleResult =
+  | { ok: true; profile: GameProfile }
+  | { ok: false; conflictLabels: string[] };
+
+function applyLaunchOptimizationToggle(
+  current: GameProfile,
+  optionId: LaunchOptimizationId,
+  nextEnabled: boolean
+): ApplyLaunchOptimizationToggleResult {
+  const currentIds = current.launch.optimizations.enabled_option_ids;
+  const conflictingIds = nextEnabled
+    ? getConflictingLaunchOptimizationIds(optionId, currentIds)
+    : [];
+
+  if (conflictingIds.length > 0) {
+    const conflictLabels = conflictingIds.map(
+      (conflictingId) => LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflictingId].label
+    );
+    return { ok: false, conflictLabels };
+  }
+
+  const nextIds = nextEnabled
+    ? normalizeLaunchOptimizationIds([...currentIds, optionId])
+    : currentIds.filter((currentOptionId) => currentOptionId !== optionId);
+
+  return {
+    ok: true,
+    profile: {
+      ...current,
+      launch: {
+        ...current.launch,
+        optimizations: {
+          enabled_option_ids: nextIds,
+        },
+      },
+    },
+  };
+}
+
 function areLaunchOptimizationIdsEqual(
   left: readonly LaunchOptimizationId[],
   right: readonly LaunchOptimizationId[]
@@ -307,6 +346,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   );
   const launchOptimizationsAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedLaunchOptimizationIdsRef = useRef<LaunchOptimizationId[]>([]);
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
 
   const syncProfileMetadata = useCallback(async (name: string, currentProfile: GameProfile) => {
     const settings = await invoke<AppSettingsData>('settings_load');
@@ -468,38 +509,17 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   const toggleLaunchOptimization = useCallback(
     (optionId: LaunchOptimizationId, nextEnabled: boolean) => {
-      setProfile((current) => {
-        const currentIds = current.launch.optimizations.enabled_option_ids;
-        const conflictingIds = nextEnabled
-          ? getConflictingLaunchOptimizationIds(optionId, currentIds)
-          : [];
+      const result = applyLaunchOptimizationToggle(profileRef.current, optionId, nextEnabled);
+      if (!result.ok) {
+        setLaunchOptimizationsStatus({
+          tone: 'warning',
+          label: 'Conflicting option blocked',
+          detail: `Disable ${result.conflictLabels.join(' or ')} before enabling ${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId].label}.`,
+        });
+        return;
+      }
 
-        if (conflictingIds.length > 0) {
-          const conflictLabels = conflictingIds.map(
-            (conflictingId) => LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflictingId].label
-          );
-          setLaunchOptimizationsStatus({
-            tone: 'warning',
-            label: 'Conflicting option blocked',
-            detail: `Disable ${conflictLabels.join(' or ')} before enabling ${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId].label}.`,
-          });
-          return current;
-        }
-
-        const nextIds = nextEnabled
-          ? normalizeLaunchOptimizationIds([...currentIds, optionId])
-          : currentIds.filter((currentOptionId) => currentOptionId !== optionId);
-
-        return {
-          ...current,
-          launch: {
-            ...current.launch,
-            optimizations: {
-              enabled_option_ids: nextIds,
-            },
-          },
-        };
-      });
+      setProfile(result.profile);
       setDirty((currentDirty) => currentDirty || !hasExistingSavedProfile);
     },
     [hasExistingSavedProfile]
