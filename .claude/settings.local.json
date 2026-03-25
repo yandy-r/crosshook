@@ -72,7 +72,10 @@
       "Bash(npx --package=typescript tsc --noEmit)",
       "Bash(./node_modules/.bin/tsc --noEmit)",
       "Bash(node_modules/.bin/tsc --noEmit)",
-      "Bash(./node_modules/.bin/tsc --noEmit --pretty)"
+      "Bash(./node_modules/.bin/tsc --noEmit --pretty)",
+      "Bash(wc -l /home/yandy/Projects/github.com/yandy-r/worktrees/crosshook/research-ui-enhancements/docs/plans/ui-enhancements/*.md)",
+      "Bash(source /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/_shared/scripts/resolve-plans-dir.sh)",
+      "Bash(get_feature_plan_dir \"ui-enhancements\")"
     ]
   }
 }
