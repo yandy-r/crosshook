@@ -328,7 +328,7 @@ export function ProfileReviewModal({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        data-crosshook-focus-root="modal"
+        data-crosshook-focus-root={confirmation ? undefined : 'modal'}
         onKeyDown={handleKeyDown}
       >
         <header className="crosshook-modal__header">
@@ -415,7 +415,12 @@ export function ProfileReviewModal({
             aria-describedby={`${descriptionId}-confirmation`}
             onMouseDown={handleBackdropMouseDown}
           >
-            <div ref={confirmationRef} className="crosshook-panel" style={confirmationCardStyle}>
+            <div
+              ref={confirmationRef}
+              className="crosshook-panel"
+              style={confirmationCardStyle}
+              data-crosshook-focus-root="modal"
+            >
               <div className="crosshook-modal__heading-block">
                 <div className="crosshook-heading-eyebrow">Confirmation required</div>
                 <h3 id={`${titleId}-confirmation`} className="crosshook-modal__title" style={{ fontSize: '1.35rem' }}>
@@ -431,6 +436,7 @@ export function ProfileReviewModal({
                   type="button"
                   className="crosshook-button crosshook-button--secondary"
                   onClick={confirmation.onCancel}
+                  data-crosshook-modal-close
                 >
                   {confirmation.cancelLabel}
                 </button>

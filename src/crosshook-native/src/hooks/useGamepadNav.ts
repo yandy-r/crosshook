@@ -71,7 +71,8 @@ function getRootElement(rootRef: MutableRefObject<HTMLElement | null>): HTMLElem
 }
 
 function getNavigationRoot(rootRef: MutableRefObject<HTMLElement | null>): HTMLElement | null {
-  return document.querySelector<HTMLElement>(MODAL_FOCUS_ROOT_SELECTOR) ?? getRootElement(rootRef);
+  const modalRoots = document.querySelectorAll<HTMLElement>(MODAL_FOCUS_ROOT_SELECTOR);
+  return modalRoots.item(modalRoots.length - 1) ?? getRootElement(rootRef);
 }
 
 function getFocusableElements(root: HTMLElement | null): HTMLElement[] {

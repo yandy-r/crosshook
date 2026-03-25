@@ -175,6 +175,43 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
 
   async function handleOpenProfileReview(payload: InstallProfileReviewPayload) {
     if (payload.source === 'manual-verify') {
+      const currentSession = profileReviewSession;
+      const sameReviewResult =
+        currentSession !== null && currentSession.helperLogPath === payload.helperLogPath;
+
+      if (currentSession !== null && !sameReviewResult) {
+        if (currentSession.dirty) {
+          return requestReviewConfirmation({
+            title: 'Open the latest review draft?',
+            body: `A newer install result is ready for ${payload.profileName}. Opening it will discard the unsaved review draft that is currently loaded.`,
+            confirmLabel: 'Open latest draft',
+            cancelLabel: 'Keep current draft',
+            tone: 'warning',
+            restoreIsOpen: currentSession.isOpen,
+            onConfirm: () => {
+              setProfileReviewSession(createProfileReviewSessionState(payload));
+              setEditorTab('install');
+            },
+            onCancel: () => {
+              setProfileReviewSession((current) => {
+                if (current === null) {
+                  return current;
+                }
+
+                return {
+                  ...current,
+                  isOpen: true,
+                };
+              });
+            },
+          });
+        }
+
+        setProfileReviewSession(createProfileReviewSessionState(payload));
+        setEditorTab('install');
+        return true;
+      }
+
       setProfileReviewSession((current) => {
         if (current !== null) {
           return {
