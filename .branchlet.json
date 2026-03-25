@@ -1,0 +1,36 @@
+{
+  "worktreeCopyPatterns": [
+    ".env",
+    ".env**",
+    ".vscode/**",
+    ".venv/**",
+    "package.json",
+    "tsconfig.json",
+    "*.config.js",
+    "*.config.ts",
+    "*.config.json",
+    ".gitignore",
+    ".editorconfig",
+    ".prettierrc*",
+    ".eslintrc*"
+  ],
+  "worktreeCopyIgnores": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.git/**",
+    "**/Thumbs.db",
+    "**/.DS_Store",
+    "**/coverage/**",
+    "**/.nyc_output/**",
+    "**/logs/**",
+    "**/*.log"
+  ],
+  "worktreePathTemplate": "$BASE_PATH/../worktrees/crosshook/$BRANCH_NAME",
+  "postCreateCmd": [
+    "npm install || echo 'No package.json found, skipping npm install'",
+    "git config --local init.defaultBranch main || echo 'Using existing default branch'"
+  ],
+  "terminalCommand": "cursor .",
+  "deleteBranchWithWorktree": true
+}
