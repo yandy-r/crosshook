@@ -211,6 +211,62 @@ function ProtonPathField(props: {
   );
 }
 
+function LauncherMetadataFields(props: {
+  profile: GameProfile;
+  onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
+}) {
+  return (
+    <>
+      <FieldRow
+        label="Launcher Name"
+        value={props.profile.steam.launcher.display_name}
+        onChange={(value) =>
+          props.onUpdateProfile((current) => ({
+            ...current,
+            steam: {
+              ...current.steam,
+              launcher: { ...current.steam.launcher, display_name: value },
+            },
+          }))
+        }
+        placeholder="God of War Ragnarok"
+        helperText={launcherNameHelperText}
+      />
+
+      <FieldRow
+        label="Launcher Icon"
+        value={props.profile.steam.launcher.icon_path}
+        onChange={(value) =>
+          props.onUpdateProfile((current) => ({
+            ...current,
+            steam: {
+              ...current.steam,
+              launcher: { ...current.steam.launcher, icon_path: value },
+            },
+          }))
+        }
+        placeholder="/path/to/icon.png"
+        browseLabel="Browse"
+        onBrowse={async () => {
+          const path = await chooseFile('Select Launcher Icon', [
+            { name: 'Images', extensions: ['png', 'jpg', 'jpeg'] },
+          ]);
+
+          if (path) {
+            props.onUpdateProfile((current) => ({
+              ...current,
+              steam: {
+                ...current.steam,
+                launcher: { ...current.steam.launcher, icon_path: path },
+              },
+            }));
+          }
+        }}
+      />
+    </>
+  );
+}
+
 function OptionalSection(props: {
   summary: string;
   children: ReactNode;
@@ -248,6 +304,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const steamClientInstallPath = deriveSteamClientInstallPath(profile.steam.compatdata_path);
   const trainerCollapsed = reviewMode && profile.trainer.path.trim().length === 0;
   const workingDirectoryCollapsed = reviewMode && profile.runtime.working_directory.trim().length === 0;
+  const showLauncherMetadata = supportsTrainerLaunch && !reviewMode;
   const reviewModeNote = reviewMode ? (
     <p className="crosshook-help-text">
       Review mode keeps launch-critical fields expanded and collapses only empty optional overrides.
@@ -453,52 +510,12 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                 }}
               />
 
-              <FieldRow
-                label="Launcher Name"
-                value={profile.steam.launcher.display_name}
-                onChange={(value) =>
-                  onUpdateProfile((current) => ({
-                    ...current,
-                    steam: {
-                      ...current.steam,
-                      launcher: { ...current.steam.launcher, display_name: value },
-                    },
-                  }))
-                }
-                placeholder="God of War Ragnarok"
-                helperText={launcherNameHelperText}
-              />
-
-              <FieldRow
-                label="Launcher Icon"
-                value={profile.steam.launcher.icon_path}
-                onChange={(value) =>
-                  onUpdateProfile((current) => ({
-                    ...current,
-                    steam: {
-                      ...current.steam,
-                      launcher: { ...current.steam.launcher, icon_path: value },
-                    },
-                  }))
-                }
-                placeholder="/path/to/icon.png"
-                browseLabel="Browse"
-                onBrowse={async () => {
-                  const path = await chooseFile('Select Launcher Icon', [
-                    { name: 'Images', extensions: ['png', 'jpg', 'jpeg'] },
-                  ]);
-
-                  if (path) {
-                    onUpdateProfile((current) => ({
-                      ...current,
-                      steam: {
-                        ...current.steam,
-                        launcher: { ...current.steam.launcher, icon_path: path },
-                      },
-                    }));
-                  }
-                }}
-              />
+              {showLauncherMetadata ? (
+                <LauncherMetadataFields
+                  profile={profile}
+                  onUpdateProfile={onUpdateProfile}
+                />
+              ) : null}
             </div>
 
             <ProtonPathField
@@ -581,6 +598,13 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                   }
                 }}
               />
+
+              {showLauncherMetadata ? (
+                <LauncherMetadataFields
+                  profile={profile}
+                  onUpdateProfile={onUpdateProfile}
+                />
+              ) : null}
 
               <OptionalSection summary="Working directory override" collapsed={workingDirectoryCollapsed}>
                 <FieldRow
