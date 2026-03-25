@@ -128,6 +128,14 @@ src/crosshook-native/
 - Tauri `invoke()` calls wrapped in custom hooks for state management
 - CSS custom properties defined in `variables.css`, BEM-like class names (`crosshook-*`)
 
+### Commit Messages And Changelog Hygiene
+
+- `CHANGELOG.md` is generated with `git-cliff` and published directly to GitHub Releases; commit messages must be deliberate because they become release notes.
+- Use conventional commits for any user-facing change that should appear in the changelog, for example `feat(launcher): ...`, `fix(launch): ...`, `docs(quickstart): ...`, `build(release): ...`.
+- Do not use vague or generic titles such as `Update README.md`, `fix stuff`, `misc cleanup`, or `bump version` for code that may ship in a release.
+- Internal planning, research, task-tracking, release-prep churn, and other non-user-facing maintenance should use skipped forms such as `chore(release): ...`, `chore(...): ...`, or `docs(internal): ...` so they stay out of release notes.
+- If a change is important to users, write the commit title the way you want it to read in `CHANGELOG.md`.
+
 ## Important Notes
 
 - This is a **native Linux application** distributed as an AppImage -- it does NOT run under WINE/Proton itself
@@ -167,6 +175,11 @@ CLI completion note:
 
 - Zsh completion for `gh` may be loaded correctly while `gh` itself still returns no positional completions for PR or issue numbers.
 - If `gh pr merge <TAB>` does not fill in PR identifiers, verify with `gh __complete pr merge ""`. If it returns only `:0`, that is a `gh` completion limitation, not necessarily a shell setup problem.
+
+### Releases
+
+- Before tagging a release, run `./scripts/prepare-release.sh ...`; it now regenerates `CHANGELOG.md` and validates the tagged section with `./scripts/validate-release-notes.sh`.
+- The release workflow also validates the tagged `CHANGELOG.md` section before publishing assets, so noisy commits should fail release preparation instead of leaking into GitHub Releases.
 
 ### Labels
 

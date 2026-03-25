@@ -24,9 +24,10 @@ Usage:
 This script:
   1. Syncs the native workspace version
   2. Regenerates CHANGELOG.md with git-cliff
-  3. Commits the release metadata update
-  4. Creates an annotated release tag
-  5. Optionally pushes the branch first and the tag second
+  3. Validates the tagged release-notes section
+  4. Commits the release metadata update
+  5. Creates an annotated release tag
+  6. Optionally pushes the branch first and the tag second
 
 Examples:
   ./scripts/prepare-release.sh --version 5.1.0
@@ -129,6 +130,7 @@ cleanup() {
 trap cleanup EXIT
 
 git-cliff --config "$CLIFF_CONFIG_PATH" --tag "$TAG" > "$TEMP_CHANGELOG"
+./scripts/validate-release-notes.sh --changelog "$TEMP_CHANGELOG" "$TAG"
 mv "$TEMP_CHANGELOG" "$CHANGELOG_PATH"
 
 git add CHANGELOG.md "${NATIVE_CARGO_MANIFESTS[@]}"

@@ -1,5 +1,23 @@
 # TODO
 
+## Changelog Hygiene
+
+- [x] Tighten `.git-cliff.toml` so new release notes include only intentional, conventional, user-facing commits.
+- [x] Add a release-notes validation script that fails on noisy sections before publish.
+- [x] Run release-note validation during local release prep and in `.github/workflows/release.yml`.
+- [x] Update `CLAUDE.md` with commit-message rules that preserve clean changelogs.
+- [x] Update `tasks/lessons.md` with the changelog/commit-discipline lesson.
+- [x] Verify the `v0.2.1` release-body extraction still passes after the new rules.
+
+## Release Notes And Changelog Publishing
+
+- [x] Confirm why `.github/workflows/release.yml` stopped publishing changelog/release body content after the native migration.
+- [x] Add a deterministic release-body generation path that publishes only the matching `CHANGELOG.md` section for a tag.
+- [x] Update the release workflow to publish the generated notes alongside the AppImage asset.
+- [x] Remove the separate `release_notes.md` path so `CHANGELOG.md` is the only release-notes source.
+- [x] Verify the generated release body locally for `v0.2.1`.
+- [x] Update the live GitHub release `v0.2.1` with the corrected notes body.
+
 ## Restore Native Workspace Manifest
 
 - [x] Reproduce the native container-build failure and confirm the root cause.
@@ -86,6 +104,21 @@
 - [x] Run a focused frontend verification check.
 
 ## Review
+
+- Tightened `.git-cliff.toml` to filter unconventional commits and skip internal/non-user-facing forms such as `chore(...)`, `docs(internal):`, `docs(research):`, `docs(plan):`, and `style`.
+- Added `scripts/validate-release-notes.sh` to reject noisy tagged release sections before publish. It fails on disallowed section headings and low-signal patterns like generic README churn, release-notes maintenance text, and task-plan residue.
+- Wired release-note validation into both `scripts/prepare-release.sh` and `.github/workflows/release.yml`.
+- Updated `CLAUDE.md` so contributors know commit messages are effectively release-note copy and that internal maintenance should use skipped forms.
+- Updated `tasks/lessons.md` with the same changelog-discipline rule.
+- Verification passed for the curated notes path with `./scripts/validate-release-notes.sh v0.2.1`.
+- Verification also proved the gate catches bad generated output: `git-cliff --config .git-cliff.toml --tag v0.2.1 > /tmp/crosshook-generated-changelog.md && ./scripts/validate-release-notes.sh --changelog /tmp/crosshook-generated-changelog.md v0.2.1` failed on `Update README.md`.
+
+- Confirmed the native release workflow regression: unlike the old .NET workflow, `.github/workflows/release.yml` never set `generate_release_notes` or any release body, so tagged releases published assets but no notes.
+- Added `scripts/render-release-notes.sh` and wired the release workflow to publish the matching tagged `CHANGELOG.md` section via `body_path`.
+- Removed `release_notes.md` so `CHANGELOG.md` is the only release-notes source in the repo.
+- Cleaned the `v0.2.1` `CHANGELOG.md` section so the published notes emphasize the install-game flow, launcher lifecycle management, launch-panel follow fix, and release-manifest hardening.
+- Verified locally with `./scripts/render-release-notes.sh v0.2.1`.
+- Updated and verified the live GitHub release body with `gh release edit v0.2.1 --repo yandy-r/crosshook --notes-file /tmp/v0.2.1-release-body.md` and `gh release view v0.2.1 --repo yandy-r/crosshook --json body,url`.
 
 - Replaced the console's `scrollIntoView`-based follow behavior with scroll-container-local bottom tracking so incoming `launch-log` events no longer move the page viewport away from the launch panel.
 - Preserved live log following when the console is already pinned near the bottom, and preserved the user's position when they intentionally scroll up inside the console.

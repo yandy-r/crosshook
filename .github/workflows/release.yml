@@ -107,11 +107,18 @@ jobs:
           set -euo pipefail
           echo "RELEASE_APPIMAGE=dist/CrossHook_${GITHUB_REF_NAME#v}_amd64.AppImage" >> "$GITHUB_ENV"
 
+      - name: Generate release body from changelog
+        run: ./scripts/render-release-notes.sh "${GITHUB_REF_NAME}" > release-body.md
+
+      - name: Validate release body
+        run: ./scripts/validate-release-notes.sh "${GITHUB_REF_NAME}"
+
       - name: Upload AppImage to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
+          body_path: release-body.md
           files: ${{ env.RELEASE_APPIMAGE }}
           fail_on_unmatched_files: true
         env:
