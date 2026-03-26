@@ -6,3 +6,4 @@ pub mod logging;
 pub mod profile;
 pub mod settings;
 pub mod steam;
+pub mod update;
