@@ -20,6 +20,7 @@ function buildLaunchRequest(
     game_path: profile.game.executable_path,
     trainer_path: profile.trainer.path,
     trainer_host_path: profile.trainer.path,
+    trainer_loading_mode: profile.trainer.loading_mode,
     steam: {
       app_id: profile.steam.app_id,
       compatdata_path: profile.steam.compatdata_path,

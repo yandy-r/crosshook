@@ -6,6 +6,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use super::optimizations::resolve_launch_directives;
+use crate::profile::TrainerLoadingMode;
 
 pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
 pub const METHOD_PROTON_RUN: &str = "proton_run";
@@ -21,6 +22,8 @@ pub struct LaunchRequest {
     pub trainer_path: String,
     #[serde(default)]
     pub trainer_host_path: String,
+    #[serde(default)]
+    pub trainer_loading_mode: TrainerLoadingMode,
     #[serde(default)]
     pub steam: SteamLaunchConfig,
     #[serde(default)]
@@ -131,6 +134,10 @@ impl LaunchRequest {
             trimmed.to_string()
         }
     }
+
+    pub fn should_copy_trainer_to_prefix(&self) -> bool {
+        self.trainer_loading_mode == TrainerLoadingMode::CopyToPrefix
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,9 +166,18 @@ pub enum ValidationError {
     UnknownLaunchOptimization(String),
     DuplicateLaunchOptimization(String),
     LaunchOptimizationsUnsupportedForMethod(String),
-    LaunchOptimizationNotSupportedForMethod { option_id: String, method: String },
-    IncompatibleLaunchOptimizations { first: String, second: String },
-    LaunchOptimizationDependencyMissing { option_id: String, dependency: String },
+    LaunchOptimizationNotSupportedForMethod {
+        option_id: String,
+        method: String,
+    },
+    IncompatibleLaunchOptimizations {
+        first: String,
+        second: String,
+    },
+    LaunchOptimizationDependencyMissing {
+        option_id: String,
+        dependency: String,
+    },
     NativeWindowsExecutableNotSupported,
     NativeTrainerLaunchUnsupported,
     UnsupportedMethod(String),
@@ -227,7 +243,9 @@ impl ValidationError {
                 format!("Launch optimizations are only supported for proton_run launches, not '{method}'.")
             }
             Self::LaunchOptimizationNotSupportedForMethod { option_id, method } => {
-                format!("Launch optimization '{option_id}' is not supported for '{method}' launches.")
+                format!(
+                    "Launch optimization '{option_id}' is not supported for '{method}' launches."
+                )
             }
             Self::IncompatibleLaunchOptimizations { first, second } => {
                 format!("Launch optimizations '{first}' and '{second}' cannot be enabled together.")
@@ -541,6 +559,7 @@ mod tests {
                 game_path,
                 trainer_path: trainer_path.clone(),
                 trainer_host_path: trainer_path,
+                trainer_loading_mode: TrainerLoadingMode::SourceDirectory,
                 steam: SteamLaunchConfig {
                     app_id: "12345".to_string(),
                     compatdata_path,

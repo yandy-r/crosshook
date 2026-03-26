@@ -32,6 +32,7 @@ export interface CommunityProfileManifest {
     trainer: {
       path: string;
       type: string;
+      loading_mode: 'source_directory' | 'copy_to_prefix';
     };
     injection: {
       dll_paths: string[];

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { GameProfile, LaunchMethod, LauncherDeleteResult, LauncherInfo } from '../types';
+import type {
+  GameProfile,
+  LaunchMethod,
+  LauncherDeleteResult,
+  LauncherInfo,
+  TrainerLoadingMode,
+} from '../types';
 
 interface LauncherExportProps {
   profile: GameProfile;
@@ -13,6 +19,7 @@ interface SteamExternalLauncherExportRequest {
   method: string;
   launcher_name: string;
   trainer_path: string;
+  trainer_loading_mode: TrainerLoadingMode;
   launcher_icon_path: string;
   prefix_path: string;
   proton_path: string;
@@ -89,6 +96,7 @@ function buildExportRequest(
     method,
     launcher_name: launcherName.trim(),
     trainer_path: profile.trainer.path.trim(),
+    trainer_loading_mode: profile.trainer.loading_mode,
     launcher_icon_path: launcherIconPath.trim(),
     prefix_path:
       method === 'steam_applaunch' ? profile.steam.compatdata_path.trim() : profile.runtime.prefix_path.trim(),
@@ -115,22 +123,29 @@ export function LauncherExport({
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const request = useMemo(
+    () =>
+      buildExportRequest(
+        profile,
+        method,
+        launcherName,
+        safeTrim(profile.steam.launcher.icon_path),
+        steamClientInstallPath,
+        targetHomePath
+      ),
+    [profile, method, launcherName, steamClientInstallPath, targetHomePath]
+  );
+
   const refreshLauncherStatus = useCallback(async () => {
     try {
-      const info = await invoke<LauncherInfo>('check_launcher_exists', {
-        displayName: profile.steam?.launcher?.display_name || '',
-        steamAppId: profile.steam?.app_id || '',
-        trainerPath: profile.trainer?.path || '',
-        targetHomePath: targetHomePath || '',
-        steamClientInstallPath: steamClientInstallPath || '',
-      });
+      const info = await invoke<LauncherInfo>('check_launcher_exists', { request });
       setLauncherStatus(info);
     } catch (error) {
       console.error('Failed to refresh launcher status.', error);
       setErrorMessage(`Failed to check launcher status: ${error instanceof Error ? error.message : String(error)}`);
       setLauncherStatus(null);
     }
-  }, [profile, targetHomePath, steamClientInstallPath]);
+  }, [request]);
 
   useEffect(() => {
     setLauncherName(deriveLauncherName(profile));
@@ -148,26 +163,25 @@ export function LauncherExport({
     };
   }, []);
 
-  const request = buildExportRequest(
-    profile,
-    method,
-    launcherName,
-    safeTrim(profile.steam.launcher.icon_path),
-    steamClientInstallPath,
-    targetHomePath
-  );
-
   const metadataRows = useMemo(
     () =>
       method === 'steam_applaunch'
         ? [
             { label: 'Trainer Path', value: safeTrim(profile.trainer.path) || 'Not set' },
+            {
+              label: 'Trainer Loading Mode',
+              value: profile.trainer.loading_mode === 'copy_to_prefix' ? 'Copy into prefix' : 'Run from current directory',
+            },
             { label: 'Steam App ID', value: safeTrim(profile.steam.app_id) || 'Not set' },
             { label: 'Compatdata Path', value: safeTrim(profile.steam.compatdata_path) || 'Not set' },
             { label: 'Proton Path', value: safeTrim(profile.steam.proton_path) || 'Not set' },
           ]
         : [
             { label: 'Trainer Path', value: safeTrim(profile.trainer.path) || 'Not set' },
+            {
+              label: 'Trainer Loading Mode',
+              value: profile.trainer.loading_mode === 'copy_to_prefix' ? 'Copy into prefix' : 'Run from current directory',
+            },
             { label: 'Prefix Path', value: safeTrim(profile.runtime.prefix_path) || 'Not set' },
             { label: 'Proton Path', value: safeTrim(profile.runtime.proton_path) || 'Not set' },
             { label: 'Working Directory', value: safeTrim(profile.runtime.working_directory) || 'Not set' },

@@ -9,10 +9,10 @@ use args::{
     SteamCommand,
 };
 use clap::Parser;
+use crosshook_core::launch::request::LaunchOptimizationsRequest;
 use crosshook_core::launch::{
     self, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, METHOD_STEAM_APPLAUNCH,
 };
-use crosshook_core::launch::request::LaunchOptimizationsRequest;
 use crosshook_core::profile::{GameProfile, ProfileStore};
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
@@ -163,6 +163,7 @@ fn steam_launch_request_from_profile(
         game_path: profile.game.executable_path.clone(),
         trainer_path: profile.trainer.path.clone(),
         trainer_host_path: profile.trainer.path.clone(),
+        trainer_loading_mode: profile.trainer.loading_mode,
         steam: SteamLaunchConfig {
             app_id: profile.steam.app_id.clone(),
             compatdata_path: profile.steam.compatdata_path.clone(),

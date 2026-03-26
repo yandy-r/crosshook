@@ -94,6 +94,7 @@ executable_path = "/mnt/games/SteamLibrary/steamapps/common/ELDEN RING/Game/elde
 [trainer]
 path = "/home/user/trainers/EldenRing_FLiNG.exe"
 type = "fling"
+loading_mode = "source_directory"
 
 [steam]
 enabled = true
@@ -112,7 +113,7 @@ When a profile uses `proton_run`, the Profile editor also shows a `Launch Optimi
 CrossHook uses a two-step launch flow for Steam/Proton games:
 
 1. **Launch the game.** Click the launch button. CrossHook starts the game through Steam (or Proton directly, depending on the mode). Wait for the game to reach the in-game menu.
-2. **Launch the trainer.** Once the game is running, click the launch button again. CrossHook stages the trainer into the game's compatdata prefix and runs it through Proton with a clean environment.
+2. **Launch the trainer.** Once the game is running, click the launch button again. CrossHook runs the trainer through Proton with a clean environment. By default it uses the trainer's current directory so stateful bundles keep one shared install, and you can switch a profile to `Copy into prefix` when a trainer needs staged files inside the target prefix.
 
 If you used `Install Game` first, make sure you save the reviewed profile before launching. After a successful save, CrossHook switches you to the Profile tab with that profile selected.
 
@@ -127,7 +128,8 @@ CrossHook supports three launch methods. The right choice depends on how your ga
 The default mode for games installed through Steam.
 
 - CrossHook launches the game using `steam -applaunch <appid>`, which lets Steam handle DRM, the overlay, and the Proton runtime.
-- The trainer is then launched separately into the same compatdata prefix using Proton directly.
+- The trainer is then launched separately against the same prefix using Proton directly.
+- The Trainer section lets you choose `Run from current directory` or `Copy into prefix`. The default source-directory mode is better for stateful trainers such as Aurora.
 - Requires: Steam App ID, compatdata path, Proton path, Steam client install path. All of these are auto-populated by CrossHook's Steam discovery.
 
 ### Proton Run (`proton_run`)
@@ -135,6 +137,7 @@ The default mode for games installed through Steam.
 For launching games and trainers directly through Proton without going through the Steam client.
 
 - CrossHook launches the game (and trainer) using `proton run` against a specified WINE prefix.
+- Trainers use the same per-profile loading mode as Steam launches: source-directory by default, optional copy-to-prefix for compatibility cases.
 - Useful for non-Steam games that use a standalone Proton/WINE prefix, or when you need full control over the prefix path.
 - Requires: a WINE/Proton prefix path and the Proton runner path.
 - The `Install Game` flow uses the same direct Proton path, then opens a review modal for the generated profile before save. Saving the modal draft opens the Profile tab with the saved profile selected.
@@ -158,13 +161,13 @@ CrossHook can generate standalone shell scripts and `.desktop` entries so you ca
    - `~/.local/share/crosshook/launchers/` (shell scripts)
    - `~/.local/share/applications/` (desktop entries)
 
-The generated script sets the required Proton environment variables and runs the trainer directly:
+The generated script sets the required Proton environment variables and follows the profile's trainer loading mode:
 
 ```bash
 export STEAM_COMPAT_DATA_PATH='...'
 export STEAM_COMPAT_CLIENT_INSTALL_PATH='...'
 export WINEPREFIX="$STEAM_COMPAT_DATA_PATH/pfx"
-exec "$PROTON" run "$TRAINER_WINDOWS_PATH"
+exec "$PROTON" run "$TRAINER_HOST_PATH"
 ```
 
 The `.desktop` entry runs the script with `/bin/bash`, making the trainer launchable from your desktop's application menu.
