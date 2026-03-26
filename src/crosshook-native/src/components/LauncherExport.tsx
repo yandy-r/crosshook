@@ -127,6 +127,7 @@ export function LauncherExport({
       setLauncherStatus(info);
     } catch (error) {
       console.error('Failed to refresh launcher status.', error);
+      setErrorMessage(`Failed to check launcher status: ${error instanceof Error ? error.message : String(error)}`);
       setLauncherStatus(null);
     }
   }, [profile, targetHomePath, steamClientInstallPath]);

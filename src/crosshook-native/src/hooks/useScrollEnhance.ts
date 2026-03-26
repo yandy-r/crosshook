@@ -64,6 +64,7 @@ export function useScrollEnhance(): void {
     }
 
     function onKeyDown(e: KeyboardEvent) {
+      if (e.defaultPrevented) return;
       if (isInteractiveTarget(document.activeElement)) return;
 
       let dx = 0;

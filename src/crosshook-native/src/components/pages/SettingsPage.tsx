@@ -45,13 +45,13 @@ export function SettingsPage() {
         targetHomePath={targetHomePath}
         steamClientInstallPath={steamClientInstallPath}
         onAutoLoadLastProfileChange={(enabled) => {
-          void handleAutoLoadChange(enabled).catch(() => undefined);
+          void handleAutoLoadChange(enabled);
         }}
         onRefreshRecentFiles={() => {
-          void refreshPreferences().catch(() => undefined);
+          void refreshPreferences();
         }}
         onClearRecentFiles={() => {
-          void clearRecentFiles().catch(() => undefined);
+          void clearRecentFiles();
         }}
       />
     </div>

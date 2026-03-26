@@ -2,10 +2,8 @@ import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'r
 import { listen } from '@tauri-apps/api/event';
 
 import { useProfile, type UseProfileResult } from '../hooks/useProfile';
-import type { GameProfile, LaunchMethod } from '../types';
 import { deriveSteamClientInstallPath, deriveTargetHomePath } from '../utils/steam';
-
-type ResolvedLaunchMethod = Exclude<LaunchMethod, ''>;
+import { resolveLaunchMethod, type ResolvedLaunchMethod } from '../utils/launch';
 
 export interface ProfileContextValue extends UseProfileResult {
   launchMethod: ResolvedLaunchMethod;
@@ -19,23 +17,6 @@ interface ProfileProviderProps {
 
 const ProfileContext = createContext<ProfileContextValue | undefined>(undefined);
 
-function resolveLaunchMethod(profile: GameProfile): ResolvedLaunchMethod {
-  const method = profile.launch.method.trim();
-
-  if (method === 'steam_applaunch' || method === 'proton_run' || method === 'native') {
-    return method;
-  }
-
-  if (profile.steam.enabled) {
-    return 'steam_applaunch';
-  }
-
-  if (profile.game.executable_path.trim().toLowerCase().endsWith('.exe')) {
-    return 'proton_run';
-  }
-
-  return 'native';
-}
 
 export function ProfileProvider({ children }: ProfileProviderProps) {
   const profileState = useProfile({ autoSelectFirstProfile: false });
