@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState, type ChangeEvent, type CSSProperties } from 'react';
+import { useDeferredValue, useMemo, useState, type ChangeEvent } from 'react';
 
 export type CompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
 
@@ -38,92 +38,6 @@ export interface CompatibilityViewerProps {
   recentPlatforms?: string[];
 }
 
-const cardStyle: CSSProperties = {
-  display: 'grid',
-  gap: 16,
-};
-
-const filterRowStyle: CSSProperties = {
-  display: 'grid',
-  gap: 12,
-  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-};
-
-const fieldStyle: CSSProperties = {
-  display: 'grid',
-  gap: 8,
-};
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  minHeight: 48,
-  borderRadius: 12,
-  border: '1px solid var(--crosshook-color-border-strong)',
-  background: 'rgba(8, 14, 26, 0.96)',
-  color: 'var(--crosshook-color-text)',
-  padding: '0 14px',
-};
-
-const resultGridStyle: CSSProperties = {
-  display: 'grid',
-  gap: 12,
-};
-
-const resultCardStyle: CSSProperties = {
-  display: 'grid',
-  gap: 10,
-  padding: 16,
-  borderRadius: 16,
-  background: 'rgba(8, 14, 26, 0.78)',
-  border: '1px solid var(--crosshook-color-border)',
-};
-
-const metaRowStyle: CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 8,
-  alignItems: 'center',
-};
-
-const chipStyle: CSSProperties = {
-  minHeight: 30,
-  padding: '0 10px',
-  borderRadius: 999,
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  fontSize: 12,
-  fontWeight: 700,
-};
-
-const ratingStyles: Record<CompatibilityRating, CSSProperties> = {
-  unknown: {
-    background: 'rgba(148, 163, 184, 0.18)',
-    border: '1px solid rgba(148, 163, 184, 0.32)',
-    color: '#cbd5e1',
-  },
-  broken: {
-    background: 'rgba(248, 113, 113, 0.16)',
-    border: '1px solid rgba(248, 113, 113, 0.32)',
-    color: '#fecaca',
-  },
-  partial: {
-    background: 'rgba(245, 158, 11, 0.16)',
-    border: '1px solid rgba(245, 158, 11, 0.32)',
-    color: '#fde68a',
-  },
-  working: {
-    background: 'rgba(34, 197, 94, 0.16)',
-    border: '1px solid rgba(34, 197, 94, 0.32)',
-    color: '#bbf7d0',
-  },
-  platinum: {
-    background: 'rgba(0, 120, 212, 0.18)',
-    border: '1px solid rgba(0, 120, 212, 0.34)',
-    color: '#bfdbfe',
-  },
-};
-
 function normalizeText(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -160,7 +74,7 @@ function getCompatibilityRatingLabel(rating: CompatibilityRating): string {
 
 function CompatibilityBadge({ rating }: { rating: CompatibilityRating }) {
   return (
-    <span className="crosshook-status-chip" style={{ ...chipStyle, ...ratingStyles[rating] }}>
+    <span className={`crosshook-status-chip crosshook-compatibility-badge crosshook-compatibility-badge--${rating}`}>
       {getCompatibilityRatingLabel(rating)}
     </span>
   );
@@ -225,18 +139,18 @@ export function CompatibilityViewer({
   }, [deferredGameFilter, deferredPlatformFilter, deferredTrainerFilter, entries]);
 
   return (
-    <section className="crosshook-card" aria-label="Trainer compatibility viewer" style={cardStyle}>
-      <header style={{ display: 'grid', gap: 8 }}>
+    <section className="crosshook-card crosshook-compatibility-viewer" aria-label="Trainer compatibility viewer">
+      <header className="crosshook-compatibility-viewer__header">
         <div className="crosshook-heading-eyebrow">Compatibility</div>
         <h2 className="crosshook-heading-title">{title}</h2>
         <p className="crosshook-heading-copy">{description}</p>
-        <div className="crosshook-status-chip" style={{ width: 'fit-content' }}>
+        <div className="crosshook-status-chip crosshook-compatibility-viewer__count">
           {filteredEntries.length} of {entries.length} entries
         </div>
       </header>
 
-      <div style={filterRowStyle}>
-        <label className="crosshook-field">
+      <div className="crosshook-compatibility-viewer__filters">
+        <label className="crosshook-field crosshook-compatibility-viewer__field">
           <span className="crosshook-label">Game</span>
           <input
             className="crosshook-input"
@@ -252,7 +166,7 @@ export function CompatibilityViewer({
           </datalist>
         </label>
 
-        <label className="crosshook-field">
+        <label className="crosshook-field crosshook-compatibility-viewer__field">
           <span className="crosshook-label">Trainer</span>
           <input
             className="crosshook-input"
@@ -268,7 +182,7 @@ export function CompatibilityViewer({
           </datalist>
         </label>
 
-        <label className="crosshook-field">
+        <label className="crosshook-field crosshook-compatibility-viewer__field">
           <span className="crosshook-label">Platform</span>
           <input
             className="crosshook-input"
@@ -286,15 +200,15 @@ export function CompatibilityViewer({
       </div>
 
       {loading ? (
-        <div className="crosshook-panel">Loading compatibility data...</div>
+        <div className="crosshook-panel crosshook-compatibility-viewer__message">Loading compatibility data...</div>
       ) : error ? (
-        <div className="crosshook-panel">
+        <div className="crosshook-panel crosshook-compatibility-viewer__message">
           <div className="crosshook-danger">{error}</div>
         </div>
       ) : filteredEntries.length === 0 ? (
-        <div className="crosshook-panel">{emptyMessage}</div>
+        <div className="crosshook-panel crosshook-compatibility-viewer__message">{emptyMessage}</div>
       ) : (
-        <div style={resultGridStyle}>
+        <div className="crosshook-compatibility-viewer__result-grid">
           {filteredEntries.map((entry) => {
             const isSelected = selectedEntryId === entry.id;
             const { metadata } = entry;
@@ -302,48 +216,47 @@ export function CompatibilityViewer({
             return (
               <article
                 key={entry.id}
-                style={{
-                  ...resultCardStyle,
-                  borderColor: isSelected ? 'var(--crosshook-color-accent-strong)' : 'var(--crosshook-color-border)',
-                  boxShadow: isSelected
-                    ? '0 0 0 1px rgba(0, 120, 212, 0.45), var(--crosshook-shadow-strong)'
-                    : undefined,
-                }}
+                className={[
+                  'crosshook-compatibility-viewer__result-card',
+                  isSelected ? 'crosshook-compatibility-viewer__result-card--selected' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    <div className="crosshook-heading-title" style={{ fontSize: '1.15rem' }}>
+                <div className="crosshook-compatibility-viewer__result-header">
+                  <div className="crosshook-compatibility-viewer__result-title">
+                    <div className="crosshook-heading-title crosshook-compatibility-viewer__result-game">
                       {metadata.game_name}
                     </div>
-                    <div className="crosshook-muted">
+                    <div className="crosshook-muted crosshook-compatibility-viewer__result-trainer">
                       {metadata.trainer_name}
                       {metadata.trainer_version ? ` • ${metadata.trainer_version}` : ''}
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div className="crosshook-compatibility-viewer__result-badges">
                     <CompatibilityBadge rating={metadata.compatibility_rating} />
                     {metadata.platform_tags.map((tag) => (
-                      <span key={tag} className="crosshook-status-chip" style={chipStyle}>
+                      <span key={tag} className="crosshook-status-chip crosshook-compatibility-chip">
                         {tag}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                <div style={metaRowStyle}>
+                <div className="crosshook-compatibility-viewer__result-meta">
                   {metadata.game_version ? (
-                    <span className="crosshook-status-chip" style={chipStyle}>
+                    <span className="crosshook-status-chip crosshook-compatibility-chip">
                       Game {metadata.game_version}
                     </span>
                   ) : null}
                   {metadata.proton_version ? (
-                    <span className="crosshook-status-chip" style={chipStyle}>
+                    <span className="crosshook-status-chip crosshook-compatibility-chip">
                       Proton {metadata.proton_version}
                     </span>
                   ) : null}
                   {metadata.author ? (
-                    <span className="crosshook-status-chip" style={chipStyle}>
+                    <span className="crosshook-status-chip crosshook-compatibility-chip">
                       By {metadata.author}
                     </span>
                   ) : null}
@@ -351,7 +264,7 @@ export function CompatibilityViewer({
 
                 {metadata.description ? <p className="crosshook-heading-copy">{metadata.description}</p> : null}
 
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div className="crosshook-compatibility-viewer__result-actions">
                   {onSelectEntry ? (
                     <button
                       type="button"
@@ -366,7 +279,7 @@ export function CompatibilityViewer({
                       Import
                     </button>
                   ) : null}
-                  <span className="crosshook-muted" style={{ alignSelf: 'center', wordBreak: 'break-word' }}>
+                  <span className="crosshook-muted crosshook-compatibility-viewer__result-source">
                     {selectPreview([entry.tap_url, entry.relative_path ?? entry.manifest_path])}
                   </span>
                 </div>
