@@ -45,7 +45,7 @@ export function ConsoleView() {
   useEffect(() => {
     let active = true;
 
-    const unlistenPromise = listen<LogPayload>('launch-log', (event) => {
+    const handler = (event: { payload: LogPayload }) => {
       const text = normalizeLogMessage(event.payload).trimEnd();
       if (!text) {
         return;
@@ -60,11 +60,15 @@ export function ConsoleView() {
       if (active) {
         setLines((current) => [...current, entry]);
       }
-    });
+    };
+
+    const unlistenLaunch = listen<LogPayload>('launch-log', handler);
+    const unlistenUpdate = listen<LogPayload>('update-log', handler);
 
     return () => {
       active = false;
-      void unlistenPromise.then((unlisten) => unlisten());
+      void unlistenLaunch.then((unlisten) => unlisten());
+      void unlistenUpdate.then((unlisten) => unlisten());
     };
   }, []);
 
