@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { CSSProperties, ChangeEvent } from 'react';
+import type { ChangeEvent } from 'react';
 import type { LauncherDeleteResult, LauncherInfo } from '../types';
 
 interface RecentFilesState {
@@ -23,96 +23,6 @@ export interface SettingsPanelProps {
   onRefreshRecentFiles?: () => void;
   onClearRecentFiles?: () => void;
 }
-
-const layoutStyles: Record<string, CSSProperties> = {
-  root: {
-    display: 'grid',
-    gap: 20,
-  },
-  header: {
-    display: 'grid',
-    gap: 8,
-  },
-  summaryRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  grid: {
-    display: 'grid',
-    gap: 20,
-    gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.1fr)',
-    alignItems: 'start',
-  },
-  sectionGrid: {
-    display: 'grid',
-    gap: 16,
-  },
-  fieldRow: {
-    display: 'grid',
-    gap: 10,
-  },
-  inputRow: {
-    display: 'flex',
-    gap: 10,
-    alignItems: 'center',
-  },
-  checkboxRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  },
-  checkbox: {
-    width: 18,
-    height: 18,
-    minHeight: 18,
-    accentColor: 'var(--crosshook-color-accent)',
-    cursor: 'pointer',
-  },
-  helper: {
-    margin: 0,
-    color: 'var(--crosshook-color-text-muted)',
-    lineHeight: 1.6,
-  },
-  note: {
-    margin: 0,
-    color: 'var(--crosshook-color-text-subtle)',
-    fontSize: 13,
-    lineHeight: 1.5,
-  },
-  recentColumn: {
-    display: 'grid',
-    gap: 12,
-  },
-  recentList: {
-    display: 'grid',
-    gap: 8,
-    margin: 0,
-    padding: 0,
-    listStyle: 'none',
-  },
-  recentItem: {
-    display: 'grid',
-    gap: 4,
-    padding: '10px 12px',
-    borderRadius: 12,
-    background: 'rgba(8, 14, 26, 0.78)',
-    border: '1px solid var(--crosshook-color-border)',
-  },
-  recentItemLabel: {
-    fontFamily: 'var(--crosshook-font-mono)',
-    fontSize: 13,
-    color: 'var(--crosshook-color-text)',
-    wordBreak: 'break-word',
-  },
-  sectionHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: 12,
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-};
 
 function toDisplayList(paths: string[], maxItems?: number) {
   if (!Number.isFinite(maxItems) || !maxItems || maxItems <= 0) {
@@ -139,23 +49,23 @@ function RecentFilesSection({ label, paths, limit }: { label: string; paths: str
       : ` (${paths.length})`;
 
   return (
-    <section className="crosshook-panel" style={layoutStyles.sectionGrid}>
-      <div style={layoutStyles.sectionHeader}>
+    <section className="crosshook-panel crosshook-settings-section">
+      <div className="crosshook-settings-section-header">
         <div className="crosshook-heading-eyebrow">{label}</div>
-        <div className="crosshook-muted" style={{ fontSize: 13 }}>
+        <div className="crosshook-muted crosshook-settings-meta">
           {paths.length === 0 ? 'No entries yet' : `Recent paths${countSuffix}`}
         </div>
       </div>
 
       {visiblePaths.length === 0 ? (
-        <p className="crosshook-muted" style={layoutStyles.helper}>
+        <p className="crosshook-muted crosshook-settings-help">
           CrossHook will remember recently used {label.toLowerCase()} here once they are saved or loaded.
         </p>
       ) : (
-        <ul style={layoutStyles.recentList}>
+        <ul className="crosshook-recent-list">
           {visiblePaths.map((path) => (
-            <li key={path} style={layoutStyles.recentItem} title={path}>
-              <div style={layoutStyles.recentItemLabel}>{truncatePath(path)}</div>
+            <li key={path} className="crosshook-recent-item" title={path}>
+              <div className="crosshook-recent-item__label">{truncatePath(path)}</div>
             </li>
           ))}
         </ul>
@@ -217,25 +127,23 @@ function ManageLaunchersSection({
   }
 
   return (
-    <section className="crosshook-panel" style={layoutStyles.sectionGrid}>
-      <div style={layoutStyles.sectionHeader}>
+    <section className="crosshook-panel crosshook-settings-section">
+      <div className="crosshook-settings-section-header">
         <div className="crosshook-heading-eyebrow">Manage Launchers</div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div className="crosshook-muted" style={{ fontSize: 13 }}>
+        <div className="crosshook-settings-section-actions">
+          <div className="crosshook-muted crosshook-settings-meta">
             {launchers.length} launcher{launchers.length !== 1 ? 's' : ''} on disk
           </div>
           <button
             type="button"
-            className="crosshook-button crosshook-button--ghost"
-            style={{ fontSize: 12, padding: '4px 8px' }}
+            className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
             onClick={() => setExpanded((prev) => !prev)}
           >
             {expanded ? 'Collapse' : 'Expand'}
           </button>
           <button
             type="button"
-            className="crosshook-button crosshook-button--ghost"
-            style={{ fontSize: 12, padding: '4px 8px' }}
+            className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
             onClick={() => void loadLaunchers()}
           >
             Refresh
@@ -244,33 +152,32 @@ function ManageLaunchersSection({
       </div>
 
       {error ? (
-        <p className="crosshook-danger" style={{ margin: 0, fontSize: 13 }}>
+        <p className="crosshook-danger crosshook-settings-error">
           {error}
         </p>
       ) : null}
 
       {expanded ? (
-        <ul style={layoutStyles.recentList}>
+        <ul className="crosshook-recent-list">
           {launchers.map((launcher) => (
-            <li key={launcher.launcher_slug} style={layoutStyles.recentItem}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <li key={launcher.launcher_slug} className="crosshook-recent-item">
+              <div className="crosshook-settings-launcher-row">
                 <div>
-                  <div style={{ ...layoutStyles.recentItemLabel, fontWeight: 600 }}>
+                  <div className="crosshook-recent-item__label crosshook-settings-launcher-label">
                     {launcher.launcher_slug}
                   </div>
-                  <div style={{ ...layoutStyles.recentItemLabel, fontSize: 12, color: 'var(--crosshook-color-text-muted)' }}>
+                  <div className="crosshook-recent-item__label crosshook-settings-launcher-path">
                     {launcher.script_exists ? truncatePath(launcher.script_path) : null}
                     {launcher.script_exists && launcher.desktop_entry_exists ? ' | ' : null}
                     {launcher.desktop_entry_exists ? truncatePath(launcher.desktop_entry_path) : null}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <div className="crosshook-settings-launcher-actions">
                   {confirmSlug === launcher.launcher_slug ? (
                     <>
                       <button
                         type="button"
-                        className="crosshook-button crosshook-button--danger"
-                        style={{ fontSize: 12, padding: '4px 10px' }}
+                        className="crosshook-button crosshook-button--danger crosshook-settings-small-button"
                         disabled={deleting === launcher.launcher_slug}
                         onClick={() => void handleDelete(launcher.launcher_slug)}
                       >
@@ -278,8 +185,7 @@ function ManageLaunchersSection({
                       </button>
                       <button
                         type="button"
-                        className="crosshook-button crosshook-button--ghost"
-                        style={{ fontSize: 12, padding: '4px 10px' }}
+                        className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
                         onClick={() => setConfirmSlug(null)}
                       >
                         Cancel
@@ -288,8 +194,7 @@ function ManageLaunchersSection({
                   ) : (
                     <button
                       type="button"
-                      className="crosshook-button crosshook-button--ghost"
-                      style={{ fontSize: 12, padding: '4px 10px' }}
+                      className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
                       onClick={() => setConfirmSlug(launcher.launcher_slug)}
                     >
                       Delete
@@ -328,8 +233,8 @@ export function SettingsPanel({
     : 'No custom directory is configured yet. CrossHook will use the default profile store until one is provided.';
 
   return (
-    <section className="crosshook-card" aria-label="Settings" style={layoutStyles.root}>
-      <header style={layoutStyles.header}>
+    <section className="crosshook-card crosshook-settings-panel" aria-label="Settings">
+      <header className="crosshook-settings-header">
         <div className="crosshook-heading-eyebrow">Settings</div>
         <h2 className="crosshook-heading-title">App preferences and storage</h2>
         <p className="crosshook-heading-copy">
@@ -338,7 +243,7 @@ export function SettingsPanel({
         </p>
       </header>
 
-      <div style={layoutStyles.summaryRow}>
+      <div className="crosshook-settings-summary">
         <span className="crosshook-status-chip">
           <strong>Last profile:</strong>
           <span>{lastUsedProfile.trim().length > 0 ? lastUsedProfile : 'none'}</span>
@@ -349,32 +254,32 @@ export function SettingsPanel({
         </span>
       </div>
 
-      <div style={layoutStyles.grid}>
-        <div style={layoutStyles.sectionGrid}>
-          <section className="crosshook-panel" style={layoutStyles.sectionGrid}>
-            <div style={layoutStyles.sectionHeader}>
+      <div className="crosshook-settings-grid">
+        <div className="crosshook-settings-column">
+          <section className="crosshook-panel crosshook-settings-section">
+            <div className="crosshook-settings-section-header">
               <div className="crosshook-heading-eyebrow">Startup</div>
-              <div className="crosshook-muted" style={{ fontSize: 13 }}>
+              <div className="crosshook-muted crosshook-settings-meta">
                 Controlled by settings.toml
               </div>
             </div>
 
-            <label style={layoutStyles.checkboxRow}>
+            <label className="crosshook-settings-checkbox-row">
               <input
                 type="checkbox"
                 checked={autoLoadLastProfile}
                 onChange={(event) => onAutoLoadLastProfileChange(event.target.checked)}
-                style={layoutStyles.checkbox}
+                className="crosshook-settings-checkbox"
               />
               <span>
                 <span className="crosshook-label">Auto-load last profile</span>
-                <p className="crosshook-muted" style={layoutStyles.note}>
+                <p className="crosshook-muted crosshook-settings-note">
                   When enabled, CrossHook should reopen the most recently used profile on startup if it still exists.
                 </p>
               </span>
             </label>
 
-            <div style={layoutStyles.fieldRow}>
+            <div className="crosshook-settings-field-row">
               <label className="crosshook-label" htmlFor="last-used-profile">
                 Last used profile
               </label>
@@ -388,19 +293,19 @@ export function SettingsPanel({
             </div>
           </section>
 
-          <section className="crosshook-panel" style={layoutStyles.sectionGrid}>
-            <div style={layoutStyles.sectionHeader}>
+          <section className="crosshook-panel crosshook-settings-section">
+            <div className="crosshook-settings-section-header">
               <div className="crosshook-heading-eyebrow">Profiles</div>
-              <div className="crosshook-muted" style={{ fontSize: 13 }}>
+              <div className="crosshook-muted crosshook-settings-meta">
                 Storage location
               </div>
             </div>
 
-            <div style={layoutStyles.fieldRow}>
+            <div className="crosshook-settings-field-row">
               <label className="crosshook-label" htmlFor="profiles-directory">
                 Profiles directory
               </label>
-              <div style={layoutStyles.inputRow}>
+              <div className="crosshook-settings-input-row">
                 <input
                   id="profiles-directory"
                   className="crosshook-input"
@@ -421,16 +326,16 @@ export function SettingsPanel({
               </div>
             </div>
 
-            <p className="crosshook-muted" style={layoutStyles.helper}>
+            <p className="crosshook-muted crosshook-settings-help">
               {profilesDirectoryMessage}
             </p>
-            <p className="crosshook-muted" style={layoutStyles.note}>
+            <p className="crosshook-muted crosshook-settings-note">
               The native backend should resolve this to `~/.config/crosshook/profiles` by default and persist any custom
               location through the settings store.
             </p>
 
             {onClearRecentFiles ? (
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div className="crosshook-settings-clear-row">
                 <button type="button" className="crosshook-button crosshook-button--ghost" onClick={onClearRecentFiles}>
                   Clear recent history
                 </button>
@@ -444,15 +349,15 @@ export function SettingsPanel({
           />
         </div>
 
-        <section style={layoutStyles.recentColumn} aria-label="Recent files">
-          <div className="crosshook-panel" style={layoutStyles.sectionGrid}>
-            <div style={layoutStyles.sectionHeader}>
+        <section className="crosshook-settings-recent-column" aria-label="Recent files">
+          <div className="crosshook-panel crosshook-settings-section">
+            <div className="crosshook-settings-section-header">
               <div className="crosshook-heading-eyebrow">Recent Files</div>
-              <div className="crosshook-muted" style={{ fontSize: 13 }}>
+              <div className="crosshook-muted crosshook-settings-meta">
                 Most recent paths used by the app
               </div>
             </div>
-            <p className="crosshook-muted" style={layoutStyles.helper}>
+            <p className="crosshook-muted crosshook-settings-help">
               These lists are intended to come from the backend recent-files store. Non-existent entries should be
               removed before the data is passed into this component.
             </p>

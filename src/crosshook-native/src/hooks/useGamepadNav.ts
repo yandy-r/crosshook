@@ -23,6 +23,8 @@ export interface GamepadNavState {
   back: () => void;
 }
 
+type FocusZone = 'sidebar' | 'content';
+
 const FOCUSABLE_SELECTOR = [
   'button:not([disabled])',
   '[href]',
@@ -36,12 +38,17 @@ const FOCUSABLE_SELECTOR = [
 
 const GAMEPAD_CONFIRM_BUTTON = 0;
 const GAMEPAD_BACK_BUTTON = 1;
+const GAMEPAD_LEFT_BUMPER = 4;
+const GAMEPAD_RIGHT_BUMPER = 5;
 const GAMEPAD_DPAD_UP = 12;
 const GAMEPAD_DPAD_DOWN = 13;
 const GAMEPAD_DPAD_LEFT = 14;
 const GAMEPAD_DPAD_RIGHT = 15;
 const AXIS_ACTIVATION_THRESHOLD = 0.5;
 const MODAL_FOCUS_ROOT_SELECTOR = '[data-crosshook-focus-root="modal"]';
+const FOCUS_ZONE_ATTRIBUTE = 'data-crosshook-focus-zone';
+const SIDEBAR_FALLBACK_SELECTOR = '.crosshook-sidebar';
+const CONTENT_FALLBACK_SELECTOR = '.crosshook-content-area';
 
 function isVisible(element: HTMLElement): boolean {
   const style = window.getComputedStyle(element);
@@ -73,6 +80,48 @@ function getRootElement(rootRef: MutableRefObject<HTMLElement | null>): HTMLElem
 function getNavigationRoot(rootRef: MutableRefObject<HTMLElement | null>): HTMLElement | null {
   const modalRoots = document.querySelectorAll<HTMLElement>(MODAL_FOCUS_ROOT_SELECTOR);
   return modalRoots.item(modalRoots.length - 1) ?? getRootElement(rootRef);
+}
+
+function isModalNavigationRoot(root: HTMLElement | null): boolean {
+  return root?.matches(MODAL_FOCUS_ROOT_SELECTOR) ?? false;
+}
+
+function getFocusZoneRoot(root: HTMLElement | null, zone: FocusZone): HTMLElement | null {
+  if (!root || isModalNavigationRoot(root)) {
+    return null;
+  }
+
+  const explicitRoot = root.querySelector<HTMLElement>(`[${FOCUS_ZONE_ATTRIBUTE}="${zone}"]`);
+  if (explicitRoot) {
+    return explicitRoot;
+  }
+
+  return root.querySelector<HTMLElement>(zone === 'sidebar' ? SIDEBAR_FALLBACK_SELECTOR : CONTENT_FALLBACK_SELECTOR);
+}
+
+function getFocusZoneForElement(root: HTMLElement | null, element: HTMLElement | null): FocusZone | null {
+  if (!root || !element || isModalNavigationRoot(root)) {
+    return null;
+  }
+
+  const explicitZoneRoot = element.closest<HTMLElement>(`[${FOCUS_ZONE_ATTRIBUTE}]`);
+  const explicitZone = explicitZoneRoot?.getAttribute(FOCUS_ZONE_ATTRIBUTE);
+
+  if ((explicitZone === 'sidebar' || explicitZone === 'content') && root.contains(explicitZoneRoot)) {
+    return explicitZone;
+  }
+
+  const sidebarRoot = getFocusZoneRoot(root, 'sidebar');
+  if (sidebarRoot?.contains(element)) {
+    return 'sidebar';
+  }
+
+  const contentRoot = getFocusZoneRoot(root, 'content');
+  if (contentRoot?.contains(element)) {
+    return 'content';
+  }
+
+  return null;
 }
 
 function getFocusableElements(root: HTMLElement | null): HTMLElement[] {
@@ -205,6 +254,9 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
   const [activeElement, setActiveElement] = useState<HTMLElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const lastGamepadState = useRef(new Map<number, { buttons: boolean[]; axes: number[] }>());
+  const activeZoneRef = useRef<FocusZone | null>(null);
+  const lastFocusedByZoneRef = useRef<Partial<Record<FocusZone, HTMLElement>>>({});
+  const lastSidebarRouteRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof options.enabled === 'boolean') {
@@ -235,17 +287,152 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
 
   const updateActiveState = useCallback(() => {
     const root = getNavigationRoot(rootRef);
-    const focusables = getFocusableElements(root);
     const current = document.activeElement;
+    const currentElement = current instanceof HTMLElement ? current : null;
+    const focusZone = getFocusZoneForElement(getRootElement(rootRef), currentElement);
+
+    if (focusZone) {
+      activeZoneRef.current = focusZone;
+      if (currentElement && isFocusable(currentElement)) {
+        lastFocusedByZoneRef.current[focusZone] = currentElement;
+      }
+    }
+
+    const zoneRoot = focusZone ? getFocusZoneRoot(getRootElement(rootRef), focusZone) : null;
+    const focusables = getFocusableElements(zoneRoot ?? root);
     const index = getCurrentIndex(focusables, current);
     setActiveIndex(index);
-    setActiveElement(index >= 0 ? focusables[index] : current instanceof HTMLElement ? current : null);
+    setActiveElement(index >= 0 ? focusables[index] : currentElement);
   }, []);
+
+  const getCurrentZone = useCallback((): FocusZone | null => {
+    const root = getRootElement(rootRef);
+    const active = document.activeElement;
+
+    if (active instanceof HTMLElement) {
+      const zone = getFocusZoneForElement(root, active);
+      if (zone) {
+        activeZoneRef.current = zone;
+        return zone;
+      }
+    }
+
+    return activeZoneRef.current;
+  }, []);
+
+  const focusZone = useCallback(
+    (zone: FocusZone, preference: 'remembered' | 'first' | 'last' = 'remembered'): boolean => {
+      const root = getRootElement(rootRef);
+      const zoneRoot = getFocusZoneRoot(root, zone);
+
+      if (!zoneRoot) {
+        return false;
+      }
+
+      const focusables = getFocusableElements(zoneRoot);
+      if (focusables.length === 0) {
+        return false;
+      }
+
+      const rememberedElement = lastFocusedByZoneRef.current[zone];
+      const rememberedIndex =
+        rememberedElement && zoneRoot.contains(rememberedElement) && isFocusable(rememberedElement)
+          ? focusables.indexOf(rememberedElement)
+          : -1;
+
+      let targetIndex = rememberedIndex;
+      if (preference === 'first') {
+        targetIndex = 0;
+      } else if (preference === 'last') {
+        targetIndex = focusables.length - 1;
+      } else if (rememberedIndex < 0) {
+        targetIndex = 0;
+      }
+
+      const target = focusables[targetIndex];
+      if (!target) {
+        return false;
+      }
+
+      focusElement(target);
+      activeZoneRef.current = zone;
+      lastFocusedByZoneRef.current[zone] = target;
+      setActiveIndex(targetIndex);
+      setActiveElement(target);
+      options.onFocusChange?.(target);
+
+      return true;
+    },
+    [options]
+  );
+
+  const switchZone = useCallback(
+    (zone: FocusZone): boolean => {
+      const root = getRootElement(rootRef);
+      if (!getFocusZoneRoot(root, zone)) {
+        return false;
+      }
+
+      return focusZone(zone, 'remembered');
+    },
+    [focusZone]
+  );
+
+  const cycleSidebarView = useCallback(
+    (direction: -1 | 1): boolean => {
+      const root = getRootElement(rootRef);
+      const sidebarRoot = getFocusZoneRoot(root, 'sidebar');
+
+      if (!sidebarRoot) {
+        return false;
+      }
+
+      const focusables = getFocusableElements(sidebarRoot);
+      if (focusables.length === 0) {
+        return false;
+      }
+
+      const activeElement = document.activeElement;
+      const activeTrigger =
+        sidebarRoot.querySelector<HTMLElement>('[data-state="active"]') ??
+        sidebarRoot.querySelector<HTMLElement>('[aria-current="page"]');
+      const currentIndex = getCurrentIndex(
+        focusables,
+        activeElement instanceof HTMLElement && sidebarRoot.contains(activeElement) ? activeElement : activeTrigger
+      );
+      const baseIndex = currentIndex >= 0 ? currentIndex : 0;
+      const targetIndex =
+        direction > 0
+          ? (baseIndex + 1) % focusables.length
+          : (baseIndex - 1 + focusables.length) % focusables.length;
+      const target = focusables[targetIndex];
+
+      if (!target) {
+        return false;
+      }
+
+      focusElement(target);
+      target.click();
+      activeZoneRef.current = 'sidebar';
+      lastFocusedByZoneRef.current.sidebar = target;
+      setActiveIndex(targetIndex);
+      setActiveElement(target);
+      options.onFocusChange?.(target);
+
+      return true;
+    },
+    [options]
+  );
 
   const focusByIndex = useCallback(
     (index: number) => {
-      const root = getNavigationRoot(rootRef);
-      const focusables = getFocusableElements(root);
+      const navigationRoot = getNavigationRoot(rootRef);
+      const activeZone = getCurrentZone();
+      const focusRoot =
+        activeZone && !isModalNavigationRoot(navigationRoot)
+          ? getFocusZoneRoot(getRootElement(rootRef), activeZone) ?? navigationRoot
+          : navigationRoot;
+      const focusables = getFocusableElements(focusRoot);
       if (focusables.length === 0) {
         return;
       }
@@ -256,12 +443,17 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
       }
 
       const target = focusables[boundedIndex];
+      const targetZone = getFocusZoneForElement(getRootElement(rootRef), target);
       focusElement(target);
+      if (targetZone) {
+        activeZoneRef.current = targetZone;
+        lastFocusedByZoneRef.current[targetZone] = target;
+      }
       setActiveIndex(boundedIndex);
       setActiveElement(target);
       options.onFocusChange?.(target);
     },
-    [options]
+    [getCurrentZone, options]
   );
 
   const focusFirst = useCallback(() => focusByIndex(0), [focusByIndex]);
@@ -316,8 +508,22 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
   }, [options]);
 
   const back = useCallback(() => {
+    const navigationRoot = getNavigationRoot(rootRef);
+    if (!isModalNavigationRoot(navigationRoot)) {
+      const root = getRootElement(rootRef);
+      const currentZone = getCurrentZone();
+
+      if (currentZone === 'content' && getFocusZoneRoot(root, 'sidebar') && switchZone('sidebar')) {
+        return;
+      }
+
+      if (currentZone === 'sidebar' && getFocusZoneRoot(root, 'sidebar')) {
+        return;
+      }
+    }
+
     options.onBack?.();
-  }, [options]);
+  }, [getCurrentZone, options, switchZone]);
 
   useEffect(() => {
     const handleFocusIn = () => {
@@ -377,6 +583,51 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
   }, [back, confirm, focusNext, focusPrevious, updateActiveState]);
 
   useEffect(() => {
+    const root = getRootElement(rootRef);
+    if (!root) {
+      return;
+    }
+
+    const getActiveSidebarValue = (): string | null => {
+      const sidebarRoot = getFocusZoneRoot(root, 'sidebar');
+      return (
+        sidebarRoot?.querySelector<HTMLElement>('[data-state="active"]')?.getAttribute('value') ??
+        sidebarRoot?.querySelector<HTMLElement>('[aria-current="page"]')?.getAttribute('value') ??
+        null
+      );
+    };
+
+    lastSidebarRouteRef.current = getActiveSidebarValue();
+
+    const observer = new MutationObserver(() => {
+      const nextRoute = getActiveSidebarValue();
+      if (nextRoute === null || nextRoute === lastSidebarRouteRef.current) {
+        return;
+      }
+
+      lastSidebarRouteRef.current = nextRoute;
+
+      if (!controllerMode || isModalNavigationRoot(getNavigationRoot(rootRef))) {
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        void focusZone('content', 'first');
+      });
+    });
+
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ['data-state', 'aria-current', 'value'],
+      subtree: true,
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [controllerMode, focusZone]);
+
+  useEffect(() => {
     if (!controllerMode || typeof window === 'undefined') {
       return undefined;
     }
@@ -400,10 +651,22 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
         const buttonWasPressed = (buttonIndex: number): boolean => Boolean(previousState.buttons[buttonIndex]);
         const edge = (buttonIndex: number): boolean => buttonPressed(buttonIndex) && !buttonWasPressed(buttonIndex);
 
-        if (edge(GAMEPAD_DPAD_DOWN) || edge(GAMEPAD_DPAD_RIGHT)) {
+        if (edge(GAMEPAD_DPAD_DOWN)) {
           focusNext();
-        } else if (edge(GAMEPAD_DPAD_UP) || edge(GAMEPAD_DPAD_LEFT)) {
+        } else if (edge(GAMEPAD_DPAD_UP)) {
           focusPrevious();
+        } else if (edge(GAMEPAD_DPAD_LEFT)) {
+          if (!switchZone('sidebar')) {
+            focusPrevious();
+          }
+        } else if (edge(GAMEPAD_DPAD_RIGHT)) {
+          if (!switchZone('content')) {
+            focusNext();
+          }
+        } else if (edge(GAMEPAD_LEFT_BUMPER)) {
+          cycleSidebarView(-1);
+        } else if (edge(GAMEPAD_RIGHT_BUMPER)) {
+          cycleSidebarView(1);
         } else if (edge(GAMEPAD_CONFIRM_BUTTON)) {
           confirm();
         } else if (edge(GAMEPAD_BACK_BUTTON)) {
@@ -420,10 +683,18 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
           const movedLeft =
             horizontal < -AXIS_ACTIVATION_THRESHOLD && (previousState.axes[0] ?? 0) >= -AXIS_ACTIVATION_THRESHOLD;
 
-          if (movedDown || movedRight) {
+          if (movedDown) {
             focusNext();
-          } else if (movedUp || movedLeft) {
+          } else if (movedUp) {
             focusPrevious();
+          } else if (movedLeft) {
+            if (!switchZone('sidebar')) {
+              focusPrevious();
+            }
+          } else if (movedRight) {
+            if (!switchZone('content')) {
+              focusNext();
+            }
           }
         }
 
@@ -450,7 +721,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [back, confirm, controllerMode, focusNext, focusPrevious]);
+  }, [back, confirm, controllerMode, cycleSidebarView, focusNext, focusPrevious, switchZone]);
 
   useEffect(() => {
     updateActiveState();

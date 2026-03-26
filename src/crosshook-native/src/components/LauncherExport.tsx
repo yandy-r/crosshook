@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { GameProfile, LaunchMethod, LauncherDeleteResult, LauncherInfo } from '../types';
 
@@ -7,7 +7,6 @@ interface LauncherExportProps {
   method: Exclude<LaunchMethod, ''>;
   steamClientInstallPath: string;
   targetHomePath: string;
-  context?: 'default' | 'install';
 }
 
 interface SteamExternalLauncherExportRequest {
@@ -28,86 +27,6 @@ interface SteamExternalLauncherExportResult {
   script_path: string;
   desktop_entry_path: string;
 }
-
-const panelStyle: CSSProperties = {
-  display: 'grid',
-  alignContent: 'start',
-  gap: 16,
-  height: '100%',
-  boxSizing: 'border-box',
-  padding: 20,
-  borderRadius: 18,
-  background: 'radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 30%), rgba(10, 15, 24, 0.96)',
-  border: '1px solid rgba(96, 165, 250, 0.24)',
-  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
-};
-
-const sectionStyle: CSSProperties = {
-  display: 'grid',
-  gap: 10,
-};
-
-const labelStyle: CSSProperties = {
-  fontSize: 13,
-  fontWeight: 700,
-  letterSpacing: '0.02em',
-  color: '#cbd5e1',
-};
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  minWidth: 0,
-  minHeight: 44,
-  boxSizing: 'border-box',
-  borderRadius: 12,
-  border: '1px solid rgba(96, 165, 250, 0.24)',
-  background: 'rgba(15, 23, 42, 0.92)',
-  color: '#f8fafc',
-  padding: '0 14px',
-};
-
-const buttonStyle: CSSProperties = {
-  minHeight: 44,
-  borderRadius: 12,
-  border: '1px solid rgba(96, 165, 250, 0.32)',
-  background: 'linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)',
-  color: '#fff',
-  padding: '0 16px',
-  cursor: 'pointer',
-  fontWeight: 700,
-};
-
-const subtleButtonStyle: CSSProperties = {
-  ...buttonStyle,
-  background: 'rgba(15, 23, 42, 0.9)',
-};
-
-const deleteButtonStyle: CSSProperties = {
-  ...buttonStyle,
-  background: 'rgba(185, 28, 28, 0.16)',
-  border: '1px solid rgba(248, 113, 113, 0.28)',
-  color: '#fee2e2',
-};
-
-const deleteButtonConfirmingStyle: CSSProperties = {
-  ...deleteButtonStyle,
-  background: 'rgba(185, 28, 28, 0.28)',
-};
-
-const helperStyle: CSSProperties = {
-  margin: 0,
-  color: '#94a3b8',
-  fontSize: 13,
-  lineHeight: 1.5,
-};
-
-const infoCalloutStyle: CSSProperties = {
-  borderRadius: 12,
-  padding: 12,
-  background: 'rgba(37, 99, 235, 0.12)',
-  border: '1px solid rgba(96, 165, 250, 0.24)',
-  color: '#dbeafe',
-};
 
 const automaticLauncherSuffix = ' - Trainer';
 const launcherNameHelperText =
@@ -186,7 +105,6 @@ export function LauncherExport({
   method,
   steamClientInstallPath,
   targetHomePath,
-  context = 'default',
 }: LauncherExportProps) {
   const [launcherName, setLauncherName] = useState(() => deriveLauncherName(profile));
   const [isExporting, setIsExporting] = useState(false);
@@ -198,7 +116,6 @@ export function LauncherExport({
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshLauncherStatus = useCallback(async () => {
-    if (context !== 'default' || !profile) return;
     try {
       const info = await invoke<LauncherInfo>('check_launcher_exists', {
         displayName: profile.steam?.launcher?.display_name || '',
@@ -212,7 +129,7 @@ export function LauncherExport({
       console.error('Failed to refresh launcher status.', error);
       setLauncherStatus(null);
     }
-  }, [profile, targetHomePath, steamClientInstallPath, context]);
+  }, [profile, targetHomePath, steamClientInstallPath]);
 
   useEffect(() => {
     setLauncherName(deriveLauncherName(profile));
@@ -264,77 +181,32 @@ export function LauncherExport({
     (method !== 'steam_applaunch' || request.steam_app_id.length > 0) &&
     !isExporting;
 
-  const showDeleteButton =
-    (launcherStatus?.script_exists || launcherStatus?.desktop_entry_exists) && context === 'default';
-
-  if (context === 'install') {
-    return (
-      <section style={panelStyle} aria-label="Install review">
-        <header style={{ display: 'grid', gap: 8 }}>
-          <div
-            style={{
-              color: '#60a5fa',
-              fontSize: 12,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-            }}
-          >
-            Install Review
-          </div>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Review and save the generated profile</h2>
-          <p style={helperStyle}>
-            Install Game keeps the profile editable until you confirm the executable and save it from the modal.
-          </p>
-        </header>
-
-        <div style={{ display: 'grid', gap: 12 }}>
-          <div style={sectionStyle}>
-            <label style={labelStyle}>Runner</label>
-            <div
-              style={{
-                ...inputStyle,
-                display: 'flex',
-                alignItems: 'center',
-                color: '#f8fafc',
-              }}
-            >
-              Proton (`proton_run`)
-            </div>
-          </div>
-
-          <div style={sectionStyle}>
-            <label style={labelStyle}>Save boundary</label>
-            <div
-              style={{
-                ...inputStyle,
-                display: 'flex',
-                alignItems: 'flex-start',
-                padding: '10px 14px',
-                color: '#f8fafc',
-              }}
-            >
-              Nothing is persisted until you save the draft and open the Profile tab.
-            </div>
-          </div>
-
-          <div style={sectionStyle}>
-            <label style={labelStyle}>After save</label>
-            <div
-              style={{
-                ...inputStyle,
-                display: 'flex',
-                alignItems: 'flex-start',
-                padding: '10px 14px',
-                color: '#f8fafc',
-              }}
-            >
-              Save and Open Profile Tab makes the draft a normal profile and unlocks the normal launch and launcher export flow.
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
+  const showDeleteButton = launcherStatus?.script_exists || launcherStatus?.desktop_entry_exists;
+  const launcherStatusTone = launcherStatus
+    ? launcherStatus.is_stale
+      ? 'warning'
+      : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
+      ? 'success'
+      : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
+      ? 'neutral'
+      : 'warning'
+    : null;
+  const launcherStatusLabel = launcherStatus
+    ? launcherStatus.is_stale
+      ? 'Stale'
+      : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
+      ? 'Exported'
+      : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
+      ? 'Not Exported'
+      : 'Partial'
+    : '';
+  const launcherStatusMessage = launcherStatus?.is_stale
+    ? 'Launcher files are out of date with the current profile.'
+    : launcherStatus?.script_exists && launcherStatus.desktop_entry_exists
+    ? 'Launcher files are exported and up to date.'
+    : !launcherStatus?.script_exists && !launcherStatus?.desktop_entry_exists
+    ? 'No launcher files are currently exported.'
+    : 'Only one launcher file exists for this profile.';
 
   async function handleExport() {
     setIsExporting(true);
@@ -414,89 +286,61 @@ export function LauncherExport({
   }
 
   return (
-    <section style={panelStyle} aria-label="Launcher export">
-      <header style={{ display: 'grid', gap: 8 }}>
-        <div
-          style={{
-            color: '#60a5fa',
-            fontSize: 12,
-            letterSpacing: '0.18em',
-            textTransform: 'uppercase',
-          }}
-        >
+    <section className="crosshook-export-panel" aria-label="Launcher export">
+      <header className="crosshook-export-panel__header">
+        <div className="crosshook-export-panel__eyebrow">
           Launcher Export
         </div>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Export a standalone trainer launcher</h2>
-        <p style={helperStyle}>
+        <h2 className="crosshook-export-panel__title">Export a standalone trainer launcher</h2>
+        <p className="crosshook-export-panel__copy">
           Generate a shell script and matching desktop entry from the current profile and runtime settings.
         </p>
       </header>
 
-      <div style={{ display: 'grid', gap: 12 }}>
-        <div style={sectionStyle}>
-          <label style={labelStyle} htmlFor="launcher-name">
+      <div className="crosshook-export-panel__body">
+        <div className="crosshook-export-section">
+          <label className="crosshook-export-label" htmlFor="launcher-name">
             Launcher Name
           </label>
           <input
             id="launcher-name"
-            style={inputStyle}
+            className="crosshook-input"
             value={launcherName}
             onChange={(event) => setLauncherName(event.target.value)}
             placeholder="Elden Ring"
           />
         </div>
 
-        <div style={infoCalloutStyle}>{launcherNameHelperText}</div>
+        <div className="crosshook-export-callout">{launcherNameHelperText}</div>
 
-        <div style={sectionStyle}>
-          <label style={labelStyle}>Launcher Icon</label>
+        <div className="crosshook-export-section">
+          <label className="crosshook-export-label">Launcher Icon</label>
           <div
-            style={{
-              ...inputStyle,
-              display: 'flex',
-              alignItems: 'flex-start',
-              color: safeTrim(profile.steam.launcher.icon_path) ? '#f8fafc' : '#94a3b8',
-              padding: '10px 14px',
-              wordBreak: 'break-word',
-            }}
+            className={`crosshook-input crosshook-export-readonly${safeTrim(profile.steam.launcher.icon_path) ? '' : ' crosshook-export-readonly--empty'}`}
           >
             {safeTrim(profile.steam.launcher.icon_path) || 'Use the launcher icon field from the current profile'}
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        }}
-      >
+      <div className="crosshook-export-grid">
         {metadataRows.map((row) => (
-          <div key={row.label} style={sectionStyle}>
-            <label style={labelStyle}>{row.label}</label>
-            <div
-              style={{
-                ...inputStyle,
-                display: 'flex',
-                alignItems: 'flex-start',
-                padding: '10px 14px',
-                wordBreak: 'break-word',
-              }}
-            >
+          <div key={row.label} className="crosshook-export-section">
+            <label className="crosshook-export-label">{row.label}</label>
+            <div className="crosshook-input crosshook-export-readonly">
               {row.value}
             </div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <button type="button" style={buttonStyle} disabled={!canExport} onClick={() => void handleExport()}>
+      <div className="crosshook-export-actions">
+        <button type="button" className="crosshook-button" disabled={!canExport} onClick={() => void handleExport()}>
           {isExporting ? 'Exporting...' : 'Export Launcher'}
         </button>
         <button
           type="button"
-          style={subtleButtonStyle}
+          className="crosshook-button crosshook-button--secondary"
           onClick={() => {
             setLauncherName(deriveLauncherName(profile));
             setErrorMessage(null);
@@ -509,9 +353,10 @@ export function LauncherExport({
         {showDeleteButton ? (
           <button
             type="button"
-            style={deleteConfirming ? deleteButtonConfirmingStyle : deleteButtonStyle}
+            className={`crosshook-button crosshook-button--danger${deleteConfirming ? ' crosshook-button--danger-confirming' : ''}`}
             onClick={handleDeleteClick}
             onBlur={handleDeleteBlur}
+            data-state={deleteConfirming ? 'confirming' : 'idle'}
           >
             {deleteConfirming ? 'Click again to confirm' : 'Delete Launcher'}
           </button>
@@ -519,135 +364,56 @@ export function LauncherExport({
       </div>
 
       {statusMessage ? (
-        <div
-          style={{
-            borderRadius: 12,
-            padding: 12,
-            background: 'rgba(16, 185, 129, 0.12)',
-            border: '1px solid rgba(16, 185, 129, 0.28)',
-            color: '#d1fae5',
-          }}
-        >
+        <div className="crosshook-export-status" data-state="success" role="status">
           {statusMessage}
         </div>
       ) : null}
 
       {errorMessage ? (
-        <div
-          style={{
-            borderRadius: 12,
-            padding: 12,
-            background: 'rgba(185, 28, 28, 0.16)',
-            border: '1px solid rgba(248, 113, 113, 0.28)',
-            color: '#fee2e2',
-          }}
-        >
+        <div className="crosshook-export-status" data-state="error" role="alert">
           {errorMessage}
         </div>
       ) : null}
 
       {result ? (
-        <div
-          style={{
-            display: 'grid',
-            gap: 10,
-            borderRadius: 14,
-            padding: 14,
-            background: 'rgba(15, 23, 42, 0.7)',
-            border: '1px solid rgba(96, 165, 250, 0.18)',
-          }}
-        >
-          <div style={{ color: '#dbeafe', fontWeight: 700 }}>Exported {result.display_name}</div>
-          <div style={helperStyle}>
-            Script: <span style={{ color: '#e2e8f0' }}>{result.script_path}</span>
+        <div className="crosshook-export-result">
+          <div className="crosshook-export-result__title">Exported {result.display_name}</div>
+          <div className="crosshook-export-result__meta">
+            Script: <span className="crosshook-export-result__value">{result.script_path}</span>
           </div>
-          <div style={helperStyle}>
-            Desktop entry: <span style={{ color: '#e2e8f0' }}>{result.desktop_entry_path}</span>
+          <div className="crosshook-export-result__meta">
+            Desktop entry: <span className="crosshook-export-result__value">{result.desktop_entry_path}</span>
           </div>
-          <div style={helperStyle}>
-            Slug: <span style={{ color: '#e2e8f0' }}>{result.launcher_slug}</span>
+          <div className="crosshook-export-result__meta">
+            Slug: <span className="crosshook-export-result__value">{result.launcher_slug}</span>
           </div>
         </div>
       ) : null}
 
-      {context === 'default' && launcherStatus && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '6px 10px',
-          borderRadius: '6px',
-          background: launcherStatus.is_stale
-            ? 'rgba(245, 158, 11, 0.12)'
-            : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
-            ? 'rgba(16, 185, 129, 0.12)'
-            : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
-            ? 'rgba(107, 114, 128, 0.12)'
-            : 'rgba(245, 158, 11, 0.12)',
-          marginTop: '8px',
-        }}>
-          <span style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            background: launcherStatus.is_stale
-              ? '#f59e0b'
-              : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
-              ? '#10b981'
-              : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
-              ? '#6b7280'
-              : '#f59e0b',
-          }} />
-          <span style={{
-            fontSize: '0.85rem',
-            color: launcherStatus.is_stale
-              ? '#fef3c7'
-              : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
-              ? '#d1fae5'
-              : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
-              ? '#d1d5db'
-              : '#fef3c7',
-          }}>
-            {launcherStatus.is_stale
-              ? 'Stale'
-              : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
-              ? 'Exported'
-              : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
-              ? 'Not Exported'
-              : 'Partial'}
-          </span>
+      {launcherStatus ? (
+        <div className="crosshook-export-status" data-state={launcherStatusTone ?? 'neutral'}>
+          <span className="crosshook-export-status__dot" aria-hidden="true" />
+          <span className="crosshook-export-status__label">{launcherStatusLabel}</span>
+          <span className="crosshook-export-status__copy">{launcherStatusMessage}</span>
         </div>
-      )}
-      {launcherStatus?.is_stale && context === 'default' && (
-        <div style={{
-          background: 'rgba(245, 158, 11, 0.08)',
-          border: '1px solid rgba(245, 158, 11, 0.2)',
-          borderRadius: '8px',
-          padding: '12px',
-          marginTop: '8px',
-        }}>
-          <p style={{ margin: '0 0 8px', fontSize: '0.85rem', color: '#fef3c7' }}>
+      ) : null}
+      {launcherStatus?.is_stale ? (
+        <div className="crosshook-export-callout" data-tone="warning">
+          <p className="crosshook-export-callout__title">
             Launcher files are out of date with the current profile.
           </p>
-          <p style={{ margin: '0 0 8px', fontSize: '0.8rem', color: '#d1d5db' }}>
+          <p className="crosshook-export-callout__copy">
             Current slug: <code>{launcherStatus.launcher_slug}</code>
           </p>
           <button
+            type="button"
+            className="crosshook-button crosshook-button--warning"
             onClick={handleExport}
-            style={{
-              padding: '6px 16px',
-              minHeight: '44px',
-              background: 'rgba(245, 158, 11, 0.16)',
-              border: '1px solid rgba(245, 158, 11, 0.28)',
-              color: '#fef3c7',
-              borderRadius: '6px',
-              cursor: 'pointer',
-            }}
           >
             Re-export Launcher
           </button>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
