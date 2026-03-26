@@ -201,6 +201,24 @@ impl From<LegacyProfileData> for GameProfile {
     }
 }
 
+pub fn resolve_launch_method(profile: &GameProfile) -> &str {
+    let method = profile.launch.method.trim();
+
+    if matches!(method, "steam_applaunch" | "proton_run" | "native") {
+        return method;
+    }
+
+    if profile.steam.enabled {
+        return "steam_applaunch";
+    }
+
+    if looks_like_windows_executable(&profile.game.executable_path) {
+        return "proton_run";
+    }
+
+    "native"
+}
+
 fn derive_launch_method_from_legacy(value: &LegacyProfileData) -> String {
     if value.use_steam_mode {
         return "steam_applaunch".to_string();
@@ -215,4 +233,60 @@ fn derive_launch_method_from_legacy(value: &LegacyProfileData) -> String {
 
 fn looks_like_windows_executable(path: &str) -> bool {
     path.trim().to_ascii_lowercase().ends_with(".exe")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_profile() -> GameProfile {
+        GameProfile {
+            game: GameSection {
+                name: "Test Game".to_string(),
+                executable_path: "/games/test.exe".to_string(),
+            },
+            trainer: TrainerSection::default(),
+            injection: InjectionSection::default(),
+            steam: SteamSection::default(),
+            runtime: RuntimeSection::default(),
+            launch: LaunchSection::default(),
+        }
+    }
+
+    #[test]
+    fn resolve_launch_method_prefers_explicit_method() {
+        let mut profile = sample_profile();
+        profile.launch.method = "native".to_string();
+        profile.steam.enabled = true;
+
+        assert_eq!(resolve_launch_method(&profile), "native");
+    }
+
+    #[test]
+    fn resolve_launch_method_falls_back_to_steam_enabled() {
+        let mut profile = sample_profile();
+        profile.launch.method.clear();
+        profile.steam.enabled = true;
+
+        assert_eq!(resolve_launch_method(&profile), "steam_applaunch");
+    }
+
+    #[test]
+    fn resolve_launch_method_falls_back_to_proton_for_windows_games() {
+        let mut profile = sample_profile();
+        profile.launch.method.clear();
+        profile.steam.enabled = false;
+
+        assert_eq!(resolve_launch_method(&profile), "proton_run");
+    }
+
+    #[test]
+    fn resolve_launch_method_falls_back_to_native_for_non_windows_games() {
+        let mut profile = sample_profile();
+        profile.launch.method.clear();
+        profile.steam.enabled = false;
+        profile.game.executable_path = "/games/test.sh".to_string();
+
+        assert_eq!(resolve_launch_method(&profile), "native");
+    }
 }
