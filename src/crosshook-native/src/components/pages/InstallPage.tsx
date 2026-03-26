@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import InstallGamePanel from '../InstallGamePanel';
 import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
 import ProfileReviewModal, { type ProfileReviewModalConfirmation } from '../ProfileReviewModal';
+import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import type { GameProfile } from '../../types';
 import type { InstallProfileReviewPayload } from '../../types/install';
@@ -50,6 +51,7 @@ function createProfileReviewSessionState(payload: InstallProfileReviewPayload): 
 }
 
 export function InstallPage({ onNavigate }: InstallPageProps) {
+  const { defaultSteamClientInstallPath } = usePreferencesContext();
   const {
     deleting,
     loading,
@@ -57,6 +59,12 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
     saving,
     steamClientInstallPath,
   } = useProfileContext();
+
+  const effectiveSteamClientInstallPath = useMemo(
+    () => defaultSteamClientInstallPath || steamClientInstallPath,
+    [defaultSteamClientInstallPath, steamClientInstallPath],
+  );
+
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
   const [profileReviewSession, setProfileReviewSession] = useState<ProfileReviewSession | null>(null);
@@ -287,7 +295,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
     async function loadProtonInstalls() {
       try {
         const installs = await invoke<ProtonInstallOption[]>('list_proton_installs', {
-          steamClientInstallPath: steamClientInstallPath.trim().length > 0 ? steamClientInstallPath : undefined,
+          steamClientInstallPath: effectiveSteamClientInstallPath.trim().length > 0 ? effectiveSteamClientInstallPath : undefined,
         });
         const sortedInstalls = [...installs].sort((left, right) => {
           if (left.is_official !== right.is_official) {
@@ -318,7 +326,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
     return () => {
       active = false;
     };
-  }, [steamClientInstallPath]);
+  }, [effectiveSteamClientInstallPath]);
 
   const reviewDirty = useMemo(
     () => profileReviewSession !== null && isProfileReviewSessionDirty(profileReviewSession),
