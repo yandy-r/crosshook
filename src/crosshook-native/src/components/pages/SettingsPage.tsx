@@ -17,7 +17,7 @@ export function SettingsPage() {
   const { targetHomePath, steamClientInstallPath } = useProfileContext();
 
   return (
-    <div className="crosshook-content-area">
+    <>
       <PageBanner
         eyebrow="Settings"
         title="App preferences and storage"
@@ -54,7 +54,7 @@ export function SettingsPage() {
           void clearRecentFiles();
         }}
       />
-    </div>
+    </>
   );
 }
 

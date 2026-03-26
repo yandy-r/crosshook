@@ -18,15 +18,15 @@ This document provides a recommended implementation order, dependency map, and q
 
 These features require minimal effort because the infrastructure already exists. They can be completed in a day or less each and provide immediate user-facing value.
 
-| #   | Feature                       | Status | Effort | What To Do                                                                                | Key Files                                                 |
-| --- | ----------------------------- | :----: | ------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| #39 | Actionable validation errors  |        | Hours  | Add `help()` method returning fix guidance to each `ValidationError` variant              | `crates/crosshook-core/src/launch/request.rs`             |
-| #56 | Profile duplicate / clone     |        | Hours  | Add Tauri command: `load(name)` + `save(new_name)` with conflict check                    | `src-tauri/src/commands/profile.rs`, `ProfileActions.tsx` |
-| #55 | Community profile export      |        | Hours  | Add Tauri command wrapping existing `export_community_profile()` + UI button              | `src-tauri/src/commands/community.rs`                     |
-| #64 | Stale launcher detection      |        | Hours  | Implement real `is_stale` logic: compare launcher paths vs current profile                | `crates/crosshook-core/src/export/launcher_store.rs`      |
-| #54 | Adaptive Deck Mode layout     |        | Hours  | CSS custom properties keyed on `data-crosshook-controller-mode` attribute                 | `src/styles/variables.css`, `src/styles/theme.css`        |
-| #59 | Tap pinning                   |        | Hours  | Add `pinned_commit: Option<String>` to `CommunityTapSubscription`, gate `fetch_and_reset` | `crates/crosshook-core/src/community/taps.rs`             |
-| #58 | Extended optimization catalog |        | Hours  | Add 8 new entries to `LAUNCH_OPTIMIZATION_DEFINITIONS` array                              | `crates/crosshook-core/src/launch/optimizations.rs`       |
+| #   | Feature                       | Status | Effort | What To Do                                                                                | Key Files                                                                                                                                          |
+| --- | ----------------------------- | :----: | ------ | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #39 | Actionable validation errors  |  Done  | Hours  | Shipped structured launch validation help/severity metadata and LaunchPanel guidance UI   | `crates/crosshook-core/src/launch/request.rs`, `src-tauri/src/commands/launch.rs`, `src/hooks/useLaunchState.ts`, `src/components/LaunchPanel.tsx` |
+| #56 | Profile duplicate / clone     |        | Hours  | Add Tauri command: `load(name)` + `save(new_name)` with conflict check                    | `src-tauri/src/commands/profile.rs`, `ProfileActions.tsx`                                                                                          |
+| #55 | Community profile export      |        | Hours  | Add Tauri command wrapping existing `export_community_profile()` + UI button              | `src-tauri/src/commands/community.rs`                                                                                                              |
+| #64 | Stale launcher detection      |        | Hours  | Implement real `is_stale` logic: compare launcher paths vs current profile                | `crates/crosshook-core/src/export/launcher_store.rs`                                                                                               |
+| #54 | Adaptive Deck Mode layout     |        | Hours  | CSS custom properties keyed on `data-crosshook-controller-mode` attribute                 | `src/styles/variables.css`, `src/styles/theme.css`                                                                                                 |
+| #59 | Tap pinning                   |        | Hours  | Add `pinned_commit: Option<String>` to `CommunityTapSubscription`, gate `fetch_and_reset` | `crates/crosshook-core/src/community/taps.rs`                                                                                                      |
+| #58 | Extended optimization catalog |        | Hours  | Add 8 new entries to `LAUNCH_OPTIMIZATION_DEFINITIONS` array                              | `crates/crosshook-core/src/launch/optimizations.rs`                                                                                                |
 
 **Recommended approach**: Batch these into a single sprint or PR series. Each is independently shippable.
 
@@ -48,7 +48,7 @@ _Goal: Users understand what happened when something fails._
 
 | Order | Issue                                   | Status | Rationale                                                                                                                                                              |
 | :---: | --------------------------------------- | :----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|   1   | **#39** -- Actionable validation errors |        | Lowest effort P0. Immediate UX improvement. Sets the pattern for all error communication.                                                                              |
+|   1   | **#39** -- Actionable validation errors |  Done  | Lowest effort P0. Immediate UX improvement. Sets the pattern for all error communication.                                                                              |
 |   2   | **#40** -- Dry run / preview launch     |        | All computation functions are pure and side-effect-free. Wire `validate()` + `resolve_launch_directives()` + `build_steam_launch_options_command()` into a preview UI. |
 
 **Dependencies**: None. These are standalone improvements.

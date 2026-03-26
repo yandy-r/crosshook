@@ -1,5 +1,77 @@
 # Task Plan
 
+## 2026-03-26 - route content scroll reset
+
+- [x] Confirm which layout element owns page scroll state during route changes.
+- [x] Reset content scroll position when switching between top-level pages without disturbing console scroll.
+- [x] Run focused frontend verification.
+- [x] Add a short implementation review with outcome and residual risk.
+
+## Implementation Review
+
+- The top-level route shell in `ContentArea.tsx` was reusing the same `Tabs.Content` node across route changes, which let the shared scrollable `.crosshook-content-area` keep its prior `scrollTop`.
+- `Tabs.Content` is now keyed by the active route, and `ContentArea` also explicitly scrolls the active `.crosshook-content-area` back to the top on every route change.
+- The fix is scoped to the main content area and does not touch the console drawer scroll behavior.
+- Verification:
+  - `node_modules/.bin/tsc --noEmit` in `src/crosshook-native`
+- Residual risk:
+  - I did not run a live graphical pass here, so the remaining check is manual confirmation that route switches now start at the top without introducing any unexpected page-state resets beyond the intended scroll reset.
+
+## 2026-03-26 - route auto-focus scroll correction
+
+- [x] Confirm whether controller-mode route auto-focus is re-introducing scroll on the Launch page.
+- [x] Keep controller focus handoff on route changes without allowing the auto-focus step to scroll the page.
+- [x] Run focused frontend verification.
+- [x] Add a short implementation review with outcome and residual risk.
+
+## Implementation Review
+
+- The remaining `Profiles -> Launch` jump was not stale page scroll state. In controller mode, `useGamepadNav` was auto-focusing the first content control after a route change and allowing that focus handoff to call `scrollIntoView`.
+- On the Launch page, the first focusable control sits low enough that this auto-focus could pull the page down on first entry even after the content wrapper was remounted.
+- The route-change auto-focus now keeps the same content-focus handoff for controller navigation but does it with `preventScroll`, so the page stays at the top.
+- Verification:
+  - `node_modules/.bin/tsc --noEmit` in `src/crosshook-native`
+- Residual risk:
+  - I still did not run a live graphical/controller pass here, so the remaining manual check is that controller navigation still lands in page content correctly while route changes no longer scroll the Launch page downward.
+
+## 2026-03-26 - shared route scroll state hardening
+
+- [x] Re-check the route shell for any ineffective remount/reset wiring.
+- [x] Clear shared inertial scroll state when switching top-level tabs.
+- [x] Run focused frontend verification.
+- [x] Add a short implementation review with outcome and residual risk.
+
+## Implementation Review
+
+- The earlier route-remount change had a real bug: `key` was placed inside a spread object passed to `Tabs.Content`, and React ignores `key` in spread props. `ContentArea.tsx` now applies `key={route}` directly on each `Tabs.Content`, so the route panel can actually remount.
+- `ContentArea.tsx` still explicitly scrolls the active `.crosshook-content-area` to the top on every route change.
+- `useScrollEnhance.ts` was also holding shared inertial scroll state (`activeContainer` plus velocity) across the whole shell. It now cancels momentum when a route tab is pressed and drops stale containers if they disconnect.
+- Verification:
+  - `node_modules/.bin/tsc --noEmit` in `src/crosshook-native`
+- Residual risk:
+  - The remaining manual check is in the real Tauri shell at a small viewport. If any scroll leak still exists after this, it is likely coming from a late browser/WebKit focus behavior rather than the shared React shell state.
+
+## 2026-03-26 - actionable launch validation errors
+
+- [x] Add structured launch validation metadata in `crosshook-core` with per-error help text and severity.
+- [x] Update the Tauri launch validation command to return structured validation issues.
+- [x] Replace string-only launch errors in the frontend with preflight validation feedback and a severity-aware LaunchPanel surface.
+- [x] Run focused Rust and TypeScript verification.
+- [x] Add a short implementation review with outcome and residual risk.
+
+## Implementation Review
+
+- `ValidationError` now exposes a serializable `LaunchValidationIssue` with `message`, `help`, and `severity`, and every current launch validation variant provides actionable fix guidance while remaining `fatal` in the existing fail-fast flow.
+- The Tauri `validate_launch` command now returns the structured validation payload, while `launch_game` and `launch_trainer` keep their runtime string-error behavior unchanged.
+- `useLaunchState` now performs a typed preflight validation before either launch step. Validation failures stop the launch and surface structured guidance; runtime spawn/build failures still appear as generic launch errors.
+- `LaunchPanel` now renders a severity-aware feedback card with the validation message and help text instead of a single raw error line.
+- Verification:
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native --no-run`
+  - `node_modules/.bin/tsc --noEmit` in `src/crosshook-native`
+- Residual risk:
+  - No graphical Tauri/manual UI pass was run here, so the new feedback card still needs an in-app check for spacing, tone, and phase behavior during real launch failures.
+
 ## 2026-03-26 - trainer source-mode support
 
 - [x] Add a persisted trainer loading mode to shared Rust/TypeScript profile and launch contracts.

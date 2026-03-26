@@ -140,6 +140,21 @@ impl LaunchRequest {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ValidationSeverity {
+    Fatal,
+    Warning,
+    Info,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LaunchValidationIssue {
+    pub message: String,
+    pub help: String,
+    pub severity: ValidationSeverity,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidationError {
     GamePathRequired,
@@ -184,6 +199,14 @@ pub enum ValidationError {
 }
 
 impl ValidationError {
+    pub fn issue(&self) -> LaunchValidationIssue {
+        LaunchValidationIssue {
+            message: self.message(),
+            help: self.help(),
+            severity: self.severity(),
+        }
+    }
+
     pub fn message(&self) -> String {
         match self {
             Self::GamePathRequired => "A game executable path is required.".to_string(),
@@ -269,6 +292,142 @@ impl ValidationError {
                 )
             }
         }
+    }
+
+    pub fn help(&self) -> String {
+        match self {
+            Self::GamePathRequired => {
+                "Browse to the game executable before launching. For Steam or Proton launches, this is usually the game's .exe under steamapps/common/."
+                    .to_string()
+            }
+            Self::GamePathMissing => {
+                "The saved game path no longer exists. Re-browse to the current executable or verify the game files."
+                    .to_string()
+            }
+            Self::GamePathNotFile => {
+                "Select the game executable file itself, not the containing directory."
+                    .to_string()
+            }
+            Self::TrainerPathRequired => {
+                "Select the trainer executable before starting the trainer step."
+                    .to_string()
+            }
+            Self::TrainerHostPathRequired => {
+                "Save the trainer executable path in the profile so CrossHook can locate the host-side trainer file."
+                    .to_string()
+            }
+            Self::TrainerHostPathMissing => {
+                "The saved trainer file was moved or deleted. Re-browse to the trainer executable."
+                    .to_string()
+            }
+            Self::TrainerHostPathNotFile => {
+                "Select the trainer executable file itself, not a directory."
+                    .to_string()
+            }
+            Self::SteamAppIdRequired => {
+                "Use Auto-Populate or enter the game's Steam App ID from Steam or the appmanifest."
+                    .to_string()
+            }
+            Self::SteamCompatDataPathRequired => {
+                "Launch the game through Steam once, then use Auto-Populate or browse to the game's compatdata directory."
+                    .to_string()
+            }
+            Self::SteamCompatDataPathMissing => {
+                "Launch the game through Steam at least once to create the compatibility data directory."
+                    .to_string()
+            }
+            Self::SteamCompatDataPathNotDirectory => {
+                "Select the compatdata folder for the game, not a file inside it."
+                    .to_string()
+            }
+            Self::SteamProtonPathRequired => {
+                "Choose the Proton tool Steam should use for this game. Auto-Populate can detect installed Proton versions."
+                    .to_string()
+            }
+            Self::SteamProtonPathMissing => {
+                "The configured Proton version may have been removed. Re-select an installed Proton tool or use Auto-Populate."
+                    .to_string()
+            }
+            Self::SteamProtonPathNotExecutable => {
+                "Point this field at the Proton 'proton' executable and make sure it still has execute permission."
+                    .to_string()
+            }
+            Self::SteamClientInstallPathRequired => {
+                "Set the Steam client install path to your real Steam root, such as ~/.local/share/Steam or ~/.steam/root."
+                    .to_string()
+            }
+            Self::RuntimePrefixPathRequired => {
+                "Choose the Proton prefix for this profile. If Steam creates it, launch the game once or use Auto-Populate first."
+                    .to_string()
+            }
+            Self::RuntimePrefixPathMissing => {
+                "The saved prefix path no longer exists. Re-select the prefix directory or launch the game once to recreate it."
+                    .to_string()
+            }
+            Self::RuntimePrefixPathNotDirectory => {
+                "Select the prefix directory itself, not a file inside it."
+                    .to_string()
+            }
+            Self::RuntimeProtonPathRequired => {
+                "Choose the Proton executable that should run this game and trainer."
+                    .to_string()
+            }
+            Self::RuntimeProtonPathMissing => {
+                "The configured Proton version may have been removed. Re-select an installed Proton tool."
+                    .to_string()
+            }
+            Self::RuntimeProtonPathNotExecutable => {
+                "Point this field at the Proton 'proton' executable and make sure it has execute permission."
+                    .to_string()
+            }
+            Self::UnknownLaunchOptimization(option_id) => {
+                format!(
+                    "Remove '{option_id}' from the profile or update CrossHook to a version that supports it."
+                )
+            }
+            Self::DuplicateLaunchOptimization(option_id) => {
+                format!(
+                    "Open Launch Optimizations and keep '{option_id}' selected only once."
+                )
+            }
+            Self::LaunchOptimizationsUnsupportedForMethod(method) => {
+                format!(
+                    "Switch the profile to 'proton_run' to use launch optimizations, or clear the selected optimizations for '{method}'."
+                )
+            }
+            Self::LaunchOptimizationNotSupportedForMethod { option_id, method } => {
+                format!(
+                    "Disable '{option_id}' or change the profile to a launch method that supports it instead of '{method}'."
+                )
+            }
+            Self::IncompatibleLaunchOptimizations { first, second } => {
+                format!("Disable either '{first}' or '{second}' before launching.")
+            }
+            Self::LaunchOptimizationDependencyMissing {
+                option_id,
+                dependency,
+            } => {
+                format!(
+                    "Install '{dependency}' and make sure it is available on PATH, or disable '{option_id}'."
+                )
+            }
+            Self::NativeWindowsExecutableNotSupported => {
+                "Switch the profile to 'proton_run' for Windows games, or choose a Linux-native executable."
+                    .to_string()
+            }
+            Self::NativeTrainerLaunchUnsupported => {
+                "Use 'steam_applaunch' or 'proton_run' for trainer workflows. Native launch only starts the game executable."
+                    .to_string()
+            }
+            Self::UnsupportedMethod(_) => {
+                "Change the profile launch method to 'steam_applaunch', 'proton_run', or 'native'."
+                    .to_string()
+            }
+        }
+    }
+
+    pub fn severity(&self) -> ValidationSeverity {
+        ValidationSeverity::Fatal
     }
 }
 
@@ -720,6 +879,54 @@ mod tests {
         assert_eq!(
             validate(&request),
             Err(ValidationError::UnsupportedMethod("direct".to_string()))
+        );
+    }
+
+    #[test]
+    fn validation_error_help_explains_missing_steam_compatdata_path() {
+        assert_eq!(
+            ValidationError::SteamCompatDataPathMissing.help(),
+            "Launch the game through Steam at least once to create the compatibility data directory."
+        );
+    }
+
+    #[test]
+    fn validation_error_help_explains_missing_launch_optimization_dependency() {
+        assert_eq!(
+            ValidationError::LaunchOptimizationDependencyMissing {
+                option_id: "use_gamemode".to_string(),
+                dependency: "gamemoderun".to_string(),
+            }
+            .help(),
+            "Install 'gamemoderun' and make sure it is available on PATH, or disable 'use_gamemode'."
+        );
+    }
+
+    #[test]
+    fn validation_error_severity_is_fatal_for_current_variants() {
+        assert_eq!(
+            ValidationError::NativeWindowsExecutableNotSupported.severity(),
+            ValidationSeverity::Fatal
+        );
+        assert_eq!(
+            ValidationError::UnsupportedMethod("direct".to_string()).severity(),
+            ValidationSeverity::Fatal
+        );
+    }
+
+    #[test]
+    fn validation_error_issue_packages_message_help_and_severity() {
+        assert_eq!(
+            ValidationError::UnsupportedMethod("direct".to_string()).issue(),
+            LaunchValidationIssue {
+                message:
+                    "Unsupported launch method 'direct'. Use steam_applaunch, proton_run, or native."
+                        .to_string(),
+                help:
+                    "Change the profile launch method to 'steam_applaunch', 'proton_run', or 'native'."
+                        .to_string(),
+                severity: ValidationSeverity::Fatal,
+            }
         );
     }
 

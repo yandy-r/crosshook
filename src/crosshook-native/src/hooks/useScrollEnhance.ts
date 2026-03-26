@@ -2,14 +2,23 @@ import { useEffect } from 'react';
 
 // WebKitGTK (Tauri's webview) has sluggish native scroll velocity.
 // These constants compensate to make scrolling feel responsive.
-const WHEEL_MULTIPLIER = 10;
+const WHEEL_MULTIPLIER = 2;
 const SMOOTH_FACTOR = 0.18;
 const ARROW_SCROLL_PX = 80;
 const SCROLLABLE = '.crosshook-content-area, .crosshook-console-drawer__body';
 
 const INTERACTIVE_ROLES = new Set([
-  'tablist', 'listbox', 'menu', 'menubar', 'radiogroup', 'slider',
-  'combobox', 'select', 'spinbutton', 'tree', 'grid',
+  'tablist',
+  'listbox',
+  'menu',
+  'menubar',
+  'radiogroup',
+  'slider',
+  'combobox',
+  'select',
+  'spinbutton',
+  'tree',
+  'grid',
 ]);
 
 function isInteractiveTarget(el: Element | null): boolean {
@@ -33,8 +42,21 @@ export function useScrollEnhance(): void {
     let activeContainer: HTMLElement | null = null;
     let rafId = 0;
 
+    function resetMomentum() {
+      velocityX = 0;
+      velocityY = 0;
+      activeContainer = null;
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+    }
+
     function tick() {
-      if (!activeContainer) return;
+      if (!activeContainer || !activeContainer.isConnected) {
+        resetMomentum();
+        return;
+      }
 
       activeContainer.scrollTop += velocityY * SMOOTH_FACTOR;
       activeContainer.scrollLeft += velocityX * SMOOTH_FACTOR;
@@ -73,29 +95,50 @@ export function useScrollEnhance(): void {
       let dy = 0;
 
       switch (e.key) {
-        case 'ArrowUp':    dy = -ARROW_SCROLL_PX; break;
-        case 'ArrowDown':  dy = ARROW_SCROLL_PX;  break;
-        case 'ArrowLeft':  dx = -ARROW_SCROLL_PX; break;
-        case 'ArrowRight': dx = ARROW_SCROLL_PX;  break;
-        default: return;
+        case 'ArrowUp':
+          dy = -ARROW_SCROLL_PX;
+          break;
+        case 'ArrowDown':
+          dy = ARROW_SCROLL_PX;
+          break;
+        case 'ArrowLeft':
+          dx = -ARROW_SCROLL_PX;
+          break;
+        case 'ArrowRight':
+          dx = ARROW_SCROLL_PX;
+          break;
+        default:
+          return;
       }
 
       const container =
-        (document.activeElement as Element | null)?.closest(SCROLLABLE) as HTMLElement | null
-        ?? document.querySelector('.crosshook-content-area') as HTMLElement | null;
+        ((document.activeElement as Element | null)?.closest(SCROLLABLE) as HTMLElement | null) ??
+        (document.querySelector('.crosshook-content-area') as HTMLElement | null);
       if (!container) return;
 
       e.preventDefault();
       container.scrollBy({ top: dy, left: dx, behavior: 'smooth' });
     }
 
+    function onPointerDown(e: PointerEvent) {
+      if (!(e.target instanceof Element)) {
+        return;
+      }
+
+      if (e.target.closest('[role="tab"]')) {
+        resetMomentum();
+      }
+    }
+
     document.addEventListener('wheel', onWheel, { passive: true });
     document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown, true);
 
     return () => {
       document.removeEventListener('wheel', onWheel);
       document.removeEventListener('keydown', onKeyDown);
-      if (rafId) cancelAnimationFrame(rafId);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      resetMomentum();
     };
   }, []);
 }

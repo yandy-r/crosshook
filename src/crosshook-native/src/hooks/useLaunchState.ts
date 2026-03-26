@@ -1,12 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useReducer } from "react";
 
-import type { LaunchMethod, LaunchRequest, LaunchResult } from "../types";
+import type {
+  LaunchFeedback,
+  LaunchMethod,
+  LaunchRequest,
+  LaunchResult,
+  LaunchValidationIssue,
+} from "../types";
 import { LaunchPhase } from "../types";
+import { isLaunchValidationIssue } from "../types";
 
 type LaunchState = {
   phase: LaunchPhase;
-  errorMessage: string | null;
+  feedback: LaunchFeedback | null;
   helperLogPath: string | null;
 };
 
@@ -16,7 +23,7 @@ type LaunchAction =
   | { type: "game-success"; helperLogPath: string; nextPhase: LaunchPhase }
   | { type: "trainer-start" }
   | { type: "trainer-success"; helperLogPath: string }
-  | { type: "failure"; errorMessage: string; fallbackPhase: LaunchPhase };
+  | { type: "failure"; fallbackPhase: LaunchPhase; feedback: LaunchFeedback };
 
 interface UseLaunchStateArgs {
   profileId: string;
@@ -26,7 +33,7 @@ interface UseLaunchStateArgs {
 
 const initialState: LaunchState = {
   phase: LaunchPhase.Idle,
-  errorMessage: null,
+  feedback: null,
   helperLogPath: null,
 };
 
@@ -38,31 +45,31 @@ function reducer(state: LaunchState, action: LaunchAction): LaunchState {
       return {
         ...state,
         phase: LaunchPhase.GameLaunching,
-        errorMessage: null,
+        feedback: null,
       };
     case "game-success":
       return {
         phase: action.nextPhase,
-        errorMessage: null,
+        feedback: null,
         helperLogPath: action.helperLogPath,
       };
     case "trainer-start":
       return {
         ...state,
         phase: LaunchPhase.TrainerLaunching,
-        errorMessage: null,
+        feedback: null,
       };
     case "trainer-success":
       return {
         phase: LaunchPhase.SessionActive,
-        errorMessage: null,
+        feedback: null,
         helperLogPath: action.helperLogPath,
       };
     case "failure":
       return {
         ...state,
         phase: action.fallbackPhase,
-        errorMessage: action.errorMessage,
+        feedback: action.feedback,
       };
     default:
       return state;
@@ -86,6 +93,25 @@ function buildLaunchRequest(
       };
 }
 
+function normalizeRuntimeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function validateLaunchRequest(
+  request: LaunchRequest,
+): Promise<LaunchValidationIssue | null> {
+  try {
+    await invoke<void>("validate_launch", { request });
+    return null;
+  } catch (error) {
+    if (isLaunchValidationIssue(error)) {
+      return error;
+    }
+
+    throw error;
+  }
+}
+
 export function useLaunchState({
   profileId,
   method,
@@ -104,11 +130,25 @@ export function useLaunchState({
       return;
     }
 
+    const launchRequest = buildLaunchRequest(request, LaunchPhase.GameLaunching);
     dispatch({ type: "game-start" });
 
     try {
+      const validationIssue = await validateLaunchRequest(launchRequest);
+      if (validationIssue) {
+        dispatch({
+          type: "failure",
+          feedback: {
+            kind: "validation",
+            issue: validationIssue,
+          },
+          fallbackPhase: LaunchPhase.Idle,
+        });
+        return;
+      }
+
       const result = await invoke<LaunchResult>("launch_game", {
-        request: buildLaunchRequest(request, LaunchPhase.GameLaunching),
+        request: launchRequest,
       });
       dispatch({
         type: "game-success",
@@ -118,7 +158,10 @@ export function useLaunchState({
     } catch (error) {
       dispatch({
         type: "failure",
-        errorMessage: error instanceof Error ? error.message : String(error),
+        feedback: {
+          kind: "runtime",
+          message: normalizeRuntimeError(error),
+        },
         fallbackPhase: LaunchPhase.Idle,
       });
     }
@@ -129,11 +172,25 @@ export function useLaunchState({
       return;
     }
 
+    const launchRequest = buildLaunchRequest(request, LaunchPhase.TrainerLaunching);
     dispatch({ type: "trainer-start" });
 
     try {
+      const validationIssue = await validateLaunchRequest(launchRequest);
+      if (validationIssue) {
+        dispatch({
+          type: "failure",
+          feedback: {
+            kind: "validation",
+            issue: validationIssue,
+          },
+          fallbackPhase: LaunchPhase.WaitingForTrainer,
+        });
+        return;
+      }
+
       const result = await invoke<LaunchResult>("launch_trainer", {
-        request: buildLaunchRequest(request, LaunchPhase.TrainerLaunching),
+        request: launchRequest,
       });
       dispatch({
         type: "trainer-success",
@@ -142,7 +199,10 @@ export function useLaunchState({
     } catch (error) {
       dispatch({
         type: "failure",
-        errorMessage: error instanceof Error ? error.message : String(error),
+        feedback: {
+          kind: "runtime",
+          message: normalizeRuntimeError(error),
+        },
         fallbackPhase: LaunchPhase.WaitingForTrainer,
       });
     }
@@ -239,6 +299,6 @@ export function useLaunchState({
     phase: state.phase,
     reset,
     statusText,
-    errorMessage: state.errorMessage,
+    feedback: state.feedback,
   };
 }
