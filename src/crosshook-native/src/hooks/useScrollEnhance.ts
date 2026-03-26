@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 
+// WebKitGTK (Tauri's webview) has sluggish native scroll velocity.
+// These constants compensate to make scrolling feel responsive.
 const WHEEL_MULTIPLIER = 10;
 const SMOOTH_FACTOR = 0.18;
 const ARROW_SCROLL_PX = 80;
@@ -18,7 +20,7 @@ function isInteractiveTarget(el: Element | null): boolean {
   const role = el.getAttribute('role');
   if (role && INTERACTIVE_ROLES.has(role)) return true;
   if (el.closest('[role="tablist"], [role="listbox"], [role="menu"], [role="combobox"]')) return true;
-  // Radix Select triggers use data-state and aria-expanded
+  // Elements with aria-expanded (select triggers, disclosure widgets, etc.) manage their own keyboard input
   if (el.hasAttribute('aria-expanded')) return true;
   return false;
 }

@@ -189,37 +189,37 @@ Two independent implementations exist. The `useProfile.ts` version uses the `loo
 
 #### 10. Add exhaustiveness check in `ContentArea.tsx:54`
 
-**Status**: Open
+**Status**: Fixed
 
 Replace `default: return null` with `const _exhaustive: never = route; return null;` to get a compile error when a new `AppRoute` is added without a corresponding page.
 
 #### 11. Standardize context sentinel to `null`
 
-**Status**: Open
+**Status**: Fixed
 
 `ProfileContext` uses `undefined` (line 20) while `PreferencesContext` uses `null` (line 34). Standardize on `null` for consistency.
 
 #### 12. Guard the `AppRoute` cast in `App.tsx:37`
 
-**Status**: Open
+**Status**: Fixed
 
 The `value as AppRoute` downcast bypasses type safety. Add a runtime check with a `Set<string>` lookup before casting.
 
 #### 13. Define a `LogPayload` type for `ConsoleDrawer.tsx:79`
 
-**Status**: Open
+**Status**: Fixed
 
 Replace `listen<unknown>('launch-log', ...)` with a discriminated union (`string | { line: string } | { message: string } | { text: string }`) to make the event contract explicit.
 
 #### 14. Import `SVGProps` directly in `PageBanner.tsx`
 
-**Status**: Open
+**Status**: Fixed
 
 Use `SVGProps<SVGSVGElement>` instead of `React.SVGProps<SVGSVGElement>` for consistency with other named imports in the file.
 
 #### 15. ThemedSelect sentinel collision
 
-**Status**: Open
+**Status**: Fixed
 
 The `EMPTY = '__empty__'` sentinel could collide with actual data values. Consider prefixing with a non-printable character or documenting the constraint via JSDoc on `SelectOption.value`.
 
@@ -227,25 +227,25 @@ The `EMPTY = '__empty__'` sentinel could collide with actual data values. Consid
 
 #### 16. Add `.catch()` on unhandled promise in `ProfileContext.tsx:52`
 
-**Status**: Open
+**Status**: Invalid
 
-Add `.catch()` on `void profileState.selectProfile(event.payload)` to prevent unhandled promise rejections.
+`selectProfile` (alias for `loadProfile`) has comprehensive internal try/catch that sets error state via `setError()` and never rejects. The `void` prefix is sufficient.
 
 #### 17. PreferencesContext initialization error only visible on Settings page
 
-**Status**: Open
+**Status**: Deferred
 
-When settings fail to load at startup, only users who navigate to Settings see the error. Consider surfacing critical init errors globally (toast/banner).
+When settings fail to load at startup, only users who navigate to Settings see the error. Requires a global toast/banner architecture that does not yet exist.
 
 #### 18. `removeTap` optimistic state update without rollback (`useCommunityProfiles.ts:208-220`)
 
-**Status**: Open
+**Status**: Fixed
 
 Local state is updated before `saveSettingsTaps` persists. If save fails, the tap disappears from UI but reappears on next launch. Defer state update until after save succeeds, or add rollback logic.
 
 #### 19. `normalizeLogMessage` returns empty string for unrecognized payload shapes
 
-**Status**: Open
+**Status**: Fixed
 
 Affects `ConsoleDrawer.tsx:7-31` and `ConsoleView.tsx:18-42`. If the backend changes payload shape, log messages silently disappear. Fallback to `JSON.stringify(payload)` instead.
 
@@ -253,43 +253,43 @@ Affects `ConsoleDrawer.tsx:7-31` and `ConsoleView.tsx:18-42`. If the backend cha
 
 #### 20. Inaccurate comment at `useScrollEnhance.ts:21`
 
-**Status**: Open
+**Status**: Fixed
 
 `// Radix Select triggers use data-state and aria-expanded` -- the code only checks `aria-expanded`, and it's a general ARIA attribute, not Radix-specific. Rewrite to: `// Elements with aria-expanded (select triggers, disclosure widgets, etc.) manage their own keyboard input`.
 
 #### 21. `normalizeLogMessage` duplicated without cross-reference
 
-**Status**: Open
+**Status**: Fixed
 
 Identical function in `ConsoleDrawer.tsx:7-31` and `ConsoleView.tsx:18-42`. Add a cross-reference comment, or extract to a shared utility.
 
 #### 22. Missing module-level docs on `PreferencesContext.tsx`
 
-**Status**: Open
+**Status**: Fixed
 
 193-line file with no comments explaining its relationship to `ProfileContext` (PreferencesContext owns app settings/recent files; ProfileContext owns profile CRUD).
 
 #### 23. Missing module-level docs on `ProfileContext.tsx`
 
-**Status**: Open
+**Status**: Fixed
 
 The `resolveLaunchMethod` priority cascade (steam_applaunch -> proton_run -> native) is business-critical and undocumented.
 
 #### 24. `useScrollEnhance` constants lack context
 
-**Status**: Open
+**Status**: Fixed
 
 `WHEEL_MULTIPLIER = 10`, `SMOOTH_FACTOR = 0.18`, `ARROW_SCROLL_PX = 80` are magic numbers. Add a header comment explaining they compensate for WebKitGTK's sluggish scroll velocity.
 
 #### 25. `useGamepadNav` lacks module-level documentation
 
-**Status**: Open
+**Status**: Fixed
 
 744-line hook with zero comments. The focus zone model (`data-crosshook-focus-zone`, `data-crosshook-focus-root`), gamepad polling, and bumper-based view cycling should be briefly documented.
 
 #### 26. `PageBanner.tsx:27` -- `S` variable name is cryptic
 
-**Status**: Open
+**Status**: Fixed
 
 The shared SVG props constant should be named `SVG_DEFAULTS` or `ILLUSTRATION_PROPS` for self-documentation.
 
@@ -312,4 +312,4 @@ The shared SVG props constant should be named `SVG_DEFAULTS` or `ILLUSTRATION_PR
 
 1. ~~Fix critical issues #1-#3 before merge (arrow-key conflict, console flash, silent catches)~~ **Done**
 2. ~~Address important issues #4-#9 (duplicate listeners, unstable refs, silent console.error paths, duplicated function)~~ **Done**
-3. Suggestions can be scheduled as follow-up work
+3. ~~Suggestions can be scheduled as follow-up work~~ **15 of 17 fixed; #16 invalid, #17 deferred**

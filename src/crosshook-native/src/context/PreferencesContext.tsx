@@ -1,3 +1,9 @@
+/**
+ * Application-wide settings and recent file history.
+ *
+ * PreferencesContext owns app settings (auto-load, community taps) and recent file
+ * paths. Profile CRUD and selection are handled by ProfileContext.
+ */
 import React, { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { AppSettingsData, RecentFilesData } from '../types';

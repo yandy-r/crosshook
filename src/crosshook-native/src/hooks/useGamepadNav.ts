@@ -1,3 +1,16 @@
+/**
+ * Gamepad and keyboard navigation for Steam Deck and controller input.
+ *
+ * Focus management uses a two-zone model:
+ * - **sidebar**: the navigation sidebar (`data-crosshook-focus-zone="sidebar"`)
+ * - **content**: the main content area (`data-crosshook-focus-zone="content"`)
+ *
+ * Modal dialogs override both zones via `data-crosshook-focus-root="modal"`.
+ *
+ * Gamepad polling runs a `requestAnimationFrame` loop that reads D-pad, analog sticks,
+ * and face buttons. Bumpers (L1/R1) cycle sidebar views. Keyboard arrow keys, Tab,
+ * Enter, Space, and Escape are handled in the capture phase.
+ */
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 
 export interface GamepadNavOptions {

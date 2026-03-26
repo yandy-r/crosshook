@@ -3,32 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { PanelImperativeHandle } from 'react-resizable-panels';
 
 import ConsoleView from '../ConsoleView';
-
-function normalizeLogMessage(payload: unknown): string {
-  if (typeof payload === 'string') {
-    return payload;
-  }
-
-  if (payload === null || typeof payload !== 'object') {
-    return '';
-  }
-
-  const record = payload as Record<string, unknown>;
-
-  if ('line' in record && typeof record.line === 'string') {
-    return record.line;
-  }
-
-  if ('message' in record && typeof record.message === 'string') {
-    return record.message;
-  }
-
-  if ('text' in record && typeof record.text === 'string') {
-    return record.text;
-  }
-
-  return '';
-}
+import { normalizeLogMessage, type LogPayload } from '../../utils/log';
 
 function countLogLines(payload: unknown): number {
   const text = normalizeLogMessage(payload).trimEnd();
@@ -76,7 +51,7 @@ export function ConsoleDrawer({ panelRef }: ConsoleDrawerProps) {
     let active = true;
 
     // Mirror the launch-log stream so the badge stays in sync without changing ConsoleView.
-    const unlistenPromise = listen<unknown>('launch-log', (event) => {
+    const unlistenPromise = listen<LogPayload>('launch-log', (event) => {
       const nextLineCount = countLogLines(event.payload);
       if (nextLineCount === 0 || !active) {
         return;

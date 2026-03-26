@@ -11,6 +11,19 @@ import { ProfileProvider, useProfileContext } from './context/ProfileContext';
 import { useGamepadNav } from './hooks/useGamepadNav';
 import { useScrollEnhance } from './hooks/useScrollEnhance';
 
+const VALID_APP_ROUTES: Record<AppRoute, true> = {
+  profiles: true,
+  launch: true,
+  install: true,
+  community: true,
+  compatibility: true,
+  settings: true,
+};
+
+function isAppRoute(value: string): value is AppRoute {
+  return value in VALID_APP_ROUTES;
+}
+
 function handleGamepadBack(): void {
   const closeButtons = document.querySelectorAll<HTMLButtonElement>(
     '[data-crosshook-focus-root="modal"] [data-crosshook-modal-close]',
@@ -34,7 +47,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
       <Tabs.Root
         orientation="vertical"
         value={route}
-        onValueChange={(value) => setRoute(value as AppRoute)}
+        onValueChange={(value) => { if (isAppRoute(value)) setRoute(value); }}
       >
         <div className="crosshook-app-layout">
           <Group
