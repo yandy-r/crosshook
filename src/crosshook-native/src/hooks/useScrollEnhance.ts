@@ -5,8 +5,9 @@ const SMOOTH_FACTOR = 0.18;
 const ARROW_SCROLL_PX = 80;
 const SCROLLABLE = '.crosshook-content-area, .crosshook-console-drawer__body';
 
-const NON_SCROLLABLE_ROLES = new Set([
+const INTERACTIVE_ROLES = new Set([
   'tablist', 'listbox', 'menu', 'menubar', 'radiogroup', 'slider',
+  'combobox', 'select', 'spinbutton', 'tree', 'grid',
 ]);
 
 function isInteractiveTarget(el: Element | null): boolean {
@@ -15,8 +16,10 @@ function isInteractiveTarget(el: Element | null): boolean {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
   if ((el as HTMLElement).isContentEditable) return true;
   const role = el.getAttribute('role');
-  if (role && NON_SCROLLABLE_ROLES.has(role)) return true;
-  if (el.closest('[role="tablist"], [role="listbox"], [role="menu"]')) return true;
+  if (role && INTERACTIVE_ROLES.has(role)) return true;
+  if (el.closest('[role="tablist"], [role="listbox"], [role="menu"], [role="combobox"]')) return true;
+  // Radix Select triggers use data-state and aria-expanded
+  if (el.hasAttribute('aria-expanded')) return true;
   return false;
 }
 
