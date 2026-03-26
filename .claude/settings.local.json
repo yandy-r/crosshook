@@ -79,7 +79,18 @@
       "Bash(grep -r \"⬤\\\\|►\\\\|✓\\\\|✗\\\\|☑\\\\|☐\" /home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src --include=*.tsx --include=*.ts)",
       "Bash(REPO=\"yandy-r/crosshook\")",
       "Bash(__NEW_LINE_c5e5b59526f988cb__ gh:*)",
-      "Bash(__NEW_LINE_c5e5b59526f988cb__ echo:*)"
+      "Bash(__NEW_LINE_c5e5b59526f988cb__ echo:*)",
+      "Bash(__NEW_LINE_61369dd039ad1d74__ gh:*)",
+      "Bash(__NEW_LINE_61369dd039ad1d74__ echo:*)",
+      "Bash(__NEW_LINE_c5459febe44b7a79__ gh:*)",
+      "Bash(__NEW_LINE_c5459febe44b7a79__ echo:*)",
+      "Bash(__NEW_LINE_a66a359cd0eaab34__ gh:*)",
+      "Bash(__NEW_LINE_a66a359cd0eaab34__ echo:*)",
+      "Bash(__NEW_LINE_bd953f49490c15ae__ gh:*)",
+      "Bash(__NEW_LINE_bd953f49490c15ae__ echo:*)",
+      "Bash(__NEW_LINE_633949e4c80d539d__ gh:*)",
+      "Bash(__NEW_LINE_633949e4c80d539d__ echo:*)",
+      "Bash(__NEW_LINE_4fa97d45824476d4__ gh:*)"
     ]
   }
 }
