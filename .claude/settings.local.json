@@ -81,7 +81,9 @@
       "Bash(__NEW_LINE_633949e4c80d539d__ gh:*)",
       "Bash(__NEW_LINE_633949e4c80d539d__ echo:*)",
       "Bash(__NEW_LINE_4fa97d45824476d4__ gh:*)",
-      "Bash(get_feature_plan_dir:*)"
+      "Bash(get_feature_plan_dir:*)",
+      "Bash(grep:*)",
+      "Bash(npx vite:*)"
     ]
   }
 }
