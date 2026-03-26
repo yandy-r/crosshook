@@ -1,6 +1,5 @@
-use std::fs;
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use crosshook_core::launch::{
     build_steam_launch_options_command as build_steam_launch_options_command_core,
@@ -13,6 +12,8 @@ use crosshook_core::launch::{
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
+
+use super::shared::create_log_path;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LaunchResult {
@@ -163,21 +164,6 @@ async fn stream_log_lines(app: AppHandle, log_path: PathBuf, mut child: tokio::p
             }
         }
     }
-}
-
-fn create_log_path(prefix: &str, target_slug: &str) -> Result<PathBuf, String> {
-    let log_dir = PathBuf::from("/tmp/crosshook-logs");
-    fs::create_dir_all(&log_dir).map_err(|error| error.to_string())?;
-
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| error.to_string())?
-        .as_millis();
-
-    let file_name = format!("{prefix}-{target_slug}-{timestamp}.log");
-    let log_path = log_dir.join(file_name);
-    fs::File::create(&log_path).map_err(|error| error.to_string())?;
-    Ok(log_path)
 }
 
 fn resolve_script_path(app: &AppHandle, script_name: &str) -> Result<PathBuf, String> {

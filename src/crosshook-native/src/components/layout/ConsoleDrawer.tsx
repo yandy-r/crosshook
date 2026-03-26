@@ -50,8 +50,8 @@ export function ConsoleDrawer({ panelRef }: ConsoleDrawerProps) {
   useEffect(() => {
     let active = true;
 
-    // Mirror the launch-log stream so the badge stays in sync without changing ConsoleView.
-    const unlistenPromise = listen<LogPayload>('launch-log', (event) => {
+    // Mirror the launch-log and update-log streams so the badge stays in sync without changing ConsoleView.
+    const handler = (event: { payload: LogPayload }) => {
       const nextLineCount = countLogLines(event.payload);
       if (nextLineCount === 0 || !active) {
         return;
@@ -65,11 +65,15 @@ export function ConsoleDrawer({ panelRef }: ConsoleDrawerProps) {
         return current;
       });
       setLineCount((current) => current + nextLineCount);
-    });
+    };
+
+    const unlistenLaunch = listen<LogPayload>('launch-log', handler);
+    const unlistenUpdate = listen<LogPayload>('update-log', handler);
 
     return () => {
       active = false;
-      void unlistenPromise.then((unlisten) => unlisten());
+      void unlistenLaunch.then((unlisten) => unlisten());
+      void unlistenUpdate.then((unlisten) => unlisten());
     };
   }, [panelRef]);
 

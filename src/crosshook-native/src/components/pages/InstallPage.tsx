@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 import InstallGamePanel from '../InstallGamePanel';
 import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
+import UpdateGamePanel from '../UpdateGamePanel';
 import ProfileReviewModal, { type ProfileReviewModalConfirmation } from '../ProfileReviewModal';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
@@ -369,10 +370,17 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
         illustration={<InstallArt />}
       />
 
-      <InstallGamePanel
-        onOpenProfileReview={handleOpenProfileReview}
-        onRequestInstallAction={handleInstallActionConfirmation}
-      />
+      <div style={{ display: 'grid', gap: 24 }}>
+        <InstallGamePanel
+          onOpenProfileReview={handleOpenProfileReview}
+          onRequestInstallAction={handleInstallActionConfirmation}
+        />
+
+        <UpdateGamePanel
+          protonInstalls={protonInstalls}
+          protonInstallsError={protonInstallsError}
+        />
+      </div>
 
       {profileReviewSession !== null && (profileReviewSession.isOpen || reviewConfirmation !== null) ? (
         <ProfileReviewModal
