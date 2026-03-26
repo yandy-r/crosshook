@@ -76,7 +76,10 @@
       "Bash(wc -l /home/yandy/Projects/github.com/yandy-r/worktrees/crosshook/research-ui-enhancements/docs/plans/ui-enhancements/*.md)",
       "Bash(source /home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/_shared/scripts/resolve-plans-dir.sh)",
       "Bash(get_feature_plan_dir \"ui-enhancements\")",
-      "Bash(grep -r \"⬤\\\\|►\\\\|✓\\\\|✗\\\\|☑\\\\|☐\" /home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src --include=*.tsx --include=*.ts)"
+      "Bash(grep -r \"⬤\\\\|►\\\\|✓\\\\|✗\\\\|☑\\\\|☐\" /home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src --include=*.tsx --include=*.ts)",
+      "Bash(REPO=\"yandy-r/crosshook\")",
+      "Bash(__NEW_LINE_c5e5b59526f988cb__ gh:*)",
+      "Bash(__NEW_LINE_c5e5b59526f988cb__ echo:*)"
     ]
   }
 }
