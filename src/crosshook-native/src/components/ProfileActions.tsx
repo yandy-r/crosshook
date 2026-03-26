@@ -3,11 +3,14 @@ export interface ProfileActionsProps {
   loading: boolean;
   saving: boolean;
   deleting: boolean;
+  duplicating: boolean;
   error: string | null;
   canSave: boolean;
   canDelete: boolean;
+  canDuplicate: boolean;
   onSave: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
+  onDuplicate: () => void | Promise<void>;
 }
 
 export function ProfileActions({
@@ -15,17 +18,28 @@ export function ProfileActions({
   loading,
   saving,
   deleting,
+  duplicating,
   error,
   canSave,
   canDelete,
+  canDuplicate,
   onSave,
   onDelete,
+  onDuplicate,
 }: ProfileActionsProps) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
         <button type="button" className="crosshook-button" onClick={() => void onSave()} disabled={!canSave}>
           {saving ? 'Saving...' : 'Save'}
+        </button>
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={() => void onDuplicate()}
+          disabled={!canDuplicate || duplicating}
+        >
+          {duplicating ? 'Duplicating...' : 'Duplicate'}
         </button>
         <button
           type="button"

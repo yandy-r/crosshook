@@ -52,3 +52,8 @@ export interface GameProfile {
     optimizations: LaunchOptimizations;
   };
 }
+
+export interface DuplicateProfileResult {
+  name: string;
+  profile: GameProfile;
+}

@@ -1,4 +1,4 @@
-use crosshook_core::profile::{GameProfile, ProfileStore, ProfileStoreError};
+use crosshook_core::profile::{DuplicateProfileResult, GameProfile, ProfileStore, ProfileStoreError};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -120,6 +120,14 @@ pub fn profile_delete(name: String, store: State<'_, ProfileStore>) -> Result<()
     }
 
     store.delete(&name).map_err(map_error)
+}
+
+#[tauri::command]
+pub fn profile_duplicate(
+    name: String,
+    store: State<'_, ProfileStore>,
+) -> Result<DuplicateProfileResult, String> {
+    store.duplicate(&name).map_err(map_error)
 }
 
 #[tauri::command]

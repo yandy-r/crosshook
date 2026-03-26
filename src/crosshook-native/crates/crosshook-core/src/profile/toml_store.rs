@@ -2,6 +2,7 @@ use super::models::LaunchOptimizationsSection;
 use crate::launch::is_known_launch_optimization_id;
 use crate::profile::{legacy, GameProfile};
 use directories::BaseDirs;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,6 +55,12 @@ impl From<toml::ser::Error> for ProfileStoreError {
     fn from(value: toml::ser::Error) -> Self {
         Self::TomlSer(value)
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuplicateProfileResult {
+    pub name: String,
+    pub profile: GameProfile,
 }
 
 impl Default for ProfileStore {
@@ -180,6 +187,42 @@ impl ProfileStore {
         Ok(profile)
     }
 
+    pub fn duplicate(&self, source_name: &str) -> Result<DuplicateProfileResult, ProfileStoreError> {
+        validate_name(source_name)?;
+        let profile = self.load(source_name)?;
+        let existing_names = self.list()?;
+        let new_name = Self::generate_unique_copy_name(source_name, &existing_names)?;
+        self.save(&new_name, &profile)?;
+        Ok(DuplicateProfileResult {
+            name: new_name,
+            profile,
+        })
+    }
+
+    fn generate_unique_copy_name(
+        source_name: &str,
+        existing_names: &[String],
+    ) -> Result<String, ProfileStoreError> {
+        let base = strip_copy_suffix(source_name);
+        let candidate = format!("{base} (Copy)");
+        if !existing_names.iter().any(|n| n == &candidate) {
+            validate_name(&candidate)?;
+            return Ok(candidate);
+        }
+
+        for i in 2..=1000 {
+            let candidate = format!("{base} (Copy {i})");
+            if !existing_names.iter().any(|n| n == &candidate) {
+                validate_name(&candidate)?;
+                return Ok(candidate);
+            }
+        }
+
+        Err(ProfileStoreError::InvalidName(format!(
+            "cannot generate unique copy name for '{source_name}'"
+        )))
+    }
+
     fn profile_path(&self, name: &str) -> Result<PathBuf, ProfileStoreError> {
         validate_name(name)?;
         Ok(self.base_path.join(format!("{name}.toml")))
@@ -211,6 +254,21 @@ pub fn validate_name(name: &str) -> Result<(), ProfileStoreError> {
     }
 
     Ok(())
+}
+
+fn strip_copy_suffix(name: &str) -> &str {
+    let trimmed = name.trim_end();
+
+    if let Some(before_paren) = trimmed.strip_suffix(')') {
+        if let Some(pos) = before_paren.rfind('(') {
+            let inside = before_paren[pos + 1..].trim();
+            if inside == "Copy" || inside.strip_prefix("Copy ").is_some_and(|n| n.parse::<u32>().is_ok()) {
+                return trimmed[..pos].trim_end();
+            }
+        }
+    }
+
+    trimmed
 }
 
 #[cfg(test)]
@@ -474,5 +532,80 @@ method = "native"
             result,
             Err(ProfileStoreError::InvalidLaunchOptimizationId(id)) if id == "not_a_real_launch_optimization"
         ));
+    }
+
+    #[test]
+    fn test_strip_copy_suffix() {
+        assert_eq!(strip_copy_suffix("Name (Copy)"), "Name");
+        assert_eq!(strip_copy_suffix("Name (Copy 3)"), "Name");
+        assert_eq!(strip_copy_suffix("Name"), "Name");
+        assert_eq!(strip_copy_suffix("Copy"), "Copy");
+        assert_eq!(strip_copy_suffix("Game (Special Edition)"), "Game (Special Edition)");
+        assert_eq!(strip_copy_suffix("Name (Copy 0)"), "Name");
+        assert_eq!(strip_copy_suffix("Name (Copy 99)"), "Name");
+    }
+
+    #[test]
+    fn test_duplicate_basic() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("MyGame", &profile).unwrap();
+        let result = store.duplicate("MyGame").unwrap();
+
+        assert_eq!(result.name, "MyGame (Copy)");
+        assert_eq!(result.profile, profile);
+        assert!(store.profile_path("MyGame (Copy)").unwrap().exists());
+    }
+
+    #[test]
+    fn test_duplicate_increments_on_conflict() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("MyGame", &profile).unwrap();
+        store.save("MyGame (Copy)", &profile).unwrap();
+        let result = store.duplicate("MyGame").unwrap();
+
+        assert_eq!(result.name, "MyGame (Copy 2)");
+    }
+
+    #[test]
+    fn test_duplicate_of_copy() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("MyGame", &profile).unwrap();
+        store.save("MyGame (Copy)", &profile).unwrap();
+        let result = store.duplicate("MyGame (Copy)").unwrap();
+
+        assert_eq!(result.name, "MyGame (Copy 2)");
+    }
+
+    #[test]
+    fn test_duplicate_preserves_all_fields() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("FullProfile", &profile).unwrap();
+        let result = store.duplicate("FullProfile").unwrap();
+
+        let loaded_source = store.load("FullProfile").unwrap();
+        let loaded_copy = store.load(&result.name).unwrap();
+        assert_eq!(loaded_source, loaded_copy);
+    }
+
+    #[test]
+    fn test_duplicate_source_not_found() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        fs::create_dir_all(&store.base_path).unwrap();
+
+        let result = store.duplicate("nonexistent");
+        assert!(matches!(result, Err(ProfileStoreError::NotFound(_))));
     }
 }

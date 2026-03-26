@@ -89,6 +89,7 @@ pub fn run() {
             commands::launch::validate_launch,
             commands::launch::build_steam_launch_options_command,
             commands::profile::profile_delete,
+            commands::profile::profile_duplicate,
             commands::profile::profile_import_legacy,
             commands::profile::profile_list,
             commands::profile::profile_load,

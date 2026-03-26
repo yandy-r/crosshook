@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { AppSettingsData, GameProfile, LauncherInfo, RecentFilesData } from '../types';
+import type { AppSettingsData, DuplicateProfileResult, GameProfile, LauncherInfo, RecentFilesData } from '../types';
 import {
   LAUNCH_OPTIMIZATION_OPTIONS_BY_ID,
   getConflictingLaunchOptimizationIds,
@@ -36,6 +36,8 @@ export interface UseProfileResult {
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   toggleLaunchOptimization: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
   saveProfile: () => Promise<void>;
+  duplicateProfile: (sourceName: string) => Promise<void>;
+  duplicating: boolean;
   persistProfileDraft: PersistProfileDraft;
   confirmDelete: (name: string) => Promise<void>;
   executeDelete: () => Promise<void>;
@@ -322,6 +324,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [launchOptimizationsStatus, setLaunchOptimizationsStatus] = useState<LaunchOptimizationsStatus>(
@@ -551,6 +554,27 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     await persistProfileDraft(profileName, profile);
   }, [persistProfileDraft, profile, profileName]);
 
+  const duplicateProfile = useCallback(
+    async (sourceName: string): Promise<void> => {
+      if (!sourceName.trim()) return;
+      setDuplicating(true);
+      setError(null);
+      try {
+        const result = await invoke<DuplicateProfileResult>('profile_duplicate', {
+          name: sourceName,
+        });
+        await refreshProfiles();
+        await loadProfile(result.name);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+      } finally {
+        setDuplicating(false);
+      }
+    },
+    [loadProfile, refreshProfiles]
+  );
+
   const confirmDelete = useCallback(async (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -691,6 +715,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     loading,
     saving,
     deleting,
+    duplicating,
     error,
     profileExists,
     pendingDelete,
@@ -701,6 +726,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     updateProfile,
     toggleLaunchOptimization,
     saveProfile,
+    duplicateProfile,
     persistProfileDraft,
     confirmDelete,
     executeDelete,
