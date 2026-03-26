@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'reac
 import { invoke } from '@tauri-apps/api/core';
 
 import { formatProtonInstallLabel, type ProtonInstallOption } from './ProfileFormSections';
+import { ThemedSelect } from './ui/ThemedSelect';
 import { chooseDirectory, chooseFile } from '../utils/dialog';
 import { useInstallGame } from '../hooks/useInstallGame';
 import type {
@@ -129,23 +130,20 @@ function ProtonPathField(props: {
         Proton Path
       </label>
       <div style={{ display: 'grid', gap: 10 }}>
-        <select
+        <ThemedSelect
           id="install-detected-proton"
-          className="crosshook-select"
           value={selectedPath}
-          onChange={(event) => {
-            if (event.target.value.trim().length > 0) {
-              props.onChange(event.target.value);
+          onValueChange={(val) => {
+            if (val.trim().length > 0) {
+              props.onChange(val);
             }
           }}
-        >
-          <option value="">Detected Proton install</option>
-          {props.installs.map((install) => (
-            <option key={install.path} value={install.path}>
-              {formatProtonInstallLabel(install, duplicateNameCounts)}
-            </option>
-          ))}
-        </select>
+          placeholder="Detected Proton install"
+          options={props.installs.map((install) => ({
+            value: install.path,
+            label: formatProtonInstallLabel(install, duplicateNameCounts),
+          }))}
+        />
 
         <div className="crosshook-install-field-control">
           <input

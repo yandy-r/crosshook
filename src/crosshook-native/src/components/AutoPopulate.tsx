@@ -38,72 +38,44 @@ interface FieldCardProps {
   onApply: (() => void) | null;
 }
 
-const panelStyle = {
-  background: 'rgba(13, 20, 31, 0.92)',
-  border: '1px solid rgba(120, 145, 177, 0.2)',
-  borderRadius: 18,
-  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
-  padding: 20,
-};
-
-const buttonStyle = {
-  minHeight: 42,
-  borderRadius: 12,
-  border: '1px solid rgba(120, 145, 177, 0.35)',
-  background: 'linear-gradient(180deg, #1a2b45 0%, #132034 100%)',
-  color: '#f3f6fb',
-  padding: '0 14px',
-  cursor: 'pointer',
-  flexShrink: 0,
-};
-
-const subtleButtonStyle = {
-  ...buttonStyle,
-  background: '#0b1624',
-};
-
-const mutedTextStyle = {
-  margin: 0,
-  color: '#99a8bd',
-  fontSize: 13,
-  lineHeight: 1.5,
-};
-
-const stateStyles: Record<SteamFieldState, { label: string; color: string; background: string; border: string }> = {
+const stateStyles: Record<SteamFieldState, { label: string }> = {
   Idle: {
     label: 'Not Scanned',
-    color: '#cbd5e1',
-    background: 'rgba(51, 65, 85, 0.2)',
-    border: '1px solid rgba(148, 163, 184, 0.22)',
   },
   Saved: {
     label: 'Saved',
-    color: '#bfdbfe',
-    background: 'rgba(30, 64, 175, 0.22)',
-    border: '1px solid rgba(96, 165, 250, 0.28)',
   },
   Found: {
     label: 'Found',
-    color: '#c6f6d5',
-    background: 'rgba(20, 83, 45, 0.4)',
-    border: '1px solid rgba(74, 222, 128, 0.3)',
   },
   Ambiguous: {
     label: 'Ambiguous',
-    color: '#fde68a',
-    background: 'rgba(113, 63, 18, 0.32)',
-    border: '1px solid rgba(245, 158, 11, 0.35)',
   },
   NotFound: {
     label: 'Not Found',
-    color: '#fecaca',
-    background: 'rgba(127, 29, 29, 0.28)',
-    border: '1px solid rgba(248, 113, 113, 0.32)',
   },
 };
 
+function getStateVariant(state: SteamFieldState): string {
+  switch (state) {
+    case 'Idle':
+      return 'idle';
+    case 'Saved':
+      return 'saved';
+    case 'Found':
+      return 'found';
+    case 'Ambiguous':
+      return 'ambiguous';
+    case 'NotFound':
+      return 'not-found';
+  }
+
+  throw new Error(`Unsupported Steam field state: ${state}`);
+}
+
 function FieldCard({ label, state, currentValue, proposedValue, onApply }: FieldCardProps) {
   const styles = stateStyles[state];
+  const stateVariant = getStateVariant(state);
   const hasProposedValue = proposedValue.trim().length > 0;
   const showApply =
     state === 'Found' &&
@@ -112,35 +84,28 @@ function FieldCard({ label, state, currentValue, proposedValue, onApply }: Field
     proposedValue.trim() !== currentValue.trim();
 
   return (
-    <div
-      style={{
-        borderRadius: 16,
-        border: styles.border,
-        background: styles.background,
-        padding: 16,
-        display: 'grid',
-        gap: 10,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'start' }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ color: '#e5eefc', fontSize: 15, fontWeight: 700 }}>{label}</div>
-          <div style={{ color: styles.color, fontSize: 12, fontWeight: 700, marginTop: 4 }}>{styles.label}</div>
+    <div className={`crosshook-auto-populate__field-card crosshook-auto-populate__field-card--${stateVariant}`}>
+      <div className="crosshook-auto-populate__field-header">
+        <div className="crosshook-auto-populate__field-heading">
+          <div className="crosshook-auto-populate__field-label">{label}</div>
+          <div className={`crosshook-auto-populate__field-state crosshook-auto-populate__field-state--${stateVariant}`}>
+            {styles.label}
+          </div>
         </div>
         {showApply ? (
-          <button type="button" style={subtleButtonStyle} onClick={onApply}>
+          <button type="button" className="crosshook-auto-populate__button crosshook-auto-populate__button--subtle" onClick={onApply}>
             Apply
           </button>
         ) : null}
       </div>
 
-      <div style={{ display: 'grid', gap: 8, fontSize: 13, color: '#cbd5e1' }}>
-        <div style={{ wordBreak: 'break-word', lineHeight: 1.5 }}>
-          <strong style={{ color: '#f8fafc' }}>Current:</strong>{' '}
+      <div className="crosshook-auto-populate__field-values">
+        <div className="crosshook-auto-populate__field-value">
+          <strong className="crosshook-auto-populate__field-value-label">Current:</strong>{' '}
           {currentValue.trim().length > 0 ? currentValue : 'unset'}
         </div>
-        <div style={{ wordBreak: 'break-word', lineHeight: 1.5 }}>
-          <strong style={{ color: '#f8fafc' }}>Proposed:</strong> {hasProposedValue ? proposedValue : 'none'}
+        <div className="crosshook-auto-populate__field-value">
+          <strong className="crosshook-auto-populate__field-value-label">Proposed:</strong> {hasProposedValue ? proposedValue : 'none'}
         </div>
       </div>
     </div>
@@ -188,18 +153,18 @@ export function AutoPopulate({
   const protonState = result?.proton_state ?? (currentProtonPath.trim().length > 0 ? 'Saved' : 'Idle');
 
   return (
-    <section style={panelStyle} aria-label="Auto-populate Steam values">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'start', flexWrap: 'wrap' }}>
-        <div style={{ display: 'grid', gap: 6 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Auto-Populate Steam</h2>
-          <p style={mutedTextStyle}>
+    <section className="crosshook-auto-populate" aria-label="Auto-populate Steam values">
+      <div className="crosshook-auto-populate__header">
+        <div className="crosshook-auto-populate__heading">
+          <h2 className="crosshook-auto-populate__title">Auto-Populate Steam</h2>
+          <p className="crosshook-auto-populate__copy">
             Scan the selected game and Steam install to fill App ID, prefix path, and Proton values.
           </p>
         </div>
 
         <button
           type="button"
-          style={buttonStyle}
+          className="crosshook-auto-populate__button"
           onClick={() => void runAutoPopulate()}
           disabled={loading || gamePath.trim().length === 0}
         >
@@ -207,14 +172,7 @@ export function AutoPopulate({
         </button>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          marginTop: 18,
-        }}
-      >
+      <div className="crosshook-auto-populate__field-grid">
         <FieldCard
           label="Steam App ID"
           state={appIdState}
@@ -251,63 +209,42 @@ export function AutoPopulate({
       </div>
 
       {error ? (
-        <div
-          style={{
-            marginTop: 16,
-            borderRadius: 12,
-            padding: 12,
-            background: 'rgba(140, 40, 40, 0.2)',
-            border: '1px solid rgba(255, 90, 90, 0.3)',
-            color: '#ffd4d4',
-          }}
-        >
+        <div className="crosshook-auto-populate__error" role="alert">
           {error}
         </div>
       ) : null}
 
-      <div style={{ display: 'grid', gap: 16, marginTop: 18 }}>
-        <section
-          style={{
-            borderRadius: 16,
-            background: 'rgba(7, 12, 24, 0.55)',
-            border: '1px solid rgba(255, 255, 255, 0.07)',
-            padding: 16,
-          }}
-        >
-          <h3 style={{ margin: 0, fontSize: 15, color: '#eef4ff' }}>Diagnostics</h3>
-          <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+      <div className="crosshook-auto-populate__info-grid">
+        <section className="crosshook-auto-populate__info-card">
+          <h3 className="crosshook-auto-populate__info-title">Diagnostics</h3>
+          <div className="crosshook-auto-populate__info-body">
             {loading ? (
-              <div style={{ color: '#9fb1d6' }}>Waiting for Steam discovery output...</div>
+              <div className="crosshook-auto-populate__info-empty">Waiting for Steam discovery output...</div>
             ) : result?.diagnostics?.length ? (
               result.diagnostics.map((entry, index) => (
-                <div key={`${index}-${entry}`} style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.5 }}>
+                <div key={`${index}-${entry}`} className="crosshook-auto-populate__info-entry">
                   {entry}
                 </div>
               ))
             ) : (
-              <div style={{ color: '#9fb1d6' }}>Run auto-populate to see discovery steps.</div>
+              <div className="crosshook-auto-populate__info-empty">Run auto-populate to see discovery steps.</div>
             )}
           </div>
         </section>
 
-        <section
-          style={{
-            borderRadius: 16,
-            background: 'rgba(7, 12, 24, 0.55)',
-            border: '1px solid rgba(255, 255, 255, 0.07)',
-            padding: 16,
-          }}
-        >
-          <h3 style={{ margin: 0, fontSize: 15, color: '#eef4ff' }}>Manual Hints</h3>
-          <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+        <section className="crosshook-auto-populate__info-card">
+          <h3 className="crosshook-auto-populate__info-title">Manual Hints</h3>
+          <div className="crosshook-auto-populate__info-body">
             {result?.manual_hints?.length ? (
               result.manual_hints.map((entry, index) => (
-                <div key={`${index}-${entry}`} style={{ color: '#cbd5e1', fontSize: 13, lineHeight: 1.5 }}>
+                <div key={`${index}-${entry}`} className="crosshook-auto-populate__info-entry">
                   {entry}
                 </div>
               ))
             ) : (
-              <div style={{ color: '#9fb1d6' }}>Hints appear here when discovery is incomplete or ambiguous.</div>
+              <div className="crosshook-auto-populate__info-empty">
+                Hints appear here when discovery is incomplete or ambiguous.
+              </div>
             )}
           </div>
         </section>

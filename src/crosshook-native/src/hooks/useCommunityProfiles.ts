@@ -212,11 +212,12 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
       const nextTaps = taps.filter(
         (entry) => !(entry.url === normalized.url && (entry.branch ?? '') === (normalized.branch ?? ''))
       );
-      const updatedTaps = persistTaps(nextTaps);
-      await saveSettingsTaps(updatedTaps);
+      const deduped = dedupeTaps(nextTaps);
+      await saveSettingsTaps(deduped);
+      setTaps(deduped);
       await refreshProfiles();
     },
-    [persistTaps, refreshProfiles, saveSettingsTaps, taps]
+    [refreshProfiles, saveSettingsTaps, taps]
   );
 
   const importCommunityProfile = useCallback(async (jsonPath: string) => {

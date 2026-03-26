@@ -206,3 +206,165 @@
 - `useProfile.ts` now guards toggle attempts and surfaces a panel-local warning state instead of letting a conflicting selection persist until launch.
 - Verification:
   - `npm exec --yes tsc -- --noEmit` passed in `src/crosshook-native`
+
+## 2026-03-25 - ui enhancements tracking issue
+
+- [x] Review `docs/plans/ui-enhancements/` and closed issues `#24` and `#28` for issue structure, scope, and labels.
+- [x] Draft a tracking issue body that matches the existing planning-driven feature issue format.
+- [x] Create the GitHub issue with the selected labels and record the result here.
+
+## Review
+
+- Created [Issue #33](https://github.com/yandy-r/crosshook/issues/33): `feat: Sidebar navigation, dedicated views, and persistent console drawer`.
+- The issue body follows the same planning-driven structure used by `#24` and `#28`: summary, planning artifacts, architecture, critical path, key design decisions, planned phases, success criteria, and validation expectations.
+- Applied labels:
+  - `type:feature`
+  - `area:ui`
+  - `area:profiles`
+  - `platform:steam-deck`
+  - `platform:linux`
+  - `platform:proton`
+  - `priority:medium`
+  - `feat:platform-native-ui`
+
+## 2026-03-25 - ui enhancements implementation
+
+- [x] Validate `docs/plans/ui-enhancements/parallel-plan.md` prerequisites and rebuild the real dependency batches.
+- [x] Batch 1: complete Tasks `1.1`, `1.3`, and `1.4`.
+- [x] Batch 2: complete Task `1.2`.
+- [x] Batch 3: complete Tasks `1.5`, `1.6`, and `1.7`.
+- [x] Batch 4: complete Task `1.8`.
+- [x] Batch 5: complete Tasks `2.1`, `2.3`, `2.4`, `2.5`, `2.6`, `2.7`, and `2.8`.
+- [x] Batch 6: complete Task `2.2`.
+- [x] Batch 7: complete Tasks `2.9` and `2.10`.
+- [x] Batch 8: complete Tasks `3.1`, `3.2`, `3.3`, `3.4`, `3.5`, `3.6`, `3.7`, `3.8`, and `3.9`.
+- [x] Batch 9: complete Task `3.10`.
+- [x] Run integration verification, repair any cross-task conflicts, and write the closeout review.
+
+## Review
+
+- The horizontal tab shell was replaced with a provider-backed vertical navigation layout using `Sidebar`, `ContentArea`, `ConsoleDrawer`, and a persistent controller prompt bar.
+- Profile, launch, install, community, compatibility, and settings flows now live in dedicated page shells under `src/crosshook-native/src/components/pages/`, and the old `ProfileEditor.tsx` composition was removed.
+- Shared frontend state now lives in `ProfileContext` and `PreferencesContext`, with Steam-path helpers moved into `src/crosshook-native/src/utils/steam.ts`.
+- Console, launch, export, settings, community, compatibility, and auto-populate surfaces were migrated away from component-local inline styles to class-driven styling in `theme.css` and the new layout CSS files.
+- Gamepad navigation now understands sidebar/content focus zones, remembers focus per zone, supports left/right zone switching, and cycles sidebar views with `LB` / `RB`.
+- Verification:
+  - `cd src/crosshook-native && npm exec --yes tsc -- --noEmit` passed
+  - `cd src/crosshook-native && npm run build` passed
+- Residual risk:
+  - No manual Tauri or controller session was run here, so focus behavior, drawer ergonomics, responsive collapse, and install-review save handoff still need a real GUI pass.
+  - `git diff --check` still reports whitespace failures because the local Git whitespace configuration expects tabs globally while this repo’s frontend files use spaces; I did not normalize the feature diff into tabs.
+
+## 2026-03-25 - ui shell layout regression
+
+- [x] Trace the collapsed shell layout against the current app wrapper and panel-group composition.
+- [x] Fix the shell container so the resizable panel group spans the full app viewport instead of a single grid cell.
+- [x] Re-run frontend verification and record the correction.
+
+## Review
+
+- The regression came from wrapping the panel-group shell in a two-column CSS grid without explicitly spanning the child across the grid, which collapsed the entire app into the first grid track.
+- `layout.css` now treats `.crosshook-app-layout` as a flex wrapper and forces nested panel groups to fill the available width and height, which restores the intended sidebar + content layout.
+- `Sidebar.tsx` now also marks the sidebar with `data-crosshook-focus-zone="sidebar"` so the newer gamepad zoning has an explicit shell anchor.
+
+## 2026-03-25 - ui shell resize correction
+
+- [x] Inspect the current shell against the resized screenshot and trace why the panes still do not resize correctly.
+- [x] Replace the shell separators with explicit resize handles, loosen the sidebar/content constraints, and let the log drawer honor the panel height instead of a fixed internal height.
+- [x] Re-run frontend verification and record the correction.
+
+## Review
+
+- The second regression came from treating `Separator` as a resize handle without giving it explicit sizing/styling, keeping the sidebar width too tightly capped, and letting the console drawer body keep a fixed internal height that fought the vertical panel size.
+- `App.tsx` now uses explicit shell panel classes and resize-handle classes, the sidebar can grow wider, the content pane has a real minimum size, and the log panel now uses panel sizing rather than disappearing below a fixed drawer body.
+- `layout.css` now defines visible vertical and horizontal resize handles plus bounded content width, and `ContentArea.tsx` keeps the content focus zone marker without re-wrapping the page shells.
+- Verification:
+  - `cd src/crosshook-native && npm exec --yes tsc -- --noEmit` passed
+  - `cd src/crosshook-native && npm run build` passed
+
+## 2026-03-25 - ui shell sizing correction
+
+- [x] Inspect the follow-up screenshot and trace why the app still reads as edge-to-edge, why the sidebar stays collapsed-looking, and why log resizing still behaves like the shell height is unbounded.
+- [x] Restore a centered bounded shell width, lock the shell to viewport height for true internal resizing, and relax the sidebar collapse threshold so desktop/tablet widths stay expanded by default.
+- [x] Re-run frontend verification and record the correction.
+
+## Review
+
+- The remaining issues came from three shell-sizing mistakes: the app shell no longer respected the previous centered max-width, it used `min-height` instead of a fixed viewport-bounded height so vertical resizing pushed content offscreen, and the sidebar auto-collapse threshold was too aggressive for normal desktop/tablet layouts.
+- `layout.css` now restores a centered `var(--crosshook-content-width)` shell, gives the shell a fixed viewport-bounded height, and keeps the content area internally scrollable instead of letting the whole shell grow vertically.
+- `App.tsx` now loosens the panel min/max constraints so the sidebar can actually grow and the main pane can shrink further, while `Sidebar.tsx` only auto-collapses at much smaller widths.
+- Verification:
+  - `cd src/crosshook-native && npm exec --yes tsc -- --noEmit` passed
+  - `cd src/crosshook-native && npm run build` passed
+
+## 2026-03-25 - ui shell breakpoint adjustment
+
+- [x] Inspect the latest screenshot and verify whether the sidebar is still collapsing too early and whether the centered shell is still too narrow for the current form density.
+- [x] Widen the centered shell and push the sidebar collapse breakpoint down so normal app widths keep the full sidebar visible.
+- [x] Re-run frontend verification and record the correction.
+
+## Review
+
+- The latest screenshot showed the shell was directionally better but still using an over-aggressive sidebar collapse breakpoint and a content width that was too close to the older compact layout for the denser form rows.
+- `variables.css` now widens `--crosshook-content-width` to `1440px`, and the sidebar collapse behavior only kicks in below `560px` instead of collapsing at ordinary app widths.
+- Verification:
+  - `cd src/crosshook-native && npm exec --yes tsc -- --noEmit` passed
+  - `cd src/crosshook-native && npm run build` passed
+
+## 2026-03-25 - ui shell no-collapse decision
+
+- [x] Remove automatic sidebar collapse from the current shell.
+- [x] Cap the sidebar resize range at about 40% of the shell width.
+- [x] Keep the current widened centered shell and re-run frontend verification.
+
+## Review
+
+- The final correction turns the sidebar behavior into an explicit product decision instead of a guessed breakpoint: the sidebar now stays expanded by default, and no responsive auto-collapse logic remains in the current shell.
+- `App.tsx` now limits the sidebar to roughly `14%`-`40%` with a `20%` default, and `Sidebar.tsx` no longer manages `matchMedia` collapse state.
+- `variables.css` keeps the current `1440px` centered shell width without any automatic sidebar-width collapse override.
+- Verification:
+  - `cd src/crosshook-native && npm exec --yes tsc -- --noEmit` passed
+  - `cd src/crosshook-native && npm run build` passed
+
+## 2026-03-25 - ui shell collapse removal follow-through
+
+- [x] Verify the current shell code actually reflects the no-auto-collapse decision rather than assuming the last visual complaint was covered.
+- [x] Remove the remaining sidebar collapse state and keep the sidebar resize range aligned with the agreed `~40%` max.
+- [x] Re-run frontend verification and record the follow-through.
+
+## Review
+
+- The missing follow-through was that the previous visual complaint was still hitting live auto-collapse behavior; the current correction removes that behavior entirely instead of just adjusting its threshold.
+- `Sidebar.tsx` now always renders the expanded sidebar, `App.tsx` keeps the agreed `20%` default / `40%` max sidebar range, and `variables.css` no longer includes any automatic sidebar-width collapse override.
+- Verification:
+  - `cd src/crosshook-native && npm exec --yes tsc -- --noEmit` passed
+  - `cd src/crosshook-native && npm run build` passed
+
+## 2026-03-25 - ui shell panel sizing bug
+
+- [x] Verify the actual panel-library size semantics instead of continuing to infer them from screenshots.
+- [x] Replace the shell panel numeric size props with explicit percentage strings for sidebar/content/log sizing.
+- [x] Re-run frontend verification and record the correction.
+
+## Review
+
+- The real resize bug was that `react-resizable-panels` treats numeric `defaultSize` / `minSize` / `maxSize` values as pixels, not percentages. The sidebar and content/log panes were therefore being constrained to tens of pixels instead of percentage-based shell space.
+- `App.tsx` now uses explicit percentage strings for the resizable shell panels, while the log drawer `collapsedSize` stays pixel-based to match the visible handle height.
+- Verification:
+  - `cd src/crosshook-native && npm exec --yes tsc -- --noEmit` passed
+  - `cd src/crosshook-native && npm run build` passed
+
+## 2026-03-25 - launch optimization panels restored
+
+- [x] Trace whether the Proton launch-optimizations panel and Steam launch-options command UI were deleted or merely dropped from the render tree.
+- [x] Reattach both surfaces to the dedicated `Launch` page using the existing profile-context contract.
+- [x] Re-run frontend verification and record the correction.
+
+## Review
+
+- The optimization features were not removed from the codebase; they were orphaned during the shell/page refactor because the new `LaunchPage` only rendered `LaunchPanel`.
+- `LaunchPage.tsx` now renders `LaunchOptimizationsPanel` for `proton_run` and `steam_applaunch` profiles, and renders `SteamLaunchOptionsPanel` beneath it for `steam_applaunch`.
+- Verification:
+  - `cd src/crosshook-native && npm exec --yes tsc -- --noEmit` passed
+  - `cd src/crosshook-native && npm run build` passed
+- Task `3.5` completed: `CommunityBrowser` and `CompatibilityViewer` now use class-based layouts and rating badges instead of inline style objects, and the frontend TypeScript check passed after the change.

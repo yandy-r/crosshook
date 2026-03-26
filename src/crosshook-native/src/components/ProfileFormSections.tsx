@@ -1,8 +1,10 @@
 import { useId, type ChangeEvent, type ReactNode } from 'react';
 
 import AutoPopulate from './AutoPopulate';
+import { ThemedSelect } from './ui/ThemedSelect';
 import { chooseDirectory, chooseFile } from '../utils/dialog';
 import type { GameProfile, LaunchMethod } from '../types';
+import { deriveSteamClientInstallPath } from '../utils/steam';
 
 export interface ProtonInstallOption {
   name: string;
@@ -81,13 +83,7 @@ function updateGameExecutablePath(current: GameProfile, nextExecutablePath: stri
   };
 }
 
-export function deriveSteamClientInstallPath(compatdataPath: string): string {
-  const marker = '/steamapps/compatdata/';
-  const normalized = compatdataPath.trim().replace(/\\/g, '/');
-  const index = normalized.indexOf(marker);
-
-  return index >= 0 ? normalized.slice(0, index) : '';
-}
+export { deriveSteamClientInstallPath } from '../utils/steam';
 
 export function formatProtonInstallLabel(install: ProtonInstallOption, duplicateNameCounts: Record<string, number>): string {
   const baseLabel = install.name.trim() || 'Unnamed Proton install';
@@ -165,23 +161,20 @@ function ProtonPathField(props: {
         {props.label}
       </label>
       <div style={{ display: 'grid', gap: 10 }}>
-        <select
+        <ThemedSelect
           id={selectId}
-          className="crosshook-select"
           value={selectedInstallPath}
-          onChange={(event) => {
-            if (event.target.value.trim().length > 0) {
-              props.onChange(event.target.value);
+          onValueChange={(val) => {
+            if (val.trim().length > 0) {
+              props.onChange(val);
             }
           }}
-        >
-          <option value="">Detected Proton install</option>
-          {props.installs.map((install) => (
-            <option key={install.path} value={install.path}>
-              {formatProtonInstallLabel(install, duplicateNameCounts)}
-            </option>
-          ))}
-        </select>
+          placeholder="Detected Proton install"
+          options={props.installs.map((install) => ({
+            value: install.path,
+            label: formatProtonInstallLabel(install, duplicateNameCounts),
+          }))}
+        />
 
         <div className="crosshook-install-field-control">
           <input
@@ -349,19 +342,16 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
             <label className="crosshook-label" htmlFor={`${profileNamesListId}-selector`}>
               Load Profile
             </label>
-            <select
+            <ThemedSelect
               id={`${profileNamesListId}-selector`}
-              className="crosshook-select"
-              value={selectedProfile}
-              onChange={(event) => void profileSelector.onSelectProfile(event.target.value)}
-            >
-              <option value="">Create New</option>
-              {profileSelector.profiles.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
+              value={selectedProfile ?? ''}
+              onValueChange={(val) => void profileSelector.onSelectProfile(val)}
+              placeholder="Create New"
+              options={[
+                { value: '', label: 'Create New' },
+                ...profileSelector.profiles.map((name) => ({ value: name, label: name })),
+              ]}
+            />
           </div>
         ) : null}
       </div>
@@ -406,25 +396,25 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
         <label className="crosshook-label" htmlFor={`${profileNamesListId}-launch-method`}>
           Runner Method
         </label>
-        <select
+        <ThemedSelect
           id={`${profileNamesListId}-launch-method`}
-          className="crosshook-select"
           value={launchMethod}
-          onChange={(event) =>
+          onValueChange={(val) =>
             onUpdateProfile((current) => ({
               ...current,
-              steam: { ...current.steam, enabled: event.target.value === 'steam_applaunch' },
+              steam: { ...current.steam, enabled: val === 'steam_applaunch' },
               launch: {
                 ...current.launch,
-                method: event.target.value as typeof current.launch.method,
+                method: val as typeof current.launch.method,
               },
             }))
           }
-        >
-          <option value="steam_applaunch">Steam app launch</option>
-          <option value="proton_run">Proton runtime launch</option>
-          <option value="native">Native Linux launch</option>
-        </select>
+          options={[
+            { value: 'steam_applaunch', label: 'Steam app launch' },
+            { value: 'proton_run', label: 'Proton runtime launch' },
+            { value: 'native', label: 'Native Linux launch' },
+          ]}
+        />
         <p className="crosshook-help-text">
           Choose the runner explicitly so CrossHook saves the correct launch method and only shows the relevant fields.
         </p>
