@@ -51,8 +51,10 @@ export function ContentArea({ route, onNavigate }: ContentAreaProps) {
           <SettingsPage />
         </Tabs.Content>
       );
-    default:
-      return null;
+    default: {
+      const _exhaustive: never = route;
+      return _exhaustive;
+    }
   }
 }
 

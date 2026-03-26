@@ -1,6 +1,9 @@
 import * as Select from '@radix-ui/react-select';
 
-/** Radix Select does not allow empty-string values; map them to a sentinel. */
+/**
+ * Radix Select does not allow empty-string values; map them to a sentinel.
+ * Values matching this literal must not appear in `SelectOption.value`.
+ */
 const EMPTY = '__empty__';
 const toRadix = (v: string) => (v === '' ? EMPTY : v);
 const fromRadix = (v: string) => (v === EMPTY ? '' : v);

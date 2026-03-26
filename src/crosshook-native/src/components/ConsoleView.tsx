@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type UIEvent } from 'react';
 import { listen } from '@tauri-apps/api/event';
 
+import { normalizeLogMessage, type LogPayload } from '../utils/log';
+
 type ConsoleLine = {
   id: number;
   timestamp: string;
@@ -13,32 +15,6 @@ function formatTimestamp(date: Date) {
     minute: '2-digit',
     second: '2-digit',
   });
-}
-
-function normalizeLogMessage(payload: unknown) {
-  if (typeof payload === 'string') {
-    return payload;
-  }
-
-  if (payload === null || typeof payload !== 'object') {
-    return '';
-  }
-
-  const record = payload as Record<string, unknown>;
-
-  if ('line' in record && typeof record.line === 'string') {
-    return record.line;
-  }
-
-  if ('message' in record && typeof record.message === 'string') {
-    return record.message;
-  }
-
-  if ('text' in record && typeof record.text === 'string') {
-    return record.text;
-  }
-
-  return '';
 }
 
 export function ConsoleView() {
@@ -69,7 +45,7 @@ export function ConsoleView() {
   useEffect(() => {
     let active = true;
 
-    const unlistenPromise = listen<unknown>('launch-log', (event) => {
+    const unlistenPromise = listen<LogPayload>('launch-log', (event) => {
       const text = normalizeLogMessage(event.payload).trimEnd();
       if (!text) {
         return;

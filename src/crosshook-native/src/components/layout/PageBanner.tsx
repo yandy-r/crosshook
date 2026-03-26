@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, SVGProps } from 'react';
 
 interface PageBannerProps {
   eyebrow: string;
@@ -24,7 +24,7 @@ export function PageBanner({ eyebrow, title, copy, illustration }: PageBannerPro
 
 /* ── Per-page decorative illustrations ──────────────────────────────── */
 
-const S: React.SVGProps<SVGSVGElement> = {
+const SVG_DEFAULTS: SVGProps<SVGSVGElement> = {
   viewBox: '0 0 200 120',
   fill: 'none',
   stroke: 'currentColor',
@@ -35,7 +35,7 @@ const S: React.SVGProps<SVGSVGElement> = {
 
 export function ProfilesArt() {
   return (
-    <svg {...S}>
+    <svg {...SVG_DEFAULTS}>
       {/* Main profile card */}
       <rect x="60" y="20" width="80" height="80" rx="12" strokeWidth={1.2} opacity={0.5} />
       <circle cx="100" cy="48" r="14" opacity={0.45} />
@@ -53,7 +53,7 @@ export function ProfilesArt() {
 
 export function LaunchArt() {
   return (
-    <svg {...S}>
+    <svg {...SVG_DEFAULTS}>
       {/* Large play triangle */}
       <path d="M65 25 L150 60 L65 95Z" strokeWidth={1.2} opacity={0.4} />
       {/* Motion lines */}
@@ -73,7 +73,7 @@ export function LaunchArt() {
 
 export function InstallArt() {
   return (
-    <svg {...S}>
+    <svg {...SVG_DEFAULTS}>
       {/* Download box */}
       <rect x="65" y="45" width="70" height="50" rx="10" strokeWidth={1.2} opacity={0.4} />
       {/* Arrow shaft */}
@@ -94,7 +94,7 @@ export function InstallArt() {
 
 export function CommunityArt() {
   return (
-    <svg {...S}>
+    <svg {...SVG_DEFAULTS}>
       {/* Central globe */}
       <circle cx="100" cy="60" r="35" strokeWidth={1.2} opacity={0.35} />
       <ellipse cx="100" cy="60" rx="14" ry="35" opacity={0.2} />
@@ -115,7 +115,7 @@ export function CommunityArt() {
 
 export function CompatibilityArt() {
   return (
-    <svg {...S}>
+    <svg {...SVG_DEFAULTS}>
       {/* Shield */}
       <path d="M100 15 L140 30 L140 65 Q140 95 100 108 Q60 95 60 65 L60 30Z" strokeWidth={1.2} opacity={0.35} />
       {/* Inner shield line */}
@@ -132,7 +132,7 @@ export function CompatibilityArt() {
 
 export function SettingsArt() {
   return (
-    <svg {...S}>
+    <svg {...SVG_DEFAULTS}>
       {/* Main gear */}
       <circle cx="100" cy="60" r="18" strokeWidth={1.2} opacity={0.35} />
       <circle cx="100" cy="60" r="8" opacity={0.25} />

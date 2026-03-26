@@ -1,3 +1,11 @@
+/**
+ * Active profile state and selection.
+ *
+ * ProfileContext owns profile CRUD, selection, and derived values (launch method,
+ * Steam paths). App settings and recent files are handled by PreferencesContext.
+ *
+ * Listens for `auto-load-profile` events emitted by the Tauri backend at startup.
+ */
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import { listen } from '@tauri-apps/api/event';
 
@@ -15,7 +23,7 @@ interface ProfileProviderProps {
   children: ReactNode;
 }
 
-const ProfileContext = createContext<ProfileContextValue | undefined>(undefined);
+const ProfileContext = createContext<ProfileContextValue | null>(null);
 
 
 export function ProfileProvider({ children }: ProfileProviderProps) {
@@ -56,7 +64,7 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
 export function useProfileContext(): ProfileContextValue {
   const context = useContext(ProfileContext);
 
-  if (context === undefined) {
+  if (context === null) {
     throw new Error('useProfileContext must be used within a ProfileProvider.');
   }
 
