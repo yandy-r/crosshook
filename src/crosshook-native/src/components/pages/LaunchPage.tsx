@@ -1,6 +1,7 @@
 import LaunchOptimizationsPanel from '../LaunchOptimizationsPanel';
 import LaunchPanel from '../LaunchPanel';
 import SteamLaunchOptionsPanel from '../SteamLaunchOptionsPanel';
+import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useProfileContext } from '../../context/ProfileContext';
 import { PageBanner, LaunchArt } from '../layout/PageBanner';
@@ -64,7 +65,9 @@ export function LaunchPage() {
       />
 
       <div style={{ display: 'grid', gap: 24 }}>
-        <LaunchPanel profileId={profileId} method={profileState.launchMethod} request={launchRequest} />
+        <CollapsibleSection title="Launch Controls" className="crosshook-panel">
+          <LaunchPanel profileId={profileId} method={profileState.launchMethod} request={launchRequest} />
+        </CollapsibleSection>
 
         <section className="crosshook-launch-profile-selector">
           <span className="crosshook-heading-eyebrow">Active Profile</span>
@@ -77,18 +80,22 @@ export function LaunchPage() {
         </section>
 
         {showsOptimizationPanels ? (
-          <LaunchOptimizationsPanel
-            method={profileState.launchMethod}
-            enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
-            onToggleOption={profileState.toggleLaunchOptimization}
-            status={profileState.launchOptimizationsStatus}
-          />
+          <CollapsibleSection title="Launch Optimizations" className="crosshook-panel">
+            <LaunchOptimizationsPanel
+              method={profileState.launchMethod}
+              enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
+              onToggleOption={profileState.toggleLaunchOptimization}
+              status={profileState.launchOptimizationsStatus}
+            />
+          </CollapsibleSection>
         ) : null}
 
         {showsSteamLaunchOptions ? (
-          <SteamLaunchOptionsPanel
-            enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
-          />
+          <CollapsibleSection title="Steam Launch Options" className="crosshook-panel">
+            <SteamLaunchOptionsPanel
+              enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
+            />
+          </CollapsibleSection>
         ) : null}
       </div>
     </>

@@ -1,4 +1,5 @@
 import { useDeferredValue, useMemo, useState, type ChangeEvent } from 'react';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 
 export type CompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
 
@@ -149,145 +150,153 @@ export function CompatibilityViewer({
         </div>
       </header>
 
-      <div className="crosshook-compatibility-viewer__filters">
-        <label className="crosshook-field crosshook-compatibility-viewer__field">
-          <span className="crosshook-label">Game</span>
-          <input
-            className="crosshook-input"
-            list="crosshook-compat-games"
-            value={gameFilter}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => setGameFilter(event.target.value)}
-            placeholder="Filter by game"
-          />
-          <datalist id="crosshook-compat-games">
-            {filterOptions.games.map((game) => (
-              <option key={game} value={game} />
-            ))}
-          </datalist>
-        </label>
+      <CollapsibleSection title="Filters" className="crosshook-panel">
+        <div className="crosshook-compatibility-viewer__filters">
+          <label className="crosshook-field crosshook-compatibility-viewer__field">
+            <span className="crosshook-label">Game</span>
+            <input
+              className="crosshook-input"
+              list="crosshook-compat-games"
+              value={gameFilter}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setGameFilter(event.target.value)}
+              placeholder="Filter by game"
+            />
+            <datalist id="crosshook-compat-games">
+              {filterOptions.games.map((game) => (
+                <option key={game} value={game} />
+              ))}
+            </datalist>
+          </label>
 
-        <label className="crosshook-field crosshook-compatibility-viewer__field">
-          <span className="crosshook-label">Trainer</span>
-          <input
-            className="crosshook-input"
-            list="crosshook-compat-trainers"
-            value={trainerFilter}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => setTrainerFilter(event.target.value)}
-            placeholder="Filter by trainer"
-          />
-          <datalist id="crosshook-compat-trainers">
-            {filterOptions.trainers.map((trainer) => (
-              <option key={trainer} value={trainer} />
-            ))}
-          </datalist>
-        </label>
+          <label className="crosshook-field crosshook-compatibility-viewer__field">
+            <span className="crosshook-label">Trainer</span>
+            <input
+              className="crosshook-input"
+              list="crosshook-compat-trainers"
+              value={trainerFilter}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setTrainerFilter(event.target.value)}
+              placeholder="Filter by trainer"
+            />
+            <datalist id="crosshook-compat-trainers">
+              {filterOptions.trainers.map((trainer) => (
+                <option key={trainer} value={trainer} />
+              ))}
+            </datalist>
+          </label>
 
-        <label className="crosshook-field crosshook-compatibility-viewer__field">
-          <span className="crosshook-label">Platform</span>
-          <input
-            className="crosshook-input"
-            list="crosshook-compat-platforms"
-            value={platformFilter}
-            onChange={(event: ChangeEvent<HTMLInputElement>) => setPlatformFilter(event.target.value)}
-            placeholder="Filter by platform"
-          />
-          <datalist id="crosshook-compat-platforms">
-            {filterOptions.platforms.map((platform) => (
-              <option key={platform} value={platform} />
-            ))}
-          </datalist>
-        </label>
-      </div>
-
-      {loading ? (
-        <div className="crosshook-panel crosshook-compatibility-viewer__message">Loading compatibility data...</div>
-      ) : error ? (
-        <div className="crosshook-panel crosshook-compatibility-viewer__message">
-          <div className="crosshook-danger">{error}</div>
+          <label className="crosshook-field crosshook-compatibility-viewer__field">
+            <span className="crosshook-label">Platform</span>
+            <input
+              className="crosshook-input"
+              list="crosshook-compat-platforms"
+              value={platformFilter}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setPlatformFilter(event.target.value)}
+              placeholder="Filter by platform"
+            />
+            <datalist id="crosshook-compat-platforms">
+              {filterOptions.platforms.map((platform) => (
+                <option key={platform} value={platform} />
+              ))}
+            </datalist>
+          </label>
         </div>
-      ) : filteredEntries.length === 0 ? (
-        <div className="crosshook-panel crosshook-compatibility-viewer__message">{emptyMessage}</div>
-      ) : (
-        <div className="crosshook-compatibility-viewer__result-grid">
-          {filteredEntries.map((entry) => {
-            const isSelected = selectedEntryId === entry.id;
-            const { metadata } = entry;
+      </CollapsibleSection>
 
-            return (
-              <article
-                key={entry.id}
-                className={[
-                  'crosshook-compatibility-viewer__result-card',
-                  isSelected ? 'crosshook-compatibility-viewer__result-card--selected' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <div className="crosshook-compatibility-viewer__result-header">
-                  <div className="crosshook-compatibility-viewer__result-title">
-                    <div className="crosshook-heading-title crosshook-compatibility-viewer__result-game">
-                      {metadata.game_name}
+      <CollapsibleSection
+        title="Results"
+        className="crosshook-panel"
+        meta={<span>{filteredEntries.length} of {entries.length} entries</span>}
+      >
+        {loading ? (
+          <div className="crosshook-panel crosshook-compatibility-viewer__message">Loading compatibility data...</div>
+        ) : error ? (
+          <div className="crosshook-panel crosshook-compatibility-viewer__message">
+            <div className="crosshook-danger">{error}</div>
+          </div>
+        ) : filteredEntries.length === 0 ? (
+          <div className="crosshook-panel crosshook-compatibility-viewer__message">{emptyMessage}</div>
+        ) : (
+          <div className="crosshook-compatibility-viewer__result-grid">
+            {filteredEntries.map((entry) => {
+              const isSelected = selectedEntryId === entry.id;
+              const { metadata } = entry;
+
+              return (
+                <article
+                  key={entry.id}
+                  className={[
+                    'crosshook-compatibility-viewer__result-card',
+                    isSelected ? 'crosshook-compatibility-viewer__result-card--selected' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <div className="crosshook-compatibility-viewer__result-header">
+                    <div className="crosshook-compatibility-viewer__result-title">
+                      <div className="crosshook-heading-title crosshook-compatibility-viewer__result-game">
+                        {metadata.game_name}
+                      </div>
+                      <div className="crosshook-muted crosshook-compatibility-viewer__result-trainer">
+                        {metadata.trainer_name}
+                        {metadata.trainer_version ? ` • ${metadata.trainer_version}` : ''}
+                      </div>
                     </div>
-                    <div className="crosshook-muted crosshook-compatibility-viewer__result-trainer">
-                      {metadata.trainer_name}
-                      {metadata.trainer_version ? ` • ${metadata.trainer_version}` : ''}
+
+                    <div className="crosshook-compatibility-viewer__result-badges">
+                      <CompatibilityBadge rating={metadata.compatibility_rating} />
+                      {metadata.platform_tags.map((tag) => (
+                        <span key={tag} className="crosshook-status-chip crosshook-compatibility-chip">
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="crosshook-compatibility-viewer__result-badges">
-                    <CompatibilityBadge rating={metadata.compatibility_rating} />
-                    {metadata.platform_tags.map((tag) => (
-                      <span key={tag} className="crosshook-status-chip crosshook-compatibility-chip">
-                        {tag}
+                  <div className="crosshook-compatibility-viewer__result-meta">
+                    {metadata.game_version ? (
+                      <span className="crosshook-status-chip crosshook-compatibility-chip">
+                        Game {metadata.game_version}
                       </span>
-                    ))}
+                    ) : null}
+                    {metadata.proton_version ? (
+                      <span className="crosshook-status-chip crosshook-compatibility-chip">
+                        Proton {metadata.proton_version}
+                      </span>
+                    ) : null}
+                    {metadata.author ? (
+                      <span className="crosshook-status-chip crosshook-compatibility-chip">
+                        By {metadata.author}
+                      </span>
+                    ) : null}
                   </div>
-                </div>
 
-                <div className="crosshook-compatibility-viewer__result-meta">
-                  {metadata.game_version ? (
-                    <span className="crosshook-status-chip crosshook-compatibility-chip">
-                      Game {metadata.game_version}
-                    </span>
-                  ) : null}
-                  {metadata.proton_version ? (
-                    <span className="crosshook-status-chip crosshook-compatibility-chip">
-                      Proton {metadata.proton_version}
-                    </span>
-                  ) : null}
-                  {metadata.author ? (
-                    <span className="crosshook-status-chip crosshook-compatibility-chip">
-                      By {metadata.author}
-                    </span>
-                  ) : null}
-                </div>
+                  {metadata.description ? <p className="crosshook-heading-copy">{metadata.description}</p> : null}
 
-                {metadata.description ? <p className="crosshook-heading-copy">{metadata.description}</p> : null}
-
-                <div className="crosshook-compatibility-viewer__result-actions">
-                  {onSelectEntry ? (
-                    <button
-                      type="button"
-                      className="crosshook-button crosshook-button--secondary"
-                      onClick={() => onSelectEntry(entry)}
-                    >
-                      Select
-                    </button>
-                  ) : null}
-                  {onImportEntry ? (
-                    <button type="button" className="crosshook-button" onClick={() => onImportEntry(entry)}>
-                      Import
-                    </button>
-                  ) : null}
-                  <span className="crosshook-muted crosshook-compatibility-viewer__result-source">
-                    {selectPreview([entry.tap_url, entry.relative_path ?? entry.manifest_path])}
-                  </span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
+                  <div className="crosshook-compatibility-viewer__result-actions">
+                    {onSelectEntry ? (
+                      <button
+                        type="button"
+                        className="crosshook-button crosshook-button--secondary"
+                        onClick={() => onSelectEntry(entry)}
+                      >
+                        Select
+                      </button>
+                    ) : null}
+                    {onImportEntry ? (
+                      <button type="button" className="crosshook-button" onClick={() => onImportEntry(entry)}>
+                        Import
+                      </button>
+                    ) : null}
+                    <span className="crosshook-muted crosshook-compatibility-viewer__result-source">
+                      {selectPreview([entry.tap_url, entry.relative_path ?? entry.manifest_path])}
+                    </span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </CollapsibleSection>
     </section>
   );
 }

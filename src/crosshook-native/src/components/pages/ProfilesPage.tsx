@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import LauncherExport from '../LauncherExport';
 import ProfileActions from '../ProfileActions';
 import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
+import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { PageBanner, ProfilesArt } from '../layout/PageBanner';
@@ -110,65 +111,64 @@ export function ProfilesPage() {
         illustration={<ProfilesArt />}
       />
 
-      <section className="crosshook-panel" style={{ display: 'grid', gap: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <h2 style={{ margin: 0, fontSize: 18 }}>Profile</h2>
-            <p className="crosshook-help-text">Edit the current profile, then save it before launching or exporting.</p>
-          </div>
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--secondary"
-            onClick={() => void refreshProfiles()}
-          >
-            Refresh
-          </button>
-        </div>
+      <div style={{ display: 'grid', gap: 24 }}>
+        <CollapsibleSection
+          title="Profile"
+          className="crosshook-panel"
+          meta={
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary"
+              onClick={(event) => {
+                event.preventDefault();
+                void refreshProfiles();
+              }}
+            >
+              Refresh
+            </button>
+          }
+        >
+          <p className="crosshook-help-text">Edit the current profile, then save it before launching or exporting.</p>
 
-        <ProfileFormSections
-          profileName={profileName}
-          profile={profile}
-          launchMethod={launchMethod}
-          protonInstalls={protonInstalls}
-          protonInstallsError={protonInstallsError}
-          profileSelector={{
-            profiles,
-            selectedProfile,
-            onSelectProfile: selectProfile,
-          }}
-          onProfileNameChange={setProfileName}
-          onUpdateProfile={updateProfile}
-        />
+          <ProfileFormSections
+            profileName={profileName}
+            profile={profile}
+            launchMethod={launchMethod}
+            protonInstalls={protonInstalls}
+            protonInstallsError={protonInstallsError}
+            profileSelector={{
+              profiles,
+              selectedProfile,
+              onSelectProfile: selectProfile,
+            }}
+            onProfileNameChange={setProfileName}
+            onUpdateProfile={updateProfile}
+          />
 
-        <ProfileActions
-          dirty={dirty}
-          loading={loading}
-          saving={saving}
-          deleting={deleting}
-          error={error}
-          canSave={canSave}
-          canDelete={canDelete}
-          onSave={saveProfile}
-          onDelete={() => confirmDelete(profileName)}
-        />
+          <ProfileActions
+            dirty={dirty}
+            loading={loading}
+            saving={saving}
+            deleting={deleting}
+            error={error}
+            canSave={canSave}
+            canDelete={canDelete}
+            onSave={saveProfile}
+            onDelete={() => confirmDelete(profileName)}
+          />
+        </CollapsibleSection>
 
         {supportsLauncherExport ? (
-          <section style={{ display: 'grid', gap: 12 }}>
-            <div style={{ display: 'grid', gap: 4 }}>
-              <h2 style={{ margin: 0, fontSize: 18 }}>Launcher Export</h2>
-              <p className="crosshook-help-text">
-                Generate a standalone launcher script and desktop entry for the current profile.
-              </p>
-            </div>
+          <CollapsibleSection title="Launcher Export" className="crosshook-panel">
             <LauncherExport
               profile={profile}
               method={launchMethod}
               steamClientInstallPath={effectiveSteamClientInstallPath}
               targetHomePath={targetHomePath}
             />
-          </section>
+          </CollapsibleSection>
         ) : null}
-      </section>
+      </div>
 
       {pendingDelete ? (
         <div className="crosshook-profile-editor-delete-overlay" data-crosshook-focus-root="modal">

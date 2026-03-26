@@ -302,16 +302,6 @@ export function LauncherExport({
 
   return (
     <section className="crosshook-export-panel" aria-label="Launcher export">
-      <header className="crosshook-export-panel__header">
-        <div className="crosshook-export-panel__eyebrow">
-          Launcher Export
-        </div>
-        <h2 className="crosshook-export-panel__title">Export a standalone trainer launcher</h2>
-        <p className="crosshook-export-panel__copy">
-          Generate a shell script and matching desktop entry from the current profile and runtime settings.
-        </p>
-      </header>
-
       <div className="crosshook-export-panel__body">
         <div className="crosshook-export-section">
           <label className="crosshook-export-label" htmlFor="launcher-name">

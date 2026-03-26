@@ -5,6 +5,7 @@ import InstallGamePanel from '../InstallGamePanel';
 import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
 import UpdateGamePanel from '../UpdateGamePanel';
 import ProfileReviewModal, { type ProfileReviewModalConfirmation } from '../ProfileReviewModal';
+import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import type { GameProfile } from '../../types';
@@ -371,15 +372,19 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
       />
 
       <div style={{ display: 'grid', gap: 24 }}>
-        <InstallGamePanel
-          onOpenProfileReview={handleOpenProfileReview}
-          onRequestInstallAction={handleInstallActionConfirmation}
-        />
+        <CollapsibleSection title="Install Game" className="crosshook-panel">
+          <InstallGamePanel
+            onOpenProfileReview={handleOpenProfileReview}
+            onRequestInstallAction={handleInstallActionConfirmation}
+          />
+        </CollapsibleSection>
 
-        <UpdateGamePanel
-          protonInstalls={protonInstalls}
-          protonInstallsError={protonInstallsError}
-        />
+        <CollapsibleSection title="Update Game" className="crosshook-panel">
+          <UpdateGamePanel
+            protonInstalls={protonInstalls}
+            protonInstallsError={protonInstallsError}
+          />
+        </CollapsibleSection>
       </div>
 
       {profileReviewSession !== null && (profileReviewSession.isOpen || reviewConfirmation !== null) ? (
