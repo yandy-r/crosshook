@@ -202,8 +202,11 @@ export function useUpdateGame(): UseUpdateGameResult {
       unlistenComplete = await listen<number | null>('update-complete', (event) => {
         const exitCode = event.payload;
 
-        if (exitCode === 0 || exitCode === null) {
+        if (exitCode === 0) {
           setStage('complete');
+        } else if (exitCode === null) {
+          setStage('failed');
+          setError('Update process was terminated by a signal.');
         } else {
           setStage('failed');
           setError(`Update process exited with code ${exitCode}.`);
