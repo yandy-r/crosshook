@@ -1412,7 +1412,7 @@ textarea {
 
 .crosshook-launch-panel__hint,
 .crosshook-launch-panel__helper-log,
-.crosshook-launch-panel__error {
+.crosshook-launch-panel__feedback {
   margin: 10px 0 0;
   line-height: 1.6;
 }
@@ -1427,9 +1427,80 @@ textarea {
   word-break: break-all;
 }
 
-.crosshook-launch-panel__error {
-  color: #ff8fa3;
+.crosshook-launch-panel__feedback {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.crosshook-launch-panel__feedback[data-severity='fatal'] {
+  border-color: rgba(255, 92, 120, 0.28);
+  background: rgba(96, 23, 39, 0.3);
+}
+
+.crosshook-launch-panel__feedback[data-severity='warning'] {
+  border-color: rgba(245, 197, 66, 0.28);
+  background: rgba(92, 70, 13, 0.28);
+}
+
+.crosshook-launch-panel__feedback[data-severity='info'] {
+  border-color: rgba(70, 151, 255, 0.26);
+  background: rgba(16, 55, 102, 0.28);
+}
+
+.crosshook-launch-panel__feedback-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.crosshook-launch-panel__feedback-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff3f5;
+}
+
+.crosshook-launch-panel__feedback[data-severity='warning'] .crosshook-launch-panel__feedback-badge {
+  color: #fef3c7;
+}
+
+.crosshook-launch-panel__feedback[data-severity='info'] .crosshook-launch-panel__feedback-badge {
+  color: #dbeafe;
+}
+
+.crosshook-launch-panel__feedback-title,
+.crosshook-launch-panel__feedback-help {
+  margin: 0;
   font-size: 0.92rem;
+}
+
+.crosshook-launch-panel__feedback-title {
+  color: #ffe4ea;
+  font-weight: 600;
+}
+
+.crosshook-launch-panel__feedback[data-severity='warning'] .crosshook-launch-panel__feedback-title {
+  color: #fef3c7;
+}
+
+.crosshook-launch-panel__feedback[data-severity='info'] .crosshook-launch-panel__feedback-title {
+  color: #dbeafe;
+}
+
+.crosshook-launch-panel__feedback-help {
+  color: var(--crosshook-color-text-muted);
 }
 
 .crosshook-launch-panel__actions {

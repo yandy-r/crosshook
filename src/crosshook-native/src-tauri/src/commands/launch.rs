@@ -8,7 +8,8 @@ use crosshook_core::launch::{
         build_helper_command, build_native_game_command, build_proton_game_command,
         build_proton_trainer_command, build_trainer_command,
     },
-    validate, LaunchRequest, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    validate, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE, METHOD_PROTON_RUN,
+    METHOD_STEAM_APPLAUNCH,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -21,13 +22,15 @@ pub struct LaunchResult {
 }
 
 #[tauri::command]
-pub fn validate_launch(request: LaunchRequest) -> Result<(), String> {
-    validate(&request).map_err(|error| error.to_string())
+pub fn validate_launch(request: LaunchRequest) -> Result<(), LaunchValidationIssue> {
+    validate(&request).map_err(|error| error.issue())
 }
 
 /// Builds a Steam per-game “Launch Options” line from the same optimization IDs as `proton_run`.
 #[tauri::command]
-pub fn build_steam_launch_options_command(enabled_option_ids: Vec<String>) -> Result<String, String> {
+pub fn build_steam_launch_options_command(
+    enabled_option_ids: Vec<String>,
+) -> Result<String, String> {
     build_steam_launch_options_command_core(&enabled_option_ids).map_err(|error| error.to_string())
 }
 
@@ -36,7 +39,7 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
     let mut request = request;
     request.launch_game_only = true;
     request.launch_trainer_only = false;
-    validate_launch(request.clone())?;
+    validate(&request).map_err(|error| error.to_string())?;
 
     let log_path = create_log_path("game", &request.log_target_slug())?;
     let mut command = match request.resolved_method() {
@@ -71,7 +74,7 @@ pub async fn launch_trainer(
     let mut request = request;
     request.launch_trainer_only = true;
     request.launch_game_only = false;
-    validate_launch(request.clone())?;
+    validate(&request).map_err(|error| error.to_string())?;
 
     let log_path = create_log_path("trainer", &request.log_target_slug())?;
     let mut command = match request.resolved_method() {

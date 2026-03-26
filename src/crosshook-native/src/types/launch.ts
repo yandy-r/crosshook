@@ -31,9 +31,32 @@ export interface LaunchRequest {
   launch_game_only: boolean;
 }
 
-export interface ValidationResult {
-  is_valid: boolean;
-  error_message: string;
+export type LaunchValidationSeverity = 'fatal' | 'warning' | 'info';
+
+export interface LaunchValidationIssue {
+  message: string;
+  help: string;
+  severity: LaunchValidationSeverity;
+}
+
+export type LaunchFeedback =
+  | { kind: 'validation'; issue: LaunchValidationIssue }
+  | { kind: 'runtime'; message: string };
+
+export function isLaunchValidationIssue(value: unknown): value is LaunchValidationIssue {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<LaunchValidationIssue>;
+
+  return (
+    typeof candidate.message === 'string' &&
+    typeof candidate.help === 'string' &&
+    (candidate.severity === 'fatal' ||
+      candidate.severity === 'warning' ||
+      candidate.severity === 'info')
+  );
 }
 
 export interface LaunchResult {
