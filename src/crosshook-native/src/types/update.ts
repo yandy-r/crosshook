@@ -28,14 +28,14 @@ export type UpdateGameValidationError =
 export const UPDATE_GAME_VALIDATION_MESSAGES: Record<UpdateGameValidationError, string> = {
   UpdaterPathRequired: 'The updater executable path is required.',
   UpdaterPathMissing: 'The updater executable path does not exist.',
-  UpdaterPathNotFile: 'The updater executable path does not point to a file.',
+  UpdaterPathNotFile: 'The updater executable path must be a file.',
   UpdaterPathNotWindowsExecutable: 'The updater executable path must point to a Windows .exe file.',
-  ProtonPathRequired: 'The Proton path is required.',
+  ProtonPathRequired: 'A Proton path is required.',
   ProtonPathMissing: 'The Proton path does not exist.',
   ProtonPathNotExecutable: 'The Proton path does not point to an executable file.',
-  PrefixPathRequired: 'The prefix path is required.',
+  PrefixPathRequired: 'A prefix path is required.',
   PrefixPathMissing: 'The prefix path does not exist.',
-  PrefixPathNotDirectory: 'The prefix path does not point to a directory.',
+  PrefixPathNotDirectory: 'The prefix path must be a directory.',
 };
 
 export const UPDATE_GAME_VALIDATION_FIELD: Record<UpdateGameValidationError, keyof UpdateGameRequest | null> = {

@@ -122,6 +122,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
             error={validation.fieldErrors.proton_path}
             installs={protonInstalls}
             installsError={protonInstallsError}
+            idPrefix="update"
           />
 
           <InstallField

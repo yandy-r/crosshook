@@ -10,7 +10,9 @@ export function ProtonPathField(props: {
   error?: string | null;
   installs: ProtonInstallOption[];
   installsError: string | null;
+  idPrefix?: string;
 }) {
+  const prefix = props.idPrefix ?? 'install';
   const duplicateNameCounts = props.installs.reduce<Record<string, number>>((counts, install) => {
     const key = install.name.trim() || 'Unnamed Proton install';
     counts[key] = (counts[key] ?? 0) + 1;
@@ -20,12 +22,12 @@ export function ProtonPathField(props: {
 
   return (
     <div className="crosshook-field crosshook-install-proton-field">
-      <label className="crosshook-label" htmlFor="install-detected-proton">
+      <label className="crosshook-label" htmlFor={`${prefix}-detected-proton`}>
         Proton Path
       </label>
       <div style={{ display: 'grid', gap: 10 }}>
         <ThemedSelect
-          id="install-detected-proton"
+          id={`${prefix}-detected-proton`}
           value={selectedPath}
           onValueChange={(val) => {
             if (val.trim().length > 0) {
@@ -41,7 +43,7 @@ export function ProtonPathField(props: {
 
         <div className="crosshook-install-field-control">
           <input
-            id="install-proton-path"
+            id={`${prefix}-proton-path`}
             className="crosshook-input"
             style={{ flex: 1, minWidth: 0 }}
             value={props.value}

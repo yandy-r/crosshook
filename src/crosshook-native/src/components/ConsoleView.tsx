@@ -111,8 +111,8 @@ export function ConsoleView() {
                 Waiting for log output
               </div>
               <div className="crosshook-heading-copy">
-                Launch a game or trainer to stream helper output here. New lines appear automatically as CrossHook emits
-                `launch-log` events.
+                Launch a game, apply an update, or run an installer to stream helper output here. New lines appear
+                automatically.
               </div>
             </div>
           ) : (

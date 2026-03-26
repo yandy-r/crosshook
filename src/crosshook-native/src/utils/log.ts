@@ -1,6 +1,7 @@
 /**
- * Payload shape emitted by backend `launch-log` events. The backend may send
- * a plain string or an object with one of several text fields.
+ * Payload shape emitted by backend log events (`launch-log`, `update-log`).
+ * The backend currently emits plain strings, but this type defensively handles
+ * alternate object shapes in case the payload format changes.
  */
 export type LogPayload =
   | string
@@ -9,7 +10,7 @@ export type LogPayload =
   | { text: string };
 
 /**
- * Extract a displayable message from a `launch-log` event payload.
+ * Extract a displayable message from a log event payload (`launch-log`, `update-log`).
  * Falls back to `JSON.stringify` for unrecognized object shapes so that
  * unexpected payloads are visible rather than silently dropped.
  */

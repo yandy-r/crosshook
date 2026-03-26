@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
@@ -95,6 +95,12 @@ export function useUpdateGame(): UseUpdateGameResult {
   const [profiles, setProfiles] = useState<string[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState('');
+  const unlistenRef = useRef<(() => void) | null>(null);
+
+  function cleanupListener() {
+    unlistenRef.current?.();
+    unlistenRef.current = null;
+  }
 
   const loadProfiles = useCallback(async () => {
     setIsLoadingProfiles(true);
@@ -164,8 +170,10 @@ export function useUpdateGame(): UseUpdateGameResult {
   }, []);
 
   const startUpdate = useCallback(async () => {
+    cleanupListener();
     setValidation(createEmptyValidationState());
     setError(null);
+    setResult(null);
     setStage('preparing');
 
     try {
@@ -194,12 +202,15 @@ export function useUpdateGame(): UseUpdateGameResult {
       return;
     }
 
-    let unlistenComplete: (() => void) | null = null;
+    // Track whether the completion event arrived before invoke resolved,
+    // so we don't overwrite a terminal stage with 'running_updater'.
+    let completedBeforeInvoke = false;
 
     try {
       // Subscribe to the completion event BEFORE invoking the command
       // to avoid a race where the process exits before the listener exists.
-      unlistenComplete = await listen<number | null>('update-complete', (event) => {
+      const unlisten = await listen<number | null>('update-complete', (event) => {
+        completedBeforeInvoke = true;
         const exitCode = event.payload;
 
         if (exitCode === 0) {
@@ -212,23 +223,28 @@ export function useUpdateGame(): UseUpdateGameResult {
           setError(`Update process exited with code ${exitCode}.`);
         }
 
-        unlistenComplete?.();
-        unlistenComplete = null;
+        unlistenRef.current = null;
+        unlisten();
       });
+      unlistenRef.current = unlisten;
 
       const updateResult = await invoke<UpdateGameResult>('update_game', { request });
-      setStage('running_updater');
       setResult(updateResult);
+
+      // Only transition to 'running_updater' if the process hasn't already exited.
+      if (!completedBeforeInvoke) {
+        setStage('running_updater');
+      }
     } catch (invokeError) {
       const message = normalizeErrorMessage(invokeError);
       setStage('failed');
       setError(message);
-      unlistenComplete?.();
-      unlistenComplete = null;
+      cleanupListener();
     }
   }, [request]);
 
   const reset = useCallback(() => {
+    cleanupListener();
     setRequest(createEmptyRequest());
     setValidation(createEmptyValidationState());
     setStage('idle');
@@ -240,6 +256,10 @@ export function useUpdateGame(): UseUpdateGameResult {
   useEffect(() => {
     void loadProfiles();
   }, [loadProfiles]);
+
+  useEffect(() => {
+    return () => cleanupListener();
+  }, []);
 
   const statusText = (() => {
     switch (stage) {
@@ -282,7 +302,7 @@ export function useUpdateGame(): UseUpdateGameResult {
     }
   })();
 
-  const canStart = stage === 'idle' && request.updater_path.trim().length > 0 && selectedProfile.length > 0;
+  const canStart = (stage === 'idle' || stage === 'complete' || stage === 'failed') && request.updater_path.trim().length > 0 && selectedProfile.length > 0;
   const isRunning = stage === 'preparing' || stage === 'running_updater';
 
   return {
