@@ -1,6 +1,6 @@
+use super::models::LaunchOptimizationsSection;
 use crate::launch::is_known_launch_optimization_id;
 use crate::profile::{legacy, GameProfile};
-use super::models::LaunchOptimizationsSection;
 use directories::BaseDirs;
 use std::fmt;
 use std::fs;
@@ -112,9 +112,7 @@ impl ProfileStore {
         }
 
         let mut profile = self.load(name)?;
-        profile.launch.optimizations = LaunchOptimizationsSection {
-            enabled_option_ids,
-        };
+        profile.launch.optimizations = LaunchOptimizationsSection { enabled_option_ids };
         self.save(name, &profile)
     }
 
@@ -229,6 +227,7 @@ mod tests {
             trainer: crate::profile::TrainerSection {
                 path: "/trainers/elden-ring.exe".to_string(),
                 kind: "fling".to_string(),
+                loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
             },
             injection: crate::profile::InjectionSection {
                 dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],
@@ -434,10 +433,7 @@ method = "native"
             ],
         };
         store
-            .save_launch_optimizations(
-                "elden-ring",
-                optimizations.enabled_option_ids.clone(),
-            )
+            .save_launch_optimizations("elden-ring", optimizations.enabled_option_ids.clone())
             .unwrap();
 
         let loaded = store.load("elden-ring").unwrap();
@@ -455,10 +451,8 @@ method = "native"
         let temp_dir = tempdir().unwrap();
         let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
 
-        let result = store.save_launch_optimizations(
-            "missing-profile",
-            vec!["use_gamemode".to_string()],
-        );
+        let result =
+            store.save_launch_optimizations("missing-profile", vec!["use_gamemode".to_string()]);
 
         assert!(matches!(result, Err(ProfileStoreError::NotFound(_))));
     }

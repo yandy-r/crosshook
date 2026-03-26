@@ -8,6 +8,7 @@ steam_client=""
 game_exe_name=""
 trainer_path=""
 trainer_host_path=""
+trainer_loading_mode="source_directory"
 log_file=""
 game_startup_delay_seconds="30"
 game_timeout_seconds="90"
@@ -149,6 +150,7 @@ log_runtime_context() {
   log "proton=$proton"
   log "trainer_path=$trainer_path"
   log "trainer_host_path=$trainer_host_path"
+  log "trainer_loading_mode=$trainer_loading_mode"
   log "game_exe_name=$game_exe_name"
   log_shell_process
   log_staged_trainer_status
@@ -187,6 +189,10 @@ while (($# > 0)); do
       ;;
     --trainer-host-path)
       trainer_host_path="${2:-}"
+      shift 2
+      ;;
+    --trainer-loading-mode)
+      trainer_loading_mode="${2:-source_directory}"
       shift 2
       ;;
     --log-file)
@@ -244,6 +250,14 @@ steam_client="$(realpath "$steam_client")"
 if [[ "$game_only" != "1" ]]; then
   trainer_host_path="$(realpath "$trainer_host_path")"
 fi
+
+case "$trainer_loading_mode" in
+  source_directory|copy_to_prefix)
+    ;;
+  *)
+    fail "Unknown trainer loading mode: $trainer_loading_mode"
+    ;;
+esac
 
 if command -v steam >/dev/null 2>&1; then
   steam_command="steam"
@@ -317,6 +331,7 @@ wait_for_startup_delay() {
 
 run_proton_with_clean_env() {
   local target_path="$1"
+  local target_working_directory="${2:-}"
 
   # Close all file descriptors inherited from CrossHook's wineserver.
   local fd_num
@@ -349,7 +364,20 @@ run_proton_with_clean_env() {
   export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam_client"
   export WINEPREFIX="$compatdata/pfx"
 
-  stage_trainer_into_compatdata
+  if [[ "$trainer_loading_mode" == "copy_to_prefix" ]]; then
+    stage_trainer_into_compatdata
+    target_path="$trainer_path"
+  else
+    target_path="$trainer_host_path"
+    trainer_path="$target_path"
+    log "Using trainer from source directory: $target_path"
+  fi
+
+  if [[ -n "$target_working_directory" ]]; then
+    cd "$target_working_directory"
+    log "Changed trainer working directory to $target_working_directory"
+  fi
+
   log "Launching trainer with direct proton run."
   if setsid "$proton" run "$target_path"; then
     log "Trainer proton run exited successfully."
@@ -361,7 +389,10 @@ run_proton_with_clean_env() {
   return "$exit_code"
 }
 
-trainer_exe_name="${trainer_path##*\\}"
+trainer_exe_name=""
+if [[ "$game_only" != "1" ]]; then
+  trainer_exe_name="$(basename "$trainer_host_path")"
+fi
 
 if [[ "$trainer_only" != "1" ]]; then
 if process_visible "$game_exe_name"; then
@@ -399,4 +430,4 @@ fi
 
 log "Launching trainer $trainer_exe_name in compatdata $compatdata"
 log "Executing trainer with a clean Proton environment."
-run_proton_with_clean_env "$trainer_path"
+run_proton_with_clean_env "$trainer_path" "$(dirname "$trainer_host_path")"

@@ -49,11 +49,13 @@ CrossHook supports three launch modes depending on how your game and trainer nee
 
 ### Steam App Launch
 
-Launches the game through Steam using `steam -applaunch <appid>`, then runs the trainer under the game's Proton prefix. Use this when Steam must own the game launch (DRM, cloud saves, overlay).
+Launches the game through Steam using `steam -applaunch <appid>`, then runs the trainer against the same Proton prefix. By default the trainer is launched from its original directory so stateful bundles like Aurora keep one shared install, and profiles can opt into `Copy into prefix` when needed for compatibility. Use this when Steam must own the game launch (DRM, cloud saves, overlay).
 
 ### Proton Run
 
 Runs the trainer directly using `proton run <trainer.exe>` against the game's compatdata prefix. Useful when you want to launch a trainer standalone without going through Steam, or when the game is already running.
+
+Profiles can choose whether the trainer runs from its current directory or is copied into the target prefix before launch. Exported standalone trainer launchers follow the same setting.
 
 The same direct Proton path is used by the `Install Game` workflow in the Profile panel. That flow writes the prefix under `~/.local/share/crosshook/prefixes/<slug>` and hands you back a normal `GameProfile` for review and save.
 

@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::profile::{
-    GameProfile, GameSection, LaunchSection, RuntimeSection, SteamSection, TrainerSection,
+    GameProfile, GameSection, LaunchSection, RuntimeSection, SteamSection, TrainerLoadingMode,
+    TrainerSection,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -102,6 +103,7 @@ impl InstallGameRequest {
             trainer: TrainerSection {
                 path: self.trainer_path.trim().to_string(),
                 kind: String::new(),
+                loading_mode: TrainerLoadingMode::SourceDirectory,
             },
             injection: Default::default(),
             steam: SteamSection::default(),

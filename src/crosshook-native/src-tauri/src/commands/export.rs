@@ -1,4 +1,5 @@
 use crosshook_core::export::{
+    check_launcher_exists_for_request as check_launcher_exists_for_request_core,
     check_launcher_for_profile as check_launcher_for_profile_core,
     delete_launcher_by_slug as delete_launcher_by_slug_core,
     export_launchers as export_launchers_core, validate as validate_launcher_export_core,
@@ -25,20 +26,10 @@ pub fn export_launchers(
 /// Checks whether the launcher files derived from the supplied profile fields exist on disk.
 #[tauri::command]
 pub fn check_launcher_exists(
-    display_name: String,
-    steam_app_id: String,
-    trainer_path: String,
-    target_home_path: String,
-    steam_client_install_path: String,
+    request: SteamExternalLauncherExportRequest,
 ) -> Result<LauncherInfo, String> {
-    crosshook_core::export::check_launcher_exists(
-        &display_name,
-        &steam_app_id,
-        &trainer_path,
-        &target_home_path,
-        &steam_client_install_path,
-    )
-    .map_err(|error| error.to_string())
+    check_launcher_exists_for_request_core(&request.launcher_name, &request)
+        .map_err(|error| error.to_string())
 }
 
 /// Loads a saved profile and checks whether its exported launcher files exist on disk.
@@ -95,6 +86,7 @@ pub fn rename_launcher(
     steam_client_install_path: String,
     method: String,
     trainer_path: String,
+    trainer_loading_mode: String,
     prefix_path: String,
     proton_path: String,
     steam_app_id: String,
@@ -104,6 +96,9 @@ pub fn rename_launcher(
         method,
         launcher_name,
         trainer_path,
+        trainer_loading_mode: trainer_loading_mode
+            .parse()
+            .map_err(|_| "invalid trainer loading mode".to_string())?,
         launcher_icon_path: new_launcher_icon_path.clone(),
         prefix_path,
         proton_path,
@@ -158,7 +153,7 @@ mod tests {
                 SteamExternalLauncherExportRequest,
             ) -> Result<SteamExternalLauncherExportResult, String>;
         let _ = check_launcher_exists
-            as fn(String, String, String, String, String) -> Result<LauncherInfo, String>;
+            as fn(SteamExternalLauncherExportRequest) -> Result<LauncherInfo, String>;
         let _ = check_launcher_for_profile
             as fn(String, State<'_, ProfileStore>) -> Result<LauncherInfo, String>;
         let _ = delete_launcher

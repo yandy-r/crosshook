@@ -6,6 +6,7 @@ proton=""
 steam_client=""
 trainer_path=""
 trainer_host_path=""
+trainer_loading_mode="source_directory"
 log_file=""
 
 log() {
@@ -61,6 +62,10 @@ while (($# > 0)); do
       trainer_host_path="${2:-}"
       shift 2
       ;;
+    --trainer-loading-mode)
+      trainer_loading_mode="${2:-source_directory}"
+      shift 2
+      ;;
     --log-file)
       log_file="${2:-}"
       shift 2
@@ -79,6 +84,14 @@ ensure_standard_path
 [[ -n "$trainer_path" ]] || fail "Missing trainer path."
 [[ -n "$trainer_host_path" ]] || fail "Missing trainer host path."
 [[ -n "$log_file" ]] || fail "Missing helper log path."
+
+case "$trainer_loading_mode" in
+  source_directory|copy_to_prefix)
+    ;;
+  *)
+    fail "Unknown trainer loading mode: $trainer_loading_mode"
+    ;;
+esac
 
 runner_script="$(resolve_runner_script)"
 [[ -f "$runner_script" ]] || fail "Host runner script not found: $runner_script"
@@ -116,6 +129,7 @@ if runner_pid="$(
       --steam-client "$steam_client" \
       --trainer-path "$trainer_path" \
       --trainer-host-path "$trainer_host_path" \
+      --trainer-loading-mode "$trainer_loading_mode" \
       --log-file "$log_file" \
       </dev/null >/dev/null 2>&1 &
   printf '%s' "$!"

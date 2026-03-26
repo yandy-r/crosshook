@@ -1,5 +1,29 @@
 # Task Plan
 
+## 2026-03-26 - trainer source-mode support
+
+- [x] Add a persisted trainer loading mode to shared Rust/TypeScript profile and launch contracts.
+- [x] Update Steam and Proton trainer launch paths to support `source_directory` and `copy_to_prefix`.
+- [x] Update exported standalone trainer launchers to honor the same loading mode.
+- [x] Expose the loading mode in the profile editor and propagate it into launch/export requests.
+- [x] Run focused Rust and TypeScript verification.
+- [x] Add a short implementation review with outcome and residual risk.
+
+## Implementation Review
+
+- Profiles now persist `trainer.loading_mode` with `source_directory` as the default, and launch/export requests carry the same choice through Rust, Tauri, the CLI, and the frontend types.
+- `proton_run` trainer launches no longer stage by default. In `source_directory` mode, CrossHook runs the canonical trainer path directly and keeps the working directory anchored to the trainer bundle. In `copy_to_prefix` mode, the previous staging behavior remains intact.
+- Steam helper scripts now accept `--trainer-loading-mode`, skip compatdata staging for source-directory launches, and still support explicit copy mode for compatibility edge cases.
+- Exported standalone trainer launchers now honor the same loading mode as the profile, and launcher staleness checks compare generated script content so a mode change is detected even when the launcher name stays the same.
+- The profile editor now exposes `Trainer Loading Mode` with `Run from current directory` and `Copy into prefix`, and the export panel surfaces the selected mode in its metadata summary.
+- Verification:
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native --no-run`
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+- Residual risk:
+  - Real Proton/Steam runtime validation for Aurora and other bundle-based trainers still needs a manual end-to-end pass in a graphical session.
+  - `git diff --check` still reports `indent with spaces` because the local Git whitespace configuration treats this repo’s normal space indentation as an error; I did not rewrite the feature diff to tabs.
+
 ## 2026-03-25 - proton launcher icon parity
 
 - [x] Confirm how launcher metadata is stored and consumed for Steam and Proton profiles.

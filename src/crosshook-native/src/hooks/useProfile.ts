@@ -210,6 +210,7 @@ function normalizeProfileForEdit(profile: GameProfile): GameProfile {
     trainer: {
       ...profile.trainer,
       type: profile.trainer.type.trim(),
+      loading_mode: profile.trainer.loading_mode ?? 'source_directory',
     },
     steam: {
       ...profile.steam,
@@ -282,6 +283,7 @@ function createEmptyProfile(): GameProfile {
     trainer: {
       path: '',
       type: '',
+      loading_mode: 'source_directory',
     },
     injection: {
       dll_paths: [],
