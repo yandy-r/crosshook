@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
 
@@ -25,7 +25,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const lastProfile = profileName.trim() || selectedProfile;
   const consolePanelRef = useRef<PanelImperativeHandle>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     consolePanelRef.current?.collapse();
   }, []);
 
@@ -92,7 +92,8 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
 }
 
 export function App() {
-  const gamepadNav = useGamepadNav({ onBack: handleGamepadBack });
+  const gamepadOptions = useMemo(() => ({ onBack: handleGamepadBack }), []);
+  const gamepadNav = useGamepadNav(gamepadOptions);
   useScrollEnhance();
 
   return (

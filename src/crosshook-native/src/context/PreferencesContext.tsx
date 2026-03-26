@@ -1,6 +1,5 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import type { AppSettingsData, RecentFilesData } from '../types';
 
 export interface PreferencesContextValue {
@@ -16,7 +15,6 @@ export interface PreferencesContextValue {
 export interface PreferencesProviderProps {
   children: ReactNode;
   activeProfileName?: string;
-  onAutoLoadProfile?: (profileName: string) => void | Promise<void>;
 }
 
 const EMPTY_SETTINGS: AppSettingsData = {
@@ -54,7 +52,6 @@ async function loadPreferences() {
 export function PreferencesProvider({
   children,
   activeProfileName,
-  onAutoLoadProfile,
 }: PreferencesProviderProps) {
   const [settings, setSettings] = useState<AppSettingsData>(EMPTY_SETTINGS);
   const [recentFiles, setRecentFiles] = useState<RecentFilesData>(EMPTY_RECENT_FILES);
@@ -105,21 +102,6 @@ export function PreferencesProvider({
     };
   }, [applyLoadedPreferences]);
 
-  useEffect(() => {
-    const unlistenPromise = listen<string>('auto-load-profile', (event) => {
-      if (!onAutoLoadProfile) {
-        return;
-      }
-
-      void Promise.resolve(onAutoLoadProfile(event.payload)).catch((error) => {
-        console.error('Failed to handle auto-load profile event', error);
-      });
-    });
-
-    return () => {
-      void unlistenPromise.then((unlisten) => unlisten());
-    };
-  }, [onAutoLoadProfile]);
 
   const handleAutoLoadChange = useCallback(
     async (enabled: boolean) => {

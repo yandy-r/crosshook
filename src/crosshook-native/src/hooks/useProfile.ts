@@ -6,6 +6,7 @@ import {
   getConflictingLaunchOptimizationIds,
   type LaunchOptimizationId,
 } from '../types/launch-optimizations';
+import { resolveLaunchMethod, type ResolvedLaunchMethod } from '../utils/launch';
 
 export interface PendingDelete {
   name: string;
@@ -46,7 +47,6 @@ export interface UseProfileOptions {
   autoSelectFirstProfile?: boolean;
 }
 
-type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
 const automaticLauncherSuffix = ' - Trainer';
 const launchOptimizationsAutosaveDelayMs = 350;
 
@@ -56,10 +56,6 @@ export interface LaunchOptimizationsStatus {
   tone: LaunchOptimizationsStatusTone;
   label: string;
   detail?: string;
-}
-
-function looksLikeWindowsExecutable(path: string): boolean {
-  return path.trim().toLowerCase().endsWith('.exe');
 }
 
 function stripAutomaticLauncherSuffix(value: string): string {
@@ -89,24 +85,6 @@ function deriveLauncherDisplayName(profile: GameProfile): string {
     deriveGameName(profile) ||
     stripAutomaticLauncherSuffix(deriveDisplayNameFromPath(profile.trainer.path))
   );
-}
-
-function resolveLaunchMethod(profile: GameProfile): ResolvedLaunchMethod {
-  const method = profile.launch.method.trim();
-
-  if (method === 'steam_applaunch' || method === 'proton_run' || method === 'native') {
-    return method;
-  }
-
-  if (profile.steam.enabled) {
-    return 'steam_applaunch';
-  }
-
-  if (looksLikeWindowsExecutable(profile.game.executable_path)) {
-    return 'proton_run';
-  }
-
-  return 'native';
 }
 
 function normalizeLaunchOptimizationIds(
@@ -405,6 +383,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
           await syncProfileMetadata(trimmed, normalized);
         } catch (syncErr) {
           console.error('Failed to sync profile metadata (last-used profile, recent files)', syncErr);
+          setError(`Profile loaded, but preferences sync failed: ${syncErr instanceof Error ? syncErr.message : String(syncErr)}`);
         }
       } catch (err) {
         const msg = formatLoadError(err);
