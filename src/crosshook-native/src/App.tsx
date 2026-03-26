@@ -1,66 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import ConsoleView from './components/ConsoleView';
-import CommunityBrowser from './components/CommunityBrowser';
-import CompatibilityViewer from './components/CompatibilityViewer';
-import LaunchPanel from './components/LaunchPanel';
-import LaunchOptimizationsPanel from './components/LaunchOptimizationsPanel';
-import SteamLaunchOptionsPanel from './components/SteamLaunchOptionsPanel';
-import LauncherExport from './components/LauncherExport';
-import { deriveSteamClientInstallPath } from './components/ProfileFormSections';
-import { ProfileEditorView } from './components/ProfileEditor';
-import { SettingsPanel } from './components/SettingsPanel';
-import { useCommunityProfiles } from './hooks/useCommunityProfiles';
+import { useEffect, useRef, useState } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
+import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
+
+import ContentArea from './components/layout/ContentArea';
+import ControllerPrompts from './components/layout/ControllerPrompts';
+import ConsoleDrawer from './components/layout/ConsoleDrawer';
+import Sidebar, { type AppRoute } from './components/layout/Sidebar';
+import { PreferencesProvider } from './context/PreferencesContext';
+import { ProfileProvider, useProfileContext } from './context/ProfileContext';
 import { useGamepadNav } from './hooks/useGamepadNav';
-import { useProfile } from './hooks/useProfile';
-import type { AppSettingsData, GameProfile, LaunchMethod, LaunchRequest, RecentFilesData } from './types';
-
-type AppTab = 'main' | 'logs' | 'settings' | 'community';
-
-const DEFAULT_SETTINGS: AppSettingsData = {
-  auto_load_last_profile: false,
-  last_used_profile: '',
-  community_taps: [],
-};
-
-const DEFAULT_RECENT_FILES: RecentFilesData = {
-  game_paths: [],
-  trainer_paths: [],
-  dll_paths: [],
-};
-
-const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
-
-function deriveTargetHomePath(steamClientInstallPath: string): string {
-  const normalized = steamClientInstallPath.trim().replace(/\\/g, '/');
-
-  for (const suffix of ['/.local/share/Steam', '/.steam/root']) {
-    if (normalized.endsWith(suffix)) {
-      return normalized.slice(0, -suffix.length);
-    }
-  }
-
-  return '';
-}
-
-function resolveLaunchMethod(profile: GameProfile): Exclude<LaunchMethod, ''> {
-  const method = profile.launch.method.trim();
-
-  if (method === 'steam_applaunch' || method === 'proton_run' || method === 'native') {
-    return method;
-  }
-
-  if (profile.steam.enabled) {
-    return 'steam_applaunch';
-  }
-
-  if (profile.game.executable_path.trim().toLowerCase().endsWith('.exe')) {
-    return 'proton_run';
-  }
-
-  return 'native';
-}
+import { useScrollEnhance } from './hooks/useScrollEnhance';
 
 function handleGamepadBack(): void {
   const closeButtons = document.querySelectorAll<HTMLButtonElement>(
@@ -70,359 +19,87 @@ function handleGamepadBack(): void {
   closeButton?.click();
 }
 
-export function App() {
-  const profileState = useProfile({ autoSelectFirstProfile: false });
-  const {
-    profile,
-    profileName,
-    selectProfile,
-    launchOptimizationsStatus,
-    toggleLaunchOptimization,
-  } = profileState;
-  const [settings, setSettings] = useState<AppSettingsData>(DEFAULT_SETTINGS);
-  const [recentFiles, setRecentFiles] = useState<RecentFilesData>(DEFAULT_RECENT_FILES);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
-  const [activeTab, setActiveTab] = useState<AppTab>('main');
-  const [profileEditorTab, setProfileEditorTab] = useState<'profile' | 'install'>('profile');
-  const gamepadNav = useGamepadNav({ onBack: handleGamepadBack });
-  const communityState = useCommunityProfiles({
-    profilesDirectoryPath: DEFAULT_PROFILES_DIRECTORY,
-  });
-  const launchMethod = useMemo(() => resolveLaunchMethod(profile), [profile]);
-  const effectiveLaunchMethod = useMemo<Exclude<LaunchMethod, ''>>(() => {
-    if (activeTab === 'main' && profileEditorTab === 'install') {
-      return 'proton_run';
-    }
-
-    return launchMethod;
-  }, [activeTab, launchMethod, profileEditorTab]);
-  const steamClientInstallPath = useMemo(() => {
-    return defaultSteamClientInstallPath || deriveSteamClientInstallPath(profile.steam.compatdata_path);
-  }, [defaultSteamClientInstallPath, profile.steam.compatdata_path]);
-  const targetHomePath = useMemo(() => deriveTargetHomePath(steamClientInstallPath), [steamClientInstallPath]);
-  const shouldShowLauncherExport =
-    profileEditorTab === 'install' ||
-    effectiveLaunchMethod === 'steam_applaunch' ||
-    effectiveLaunchMethod === 'proton_run';
-  const isInstallEditorContext = activeTab === 'main' && profileEditorTab === 'install';
-  const shouldShowLaunchOptimizations =
-    !isInstallEditorContext &&
-    (effectiveLaunchMethod === 'proton_run' || effectiveLaunchMethod === 'steam_applaunch');
-  const shouldShowSteamLaunchOptions =
-    !isInstallEditorContext && effectiveLaunchMethod === 'steam_applaunch';
-
-  const launchRequest = useMemo<LaunchRequest | null>(() => {
-    if (!profile.game.executable_path.trim()) {
-      return null;
-    }
-
-    return {
-      method: effectiveLaunchMethod,
-      game_path: profile.game.executable_path,
-      trainer_path: profile.trainer.path,
-      trainer_host_path: profile.trainer.path,
-      steam: {
-        app_id: profile.steam.app_id,
-        compatdata_path: profile.steam.compatdata_path,
-        proton_path: profile.steam.proton_path,
-        steam_client_install_path: steamClientInstallPath,
-      },
-      runtime: {
-        prefix_path: profile.runtime.prefix_path,
-        proton_path: profile.runtime.proton_path,
-        working_directory: profile.runtime.working_directory,
-      },
-      optimizations: {
-        enabled_option_ids:
-          effectiveLaunchMethod === 'proton_run'
-            ? profile.launch.optimizations.enabled_option_ids
-            : [],
-      },
-      launch_trainer_only: false,
-      launch_game_only: false,
-    };
-  }, [effectiveLaunchMethod, profile, steamClientInstallPath]);
-
-  const headingTitle = (() => {
-    if (activeTab === 'logs') {
-      return 'Runtime console';
-    }
-
-    if (activeTab === 'settings') {
-      return 'Settings';
-    }
-
-    if (activeTab === 'community') {
-      return 'Community profiles';
-    }
-
-    if (isInstallEditorContext) {
-      return 'Install Windows Game';
-    }
-
-    switch (effectiveLaunchMethod) {
-      case 'steam_applaunch':
-        return 'Two-step Steam launch';
-      case 'proton_run':
-        return 'Two-step Proton launch';
-      case 'native':
-      default:
-        return 'Native launch';
-    }
-  })();
-
-  const headingCopy = (() => {
-    if (activeTab === 'logs') {
-      return 'Review the live helper log stream without competing with the profile editor, launcher controls, or launch optimization panel.';
-    }
-
-    if (activeTab === 'settings') {
-      return 'Manage CrossHook preferences, recent files, and environment defaults for the native app.';
-    }
-
-    if (activeTab === 'community') {
-      return 'Browse, sync, and import community-maintained profile taps without leaving the native app.';
-    }
-
-    if (isInstallEditorContext) {
-      return 'Build a Proton-backed game profile in one flow: run the installer, review the generated profile in the modal, then save and open the Profile tab for normal launch controls.';
-    }
-
-    switch (effectiveLaunchMethod) {
-      case 'steam_applaunch':
-        return 'Launch the game through Steam first, then switch to trainer mode once the game reaches the main menu.';
-      case 'proton_run':
-        return 'Launch the game through Proton first, then launch the trainer into the same configured prefix.';
-      case 'native':
-      default:
-        return 'Launch a Linux-native executable directly without Steam or Proton runner requirements.';
-    }
-  })();
-
-  const compatibilityEntries = useMemo(
-    () =>
-      communityState.index.entries.map((entry) => ({
-        id: `${entry.tap_url}::${entry.relative_path}`,
-        tap_url: entry.tap_url,
-        tap_branch: entry.tap_branch,
-        manifest_path: entry.manifest_path,
-        relative_path: entry.relative_path,
-        metadata: entry.manifest.metadata,
-      })),
-    [communityState.index.entries]
-  );
+function AppShell({ controllerMode }: { controllerMode: boolean }) {
+  const { profileName, selectedProfile } = useProfileContext();
+  const [route, setRoute] = useState<AppRoute>('profiles');
+  const lastProfile = profileName.trim() || selectedProfile;
+  const consolePanelRef = useRef<PanelImperativeHandle>(null);
 
   useEffect(() => {
-    let active = true;
+    consolePanelRef.current?.collapse();
+  }, []);
 
-    async function loadPreferences() {
-      try {
-        const [loadedSettings, loadedRecentFiles, steamClientPath] = await Promise.all([
-          invoke<AppSettingsData>('settings_load'),
-          invoke<RecentFilesData>('recent_files_load'),
-          invoke<string>('default_steam_client_install_path'),
-        ]);
+  return (
+    <PreferencesProvider activeProfileName={lastProfile}>
+      <Tabs.Root
+        orientation="vertical"
+        value={route}
+        onValueChange={(value) => setRoute(value as AppRoute)}
+      >
+        <div className="crosshook-app-layout">
+          <Group
+            className="crosshook-shell-group"
+            orientation="horizontal"
+            resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
+          >
+            <Panel
+              className="crosshook-shell-panel"
+              defaultSize="20%"
+              minSize="14%"
+              maxSize="40%"
+            >
+              <Sidebar
+                activeRoute={route}
+                onNavigate={setRoute}
+                controllerMode={controllerMode}
+                lastProfile={lastProfile}
+              />
+            </Panel>
+            <Separator className="crosshook-resize-handle crosshook-resize-handle--vertical" />
+            <Panel className="crosshook-shell-panel" minSize="28%">
+              <Group
+                className="crosshook-shell-group"
+                orientation="vertical"
+                resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
+              >
+                <Panel
+                  className="crosshook-shell-panel"
+                  defaultSize="80%"
+                  minSize="28%"
+                >
+                  <ContentArea route={route} onNavigate={setRoute} />
+                </Panel>
+                <Separator className="crosshook-resize-handle crosshook-resize-handle--horizontal" />
+                <Panel
+                  className="crosshook-shell-panel"
+                  panelRef={consolePanelRef}
+                  collapsible
+                  collapsedSize="40px"
+                  defaultSize="60%"
+                  minSize="15%"
+                  maxSize="75%"
+                >
+                  <ConsoleDrawer panelRef={consolePanelRef} />
+                </Panel>
+              </Group>
+            </Panel>
+          </Group>
+        </div>
+        {controllerMode ? <ControllerPrompts /> : null}
+      </Tabs.Root>
+    </PreferencesProvider>
+  );
+}
 
-        if (!active) {
-          return;
-        }
-
-        setSettings(loadedSettings);
-        setRecentFiles(loadedRecentFiles);
-        setDefaultSteamClientInstallPath(steamClientPath);
-        setSettingsError(null);
-      } catch (error) {
-        if (active) {
-          setSettingsError(error instanceof Error ? error.message : String(error));
-        }
-      }
-    }
-
-    void loadPreferences();
-
-    const unlistenPromise = listen<string>('auto-load-profile', (event) => {
-      void selectProfile(event.payload);
-    });
-
-    return () => {
-      active = false;
-      void unlistenPromise.then((unlisten) => unlisten());
-    };
-  }, [selectProfile]);
-
-  async function refreshPreferences() {
-    const [loadedSettings, loadedRecentFiles] = await Promise.all([
-      invoke<AppSettingsData>('settings_load'),
-      invoke<RecentFilesData>('recent_files_load'),
-    ]);
-    setSettings(loadedSettings);
-    setRecentFiles(loadedRecentFiles);
-    setSettingsError(null);
-  }
-
-  async function handleAutoLoadChange(enabled: boolean) {
-    const nextSettings = {
-      ...settings,
-      auto_load_last_profile: enabled,
-      last_used_profile: profileName.trim() || settings.last_used_profile,
-    } satisfies AppSettingsData;
-
-    await invoke('settings_save', { data: nextSettings });
-    setSettings(nextSettings);
-  }
-
-  async function clearRecentFiles() {
-    const nextRecentFiles = {
-      game_paths: [],
-      trainer_paths: [],
-      dll_paths: [],
-    } satisfies RecentFilesData;
-
-    await invoke('recent_files_save', { data: nextRecentFiles });
-    setRecentFiles(nextRecentFiles);
-  }
+export function App() {
+  const gamepadNav = useGamepadNav({ onBack: handleGamepadBack });
+  useScrollEnhance();
 
   return (
     <main ref={gamepadNav.rootRef} className="crosshook-app crosshook-focus-scope">
-      <div className="crosshook-shell">
-        <header style={{ display: 'grid', gap: '8px' }}>
-          <div className="crosshook-heading-eyebrow">CrossHook Native</div>
-          <h1 className="crosshook-heading-title">{headingTitle}</h1>
-          <p className="crosshook-heading-copy">{headingCopy}</p>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <span className="crosshook-status-chip">Controller mode: {gamepadNav.controllerMode ? 'On' : 'Off'}</span>
-            <span className="crosshook-status-chip">Last profile: {settings.last_used_profile || 'none'}</span>
-          </div>
-          {settingsError ? (
-            <p className="crosshook-danger" style={{ margin: 0 }}>
-              {settingsError}
-            </p>
-          ) : null}
-        </header>
-        <div className="crosshook-tab-row" role="tablist" aria-label="CrossHook sections">
-          <button
-            type="button"
-            className={`crosshook-tab ${activeTab === 'main' ? 'crosshook-tab--active' : ''}`}
-            onClick={() => setActiveTab('main')}
-          >
-            Main
-          </button>
-          <button
-            type="button"
-            className={`crosshook-tab ${activeTab === 'logs' ? 'crosshook-tab--active' : ''}`}
-            onClick={() => setActiveTab('logs')}
-          >
-            Logs
-          </button>
-          <button
-            type="button"
-            className={`crosshook-tab ${activeTab === 'settings' ? 'crosshook-tab--active' : ''}`}
-            onClick={() => setActiveTab('settings')}
-          >
-            Settings
-          </button>
-          <button
-            type="button"
-            className={`crosshook-tab ${activeTab === 'community' ? 'crosshook-tab--active' : ''}`}
-            onClick={() => setActiveTab('community')}
-          >
-            Community
-          </button>
-        </div>
-
-        {activeTab === 'main' ? (
-          <div style={{ display: 'grid', gap: '24px' }}>
-            <div className="crosshook-layout" style={{ alignItems: 'stretch' }}>
-              <div style={{ display: 'grid', gap: '24px' }}>
-                <ProfileEditorView state={profileState} onEditorTabChange={setProfileEditorTab} />
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gap: '24px',
-                  height: '100%',
-                  minHeight: 0,
-                }}
-              >
-                <LaunchPanel
-                  profileId={profileName || 'new-profile'}
-                  method={effectiveLaunchMethod}
-                  request={profileEditorTab === 'install' ? null : launchRequest}
-                  context={profileEditorTab === 'install' ? 'install' : 'default'}
-                />
-                {shouldShowLauncherExport ? (
-                  <LauncherExport
-                    profile={profile}
-                    method={effectiveLaunchMethod}
-                    steamClientInstallPath={steamClientInstallPath}
-                    targetHomePath={targetHomePath}
-                    context={profileEditorTab === 'install' ? 'install' : 'default'}
-                  />
-                ) : null}
-              </div>
-            </div>
-            {shouldShowLaunchOptimizations ? (
-              <LaunchOptimizationsPanel
-                method={effectiveLaunchMethod}
-                enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
-                onToggleOption={toggleLaunchOptimization}
-                status={launchOptimizationsStatus}
-              />
-            ) : null}
-            {shouldShowSteamLaunchOptions ? (
-              <SteamLaunchOptionsPanel
-                enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
-              />
-            ) : null}
-          </div>
-        ) : null}
-
-        {activeTab === 'logs' ? <ConsoleView /> : null}
-
-        {activeTab === 'settings' ? (
-          <SettingsPanel
-            autoLoadLastProfile={settings.auto_load_last_profile}
-            lastUsedProfile={settings.last_used_profile}
-            profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY}
-            profilesDirectoryConfigured={false}
-            recentFiles={{
-              gamePaths: recentFiles.game_paths,
-              trainerPaths: recentFiles.trainer_paths,
-              dllPaths: recentFiles.dll_paths,
-            }}
-            targetHomePath={targetHomePath}
-            steamClientInstallPath={steamClientInstallPath}
-            onAutoLoadLastProfileChange={(enabled) => {
-              void handleAutoLoadChange(enabled).catch((error) => {
-                setSettingsError(error instanceof Error ? error.message : String(error));
-              });
-            }}
-            onRefreshRecentFiles={() => {
-              void refreshPreferences().catch((error) => {
-                setSettingsError(error instanceof Error ? error.message : String(error));
-              });
-            }}
-            onClearRecentFiles={() => {
-              void clearRecentFiles().catch((error) => {
-                setSettingsError(error instanceof Error ? error.message : String(error));
-              });
-            }}
-          />
-        ) : null}
-
-        {activeTab === 'community' ? (
-          <div className="stack">
-            <CommunityBrowser profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY} state={communityState} />
-            <CompatibilityViewer
-              entries={compatibilityEntries}
-              loading={communityState.loading || communityState.syncing}
-              error={communityState.error}
-              emptyMessage="No indexed community compatibility entries are available yet."
-            />
-          </div>
-        ) : null}
-      </div>
+      <ProfileProvider>
+        <AppShell controllerMode={gamepadNav.controllerMode} />
+      </ProfileProvider>
     </main>
   );
 }

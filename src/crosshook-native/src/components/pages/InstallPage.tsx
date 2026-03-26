@@ -1,16 +1,24 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import InstallGamePanel from './InstallGamePanel';
-import ProfileReviewModal, { type ProfileReviewModalConfirmation } from './ProfileReviewModal';
-import ProfileFormSections, {
-  deriveSteamClientInstallPath,
-  type ProtonInstallOption,
-} from './ProfileFormSections';
-import { useProfile, type UseProfileResult } from '../hooks/useProfile';
-import type { GameProfile } from '../types';
-import type { InstallProfileReviewPayload } from '../types/install';
-import type { ProfileReviewSession } from '../types/profile-review';
-import { profilesEqual } from '../utils/profile-compare';
+
+import InstallGamePanel from '../InstallGamePanel';
+import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
+import ProfileReviewModal, { type ProfileReviewModalConfirmation } from '../ProfileReviewModal';
+import { useProfileContext } from '../../context/ProfileContext';
+import type { GameProfile } from '../../types';
+import type { InstallProfileReviewPayload } from '../../types/install';
+import type { ProfileReviewSession } from '../../types/profile-review';
+import { profilesEqual } from '../../utils/profile-compare';
+import { PageBanner, InstallArt } from '../layout/PageBanner';
+import type { AppRoute } from '../layout/Sidebar';
+
+type ReviewConfirmationState = ProfileReviewModalConfirmation & {
+  restoreIsOpen: boolean;
+};
+
+export interface InstallPageProps {
+  onNavigate?: (route: AppRoute) => void;
+}
 
 function updateProfileReviewSession(
   set: Dispatch<SetStateAction<ProfileReviewSession | null>>,
@@ -25,10 +33,6 @@ function isProfileReviewSessionDirty(session: ProfileReviewSession): boolean {
     !profilesEqual(session.draftProfile, session.originalProfile)
   );
 }
-
-type ReviewConfirmationState = ProfileReviewModalConfirmation & {
-  restoreIsOpen: boolean;
-};
 
 function createProfileReviewSessionState(payload: InstallProfileReviewPayload): ProfileReviewSession {
   return {
@@ -45,49 +49,19 @@ function createProfileReviewSessionState(payload: InstallProfileReviewPayload): 
   };
 }
 
-export interface ProfileEditorProps {
-  state: UseProfileResult;
-  onEditorTabChange?: (tab: 'profile' | 'install') => void;
-}
-
-export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorProps) {
+export function InstallPage({ onNavigate }: InstallPageProps) {
   const {
-    profiles,
-    selectedProfile,
-    profileName,
-    profile,
-    dirty,
-    loading,
-    saving,
     deleting,
-    error,
-    profileExists,
-    pendingDelete,
-    setProfileName,
-    selectProfile,
-    updateProfile,
-    saveProfile,
-    confirmDelete,
-    executeDelete,
-    cancelDelete,
-    refreshProfiles,
-  } = state;
-
-  const canSave =
-    profileName.trim().length > 0 && profile.game.executable_path.trim().length > 0 && !saving && !deleting && !loading;
-  const canDelete = profileExists && !saving && !deleting && !loading;
-  const launchMethod = profile.launch.method || 'proton_run';
-  const steamClientInstallPath = deriveSteamClientInstallPath(profile.steam.compatdata_path);
-  const [editorTab, setEditorTab] = useState<'profile' | 'install'>('profile');
+    loading,
+    persistProfileDraft,
+    saving,
+    steamClientInstallPath,
+  } = useProfileContext();
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
   const [profileReviewSession, setProfileReviewSession] = useState<ProfileReviewSession | null>(null);
   const [reviewConfirmation, setReviewConfirmation] = useState<ReviewConfirmationState | null>(null);
   const reviewConfirmationResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
-
-  useEffect(() => {
-    onEditorTabChange?.(editorTab);
-  }, [editorTab, onEditorTabChange]);
 
   function resolveReviewConfirmation(confirmed: boolean) {
     const confirmation = reviewConfirmation;
@@ -119,12 +93,10 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
       return Promise.resolve(false);
     }
 
-    setEditorTab('install');
     updateProfileReviewSession(setProfileReviewSession, (current) => ({
       ...current,
       isOpen: true,
     }));
-
     setReviewConfirmation(confirmation);
 
     return new Promise<boolean>((resolve) => {
@@ -149,7 +121,6 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
             restoreIsOpen: currentSession.isOpen,
             onConfirm: () => {
               setProfileReviewSession(createProfileReviewSessionState(payload));
-              setEditorTab('install');
             },
             onCancel: () => {
               updateProfileReviewSession(setProfileReviewSession, (current) => ({
@@ -161,7 +132,6 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
         }
 
         setProfileReviewSession(createProfileReviewSessionState(payload));
-        setEditorTab('install');
         return true;
       }
 
@@ -180,7 +150,6 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
 
         return createProfileReviewSessionState(payload);
       });
-      setEditorTab('install');
       return true;
     }
 
@@ -195,14 +164,12 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
         restoreIsOpen: currentSession.isOpen,
         onConfirm: () => {
           setProfileReviewSession(createProfileReviewSessionState(payload));
-          setEditorTab('install');
         },
         onCancel: () => undefined,
       });
     }
 
     setProfileReviewSession(createProfileReviewSessionState(payload));
-    setEditorTab('install');
     return true;
   }
 
@@ -294,13 +261,13 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
       return;
     }
 
-    const { profileName: draftProfileName, draftProfile } = profileReviewSession;
+    const { profileName, draftProfile } = profileReviewSession;
     updateProfileReviewSession(setProfileReviewSession, (current) => ({
       ...current,
       saveError: null,
     }));
 
-    const persistResult = await state.persistProfileDraft(draftProfileName, draftProfile);
+    const persistResult = await persistProfileDraft(profileName, draftProfile);
 
     if (!persistResult.ok) {
       updateProfileReviewSession(setProfileReviewSession, (current) => ({
@@ -311,7 +278,7 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
     }
 
     setProfileReviewSession(null);
-    setEditorTab('profile');
+    onNavigate?.('profiles');
   }
 
   useEffect(() => {
@@ -375,91 +342,29 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
       reviewDescription =
         'The review draft is still incomplete. Select the final executable before saving, and the draft will stay open until you finish.';
     } else {
-      reviewDescription = `${profileReviewSession.installMessage} Saving persists the profile and returns you to the Profile tab.`.trim();
+      reviewDescription = `${profileReviewSession.installMessage} Saving persists the profile and returns you to the Profiles view.`.trim();
     }
+
     if (profileReviewSession.saveError) {
       reviewModalStatusTone = 'danger';
     } else if (reviewFinalExecutableMissing || reviewDirty) {
       reviewModalStatusTone = 'warning';
-    } else {
-      reviewModalStatusTone = 'neutral';
     }
   }
 
   return (
-    <section className="crosshook-profile-editor-panel">
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center' }}>
-        <div style={{ display: 'grid', gap: 6 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Profile</h2>
-          <p className="crosshook-help-text">Select an existing profile or type a new name before saving.</p>
-        </div>
-        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={() => void refreshProfiles()}>
-          Refresh
-        </button>
-      </div>
+    <div className="crosshook-content-area">
+      <PageBanner
+        eyebrow="Setup"
+        title="Install game"
+        copy="Run the installer in a Proton-backed flow, review the generated profile in-place, and save directly back into the Profiles view when the draft is ready."
+        illustration={<InstallArt />}
+      />
 
-      <div className="crosshook-subtab-row" role="tablist" aria-label="Profile editor sections">
-        <button
-          type="button"
-          className={`crosshook-subtab ${editorTab === 'profile' ? 'crosshook-subtab--active' : ''}`}
-          role="tab"
-          aria-selected={editorTab === 'profile'}
-          onClick={() => setEditorTab('profile')}
-        >
-          Profile
-        </button>
-        <button
-          type="button"
-          className={`crosshook-subtab ${editorTab === 'install' ? 'crosshook-subtab--active' : ''}`}
-          role="tab"
-          aria-selected={editorTab === 'install'}
-          onClick={() => setEditorTab('install')}
-        >
-          Install Game
-        </button>
-      </div>
-
-      {editorTab === 'profile' ? (
-        <div>
-          <ProfileFormSections
-            profileName={profileName}
-            profile={profile}
-            launchMethod={launchMethod}
-            protonInstalls={protonInstalls}
-            protonInstallsError={protonInstallsError}
-            profileSelector={{
-              profiles,
-              selectedProfile,
-              onSelectProfile: selectProfile,
-            }}
-            onProfileNameChange={setProfileName}
-            onUpdateProfile={updateProfile}
-          />
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
-            <button type="button" className="crosshook-button" onClick={() => void saveProfile()} disabled={!canSave}>
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--secondary"
-              onClick={() => void confirmDelete(profileName)}
-              disabled={!canDelete}
-            >
-              {deleting ? 'Deleting...' : 'Delete'}
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', color: dirty ? '#ffd166' : '#9bb1c8' }}>
-              {loading ? 'Loading...' : dirty ? 'Unsaved changes' : 'No unsaved changes'}
-            </div>
-          </div>
-
-          {error ? <div className="crosshook-error-banner crosshook-error-banner--section">{error}</div> : null}
-        </div>
-      ) : (
-        <InstallGamePanel
-          onOpenProfileReview={handleOpenProfileReview}
-          onRequestInstallAction={handleInstallActionConfirmation}
-        />
-      )}
+      <InstallGamePanel
+        onOpenProfileReview={handleOpenProfileReview}
+        onRequestInstallAction={handleInstallActionConfirmation}
+      />
 
       {profileReviewSession !== null && (profileReviewSession.isOpen || reviewConfirmation !== null) ? (
         <ProfileReviewModal
@@ -502,7 +407,7 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
                 onClick={() => void handleSaveProfileReview()}
                 disabled={!reviewCanSave}
               >
-                {saving ? 'Saving...' : 'Save Profile'}
+                {saving ? 'Saving...' : 'Save and Open Profiles'}
               </button>
             </div>
           }
@@ -522,67 +427,17 @@ export function ProfileEditorView({ state, onEditorTabChange }: ProfileEditorPro
               onProfileNameChange={handleProfileReviewNameChange}
               onUpdateProfile={handleProfileReviewUpdate}
             />
+
             {reviewFinalExecutableMissing ? (
-              <div className="crosshook-warning-banner">Save is blocked until the final executable is selected.</div>
+              <div className="crosshook-warning-banner">
+                Save is blocked until the final executable is selected.
+              </div>
             ) : null}
           </div>
         </ProfileReviewModal>
       ) : null}
-
-      {pendingDelete && (
-        <div className="crosshook-profile-editor-delete-overlay" data-crosshook-focus-root="modal">
-          <div className="crosshook-profile-editor-delete-dialog">
-            <h3 style={{ margin: '0 0 12px' }}>Delete Profile</h3>
-            <p>
-              Delete profile <strong>{pendingDelete.name}</strong>?
-            </p>
-            {pendingDelete.launcherInfo && (
-              <div className="crosshook-profile-editor-delete-warning">
-                <p style={{ margin: '0 0 6px', fontWeight: 600 }}>Launcher files will also be removed:</p>
-                <p style={{ margin: '2px 0', color: '#d1d5db', wordBreak: 'break-all' }}>
-                  {pendingDelete.launcherInfo.script_path}
-                </p>
-                <p style={{ margin: '2px 0', color: '#d1d5db', wordBreak: 'break-all' }}>
-                  {pendingDelete.launcherInfo.desktop_entry_path}
-                </p>
-              </div>
-            )}
-            <div className="crosshook-profile-editor-delete-actions">
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--secondary"
-                onClick={cancelDelete}
-                data-crosshook-modal-close
-              >
-                Cancel
-              </button>
-              <button type="button" className="crosshook-profile-editor-delete-confirm" onClick={() => void executeDelete()}>
-                {pendingDelete.launcherInfo ? 'Delete Profile and Launcher' : 'Delete Profile'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-export function ProfileEditor() {
-  const state = useProfile();
-  return (
-    <div className="crosshook-profile-editor-page">
-      <div style={{ display: 'grid', gap: 18, maxWidth: 1180, margin: '0 auto' }}>
-        <header style={{ display: 'grid', gap: 8 }}>
-          <div className="crosshook-profile-editor-eyebrow">CrossHook Native</div>
-          <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800 }}>Profile Editor</h1>
-          <p className="crosshook-help-text" style={{ maxWidth: 760 }}>
-            Edit a profile, save it to Tauri storage, and configure the correct Steam, Proton, or native runner path.
-          </p>
-        </header>
-        <ProfileEditorView state={state} />
-      </div>
     </div>
   );
 }
 
-export default ProfileEditor;
+export default InstallPage;
