@@ -6,6 +6,7 @@ proton=""
 steam_client=""
 trainer_path=""
 trainer_host_path=""
+trainer_loading_mode="source_directory"
 log_file=""
 staged_trainer_host_path=""
 staged_trainer_windows_path=""
@@ -147,6 +148,7 @@ log_runtime_context() {
   log "proton=$proton"
   log "trainer_path=$trainer_path"
   log "trainer_host_path=$trainer_host_path"
+  log "trainer_loading_mode=$trainer_loading_mode"
   log_shell_process
   log_staged_trainer_status
 }
@@ -171,6 +173,10 @@ while (($# > 0)); do
       ;;
     --trainer-host-path)
       trainer_host_path="${2:-}"
+      shift 2
+      ;;
+    --trainer-loading-mode)
+      trainer_loading_mode="${2:-source_directory}"
       shift 2
       ;;
     --log-file)
@@ -204,6 +210,14 @@ trainer_host_path="$(realpath "$trainer_host_path")"
 [[ -x "$proton" ]] || fail "Proton path is not executable: $proton"
 [[ -f "$trainer_host_path" ]] || fail "Trainer host path does not exist: $trainer_host_path"
 
+case "$trainer_loading_mode" in
+  source_directory|copy_to_prefix)
+    ;;
+  *)
+    fail "Unknown trainer loading mode: $trainer_loading_mode"
+    ;;
+esac
+
 for fd in /proc/self/fd/*; do
   fd_num="$(basename "$fd")"
   if ((fd_num > 2)); then
@@ -233,7 +247,15 @@ export STEAM_COMPAT_DATA_PATH="$compatdata"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam_client"
 export WINEPREFIX="$compatdata/pfx"
 
-stage_trainer_into_compatdata
+if [[ "$trainer_loading_mode" == "copy_to_prefix" ]]; then
+  stage_trainer_into_compatdata
+else
+  trainer_path="$trainer_host_path"
+  log "Using trainer from source directory: $trainer_path"
+  cd "$(dirname "$trainer_host_path")"
+  log "Changed trainer working directory to $(pwd)"
+fi
+
 log_runtime_context
 log "Launching trainer with direct proton run."
 if "$proton" run "$trainer_path"; then

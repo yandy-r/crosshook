@@ -1,6 +1,6 @@
 # Steam / Proton Trainer Workflow
 
-CrossHook is a native Linux application that orchestrates game and trainer launches through Steam and Proton. CrossHook itself runs directly on the host -- it does not run under WINE. Trainers are Windows executables that CrossHook launches into the game's Proton compatdata prefix using a clean environment.
+CrossHook is a native Linux application that orchestrates game and trainer launches through Steam and Proton. CrossHook itself runs directly on the host -- it does not run under WINE. Trainers are Windows executables that CrossHook launches under Proton against the game's prefix using a clean environment.
 
 CrossHook also includes an `Install Game` sub-tab inside the Profile panel. That flow uses direct `proton run`, defaults new prefixes under `~/.local/share/crosshook/prefixes/<slug>`, and opens a review modal for the generated `GameProfile` before you save it. Saving the draft persists the profile and then opens the Profile tab with that new profile selected.
 
@@ -43,7 +43,7 @@ method = "steam_applaunch"
 This is the primary mode for Steam-managed games. The workflow has two phases:
 
 1. **Game launch**: CrossHook runs `steam -applaunch <appid>` to start the game. Steam initializes DRM, the Steam overlay, and the correct Proton runtime.
-2. **Trainer launch**: Once the game process is detected, CrossHook stages the trainer into the game's compatdata prefix at `pfx/drive_c/CrossHook/StagedTrainers/`, strips all inherited WINE/Proton environment variables, and runs the trainer through Proton with a clean environment.
+2. **Trainer launch**: Once the game process is detected, CrossHook launches the trainer through Proton with a clean environment. By default, it runs the trainer from its original host directory so stateful bundles such as Aurora keep one shared install. When needed, you can switch the profile to `Copy into prefix`, which stages the trainer into `pfx/drive_c/CrossHook/StagedTrainers/` before launch.
 
 **Steam Launch Options (optional):** For the same curated toggles as direct Proton launches, use the **Steam launch options** panel in the main view. CrossHook does not write into Steam; copy the generated single line into the game’s **Properties → General → Launch Options** in the Steam client. The line uses the same env vars and wrapper order as `proton_run` (for example `PROTON_*=1` assignments, then `mangohud` / `gamemoderun` / `game-performance` when enabled) and always ends with `%command%`.
 
@@ -71,6 +71,9 @@ This mode launches both the game and trainer directly through Proton against a s
 - Each visible optimization has an info tooltip that explains what it does, when it helps, and its main caveat.
 - Existing saved profiles autosave checkbox changes for `launch.optimizations` only (debounced). New unsaved profiles stay in draft mode until the first manual save.
 - The initial option catalog is intentionally conservative. Common launch fixes are shown first, while advanced or community-documented options are grouped separately and may be hardware-specific or experimental.
+- The Trainer section also exposes a loading mode:
+  - `Run from current directory` is the default and keeps a single canonical trainer install.
+  - `Copy into prefix` preserves the older staging workflow for trainers that require prefix-local files.
 
 Required profile fields:
 
@@ -140,7 +143,9 @@ Custom Proton versions are searched in:
 3. Click the launch button. CrossHook starts the game through Steam.
 4. Wait until the game reaches the in-game menu. CrossHook polls for the game process and transitions to the "Launch Trainer" state once the game is detected.
 5. Click the launch button again. CrossHook:
-   - Stages the trainer `.exe` into the compatdata prefix.
+   - Uses the profile's trainer loading mode.
+   - Runs the trainer directly from its source directory by default.
+   - Optionally stages the trainer bundle into the compatdata prefix when `Copy into prefix` is selected.
    - Strips all WINE/Proton environment variables (~30 variables) to prevent conflicts.
    - Sets only `STEAM_COMPAT_DATA_PATH`, `STEAM_COMPAT_CLIENT_INSTALL_PATH`, and `WINEPREFIX`.
    - Runs `proton run <trainer>` in a clean session via `setsid`.
@@ -151,7 +156,7 @@ Custom Proton versions are searched in:
 If the game is already running (you started it from Steam directly), you can skip the game launch step:
 
 1. Load a profile and use the trainer-only launch option.
-2. CrossHook stages and launches the trainer against the configured compatdata prefix without touching the game process.
+2. CrossHook launches the trainer against the configured prefix without touching the game process, either from the source directory or by staging into the prefix depending on the profile setting.
 
 ### Native launch
 
@@ -178,13 +183,15 @@ CrossHook generates standalone shell scripts and `.desktop` entries from your pr
 
 ### Generated script structure
 
-The shell script sets the Proton environment and runs the trainer directly:
+The shell script sets the Proton environment and follows the profile's trainer loading mode. In source-directory mode it runs the selected trainer path directly; in copy mode it stages the trainer bundle into `C:\CrossHook\StagedTrainers\...` first.
+
+Source-directory exports look like:
 
 ```bash
 export STEAM_COMPAT_DATA_PATH='...'
 export STEAM_COMPAT_CLIENT_INSTALL_PATH='...'
 export WINEPREFIX="$STEAM_COMPAT_DATA_PATH/pfx"
-exec "$PROTON" run "$TRAINER_WINDOWS_PATH"
+exec "$PROTON" run "$TRAINER_HOST_PATH"
 ```
 
 The `.desktop` entry runs the script with `/bin/bash`, making the trainer launchable from your desktop's application menu or a file manager.
@@ -208,13 +215,13 @@ After you export a launcher, CrossHook monitors the generated files and reports 
 | **Exported**     | Both the `.sh` script and `.desktop` entry exist and match the current profile                           |
 | **Not Exported** | Neither file exists yet -- the profile has not been exported                                             |
 | **Partial**      | Only one of the two files exists (the other was deleted externally or failed to write)                   |
-| **Stale**        | The files exist but their content no longer matches the current profile (e.g., the display name changed) |
+| **Stale**        | The files exist but their content no longer matches the current profile (e.g., the display name or trainer loading mode changed) |
 
 The status badge appears in the Launcher Export panel. When a launcher is stale, CrossHook displays a notification with a **Re-export Launcher** button so you can regenerate the files with the updated profile data.
 
 ### Stale detection
 
-CrossHook detects staleness by reading the `Name=` field in the `.desktop` entry and comparing it against the expected display name derived from the profile. If the profile's display name has changed since the last export, the launcher is marked stale.
+CrossHook detects staleness by comparing the generated launcher content against the current profile. If the profile's display name, paths, or trainer loading mode changed since the last export, the launcher is marked stale.
 
 Generated `.desktop` entries also include two metadata fields that CrossHook uses internally:
 

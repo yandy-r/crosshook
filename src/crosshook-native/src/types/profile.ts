@@ -16,6 +16,7 @@ export interface ProfileData {
 }
 
 export type LaunchMethod = '' | 'steam_applaunch' | 'proton_run' | 'native';
+export type TrainerLoadingMode = 'source_directory' | 'copy_to_prefix';
 
 export interface GameProfile {
   game: {
@@ -25,6 +26,7 @@ export interface GameProfile {
   trainer: {
     path: string;
     type: string;
+    loading_mode: TrainerLoadingMode;
   };
   injection: {
     dll_paths: string[];

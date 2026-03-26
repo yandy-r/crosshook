@@ -205,7 +205,9 @@ pub fn resolve_launch_directives_for_method(
             .iter()
             .any(|definition| definition.id == option_id)
         {
-            return Err(ValidationError::UnknownLaunchOptimization(option_id.clone()));
+            return Err(ValidationError::UnknownLaunchOptimization(
+                option_id.clone(),
+            ));
         }
     }
 
@@ -244,10 +246,14 @@ pub fn resolve_launch_directives_for_method(
 
         for (key, value) in definition.env {
             if !LAUNCH_OPTIMIZATION_ENV_VARS.contains(key) {
-                return Err(ValidationError::UnknownLaunchOptimization(definition.id.to_string()));
+                return Err(ValidationError::UnknownLaunchOptimization(
+                    definition.id.to_string(),
+                ));
             }
 
-            directives.env.push(((*key).to_string(), (*value).to_string()));
+            directives
+                .env
+                .push(((*key).to_string(), (*value).to_string()));
         }
 
         for wrapper in definition.wrappers {
@@ -258,7 +264,9 @@ pub fn resolve_launch_directives_for_method(
     Ok(directives)
 }
 
-pub fn resolve_launch_directives(request: &LaunchRequest) -> Result<LaunchDirectives, ValidationError> {
+pub fn resolve_launch_directives(
+    request: &LaunchRequest,
+) -> Result<LaunchDirectives, ValidationError> {
     let enabled_option_ids = &request.optimizations.enabled_option_ids;
     if enabled_option_ids.is_empty() {
         return Ok(LaunchDirectives::default());
@@ -343,7 +351,9 @@ fn is_executable_file(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::launch::request::{LaunchOptimizationsRequest, RuntimeLaunchConfig, SteamLaunchConfig};
+    use crate::launch::request::{
+        LaunchOptimizationsRequest, RuntimeLaunchConfig, SteamLaunchConfig,
+    };
 
     fn optimization_request(enabled_option_ids: Vec<&str>) -> LaunchRequest {
         LaunchRequest {
@@ -351,6 +361,7 @@ mod tests {
             game_path: "/games/test.exe".to_string(),
             trainer_path: "/trainers/test.exe".to_string(),
             trainer_host_path: "/trainers/test.exe".to_string(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
             steam: SteamLaunchConfig::default(),
             runtime: RuntimeLaunchConfig {
                 prefix_path: "/prefix".to_string(),
@@ -358,10 +369,7 @@ mod tests {
                 working_directory: String::new(),
             },
             optimizations: LaunchOptimizationsRequest {
-                enabled_option_ids: enabled_option_ids
-                    .into_iter()
-                    .map(str::to_string)
-                    .collect(),
+                enabled_option_ids: enabled_option_ids.into_iter().map(str::to_string).collect(),
             },
             launch_trainer_only: false,
             launch_game_only: false,

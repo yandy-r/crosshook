@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LegacyProfileData {
@@ -44,6 +45,35 @@ pub struct GameProfile {
     pub launch: LaunchSection,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TrainerLoadingMode {
+    #[default]
+    SourceDirectory,
+    CopyToPrefix,
+}
+
+impl TrainerLoadingMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::SourceDirectory => "source_directory",
+            Self::CopyToPrefix => "copy_to_prefix",
+        }
+    }
+}
+
+impl FromStr for TrainerLoadingMode {
+    type Err = &'static str;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim() {
+            "source_directory" => Ok(Self::SourceDirectory),
+            "copy_to_prefix" => Ok(Self::CopyToPrefix),
+            _ => Err("unsupported trainer loading mode"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LaunchOptimizationsSection {
     #[serde(
@@ -74,6 +104,8 @@ pub struct TrainerSection {
     pub path: String,
     #[serde(rename = "type", default)]
     pub kind: String,
+    #[serde(rename = "loading_mode", default)]
+    pub loading_mode: TrainerLoadingMode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -144,6 +176,7 @@ impl From<LegacyProfileData> for GameProfile {
             trainer: TrainerSection {
                 path: value.trainer_path,
                 kind: String::default(),
+                loading_mode: TrainerLoadingMode::default(),
             },
             injection: InjectionSection {
                 dll_paths: vec![value.dll1_path, value.dll2_path],

@@ -232,6 +232,51 @@ pub fn check_launcher_exists(
     })
 }
 
+pub fn check_launcher_exists_for_request(
+    display_name: &str,
+    request: &SteamExternalLauncherExportRequest,
+) -> Result<LauncherInfo, LauncherStoreError> {
+    let (resolved_name, slug, script_path, desktop_entry_path) = derive_launcher_paths(
+        display_name,
+        &request.steam_app_id,
+        &request.trainer_path,
+        &request.target_home_path,
+        &request.steam_client_install_path,
+    );
+
+    let script_exists = !script_path.is_empty() && Path::new(&script_path).exists();
+    let desktop_entry_exists =
+        !desktop_entry_path.is_empty() && Path::new(&desktop_entry_path).exists();
+
+    let script_is_stale = if script_exists {
+        let expected_script = build_trainer_script_content(request, &resolved_name);
+        fs::read_to_string(&script_path)
+            .map(|actual_script| actual_script != expected_script)
+            .unwrap_or(true)
+    } else {
+        false
+    };
+
+    let desktop_is_stale = if desktop_entry_exists {
+        match extract_display_name_from_desktop(&desktop_entry_path)? {
+            Some(actual_name) => actual_name != resolved_name,
+            None => true,
+        }
+    } else {
+        false
+    };
+
+    Ok(LauncherInfo {
+        display_name: resolved_name,
+        launcher_slug: slug,
+        script_path,
+        desktop_entry_path,
+        script_exists,
+        desktop_entry_exists,
+        is_stale: script_is_stale || desktop_is_stale,
+    })
+}
+
 pub fn check_launcher_for_profile(
     profile: &GameProfile,
     target_home_path: &str,
@@ -241,12 +286,28 @@ pub fn check_launcher_for_profile(
         return Ok(LauncherInfo::default());
     }
 
-    check_launcher_exists(
+    check_launcher_exists_for_request(
         &profile.steam.launcher.display_name,
-        &profile.steam.app_id,
-        &profile.trainer.path,
-        target_home_path,
-        steam_client_install_path,
+        &SteamExternalLauncherExportRequest {
+            method: profile.launch.method.clone(),
+            launcher_name: profile.steam.launcher.display_name.clone(),
+            trainer_path: profile.trainer.path.clone(),
+            trainer_loading_mode: profile.trainer.loading_mode,
+            launcher_icon_path: profile.steam.launcher.icon_path.clone(),
+            prefix_path: if profile.launch.method == "steam_applaunch" {
+                profile.steam.compatdata_path.clone()
+            } else {
+                profile.runtime.prefix_path.clone()
+            },
+            proton_path: if profile.launch.method == "steam_applaunch" {
+                profile.steam.proton_path.clone()
+            } else {
+                profile.runtime.proton_path.clone()
+            },
+            steam_app_id: profile.steam.app_id.clone(),
+            steam_client_install_path: steam_client_install_path.to_string(),
+            target_home_path: target_home_path.to_string(),
+        },
     )
 }
 
@@ -675,6 +736,7 @@ mod tests {
             method: "proton_run".to_string(),
             launcher_name: String::new(),
             trainer_path: "/opt/trainers/TestTrainer.exe".to_string(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
             launcher_icon_path: String::new(),
             prefix_path: "/tmp/prefix".to_string(),
             proton_path: "/opt/proton/proton".to_string(),
@@ -716,6 +778,47 @@ mod tests {
             .expect("check launcher exists");
         assert!(!info.script_exists, "script should not exist");
         assert!(!info.desktop_entry_exists, "desktop entry should not exist");
+    }
+
+    #[test]
+    fn check_launcher_exists_for_request_marks_mode_mismatches_as_stale() {
+        let temp = tempdir().expect("temp dir");
+        let home = temp.path().to_string_lossy().into_owned();
+        let display_name = "Aurora Test";
+        let request = SteamExternalLauncherExportRequest {
+            method: "proton_run".to_string(),
+            launcher_name: display_name.to_string(),
+            trainer_path: "/opt/trainers/Aurora.exe".to_string(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            launcher_icon_path: String::new(),
+            prefix_path: "/games/prefixes/aurora-test".to_string(),
+            proton_path: "/opt/proton/proton".to_string(),
+            steam_app_id: String::new(),
+            steam_client_install_path: String::new(),
+            target_home_path: home.clone(),
+        };
+
+        let info = check_launcher_exists_for_request(display_name, &request)
+            .expect("derive launcher paths");
+        let copy_request = SteamExternalLauncherExportRequest {
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::CopyToPrefix,
+            ..request.clone()
+        };
+
+        create_file_with_content(
+            &info.script_path,
+            &build_trainer_script_content(&copy_request, display_name),
+        );
+        create_file_with_content(
+            &info.desktop_entry_path,
+            &build_desktop_entry_content(display_name, &info.launcher_slug, &info.script_path, ""),
+        );
+
+        let info = check_launcher_exists_for_request(display_name, &request)
+            .expect("check launcher request");
+        assert!(info.script_exists);
+        assert!(info.desktop_entry_exists);
+        assert!(info.is_stale, "mode mismatch should mark launcher stale");
     }
 
     #[test]
@@ -846,6 +949,7 @@ mod tests {
             trainer: TrainerSection {
                 path: "/mnt/trainers/test.exe".to_string(),
                 kind: String::new(),
+                loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
             },
             steam: SteamSection {
                 app_id: "12345".to_string(),
@@ -897,6 +1001,7 @@ mod tests {
             trainer: TrainerSection {
                 path: "/mnt/trainers/test.exe".to_string(),
                 kind: String::new(),
+                loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
             },
             steam: SteamSection {
                 app_id: "12345".to_string(),

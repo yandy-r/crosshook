@@ -333,6 +333,7 @@ mod tests {
             trainer: crate::profile::TrainerSection {
                 path: "/trainers/elden-ring.exe".to_string(),
                 kind: "fling".to_string(),
+                loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
             },
             injection: crate::profile::InjectionSection {
                 dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],

@@ -13,6 +13,7 @@ use super::{
     },
     LaunchRequest, ValidationError,
 };
+use crate::profile::TrainerLoadingMode;
 
 const BASH_EXECUTABLE: &str = "/bin/bash";
 const DEFAULT_GAME_STARTUP_DELAY_SECONDS: &str = "30";
@@ -88,16 +89,19 @@ pub fn build_proton_trainer_command(
     log_path: &Path,
 ) -> std::io::Result<Command> {
     let directives = resolve_launch_directives(request).map_err(validation_error_to_io_error)?;
-    let staged_trainer_path = stage_trainer_into_prefix(
-        Path::new(request.runtime.prefix_path.trim()),
-        Path::new(request.trainer_host_path.trim()),
-    )?;
+    let trainer_launch_path = match request.trainer_loading_mode {
+        TrainerLoadingMode::SourceDirectory => request.trainer_host_path.trim().to_string(),
+        TrainerLoadingMode::CopyToPrefix => stage_trainer_into_prefix(
+            Path::new(request.runtime.prefix_path.trim()),
+            Path::new(request.trainer_host_path.trim()),
+        )?,
+    };
 
     let mut command = new_direct_proton_command_with_wrappers(
         request.runtime.proton_path.trim(),
         &directives.wrappers,
     );
-    command.arg(staged_trainer_path);
+    command.arg(trainer_launch_path);
     apply_host_environment(&mut command);
     apply_runtime_proton_environment(
         &mut command,
@@ -178,6 +182,8 @@ fn helper_arguments(request: &LaunchRequest, log_path: &Path) -> Vec<OsString> {
         request.trainer_path.clone().into(),
         "--trainer-host-path".into(),
         request.trainer_host_path.clone().into(),
+        "--trainer-loading-mode".into(),
+        request.trainer_loading_mode.as_str().to_string().into(),
         "--log-file".into(),
         log_path.as_os_str().to_owned(),
         "--game-startup-delay-seconds".into(),
@@ -211,6 +217,8 @@ fn trainer_arguments(request: &LaunchRequest, log_path: &Path) -> Vec<OsString> 
         request.trainer_path.clone().into(),
         "--trainer-host-path".into(),
         request.trainer_host_path.clone().into(),
+        "--trainer-loading-mode".into(),
+        request.trainer_loading_mode.as_str().to_string().into(),
         "--log-file".into(),
         log_path.as_os_str().to_owned(),
     ]
@@ -348,6 +356,7 @@ mod tests {
             game_path: "/games/My Game/game.exe".to_string(),
             trainer_path: "/trainers/trainer.exe".to_string(),
             trainer_host_path: "/trainers/trainer.exe".to_string(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
             steam: crate::launch::SteamLaunchConfig {
                 app_id: "12345".to_string(),
                 compatdata_path: "/tmp/compat".to_string(),
@@ -366,9 +375,8 @@ mod tests {
             .as_std()
             .get_envs()
             .find_map(|(env_key, env_value)| {
-                (env_key == std::ffi::OsStr::new(key)).then(|| {
-                    env_value.map(|value| value.to_string_lossy().into_owned())
-                })
+                (env_key == std::ffi::OsStr::new(key))
+                    .then(|| env_value.map(|value| value.to_string_lossy().into_owned()))
             })
             .flatten()
     }
@@ -400,6 +408,7 @@ mod tests {
             game_path: game_path.to_string_lossy().into_owned(),
             trainer_path: String::new(),
             trainer_host_path: String::new(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
             steam: crate::launch::SteamLaunchConfig {
                 app_id: String::new(),
                 compatdata_path: String::new(),
@@ -441,7 +450,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            command.as_std().get_current_dir().map(|path| path.to_string_lossy().into_owned()),
+            command
+                .as_std()
+                .get_current_dir()
+                .map(|path| path.to_string_lossy().into_owned()),
             Some(workspace_dir.to_string_lossy().into_owned())
         );
         assert_eq!(
@@ -492,6 +504,7 @@ mod tests {
                 .into_owned(),
             trainer_path: trainer_host_path.to_string_lossy().into_owned(),
             trainer_host_path: trainer_host_path.to_string_lossy().into_owned(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::CopyToPrefix,
             steam: crate::launch::SteamLaunchConfig {
                 app_id: String::new(),
                 compatdata_path: String::new(),
@@ -533,7 +546,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            command.as_std().get_current_dir().map(|path| path.to_string_lossy().into_owned()),
+            command
+                .as_std()
+                .get_current_dir()
+                .map(|path| path.to_string_lossy().into_owned()),
             Some(workspace_dir.to_string_lossy().into_owned())
         );
         assert_eq!(
@@ -586,6 +602,8 @@ mod tests {
                 "/trainers/trainer.exe".to_string(),
                 "--trainer-host-path".to_string(),
                 "/trainers/trainer.exe".to_string(),
+                "--trainer-loading-mode".to_string(),
+                "source_directory".to_string(),
                 "--log-file".to_string(),
                 log_path.to_string_lossy().into_owned(),
                 "--game-startup-delay-seconds".to_string(),
@@ -624,6 +642,7 @@ mod tests {
                 .into_owned(),
             trainer_path: trainer_path.to_string_lossy().into_owned(),
             trainer_host_path: trainer_path.to_string_lossy().into_owned(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::CopyToPrefix,
             steam: crate::launch::SteamLaunchConfig::default(),
             runtime: crate::launch::RuntimeLaunchConfig {
                 prefix_path: prefix_path.to_string_lossy().into_owned(),
@@ -658,6 +677,67 @@ mod tests {
     }
 
     #[test]
+    fn proton_trainer_command_uses_source_directory_without_staging() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let prefix_path = temp_dir.path().join("prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let trainer_source_dir = temp_dir.path().join("trainer");
+        let trainer_path = trainer_source_dir.join("sample.exe");
+        let log_path = temp_dir.path().join("trainer.log");
+
+        fs::create_dir_all(prefix_path.join("drive_c")).expect("prefix dir");
+        fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
+        fs::write(&trainer_path, b"trainer").expect("trainer exe");
+        write_executable_file(&proton_path);
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: temp_dir
+                .path()
+                .join("game.exe")
+                .to_string_lossy()
+                .into_owned(),
+            trainer_path: trainer_path.to_string_lossy().into_owned(),
+            trainer_host_path: trainer_path.to_string_lossy().into_owned(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            steam: crate::launch::SteamLaunchConfig::default(),
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: String::new(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+            launch_trainer_only: true,
+            launch_game_only: false,
+        };
+
+        let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args,
+            vec![
+                "run".to_string(),
+                trainer_path.to_string_lossy().into_owned()
+            ]
+        );
+        assert_eq!(
+            command
+                .as_std()
+                .get_current_dir()
+                .map(|path| path.to_string_lossy().into_owned()),
+            Some(trainer_source_dir.to_string_lossy().into_owned())
+        );
+        assert!(!prefix_path
+            .join("drive_c/CrossHook/StagedTrainers/sample")
+            .exists());
+    }
+
+    #[test]
     fn proton_game_command_sets_compat_data_path_for_standalone_prefixes() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("standalone-prefix");
@@ -676,6 +756,7 @@ mod tests {
             game_path: game_path.to_string_lossy().into_owned(),
             trainer_path: String::new(),
             trainer_host_path: String::new(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
             steam: crate::launch::SteamLaunchConfig {
                 app_id: String::new(),
                 compatdata_path: String::new(),
@@ -741,6 +822,7 @@ mod tests {
                 .into_owned(),
             trainer_path: trainer_path.to_string_lossy().into_owned(),
             trainer_host_path: trainer_path.to_string_lossy().into_owned(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::CopyToPrefix,
             steam: crate::launch::SteamLaunchConfig::default(),
             runtime: crate::launch::RuntimeLaunchConfig {
                 prefix_path: compatdata_root.to_string_lossy().into_owned(),

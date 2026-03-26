@@ -1,5 +1,5 @@
 import type { LaunchOptimizations } from './launch-optimizations';
-import type { LaunchMethod } from './profile';
+import type { LaunchMethod, TrainerLoadingMode } from './profile';
 
 export enum LaunchPhase {
   Idle = "Idle",
@@ -14,6 +14,7 @@ export interface LaunchRequest {
   game_path: string;
   trainer_path: string;
   trainer_host_path: string;
+  trainer_loading_mode: TrainerLoadingMode;
   steam: {
     app_id: string;
     compatdata_path: string;

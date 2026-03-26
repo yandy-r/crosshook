@@ -449,6 +449,32 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                   }
                 }}
               />
+
+              <div className="crosshook-field">
+                <label className="crosshook-label" htmlFor={`${profileNamesListId}-trainer-loading-mode`}>
+                  Trainer Loading Mode
+                </label>
+                <ThemedSelect
+                  id={`${profileNamesListId}-trainer-loading-mode`}
+                  value={profile.trainer.loading_mode}
+                  onValueChange={(value) =>
+                    onUpdateProfile((current) => ({
+                      ...current,
+                      trainer: {
+                        ...current.trainer,
+                        loading_mode: value as typeof current.trainer.loading_mode,
+                      },
+                    }))
+                  }
+                  options={[
+                    { value: 'source_directory', label: 'Run from current directory' },
+                    { value: 'copy_to_prefix', label: 'Copy into prefix' },
+                  ]}
+                />
+                <p className="crosshook-help-text">
+                  Use the original trainer location by default so stateful bundles like Aurora keep one shared install. Switch to copy mode only when a trainer requires prefix-local files.
+                </p>
+              </div>
             </div>
           </OptionalSection>
         </div>

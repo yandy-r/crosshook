@@ -146,7 +146,8 @@ mod tests {
     use super::*;
     use crosshook_core::export::check_launcher_exists;
     use crosshook_core::profile::{
-        GameSection, LaunchSection, LauncherSection, SteamSection, TrainerSection,
+        GameSection, LaunchSection, LauncherSection, SteamSection, TrainerLoadingMode,
+        TrainerSection,
     };
     use std::fs;
     use tempfile::tempdir;
@@ -160,6 +161,7 @@ mod tests {
             trainer: TrainerSection {
                 path: "/tmp/trainers/test.exe".to_string(),
                 kind: String::new(),
+                loading_mode: TrainerLoadingMode::SourceDirectory,
             },
             steam: SteamSection {
                 app_id: "12345".to_string(),
