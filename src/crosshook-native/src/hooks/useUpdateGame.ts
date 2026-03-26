@@ -194,28 +194,34 @@ export function useUpdateGame(): UseUpdateGameResult {
       return;
     }
 
-    try {
-      const updateResult = await invoke<UpdateGameResult>('update_game', { request });
-      setStage('running_updater');
-      setResult(updateResult);
+    let unlistenComplete: (() => void) | null = null;
 
-      const unlisten = await listen<number | null>('update-complete', (event) => {
+    try {
+      // Subscribe to the completion event BEFORE invoking the command
+      // to avoid a race where the process exits before the listener exists.
+      unlistenComplete = await listen<number | null>('update-complete', (event) => {
         const exitCode = event.payload;
 
         if (exitCode === 0 || exitCode === null) {
           setStage('complete');
-          setResult((current) => current ?? updateResult);
         } else {
           setStage('failed');
           setError(`Update process exited with code ${exitCode}.`);
         }
 
-        void unlisten();
+        unlistenComplete?.();
+        unlistenComplete = null;
       });
+
+      const updateResult = await invoke<UpdateGameResult>('update_game', { request });
+      setStage('running_updater');
+      setResult(updateResult);
     } catch (invokeError) {
       const message = normalizeErrorMessage(invokeError);
       setStage('failed');
       setError(message);
+      unlistenComplete?.();
+      unlistenComplete = null;
     }
   }, [request]);
 
