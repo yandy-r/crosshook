@@ -102,7 +102,7 @@ export function ProfilesPage() {
   }, [effectiveSteamClientInstallPath]);
 
   return (
-    <div className="crosshook-content-area">
+    <>
       <PageBanner
         eyebrow="Profiles"
         title="Profile editor"
@@ -208,7 +208,7 @@ export function ProfilesPage() {
           </div>
         </div>
       ) : null}
-    </div>
+    </>
   );
 }
 

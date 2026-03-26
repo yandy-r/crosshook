@@ -22,7 +22,7 @@ export function CompatibilityPage() {
   const compatibilityEntries = toCompatibilityEntries(communityState.index.entries);
 
   return (
-    <div className="crosshook-content-area">
+    <>
       <PageBanner
         eyebrow="Community"
         title="Compatibility data"
@@ -35,7 +35,7 @@ export function CompatibilityPage() {
         error={communityState.error}
         emptyMessage="No indexed community compatibility entries are available yet."
       />
-    </div>
+    </>
   );
 }
 

@@ -17,6 +17,7 @@ pub use optimizations::{
     resolve_launch_directives_for_method, LaunchDirectives,
 };
 pub use request::{
-    validate, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest,
-    ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    validate, LaunchRequest, LaunchValidationIssue, RuntimeLaunchConfig, SteamLaunchConfig,
+    SteamLaunchRequest, ValidationError, ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN,
+    METHOD_STEAM_APPLAUNCH,
 };

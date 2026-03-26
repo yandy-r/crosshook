@@ -55,7 +55,7 @@ export function LaunchPage() {
   const showsSteamLaunchOptions = profileState.launchMethod === 'steam_applaunch';
 
   return (
-    <div className="crosshook-content-area">
+    <>
       <PageBanner
         eyebrow="Launch"
         title="Launch controls"
@@ -91,7 +91,7 @@ export function LaunchPage() {
           />
         ) : null}
       </div>
-    </div>
+    </>
   );
 }
 

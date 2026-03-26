@@ -13,7 +13,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
     actionLabel,
     canLaunchGame,
     canLaunchTrainer,
-    errorMessage,
+    feedback,
     helperLogPath,
     hintText,
     isBusy,
@@ -32,6 +32,15 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
   const isSessionActive = phase === LaunchPhase.SessionActive;
   const canLaunch = isWaitingForTrainer ? canLaunchTrainer : canLaunchGame;
   const primaryAction = isWaitingForTrainer ? launchTrainer : launchGame;
+  const validationFeedback = feedback?.kind === 'validation' ? feedback.issue : null;
+  const runtimeFeedback = feedback?.kind === 'runtime' ? feedback.message : null;
+  const feedbackSeverity = validationFeedback?.severity ?? 'fatal';
+  const feedbackLabel =
+    feedbackSeverity === 'fatal'
+      ? 'Fatal'
+      : feedbackSeverity === 'warning'
+        ? 'Warning'
+        : 'Info';
 
   return (
     <section className="crosshook-launch-panel">
@@ -59,7 +68,34 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
         {helperLogPath ? (
           <p className="crosshook-launch-panel__helper-log">Helper log: {helperLogPath}</p>
         ) : null}
-        {errorMessage ? <p className="crosshook-launch-panel__error">{errorMessage}</p> : null}
+        {feedback ? (
+          <div
+            className="crosshook-launch-panel__feedback"
+            data-kind={feedback.kind}
+            data-severity={feedbackSeverity}
+            role="alert"
+          >
+            {validationFeedback ? (
+              <>
+                <div className="crosshook-launch-panel__feedback-header">
+                  <span className="crosshook-launch-panel__feedback-badge">
+                    {feedbackLabel}
+                  </span>
+                  <p className="crosshook-launch-panel__feedback-title">
+                    {validationFeedback.message}
+                  </p>
+                </div>
+                <p className="crosshook-launch-panel__feedback-help">
+                  {validationFeedback.help}
+                </p>
+              </>
+            ) : (
+              <p className="crosshook-launch-panel__feedback-title">
+                {runtimeFeedback}
+              </p>
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div className="crosshook-launch-panel__actions">

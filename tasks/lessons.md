@@ -1,5 +1,10 @@
 # Lessons
 
+## 2026-03-26
+
+- When debugging top-level page scroll carryover in the native Tauri shell, first identify the real scroll owner before patching route effects. In this repo, if multiple pages wrap themselves in the same `.crosshook-content-area`, move that scroll container into the shared layout shell and reset it there with a `ref` in `useLayoutEffect`; do not rely on per-page wrappers or `querySelector` plus `requestAnimationFrame` to clean up shared scroll state.
+- In React route/layout work, do not assume `key` survives inside a spread props object. If a remount is required, pass `key={...}` directly in JSX or the remount logic will silently fail.
+
 ## 2026-03-18
 
 - After changing a manifest that becomes a new source of truth for CI or release workflows, explicitly verify the committed file contents and byte size before pushing. Do not assume an edited `Cargo.toml` is intact just because local commands succeeded earlier in the turn.

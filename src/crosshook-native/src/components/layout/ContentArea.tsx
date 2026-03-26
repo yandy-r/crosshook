@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import CompatibilityPage from '../pages/CompatibilityPage';
@@ -14,48 +15,49 @@ export interface ContentAreaProps {
 }
 
 export function ContentArea({ route, onNavigate }: ContentAreaProps) {
-  switch (route) {
-    case 'profiles':
-      return (
-        <Tabs.Content value="profiles" forceMount data-crosshook-focus-zone="content">
-          <ProfilesPage />
-        </Tabs.Content>
-      );
-    case 'launch':
-      return (
-        <Tabs.Content value="launch" forceMount data-crosshook-focus-zone="content">
-          <LaunchPage />
-        </Tabs.Content>
-      );
-    case 'install':
-      return (
-        <Tabs.Content value="install" forceMount data-crosshook-focus-zone="content">
-          <InstallPage onNavigate={onNavigate} />
-        </Tabs.Content>
-      );
-    case 'community':
-      return (
-        <Tabs.Content value="community" forceMount data-crosshook-focus-zone="content">
-          <CommunityPage />
-        </Tabs.Content>
-      );
-    case 'compatibility':
-      return (
-        <Tabs.Content value="compatibility" forceMount data-crosshook-focus-zone="content">
-          <CompatibilityPage />
-        </Tabs.Content>
-      );
-    case 'settings':
-      return (
-        <Tabs.Content value="settings" forceMount data-crosshook-focus-zone="content">
-          <SettingsPage />
-        </Tabs.Content>
-      );
-    default: {
-      const _exhaustive: never = route;
-      return _exhaustive;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+      scrollRef.current.scrollLeft = 0;
+    }
+  }, [route]);
+
+  const contentProps = {
+    value: route,
+    forceMount: true as const,
+    'data-crosshook-focus-zone': 'content' as const,
+  };
+
+  function renderPage() {
+    switch (route) {
+      case 'profiles':
+        return <ProfilesPage />;
+      case 'launch':
+        return <LaunchPage />;
+      case 'install':
+        return <InstallPage onNavigate={onNavigate} />;
+      case 'community':
+        return <CommunityPage />;
+      case 'compatibility':
+        return <CompatibilityPage />;
+      case 'settings':
+        return <SettingsPage />;
+      default: {
+        const _exhaustive: never = route;
+        return _exhaustive;
+      }
     }
   }
+
+  return (
+    <div ref={scrollRef} className="crosshook-content-area">
+      <Tabs.Content key={route} {...contentProps}>
+        {renderPage()}
+      </Tabs.Content>
+    </div>
+  );
 }
 
 export default ContentArea;
