@@ -7,6 +7,7 @@ import {
   type UseCommunityProfilesResult,
   useCommunityProfiles,
 } from '../hooks/useCommunityProfiles';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 import { ThemedSelect } from './ui/ThemedSelect';
 
 export interface CommunityBrowserProps {
@@ -189,10 +190,9 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
         </p>
       </header>
 
-      <section className="crosshook-panel crosshook-community-browser__panel">
+      <CollapsibleSection title="Tap Management" className="crosshook-panel crosshook-community-browser__panel">
         <div className="crosshook-community-browser__footer">
           <div className="crosshook-community-browser__section-copy">
-            <div className="crosshook-heading-eyebrow">Tap Management</div>
             <p className="crosshook-muted crosshook-community-browser__helper">
               Taps are persisted in CrossHook settings and synced through the backend community commands.
             </p>
@@ -281,9 +281,13 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
             Add a tap URL to populate the community browser.
           </p>
         )}
-      </section>
+      </CollapsibleSection>
 
-      <section className="crosshook-panel crosshook-community-browser__panel">
+      <CollapsibleSection
+        title="Community Profiles"
+        className="crosshook-panel crosshook-community-browser__panel"
+        meta={<span>{visibleEntries.length} of {index.entries.length} profiles</span>}
+      >
         <div className="crosshook-community-browser__toolbar">
           <div className="crosshook-community-browser__field">
             <label className="crosshook-label" htmlFor="community-search">
@@ -410,7 +414,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
             ))}
           </div>
         )}
-      </section>
+      </CollapsibleSection>
     </section>
   );
 }

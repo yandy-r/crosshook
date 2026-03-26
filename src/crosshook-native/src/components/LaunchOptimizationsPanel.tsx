@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import type { LaunchMethod } from '../types';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 import {
   LAUNCH_OPTIMIZATION_CATEGORIES,
   LAUNCH_OPTIMIZATION_CATEGORY_LABELS,
@@ -393,13 +394,16 @@ export function LaunchOptimizationsPanel({
           </div>
         </div>
 
-        <details className="crosshook-launch-optimizations__advanced" open={advancedOpen}>
-          <summary className="crosshook-launch-optimizations__advanced-summary">
-            <span>Advanced</span>
+        <CollapsibleSection
+          title="Advanced"
+          open={advancedOpen}
+          className="crosshook-launch-optimizations__advanced"
+          meta={
             <span className="crosshook-launch-optimizations__advanced-summary-meta">
               {formatCountLabel(advancedOptions.length, 'option', 'options')}
             </span>
-          </summary>
+          }
+        >
           <p className="crosshook-help-text crosshook-launch-optimizations__advanced-copy">
             Experimental or hardware-specific toggles that are useful when the common fixes are not enough.
           </p>
@@ -420,7 +424,7 @@ export function LaunchOptimizationsPanel({
               />
             ))}
           </div>
-        </details>
+        </CollapsibleSection>
       </div>
     </section>
   );

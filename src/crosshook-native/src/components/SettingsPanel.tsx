@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { ChangeEvent } from 'react';
 import type { LauncherDeleteResult, LauncherInfo } from '../types';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 
 interface RecentFilesState {
   gamePaths: string[];
@@ -82,7 +83,6 @@ function ManageLaunchersSection({
   steamClientInstallPath: string;
 }) {
   const [launchers, setLaunchers] = useState<LauncherInfo[]>([]);
-  const [expanded, setExpanded] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [confirmSlug, setConfirmSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -127,86 +127,82 @@ function ManageLaunchersSection({
   }
 
   return (
-    <section className="crosshook-panel crosshook-settings-section">
-      <div className="crosshook-settings-section-header">
-        <div className="crosshook-heading-eyebrow">Manage Launchers</div>
-        <div className="crosshook-settings-section-actions">
-          <div className="crosshook-muted crosshook-settings-meta">
+    <CollapsibleSection
+      title="Manage Launchers"
+      defaultOpen={false}
+      className="crosshook-panel crosshook-settings-section"
+      meta={
+        <>
+          <span className="crosshook-muted">
             {launchers.length} launcher{launchers.length !== 1 ? 's' : ''} on disk
-          </div>
+          </span>
           <button
             type="button"
             className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
-            onClick={() => setExpanded((prev) => !prev)}
-          >
-            {expanded ? 'Collapse' : 'Expand'}
-          </button>
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
-            onClick={() => void loadLaunchers()}
+            onClick={(event) => {
+              event.preventDefault();
+              void loadLaunchers();
+            }}
           >
             Refresh
           </button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {error ? (
         <p className="crosshook-danger crosshook-settings-error">
           {error}
         </p>
       ) : null}
 
-      {expanded ? (
-        <ul className="crosshook-recent-list">
-          {launchers.map((launcher) => (
-            <li key={launcher.launcher_slug} className="crosshook-recent-item">
-              <div className="crosshook-settings-launcher-row">
-                <div>
-                  <div className="crosshook-recent-item__label crosshook-settings-launcher-label">
-                    {launcher.launcher_slug}
-                  </div>
-                  <div className="crosshook-recent-item__label crosshook-settings-launcher-path">
-                    {launcher.script_exists ? truncatePath(launcher.script_path) : null}
-                    {launcher.script_exists && launcher.desktop_entry_exists ? ' | ' : null}
-                    {launcher.desktop_entry_exists ? truncatePath(launcher.desktop_entry_path) : null}
-                  </div>
+      <ul className="crosshook-recent-list">
+        {launchers.map((launcher) => (
+          <li key={launcher.launcher_slug} className="crosshook-recent-item">
+            <div className="crosshook-settings-launcher-row">
+              <div>
+                <div className="crosshook-recent-item__label crosshook-settings-launcher-label">
+                  {launcher.launcher_slug}
                 </div>
-                <div className="crosshook-settings-launcher-actions">
-                  {confirmSlug === launcher.launcher_slug ? (
-                    <>
-                      <button
-                        type="button"
-                        className="crosshook-button crosshook-button--danger crosshook-settings-small-button"
-                        disabled={deleting === launcher.launcher_slug}
-                        onClick={() => void handleDelete(launcher.launcher_slug)}
-                      >
-                        {deleting === launcher.launcher_slug ? 'Deleting...' : 'Confirm'}
-                      </button>
-                      <button
-                        type="button"
-                        className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
-                        onClick={() => setConfirmSlug(null)}
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
+                <div className="crosshook-recent-item__label crosshook-settings-launcher-path">
+                  {launcher.script_exists ? truncatePath(launcher.script_path) : null}
+                  {launcher.script_exists && launcher.desktop_entry_exists ? ' | ' : null}
+                  {launcher.desktop_entry_exists ? truncatePath(launcher.desktop_entry_path) : null}
+                </div>
+              </div>
+              <div className="crosshook-settings-launcher-actions">
+                {confirmSlug === launcher.launcher_slug ? (
+                  <>
+                    <button
+                      type="button"
+                      className="crosshook-button crosshook-button--danger crosshook-settings-small-button"
+                      disabled={deleting === launcher.launcher_slug}
+                      onClick={() => void handleDelete(launcher.launcher_slug)}
+                    >
+                      {deleting === launcher.launcher_slug ? 'Deleting...' : 'Confirm'}
+                    </button>
                     <button
                       type="button"
                       className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
-                      onClick={() => setConfirmSlug(launcher.launcher_slug)}
+                      onClick={() => setConfirmSlug(null)}
                     >
-                      Delete
+                      Cancel
                     </button>
-                  )}
-                </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
+                    onClick={() => setConfirmSlug(launcher.launcher_slug)}
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </CollapsibleSection>
   );
 }
 
@@ -256,14 +252,11 @@ export function SettingsPanel({
 
       <div className="crosshook-settings-grid">
         <div className="crosshook-settings-column">
-          <section className="crosshook-panel crosshook-settings-section">
-            <div className="crosshook-settings-section-header">
-              <div className="crosshook-heading-eyebrow">Startup</div>
-              <div className="crosshook-muted crosshook-settings-meta">
-                Controlled by settings.toml
-              </div>
-            </div>
-
+          <CollapsibleSection
+            title="Startup"
+            className="crosshook-panel crosshook-settings-section"
+            meta={<span className="crosshook-muted">Controlled by settings.toml</span>}
+          >
             <label className="crosshook-settings-checkbox-row">
               <input
                 type="checkbox"
@@ -291,16 +284,13 @@ export function SettingsPanel({
                 placeholder="No profile selected"
               />
             </div>
-          </section>
+          </CollapsibleSection>
 
-          <section className="crosshook-panel crosshook-settings-section">
-            <div className="crosshook-settings-section-header">
-              <div className="crosshook-heading-eyebrow">Profiles</div>
-              <div className="crosshook-muted crosshook-settings-meta">
-                Storage location
-              </div>
-            </div>
-
+          <CollapsibleSection
+            title="Profiles"
+            className="crosshook-panel crosshook-settings-section"
+            meta={<span className="crosshook-muted">Storage location</span>}
+          >
             <div className="crosshook-settings-field-row">
               <label className="crosshook-label" htmlFor="profiles-directory">
                 Profiles directory
@@ -341,7 +331,7 @@ export function SettingsPanel({
                 </button>
               </div>
             ) : null}
-          </section>
+          </CollapsibleSection>
 
           <ManageLaunchersSection
             targetHomePath={targetHomePath}
@@ -350,22 +340,20 @@ export function SettingsPanel({
         </div>
 
         <section className="crosshook-settings-recent-column" aria-label="Recent files">
-          <div className="crosshook-panel crosshook-settings-section">
-            <div className="crosshook-settings-section-header">
-              <div className="crosshook-heading-eyebrow">Recent Files</div>
-              <div className="crosshook-muted crosshook-settings-meta">
-                Most recent paths used by the app
-              </div>
-            </div>
+          <CollapsibleSection
+            title="Recent Files"
+            className="crosshook-panel crosshook-settings-section"
+            meta={<span className="crosshook-muted">Most recent paths used by the app</span>}
+          >
             <p className="crosshook-muted crosshook-settings-help">
               These lists are intended to come from the backend recent-files store. Non-existent entries should be
               removed before the data is passed into this component.
             </p>
-          </div>
 
-          <RecentFilesSection label="Games" paths={recentFiles.gamePaths} limit={recentFilesLimit} />
-          <RecentFilesSection label="Trainers" paths={recentFiles.trainerPaths} limit={recentFilesLimit} />
-          <RecentFilesSection label="DLLs" paths={recentFiles.dllPaths} limit={recentFilesLimit} />
+            <RecentFilesSection label="Games" paths={recentFiles.gamePaths} limit={recentFilesLimit} />
+            <RecentFilesSection label="Trainers" paths={recentFiles.trainerPaths} limit={recentFilesLimit} />
+            <RecentFilesSection label="DLLs" paths={recentFiles.dllPaths} limit={recentFilesLimit} />
+          </CollapsibleSection>
         </section>
       </div>
     </section>
