@@ -70,7 +70,7 @@
 - **Files**: `src/hooks/useUpdateGame.ts:112-113, 118`
 - **Found by**: silent-failure-hunter
 - **Description**: When individual profiles fail to load (corrupted TOML, permissions), they silently vanish from the dropdown. When `profile_list` itself fails, the user sees "No proton_run profiles found" with no error indication.
-- **Status: Open**
+- **Status: Fixed**
 
 ### Issue 9: No child process termination on reset or unmount
 
@@ -78,7 +78,7 @@
 - **Files**: `src-tauri/src/commands/update.rs:54-69`
 - **Found by**: silent-failure-hunter
 - **Description**: The child process handle is consumed by `spawn_log_stream`. There is no way for the frontend to cancel a running update. Clicking "Reset" while an update is running leaves an orphaned process modifying the prefix.
-- **Status: Open**
+- **Status: Fixed**
 
 ### Issue 10: Hardcoded `"update-complete"` event name in parameterized function
 
@@ -86,7 +86,7 @@
 - **Files**: `src-tauri/src/commands/update.rs:106`
 - **Found by**: code-reviewer
 - **Description**: `stream_log_lines` accepts an `event_name` parameter but hardcodes `"update-complete"` for the completion event, breaking the generic contract.
-- **Status: Open**
+- **Status: Fixed**
 
 ### Issue 11: `succeeded: true` returned before process actually succeeds
 
@@ -94,7 +94,7 @@
 - **Files**: `crates/crosshook-core/src/update/service.rs:58-59`
 - **Found by**: silent-failure-hunter, type-design-analyzer
 - **Description**: `update_game` returns `succeeded: true` immediately after spawning, before the process runs. Misleading for future consumers.
-- **Status: Open**
+- **Status: Fixed**
 
 ### Issue 12: ConsoleView empty state text only mentions launch-log
 
@@ -120,7 +120,7 @@
 - **Files**: `crates/crosshook-core/src/update/service.rs:45-65`
 - **Found by**: pr-test-analyzer
 - **Description**: The `update_game` function wiring (validate → build command → spawn) is untested at the integration level.
-- **Status: Open**
+- **Status: Fixed**
 
 ### Issue 15: `build_update_command` test only asserts `is_ok()` without inspecting command
 
@@ -128,7 +128,7 @@
 - **Files**: `crates/crosshook-core/src/update/service.rs:330-338`
 - **Found by**: pr-test-analyzer
 - **Description**: The test verifies the command was constructed but doesn't inspect environment variables or arguments.
-- **Status: Open**
+- **Status: Fixed**
 
 ### Issue 16: `is_executable_file` silently returns false on metadata read failure
 
@@ -144,7 +144,7 @@
 - **Files**: `src/styles/theme.css:2489`
 - **Found by**: comment-analyzer
 - **Description**: Modal classes are generic but labeled "Update Game: Confirmation Modal". Should be labeled generically to encourage reuse.
-- **Status: Open**
+- **Status: Fixed**
 
 ### Issue 18: PascalCase TS variants vs snake_case Rust serde — latent mismatch
 
@@ -160,7 +160,7 @@
 - **Files**: `src-tauri/src/commands/update.rs:39-52`, `src-tauri/src/commands/install.rs:40-53`
 - **Found by**: type-design-analyzer, code-reviewer
 - **Description**: Pre-existing code duplication pattern. Three copies now exist (install, launch, update).
-- **Status: Open**
+- **Status: Fixed**
 
 ### Issue 20: Missing case-insensitive `.EXE` test
 
@@ -168,7 +168,7 @@
 - **Files**: `crates/crosshook-core/src/update/service.rs:118-122`
 - **Found by**: pr-test-analyzer
 - **Description**: `is_windows_executable` uses `eq_ignore_ascii_case` but no test verifies `.EXE` or `.Exe` passes validation.
-- **Status: Open**
+- **Status: Fixed**
 
 ### Issue 21: Log file read error spams warnings without notifying frontend
 
@@ -176,7 +176,7 @@
 - **Files**: `src-tauri/src/commands/update.rs:99-101`
 - **Found by**: silent-failure-hunter
 - **Description**: Pre-existing pattern from launch module. Log file permanently inaccessible produces infinite warnings with no user feedback.
-- **Status: Open**
+- **Status: Fixed**
 
 ## Strengths
 
