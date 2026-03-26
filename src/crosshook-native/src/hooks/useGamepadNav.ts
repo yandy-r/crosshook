@@ -334,7 +334,11 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
   }, []);
 
   const focusZone = useCallback(
-    (zone: FocusZone, preference: 'remembered' | 'first' | 'last' = 'remembered'): boolean => {
+    (
+      zone: FocusZone,
+      preference: 'remembered' | 'first' | 'last' = 'remembered',
+      scrollIntoView = true,
+    ): boolean => {
       const root = getRootElement(rootRef);
       const zoneRoot = getFocusZoneRoot(root, zone);
 
@@ -367,7 +371,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
         return false;
       }
 
-      focusElement(target);
+      focusElement(target, scrollIntoView);
       activeZoneRef.current = zone;
       lastFocusedByZoneRef.current[zone] = target;
       setActiveIndex(targetIndex);
@@ -625,7 +629,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
       }
 
       window.requestAnimationFrame(() => {
-        void focusZone('content', 'first');
+        void focusZone('content', 'first', false);
       });
     });
 
