@@ -2486,7 +2486,7 @@ textarea {
   cursor: pointer;
 }
 
-/* ── Update Game: Confirmation Modal ── */
+/* ── Modal Dialog ── */
 
 .crosshook-modal-overlay {
   position: fixed;

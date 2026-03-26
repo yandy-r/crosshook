@@ -41,6 +41,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
     result,
     error,
     profiles,
+    profilesError,
     isLoadingProfiles,
     selectedProfile,
     updateField,
@@ -93,6 +94,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
             }
             options={profiles.map((name) => ({ value: name, label: name }))}
           />
+          {profilesError ? <p className="crosshook-danger">{profilesError}</p> : null}
         </div>
       </div>
 

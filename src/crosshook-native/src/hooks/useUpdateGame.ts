@@ -22,6 +22,7 @@ export interface UseUpdateGameResult {
   result: UpdateGameResult | null;
   error: string | null;
   profiles: string[];
+  profilesError: string | null;
   isLoadingProfiles: boolean;
   selectedProfile: string;
   updateField: <Key extends keyof UpdateGameRequest>(key: Key, value: string) => void;
@@ -33,6 +34,7 @@ export interface UseUpdateGameResult {
   loadProfiles: () => Promise<void>;
   populateFromProfile: (name: string) => Promise<void>;
   startUpdate: () => Promise<void>;
+  cancelUpdate: () => Promise<void>;
   reset: () => void;
 }
 
@@ -93,6 +95,7 @@ export function useUpdateGame(): UseUpdateGameResult {
   const [result, setResult] = useState<UpdateGameResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<string[]>([]);
+  const [profilesError, setProfilesError] = useState<string | null>(null);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState('');
   const unlistenRef = useRef<(() => void) | null>(null);
@@ -104,10 +107,12 @@ export function useUpdateGame(): UseUpdateGameResult {
 
   const loadProfiles = useCallback(async () => {
     setIsLoadingProfiles(true);
+    setProfilesError(null);
 
     try {
       const allNames = await invoke<string[]>('profile_list');
       const protonRunNames: string[] = [];
+      let skippedCount = 0;
 
       for (const name of allNames) {
         try {
@@ -116,13 +121,21 @@ export function useUpdateGame(): UseUpdateGameResult {
             protonRunNames.push(name);
           }
         } catch {
-          // Skip profiles that fail to load
+          // Track that this profile failed to load but don't block the rest
+          skippedCount++;
         }
       }
 
       setProfiles(protonRunNames);
-    } catch {
+
+      if (skippedCount > 0) {
+        setProfilesError(`${skippedCount} profile(s) could not be loaded.`);
+      } else {
+        setProfilesError(null);
+      }
+    } catch (loadError) {
       setProfiles([]);
+      setProfilesError(`Failed to load profiles: ${normalizeErrorMessage(loadError)}`);
     } finally {
       setIsLoadingProfiles(false);
     }
@@ -243,15 +256,27 @@ export function useUpdateGame(): UseUpdateGameResult {
     }
   }, [request]);
 
+  const cancelUpdate = useCallback(async () => {
+    try {
+      await invoke<void>('cancel_update');
+    } catch {
+      // Best-effort cancellation
+    }
+  }, []);
+
   const reset = useCallback(() => {
+    if (stage === 'running_updater') {
+      void cancelUpdate();
+    }
     cleanupListener();
     setRequest(createEmptyRequest());
     setValidation(createEmptyValidationState());
     setStage('idle');
     setResult(null);
     setError(null);
+    setProfilesError(null);
     setSelectedProfile('');
-  }, []);
+  }, [stage, cancelUpdate]);
 
   useEffect(() => {
     void loadProfiles();
@@ -312,6 +337,7 @@ export function useUpdateGame(): UseUpdateGameResult {
     result,
     error,
     profiles,
+    profilesError,
     isLoadingProfiles,
     selectedProfile,
     updateField,
@@ -323,6 +349,7 @@ export function useUpdateGame(): UseUpdateGameResult {
     loadProfiles,
     populateFromProfile,
     startUpdate,
+    cancelUpdate,
     reset,
   };
 }

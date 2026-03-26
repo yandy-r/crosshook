@@ -63,6 +63,7 @@ pub fn run() {
         .manage(settings_store)
         .manage(recent_files_store)
         .manage(community_tap_store)
+        .manage(commands::update::UpdateProcessState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -103,6 +104,7 @@ pub fn run() {
             commands::steam::list_proton_installs,
             commands::update::validate_update_request,
             commands::update::update_game,
+            commands::update::cancel_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

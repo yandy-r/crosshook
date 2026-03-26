@@ -1,11 +1,26 @@
 use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::Mutex;
+use std::time::Duration;
 
 use crosshook_core::update::{
     update_game as update_game_core,
     validate_update_request as validate_update_request_core, UpdateGameRequest, UpdateGameResult,
 };
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
+
+use super::shared::{create_log_path, slugify_target};
+
+pub struct UpdateProcessState {
+    pid: Mutex<Option<u32>>,
+}
+
+impl UpdateProcessState {
+    pub fn new() -> Self {
+        Self {
+            pid: Mutex::new(None),
+        }
+    }
+}
 
 #[tauri::command]
 pub async fn validate_update_request(request: UpdateGameRequest) -> Result<(), String> {
@@ -19,9 +34,10 @@ pub async fn validate_update_request(request: UpdateGameRequest) -> Result<(), S
 #[tauri::command]
 pub async fn update_game(
     app: AppHandle,
+    state: tauri::State<'_, UpdateProcessState>,
     request: UpdateGameRequest,
 ) -> Result<UpdateGameResult, String> {
-    let slug = update_target_slug(&request.profile_name);
+    let slug = slugify_target(&request.profile_name, "update");
     let log_path = create_log_path("update", &slug)?;
 
     let log_path_clone = log_path.clone();
@@ -31,24 +47,29 @@ pub async fn update_game(
     .await
     .map_err(|error| error.to_string())??;
 
-    spawn_log_stream(app, log_path, child, "update-log");
+    // Store the child PID so it can be cancelled later
+    if let Some(pid) = child.id() {
+        *state.pid.lock().unwrap() = Some(pid);
+    }
+
+    spawn_log_stream(app, log_path, child, "update-log", "update-complete");
 
     Ok(result)
 }
 
-fn create_log_path(prefix: &str, target_slug: &str) -> Result<PathBuf, String> {
-    let log_dir = PathBuf::from("/tmp/crosshook-logs");
-    std::fs::create_dir_all(&log_dir).map_err(|error| error.to_string())?;
+#[tauri::command]
+pub async fn cancel_update(
+    state: tauri::State<'_, UpdateProcessState>,
+) -> Result<(), String> {
+    let pid = state.pid.lock().unwrap().take();
 
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| error.to_string())?
-        .as_millis();
+    if let Some(pid) = pid {
+        let _ = std::process::Command::new("kill")
+            .arg(pid.to_string())
+            .status();
+    }
 
-    let file_name = format!("{prefix}-{target_slug}-{timestamp}.log");
-    let log_path = log_dir.join(file_name);
-    std::fs::File::create(&log_path).map_err(|error| error.to_string())?;
-    Ok(log_path)
+    Ok(())
 }
 
 fn spawn_log_stream(
@@ -56,9 +77,10 @@ fn spawn_log_stream(
     log_path: PathBuf,
     child: tokio::process::Child,
     event_name: &'static str,
+    complete_event_name: &'static str,
 ) {
     let handle = tauri::async_runtime::spawn(async move {
-        stream_log_lines(app, log_path, child, event_name).await;
+        stream_log_lines(app, log_path, child, event_name, complete_event_name).await;
     });
 
     tauri::async_runtime::spawn(async move {
@@ -73,12 +95,16 @@ async fn stream_log_lines(
     log_path: PathBuf,
     mut child: tokio::process::Child,
     event_name: &'static str,
+    complete_event_name: &'static str,
 ) {
     let mut last_len = 0usize;
+    let mut consecutive_read_failures = 0u32;
 
     loop {
         match tokio::fs::read_to_string(&log_path).await {
             Ok(content) => {
+                consecutive_read_failures = 0;
+
                 if content.len() < last_len {
                     last_len = 0;
                 }
@@ -97,13 +123,22 @@ async fn stream_log_lines(
                 }
             }
             Err(error) => {
-                tracing::warn!(%error, path = %log_path.display(), "failed to read update log file");
+                consecutive_read_failures += 1;
+                if consecutive_read_failures <= 5 {
+                    tracing::warn!(%error, path = %log_path.display(), "failed to read update log file");
+                }
+                if consecutive_read_failures == 5 {
+                    let _ = app.emit(
+                        event_name,
+                        "Log stream interrupted: unable to read log file.".to_string(),
+                    );
+                }
             }
         }
 
         match child.try_wait() {
             Ok(Some(status)) => {
-                if let Err(error) = app.emit("update-complete", status.code()) {
+                if let Err(error) = app.emit(complete_event_name, status.code()) {
                     tracing::warn!(%error, "failed to emit update-complete event");
                 }
                 break;
@@ -118,6 +153,11 @@ async fn stream_log_lines(
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
 
+    // Clear the stored PID now that the process has exited
+    if let Some(state) = app.try_state::<UpdateProcessState>() {
+        *state.pid.lock().unwrap() = None;
+    }
+
     // Final read to capture lines written between last poll and process exit
     if let Ok(content) = tokio::fs::read_to_string(&log_path).await {
         if content.len() > last_len {
@@ -128,25 +168,5 @@ async fn stream_log_lines(
                 }
             }
         }
-    }
-}
-
-fn update_target_slug(profile_name: &str) -> String {
-    let slug = profile_name
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character.to_ascii_lowercase()
-            } else {
-                '-'
-            }
-        })
-        .collect::<String>();
-
-    let trimmed = slug.trim_matches('-');
-    if trimmed.is_empty() {
-        "update".to_string()
-    } else {
-        trimmed.to_string()
     }
 }

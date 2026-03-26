@@ -55,9 +55,12 @@ pub fn update_game(
             message: error.to_string(),
         })?;
 
+    // `succeeded` indicates the update process was launched successfully, not that the
+    // updater itself has finished. The actual process exit status is communicated
+    // asynchronously via the `update-complete` event.
     let result = UpdateGameResult {
         succeeded: true,
-        message: "Update started.".to_string(),
+        message: "Update process launched.".to_string(),
         helper_log_path: log_path.display().to_string(),
     };
 
@@ -327,13 +330,48 @@ mod tests {
     }
 
     #[test]
-    fn build_update_command_succeeds_with_valid_request() {
+    fn build_update_command_constructs_command_with_correct_proton_path() {
         let temp_dir = tempdir().expect("temp dir");
         let request = valid_request(temp_dir.path());
+        let log_path = temp_dir.path().join("test.log");
+        std::fs::File::create(&log_path).unwrap();
+
+        let command = build_update_command(&request, &log_path).unwrap();
+        let debug_output = format!("{command:?}");
+
+        // The command should reference the proton binary
+        assert!(
+            debug_output.contains(&request.proton_path),
+            "Command should reference the proton path, got: {debug_output}"
+        );
+    }
+
+    #[test]
+    fn update_game_rejects_invalid_request() {
+        let temp_dir = tempdir().unwrap();
         let log_path = temp_dir.path().join("update.log");
+        std::fs::File::create(&log_path).unwrap();
 
-        let result = build_update_command(&request, &log_path);
+        let request = UpdateGameRequest::default(); // all empty — will fail validation
+        let result = update_game(&request, &log_path);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            UpdateGameError::Validation(UpdateGameValidationError::UpdaterPathRequired)
+        ));
+    }
 
-        assert!(result.is_ok());
+    #[test]
+    fn validate_update_request_accepts_uppercase_exe_extension() {
+        let temp_dir = tempdir().unwrap();
+        let mut request = valid_request(temp_dir.path());
+
+        // Create an updater with uppercase .EXE extension
+        let exe_path = temp_dir.path().join("Update.EXE");
+        write_executable_script(&exe_path, "#!/bin/sh\nexit 0\n");
+        request.updater_path = exe_path.to_string_lossy().into_owned();
+
+        let result = validate_update_request(&request);
+        assert!(result.is_ok(), "Uppercase .EXE should be accepted");
     }
 }
