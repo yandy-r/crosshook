@@ -20,6 +20,7 @@ import type {
 import { LaunchPhase } from '../types';
 import { useLaunchState } from '../hooks/useLaunchState';
 import { usePreviewState } from '../hooks/usePreviewState';
+import { copyToClipboard } from '../utils/clipboard';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import '../styles/preview.css';
 
@@ -300,11 +301,11 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(preview.display_text);
+      await copyToClipboard(preview.display_text);
       setCopyFeedback(true);
       setTimeout(() => setCopyFeedback(false), 2000);
     } catch {
-      // Clipboard API may not be available in all webview contexts
+      // Clipboard may not be available in all webview contexts
     }
   }
 
@@ -352,14 +353,6 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
             >
               {preview.validation.passed ? 'Ready to launch' : 'Cannot launch'}
             </span>
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost crosshook-modal__close"
-              onClick={onClose}
-              aria-label="Close preview"
-            >
-              Close
-            </button>
           </div>
         </header>
 
