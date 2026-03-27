@@ -63,8 +63,8 @@ export function LauncherPreviewModal({
   >([]);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
-  const [copyScriptFeedback, setCopyScriptFeedback] = useState(false);
-  const [copyDesktopFeedback, setCopyDesktopFeedback] = useState(false);
+  const [copyScriptLabel, setCopyScriptLabel] = useState('Copy Script');
+  const [copyDesktopLabel, setCopyDesktopLabel] = useState('Copy Desktop Entry');
   const [openSection, setOpenSection] = useState<'script' | 'desktop' | null>(null);
 
   useEffect(() => {
@@ -181,20 +181,22 @@ export function LauncherPreviewModal({
   async function handleCopyScript() {
     try {
       await copyToClipboard(scriptContent);
-      setCopyScriptFeedback(true);
-      setTimeout(() => setCopyScriptFeedback(false), 2000);
+      setCopyScriptLabel('Copied');
+      window.setTimeout(() => setCopyScriptLabel('Copy Script'), 2000);
     } catch {
-      // Clipboard may not be available in all webview contexts
+      setCopyScriptLabel('Copy failed');
+      window.setTimeout(() => setCopyScriptLabel('Copy Script'), 2000);
     }
   }
 
   async function handleCopyDesktop() {
     try {
       await copyToClipboard(desktopContent);
-      setCopyDesktopFeedback(true);
-      setTimeout(() => setCopyDesktopFeedback(false), 2000);
+      setCopyDesktopLabel('Copied');
+      window.setTimeout(() => setCopyDesktopLabel('Copy Desktop Entry'), 2000);
     } catch {
-      // Clipboard may not be available in all webview contexts
+      setCopyDesktopLabel('Copy failed');
+      window.setTimeout(() => setCopyDesktopLabel('Copy Desktop Entry'), 2000);
     }
   }
 
@@ -270,14 +272,14 @@ export function LauncherPreviewModal({
               className="crosshook-button crosshook-button--ghost"
               onClick={() => void handleCopyScript()}
             >
-              {copyScriptFeedback ? 'Copied!' : 'Copy Script'}
+              {copyScriptLabel}
             </button>
             <button
               type="button"
               className="crosshook-button crosshook-button--ghost"
               onClick={() => void handleCopyDesktop()}
             >
-              {copyDesktopFeedback ? 'Copied!' : 'Copy Desktop Entry'}
+              {copyDesktopLabel}
             </button>
             <button
               type="button"

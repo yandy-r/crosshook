@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use super::env::WINE_ENV_VARS_TO_CLEAR;
 use super::optimizations::{
@@ -11,12 +11,12 @@ use super::request::{
     METHOD_STEAM_APPLAUNCH,
 };
 use super::runtime_helpers::{
-    env_value, resolve_steam_client_install_path, resolve_wine_prefix_path, DEFAULT_HOST_PATH,
+    env_value, resolve_proton_paths, resolve_steam_client_install_path, DEFAULT_HOST_PATH,
 };
 use crate::profile::TrainerLoadingMode;
 
 /// Source category for a preview environment variable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EnvVarSource {
     /// Core Proton runtime vars (STEAM_COMPAT_DATA_PATH, WINEPREFIX, etc.)
@@ -29,8 +29,35 @@ pub enum EnvVarSource {
     SteamProton,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResolvedLaunchMethod {
+    SteamApplaunch,
+    ProtonRun,
+    Native,
+}
+
+impl ResolvedLaunchMethod {
+    fn from_request(request: &LaunchRequest) -> Self {
+        match request.resolved_method() {
+            METHOD_STEAM_APPLAUNCH => Self::SteamApplaunch,
+            METHOD_PROTON_RUN => Self::ProtonRun,
+            METHOD_NATIVE => Self::Native,
+            _ => Self::Native,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::SteamApplaunch => METHOD_STEAM_APPLAUNCH,
+            Self::ProtonRun => METHOD_PROTON_RUN,
+            Self::Native => METHOD_NATIVE,
+        }
+    }
+}
+
 /// A single environment variable that will be set during launch.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PreviewEnvVar {
     pub key: String,
     pub value: String,
@@ -38,7 +65,7 @@ pub struct PreviewEnvVar {
 }
 
 /// Proton runtime setup details (non-native methods only).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ProtonSetup {
     pub wine_prefix_path: String,
     pub compat_data_path: String,
@@ -47,19 +74,18 @@ pub struct ProtonSetup {
 }
 
 /// Trainer configuration details for the preview.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PreviewTrainerInfo {
     pub path: String,
     pub host_path: String,
-    pub loading_mode: String,
+    pub loading_mode: TrainerLoadingMode,
     /// The Windows-side path when copy_to_prefix mode is used.
     pub staged_path: Option<String>,
 }
 
 /// Validation summary for the preview.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PreviewValidation {
-    pub passed: bool,
     pub issues: Vec<LaunchValidationIssue>,
 }
 
@@ -68,10 +94,10 @@ pub struct PreviewValidation {
 /// Sections that depend on independent computations use `Option<T>` so
 /// the preview can return partial results when one section fails (e.g.,
 /// directive resolution fails but validation and game info are still useful).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct LaunchPreview {
     /// The effective launch method after inference.
-    pub resolved_method: String,
+    pub resolved_method: ResolvedLaunchMethod,
 
     /// All validation results collected (not short-circuited).
     pub validation: PreviewValidation,
@@ -128,7 +154,10 @@ impl LaunchPreview {
         // [preview]
         lines.push("[preview]".to_string());
         lines.push(format!("generated_at = \"{}\"", self.generated_at));
-        lines.push(format!("method = \"{}\"", self.resolved_method));
+        lines.push(format!(
+            "method = \"{}\"",
+            self.resolved_method.as_str()
+        ));
         lines.push(format!("game = \"{}\"", self.game_executable));
         lines.push(format!(
             "game_name = \"{}\"",
@@ -144,7 +173,10 @@ impl LaunchPreview {
 
         // [validation]
         lines.push("[validation]".to_string());
-        lines.push(format!("passed = {}", self.validation.passed));
+        lines.push(format!(
+            "passed = {}",
+            self.validation.issues.is_empty()
+        ));
         lines.push(format!("issue_count = {}", self.validation.issues.len()));
         for issue in &self.validation.issues {
             lines.push(format!(
@@ -199,7 +231,10 @@ impl LaunchPreview {
             lines.push("[trainer]".to_string());
             lines.push(format!("path = \"{}\"", trainer.path));
             lines.push(format!("host_path = \"{}\"", trainer.host_path));
-            lines.push(format!("loading_mode = \"{}\"", trainer.loading_mode));
+            lines.push(format!(
+                "loading_mode = \"{}\"",
+                trainer.loading_mode.as_str()
+            ));
             if let Some(ref staged) = trainer.staged_path {
                 lines.push(format!("staged_path = \"{}\"", staged));
             }
@@ -235,14 +270,13 @@ impl LaunchPreview {
 /// Assembles validation, directives, environment, command, and metadata
 /// into a single `LaunchPreview` struct for display in the frontend modal.
 pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, String> {
-    let resolved_method = request.resolved_method().to_string();
+    let resolved_method = ResolvedLaunchMethod::from_request(request);
     let validation_issues = validate_all(request);
-    let validation_passed = validation_issues.is_empty();
 
     // Resolve launch directives (wrappers + optimization env).
     // This can fail independently of validation (e.g., missing wrapper binary).
     // On failure, capture the error and continue with partial results.
-    let (directives, directives_error) = match resolve_launch_directives(request) {
+    let (directives, mut directives_error) = match resolve_launch_directives(request) {
         Ok(d) => (Some(d), None),
         Err(e) => (None, Some(e.to_string())),
     };
@@ -252,33 +286,46 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
         Some(directives) => {
             let mut env = Vec::new();
             collect_host_environment(&mut env);
-            match resolved_method.as_str() {
-                METHOD_STEAM_APPLAUNCH => {
+            match resolved_method {
+                ResolvedLaunchMethod::SteamApplaunch => {
                     collect_steam_proton_environment(request, &mut env);
                 }
-                METHOD_PROTON_RUN => {
+                ResolvedLaunchMethod::ProtonRun => {
                     collect_runtime_proton_environment(request, &mut env);
                     collect_optimization_environment(directives, &mut env);
                 }
-                _ => {}
+                ResolvedLaunchMethod::Native => {}
             }
-            let cmd = build_effective_command_string(request, &resolved_method, directives);
-            (Some(env), Some(directives.wrappers.clone()), Some(cmd))
+            let effective_command =
+                match build_effective_command_string(request, resolved_method, directives) {
+                    Ok(command) => Some(command),
+                    Err(error) => {
+                        append_preview_error(&mut directives_error, error);
+                        None
+                    }
+                };
+            (Some(env), Some(directives.wrappers.clone()), effective_command)
         }
         None => (None, None, None),
     };
 
     // Steam launch options (for copy/paste)
-    let steam_launch_options = if resolved_method == METHOD_STEAM_APPLAUNCH {
-        build_steam_launch_options_command(&request.optimizations.enabled_option_ids).ok()
+    let steam_launch_options = if resolved_method == ResolvedLaunchMethod::SteamApplaunch {
+        match build_steam_launch_options_command(&request.optimizations.enabled_option_ids) {
+            Ok(command) => Some(command),
+            Err(error) => {
+                append_preview_error(&mut directives_error, error.to_string());
+                None
+            }
+        }
     } else {
         None
     };
 
     // These sections are independent of directive resolution.
-    let proton_setup = build_proton_setup(request, &resolved_method);
-    let trainer = build_trainer_info(request, &resolved_method);
-    let cleared_variables = if resolved_method != METHOD_NATIVE {
+    let proton_setup = build_proton_setup(request, resolved_method.as_str());
+    let trainer = build_trainer_info(request, resolved_method.as_str());
+    let cleared_variables = if resolved_method != ResolvedLaunchMethod::Native {
         WINE_ENV_VARS_TO_CLEAR
             .iter()
             .map(|s| s.to_string())
@@ -286,13 +333,12 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     } else {
         Vec::new()
     };
-    let working_directory = resolve_working_directory(request, &resolved_method);
+    let working_directory = resolve_working_directory(request, resolved_method.as_str());
     let generated_at = chrono::Utc::now().to_rfc3339();
 
     let mut preview = LaunchPreview {
         resolved_method,
         validation: PreviewValidation {
-            passed: validation_passed,
             issues: validation_issues,
         },
         environment,
@@ -343,33 +389,17 @@ fn collect_host_environment(env: &mut Vec<PreviewEnvVar>) {
 /// Uses `resolve_wine_prefix_path()` heuristic for WINEPREFIX resolution,
 /// which differs from `steam_applaunch` (hardcoded `{compatdata}/pfx`).
 fn collect_runtime_proton_environment(request: &LaunchRequest, env: &mut Vec<PreviewEnvVar>) {
-    let prefix = Path::new(request.runtime.prefix_path.trim());
-    let wine_prefix_path = resolve_wine_prefix_path(prefix);
+    let resolved_paths = resolve_proton_paths(Path::new(request.runtime.prefix_path.trim()));
 
     env.push(PreviewEnvVar {
         key: "WINEPREFIX".to_string(),
-        value: wine_prefix_path.to_string_lossy().into_owned(),
+        value: resolved_paths.wine_prefix_path.to_string_lossy().into_owned(),
         source: EnvVarSource::ProtonRuntime,
     });
 
-    // Derive compat data path from wine prefix (mirrors runtime_helpers.rs logic)
-    let compat_data_path = if wine_prefix_path
-        .file_name()
-        .and_then(|v| v.to_str())
-        == Some("pfx")
-    {
-        wine_prefix_path
-            .parent()
-            .unwrap_or(prefix)
-            .to_string_lossy()
-            .into_owned()
-    } else {
-        prefix.to_string_lossy().into_owned()
-    };
-
     env.push(PreviewEnvVar {
         key: "STEAM_COMPAT_DATA_PATH".to_string(),
-        value: compat_data_path,
+        value: resolved_paths.compat_data_path.to_string_lossy().into_owned(),
         source: EnvVarSource::ProtonRuntime,
     });
 
@@ -429,11 +459,11 @@ fn collect_optimization_environment(
 /// Builds a human-readable command string showing the effective launch command.
 fn build_effective_command_string(
     request: &LaunchRequest,
-    method: &str,
+    method: ResolvedLaunchMethod,
     directives: &LaunchDirectives,
-) -> String {
+) -> Result<String, String> {
     match method {
-        METHOD_PROTON_RUN => {
+        ResolvedLaunchMethod::ProtonRun => {
             let mut parts: Vec<String> = Vec::new();
             for wrapper in &directives.wrappers {
                 parts.push(wrapper.clone());
@@ -441,14 +471,13 @@ fn build_effective_command_string(
             parts.push(request.runtime.proton_path.trim().to_string());
             parts.push("run".to_string());
             parts.push(request.game_path.trim().to_string());
-            parts.join(" ")
+            Ok(parts.join(" "))
         }
-        METHOD_STEAM_APPLAUNCH => {
+        ResolvedLaunchMethod::SteamApplaunch => {
             build_steam_launch_options_command(&request.optimizations.enabled_option_ids)
-                .unwrap_or_else(|_| "%command%".to_string())
+                .map_err(|error| error.to_string())
         }
-        METHOD_NATIVE => request.game_path.trim().to_string(),
-        _ => request.game_path.trim().to_string(),
+        ResolvedLaunchMethod::Native => Ok(request.game_path.trim().to_string()),
     }
 }
 
@@ -456,22 +485,7 @@ fn build_effective_command_string(
 fn build_proton_setup(request: &LaunchRequest, method: &str) -> Option<ProtonSetup> {
     match method {
         METHOD_PROTON_RUN => {
-            let prefix = Path::new(request.runtime.prefix_path.trim());
-            let wine_prefix_path = resolve_wine_prefix_path(prefix);
-
-            let compat_data_path = if wine_prefix_path
-                .file_name()
-                .and_then(|v| v.to_str())
-                == Some("pfx")
-            {
-                wine_prefix_path
-                    .parent()
-                    .unwrap_or(prefix)
-                    .to_string_lossy()
-                    .into_owned()
-            } else {
-                prefix.to_string_lossy().into_owned()
-            };
+            let resolved_paths = resolve_proton_paths(Path::new(request.runtime.prefix_path.trim()));
 
             let steam_client = resolve_steam_client_install_path(
                 request.steam.steam_client_install_path.trim(),
@@ -479,8 +493,8 @@ fn build_proton_setup(request: &LaunchRequest, method: &str) -> Option<ProtonSet
             .unwrap_or_default();
 
             Some(ProtonSetup {
-                wine_prefix_path: wine_prefix_path.to_string_lossy().into_owned(),
-                compat_data_path,
+                wine_prefix_path: resolved_paths.wine_prefix_path.to_string_lossy().into_owned(),
+                compat_data_path: resolved_paths.compat_data_path.to_string_lossy().into_owned(),
                 steam_client_install_path: steam_client,
                 proton_executable: request.runtime.proton_path.trim().to_string(),
             })
@@ -521,7 +535,7 @@ fn build_trainer_info(request: &LaunchRequest, method: &str) -> Option<PreviewTr
     }
 
     let host_path = request.trainer_host_path.trim().to_string();
-    let loading_mode = request.trainer_loading_mode.as_str().to_string();
+    let loading_mode = request.trainer_loading_mode;
 
     let staged_path = if request.trainer_loading_mode == TrainerLoadingMode::CopyToPrefix {
         let path = Path::new(request.trainer_host_path.trim());
@@ -575,11 +589,25 @@ fn resolve_working_directory(request: &LaunchRequest, method: &str) -> String {
         .unwrap_or_default()
 }
 
+fn append_preview_error(target: &mut Option<String>, message: String) {
+    match target {
+        Some(existing) => {
+            if existing != &message {
+                existing.push('\n');
+                existing.push_str(&message);
+            }
+        }
+        None => *target = Some(message),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::path::Path;
 
     use super::*;
+    use serde_json::json;
     use crate::launch::request::{
         LaunchOptimizationsRequest, RuntimeLaunchConfig, SteamLaunchConfig, METHOD_NATIVE,
         METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
@@ -693,21 +721,24 @@ mod tests {
     fn preview_shows_resolved_method_for_steam_applaunch() {
         let (_td, request) = steam_request();
         let preview = build_launch_preview(&request).expect("preview");
-        assert_eq!(preview.resolved_method, "steam_applaunch");
+        assert_eq!(
+            preview.resolved_method,
+            ResolvedLaunchMethod::SteamApplaunch
+        );
     }
 
     #[test]
     fn preview_shows_resolved_method_for_proton_run() {
         let (_td, request) = proton_request();
         let preview = build_launch_preview(&request).expect("preview");
-        assert_eq!(preview.resolved_method, "proton_run");
+        assert_eq!(preview.resolved_method, ResolvedLaunchMethod::ProtonRun);
     }
 
     #[test]
     fn preview_shows_resolved_method_for_native() {
         let (_td, request) = native_request();
         let preview = build_launch_preview(&request).expect("preview");
-        assert_eq!(preview.resolved_method, "native");
+        assert_eq!(preview.resolved_method, ResolvedLaunchMethod::Native);
     }
 
     #[test]
@@ -715,7 +746,7 @@ mod tests {
         let (_td, request) = steam_request();
         let preview = build_launch_preview(&request).expect("preview");
         assert!(
-            preview.validation.passed,
+            preview.validation.issues.is_empty(),
             "expected validation to pass, issues: {:?}",
             preview.validation.issues
         );
@@ -736,7 +767,7 @@ mod tests {
 
         let preview = build_launch_preview(&request).expect("preview");
         assert!(
-            !preview.validation.passed,
+            !preview.validation.issues.is_empty(),
             "expected validation to fail"
         );
         assert!(
@@ -791,6 +822,7 @@ mod tests {
         let preview = build_launch_preview(&request).expect("preview");
         let trainer = preview.trainer.expect("trainer info should be present");
 
+        assert_eq!(trainer.loading_mode, TrainerLoadingMode::CopyToPrefix);
         assert_eq!(
             trainer.staged_path,
             Some("C:\\CrossHook\\StagedTrainers\\MyTrainer\\MyTrainer.exe".to_string())
@@ -856,6 +888,93 @@ mod tests {
             age.num_seconds() < 10,
             "generated_at should be within 10 seconds of now, got age: {}s",
             age.num_seconds()
+        );
+    }
+
+    #[test]
+    fn preview_runtime_environment_matches_proton_setup_for_compat_root() {
+        let (_td, request) = proton_request();
+        let preview = build_launch_preview(&request).expect("preview");
+        let environment = preview.environment.expect("environment");
+        let proton_setup = preview.proton_setup.expect("proton setup");
+
+        let wine_prefix = environment
+            .iter()
+            .find(|variable| variable.key == "WINEPREFIX")
+            .expect("WINEPREFIX");
+        let compat_path = environment
+            .iter()
+            .find(|variable| variable.key == "STEAM_COMPAT_DATA_PATH")
+            .expect("STEAM_COMPAT_DATA_PATH");
+
+        assert_eq!(wine_prefix.value, proton_setup.wine_prefix_path);
+        assert_eq!(compat_path.value, proton_setup.compat_data_path);
+    }
+
+    #[test]
+    fn preview_runtime_environment_matches_proton_setup_for_pfx_root() {
+        let (_td, mut request) = proton_request();
+        let prefix_path = Path::new(&request.runtime.prefix_path).join("pfx");
+        fs::create_dir_all(&prefix_path).expect("create pfx dir");
+        request.runtime.prefix_path = prefix_path.to_string_lossy().into_owned();
+
+        let preview = build_launch_preview(&request).expect("preview");
+        let environment = preview.environment.expect("environment");
+        let proton_setup = preview.proton_setup.expect("proton setup");
+
+        let wine_prefix = environment
+            .iter()
+            .find(|variable| variable.key == "WINEPREFIX")
+            .expect("WINEPREFIX");
+        let compat_path = environment
+            .iter()
+            .find(|variable| variable.key == "STEAM_COMPAT_DATA_PATH")
+            .expect("STEAM_COMPAT_DATA_PATH");
+
+        assert_eq!(wine_prefix.value, proton_setup.wine_prefix_path);
+        assert_eq!(compat_path.value, proton_setup.compat_data_path);
+        assert_eq!(
+            compat_path.value,
+            prefix_path
+                .parent()
+                .expect("compatdata parent")
+                .to_string_lossy()
+                .into_owned()
+        );
+    }
+
+    #[test]
+    fn preview_serializes_typed_fields_as_snake_case_strings() {
+        let (_td, mut request) = proton_request();
+        request.trainer_loading_mode = TrainerLoadingMode::CopyToPrefix;
+
+        let preview = build_launch_preview(&request).expect("preview");
+        let value = serde_json::to_value(&preview).expect("serialize preview");
+
+        assert_eq!(value["resolved_method"], json!("proton_run"));
+        assert_eq!(value["trainer"]["loading_mode"], json!("copy_to_prefix"));
+    }
+
+    #[test]
+    fn preview_surfaces_steam_launch_option_failures_without_fake_command() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let _scoped_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
+
+        let (_td, mut request) = steam_request();
+        request.optimizations.enabled_option_ids = vec!["show_mangohud_overlay".to_string()];
+
+        let preview = build_launch_preview(&request).expect("preview");
+
+        assert!(preview.effective_command.is_none());
+        assert!(preview.steam_launch_options.is_none());
+        assert!(
+            preview
+                .directives_error
+                .as_deref()
+                .is_some_and(|error| error.contains("mangohud")),
+            "expected directives_error to mention the missing wrapper, got {:?}",
+            preview.directives_error
         );
     }
 }

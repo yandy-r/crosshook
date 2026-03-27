@@ -70,6 +70,7 @@ export function ProfilesPage() {
   const [showProfilePreview, setShowProfilePreview] = useState(false);
   const [profilePreviewContent, setProfilePreviewContent] = useState('');
   const [previewing, setPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -232,18 +233,27 @@ export function ProfilesPage() {
 
   async function handlePreviewProfile() {
     setPreviewing(true);
+    setPreviewError(null);
     try {
       const toml = await invoke<string>('profile_export_toml', {
         name: profileName,
         data: profile,
       });
       setProfilePreviewContent(toml);
+      setPreviewError(null);
       setShowProfilePreview(true);
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       console.error('Profile preview failed:', err);
+      setPreviewError(message);
     } finally {
       setPreviewing(false);
     }
+  }
+
+  function handleCloseProfilePreview() {
+    setShowProfilePreview(false);
+    setPreviewError(null);
   }
 
   const renameNameTrimmed = renameValue.trim();
@@ -327,6 +337,11 @@ export function ProfilesPage() {
             }}
             onPreview={handlePreviewProfile}
           />
+          {previewError ? (
+            <p className="crosshook-danger" role="alert" style={{ marginTop: 12 }}>
+              Preview failed: {previewError}
+            </p>
+          ) : null}
         </CollapsibleSection>
 
         {supportsLauncherExport ? (
@@ -471,7 +486,7 @@ export function ProfilesPage() {
         <ProfilePreviewModal
           tomlContent={profilePreviewContent}
           profileName={profileName}
-          onClose={() => setShowProfilePreview(false)}
+          onClose={handleCloseProfilePreview}
         />
       ) : null}
     </>

@@ -56,7 +56,7 @@ export function ProfilePreviewModal({ tomlContent, profileName, onClose }: Profi
   >([]);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
-  const [copyFeedback, setCopyFeedback] = useState(false);
+  const [copyLabel, setCopyLabel] = useState('Copy TOML');
 
   useEffect(() => {
     const host = document.createElement('div');
@@ -172,10 +172,11 @@ export function ProfilePreviewModal({ tomlContent, profileName, onClose }: Profi
   async function handleCopy() {
     try {
       await copyToClipboard(tomlContent);
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
+      setCopyLabel('Copied');
+      window.setTimeout(() => setCopyLabel('Copy TOML'), 2000);
     } catch {
-      // Clipboard may not be available in all webview contexts
+      setCopyLabel('Copy failed');
+      window.setTimeout(() => setCopyLabel('Copy TOML'), 2000);
     }
   }
 
@@ -221,7 +222,7 @@ export function ProfilePreviewModal({ tomlContent, profileName, onClose }: Profi
               className="crosshook-button crosshook-button--ghost"
               onClick={handleCopy}
             >
-              {copyFeedback ? 'Copied!' : 'Copy TOML'}
+              {copyLabel}
             </button>
             <button
               type="button"

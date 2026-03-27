@@ -111,11 +111,12 @@ function methodLabel(method: string): string {
 }
 
 function isStale(generatedAt: string): boolean {
-  try {
-    return Date.now() - new Date(generatedAt).getTime() > 60_000;
-  } catch {
-    return false;
+  const generatedTime = new Date(generatedAt).getTime();
+  if (!Number.isFinite(generatedTime)) {
+    return true;
   }
+
+  return Date.now() - generatedTime > 60_000;
 }
 
 function buildSummaryParts(preview: LaunchPreview): ReactNode[] {
@@ -186,7 +187,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
   >([]);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
-  const [copyFeedback, setCopyFeedback] = useState(false);
+  const [copyLabel, setCopyLabel] = useState('Copy Preview');
 
   useEffect(() => {
     const host = document.createElement('div');
@@ -302,10 +303,11 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
   async function handleCopy() {
     try {
       await copyToClipboard(preview.display_text);
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
+      setCopyLabel('Copied');
+      window.setTimeout(() => setCopyLabel('Copy Preview'), 2000);
     } catch {
-      // Clipboard may not be available in all webview contexts
+      setCopyLabel('Copy failed');
+      window.setTimeout(() => setCopyLabel('Copy Preview'), 2000);
     }
   }
 
@@ -317,6 +319,11 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
   const isNative = preview.resolved_method === 'native';
   const isSteam = preview.resolved_method === 'steam_applaunch';
   const envCount = preview.environment?.length ?? 0;
+  const previewIsReady = preview.validation.issues.length === 0;
+  const generatedTime = new Date(preview.generated_at);
+  const generatedTimeLabel = Number.isFinite(generatedTime.getTime())
+    ? generatedTime.toLocaleTimeString()
+    : 'time unavailable';
 
   return createPortal(
     <div className="crosshook-modal" role="presentation">
@@ -346,12 +353,12 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
             <span
               className={[
                 'crosshook-modal__status-chip',
-                preview.validation.passed
+                previewIsReady
                   ? 'crosshook-modal__status-chip--success'
                   : 'crosshook-modal__status-chip--danger',
               ].join(' ')}
             >
-              {preview.validation.passed ? 'Ready to launch' : 'Cannot launch'}
+              {previewIsReady ? 'Ready to launch' : 'Cannot launch'}
             </span>
           </div>
         </header>
@@ -587,7 +594,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
               .filter(Boolean)
               .join(' ')}
           >
-            Generated {new Date(preview.generated_at).toLocaleTimeString()}
+            Generated {generatedTimeLabel}
             {stale ? ' (stale)' : ''}
           </span>
           <div className="crosshook-modal__footer-actions">
@@ -596,13 +603,13 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
               className="crosshook-button crosshook-button--ghost"
               onClick={handleCopy}
             >
-              {copyFeedback ? 'Copied!' : 'Copy Preview'}
+              {copyLabel}
             </button>
             <button
               type="button"
               className="crosshook-button"
               onClick={onLaunch}
-              disabled={!preview.validation.passed}
+              disabled={!previewIsReady}
             >
               Launch Now
             </button>

@@ -14,7 +14,11 @@ export async function copyToClipboard(text: string): Promise<void> {
   document.body.appendChild(textarea);
   textarea.select();
   try {
-    document.execCommand('copy');
+    if (!document.execCommand('copy')) {
+      throw new Error('Copy to clipboard failed');
+    }
+  } catch (error) {
+    throw error instanceof Error ? error : new Error('Copy to clipboard failed');
   } finally {
     document.body.removeChild(textarea);
   }

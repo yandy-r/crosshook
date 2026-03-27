@@ -9,6 +9,12 @@ use tokio::process::Command;
 pub const DEFAULT_HOST_PATH: &str = "/usr/bin:/bin";
 const DEFAULT_SHELL: &str = "/bin/bash";
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedProtonPaths {
+    pub wine_prefix_path: PathBuf,
+    pub compat_data_path: PathBuf,
+}
+
 pub fn new_direct_proton_command(proton_path: &str) -> Command {
     new_direct_proton_command_with_wrappers(proton_path, &[])
 }
@@ -64,20 +70,17 @@ pub fn apply_runtime_proton_environment(
     prefix_path: &str,
     steam_client_install_path: &str,
 ) {
-    let prefix = Path::new(prefix_path.trim());
-    let wine_prefix_path = resolve_wine_prefix_path(prefix);
+    let resolved_paths = resolve_proton_paths(Path::new(prefix_path.trim()));
     set_env(
         command,
         "WINEPREFIX",
-        wine_prefix_path.to_string_lossy().as_ref(),
+        resolved_paths.wine_prefix_path.to_string_lossy().as_ref(),
     );
-
-    let compat_data_path = resolve_compat_data_path(prefix, &wine_prefix_path);
 
     set_env(
         command,
         "STEAM_COMPAT_DATA_PATH",
-        compat_data_path.to_string_lossy().as_ref(),
+        resolved_paths.compat_data_path.to_string_lossy().as_ref(),
     );
 
     if let Some(steam_client_install_path) =
@@ -101,6 +104,15 @@ pub fn resolve_wine_prefix_path(prefix_path: &Path) -> PathBuf {
         pfx_path
     } else {
         prefix_path.to_path_buf()
+    }
+}
+
+pub fn resolve_proton_paths(prefix_path: &Path) -> ResolvedProtonPaths {
+    let wine_prefix_path = resolve_wine_prefix_path(prefix_path);
+    let compat_data_path = resolve_compat_data_path(prefix_path, &wine_prefix_path);
+    ResolvedProtonPaths {
+        wine_prefix_path,
+        compat_data_path,
     }
 }
 

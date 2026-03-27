@@ -85,17 +85,18 @@ export interface ProtonSetup {
 export interface PreviewTrainerInfo {
   path: string;
   host_path: string;
-  loading_mode: string;
+  loading_mode: TrainerLoadingMode;
   staged_path: string | null;
 }
 
 export interface PreviewValidation {
-  passed: boolean;
   issues: LaunchValidationIssue[];
 }
 
+export type ResolvedLaunchMethod = Exclude<LaunchMethod, ''>;
+
 export interface LaunchPreview {
-  resolved_method: 'steam_applaunch' | 'proton_run' | 'native';
+  resolved_method: ResolvedLaunchMethod;
   validation: PreviewValidation;
   environment: PreviewEnvVar[] | null;
   cleared_variables: string[];
