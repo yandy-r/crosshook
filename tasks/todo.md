@@ -1,5 +1,35 @@
 # Task Plan
 
+## 2026-03-27 - post-launch failure diagnostics
+
+- [x] Task 1.1: Define diagnostic data models.
+- [x] Task 1.2: Implement exit code analysis.
+- [x] Task 1.3: Capture `ExitStatus` in `stream_log_lines`.
+- [x] Task 2.1: Implement failure pattern catalog and scanner.
+- [x] Task 2.2: Implement `safe_read_tail` and `sanitize_display_path`.
+- [x] Task 2.3: Implement `analyze()` public API and launch module export.
+- [x] Task 3.1: Wire `analyze()` into `stream_log_lines`.
+- [x] Task 3.2: Wire `analyze()` into the CLI.
+- [x] Task 4.1: Define TypeScript diagnostic types.
+- [x] Task 4.2: Extend `useLaunchState` with diagnostic events.
+- [x] Task 4.3: Render the diagnostic banner in `LaunchPanel`.
+- [x] Run targeted Rust and TypeScript verification.
+- [x] Add a short implementation review with outcome and residual risk.
+
+## Implementation Review
+
+- Added a new `crosshook_core::launch::diagnostics` module with typed models, exit-status analysis, log-pattern scanning, and a public `analyze()` API that produces a single `DiagnosticReport`.
+- `src-tauri/src/commands/launch.rs` now captures child exit status, reads a bounded log tail after the final drain, runs diagnostics, sanitizes user-visible paths, emits `launch-diagnostic`, and then emits `launch-complete` in that order.
+- `crosshook-cli` now runs the same diagnostics analysis after the helper exits and prints the summary plus matched patterns to stderr.
+- The frontend now has mirrored diagnostic types, persistent `launch-diagnostic` / `launch-complete` listeners in `useLaunchState`, and a severity-aware `LaunchPanel` banner with collapsed details, expanded suggestions, and copy-report support.
+- Verification:
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-cli --no-run`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native --no-run`
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+- Residual risk:
+  - No live Tauri/manual runtime pass was run here, so the remaining check is real launch behavior: confirm `launch-diagnostic` arrives before `launch-complete`, that the banner copy flow works in the shell, and that representative Proton/Steam failures produce the expected patterns and sanitized text.
+
 ## 2026-03-26 - route content scroll reset
 
 - [x] Confirm which layout element owns page scroll state during route changes.

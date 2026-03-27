@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useReducer } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { useEffect, useReducer, useRef } from "react";
 
 import type {
+  DiagnosticReport,
   LaunchFeedback,
   LaunchMethod,
   LaunchRequest,
@@ -9,18 +11,21 @@ import type {
   LaunchValidationIssue,
 } from "../types";
 import { LaunchPhase } from "../types";
-import { isLaunchValidationIssue } from "../types";
+import { isDiagnosticReport, isLaunchValidationIssue } from "../types";
 
 type LaunchState = {
   phase: LaunchPhase;
   feedback: LaunchFeedback | null;
+  diagnosticReport: DiagnosticReport | null;
   helperLogPath: string | null;
 };
 
 type LaunchAction =
   | { type: "reset" }
+  | { type: "diagnostic-received"; report: DiagnosticReport }
   | { type: "game-start" }
   | { type: "game-success"; helperLogPath: string; nextPhase: LaunchPhase }
+  | { type: "launch-complete" }
   | { type: "trainer-start" }
   | { type: "trainer-success"; helperLogPath: string }
   | { type: "failure"; fallbackPhase: LaunchPhase; feedback: LaunchFeedback };
@@ -34,6 +39,7 @@ interface UseLaunchStateArgs {
 const initialState: LaunchState = {
   phase: LaunchPhase.Idle,
   feedback: null,
+  diagnosticReport: null,
   helperLogPath: null,
 };
 
@@ -41,28 +47,43 @@ function reducer(state: LaunchState, action: LaunchAction): LaunchState {
   switch (action.type) {
     case "reset":
       return initialState;
+    case "diagnostic-received":
+      return {
+        ...state,
+        diagnosticReport: action.report,
+        feedback: {
+          kind: "diagnostic",
+          report: action.report,
+        },
+      };
     case "game-start":
       return {
         ...state,
         phase: LaunchPhase.GameLaunching,
         feedback: null,
+        diagnosticReport: null,
       };
     case "game-success":
       return {
         phase: action.nextPhase,
         feedback: null,
+        diagnosticReport: null,
         helperLogPath: action.helperLogPath,
       };
+    case "launch-complete":
+      return state;
     case "trainer-start":
       return {
         ...state,
         phase: LaunchPhase.TrainerLaunching,
         feedback: null,
+        diagnosticReport: null,
       };
     case "trainer-success":
       return {
         phase: LaunchPhase.SessionActive,
         feedback: null,
+        diagnosticReport: null,
         helperLogPath: action.helperLogPath,
       };
     case "failure":
@@ -70,6 +91,7 @@ function reducer(state: LaunchState, action: LaunchAction): LaunchState {
         ...state,
         phase: action.fallbackPhase,
         feedback: action.feedback,
+        diagnosticReport: null,
       };
     default:
       return state;
@@ -118,12 +140,50 @@ export function useLaunchState({
   request,
 }: UseLaunchStateArgs) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const activeHelperLogPathRef = useRef<string | null>(null);
   const hasLaunchRequest = request !== null;
   const isTwoStepLaunch = method !== "native";
 
   useEffect(() => {
+    activeHelperLogPathRef.current = null;
     dispatch({ type: "reset" });
   }, [method, profileId]);
+
+  useEffect(() => {
+    activeHelperLogPathRef.current = state.helperLogPath;
+  }, [state.helperLogPath]);
+
+  useEffect(() => {
+    let active = true;
+
+    const unlistenDiagnostic = listen<DiagnosticReport>("launch-diagnostic", (event) => {
+      if (!active || !isDiagnosticReport(event.payload)) {
+        return;
+      }
+
+      const activeHelperLogPath = activeHelperLogPathRef.current;
+      if (
+        !activeHelperLogPath ||
+        event.payload.log_tail_path === null ||
+        event.payload.log_tail_path !== activeHelperLogPath
+      ) {
+        return;
+      }
+
+      dispatch({ type: "diagnostic-received", report: event.payload });
+    });
+    const unlistenComplete = listen("launch-complete", () => {
+      if (active) {
+        dispatch({ type: "launch-complete" });
+      }
+    });
+
+    return () => {
+      active = false;
+      void unlistenDiagnostic.then((unlisten) => unlisten());
+      void unlistenComplete.then((unlisten) => unlisten());
+    };
+  }, []);
 
   async function launchGame() {
     if (!hasLaunchRequest || !request) {
@@ -131,6 +191,7 @@ export function useLaunchState({
     }
 
     const launchRequest = buildLaunchRequest(request, LaunchPhase.GameLaunching);
+    activeHelperLogPathRef.current = null;
     dispatch({ type: "game-start" });
 
     try {
@@ -150,6 +211,7 @@ export function useLaunchState({
       const result = await invoke<LaunchResult>("launch_game", {
         request: launchRequest,
       });
+      activeHelperLogPathRef.current = result.helper_log_path;
       dispatch({
         type: "game-success",
         helperLogPath: result.helper_log_path,
@@ -173,6 +235,7 @@ export function useLaunchState({
     }
 
     const launchRequest = buildLaunchRequest(request, LaunchPhase.TrainerLaunching);
+    activeHelperLogPathRef.current = null;
     dispatch({ type: "trainer-start" });
 
     try {
@@ -192,6 +255,7 @@ export function useLaunchState({
       const result = await invoke<LaunchResult>("launch_trainer", {
         request: launchRequest,
       });
+      activeHelperLogPathRef.current = result.helper_log_path;
       dispatch({
         type: "trainer-success",
         helperLogPath: result.helper_log_path,
@@ -291,6 +355,7 @@ export function useLaunchState({
     actionLabel,
     canLaunchGame,
     canLaunchTrainer,
+    diagnosticReport: state.diagnosticReport,
     hintText,
     helperLogPath: state.helperLogPath,
     isBusy,

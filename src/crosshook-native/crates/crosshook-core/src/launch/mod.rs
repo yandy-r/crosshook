@@ -1,5 +1,6 @@
 //! Launch orchestration primitives.
 
+pub mod diagnostics;
 pub mod env;
 pub mod optimizations;
 pub mod preview;
@@ -9,6 +10,7 @@ pub mod script_runner;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+pub use diagnostics::{analyze, should_surface_report, DiagnosticReport};
 pub use env::{
     LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
     WINE_ENV_VARS_TO_CLEAR,
