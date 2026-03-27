@@ -160,7 +160,7 @@ export function ProfilesPage() {
             canDuplicate={canDuplicate}
             onSave={saveProfile}
             onDelete={() => confirmDelete(profileName)}
-            onDuplicate={() => duplicateProfile(selectedProfile)}
+            onDuplicate={() => duplicateProfile(profileName)}
           />
         </CollapsibleSection>
 

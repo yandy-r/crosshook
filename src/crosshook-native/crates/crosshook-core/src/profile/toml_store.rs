@@ -203,7 +203,12 @@ impl ProfileStore {
         source_name: &str,
         existing_names: &[String],
     ) -> Result<String, ProfileStoreError> {
-        let base = strip_copy_suffix(source_name);
+        let stripped_base = strip_copy_suffix(source_name);
+        let base = if stripped_base.is_empty() {
+            source_name.trim()
+        } else {
+            stripped_base
+        };
         let candidate = format!("{base} (Copy)");
         if !existing_names.iter().any(|n| n == &candidate) {
             validate_name(&candidate)?;
@@ -583,6 +588,20 @@ method = "native"
         let result = store.duplicate("MyGame (Copy)").unwrap();
 
         assert_eq!(result.name, "MyGame (Copy 2)");
+    }
+
+    #[test]
+    fn test_duplicate_copy_suffix_only_name_keeps_non_empty_base() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("(Copy)", &profile).unwrap();
+        let result = store.duplicate("(Copy)").unwrap();
+
+        assert_eq!(result.name, "(Copy) (Copy)");
+        assert!(!result.name.starts_with(' '));
+        assert_eq!(store.load(&result.name).unwrap(), profile);
     }
 
     #[test]
