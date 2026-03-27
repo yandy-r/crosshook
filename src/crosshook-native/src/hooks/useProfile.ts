@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { AppSettingsData, GameProfile, LauncherInfo, RecentFilesData } from '../types';
+import type { AppSettingsData, DuplicateProfileResult, GameProfile, LauncherInfo, RecentFilesData } from '../types';
 import {
   LAUNCH_OPTIMIZATION_OPTIONS_BY_ID,
   getConflictingLaunchOptimizationIds,
@@ -36,6 +36,10 @@ export interface UseProfileResult {
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   toggleLaunchOptimization: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
   saveProfile: () => Promise<void>;
+  /** Duplicates the named profile on the backend and auto-selects the new copy. */
+  duplicateProfile: (sourceName: string) => Promise<void>;
+  /** True while a duplication IPC call is in-flight. */
+  duplicating: boolean;
   persistProfileDraft: PersistProfileDraft;
   confirmDelete: (name: string) => Promise<void>;
   executeDelete: () => Promise<void>;
@@ -322,6 +326,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [launchOptimizationsStatus, setLaunchOptimizationsStatus] = useState<LaunchOptimizationsStatus>(
@@ -551,6 +556,37 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     await persistProfileDraft(profileName, profile);
   }, [persistProfileDraft, profile, profileName]);
 
+  /**
+   * Duplicates the profile identified by `sourceName` via the backend, then
+   * refreshes the profile list and auto-selects the newly created copy.
+   *
+   * The backend generates a unique name (e.g. "MyGame (Copy)") so the caller
+   * does not need to supply one. The `duplicating` state flag is true for
+   * the duration of the async operation, allowing the UI to show a spinner.
+   *
+   * @param sourceName - Name of the existing profile to duplicate.
+   */
+  const duplicateProfile = useCallback(
+    async (sourceName: string): Promise<void> => {
+      if (!sourceName.trim()) return;
+      setDuplicating(true);
+      setError(null);
+      try {
+        const result = await invoke<DuplicateProfileResult>('profile_duplicate', {
+          name: sourceName,
+        });
+        await refreshProfiles();
+        await loadProfile(result.name);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+      } finally {
+        setDuplicating(false);
+      }
+    },
+    [loadProfile, refreshProfiles]
+  );
+
   const confirmDelete = useCallback(async (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -691,6 +727,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     loading,
     saving,
     deleting,
+    duplicating,
     error,
     profileExists,
     pendingDelete,
@@ -701,6 +738,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     updateProfile,
     toggleLaunchOptimization,
     saveProfile,
+    duplicateProfile,
     persistProfileDraft,
     confirmDelete,
     executeDelete,

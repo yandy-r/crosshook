@@ -1,13 +1,26 @@
+/**
+ * Props for the profile action bar (Save, Duplicate, Delete buttons and status indicator).
+ *
+ * The `canDuplicate` and `duplicating` props were added for the profile duplication
+ * feature (#56). `canDuplicate` should be true when a saved profile is selected;
+ * `duplicating` is true while the backend IPC call is in-flight.
+ */
 export interface ProfileActionsProps {
   dirty: boolean;
   loading: boolean;
   saving: boolean;
   deleting: boolean;
+  /** True while the `profile_duplicate` IPC call is in-flight. Disables the Duplicate button. */
+  duplicating: boolean;
   error: string | null;
   canSave: boolean;
   canDelete: boolean;
+  /** True when a saved profile is selected and eligible for duplication. */
+  canDuplicate: boolean;
   onSave: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
+  /** Initiates profile duplication via the backend. */
+  onDuplicate: () => void | Promise<void>;
 }
 
 export function ProfileActions({
@@ -15,17 +28,28 @@ export function ProfileActions({
   loading,
   saving,
   deleting,
+  duplicating,
   error,
   canSave,
   canDelete,
+  canDuplicate,
   onSave,
   onDelete,
+  onDuplicate,
 }: ProfileActionsProps) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
         <button type="button" className="crosshook-button" onClick={() => void onSave()} disabled={!canSave}>
           {saving ? 'Saving...' : 'Save'}
+        </button>
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={() => void onDuplicate()}
+          disabled={!canDuplicate || duplicating}
+        >
+          {duplicating ? 'Duplicating...' : 'Duplicate'}
         </button>
         <button
           type="button"

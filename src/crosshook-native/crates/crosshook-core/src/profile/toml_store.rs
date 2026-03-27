@@ -2,6 +2,7 @@ use super::models::LaunchOptimizationsSection;
 use crate::launch::is_known_launch_optimization_id;
 use crate::profile::{legacy, GameProfile};
 use directories::BaseDirs;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,6 +55,18 @@ impl From<toml::ser::Error> for ProfileStoreError {
     fn from(value: toml::ser::Error) -> Self {
         Self::TomlSer(value)
     }
+}
+
+/// Result of a successful profile duplication, returned across the Tauri IPC boundary.
+///
+/// The frontend receives this as the TypeScript `DuplicateProfileResult` interface
+/// (see `src/types/profile.ts`) and uses `name` to navigate to the newly created profile.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuplicateProfileResult {
+    /// The generated name for the duplicate profile (e.g. "MyGame (Copy)" or "MyGame (Copy 2)").
+    pub name: String,
+    /// A byte-for-byte clone of the source profile's `GameProfile` data.
+    pub profile: GameProfile,
 }
 
 impl Default for ProfileStore {
@@ -180,6 +193,77 @@ impl ProfileStore {
         Ok(profile)
     }
 
+    /// Duplicates an existing profile under a new, unique copy name.
+    ///
+    /// Loads the source profile, generates a collision-free name via
+    /// [`generate_unique_copy_name`](Self::generate_unique_copy_name), and saves the cloned
+    /// `GameProfile` to disk. The source profile is never modified.
+    ///
+    /// # Safety constraints
+    /// - The generated name is always validated through [`validate_name`] before saving,
+    ///   preventing path traversal or filesystem-unsafe characters.
+    /// - `save()` will overwrite an existing file if one exists at the target path, but
+    ///   `generate_unique_copy_name` ensures the name is not already present in the store,
+    ///   so overwrites cannot occur under normal operation.
+    ///
+    /// # Errors
+    /// - `ProfileStoreError::InvalidName` if `source_name` fails validation.
+    /// - `ProfileStoreError::NotFound` if no profile file exists for `source_name`.
+    /// - `ProfileStoreError::Io` or `ProfileStoreError::TomlSer` on filesystem/serialization failure.
+    pub fn duplicate(&self, source_name: &str) -> Result<DuplicateProfileResult, ProfileStoreError> {
+        validate_name(source_name)?;
+        let profile = self.load(source_name)?;
+        let existing_names = self.list()?;
+        let new_name = Self::generate_unique_copy_name(source_name, &existing_names)?;
+        self.save(&new_name, &profile)?;
+        Ok(DuplicateProfileResult {
+            name: new_name,
+            profile,
+        })
+    }
+
+    /// Generates a unique copy name that does not collide with any existing profile.
+    ///
+    /// # Algorithm
+    /// 1. Strip any existing `(Copy)` or `(Copy N)` suffix from `source_name` via
+    ///    [`strip_copy_suffix`] to recover the original base name. If stripping produces
+    ///    an empty string (e.g. source is literally `"(Copy)"`), the full source name is
+    ///    used as the base to guarantee a non-empty result.
+    /// 2. Try `"{base} (Copy)"` first.
+    /// 3. If that collides, iterate `"{base} (Copy 2)"` through `"{base} (Copy 1000)"`.
+    /// 4. If all 1000 candidates collide, return `InvalidName`.
+    ///
+    /// This means duplicating `"MyGame (Copy)"` produces `"MyGame (Copy 2)"` rather than
+    /// `"MyGame (Copy) (Copy)"`, keeping names clean across repeated duplications.
+    fn generate_unique_copy_name(
+        source_name: &str,
+        existing_names: &[String],
+    ) -> Result<String, ProfileStoreError> {
+        let stripped_base = strip_copy_suffix(source_name);
+        let base = if stripped_base.is_empty() {
+            source_name.trim()
+        } else {
+            stripped_base
+        };
+        let candidate = format!("{base} (Copy)");
+        if !existing_names.iter().any(|n| n == &candidate) {
+            validate_name(&candidate)?;
+            return Ok(candidate);
+        }
+
+        for i in 2..=1000 {
+            let candidate = format!("{base} (Copy {i})");
+            if !existing_names.iter().any(|n| n == &candidate) {
+                validate_name(&candidate)?;
+                return Ok(candidate);
+            }
+        }
+
+        Err(ProfileStoreError::InvalidName(format!(
+            "cannot generate unique copy name for '{source_name}'"
+        )))
+    }
+
     fn profile_path(&self, name: &str) -> Result<PathBuf, ProfileStoreError> {
         validate_name(name)?;
         Ok(self.base_path.join(format!("{name}.toml")))
@@ -211,6 +295,32 @@ pub fn validate_name(name: &str) -> Result<(), ProfileStoreError> {
     }
 
     Ok(())
+}
+
+/// Strips a trailing `(Copy)` or `(Copy N)` suffix from a profile name, returning
+/// the base name. Non-copy parenthesized suffixes (e.g. `"Game (Special Edition)"`)
+/// are left intact.
+///
+/// Returns the full trimmed input if no copy suffix is detected.
+///
+/// # Examples (from tests)
+/// - `"Name (Copy)"` -> `"Name"`
+/// - `"Name (Copy 3)"` -> `"Name"`
+/// - `"Game (Special Edition)"` -> `"Game (Special Edition)"` (unchanged)
+/// - `"(Copy)"` -> `""` (empty -- caller must handle)
+fn strip_copy_suffix(name: &str) -> &str {
+    let trimmed = name.trim_end();
+
+    if let Some(before_paren) = trimmed.strip_suffix(')') {
+        if let Some(pos) = before_paren.rfind('(') {
+            let inside = before_paren[pos + 1..].trim();
+            if inside == "Copy" || inside.strip_prefix("Copy ").is_some_and(|n| n.parse::<u32>().is_ok()) {
+                return trimmed[..pos].trim_end();
+            }
+        }
+    }
+
+    trimmed
 }
 
 #[cfg(test)]
@@ -474,5 +584,94 @@ method = "native"
             result,
             Err(ProfileStoreError::InvalidLaunchOptimizationId(id)) if id == "not_a_real_launch_optimization"
         ));
+    }
+
+    #[test]
+    fn test_strip_copy_suffix() {
+        assert_eq!(strip_copy_suffix("Name (Copy)"), "Name");
+        assert_eq!(strip_copy_suffix("Name (Copy 3)"), "Name");
+        assert_eq!(strip_copy_suffix("Name"), "Name");
+        assert_eq!(strip_copy_suffix("Copy"), "Copy");
+        assert_eq!(strip_copy_suffix("Game (Special Edition)"), "Game (Special Edition)");
+        assert_eq!(strip_copy_suffix("Name (Copy 0)"), "Name");
+        assert_eq!(strip_copy_suffix("Name (Copy 99)"), "Name");
+    }
+
+    #[test]
+    fn test_duplicate_basic() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("MyGame", &profile).unwrap();
+        let result = store.duplicate("MyGame").unwrap();
+
+        assert_eq!(result.name, "MyGame (Copy)");
+        assert_eq!(result.profile, profile);
+        assert!(store.profile_path("MyGame (Copy)").unwrap().exists());
+    }
+
+    #[test]
+    fn test_duplicate_increments_on_conflict() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("MyGame", &profile).unwrap();
+        store.save("MyGame (Copy)", &profile).unwrap();
+        let result = store.duplicate("MyGame").unwrap();
+
+        assert_eq!(result.name, "MyGame (Copy 2)");
+    }
+
+    #[test]
+    fn test_duplicate_of_copy() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("MyGame", &profile).unwrap();
+        store.save("MyGame (Copy)", &profile).unwrap();
+        let result = store.duplicate("MyGame (Copy)").unwrap();
+
+        assert_eq!(result.name, "MyGame (Copy 2)");
+    }
+
+    #[test]
+    fn test_duplicate_copy_suffix_only_name_keeps_non_empty_base() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("(Copy)", &profile).unwrap();
+        let result = store.duplicate("(Copy)").unwrap();
+
+        assert_eq!(result.name, "(Copy) (Copy)");
+        assert!(!result.name.starts_with(' '));
+        assert_eq!(store.load(&result.name).unwrap(), profile);
+    }
+
+    #[test]
+    fn test_duplicate_preserves_all_fields() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let profile = sample_profile();
+
+        store.save("FullProfile", &profile).unwrap();
+        let result = store.duplicate("FullProfile").unwrap();
+
+        let loaded_source = store.load("FullProfile").unwrap();
+        let loaded_copy = store.load(&result.name).unwrap();
+        assert_eq!(loaded_source, loaded_copy);
+    }
+
+    #[test]
+    fn test_duplicate_source_not_found() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        fs::create_dir_all(&store.base_path).unwrap();
+
+        let result = store.duplicate("nonexistent");
+        assert!(matches!(result, Err(ProfileStoreError::NotFound(_))));
     }
 }

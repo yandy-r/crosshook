@@ -52,3 +52,17 @@ export interface GameProfile {
     optimizations: LaunchOptimizations;
   };
 }
+
+/**
+ * IPC result from the `profile_duplicate` Tauri command.
+ *
+ * Mirrors the Rust `DuplicateProfileResult` struct in
+ * `crosshook-core/src/profile/toml_store.rs`. Both sides must stay in sync --
+ * field names use snake_case to match serde serialization.
+ */
+export interface DuplicateProfileResult {
+  /** Generated unique name for the duplicate (e.g. "MyGame (Copy)", "MyGame (Copy 2)"). */
+  name: string;
+  /** Full clone of the source profile's data. */
+  profile: GameProfile;
+}
