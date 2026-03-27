@@ -25,3 +25,4 @@ tasks/todo.md
 
 # Codex
 .codex-tmp/
+.claude/settings.local.json
