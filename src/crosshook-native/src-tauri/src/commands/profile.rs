@@ -1,4 +1,5 @@
 use crosshook_core::profile::{DuplicateProfileResult, GameProfile, ProfileStore, ProfileStoreError};
+use crosshook_core::settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -149,8 +150,47 @@ pub fn profile_rename(
     old_name: String,
     new_name: String,
     store: State<'_, ProfileStore>,
-) -> Result<(), String> {
-    store.rename(&old_name, &new_name).map_err(map_error)
+    settings_store: State<'_, SettingsStore>,
+) -> Result<bool, String> {
+    // Load profile BEFORE rename for launcher cleanup and display_name update.
+    let old_profile = store.load(&old_name).ok();
+
+    store.rename(&old_name, &new_name).map_err(map_error)?;
+
+    // Best-effort: delete old launcher files so the frontend can re-export with correct paths.
+    let had_launcher = if let Some(ref profile) = old_profile {
+        match cleanup_launchers_for_profile_delete(&old_name, profile) {
+            Ok(Some(result)) => result.script_deleted || result.desktop_entry_deleted,
+            Ok(None) => false,
+            Err(error) => {
+                tracing::warn!(%error, %old_name, %new_name, "launcher cleanup during profile rename failed");
+                false
+            }
+        }
+    } else {
+        false
+    };
+
+    // Best-effort: update display_name inside the renamed profile so future exports use the new name.
+    if old_profile.is_some() {
+        if let Ok(mut profile) = store.load(&new_name) {
+            profile.steam.launcher.display_name = new_name.trim().to_string();
+            if let Err(err) = store.save(&new_name, &profile) {
+                tracing::warn!(%err, %new_name, "display_name update after profile rename failed");
+            }
+        }
+    }
+
+    if let Ok(mut settings) = settings_store.load() {
+        if settings.last_used_profile.trim() == old_name.trim() {
+            settings.last_used_profile = new_name.trim().to_string();
+            if let Err(err) = settings_store.save(&settings) {
+                tracing::warn!(%err, %old_name, %new_name, "settings update after profile rename failed");
+            }
+        }
+    }
+
+    Ok(had_launcher)
 }
 
 #[tauri::command]
