@@ -13,6 +13,8 @@ interface LauncherExportProps {
   method: Exclude<LaunchMethod, ''>;
   steamClientInstallPath: string;
   targetHomePath: string;
+  pendingReExport?: boolean;
+  onReExportHandled?: () => void;
 }
 
 interface SteamExternalLauncherExportRequest {
@@ -113,6 +115,8 @@ export function LauncherExport({
   method,
   steamClientInstallPath,
   targetHomePath,
+  pendingReExport,
+  onReExportHandled,
 }: LauncherExportProps) {
   const [launcherName, setLauncherName] = useState(() => deriveLauncherName(profile));
   const [isExporting, setIsExporting] = useState(false);
@@ -162,6 +166,27 @@ export function LauncherExport({
       }
     };
   }, []);
+
+  // Auto re-export after profile rename: wait briefly for request to settle, then export.
+  useEffect(() => {
+    if (!pendingReExport) return;
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          await invoke<void>('validate_launcher_export', { request });
+          await invoke<SteamExternalLauncherExportResult>('export_launchers', { request });
+          void refreshLauncherStatus();
+        } catch {
+          // Silent — user can manually re-export if auto-export fails
+        } finally {
+          onReExportHandled?.();
+        }
+      })();
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [pendingReExport, request, refreshLauncherStatus, onReExportHandled]);
 
   const metadataRows = useMemo(
     () =>

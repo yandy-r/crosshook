@@ -40,6 +40,10 @@ export interface UseProfileResult {
   duplicateProfile: (sourceName: string) => Promise<void>;
   /** True while a duplication IPC call is in-flight. */
   duplicating: boolean;
+  /** Renames an existing profile on the backend, refreshes the list, and selects the new name. */
+  renameProfile: (oldName: string, newName: string) => Promise<boolean>;
+  /** True while a rename IPC call is in-flight. */
+  renaming: boolean;
   persistProfileDraft: PersistProfileDraft;
   confirmDelete: (name: string) => Promise<void>;
   executeDelete: () => Promise<void>;
@@ -327,6 +331,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [launchOptimizationsStatus, setLaunchOptimizationsStatus] = useState<LaunchOptimizationsStatus>(
@@ -587,6 +592,42 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     [loadProfile, refreshProfiles]
   );
 
+  /**
+   * Renames the profile identified by `oldName` to `newName` via the backend,
+   * then refreshes the profile list and auto-selects the renamed profile.
+   *
+   * The autosave timer is cancelled before the rename to prevent a debounced
+   * save from writing to the old filename while the rename is in progress.
+   *
+   * @param oldName - Current name of the profile to rename.
+   * @param newName - Desired new name for the profile.
+   */
+  const renameProfile = useCallback(
+    async (oldName: string, newName: string): Promise<boolean> => {
+      if (!oldName.trim() || !newName.trim() || oldName.trim() === newName.trim()) return false;
+
+      if (launchOptimizationsAutosaveTimerRef.current !== null) {
+        clearTimeout(launchOptimizationsAutosaveTimerRef.current);
+        launchOptimizationsAutosaveTimerRef.current = null;
+      }
+
+      setRenaming(true);
+      setError(null);
+      try {
+        const hadLauncher = await invoke<boolean>('profile_rename', { oldName: oldName.trim(), newName: newName.trim() });
+        await refreshProfiles();
+        await loadProfile(newName.trim());
+        return hadLauncher;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        return false;
+      } finally {
+        setRenaming(false);
+      }
+    },
+    [loadProfile, refreshProfiles]
+  );
+
   const confirmDelete = useCallback(async (name: string) => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -728,6 +769,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     saving,
     deleting,
     duplicating,
+    renaming,
     error,
     profileExists,
     pendingDelete,
@@ -739,6 +781,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     toggleLaunchOptimization,
     saveProfile,
     duplicateProfile,
+    renameProfile,
     persistProfileDraft,
     confirmDelete,
     executeDelete,
