@@ -761,7 +761,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
 
         <button
           type="button"
-          className="crosshook-button crosshook-button--ghost crosshook-launch-panel__action"
+          className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
           onClick={() => request && requestPreview(request)}
           disabled={previewDisabled}
         >
