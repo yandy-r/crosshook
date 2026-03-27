@@ -277,6 +277,26 @@ impl ProfileStore {
     }
 }
 
+/// Serializes a `GameProfile` to a valid TOML string with comment headers
+/// indicating where to save the file for sharing.
+///
+/// The returned string is valid TOML — comment headers use `#` syntax and are
+/// ignored by TOML parsers, so the output can be saved directly as a `.toml` profile.
+pub fn profile_to_shareable_toml(name: &str, profile: &GameProfile) -> Result<String, toml::ser::Error> {
+    let toml_body = toml::to_string_pretty(profile)?;
+    Ok(format!(
+        "# CrossHook Profile: {name}\n\
+         # https://github.com/yandy-r/crosshook\n\
+         #\n\
+         # To use this profile, save this file as:\n\
+         #   ~/.config/crosshook/profiles/{name}.toml\n\
+         #\n\
+         # Then select the profile in CrossHook.\n\
+         \n\
+         {toml_body}"
+    ))
+}
+
 pub fn validate_name(name: &str) -> Result<(), ProfileStoreError> {
     const WINDOWS_RESERVED_PATH_CHARACTERS: [char; 9] =
         ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
@@ -686,5 +706,31 @@ method = "native"
 
         let result = store.duplicate("nonexistent");
         assert!(matches!(result, Err(ProfileStoreError::NotFound(_))));
+    }
+
+    #[test]
+    fn shareable_toml_starts_with_comment_header() {
+        let profile = sample_profile();
+        let toml = profile_to_shareable_toml("elden-ring", &profile).unwrap();
+        assert!(toml.starts_with("# CrossHook Profile: elden-ring\n"));
+        assert!(toml.contains("# To use this profile, save this file as:"));
+        assert!(toml.contains("~/.config/crosshook/profiles/elden-ring.toml"));
+    }
+
+    #[test]
+    fn shareable_toml_roundtrips_through_parser() {
+        let profile = sample_profile();
+        let toml = profile_to_shareable_toml("elden-ring", &profile).unwrap();
+        let parsed: GameProfile = toml::from_str(&toml).unwrap();
+        assert_eq!(parsed, profile);
+    }
+
+    #[test]
+    fn shareable_toml_with_empty_name_still_valid() {
+        let profile = GameProfile::default();
+        let toml = profile_to_shareable_toml("", &profile).unwrap();
+        assert!(toml.starts_with("# CrossHook Profile: \n"));
+        let parsed: GameProfile = toml::from_str(&toml).unwrap();
+        assert_eq!(parsed, profile);
     }
 }

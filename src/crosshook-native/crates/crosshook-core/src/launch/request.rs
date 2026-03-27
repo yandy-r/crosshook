@@ -439,6 +439,26 @@ impl fmt::Display for ValidationError {
 
 impl Error for ValidationError {}
 
+pub fn validate_all(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
+    let method_trimmed = request.method.trim();
+    if !method_trimmed.is_empty()
+        && method_trimmed != METHOD_STEAM_APPLAUNCH
+        && method_trimmed != METHOD_PROTON_RUN
+        && method_trimmed != METHOD_NATIVE
+    {
+        return vec![ValidationError::UnsupportedMethod(method_trimmed.to_string()).issue()];
+    }
+
+    let mut issues = Vec::new();
+    match request.resolved_method() {
+        METHOD_STEAM_APPLAUNCH => collect_steam_issues(request, &mut issues),
+        METHOD_PROTON_RUN => collect_proton_issues(request, &mut issues),
+        METHOD_NATIVE => collect_native_issues(request, &mut issues),
+        other => issues.push(ValidationError::UnsupportedMethod(other.to_string()).issue()),
+    }
+    issues
+}
+
 pub fn validate(request: &LaunchRequest) -> Result<(), ValidationError> {
     match request.method.trim() {
         "" | METHOD_STEAM_APPLAUNCH | METHOD_PROTON_RUN | METHOD_NATIVE => {}
@@ -521,6 +541,94 @@ fn validate_native(request: &LaunchRequest) -> Result<(), ValidationError> {
     reject_launch_optimizations_for_method(request, METHOD_NATIVE)?;
 
     Ok(())
+}
+
+fn collect_steam_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidationIssue>) {
+    if let Err(e) = require_game_path_if_needed(request, false) {
+        issues.push(e.issue());
+    }
+    if let Err(e) = require_trainer_paths_if_needed(request) {
+        issues.push(e.issue());
+    }
+
+    if request.steam.app_id.trim().is_empty() {
+        issues.push(ValidationError::SteamAppIdRequired.issue());
+    }
+
+    if let Err(e) = require_directory(
+        request.steam.compatdata_path.trim(),
+        ValidationError::SteamCompatDataPathRequired,
+        ValidationError::SteamCompatDataPathMissing,
+        ValidationError::SteamCompatDataPathNotDirectory,
+    ) {
+        issues.push(e.issue());
+    }
+
+    if let Err(e) = require_executable_file(
+        request.steam.proton_path.trim(),
+        ValidationError::SteamProtonPathRequired,
+        ValidationError::SteamProtonPathMissing,
+        ValidationError::SteamProtonPathNotExecutable,
+    ) {
+        issues.push(e.issue());
+    }
+
+    if request.steam.steam_client_install_path.trim().is_empty() {
+        issues.push(ValidationError::SteamClientInstallPathRequired.issue());
+    }
+
+    if let Err(e) = reject_launch_optimizations_for_method(request, METHOD_STEAM_APPLAUNCH) {
+        issues.push(e.issue());
+    }
+}
+
+fn collect_proton_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidationIssue>) {
+    if let Err(e) = require_game_path_if_needed(request, true) {
+        issues.push(e.issue());
+    }
+    if let Err(e) = require_trainer_paths_if_needed(request) {
+        issues.push(e.issue());
+    }
+
+    if let Err(e) = require_directory(
+        request.runtime.prefix_path.trim(),
+        ValidationError::RuntimePrefixPathRequired,
+        ValidationError::RuntimePrefixPathMissing,
+        ValidationError::RuntimePrefixPathNotDirectory,
+    ) {
+        issues.push(e.issue());
+    }
+
+    if let Err(e) = require_executable_file(
+        request.runtime.proton_path.trim(),
+        ValidationError::RuntimeProtonPathRequired,
+        ValidationError::RuntimeProtonPathMissing,
+        ValidationError::RuntimeProtonPathNotExecutable,
+    ) {
+        issues.push(e.issue());
+    }
+
+    if let Err(e) = resolve_launch_directives(request) {
+        issues.push(e.issue());
+    }
+}
+
+fn collect_native_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidationIssue>) {
+    if request.launch_trainer_only {
+        issues.push(ValidationError::NativeTrainerLaunchUnsupported.issue());
+    }
+
+    if let Err(e) = require_game_path_if_needed(request, true) {
+        issues.push(e.issue());
+    }
+
+    if looks_like_windows_executable(&request.game_path) {
+        issues.push(ValidationError::NativeWindowsExecutableNotSupported.issue());
+    }
+
+    if let Err(e) = reject_launch_optimizations_for_method(request, METHOD_NATIVE) {
+        issues.push(e.issue());
+    }
 }
 
 fn reject_launch_optimizations_for_method(
@@ -951,5 +1059,59 @@ mod tests {
         };
 
         assert_eq!(request.log_target_slug(), "game-exe");
+    }
+
+    #[test]
+    fn validate_all_returns_empty_for_valid_steam_request() {
+        let (_temp_dir, request) = steam_request();
+        let issues = validate_all(&request);
+        assert!(issues.is_empty(), "expected no issues, got: {issues:?}");
+    }
+
+    #[test]
+    fn validate_all_collects_multiple_issues() {
+        let (_temp_dir, mut request) = steam_request();
+        request.game_path.clear();
+        request.steam.app_id.clear();
+        request.steam.compatdata_path.clear();
+        request.steam.proton_path.clear();
+        request.steam.steam_client_install_path.clear();
+
+        let issues = validate_all(&request);
+        assert!(
+            issues.len() >= 4,
+            "expected at least 4 issues, got {}: {issues:?}",
+            issues.len()
+        );
+
+        let messages: Vec<&str> = issues.iter().map(|i| i.message.as_str()).collect();
+        assert!(messages.iter().any(|m| m.contains("game executable path")));
+        assert!(messages.iter().any(|m| m.contains("Steam App ID")));
+        assert!(messages.iter().any(|m| m.contains("compatdata path")));
+        assert!(messages.iter().any(|m| m.contains("Proton path")));
+    }
+
+    #[test]
+    fn validate_all_proton_collects_directive_error_alongside_path_issues() {
+        let (_temp_dir, mut request) = proton_request();
+        request.runtime.prefix_path.clear();
+        request.optimizations.enabled_option_ids = vec!["unknown_toggle".to_string()];
+
+        let issues = validate_all(&request);
+        assert!(
+            issues.len() >= 2,
+            "expected at least 2 issues, got {}: {issues:?}",
+            issues.len()
+        );
+
+        let messages: Vec<&str> = issues.iter().map(|i| i.message.as_str()).collect();
+        assert!(
+            messages.iter().any(|m| m.contains("prefix path")),
+            "expected prefix path issue in: {messages:?}"
+        );
+        assert!(
+            messages.iter().any(|m| m.contains("unknown_toggle")),
+            "expected directive error issue in: {messages:?}"
+        );
     }
 }

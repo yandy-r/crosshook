@@ -20,4 +20,6 @@ pub use models::{
     LauncherSection, LegacyProfileData, RuntimeSection, SteamSection, TrainerLoadingMode,
     TrainerSection, resolve_launch_method,
 };
-pub use toml_store::{DuplicateProfileResult, ProfileStore, ProfileStoreError};
+pub use toml_store::{
+    DuplicateProfileResult, ProfileStore, ProfileStoreError, profile_to_shareable_toml,
+};
