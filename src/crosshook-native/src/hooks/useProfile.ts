@@ -36,7 +36,9 @@ export interface UseProfileResult {
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   toggleLaunchOptimization: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
   saveProfile: () => Promise<void>;
+  /** Duplicates the named profile on the backend and auto-selects the new copy. */
   duplicateProfile: (sourceName: string) => Promise<void>;
+  /** True while a duplication IPC call is in-flight. */
   duplicating: boolean;
   persistProfileDraft: PersistProfileDraft;
   confirmDelete: (name: string) => Promise<void>;
@@ -554,6 +556,16 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     await persistProfileDraft(profileName, profile);
   }, [persistProfileDraft, profile, profileName]);
 
+  /**
+   * Duplicates the profile identified by `sourceName` via the backend, then
+   * refreshes the profile list and auto-selects the newly created copy.
+   *
+   * The backend generates a unique name (e.g. "MyGame (Copy)") so the caller
+   * does not need to supply one. The `duplicating` state flag is true for
+   * the duration of the async operation, allowing the UI to show a spinner.
+   *
+   * @param sourceName - Name of the existing profile to duplicate.
+   */
   const duplicateProfile = useCallback(
     async (sourceName: string): Promise<void> => {
       if (!sourceName.trim()) return;

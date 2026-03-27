@@ -122,6 +122,20 @@ pub fn profile_delete(name: String, store: State<'_, ProfileStore>) -> Result<()
     store.delete(&name).map_err(map_error)
 }
 
+/// Duplicates an existing profile under a unique copy name.
+///
+/// Delegates to [`ProfileStore::duplicate`] which handles name generation, collision
+/// avoidance, and persistence. The returned [`DuplicateProfileResult`] is serialized
+/// to the frontend where it drives profile list refresh and auto-selection of the copy.
+///
+/// # Frontend invocation
+/// ```ts
+/// const result = await invoke<DuplicateProfileResult>('profile_duplicate', { name });
+/// ```
+///
+/// # Errors
+/// Returns a stringified error when the source profile does not exist or if the
+/// generated copy name cannot pass filesystem validation.
 #[tauri::command]
 pub fn profile_duplicate(
     name: String,

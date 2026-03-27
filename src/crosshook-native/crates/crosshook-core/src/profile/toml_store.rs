@@ -57,9 +57,15 @@ impl From<toml::ser::Error> for ProfileStoreError {
     }
 }
 
+/// Result of a successful profile duplication, returned across the Tauri IPC boundary.
+///
+/// The frontend receives this as the TypeScript `DuplicateProfileResult` interface
+/// (see `src/types/profile.ts`) and uses `name` to navigate to the newly created profile.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuplicateProfileResult {
+    /// The generated name for the duplicate profile (e.g. "MyGame (Copy)" or "MyGame (Copy 2)").
     pub name: String,
+    /// A byte-for-byte clone of the source profile's `GameProfile` data.
     pub profile: GameProfile,
 }
 
@@ -187,6 +193,23 @@ impl ProfileStore {
         Ok(profile)
     }
 
+    /// Duplicates an existing profile under a new, unique copy name.
+    ///
+    /// Loads the source profile, generates a collision-free name via
+    /// [`generate_unique_copy_name`](Self::generate_unique_copy_name), and saves the cloned
+    /// `GameProfile` to disk. The source profile is never modified.
+    ///
+    /// # Safety constraints
+    /// - The generated name is always validated through [`validate_name`] before saving,
+    ///   preventing path traversal or filesystem-unsafe characters.
+    /// - `save()` will overwrite an existing file if one exists at the target path, but
+    ///   `generate_unique_copy_name` ensures the name is not already present in the store,
+    ///   so overwrites cannot occur under normal operation.
+    ///
+    /// # Errors
+    /// - `ProfileStoreError::InvalidName` if `source_name` fails validation.
+    /// - `ProfileStoreError::NotFound` if no profile file exists for `source_name`.
+    /// - `ProfileStoreError::Io` or `ProfileStoreError::TomlSer` on filesystem/serialization failure.
     pub fn duplicate(&self, source_name: &str) -> Result<DuplicateProfileResult, ProfileStoreError> {
         validate_name(source_name)?;
         let profile = self.load(source_name)?;
@@ -199,6 +222,19 @@ impl ProfileStore {
         })
     }
 
+    /// Generates a unique copy name that does not collide with any existing profile.
+    ///
+    /// # Algorithm
+    /// 1. Strip any existing `(Copy)` or `(Copy N)` suffix from `source_name` via
+    ///    [`strip_copy_suffix`] to recover the original base name. If stripping produces
+    ///    an empty string (e.g. source is literally `"(Copy)"`), the full source name is
+    ///    used as the base to guarantee a non-empty result.
+    /// 2. Try `"{base} (Copy)"` first.
+    /// 3. If that collides, iterate `"{base} (Copy 2)"` through `"{base} (Copy 1000)"`.
+    /// 4. If all 1000 candidates collide, return `InvalidName`.
+    ///
+    /// This means duplicating `"MyGame (Copy)"` produces `"MyGame (Copy 2)"` rather than
+    /// `"MyGame (Copy) (Copy)"`, keeping names clean across repeated duplications.
     fn generate_unique_copy_name(
         source_name: &str,
         existing_names: &[String],
@@ -261,6 +297,17 @@ pub fn validate_name(name: &str) -> Result<(), ProfileStoreError> {
     Ok(())
 }
 
+/// Strips a trailing `(Copy)` or `(Copy N)` suffix from a profile name, returning
+/// the base name. Non-copy parenthesized suffixes (e.g. `"Game (Special Edition)"`)
+/// are left intact.
+///
+/// Returns the full trimmed input if no copy suffix is detected.
+///
+/// # Examples (from tests)
+/// - `"Name (Copy)"` -> `"Name"`
+/// - `"Name (Copy 3)"` -> `"Name"`
+/// - `"Game (Special Edition)"` -> `"Game (Special Edition)"` (unchanged)
+/// - `"(Copy)"` -> `""` (empty -- caller must handle)
 fn strip_copy_suffix(name: &str) -> &str {
     let trimmed = name.trim_end();
 
