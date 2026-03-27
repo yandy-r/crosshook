@@ -84,7 +84,11 @@
       "Bash(get_feature_plan_dir:*)",
       "Bash(grep:*)",
       "Bash(npx vite:*)",
-      "Bash(gh issue:*)"
+      "Bash(gh issue:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:v2.tauri.app)",
+      "WebFetch(domain:www.patternfly.org)"
     ]
   }
 }
