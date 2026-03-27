@@ -357,8 +357,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link 0.2.1",
 ]
 
@@ -509,7 +511,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crosshook-cli"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "clap",
  "crosshook-core",
@@ -518,8 +520,9 @@ dependencies = [
 
 [[package]]
 name = "crosshook-core"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
+ "chrono",
  "directories",
  "serde",
  "serde_json",
@@ -532,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "crosshook-native"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "crosshook-core",
  "serde",

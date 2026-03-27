@@ -140,6 +140,26 @@ pub fn find_orphaned_launchers(
     )
 }
 
+/// Generates the trainer launcher script content for clipboard copy.
+/// Does NOT write to disk.
+#[tauri::command]
+pub fn preview_launcher_script(
+    request: SteamExternalLauncherExportRequest,
+) -> Result<String, String> {
+    crosshook_core::export::preview_trainer_script_content(&request)
+        .map_err(|error| error.to_string())
+}
+
+/// Generates the desktop entry content for clipboard copy.
+/// Does NOT write to disk.
+#[tauri::command]
+pub fn preview_launcher_desktop(
+    request: SteamExternalLauncherExportRequest,
+) -> Result<String, String> {
+    crosshook_core::export::preview_desktop_entry_content(&request)
+        .map_err(|error| error.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,5 +180,9 @@ mod tests {
             as fn(String, String, String, String, String) -> Result<LauncherDeleteResult, String>;
         let _ = delete_launcher_by_slug
             as fn(String, String, String) -> Result<LauncherDeleteResult, String>;
+        let _ = preview_launcher_script
+            as fn(SteamExternalLauncherExportRequest) -> Result<String, String>;
+        let _ = preview_launcher_desktop
+            as fn(SteamExternalLauncherExportRequest) -> Result<String, String>;
     }
 }

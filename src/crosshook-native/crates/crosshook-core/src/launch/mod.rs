@@ -2,6 +2,7 @@
 
 pub mod env;
 pub mod optimizations;
+pub mod preview;
 pub mod request;
 pub mod runtime_helpers;
 pub mod script_runner;
@@ -16,8 +17,9 @@ pub use optimizations::{
     build_steam_launch_options_command, is_known_launch_optimization_id, resolve_launch_directives,
     resolve_launch_directives_for_method, LaunchDirectives,
 };
+pub use preview::{build_launch_preview, LaunchPreview};
 pub use request::{
-    validate, LaunchRequest, LaunchValidationIssue, RuntimeLaunchConfig, SteamLaunchConfig,
-    SteamLaunchRequest, ValidationError, ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN,
-    METHOD_STEAM_APPLAUNCH,
+    validate, validate_all, LaunchRequest, LaunchValidationIssue, RuntimeLaunchConfig,
+    SteamLaunchConfig, SteamLaunchRequest, ValidationError, ValidationSeverity, METHOD_NATIVE,
+    METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };

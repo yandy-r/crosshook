@@ -8,13 +8,15 @@ use std::path::PathBuf;
 #[cfg(test)]
 use std::sync::{Mutex, OnceLock};
 
+use serde::{Deserialize, Serialize};
+
 use super::{
     env::LAUNCH_OPTIMIZATION_ENV_VARS,
     request::{LaunchRequest, ValidationError, METHOD_PROTON_RUN},
     runtime_helpers::DEFAULT_HOST_PATH,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct LaunchDirectives {
     pub env: Vec<(String, String)>,
     pub wrappers: Vec<String>,

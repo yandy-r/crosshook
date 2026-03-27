@@ -595,6 +595,90 @@ fn escape_desktop_exec_argument(value: &str) -> String {
         .replace('"', "\\\"")
 }
 
+/// Generates the trainer launcher script content with placement comment headers,
+/// suitable for clipboard copy. Does NOT write to disk.
+pub fn preview_trainer_script_content(
+    request: &SteamExternalLauncherExportRequest,
+) -> Result<String, SteamExternalLauncherExportError> {
+    validate(request).map_err(SteamExternalLauncherExportError::InvalidRequest)?;
+
+    let display_name = resolve_display_name(
+        &request.launcher_name,
+        &request.steam_app_id,
+        &request.trainer_path,
+    );
+    let launcher_slug = sanitize_launcher_slug(&display_name);
+    let target_home_path = resolve_target_home_path(
+        &request.target_home_path,
+        &request.steam_client_install_path,
+    );
+
+    if target_home_path.trim().is_empty() {
+        return Err(SteamExternalLauncherExportError::CouldNotResolveHomePath);
+    }
+
+    let script_path = combine_host_unix_path(
+        &target_home_path,
+        ".local/share/crosshook/launchers",
+        &format!("{launcher_slug}-trainer.sh"),
+    );
+
+    let body = build_trainer_script_content(request, &display_name);
+    Ok(format!(
+        "# Save this file to: {script_path}\n\
+         # Make executable: chmod +x {script_path}\n\
+         \n\
+         {body}"
+    ))
+}
+
+/// Generates the desktop entry content with placement comment headers,
+/// suitable for clipboard copy. Does NOT write to disk.
+pub fn preview_desktop_entry_content(
+    request: &SteamExternalLauncherExportRequest,
+) -> Result<String, SteamExternalLauncherExportError> {
+    validate(request).map_err(SteamExternalLauncherExportError::InvalidRequest)?;
+
+    let display_name = resolve_display_name(
+        &request.launcher_name,
+        &request.steam_app_id,
+        &request.trainer_path,
+    );
+    let launcher_slug = sanitize_launcher_slug(&display_name);
+    let target_home_path = resolve_target_home_path(
+        &request.target_home_path,
+        &request.steam_client_install_path,
+    );
+
+    if target_home_path.trim().is_empty() {
+        return Err(SteamExternalLauncherExportError::CouldNotResolveHomePath);
+    }
+
+    let script_path = combine_host_unix_path(
+        &target_home_path,
+        ".local/share/crosshook/launchers",
+        &format!("{launcher_slug}-trainer.sh"),
+    );
+    let desktop_entry_path = combine_host_unix_path(
+        &target_home_path,
+        ".local/share/applications",
+        &format!("crosshook-{launcher_slug}-trainer.desktop"),
+    );
+
+    let body = build_desktop_entry_content(
+        &display_name,
+        &launcher_slug,
+        &script_path,
+        &request.launcher_icon_path,
+    );
+    Ok(format!(
+        "# Save this file to: {desktop_entry_path}\n\
+         # Permissions: 644 (not executable)\n\
+         \n\
+         {body}"
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -803,5 +887,77 @@ mod tests {
         assert!(!script_content
             .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(!script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH="));
+    }
+
+    #[test]
+    fn preview_script_contains_placement_header_before_shebang() {
+        let request = SteamExternalLauncherExportRequest {
+            method: "proton_run".to_string(),
+            launcher_name: "Witcher 3".to_string(),
+            trainer_path: "/opt/trainers/Aurora.exe".to_string(),
+            trainer_loading_mode: TrainerLoadingMode::SourceDirectory,
+            launcher_icon_path: String::new(),
+            prefix_path: "/games/prefixes/the-witcher-3".to_string(),
+            proton_path: "/opt/proton/proton".to_string(),
+            steam_app_id: String::new(),
+            steam_client_install_path: String::new(),
+            target_home_path: "/home/user".to_string(),
+        };
+
+        let content = preview_trainer_script_content(&request).expect("preview script");
+        assert!(content.starts_with("# Save this file to: /home/user/.local/share/crosshook/launchers/witcher-3-trainer.sh\n"));
+        assert!(content.contains("# Make executable: chmod +x"));
+        assert!(content.contains("#!/usr/bin/env bash"));
+    }
+
+    #[test]
+    fn preview_desktop_contains_placement_header_before_entry() {
+        let request = SteamExternalLauncherExportRequest {
+            method: "proton_run".to_string(),
+            launcher_name: "Witcher 3".to_string(),
+            trainer_path: "/opt/trainers/Aurora.exe".to_string(),
+            trainer_loading_mode: TrainerLoadingMode::SourceDirectory,
+            launcher_icon_path: String::new(),
+            prefix_path: "/games/prefixes/the-witcher-3".to_string(),
+            proton_path: "/opt/proton/proton".to_string(),
+            steam_app_id: String::new(),
+            steam_client_install_path: String::new(),
+            target_home_path: "/home/user".to_string(),
+        };
+
+        let content = preview_desktop_entry_content(&request).expect("preview desktop");
+        assert!(content.starts_with("# Save this file to: /home/user/.local/share/applications/crosshook-witcher-3-trainer.desktop\n"));
+        assert!(content.contains("# Permissions: 644"));
+        assert!(content.contains("[Desktop Entry]"));
+    }
+
+    #[test]
+    fn preview_script_fails_when_trainer_path_empty() {
+        let request = SteamExternalLauncherExportRequest {
+            method: "proton_run".to_string(),
+            trainer_path: String::new(),
+            prefix_path: "/tmp/prefix".to_string(),
+            proton_path: "/tmp/proton".to_string(),
+            target_home_path: "/home/user".to_string(),
+            ..Default::default()
+        };
+
+        let result = preview_trainer_script_content(&request);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn preview_desktop_fails_when_trainer_path_empty() {
+        let request = SteamExternalLauncherExportRequest {
+            method: "proton_run".to_string(),
+            trainer_path: String::new(),
+            prefix_path: "/tmp/prefix".to_string(),
+            proton_path: "/tmp/proton".to_string(),
+            target_home_path: "/home/user".to_string(),
+            ..Default::default()
+        };
+
+        let result = preview_desktop_entry_content(&request);
+        assert!(result.is_err());
     }
 }

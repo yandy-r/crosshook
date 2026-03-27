@@ -21,12 +21,18 @@ export interface ProfileActionsProps {
   canDuplicate: boolean;
   /** True when a saved profile is selected and eligible for renaming. */
   canRename: boolean;
+  /** True when a saved profile is selected and eligible for preview. */
+  canPreview: boolean;
+  /** True while the profile TOML export is in-flight. Disables the Preview button. */
+  previewing: boolean;
   onSave: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
   /** Initiates profile duplication via the backend. */
   onDuplicate: () => void | Promise<void>;
   /** Opens the rename modal for the current profile. */
   onRename: () => void | Promise<void>;
+  /** Exports the profile as TOML and shows a preview modal. */
+  onPreview: () => void | Promise<void>;
 }
 
 export function ProfileActions({
@@ -41,10 +47,13 @@ export function ProfileActions({
   canDelete,
   canDuplicate,
   canRename,
+  canPreview,
+  previewing,
   onSave,
   onDelete,
   onDuplicate,
   onRename,
+  onPreview,
 }: ProfileActionsProps) {
   return (
     <div>
@@ -67,6 +76,14 @@ export function ProfileActions({
           disabled={!canRename || renaming}
         >
           {renaming ? 'Renaming...' : 'Rename'}
+        </button>
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={() => void onPreview()}
+          disabled={!canPreview || previewing}
+        >
+          {previewing ? 'Loading Preview...' : 'Preview Profile'}
         </button>
         <button
           type="button"
