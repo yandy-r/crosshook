@@ -49,7 +49,7 @@ _Goal: Users understand what happened when something fails._
 | Order | Issue                                   | Status | Rationale                                                                                                                                                              |
 | :---: | --------------------------------------- | :----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |   1   | **#39** -- Actionable validation errors |  Done  | Lowest effort P0. Immediate UX improvement. Sets the pattern for all error communication.                                                                              |
-|   2   | **#40** -- Dry run / preview launch     |        | All computation functions are pure and side-effect-free. Wire `validate()` + `resolve_launch_directives()` + `build_steam_launch_options_command()` into a preview UI. |
+|   2   | **#40** -- Dry run / preview launch     |  Done  | All computation functions are pure and side-effect-free. Wire `validate()` + `resolve_launch_directives()` + `build_steam_launch_options_command()` into a preview UI. |
 
 **Dependencies**: None. These are standalone improvements.
 **Estimated effort**: 2-3 days total.
