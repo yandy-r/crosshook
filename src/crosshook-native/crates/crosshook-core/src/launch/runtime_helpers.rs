@@ -181,7 +181,7 @@ pub fn resolve_steam_client_install_path(configured_path: &str) -> Option<String
     None
 }
 
-fn env_value(key: &str, default: &str) -> String {
+pub(crate) fn env_value(key: &str, default: &str) -> String {
     env::var(key).unwrap_or_else(|_| default.to_string())
 }
 

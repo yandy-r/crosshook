@@ -2,12 +2,12 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crosshook_core::launch::{
-    build_steam_launch_options_command as build_steam_launch_options_command_core,
+    build_launch_preview, build_steam_launch_options_command as build_steam_launch_options_command_core,
     script_runner::{
         build_helper_command, build_native_game_command, build_proton_game_command,
         build_proton_trainer_command, build_trainer_command,
     },
-    validate, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE, METHOD_PROTON_RUN,
+    validate, LaunchPreview, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE, METHOD_PROTON_RUN,
     METHOD_STEAM_APPLAUNCH,
 };
 use serde::Serialize;
@@ -25,6 +25,11 @@ pub struct LaunchResult {
 #[tauri::command]
 pub fn validate_launch(request: LaunchRequest) -> Result<(), LaunchValidationIssue> {
     validate(&request).map_err(|error| error.issue())
+}
+
+#[tauri::command]
+pub fn preview_launch(request: LaunchRequest) -> Result<LaunchPreview, String> {
+    build_launch_preview(&request).map_err(|error| error.to_string())
 }
 
 /// Builds a Steam per-game “Launch Options” line from the same optimization IDs as `proton_run`.

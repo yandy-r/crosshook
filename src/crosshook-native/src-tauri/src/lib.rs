@@ -87,6 +87,7 @@ pub fn run() {
             commands::launch::launch_game,
             commands::launch::launch_trainer,
             commands::launch::validate_launch,
+            commands::launch::preview_launch,
             commands::launch::build_steam_launch_options_command,
             commands::profile::profile_delete,
             commands::profile::profile_duplicate,

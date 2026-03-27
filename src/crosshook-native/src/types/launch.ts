@@ -64,3 +64,50 @@ export interface LaunchResult {
   message: string;
   helper_log_path: string;
 }
+
+// --- Preview / Dry Run Types ---
+
+export type EnvVarSource = 'proton_runtime' | 'launch_optimization' | 'host' | 'steam_proton';
+
+export interface PreviewEnvVar {
+  key: string;
+  value: string;
+  source: EnvVarSource;
+}
+
+export interface ProtonSetup {
+  wine_prefix_path: string;
+  compat_data_path: string;
+  steam_client_install_path: string;
+  proton_executable: string;
+}
+
+export interface PreviewTrainerInfo {
+  path: string;
+  host_path: string;
+  loading_mode: string;
+  staged_path: string | null;
+}
+
+export interface PreviewValidation {
+  passed: boolean;
+  issues: LaunchValidationIssue[];
+}
+
+export interface LaunchPreview {
+  resolved_method: 'steam_applaunch' | 'proton_run' | 'native';
+  validation: PreviewValidation;
+  environment: PreviewEnvVar[] | null;
+  cleared_variables: string[];
+  wrappers: string[] | null;
+  effective_command: string | null;
+  directives_error: string | null;
+  steam_launch_options: string | null;
+  proton_setup: ProtonSetup | null;
+  working_directory: string;
+  game_executable: string;
+  game_executable_name: string;
+  trainer: PreviewTrainerInfo | null;
+  generated_at: string;
+  display_text: string;
+}
