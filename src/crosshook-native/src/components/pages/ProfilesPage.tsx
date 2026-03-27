@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import LauncherExport from '../LauncherExport';
 import ProfileActions from '../ProfileActions';
 import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
+import ProfilePreviewModal from '../ProfilePreviewModal';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
@@ -66,6 +67,9 @@ export function ProfilesPage() {
   const [renameToast, setRenameToast] = useState<RenameToast | null>(null);
   const renameToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingLauncherReExport, setPendingLauncherReExport] = useState(false);
+  const [showProfilePreview, setShowProfilePreview] = useState(false);
+  const [profilePreviewContent, setProfilePreviewContent] = useState('');
+  const [previewing, setPreviewing] = useState(false);
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -84,6 +88,7 @@ export function ProfilesPage() {
   const canDelete = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
   const canDuplicate = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
   const canRename = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
+  const canPreview = profileName.trim().length > 0 && !loading;
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
 
   useEffect(() => {
@@ -225,6 +230,22 @@ export function ProfilesPage() {
     });
   }, [renameProfile, showRenameToast]);
 
+  async function handlePreviewProfile() {
+    setPreviewing(true);
+    try {
+      const toml = await invoke<string>('profile_export_toml', {
+        name: profileName,
+        data: profile,
+      });
+      setProfilePreviewContent(toml);
+      setShowProfilePreview(true);
+    } catch (err) {
+      console.error('Profile preview failed:', err);
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
   const renameNameTrimmed = renameValue.trim();
   const renameIsEmpty = renameNameTrimmed.length === 0;
   const renameIsUnchanged = pendingRename !== null && renameNameTrimmed === pendingRename;
@@ -295,6 +316,8 @@ export function ProfilesPage() {
             canDelete={canDelete}
             canDuplicate={canDuplicate}
             canRename={canRename}
+            canPreview={canPreview}
+            previewing={previewing}
             onSave={saveProfile}
             onDelete={() => confirmDelete(profileName)}
             onDuplicate={() => duplicateProfile(profileName)}
@@ -302,6 +325,7 @@ export function ProfilesPage() {
               setPendingRename(selectedProfile);
               setRenameValue(selectedProfile);
             }}
+            onPreview={handlePreviewProfile}
           />
         </CollapsibleSection>
 
@@ -441,6 +465,14 @@ export function ProfilesPage() {
             &times;
           </button>
         </div>
+      ) : null}
+
+      {showProfilePreview ? (
+        <ProfilePreviewModal
+          tomlContent={profilePreviewContent}
+          profileName={profileName}
+          onClose={() => setShowProfilePreview(false)}
+        />
       ) : null}
     </>
   );
