@@ -27,6 +27,8 @@ export function ProfilesPage() {
   const {
     deleting,
     dirty,
+    duplicateProfile,
+    duplicating,
     error,
     executeDelete,
     loading,
@@ -64,7 +66,8 @@ export function ProfilesPage() {
     !saving &&
     !deleting &&
     !loading;
-  const canDelete = profileExists && !saving && !deleting && !loading;
+  const canDelete = profileExists && !saving && !deleting && !loading && !duplicating;
+  const canDuplicate = profileExists && !saving && !deleting && !loading && !duplicating;
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
 
   useEffect(() => {
@@ -150,11 +153,14 @@ export function ProfilesPage() {
             loading={loading}
             saving={saving}
             deleting={deleting}
+            duplicating={duplicating}
             error={error}
             canSave={canSave}
             canDelete={canDelete}
+            canDuplicate={canDuplicate}
             onSave={saveProfile}
             onDelete={() => confirmDelete(profileName)}
+            onDuplicate={() => duplicateProfile(profileName)}
           />
         </CollapsibleSection>
 

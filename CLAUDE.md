@@ -49,7 +49,7 @@ src/crosshook-native/
       community/                # Community profile taps (index.rs, taps.rs)
       export/                   # Launcher export — shell script + .desktop entry generation (launcher.rs, launcher_store.rs)
       launch/                   # Launch orchestration (env.rs, request.rs, script_runner.rs)
-      profile/                  # Profile management (models.rs, toml_store.rs [includes rename], legacy.rs, exchange.rs, community_schema.rs)
+      profile/                  # Profile management (models.rs, toml_store.rs [includes rename, duplicate], legacy.rs, exchange.rs, community_schema.rs)
       settings/                 # App settings + recent files (mod.rs, recent.rs)
       steam/                    # Steam integration (discovery, libraries, manifest, proton, vdf, auto_populate, diagnostics)
       logging.rs                # Structured logging

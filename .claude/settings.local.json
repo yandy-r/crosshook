@@ -83,7 +83,8 @@
       "Bash(__NEW_LINE_4fa97d45824476d4__ gh:*)",
       "Bash(get_feature_plan_dir:*)",
       "Bash(grep:*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(gh issue:*)"
     ]
   }
 }
