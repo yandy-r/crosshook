@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+## [v0.2.3] - 2026-03-27
+
+
+### Bug Fixes
+
+- **launch:** Add actionable validation guidance and reset page scroll ([#79](https://github.com/yandy-r/crosshook/issues/79)) ([`f6b71bc`](https://github.com/yandy-r/crosshook/commit/f6b71bcaae398fa7b48fbcf76119a1bc9f940fd3))
+
+
+### Features
+
+- **settings:** Add new commands for repository and echo output in settings.local.json ([`311dd47`](https://github.com/yandy-r/crosshook/commit/311dd47ac9edbf793bb9136270d74d43686a25e1))
+
+- **docs:** Add comprehensive research reports on emerging trends and additional features for CrossHook ([`d8961e1`](https://github.com/yandy-r/crosshook/commit/d8961e115cf011023f9cf9a10e8c7aac0698c889))
+
+- **update:** Add update game panel for applying patches to Proton prefixes ([#81](https://github.com/yandy-r/crosshook/issues/81)) ([`0980723`](https://github.com/yandy-r/crosshook/commit/0980723b3d20a5b5e2e9d7574c273da29c8c89a3))
+
+- **settings:** Add new Bash commands for grep and npx vite in settings.local.json ([`61f6ffc`](https://github.com/yandy-r/crosshook/commit/61f6ffcb8bfdf3df082d899dec1707306084698b))
+
+- **ui:** Add collapsible sections to all pages for easier navigation ([`79cba3c`](https://github.com/yandy-r/crosshook/commit/79cba3cf6dd97f776c92cf21a18d8265ed9b5b2c))
+
+- **profile:** Add profile duplication with unique name generation ([#82](https://github.com/yandy-r/crosshook/issues/82)) ([`fbd5325`](https://github.com/yandy-r/crosshook/commit/fbd5325284083e493804fbda39e1d03debd62ea3))
+
+- **profile:** Add rename with overwrite protection and launcher cascade ([#83](https://github.com/yandy-r/crosshook/issues/83)) ([`23cebd8`](https://github.com/yandy-r/crosshook/commit/23cebd80b62f165140ab7c0c9128260adc379d9e))
+
+
 ## [v0.2.2] - 2026-03-26
 
 
