@@ -7,6 +7,7 @@ import type {
   LauncherInfo,
   TrainerLoadingMode,
 } from '../types';
+import { LauncherPreviewModal } from './LauncherPreviewModal';
 
 interface LauncherExportProps {
   profile: GameProfile;
@@ -126,6 +127,10 @@ export function LauncherExport({
   const [launcherStatus, setLauncherStatus] = useState<LauncherInfo | null>(null);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showLauncherPreview, setShowLauncherPreview] = useState(false);
+  const [previewScriptContent, setPreviewScriptContent] = useState('');
+  const [previewDesktopContent, setPreviewDesktopContent] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const request = useMemo(
     () =>
@@ -294,6 +299,24 @@ export function LauncherExport({
     }
   }
 
+  async function handlePreviewLauncher() {
+    setPreviewLoading(true);
+    setErrorMessage(null);
+    try {
+      const [script, desktop] = await Promise.all([
+        invoke<string>('preview_launcher_script', { request }),
+        invoke<string>('preview_launcher_desktop', { request }),
+      ]);
+      setPreviewScriptContent(script);
+      setPreviewDesktopContent(desktop);
+      setShowLauncherPreview(true);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
   async function handleDeleteLauncher() {
     setErrorMessage(null);
     setStatusMessage(null);
@@ -371,6 +394,14 @@ export function LauncherExport({
         <button
           type="button"
           className="crosshook-button crosshook-button--secondary"
+          disabled={!canExport || previewLoading}
+          onClick={() => void handlePreviewLauncher()}
+        >
+          {previewLoading ? 'Loading...' : 'Preview Launcher'}
+        </button>
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
           onClick={() => {
             setLauncherName(deriveLauncherName(profile));
             setErrorMessage(null);
@@ -443,6 +474,14 @@ export function LauncherExport({
             Re-export Launcher
           </button>
         </div>
+      ) : null}
+      {showLauncherPreview ? (
+        <LauncherPreviewModal
+          scriptContent={previewScriptContent}
+          desktopContent={previewDesktopContent}
+          displayName={`${launcherName}${automaticLauncherSuffix}`}
+          onClose={() => setShowLauncherPreview(false)}
+        />
       ) : null}
     </section>
   );
