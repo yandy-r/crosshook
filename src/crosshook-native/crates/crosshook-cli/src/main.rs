@@ -11,10 +11,11 @@ use args::{
 use clap::Parser;
 use crosshook_core::launch::request::LaunchOptimizationsRequest;
 use crosshook_core::launch::{
-    self, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, METHOD_STEAM_APPLAUNCH,
+    self, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, ValidationSeverity,
+    METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::profile::{GameProfile, ProfileStore};
-use tokio::fs::OpenOptions;
+use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::time::{sleep, Duration};
 
@@ -65,9 +66,25 @@ async fn launch_profile(
     let log_path = launch_log_path(&profile_name);
 
     let mut child = spawn_helper(&request, &helper_script, &log_path).await?;
-    stream_helper_log(&mut child, &log_path).await?;
+    let status = stream_helper_log(&mut child, &log_path).await?;
 
-    let status = child.wait().await?;
+    let log_tail = safe_read_tail(
+        &log_path,
+        crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES,
+    )
+    .await;
+    let report = launch::analyze(Some(status), &log_tail, &request.method);
+    if launch::should_surface_report(&report) {
+        eprintln!("{}", report.summary);
+        for pattern_match in &report.pattern_matches {
+            eprintln!(
+                "[{}] {}: {}",
+                severity_label(pattern_match.severity),
+                pattern_match.summary,
+                pattern_match.suggestion
+            );
+        }
+    }
     if !status.success() {
         return Err(format!("helper exited with status {status}").into());
     }
@@ -245,7 +262,7 @@ async fn spawn_helper(
 async fn stream_helper_log(
     child: &mut tokio::process::Child,
     log_path: &Path,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<std::process::ExitStatus, Box<dyn Error>> {
     let mut offset = 0u64;
     let mut stdout = tokio::io::stdout();
 
@@ -253,10 +270,7 @@ async fn stream_helper_log(
         if let Some(status) = child.try_wait()? {
             let _ = drain_log(log_path, offset, &mut stdout).await?;
             stdout.flush().await?;
-            if status.success() {
-                return Ok(());
-            }
-            return Err(format!("helper exited with status {status}").into());
+            return Ok(status);
         }
 
         offset = drain_log(log_path, offset, &mut stdout).await?;
@@ -286,4 +300,39 @@ async fn drain_log(
     }
 
     Ok(offset)
+}
+
+async fn safe_read_tail(path: &Path, max_bytes: u64) -> String {
+    let file = match fs::File::open(path).await {
+        Ok(file) => file,
+        Err(_) => return String::new(),
+    };
+
+    let metadata = match file.metadata().await {
+        Ok(metadata) => metadata,
+        Err(_) => return String::new(),
+    };
+
+    let mut file = file;
+    if metadata.len() > max_bytes {
+        let offset = -(max_bytes as i64);
+        if file.seek(std::io::SeekFrom::End(offset)).await.is_err() {
+            return String::new();
+        }
+    }
+
+    let mut buffer = Vec::new();
+    if file.read_to_end(&mut buffer).await.is_err() {
+        return String::new();
+    }
+
+    String::from_utf8_lossy(&buffer).into_owned()
+}
+
+fn severity_label(severity: ValidationSeverity) -> &'static str {
+    match severity {
+        ValidationSeverity::Fatal => "fatal",
+        ValidationSeverity::Warning => "warning",
+        ValidationSeverity::Info => "info",
+    }
 }

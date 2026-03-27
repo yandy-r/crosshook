@@ -1,17 +1,22 @@
-use std::path::PathBuf;
+use std::env;
+use std::os::unix::process::ExitStatusExt;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crosshook_core::launch::{
-    build_launch_preview, build_steam_launch_options_command as build_steam_launch_options_command_core,
+    analyze, build_launch_preview,
+    build_steam_launch_options_command as build_steam_launch_options_command_core,
+    should_surface_report,
     script_runner::{
         build_helper_command, build_native_game_command, build_proton_game_command,
         build_proton_trainer_command, build_trainer_command,
     },
-    validate, LaunchPreview, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE, METHOD_PROTON_RUN,
-    METHOD_STEAM_APPLAUNCH,
+    validate, DiagnosticReport, LaunchPreview, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE,
+    METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 use super::shared::create_log_path;
 
@@ -46,9 +51,15 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
     request.launch_game_only = true;
     request.launch_trainer_only = false;
     validate(&request).map_err(|error| error.to_string())?;
+    let method: &'static str = match request.resolved_method() {
+        METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
+        METHOD_PROTON_RUN => METHOD_PROTON_RUN,
+        METHOD_NATIVE => METHOD_NATIVE,
+        _ => METHOD_NATIVE,
+    };
 
     let log_path = create_log_path("game", &request.log_target_slug())?;
-    let mut command = match request.resolved_method() {
+    let mut command = match method {
         METHOD_STEAM_APPLAUNCH => {
             let script_path = resolve_script_path(&app, "steam-launch-helper.sh")?;
             build_helper_command(&request, &script_path, &log_path)
@@ -63,7 +74,7 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
         .spawn()
         .map_err(|error| format!("failed to launch helper: {error}"))?;
 
-    spawn_log_stream(app, log_path.clone(), child);
+    spawn_log_stream(app, log_path.clone(), child, method);
 
     Ok(LaunchResult {
         succeeded: true,
@@ -81,9 +92,15 @@ pub async fn launch_trainer(
     request.launch_trainer_only = true;
     request.launch_game_only = false;
     validate(&request).map_err(|error| error.to_string())?;
+    let method: &'static str = match request.resolved_method() {
+        METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
+        METHOD_PROTON_RUN => METHOD_PROTON_RUN,
+        METHOD_NATIVE => METHOD_NATIVE,
+        _ => METHOD_NATIVE,
+    };
 
     let log_path = create_log_path("trainer", &request.log_target_slug())?;
-    let mut command = match request.resolved_method() {
+    let mut command = match method {
         METHOD_STEAM_APPLAUNCH => {
             let script_path = resolve_script_path(&app, "steam-launch-trainer.sh")?;
             build_trainer_command(&request, &script_path, &log_path)
@@ -97,7 +114,7 @@ pub async fn launch_trainer(
         .spawn()
         .map_err(|error| format!("failed to launch trainer helper: {error}"))?;
 
-    spawn_log_stream(app, log_path.clone(), child);
+    spawn_log_stream(app, log_path.clone(), child, method);
 
     Ok(LaunchResult {
         succeeded: true,
@@ -106,9 +123,14 @@ pub async fn launch_trainer(
     })
 }
 
-fn spawn_log_stream(app: AppHandle, log_path: PathBuf, child: tokio::process::Child) {
+fn spawn_log_stream(
+    app: AppHandle,
+    log_path: PathBuf,
+    child: tokio::process::Child,
+    method: &'static str,
+) {
     let handle = tauri::async_runtime::spawn(async move {
-        stream_log_lines(app, log_path, child).await;
+        stream_log_lines(app, log_path, child, method).await;
     });
 
     tauri::async_runtime::spawn(async move {
@@ -118,8 +140,14 @@ fn spawn_log_stream(app: AppHandle, log_path: PathBuf, child: tokio::process::Ch
     });
 }
 
-async fn stream_log_lines(app: AppHandle, log_path: PathBuf, mut child: tokio::process::Child) {
+async fn stream_log_lines(
+    app: AppHandle,
+    log_path: PathBuf,
+    mut child: tokio::process::Child,
+    method: &'static str,
+) {
     let mut last_len = 0usize;
+    let mut exit_status: Option<std::process::ExitStatus> = None;
 
     loop {
         match tokio::fs::read_to_string(&log_path).await {
@@ -147,7 +175,10 @@ async fn stream_log_lines(app: AppHandle, log_path: PathBuf, mut child: tokio::p
         }
 
         match child.try_wait() {
-            Ok(Some(_)) => break,
+            Ok(Some(status)) => {
+                exit_status = Some(status);
+                break;
+            }
             Ok(None) => {}
             Err(error) => {
                 tracing::warn!(%error, "failed to check child process status");
@@ -168,6 +199,34 @@ async fn stream_log_lines(app: AppHandle, log_path: PathBuf, mut child: tokio::p
                 }
             }
         }
+    }
+
+    let exit_code = exit_status.as_ref().and_then(|status| status.code());
+    let signal = exit_status.as_ref().and_then(|status| status.signal());
+
+    let log_tail = safe_read_tail(
+        &log_path,
+        crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES,
+    )
+    .await;
+    let mut report = analyze(exit_status, &log_tail, method);
+    report.log_tail_path = Some(sanitize_display_path(&log_path.to_string_lossy()));
+    let report = sanitize_diagnostic_report(report);
+
+    if should_surface_report(&report) {
+        if let Err(error) = app.emit("launch-diagnostic", &report) {
+            tracing::warn!(%error, "failed to emit launch-diagnostic event");
+        }
+    }
+
+    if let Err(error) = app.emit(
+        "launch-complete",
+        serde_json::json!({
+            "code": exit_code,
+            "signal": signal,
+        }),
+    ) {
+        tracing::warn!(%error, "failed to emit launch-complete event");
     }
 }
 
@@ -202,4 +261,69 @@ fn resolve_script_path(app: &AppHandle, script_name: &str) -> Result<PathBuf, St
             "unable to resolve launch script '{script_name}': neither bundled nor development path exists"
         ))
     }
+}
+
+async fn safe_read_tail(path: &Path, max_bytes: u64) -> String {
+    let file = match tokio::fs::File::open(path).await {
+        Ok(file) => file,
+        Err(error) => {
+            tracing::warn!(%error, path = %path.display(), "failed to open launch log tail");
+            return String::new();
+        }
+    };
+
+    let metadata = match file.metadata().await {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            tracing::warn!(%error, path = %path.display(), "failed to read launch log metadata");
+            return String::new();
+        }
+    };
+
+    let mut file = file;
+    if metadata.len() > max_bytes {
+        let offset = -(max_bytes as i64);
+        if let Err(error) = file.seek(std::io::SeekFrom::End(offset)).await {
+            tracing::warn!(%error, path = %path.display(), "failed to seek launch log tail");
+            return String::new();
+        }
+    }
+
+    let mut buffer = Vec::new();
+    if let Err(error) = file.read_to_end(&mut buffer).await {
+        tracing::warn!(%error, path = %path.display(), "failed to read launch log tail");
+        return String::new();
+    }
+
+    String::from_utf8_lossy(&buffer).into_owned()
+}
+
+fn sanitize_display_path(path: &str) -> String {
+    match env::var("HOME") {
+        Ok(home) if path.starts_with(&home) => format!("~{}", &path[home.len()..]),
+        _ => path.to_string(),
+    }
+}
+
+fn sanitize_diagnostic_report(mut report: DiagnosticReport) -> DiagnosticReport {
+    report.summary = sanitize_display_path(&report.summary);
+    report.exit_info.description = sanitize_display_path(&report.exit_info.description);
+    report.launch_method = sanitize_display_path(&report.launch_method);
+    report.log_tail_path = report.log_tail_path.as_deref().map(sanitize_display_path);
+
+    for pattern_match in &mut report.pattern_matches {
+        pattern_match.summary = sanitize_display_path(&pattern_match.summary);
+        pattern_match.suggestion = sanitize_display_path(&pattern_match.suggestion);
+        pattern_match.matched_line = pattern_match
+            .matched_line
+            .as_deref()
+            .map(sanitize_display_path);
+    }
+
+    for suggestion in &mut report.suggestions {
+        suggestion.title = sanitize_display_path(&suggestion.title);
+        suggestion.description = sanitize_display_path(&suggestion.description);
+    }
+
+    report
 }

@@ -1,3 +1,4 @@
+import type { DiagnosticReport } from './diagnostics';
 import type { LaunchOptimizations } from './launch-optimizations';
 import type { LaunchMethod, TrainerLoadingMode } from './profile';
 
@@ -41,6 +42,7 @@ export interface LaunchValidationIssue {
 
 export type LaunchFeedback =
   | { kind: 'validation'; issue: LaunchValidationIssue }
+  | { kind: 'diagnostic'; report: DiagnosticReport }
   | { kind: 'runtime'; message: string };
 
 export function isLaunchValidationIssue(value: unknown): value is LaunchValidationIssue {

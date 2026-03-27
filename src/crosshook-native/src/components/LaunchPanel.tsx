@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import type {
+  PatternMatch,
   EnvVarSource,
   LaunchMethod,
   LaunchPreview,
@@ -68,6 +69,11 @@ function severityIcon(severity: LaunchValidationSeverity): string {
 function sortIssuesBySeverity(issues: LaunchValidationIssue[]): LaunchValidationIssue[] {
   const order: Record<LaunchValidationSeverity, number> = { fatal: 0, warning: 1, info: 2 };
   return [...issues].sort((a, b) => order[a.severity] - order[b.severity]);
+}
+
+function sortPatternMatchesBySeverity(matches: PatternMatch[]): PatternMatch[] {
+  const order: Record<LaunchValidationSeverity, number> = { fatal: 0, warning: 1, info: 2 };
+  return [...matches].sort((a, b) => order[a.severity] - order[b.severity]);
 }
 
 function sourceLabel(source: EnvVarSource): string {
@@ -666,6 +672,8 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
 
   const { loading, preview, error: previewError, requestPreview, clearPreview } = usePreviewState();
   const [showPreview, setShowPreview] = useState(false);
+  const [diagnosticExpanded, setDiagnosticExpanded] = useState(false);
+  const [diagnosticCopyLabel, setDiagnosticCopyLabel] = useState('Copy Report');
 
   useEffect(() => {
     if (preview) {
@@ -681,14 +689,27 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
   const canLaunch = isWaitingForTrainer ? canLaunchTrainer : canLaunchGame;
   const primaryAction = isWaitingForTrainer ? launchTrainer : launchGame;
   const validationFeedback = feedback?.kind === 'validation' ? feedback.issue : null;
+  const diagnosticFeedback = feedback?.kind === 'diagnostic' ? feedback.report : null;
   const runtimeFeedback = feedback?.kind === 'runtime' ? feedback.message : null;
-  const feedbackSeverity = validationFeedback?.severity ?? 'fatal';
+  const diagnosticMatches = diagnosticFeedback
+    ? sortPatternMatchesBySeverity(diagnosticFeedback.pattern_matches)
+    : [];
+  const visibleDiagnosticMatches = diagnosticExpanded
+    ? diagnosticMatches
+    : diagnosticMatches.slice(0, 3);
+  const feedbackSeverity =
+    diagnosticFeedback?.severity ?? validationFeedback?.severity ?? 'fatal';
   const feedbackLabel =
     feedbackSeverity === 'fatal'
       ? 'Fatal'
       : feedbackSeverity === 'warning'
         ? 'Warning'
         : 'Info';
+
+  useEffect(() => {
+    setDiagnosticExpanded(false);
+    setDiagnosticCopyLabel('Copy Report');
+  }, [diagnosticFeedback?.analyzed_at]);
 
   function handleClosePreview() {
     setShowPreview(false);
@@ -699,6 +720,25 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
     setShowPreview(false);
     clearPreview();
     launchGame();
+  }
+
+  async function handleCopyDiagnosticReport() {
+    if (!diagnosticFeedback) {
+      return;
+    }
+
+    try {
+      await copyToClipboard(JSON.stringify(diagnosticFeedback, null, 2));
+      setDiagnosticCopyLabel('Copied!');
+      window.setTimeout(() => {
+        setDiagnosticCopyLabel('Copy Report');
+      }, 2000);
+    } catch {
+      setDiagnosticCopyLabel('Copy Failed');
+      window.setTimeout(() => {
+        setDiagnosticCopyLabel('Copy Report');
+      }, 2000);
+    }
   }
 
   return (
@@ -734,7 +774,104 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
             data-severity={feedbackSeverity}
             role="alert"
           >
-            {validationFeedback ? (
+            {diagnosticFeedback ? (
+              <>
+                <div className="crosshook-launch-panel__feedback-header">
+                  <span className="crosshook-launch-panel__feedback-badge">
+                    {feedbackLabel}
+                  </span>
+                  <p className="crosshook-launch-panel__feedback-title">
+                    {diagnosticFeedback.summary}
+                  </p>
+                </div>
+                <p className="crosshook-launch-panel__feedback-help">
+                  {diagnosticFeedback.exit_info.description}
+                </p>
+                {visibleDiagnosticMatches.length > 0 ? (
+                  <ul className="crosshook-launch-panel__feedback-list">
+                    {visibleDiagnosticMatches.map((patternMatch) => (
+                      <li
+                        key={`${diagnosticFeedback.analyzed_at}-${patternMatch.pattern_id}`}
+                        className="crosshook-launch-panel__feedback-item"
+                      >
+                        <div className="crosshook-launch-panel__feedback-header">
+                          <span
+                            className="crosshook-launch-panel__feedback-badge"
+                            data-severity={patternMatch.severity}
+                          >
+                            {patternMatch.severity}
+                          </span>
+                          <p className="crosshook-launch-panel__feedback-title">
+                            {patternMatch.summary}
+                          </p>
+                        </div>
+                        <p className="crosshook-launch-panel__feedback-help">
+                          {patternMatch.suggestion}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div className="crosshook-launch-panel__feedback-actions">
+                  {diagnosticMatches.length > 3 || diagnosticFeedback.suggestions.length > 0 ? (
+                    <button
+                      type="button"
+                      className="crosshook-button crosshook-button--secondary crosshook-launch-panel__feedback-action"
+                      onClick={() => setDiagnosticExpanded((current) => !current)}
+                    >
+                      {diagnosticExpanded ? 'Show Less' : 'Show Details'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--secondary crosshook-launch-panel__feedback-action"
+                    onClick={handleCopyDiagnosticReport}
+                  >
+                    {diagnosticCopyLabel}
+                  </button>
+                </div>
+                {diagnosticExpanded ? (
+                  <div className="crosshook-launch-panel__feedback-details">
+                    <p className="crosshook-launch-panel__feedback-help">
+                      Exit mode: {diagnosticFeedback.exit_info.failure_mode}
+                    </p>
+                    <p className="crosshook-launch-panel__feedback-help">
+                      Exit code: {diagnosticFeedback.exit_info.code ?? 'n/a'} | Signal: {diagnosticFeedback.exit_info.signal ?? 'n/a'}
+                    </p>
+                    {diagnosticFeedback.log_tail_path ? (
+                      <p className="crosshook-launch-panel__feedback-help">
+                        Log tail: {diagnosticFeedback.log_tail_path}
+                      </p>
+                    ) : null}
+                    {diagnosticFeedback.suggestions.length > 0 ? (
+                      <ul className="crosshook-launch-panel__feedback-list">
+                        {diagnosticFeedback.suggestions.map((suggestion, index) => (
+                          <li
+                            key={`${diagnosticFeedback.analyzed_at}-suggestion-${index}`}
+                            className="crosshook-launch-panel__feedback-item"
+                          >
+                            <div className="crosshook-launch-panel__feedback-header">
+                              <span
+                                className="crosshook-launch-panel__feedback-badge"
+                                data-severity={suggestion.severity}
+                              >
+                                {suggestion.severity}
+                              </span>
+                              <p className="crosshook-launch-panel__feedback-title">
+                                {suggestion.title}
+                              </p>
+                            </div>
+                            <p className="crosshook-launch-panel__feedback-help">
+                              {suggestion.description}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
+            ) : validationFeedback ? (
               <>
                 <div className="crosshook-launch-panel__feedback-header">
                   <span className="crosshook-launch-panel__feedback-badge">
