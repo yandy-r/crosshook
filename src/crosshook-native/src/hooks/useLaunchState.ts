@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useRef } from "react";
 
 import type {
   DiagnosticReport,
@@ -140,18 +140,33 @@ export function useLaunchState({
   request,
 }: UseLaunchStateArgs) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const activeHelperLogPathRef = useRef<string | null>(null);
   const hasLaunchRequest = request !== null;
   const isTwoStepLaunch = method !== "native";
 
   useEffect(() => {
+    activeHelperLogPathRef.current = null;
     dispatch({ type: "reset" });
   }, [method, profileId]);
+
+  useEffect(() => {
+    activeHelperLogPathRef.current = state.helperLogPath;
+  }, [state.helperLogPath]);
 
   useEffect(() => {
     let active = true;
 
     const unlistenDiagnostic = listen<DiagnosticReport>("launch-diagnostic", (event) => {
       if (!active || !isDiagnosticReport(event.payload)) {
+        return;
+      }
+
+      const activeHelperLogPath = activeHelperLogPathRef.current;
+      if (
+        !activeHelperLogPath ||
+        event.payload.log_tail_path === null ||
+        event.payload.log_tail_path !== activeHelperLogPath
+      ) {
         return;
       }
 
@@ -176,6 +191,7 @@ export function useLaunchState({
     }
 
     const launchRequest = buildLaunchRequest(request, LaunchPhase.GameLaunching);
+    activeHelperLogPathRef.current = null;
     dispatch({ type: "game-start" });
 
     try {
@@ -195,6 +211,7 @@ export function useLaunchState({
       const result = await invoke<LaunchResult>("launch_game", {
         request: launchRequest,
       });
+      activeHelperLogPathRef.current = result.helper_log_path;
       dispatch({
         type: "game-success",
         helperLogPath: result.helper_log_path,
@@ -218,6 +235,7 @@ export function useLaunchState({
     }
 
     const launchRequest = buildLaunchRequest(request, LaunchPhase.TrainerLaunching);
+    activeHelperLogPathRef.current = null;
     dispatch({ type: "trainer-start" });
 
     try {
@@ -237,6 +255,7 @@ export function useLaunchState({
       const result = await invoke<LaunchResult>("launch_trainer", {
         request: launchRequest,
       });
+      activeHelperLogPathRef.current = result.helper_log_path;
       dispatch({
         type: "trainer-success",
         helperLogPath: result.helper_log_path,
