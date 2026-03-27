@@ -41,7 +41,7 @@ export interface UseProfileResult {
   /** True while a duplication IPC call is in-flight. */
   duplicating: boolean;
   /** Renames an existing profile on the backend, refreshes the list, and selects the new name. */
-  renameProfile: (oldName: string, newName: string) => Promise<boolean>;
+  renameProfile: (oldName: string, newName: string) => Promise<RenameProfileResult>;
   /** True while a rename IPC call is in-flight. */
   renaming: boolean;
   persistProfileDraft: PersistProfileDraft;
@@ -53,6 +53,11 @@ export interface UseProfileResult {
 
 export interface UseProfileOptions {
   autoSelectFirstProfile?: boolean;
+}
+
+export interface RenameProfileResult {
+  ok: boolean;
+  hadLauncher: boolean;
 }
 
 const automaticLauncherSuffix = ' - Trainer';
@@ -603,8 +608,10 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
    * @param newName - Desired new name for the profile.
    */
   const renameProfile = useCallback(
-    async (oldName: string, newName: string): Promise<boolean> => {
-      if (!oldName.trim() || !newName.trim() || oldName.trim() === newName.trim()) return false;
+    async (oldName: string, newName: string): Promise<RenameProfileResult> => {
+      if (!oldName.trim() || !newName.trim() || oldName.trim() === newName.trim()) {
+        return { ok: false, hadLauncher: false };
+      }
 
       if (launchOptimizationsAutosaveTimerRef.current !== null) {
         clearTimeout(launchOptimizationsAutosaveTimerRef.current);
@@ -617,10 +624,10 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         const hadLauncher = await invoke<boolean>('profile_rename', { oldName: oldName.trim(), newName: newName.trim() });
         await refreshProfiles();
         await loadProfile(newName.trim());
-        return hadLauncher;
+        return { ok: true, hadLauncher };
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
-        return false;
+        return { ok: false, hadLauncher: false };
       } finally {
         setRenaming(false);
       }

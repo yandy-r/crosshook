@@ -200,8 +200,30 @@ export function ProfilesPage() {
 
     const { oldName, newName } = renameToast;
     dismissRenameToast();
-    void renameProfile(newName, oldName);
+    void renameProfile(newName, oldName).then(({ ok, hadLauncher }) => {
+      if (!ok) {
+        return;
+      }
+
+      if (hadLauncher) {
+        setPendingLauncherReExport(true);
+      }
+    });
   }, [dismissRenameToast, renameProfile, renameToast]);
+
+  const handleRenameConfirm = useCallback((oldName: string, newName: string) => {
+    setPendingRename(null);
+    void renameProfile(oldName, newName).then(({ ok, hadLauncher }) => {
+      if (!ok) {
+        return;
+      }
+
+      showRenameToast(oldName, newName);
+      if (hadLauncher) {
+        setPendingLauncherReExport(true);
+      }
+    });
+  }, [renameProfile, showRenameToast]);
 
   const renameNameTrimmed = renameValue.trim();
   const renameIsEmpty = renameNameTrimmed.length === 0;
@@ -360,11 +382,7 @@ export function ProfilesPage() {
                   if (event.key === 'Enter' && canConfirmRename) {
                     const oldName = pendingRename;
                     const newName = renameNameTrimmed;
-                    setPendingRename(null);
-                    void renameProfile(oldName, newName).then((hadLauncher) => {
-                      showRenameToast(oldName, newName);
-                      if (hadLauncher) setPendingLauncherReExport(true);
-                    });
+                    handleRenameConfirm(oldName, newName);
                   }
 
                   if (event.key === 'Escape') {
@@ -390,11 +408,7 @@ export function ProfilesPage() {
                 onClick={() => {
                   const oldName = pendingRename;
                   const newName = renameNameTrimmed;
-                  setPendingRename(null);
-                  void renameProfile(oldName, newName).then((hadLauncher) => {
-                    showRenameToast(oldName, newName);
-                    if (hadLauncher) setPendingLauncherReExport(true);
-                  });
+                  handleRenameConfirm(oldName, newName);
                 }}
               >
                 {renaming ? 'Renaming...' : 'Rename'}
