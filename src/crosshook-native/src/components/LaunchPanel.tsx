@@ -629,6 +629,14 @@ interface LaunchPanelProps {
   request: LaunchRequest | null;
 }
 
+function buildGameOnlyRequest(request: LaunchRequest): LaunchRequest {
+  return {
+    ...request,
+    launch_game_only: true,
+    launch_trainer_only: false,
+  };
+}
+
 export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
   const {
     actionLabel,
@@ -755,7 +763,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
         <button
           type="button"
           className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
-          onClick={() => request && requestPreview(request)}
+          onClick={() => request && requestPreview(buildGameOnlyRequest(request))}
           disabled={previewDisabled}
         >
           {loading ? 'Loading Preview\u2026' : 'Preview Launch'}

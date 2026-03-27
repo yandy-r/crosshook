@@ -134,10 +134,12 @@ impl LaunchPreview {
             "game_name = \"{}\"",
             self.game_executable_name
         ));
-        lines.push(format!(
-            "working_directory = \"{}\"",
-            self.working_directory
-        ));
+        if !self.working_directory.is_empty() {
+            lines.push(format!(
+                "working_directory = \"{}\"",
+                self.working_directory
+            ));
+        }
         lines.push(String::new());
 
         // [validation]
@@ -284,7 +286,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     } else {
         Vec::new()
     };
-    let working_directory = resolve_working_directory(request);
+    let working_directory = resolve_working_directory(request, &resolved_method);
     let generated_at = chrono::Utc::now().to_rfc3339();
 
     let mut preview = LaunchPreview {
@@ -551,8 +553,15 @@ fn build_trainer_info(request: &LaunchRequest, method: &str) -> Option<PreviewTr
     })
 }
 
-/// Resolves the working directory, mirroring `runtime_helpers::apply_working_directory()`.
-fn resolve_working_directory(request: &LaunchRequest) -> String {
+/// Resolves the working directory shown in preview output.
+///
+/// `steam_applaunch` intentionally reports no working directory because
+/// the launch path does not apply one at runtime.
+fn resolve_working_directory(request: &LaunchRequest, method: &str) -> String {
+    if method == METHOD_STEAM_APPLAUNCH {
+        return String::new();
+    }
+
     let configured = request.runtime.working_directory.trim();
     if !configured.is_empty() {
         return configured.to_string();
@@ -813,6 +822,18 @@ mod tests {
         assert_eq!(
             preview.steam_launch_options.as_deref(),
             Some("%command%")
+        );
+    }
+
+    #[test]
+    fn preview_hides_working_directory_for_steam_applaunch() {
+        let (_td, request) = steam_request();
+        let preview = build_launch_preview(&request).expect("preview");
+
+        assert!(
+            preview.working_directory.is_empty(),
+            "expected no working directory for steam_applaunch preview, got: {:?}",
+            preview.working_directory
         );
     }
 
