@@ -16,6 +16,7 @@ pub struct ProfileStore {
 pub enum ProfileStoreError {
     InvalidName(String),
     NotFound(PathBuf),
+    AlreadyExists(String),
     InvalidLaunchOptimizationId(String),
     Io(std::io::Error),
     TomlDe(toml::de::Error),
@@ -27,6 +28,9 @@ impl fmt::Display for ProfileStoreError {
         match self {
             Self::InvalidName(name) => write!(f, "invalid profile name: {name}"),
             Self::NotFound(path) => write!(f, "profile file not found: {}", path.display()),
+            Self::AlreadyExists(name) => {
+                write!(f, "a profile named '{name}' already exists")
+            }
             Self::InvalidLaunchOptimizationId(id) => {
                 write!(f, "unknown launch optimization id: {id}")
             }
@@ -172,6 +176,9 @@ impl ProfileStore {
         }
         if old_name == new_name {
             return Ok(()); // no-op
+        }
+        if new_path.exists() {
+            return Err(ProfileStoreError::AlreadyExists(new_name.to_string()));
         }
         fs::rename(&old_path, &new_path)?;
         Ok(())
@@ -512,7 +519,7 @@ method = "native"
     }
 
     #[test]
-    fn test_rename_overwrites_existing_target_profile() {
+    fn test_rename_rejects_existing_target_profile() {
         let temp_dir = tempdir().unwrap();
         let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
         let source_profile = sample_profile();
@@ -522,10 +529,16 @@ method = "native"
         store.save("source", &source_profile).unwrap();
         store.save("target", &target_profile).unwrap();
 
-        store.rename("source", "target").unwrap();
+        let result = store.rename("source", "target");
 
-        assert!(!store.profile_path("source").unwrap().exists());
-        assert_eq!(store.load("target").unwrap(), source_profile);
+        assert!(matches!(
+            result,
+            Err(ProfileStoreError::AlreadyExists(ref name)) if name == "target"
+        ));
+        assert!(store.profile_path("source").unwrap().exists());
+        assert!(store.profile_path("target").unwrap().exists());
+        assert_eq!(store.load("source").unwrap(), source_profile);
+        assert_eq!(store.load("target").unwrap(), target_profile);
     }
 
     #[test]

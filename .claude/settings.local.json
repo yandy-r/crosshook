@@ -84,7 +84,13 @@
       "Bash(get_feature_plan_dir:*)",
       "Bash(grep:*)",
       "Bash(npx vite:*)",
-      "Bash(gh issue:*)"
+      "Bash(gh issue:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:v2.tauri.app)",
+      "WebFetch(domain:www.patternfly.org)",
+      "Bash(/home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/parallel-plan/scripts/validate-analysis-artifacts.sh docs/plans/:*)",
+      "Bash(/home/yandy/.claude/plugins/marketplaces/yandy-plugins/plan-workflow/skills/parallel-plan/scripts/persist-or-fail.sh docs/plans/:*)"
     ]
   }
 }

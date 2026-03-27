@@ -25,6 +25,7 @@ type ProfileFormSectionsBaseProps = {
   protonInstalls: ProtonInstallOption[];
   protonInstallsError: string | null;
   reviewMode?: boolean;
+  profileExists?: boolean;
   onProfileNameChange: (value: string) => void;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
 };
@@ -285,6 +286,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     protonInstalls,
     protonInstallsError,
     reviewMode = false,
+    profileExists = false,
     onProfileNameChange,
     onUpdateProfile,
   } = props;
@@ -326,6 +328,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
             list={profiles && profiles.length > 0 ? `${profileNamesListId}-suggestions` : undefined}
             value={profileName}
             placeholder="Enter or choose a profile name"
+            readOnly={profileExists}
             onChange={(event: ChangeEvent<HTMLInputElement>) => onProfileNameChange(event.target.value)}
           />
           {profiles && profiles.length > 0 ? (

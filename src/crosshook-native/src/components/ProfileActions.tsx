@@ -12,15 +12,21 @@ export interface ProfileActionsProps {
   deleting: boolean;
   /** True while the `profile_duplicate` IPC call is in-flight. Disables the Duplicate button. */
   duplicating: boolean;
+  /** True while the `profile_rename` IPC call is in-flight. Disables the Rename button. */
+  renaming: boolean;
   error: string | null;
   canSave: boolean;
   canDelete: boolean;
   /** True when a saved profile is selected and eligible for duplication. */
   canDuplicate: boolean;
+  /** True when a saved profile is selected and eligible for renaming. */
+  canRename: boolean;
   onSave: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
   /** Initiates profile duplication via the backend. */
   onDuplicate: () => void | Promise<void>;
+  /** Opens the rename modal for the current profile. */
+  onRename: () => void | Promise<void>;
 }
 
 export function ProfileActions({
@@ -29,13 +35,16 @@ export function ProfileActions({
   saving,
   deleting,
   duplicating,
+  renaming,
   error,
   canSave,
   canDelete,
   canDuplicate,
+  canRename,
   onSave,
   onDelete,
   onDuplicate,
+  onRename,
 }: ProfileActionsProps) {
   return (
     <div>
@@ -50,6 +59,14 @@ export function ProfileActions({
           disabled={!canDuplicate || duplicating}
         >
           {duplicating ? 'Duplicating...' : 'Duplicate'}
+        </button>
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={() => void onRename()}
+          disabled={!canRename || renaming}
+        >
+          {renaming ? 'Renaming...' : 'Rename'}
         </button>
         <button
           type="button"
