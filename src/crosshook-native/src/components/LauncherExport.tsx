@@ -11,6 +11,7 @@ import { LauncherPreviewModal } from './LauncherPreviewModal';
 
 interface LauncherExportProps {
   profile: GameProfile;
+  profileName: string;
   method: Exclude<LaunchMethod, ''>;
   steamClientInstallPath: string;
   targetHomePath: string;
@@ -29,6 +30,7 @@ interface SteamExternalLauncherExportRequest {
   steam_app_id: string;
   steam_client_install_path: string;
   target_home_path: string;
+  profile_name?: string;
 }
 
 interface SteamExternalLauncherExportResult {
@@ -89,6 +91,7 @@ function deriveLauncherName(profile: GameProfile): string {
 
 function buildExportRequest(
   profile: GameProfile,
+  profileName: string,
   method: Exclude<LaunchMethod, ''>,
   launcherName: string,
   launcherIconPath: string,
@@ -108,11 +111,13 @@ function buildExportRequest(
     steam_app_id: profile.steam.app_id.trim(),
     steam_client_install_path: steamClientInstallPath.trim(),
     target_home_path: targetHomePath.trim(),
+    profile_name: profileName.trim() || undefined,
   };
 }
 
 export function LauncherExport({
   profile,
+  profileName,
   method,
   steamClientInstallPath,
   targetHomePath,
@@ -136,13 +141,14 @@ export function LauncherExport({
     () =>
       buildExportRequest(
         profile,
+        profileName,
         method,
         launcherName,
         safeTrim(profile.steam.launcher.icon_path),
         steamClientInstallPath,
         targetHomePath
       ),
-    [profile, method, launcherName, steamClientInstallPath, targetHomePath]
+    [profile, profileName, method, launcherName, steamClientInstallPath, targetHomePath]
   );
 
   const refreshLauncherStatus = useCallback(async () => {

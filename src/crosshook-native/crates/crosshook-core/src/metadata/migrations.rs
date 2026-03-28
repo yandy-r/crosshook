@@ -36,6 +36,24 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 4 {
+        migrate_3_to_4(conn)?;
+        conn.pragma_update(None, "user_version", 4_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version",
+                source,
+            })?;
+    }
+
+    if version < 5 {
+        migrate_4_to_5(conn)?;
+        conn.pragma_update(None, "user_version", 5_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -86,6 +104,129 @@ fn migrate_1_to_2(conn: &Connection) -> Result<(), MetadataStoreError> {
     )
     .map_err(|source| MetadataStoreError::Database {
         action: "run metadata migration 1 to 2",
+        source,
+    })?;
+
+    Ok(())
+}
+
+fn migrate_3_to_4(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS community_taps (
+            tap_id              TEXT PRIMARY KEY,
+            tap_url             TEXT NOT NULL,
+            tap_branch          TEXT NOT NULL DEFAULT '',
+            local_path          TEXT NOT NULL,
+            last_head_commit    TEXT,
+            profile_count       INTEGER NOT NULL DEFAULT 0,
+            last_indexed_at     TEXT,
+            created_at          TEXT NOT NULL,
+            updated_at          TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_community_taps_url_branch ON community_taps(tap_url, tap_branch);
+
+        CREATE TABLE IF NOT EXISTS community_profiles (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            tap_id              TEXT NOT NULL REFERENCES community_taps(tap_id) ON DELETE CASCADE,
+            relative_path       TEXT NOT NULL,
+            manifest_path       TEXT NOT NULL,
+            game_name           TEXT,
+            game_version        TEXT,
+            trainer_name        TEXT,
+            trainer_version     TEXT,
+            proton_version      TEXT,
+            compatibility_rating TEXT,
+            author              TEXT,
+            description         TEXT,
+            platform_tags       TEXT,
+            schema_version      INTEGER NOT NULL DEFAULT 1,
+            created_at          TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_community_profiles_tap_path ON community_profiles(tap_id, relative_path);
+
+        CREATE TABLE IF NOT EXISTS external_cache_entries (
+            cache_id        TEXT PRIMARY KEY,
+            source_url      TEXT NOT NULL,
+            cache_key       TEXT NOT NULL UNIQUE,
+            payload_json    TEXT,
+            payload_size    INTEGER NOT NULL DEFAULT 0,
+            fetched_at      TEXT NOT NULL,
+            expires_at      TEXT,
+            created_at      TEXT NOT NULL,
+            updated_at      TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS collections (
+            collection_id   TEXT PRIMARY KEY,
+            name            TEXT NOT NULL UNIQUE,
+            description     TEXT,
+            created_at      TEXT NOT NULL,
+            updated_at      TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS collection_profiles (
+            collection_id   TEXT NOT NULL REFERENCES collections(collection_id) ON DELETE CASCADE,
+            profile_id      TEXT NOT NULL REFERENCES profiles(profile_id),
+            added_at        TEXT NOT NULL,
+            PRIMARY KEY (collection_id, profile_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_collection_profiles_profile_id ON collection_profiles(profile_id);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 3 to 4",
+        source,
+    })?;
+
+    Ok(())
+}
+
+fn migrate_4_to_5(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        BEGIN TRANSACTION;
+        ALTER TABLE community_profiles RENAME TO community_profiles_old;
+
+        CREATE TABLE community_profiles (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            tap_id              TEXT NOT NULL REFERENCES community_taps(tap_id) ON DELETE CASCADE,
+            relative_path       TEXT NOT NULL,
+            manifest_path       TEXT NOT NULL,
+            game_name           TEXT,
+            game_version        TEXT,
+            trainer_name        TEXT,
+            trainer_version     TEXT,
+            proton_version      TEXT,
+            compatibility_rating TEXT,
+            author              TEXT,
+            description         TEXT,
+            platform_tags       TEXT,
+            schema_version      INTEGER NOT NULL DEFAULT 1,
+            created_at          TEXT NOT NULL
+        );
+
+        INSERT INTO community_profiles (
+            id, tap_id, relative_path, manifest_path,
+            game_name, game_version, trainer_name, trainer_version,
+            proton_version, compatibility_rating, author, description,
+            platform_tags, schema_version, created_at
+        )
+        SELECT
+            id, tap_id, relative_path, manifest_path,
+            game_name, game_version, trainer_name, trainer_version,
+            proton_version, compatibility_rating, author, description,
+            platform_tags, schema_version, created_at
+        FROM community_profiles_old;
+
+        DROP TABLE community_profiles_old;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_community_profiles_tap_path
+            ON community_profiles(tap_id, relative_path);
+        COMMIT;
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 4 to 5",
         source,
     })?;
 

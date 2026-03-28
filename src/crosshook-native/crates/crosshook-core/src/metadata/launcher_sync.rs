@@ -95,13 +95,14 @@ pub fn observe_launcher_renamed(
         .query_row(
             "SELECT profile_id FROM launchers WHERE launcher_slug = ?1 LIMIT 1",
             params![old_slug],
-            |row| row.get(0),
+            |row| row.get::<_, Option<String>>(0),
         )
         .optional()
         .map_err(|source| MetadataStoreError::Database {
             action: "load existing launcher profile linkage",
             source,
-        })?;
+        })?
+        .flatten();
 
     tx.execute(
         "INSERT INTO launchers (
