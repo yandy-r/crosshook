@@ -1,6 +1,7 @@
 pub mod collections;
 pub mod community;
 pub mod export;
+pub mod health;
 pub mod install;
 pub mod launch;
 pub mod profile;
