@@ -34,6 +34,8 @@ pub struct LaunchRequest {
     pub launch_trainer_only: bool,
     #[serde(default)]
     pub launch_game_only: bool,
+    #[serde(default)]
+    pub profile_name: Option<String>,
 }
 
 pub type SteamLaunchRequest = LaunchRequest;
@@ -837,6 +839,7 @@ mod tests {
                 optimizations: LaunchOptimizationsRequest::default(),
                 launch_trainer_only: false,
                 launch_game_only: false,
+                profile_name: None,
             },
         )
     }

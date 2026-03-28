@@ -191,6 +191,7 @@ fn steam_launch_request_from_profile(
         optimizations: LaunchOptimizationsRequest::default(),
         launch_trainer_only: false,
         launch_game_only: true,
+        profile_name: None,
     })
 }
 

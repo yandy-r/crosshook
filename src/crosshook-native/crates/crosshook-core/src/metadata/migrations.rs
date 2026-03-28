@@ -27,6 +27,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 3 {
+        migrate_2_to_3(conn)?;
+        conn.pragma_update(None, "user_version", 3_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -77,6 +86,50 @@ fn migrate_1_to_2(conn: &Connection) -> Result<(), MetadataStoreError> {
     )
     .map_err(|source| MetadataStoreError::Database {
         action: "run metadata migration 1 to 2",
+        source,
+    })?;
+
+    Ok(())
+}
+
+fn migrate_2_to_3(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS launchers (
+            launcher_id         TEXT PRIMARY KEY,
+            profile_id          TEXT REFERENCES profiles(profile_id),
+            launcher_slug       TEXT NOT NULL UNIQUE,
+            display_name        TEXT NOT NULL,
+            script_path         TEXT NOT NULL,
+            desktop_entry_path  TEXT NOT NULL,
+            drift_state         TEXT NOT NULL DEFAULT 'unknown',
+            created_at          TEXT NOT NULL,
+            updated_at          TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_launchers_profile_id    ON launchers(profile_id);
+        CREATE INDEX IF NOT EXISTS idx_launchers_launcher_slug ON launchers(launcher_slug);
+
+        CREATE TABLE IF NOT EXISTS launch_operations (
+            operation_id    TEXT PRIMARY KEY,
+            profile_id      TEXT REFERENCES profiles(profile_id),
+            profile_name    TEXT,
+            launch_method   TEXT NOT NULL,
+            status          TEXT NOT NULL DEFAULT 'started',
+            exit_code       INTEGER,
+            signal          INTEGER,
+            log_path        TEXT,
+            diagnostic_json TEXT,
+            severity        TEXT,
+            failure_mode    TEXT,
+            started_at      TEXT NOT NULL,
+            finished_at     TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_launch_ops_profile_id ON launch_operations(profile_id);
+        CREATE INDEX IF NOT EXISTS idx_launch_ops_started_at ON launch_operations(started_at);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 2 to 3",
         source,
     })?;
 
