@@ -1,3 +1,4 @@
+pub mod collections;
 pub mod community;
 pub mod export;
 pub mod install;
