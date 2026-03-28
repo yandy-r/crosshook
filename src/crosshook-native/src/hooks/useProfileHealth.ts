@@ -1,14 +1,28 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useMemo, useReducer } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
-import type { HealthCheckSummary, ProfileHealthReport } from "../types";
+import type { CachedHealthSnapshot, HealthCheckSummary, HealthStatus, ProfileHealthReport } from "../types";
 import { countProfileStatuses } from "../utils/health";
 
-type HealthStatus = "idle" | "loading" | "loaded" | "error";
+export type TrendDirection = 'got_worse' | 'got_better' | 'unchanged' | null;
+
+export function computeTrend(currentStatus: HealthStatus, cachedStatus: string | undefined): TrendDirection {
+  if (!cachedStatus) return null;
+
+  const statusRank: Record<string, number> = { healthy: 0, stale: 1, broken: 2 };
+  const currentRank = statusRank[currentStatus] ?? 0;
+  const cachedRank = statusRank[cachedStatus] ?? 0;
+
+  if (currentRank > cachedRank) return 'got_worse';
+  if (currentRank < cachedRank) return 'got_better';
+  return 'unchanged';
+}
+
+type HookStatus = "idle" | "loading" | "loaded" | "error";
 
 type ProfileHealthState = {
-  status: HealthStatus;
+  status: HookStatus;
   summary: HealthCheckSummary | null;
   error: string | null;
 };
@@ -26,6 +40,31 @@ const initialState: ProfileHealthState = {
   summary: null,
   error: null,
 };
+
+const STALE_THRESHOLD_DAYS = 7;
+
+function isSnapshotStale(checkedAt: string): boolean {
+  const checkedDate = new Date(checkedAt);
+  if (Number.isNaN(checkedDate.getTime())) {
+    console.warn('Invalid profile health snapshot date encountered:', checkedAt);
+    return true;
+  }
+  const now = new Date();
+  const diffMs = now.getTime() - checkedDate.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  return diffDays > STALE_THRESHOLD_DAYS;
+}
+
+function daysAgo(checkedAt: string): number {
+  const checkedDate = new Date(checkedAt);
+  if (Number.isNaN(checkedDate.getTime())) {
+    console.warn('Invalid profile health snapshot date encountered:', checkedAt);
+    return STALE_THRESHOLD_DAYS + 1;
+  }
+  const now = new Date();
+  const diffMs = now.getTime() - checkedDate.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
 
 function reducer(state: ProfileHealthState, action: ProfileHealthAction): ProfileHealthState {
   switch (action.type) {
@@ -76,6 +115,8 @@ function normalizeError(error: unknown): string {
 
 export function useProfileHealth() {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [cachedSnapshots, setCachedSnapshots] = useState<Record<string, CachedHealthSnapshot>>({});
+  const startupEventReceivedRef = useRef(false);
 
   const batchValidate = useCallback(async (signal?: AbortSignal) => {
     if (signal?.aborted) {
@@ -109,20 +150,47 @@ export function useProfileHealth() {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    void batchValidate(controller.signal);
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
     const unlistenBatchComplete = listen<HealthCheckSummary>(
       "profile-health-batch-complete",
       (event) => {
+        startupEventReceivedRef.current = true;
         if (active) {
           dispatch({ type: "batch-complete", summary: event.payload });
         }
       }
     );
 
+    const run = async () => {
+      try {
+        const snapshots = await invoke<CachedHealthSnapshot[]>('get_cached_health_snapshots');
+        if (active) {
+          const byName: Record<string, CachedHealthSnapshot> = {};
+          for (const snap of snapshots) {
+            byName[snap.profile_name] = snap;
+          }
+          setCachedSnapshots(byName);
+        }
+      } catch {
+        // Cached snapshots are advisory — ignore failures
+      }
+      fallbackTimer = setTimeout(() => {
+        if (!active || startupEventReceivedRef.current) {
+          return;
+        }
+        void batchValidate(controller.signal);
+      }, 700);
+    };
+
+    void run();
+
     return () => {
       active = false;
       controller.abort();
+      if (fallbackTimer !== null) {
+        clearTimeout(fallbackTimer);
+      }
       void unlistenBatchComplete.then((unlisten) => unlisten());
     };
   }, [batchValidate]);
@@ -137,11 +205,42 @@ export function useProfileHealth() {
     );
   }, [state.summary]);
 
+  const trendByName = useMemo<Record<string, TrendDirection>>(() => {
+    if (!state.summary || Object.keys(cachedSnapshots).length === 0) {
+      return {};
+    }
+
+    const result: Record<string, TrendDirection> = {};
+    for (const profile of state.summary.profiles) {
+      const cached = cachedSnapshots[profile.name];
+      result[profile.name] = computeTrend(profile.status, cached?.status);
+    }
+    return result;
+  }, [state.summary, cachedSnapshots]);
+
+  const staleInfoByName = useMemo<Record<string, { isStale: boolean; daysAgo: number }>>(() => {
+    if (Object.keys(cachedSnapshots).length === 0) {
+      return {};
+    }
+
+    const result: Record<string, { isStale: boolean; daysAgo: number }> = {};
+    for (const [name, snap] of Object.entries(cachedSnapshots)) {
+      result[name] = {
+        isStale: isSnapshotStale(snap.checked_at),
+        daysAgo: daysAgo(snap.checked_at),
+      };
+    }
+    return result;
+  }, [cachedSnapshots]);
+
   return {
     summary: state.summary,
     loading: state.status === "loading",
     error: state.error,
     healthByName,
+    cachedSnapshots,
+    trendByName,
+    staleInfoByName,
     batchValidate,
     revalidateSingle,
   };

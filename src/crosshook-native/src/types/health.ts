@@ -50,3 +50,12 @@ export interface EnrichedHealthSummary {
   total_count: number;
   validated_at: string;
 }
+
+// Phase D: advisory cache of last-computed health status per profile
+export interface CachedHealthSnapshot {
+  profile_id: string;
+  profile_name: string;
+  status: HealthStatus;
+  issue_count: number;
+  checked_at: string;
+}
