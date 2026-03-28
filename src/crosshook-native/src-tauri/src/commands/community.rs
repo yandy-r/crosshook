@@ -1,6 +1,7 @@
 use crosshook_core::community::{
     CommunityProfileIndex, CommunityTapStore, CommunityTapSubscription, CommunityTapSyncResult,
 };
+use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{import_community_profile, CommunityImportResult, ProfileStore};
 use crosshook_core::settings::{AppSettingsData, SettingsStore};
 use tauri::State;
@@ -125,9 +126,26 @@ fn validate_import_path_in_workspace(
 pub fn community_sync(
     settings_store: State<'_, SettingsStore>,
     tap_store: State<'_, CommunityTapStore>,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<Vec<CommunityTapSyncResult>, String> {
     let taps = load_community_taps(&settings_store)?;
-    tap_store.sync_many(&taps).map_err(map_error)
+    let results = tap_store.sync_many(&taps).map_err(map_error)?;
+
+    for result in &results {
+        if let Err(e) = metadata_store.index_community_tap_result(result) {
+            tracing::warn!(%e, tap_url = %result.workspace.subscription.url,
+                "community tap index sync failed");
+        }
+    }
+
+    Ok(results)
+}
+
+#[tauri::command]
+pub fn community_list_indexed_profiles(
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<Vec<crosshook_core::metadata::CommunityProfileRow>, String> {
+    metadata_store.list_community_tap_profiles(None).map_err(map_error)
 }
 
 #[cfg(test)]
@@ -157,7 +175,12 @@ mod tests {
             as fn(
                 State<'_, SettingsStore>,
                 State<'_, CommunityTapStore>,
+                State<'_, MetadataStore>,
             ) -> Result<Vec<CommunityTapSyncResult>, String>;
+        let _ = community_list_indexed_profiles
+            as fn(
+                State<'_, MetadataStore>,
+            ) -> Result<Vec<crosshook_core::metadata::CommunityProfileRow>, String>;
     }
 
     #[test]

@@ -1,3 +1,6 @@
+mod cache_store;
+mod collections;
+mod community_index;
 mod db;
 mod launch_history;
 mod launcher_sync;
@@ -5,8 +8,13 @@ mod migrations;
 mod models;
 pub mod profile_sync;
 
-pub use models::{DriftState, LaunchOutcome, MAX_DIAGNOSTIC_JSON_BYTES, MetadataStoreError, SyncReport, SyncSource};
+pub use models::{
+    CacheEntryStatus, CollectionRow, CommunityProfileRow, CommunityTapRow, DriftState,
+    FailureTrendRow, LaunchOutcome, MAX_CACHE_PAYLOAD_BYTES, MAX_DIAGNOSTIC_JSON_BYTES,
+    MetadataStoreError, SyncReport, SyncSource,
+};
 
+use crate::community::taps::CommunityTapSyncResult;
 use crate::launch::diagnostics::models::DiagnosticReport;
 use crate::profile::{GameProfile, ProfileStore};
 use directories::BaseDirs;
@@ -224,11 +232,266 @@ impl MetadataStore {
             launch_history::sweep_abandoned_operations(conn)
         })
     }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Community index
+    // -------------------------------------------------------------------------
+
+    pub fn index_community_tap_result(
+        &self,
+        result: &CommunityTapSyncResult,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("index a community tap", |conn| {
+            community_index::index_community_tap_result(conn, result)
+        })
+    }
+
+    pub fn list_community_tap_profiles(
+        &self,
+        tap_url: Option<&str>,
+    ) -> Result<Vec<CommunityProfileRow>, MetadataStoreError> {
+        self.with_conn("list community tap profiles", |conn| {
+            community_index::list_community_tap_profiles(conn, tap_url)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Collections
+    // -------------------------------------------------------------------------
+
+    pub fn list_collections(&self) -> Result<Vec<CollectionRow>, MetadataStoreError> {
+        self.with_conn("list collections", |conn| {
+            collections::list_collections(conn)
+        })
+    }
+
+    pub fn create_collection(&self, name: &str) -> Result<String, MetadataStoreError> {
+        self.with_conn("create a collection", |conn| {
+            collections::create_collection(conn, name)
+        })
+    }
+
+    pub fn delete_collection(&self, collection_id: &str) -> Result<(), MetadataStoreError> {
+        self.with_conn("delete a collection", |conn| {
+            collections::delete_collection(conn, collection_id)
+        })
+    }
+
+    pub fn add_profile_to_collection(
+        &self,
+        collection_id: &str,
+        profile_name: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("add a profile to a collection", |conn| {
+            collections::add_profile_to_collection(conn, collection_id, profile_name)
+        })
+    }
+
+    pub fn remove_profile_from_collection(
+        &self,
+        collection_id: &str,
+        profile_name: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("remove a profile from a collection", |conn| {
+            collections::remove_profile_from_collection(conn, collection_id, profile_name)
+        })
+    }
+
+    pub fn list_profiles_in_collection(
+        &self,
+        collection_id: &str,
+    ) -> Result<Vec<String>, MetadataStoreError> {
+        self.with_conn("list profiles in a collection", |conn| {
+            collections::list_profiles_in_collection(conn, collection_id)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Favorites
+    // -------------------------------------------------------------------------
+
+    pub fn set_profile_favorite(
+        &self,
+        profile_name: &str,
+        favorite: bool,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("set a profile favorite", |conn| {
+            collections::set_profile_favorite(conn, profile_name, favorite)
+        })
+    }
+
+    pub fn list_favorite_profiles(&self) -> Result<Vec<String>, MetadataStoreError> {
+        self.with_conn("list favorite profiles", |conn| {
+            collections::list_favorite_profiles(conn)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Cache
+    // -------------------------------------------------------------------------
+
+    pub fn get_cache_entry(
+        &self,
+        cache_key: &str,
+    ) -> Result<Option<String>, MetadataStoreError> {
+        self.with_conn("get a cache entry", |conn| cache_store::get_cache_entry(conn, cache_key))
+    }
+
+    pub fn put_cache_entry(
+        &self,
+        source_url: &str,
+        cache_key: &str,
+        payload: &str,
+        expires_at: Option<&str>,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("put a cache entry", |conn| {
+            cache_store::put_cache_entry(conn, source_url, cache_key, payload, expires_at)
+        })
+    }
+
+    pub fn evict_expired_cache_entries(&self) -> Result<usize, MetadataStoreError> {
+        self.with_conn("evict expired cache entries", |conn| {
+            cache_store::evict_expired_cache_entries(conn)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Usage insights (inline SQL over launch_operations)
+    // -------------------------------------------------------------------------
+
+    pub fn query_most_launched(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<(String, i64)>, MetadataStoreError> {
+        self.with_conn("query most launched profiles", |conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT profile_name, COUNT(*) as launch_count \
+                     FROM launch_operations \
+                     WHERE status IN ('succeeded', 'failed') AND profile_name IS NOT NULL \
+                     GROUP BY profile_name \
+                     ORDER BY launch_count DESC \
+                     LIMIT ?1",
+                )
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "prepare query_most_launched statement",
+                    source,
+                })?;
+
+            let rows = stmt
+                .query_map(rusqlite::params![limit as i64], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+                })
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "execute query_most_launched",
+                    source,
+                })?;
+
+            let mut result = Vec::new();
+            for row in rows {
+                result.push(row.map_err(|source| MetadataStoreError::Database {
+                    action: "read a query_most_launched row",
+                    source,
+                })?);
+            }
+            Ok(result)
+        })
+    }
+
+    pub fn query_last_success_per_profile(
+        &self,
+    ) -> Result<Vec<(String, String)>, MetadataStoreError> {
+        self.with_conn("query last success per profile", |conn| {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT profile_name, MAX(finished_at) as last_success \
+                     FROM launch_operations \
+                     WHERE status = 'succeeded' AND profile_name IS NOT NULL \
+                     GROUP BY profile_name",
+                )
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "prepare query_last_success_per_profile statement",
+                    source,
+                })?;
+
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "execute query_last_success_per_profile",
+                    source,
+                })?;
+
+            let mut result = Vec::new();
+            for row in rows {
+                result.push(row.map_err(|source| MetadataStoreError::Database {
+                    action: "read a query_last_success_per_profile row",
+                    source,
+                })?);
+            }
+            Ok(result)
+        })
+    }
+
+    pub fn query_failure_trends(
+        &self,
+        days: u32,
+    ) -> Result<Vec<FailureTrendRow>, MetadataStoreError> {
+        self.with_conn("query failure trends", |conn| {
+            let interval = format!("-{days} days");
+            let mut stmt = conn
+                .prepare(
+                    "SELECT profile_name, \
+                            COUNT(*) FILTER (WHERE status = 'succeeded') as successes, \
+                            COUNT(*) FILTER (WHERE status = 'failed') as failures, \
+                            GROUP_CONCAT(DISTINCT failure_mode) as failure_modes \
+                     FROM launch_operations \
+                     WHERE started_at >= datetime('now', ?1) AND profile_name IS NOT NULL \
+                     GROUP BY profile_name \
+                     HAVING failures > 0 \
+                     ORDER BY failures DESC",
+                )
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "prepare query_failure_trends statement",
+                    source,
+                })?;
+
+            let rows = stmt
+                .query_map(rusqlite::params![&interval], |row| {
+                    Ok(FailureTrendRow {
+                        profile_name: row.get(0)?,
+                        successes: row.get(1)?,
+                        failures: row.get(2)?,
+                        failure_modes: row.get(3)?,
+                    })
+                })
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "execute query_failure_trends",
+                    source,
+                })?;
+
+            let mut result = Vec::new();
+            for row in rows {
+                result.push(row.map_err(|source| MetadataStoreError::Database {
+                    action: "read a query_failure_trends row",
+                    source,
+                })?);
+            }
+            Ok(result)
+        })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::community::index::{CommunityProfileIndex, CommunityProfileIndexEntry};
+    use crate::community::taps::{
+        CommunityTapSubscription, CommunityTapSyncResult, CommunityTapSyncStatus,
+        CommunityTapWorkspace,
+    };
+    use crate::community::{CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating};
     use crate::launch::diagnostics::models::{
         ActionableSuggestion, DiagnosticReport, ExitCodeInfo, FailureMode,
     };
@@ -240,6 +503,7 @@ mod tests {
     use rusqlite::params;
     use std::fs;
     use std::os::unix::fs::{symlink, PermissionsExt};
+    use std::path::PathBuf;
     use tempfile::tempdir;
 
     fn sample_profile() -> GameProfile {
@@ -890,5 +1154,574 @@ mod tests {
 
         let swept = store.sweep_abandoned_operations().unwrap();
         assert_eq!(swept, 0);
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3 test helpers
+    // -------------------------------------------------------------------------
+
+    fn sample_tap_workspace(url: &str) -> CommunityTapWorkspace {
+        CommunityTapWorkspace {
+            subscription: CommunityTapSubscription {
+                url: url.to_string(),
+                branch: None,
+            },
+            local_path: PathBuf::from("/tmp/test-tap"),
+        }
+    }
+
+    fn sample_index_entry(tap_url: &str, relative_path: &str, game_name: &str) -> CommunityProfileIndexEntry {
+        CommunityProfileIndexEntry {
+            tap_url: tap_url.to_string(),
+            tap_branch: None,
+            tap_path: PathBuf::from("/tmp/test-tap"),
+            manifest_path: PathBuf::from(format!("/tmp/test-tap/{relative_path}")),
+            relative_path: PathBuf::from(relative_path),
+            manifest: CommunityProfileManifest::new(
+                CommunityProfileMetadata {
+                    game_name: game_name.to_string(),
+                    game_version: "1.0".to_string(),
+                    trainer_name: "TestTrainer".to_string(),
+                    trainer_version: "1".to_string(),
+                    proton_version: "9".to_string(),
+                    platform_tags: vec!["linux".to_string()],
+                    compatibility_rating: CompatibilityRating::Working,
+                    author: "TestAuthor".to_string(),
+                    description: "Test profile".to_string(),
+                },
+                GameProfile::default(),
+            ),
+        }
+    }
+
+    fn sample_sync_result(tap_url: &str, head_commit: &str, entries: Vec<CommunityProfileIndexEntry>) -> CommunityTapSyncResult {
+        CommunityTapSyncResult {
+            workspace: sample_tap_workspace(tap_url),
+            status: CommunityTapSyncStatus::Updated,
+            head_commit: head_commit.to_string(),
+            index: CommunityProfileIndex {
+                entries,
+                diagnostics: vec![],
+            },
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Community index tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_index_tap_result_inserts_tap_and_profile_rows() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let tap_url = "https://example.invalid/tap.git";
+        let result = sample_sync_result(
+            tap_url,
+            "abc123",
+            vec![
+                sample_index_entry(tap_url, "profiles/game-a/community-profile.json", "Game A"),
+                sample_index_entry(tap_url, "profiles/game-b/community-profile.json", "Game B"),
+            ],
+        );
+
+        store.index_community_tap_result(&result).unwrap();
+
+        let conn = connection(&store);
+
+        let (tap_count, last_head_commit, profile_count): (i64, String, i64) = conn
+            .query_row(
+                "SELECT COUNT(*), last_head_commit, profile_count FROM community_taps WHERE tap_url = ?1",
+                params![tap_url],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+        assert_eq!(tap_count, 1);
+        assert_eq!(last_head_commit, "abc123");
+        assert_eq!(profile_count, 2);
+
+        let community_profile_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM community_profiles cp \
+                 JOIN community_taps ct ON cp.tap_id = ct.tap_id \
+                 WHERE ct.tap_url = ?1",
+                params![tap_url],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(community_profile_count, 2);
+    }
+
+    #[test]
+    fn test_index_tap_result_skips_on_unchanged_head() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let tap_url = "https://example.invalid/tap.git";
+        let result = sample_sync_result(
+            tap_url,
+            "abc123",
+            vec![sample_index_entry(tap_url, "profiles/game-a/community-profile.json", "Game A")],
+        );
+
+        store.index_community_tap_result(&result).unwrap();
+
+        let updated_at_first: String = {
+            let conn = connection(&store);
+            conn.query_row(
+                "SELECT updated_at FROM community_taps WHERE tap_url = ?1",
+                params![tap_url],
+                |row| row.get(0),
+            )
+            .unwrap()
+        };
+
+        // Index again with same head_commit — should be a no-op watermark skip.
+        store.index_community_tap_result(&result).unwrap();
+
+        let (updated_at_second, profile_count): (String, i64) = {
+            let conn = connection(&store);
+            conn.query_row(
+                "SELECT updated_at, profile_count FROM community_taps WHERE tap_url = ?1",
+                params![tap_url],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap()
+        };
+
+        assert_eq!(updated_at_first, updated_at_second, "updated_at must not change on watermark skip");
+        assert_eq!(profile_count, 1);
+    }
+
+    #[test]
+    fn test_index_tap_result_replaces_stale_profiles() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let tap_url = "https://example.invalid/tap.git";
+
+        // First index: 3 profiles.
+        let result_v1 = sample_sync_result(
+            tap_url,
+            "commit-v1",
+            vec![
+                sample_index_entry(tap_url, "profiles/game-a/community-profile.json", "Game A"),
+                sample_index_entry(tap_url, "profiles/game-b/community-profile.json", "Game B"),
+                sample_index_entry(tap_url, "profiles/game-c/community-profile.json", "Game C"),
+            ],
+        );
+        store.index_community_tap_result(&result_v1).unwrap();
+
+        // Second index: only 1 profile, different HEAD commit.
+        let result_v2 = sample_sync_result(
+            tap_url,
+            "commit-v2",
+            vec![sample_index_entry(tap_url, "profiles/game-a/community-profile.json", "Game A")],
+        );
+        store.index_community_tap_result(&result_v2).unwrap();
+
+        let conn = connection(&store);
+        let profile_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM community_profiles cp \
+                 JOIN community_taps ct ON cp.tap_id = ct.tap_id \
+                 WHERE ct.tap_url = ?1",
+                params![tap_url],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(profile_count, 1, "stale profiles should have been removed on re-index");
+    }
+
+    #[test]
+    fn test_community_profiles_fk_cascades_on_tap_delete() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let tap_url = "https://example.invalid/tap.git";
+        let result = sample_sync_result(
+            tap_url,
+            "commit-v1",
+            vec![sample_index_entry(tap_url, "profiles/game-a/community-profile.json", "Game A")],
+        );
+        store.index_community_tap_result(&result).unwrap();
+
+        let conn = connection(&store);
+        let tap_id: String = conn
+            .query_row(
+                "SELECT tap_id FROM community_taps WHERE tap_url = ?1",
+                params![tap_url],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        conn.execute("DELETE FROM community_taps WHERE tap_id = ?1", params![&tap_id])
+            .unwrap();
+
+        let orphan_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM community_profiles WHERE tap_id = ?1",
+                params![&tap_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(orphan_count, 0, "deleting a tap should cascade delete community profiles");
+    }
+
+    #[test]
+    fn test_index_tap_result_disabled_store_noop() {
+        let store = MetadataStore::disabled();
+        let tap_url = "https://example.invalid/tap.git";
+        let result = sample_sync_result(tap_url, "abc123", vec![]);
+
+        let outcome = store.index_community_tap_result(&result);
+        assert!(outcome.is_ok());
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Cache store tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_put_get_cache_entry_round_trip() {
+        let store = MetadataStore::open_in_memory().unwrap();
+
+        store
+            .put_cache_entry(
+                "https://example.invalid/source",
+                "my-cache-key",
+                r#"{"data":"hello"}"#,
+                None,
+            )
+            .unwrap();
+
+        let result = store
+            .get_cache_entry("my-cache-key")
+            .unwrap();
+
+        assert_eq!(result.as_deref(), Some(r#"{"data":"hello"}"#));
+    }
+
+    #[test]
+    fn test_put_cache_entry_idempotent() {
+        let store = MetadataStore::open_in_memory().unwrap();
+
+        store
+            .put_cache_entry("https://example.invalid/source", "dedup-key", "payload-v1", None)
+            .unwrap();
+        store
+            .put_cache_entry("https://example.invalid/source", "dedup-key", "payload-v2", None)
+            .unwrap();
+
+        let conn = connection(&store);
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM external_cache_entries WHERE cache_key = ?1",
+                params!["dedup-key"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(row_count, 1, "UPSERT should not create duplicate rows");
+    }
+
+    #[test]
+    fn test_cache_payload_oversized_stored_as_null() {
+        let store = MetadataStore::open_in_memory().unwrap();
+
+        // Build a payload larger than MAX_CACHE_PAYLOAD_BYTES (524_288 bytes / 512 KiB).
+        let oversized_payload = "x".repeat(MAX_CACHE_PAYLOAD_BYTES + 1);
+        let original_size = oversized_payload.len();
+
+        store
+            .put_cache_entry(
+                "https://example.invalid/source",
+                "oversized-key",
+                &oversized_payload,
+                None,
+            )
+            .unwrap();
+
+        let conn = connection(&store);
+        let (payload_json, payload_size): (Option<String>, i64) = conn
+            .query_row(
+                "SELECT payload_json, payload_size FROM external_cache_entries WHERE cache_key = ?1",
+                params!["oversized-key"],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+
+        assert!(payload_json.is_none(), "oversized payload should be stored as NULL");
+        assert_eq!(payload_size, original_size as i64, "payload_size should record the original size");
+    }
+
+    #[test]
+    fn test_evict_expired_entries() {
+        let store = MetadataStore::open_in_memory().unwrap();
+
+        // Insert a non-expired entry (expires far in the future).
+        store
+            .put_cache_entry(
+                "https://example.invalid/source",
+                "live-key",
+                "live-payload",
+                Some("2099-01-01T00:00:00Z"),
+            )
+            .unwrap();
+
+        // Insert an expired entry directly via raw SQL (already past expiry).
+        {
+            let conn = connection(&store);
+            conn.execute(
+                "INSERT INTO external_cache_entries \
+                 (cache_id, source_url, cache_key, payload_json, payload_size, fetched_at, expires_at, created_at, updated_at) \
+                 VALUES ('expired-id', 'https://example.invalid/source', 'expired-key', 'expired', 7, \
+                 '2020-01-01T00:00:00Z', '2020-01-02T00:00:00Z', '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let evicted = store.evict_expired_cache_entries().unwrap();
+        assert_eq!(evicted, 1);
+
+        let conn = connection(&store);
+        let remaining: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM external_cache_entries",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(remaining, 1, "only the non-expired entry should remain");
+    }
+
+    #[test]
+    fn test_cache_entry_disabled_store_noop() {
+        let store = MetadataStore::disabled();
+
+        let result = store
+            .get_cache_entry("any-key")
+            .unwrap();
+        assert!(result.is_none());
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Collections tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_create_collection_returns_id() {
+        let store = MetadataStore::open_in_memory().unwrap();
+
+        let collection_id = store.create_collection("My Favorites").unwrap();
+        assert!(!collection_id.trim().is_empty());
+
+        let conn = connection(&store);
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM collections WHERE name = ?1",
+                params!["My Favorites"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(row_count, 1);
+    }
+
+    #[test]
+    fn test_add_profile_to_collection() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let profile = sample_profile();
+        let path = std::path::Path::new("/profiles/elden-ring.toml");
+
+        store
+            .observe_profile_write("elden-ring", &profile, path, SyncSource::AppWrite, None)
+            .unwrap();
+
+        let collection_id = store.create_collection("Test Collection").unwrap();
+        store
+            .add_profile_to_collection(&collection_id, "elden-ring")
+            .unwrap();
+
+        let conn = connection(&store);
+        let row_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM collection_profiles WHERE collection_id = ?1",
+                params![collection_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(row_count, 1);
+    }
+
+    #[test]
+    fn test_collection_delete_cascades() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let profile = sample_profile();
+        let path = std::path::Path::new("/profiles/elden-ring.toml");
+
+        store
+            .observe_profile_write("elden-ring", &profile, path, SyncSource::AppWrite, None)
+            .unwrap();
+
+        let collection_id = store.create_collection("To Delete").unwrap();
+        store
+            .add_profile_to_collection(&collection_id, "elden-ring")
+            .unwrap();
+
+        store.delete_collection(&collection_id).unwrap();
+
+        let conn = connection(&store);
+        let member_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM collection_profiles WHERE collection_id = ?1",
+                params![collection_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(member_count, 0, "collection_profiles rows should cascade-delete with the collection");
+    }
+
+    #[test]
+    fn test_set_profile_favorite_toggles() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let profile = sample_profile();
+        let path = std::path::Path::new("/profiles/elden-ring.toml");
+
+        store
+            .observe_profile_write("elden-ring", &profile, path, SyncSource::AppWrite, None)
+            .unwrap();
+
+        store.set_profile_favorite("elden-ring", true).unwrap();
+
+        let conn = connection(&store);
+        let is_favorite: i64 = conn
+            .query_row(
+                "SELECT is_favorite FROM profiles WHERE current_filename = ?1",
+                params!["elden-ring"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(is_favorite, 1);
+
+        drop(conn);
+        store.set_profile_favorite("elden-ring", false).unwrap();
+
+        let conn = connection(&store);
+        let is_favorite: i64 = conn
+            .query_row(
+                "SELECT is_favorite FROM profiles WHERE current_filename = ?1",
+                params!["elden-ring"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(is_favorite, 0);
+    }
+
+    #[test]
+    fn test_list_favorite_profiles_excludes_deleted() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let profile = sample_profile();
+
+        store
+            .observe_profile_write(
+                "keep-me",
+                &profile,
+                std::path::Path::new("/profiles/keep-me.toml"),
+                SyncSource::AppWrite,
+                None,
+            )
+            .unwrap();
+        store
+            .observe_profile_write(
+                "delete-me",
+                &profile,
+                std::path::Path::new("/profiles/delete-me.toml"),
+                SyncSource::AppWrite,
+                None,
+            )
+            .unwrap();
+
+        store.set_profile_favorite("keep-me", true).unwrap();
+        store.set_profile_favorite("delete-me", true).unwrap();
+        store.observe_profile_delete("delete-me").unwrap();
+
+        let favorites = store.list_favorite_profiles().unwrap();
+        assert_eq!(favorites, vec!["keep-me".to_string()]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Usage insights tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_query_most_launched() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let report = clean_exit_report();
+
+        // Profile A: 3 launches
+        for _ in 0..3 {
+            let op_id = store.record_launch_started(Some("profile-a"), "native", None).unwrap();
+            store.record_launch_finished(&op_id, Some(0), None, &report).unwrap();
+        }
+
+        // Profile B: 1 launch
+        let op_id = store.record_launch_started(Some("profile-b"), "native", None).unwrap();
+        store.record_launch_finished(&op_id, Some(0), None, &report).unwrap();
+
+        // Profile C: 2 launches
+        for _ in 0..2 {
+            let op_id = store.record_launch_started(Some("profile-c"), "native", None).unwrap();
+            store.record_launch_finished(&op_id, Some(0), None, &report).unwrap();
+        }
+
+        let most_launched = store.query_most_launched(10).unwrap();
+
+        assert_eq!(most_launched.len(), 3);
+        assert_eq!(most_launched[0].0, "profile-a");
+        assert_eq!(most_launched[0].1, 3);
+        assert_eq!(most_launched[1].0, "profile-c");
+        assert_eq!(most_launched[1].1, 2);
+        assert_eq!(most_launched[2].0, "profile-b");
+        assert_eq!(most_launched[2].1, 1);
+    }
+
+    #[test]
+    fn test_query_failure_trends() {
+        let store = MetadataStore::open_in_memory().unwrap();
+
+        let clean_report = clean_exit_report();
+
+        // Profile with failures: 1 success + 2 failures
+        let op_ok = store.record_launch_started(Some("flaky-profile"), "native", None).unwrap();
+        store.record_launch_finished(&op_ok, Some(0), None, &clean_report).unwrap();
+
+        let failure_report = DiagnosticReport {
+            severity: ValidationSeverity::Warning,
+            summary: "Non-zero exit".to_string(),
+            exit_info: ExitCodeInfo {
+                code: Some(1),
+                signal: None,
+                signal_name: None,
+                core_dumped: false,
+                failure_mode: FailureMode::NonZeroExit,
+                description: "Process exited with code 1".to_string(),
+                severity: ValidationSeverity::Warning,
+            },
+            pattern_matches: vec![],
+            suggestions: vec![],
+            launch_method: "native".to_string(),
+            log_tail_path: None,
+            analyzed_at: "2026-01-01T00:00:00Z".to_string(),
+        };
+
+        for _ in 0..2 {
+            let op_fail = store.record_launch_started(Some("flaky-profile"), "native", None).unwrap();
+            store.record_launch_finished(&op_fail, Some(1), None, &failure_report).unwrap();
+        }
+
+        // Profile with no failures: 2 successes only
+        for _ in 0..2 {
+            let op_id = store.record_launch_started(Some("clean-profile"), "native", None).unwrap();
+            store.record_launch_finished(&op_id, Some(0), None, &clean_report).unwrap();
+        }
+
+        let trends = store.query_failure_trends(30).unwrap();
+
+        assert_eq!(trends.len(), 1, "only profiles with failures should appear");
+        assert_eq!(trends[0].profile_name, "flaky-profile");
+        assert_eq!(trends[0].successes, 1);
+        assert_eq!(trends[0].failures, 2);
     }
 }

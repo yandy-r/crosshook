@@ -295,6 +295,22 @@ pub fn profile_export_toml(name: String, data: GameProfile) -> Result<String, St
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+pub fn profile_set_favorite(
+    name: String,
+    favorite: bool,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<(), String> {
+    metadata_store.set_profile_favorite(&name, favorite).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn profile_list_favorites(
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<Vec<String>, String> {
+    metadata_store.list_favorite_profiles().map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
