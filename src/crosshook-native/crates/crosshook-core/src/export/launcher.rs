@@ -23,6 +23,8 @@ pub struct SteamExternalLauncherExportRequest {
     pub steam_app_id: String,
     pub steam_client_install_path: String,
     pub target_home_path: String,
+    #[serde(default)]
+    pub profile_name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -730,6 +732,7 @@ mod tests {
                 .to_string_lossy()
                 .into_owned(),
             target_home_path: "/tmp/not-a-home/compatdata/steam".to_string(),
+            profile_name: None,
         };
 
         let result = export_launchers(&request).expect("export");
@@ -816,6 +819,7 @@ mod tests {
                 .to_string_lossy()
                 .into_owned(),
             target_home_path: temp_home.path().to_string_lossy().into_owned(),
+            profile_name: None,
         };
 
         let result = export_launchers(&request).expect("export");
@@ -877,6 +881,7 @@ mod tests {
             steam_app_id: String::new(),
             steam_client_install_path: String::new(),
             target_home_path: "/home/user".to_string(),
+            profile_name: None,
         };
 
         let script_content = build_trainer_script_content(&request, "Witcher 3");
@@ -902,6 +907,7 @@ mod tests {
             steam_app_id: String::new(),
             steam_client_install_path: String::new(),
             target_home_path: "/home/user".to_string(),
+            profile_name: None,
         };
 
         let content = preview_trainer_script_content(&request).expect("preview script");
@@ -923,6 +929,7 @@ mod tests {
             steam_app_id: String::new(),
             steam_client_install_path: String::new(),
             target_home_path: "/home/user".to_string(),
+            profile_name: None,
         };
 
         let content = preview_desktop_entry_content(&request).expect("preview desktop");

@@ -6,6 +6,8 @@ use crosshook_core::export::{
     LauncherDeleteResult, LauncherInfo, LauncherRenameResult, SteamExternalLauncherExportRequest,
     SteamExternalLauncherExportResult,
 };
+use crosshook_core::export::launcher::sanitize_launcher_slug;
+use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
 use tauri::State;
 
@@ -19,8 +21,21 @@ pub fn validate_launcher_export(request: SteamExternalLauncherExportRequest) -> 
 #[tauri::command]
 pub fn export_launchers(
     request: SteamExternalLauncherExportRequest,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<SteamExternalLauncherExportResult, String> {
-    export_launchers_core(&request).map_err(|error| error.to_string())
+    let result = export_launchers_core(&request).map_err(|error| error.to_string())?;
+
+    if let Err(e) = metadata_store.observe_launcher_exported(
+        request.profile_name.as_deref(),
+        &result.launcher_slug,
+        &result.display_name,
+        &result.script_path,
+        &result.desktop_entry_path,
+    ) {
+        tracing::warn!(%e, launcher_slug = %result.launcher_slug, "metadata sync after export_launchers failed");
+    }
+
+    Ok(result)
 }
 
 /// Checks whether the launcher files derived from the supplied profile fields exist on disk.
@@ -50,15 +65,23 @@ pub fn delete_launcher(
     trainer_path: String,
     target_home_path: String,
     steam_client_install_path: String,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<LauncherDeleteResult, String> {
-    crosshook_core::export::delete_launcher_files(
+    let result = crosshook_core::export::delete_launcher_files(
         &display_name,
         &steam_app_id,
         &trainer_path,
         &target_home_path,
         &steam_client_install_path,
     )
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?;
+
+    let slug = sanitize_launcher_slug(&display_name);
+    if let Err(e) = metadata_store.observe_launcher_deleted(&slug) {
+        tracing::warn!(%e, launcher_slug = %slug, "metadata sync after delete_launcher failed");
+    }
+
+    Ok(result)
 }
 
 /// Deletes launcher files directly from a known launcher slug.
@@ -67,13 +90,20 @@ pub fn delete_launcher_by_slug(
     launcher_slug: String,
     target_home_path: String,
     steam_client_install_path: String,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<LauncherDeleteResult, String> {
-    delete_launcher_by_slug_core(
+    let result = delete_launcher_by_slug_core(
         &launcher_slug,
         &target_home_path,
         &steam_client_install_path,
     )
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?;
+
+    if let Err(e) = metadata_store.observe_launcher_deleted(&launcher_slug) {
+        tracing::warn!(%e, launcher_slug = %launcher_slug, "metadata sync after delete_launcher_by_slug failed");
+    }
+
+    Ok(result)
 }
 
 /// Rewrites launcher files for a renamed launcher and optionally cleans up old paths.
@@ -91,6 +121,7 @@ pub fn rename_launcher(
     proton_path: String,
     steam_app_id: String,
     launcher_name: String,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<LauncherRenameResult, String> {
     let request = SteamExternalLauncherExportRequest {
         method,
@@ -105,8 +136,9 @@ pub fn rename_launcher(
         steam_app_id,
         steam_client_install_path: steam_client_install_path.clone(),
         target_home_path: target_home_path.clone(),
+        profile_name: None,
     };
-    crosshook_core::export::rename_launcher_files(
+    let result = crosshook_core::export::rename_launcher_files(
         &old_launcher_slug,
         &new_display_name,
         &new_launcher_icon_path,
@@ -114,7 +146,19 @@ pub fn rename_launcher(
         &steam_client_install_path,
         &request,
     )
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?;
+
+    if let Err(e) = metadata_store.observe_launcher_renamed(
+        &result.old_slug,
+        &result.new_slug,
+        &new_display_name,
+        &result.new_script_path,
+        &result.new_desktop_entry_path,
+    ) {
+        tracing::warn!(%e, old_slug = %result.old_slug, new_slug = %result.new_slug, "metadata sync after rename_launcher failed");
+    }
+
+    Ok(result)
 }
 
 /// Lists launcher files found under the resolved launcher directory.
@@ -171,15 +215,28 @@ mod tests {
         let _ = export_launchers
             as fn(
                 SteamExternalLauncherExportRequest,
+                State<'_, MetadataStore>,
             ) -> Result<SteamExternalLauncherExportResult, String>;
         let _ = check_launcher_exists
             as fn(SteamExternalLauncherExportRequest) -> Result<LauncherInfo, String>;
         let _ = check_launcher_for_profile
             as fn(String, State<'_, ProfileStore>) -> Result<LauncherInfo, String>;
         let _ = delete_launcher
-            as fn(String, String, String, String, String) -> Result<LauncherDeleteResult, String>;
+            as fn(
+                String,
+                String,
+                String,
+                String,
+                String,
+                State<'_, MetadataStore>,
+            ) -> Result<LauncherDeleteResult, String>;
         let _ = delete_launcher_by_slug
-            as fn(String, String, String) -> Result<LauncherDeleteResult, String>;
+            as fn(
+                String,
+                String,
+                String,
+                State<'_, MetadataStore>,
+            ) -> Result<LauncherDeleteResult, String>;
         let _ = preview_launcher_script
             as fn(SteamExternalLauncherExportRequest) -> Result<String, String>;
         let _ = preview_launcher_desktop

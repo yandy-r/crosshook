@@ -52,6 +52,15 @@ pub fn run_metadata_reconciliation(
             "startup metadata reconciliation complete"
         );
     }
+    match metadata_store.sweep_abandoned_operations() {
+        Ok(count) if count > 0 => {
+            tracing::info!(swept = count, "startup abandoned operation sweep complete");
+        }
+        Err(error) => {
+            tracing::warn!(%error, "startup abandoned operation sweep failed");
+        }
+        _ => {}
+    }
     Ok(())
 }
 

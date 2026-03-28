@@ -1,420 +1,18 @@
-# SQLite3 Addition — Integration Research
+# Integration Research: SQLite Metadata Layer Phase 2 (Operational History)
 
-## API Endpoints and Integration Overview
-
-This document catalogues every Tauri IPC command, store public API, launch system hook, filesystem path, and community system type that the `metadata` module must integrate with. All signatures are verified against actual source code as of 2026-03-27. Metadata sync hooks live in the Tauri command layer only — `ProfileStore`, `LauncherStore`, and `CommunityTapStore` internals are not modified.
+All findings are verified against source code as of 2026-03-27 on branch `feat/sqlite3-addition`.
 
 ---
 
-## 1. Tauri IPC Commands
+## Launch System APIs
 
-All handlers registered in `src/crosshook-native/src-tauri/src/lib.rs:70-113`.
+### LaunchRequest (current fields, profile_name gap)
 
-### 1.1 Profile Commands (`commands/profile.rs`)
-
-| Command                             | Signature                                                                               | Metadata Sync Hook Needed                                                        |
-| ----------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `profile_list`                      | `fn(State<ProfileStore>) -> Result<Vec<String>, String>`                                | No — read-only                                                                   |
-| `profile_load`                      | `fn(String, State<ProfileStore>) -> Result<GameProfile, String>`                        | No — read-only                                                                   |
-| `profile_save`                      | `fn(String, GameProfile, State<ProfileStore>) -> Result<(), String>`                    | **Yes** — upsert profile identity + snapshot                                     |
-| `profile_save_launch_optimizations` | `fn(String, LaunchOptimizationsPayload, State<ProfileStore>) -> Result<(), String>`     | **Yes** — upsert profile snapshot (content changed)                              |
-| `profile_delete`                    | `fn(String, State<ProfileStore>) -> Result<(), String>`                                 | **Yes** — soft-delete identity row (tombstone)                                   |
-| `profile_duplicate`                 | `fn(String, State<ProfileStore>) -> Result<DuplicateProfileResult, String>`             | **Yes** — create new identity + link `source_profile_id` + append rename history |
-| `profile_rename`                    | `fn(String, String, State<ProfileStore>, State<SettingsStore>) -> Result<bool, String>` | **Yes** — append rename history + update `current_filename`/`current_path`       |
-| `profile_import_legacy`             | `fn(String, State<ProfileStore>) -> Result<GameProfile, String>`                        | **Yes** — create profile identity from import                                    |
-| `profile_export_toml`               | `fn(String, GameProfile) -> Result<String, String>`                                     | No — generates TOML string, no persistence                                       |
-
-**Key internal helpers in `profile.rs`:**
-
-- `cleanup_launchers_for_profile_delete(profile_name, profile)` — called inside `profile_delete` and `profile_rename` before store operations; metadata hook for launcher deletion should fire _after_ this.
-- `derive_steam_client_install_path(profile)` / `derive_target_home_path(steam_client_install_path)` — path derivation used for launcher cleanup.
-
-**`LaunchOptimizationsPayload`** (defined in `commands/profile.rs:76-83`):
-
-```rust
-pub struct LaunchOptimizationsPayload {
-    pub enabled_option_ids: Vec<String>,
-}
-```
-
-### 1.2 Export / Launcher Commands (`commands/export.rs`)
-
-| Command                      | Signature                                                                                                                                    | Metadata Sync Hook Needed                         |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `validate_launcher_export`   | `fn(SteamExternalLauncherExportRequest) -> Result<(), String>`                                                                               | No — validation only                              |
-| `export_launchers`           | `fn(SteamExternalLauncherExportRequest) -> Result<SteamExternalLauncherExportResult, String>`                                                | **Yes** — upsert launcher identity + observation  |
-| `check_launcher_exists`      | `fn(SteamExternalLauncherExportRequest) -> Result<LauncherInfo, String>`                                                                     | **Yes** — upsert launcher observation             |
-| `check_launcher_for_profile` | `fn(String, State<ProfileStore>) -> Result<LauncherInfo, String>`                                                                            | **Yes** — upsert launcher observation             |
-| `delete_launcher`            | `fn(String, String, String, String, String) -> Result<LauncherDeleteResult, String>`                                                         | **Yes** — mark launcher deleted in observations   |
-| `delete_launcher_by_slug`    | `fn(String, String, String) -> Result<LauncherDeleteResult, String>`                                                                         | **Yes** — mark launcher deleted by slug           |
-| `rename_launcher`            | `fn(String, String, String, String, String, String, String, String, String, String, String, String) -> Result<LauncherRenameResult, String>` | **Yes** — update launcher slug/paths              |
-| `list_launchers`             | `fn(String, String) -> Vec<LauncherInfo>`                                                                                                    | **Yes** — bulk observation sync                   |
-| `find_orphaned_launchers`    | `fn(Vec<String>, String, String) -> Vec<LauncherInfo>`                                                                                       | **Yes** — mark orphaned launchers in observations |
-| `preview_launcher_script`    | `fn(SteamExternalLauncherExportRequest) -> Result<String, String>`                                                                           | No — preview only                                 |
-| `preview_launcher_desktop`   | `fn(SteamExternalLauncherExportRequest) -> Result<String, String>`                                                                           | No — preview only                                 |
-
-### 1.3 Launch Commands (`commands/launch.rs`)
-
-| Command                              | Signature                                                            | Metadata Sync Hook Needed                                                                                                  |
-| ------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `validate_launch`                    | `fn(LaunchRequest) -> Result<(), LaunchValidationIssue>`             | No — validation only                                                                                                       |
-| `preview_launch`                     | `fn(LaunchRequest) -> Result<LaunchPreview, String>`                 | No — preview only                                                                                                          |
-| `build_steam_launch_options_command` | `fn(Vec<String>) -> Result<String, String>`                          | No — utility                                                                                                               |
-| `launch_game`                        | `async fn(AppHandle, LaunchRequest) -> Result<LaunchResult, String>` | **Yes** — `record_launch_started()` before `spawn_log_stream`; `record_launch_finished()` in `stream_log_lines` completion |
-| `launch_trainer`                     | `async fn(AppHandle, LaunchRequest) -> Result<LaunchResult, String>` | **Yes** — same as `launch_game`                                                                                            |
-
-**Internal `stream_log_lines`** (not a Tauri command; called by `spawn_log_stream`):
-
-- Emits `"launch-log"` events per line
-- Emits `"launch-diagnostic"` event with `DiagnosticReport` (conditionally, when `should_surface_report` is true)
-- Emits `"launch-complete"` event with `{ code: Option<i32>, signal: Option<i32> }`
-- **Metadata hook insertion point**: after exit status is known (line 204-231 in `launch.rs`), before or after emitting the events
-
-**`LaunchResult`** (defined in `commands/launch.rs:24-28`):
-
-```rust
-pub struct LaunchResult {
-    pub succeeded: bool,
-    pub message: String,
-    pub helper_log_path: String,
-}
-```
-
-### 1.4 Community Commands (`commands/community.rs`)
-
-| Command                    | Signature                                                                                                                  | Metadata Sync Hook Needed                                          |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `community_add_tap`        | `fn(CommunityTapSubscription, State<SettingsStore>) -> Result<Vec<CommunityTapSubscription>, String>`                      | **Yes** — upsert tap subscription in `community_taps` table        |
-| `community_list_profiles`  | `fn(State<SettingsStore>, State<CommunityTapStore>) -> Result<CommunityProfileIndex, String>`                              | Optional — could serve from cache; Phase 2+                        |
-| `community_import_profile` | `fn(String, State<ProfileStore>, State<SettingsStore>, State<CommunityTapStore>) -> Result<CommunityImportResult, String>` | **Yes** — create profile identity post-import                      |
-| `community_sync`           | `fn(State<SettingsStore>, State<CommunityTapStore>) -> Result<Vec<CommunityTapSyncResult>, String>`                        | **Yes** — `sync_tap_index()` after `tap_store.sync_many()` returns |
-
-### 1.5 Settings Commands (`commands/settings.rs`)
-
-Settings commands (`settings_load`, `settings_save`, `recent_files_load`, `recent_files_save`) do not require direct metadata hooks for Phase 1. Community tap subscriptions are managed via `community_add_tap`.
-
----
-
-## 2. Store APIs
-
-### 2.1 `ProfileStore` (`crates/crosshook-core/src/profile/toml_store.rs`)
-
-**Construction:**
-
-```rust
-ProfileStore::try_new() -> Result<ProfileStore, String>
-ProfileStore::new() -> ProfileStore
-ProfileStore::with_base_path(base_path: PathBuf) -> ProfileStore
-```
-
-**Public API:**
-
-```rust
-fn load(&self, name: &str) -> Result<GameProfile, ProfileStoreError>
-fn save(&self, name: &str, profile: &GameProfile) -> Result<(), ProfileStoreError>
-fn save_launch_optimizations(&self, name: &str, enabled_option_ids: Vec<String>) -> Result<(), ProfileStoreError>
-fn list(&self) -> Result<Vec<String>, ProfileStoreError>
-fn delete(&self, name: &str) -> Result<(), ProfileStoreError>
-fn rename(&self, old_name: &str, new_name: &str) -> Result<(), ProfileStoreError>
-fn import_legacy(&self, legacy_path: &Path) -> Result<GameProfile, ProfileStoreError>
-fn duplicate(&self, source_name: &str) -> Result<DuplicateProfileResult, ProfileStoreError>
-```
-
-**Path derivation:**
-
-- `profile_path(name)` → `{base_path}/{name}.toml` (private, used internally)
-- `base_path` is public; metadata sync uses `store.list()` to discover all profile filenames
-
-**`ProfileStoreError` variants:**
-
-```rust
-InvalidName(String)
-NotFound(PathBuf)
-AlreadyExists(String)
-InvalidLaunchOptimizationId(String)
-Io(std::io::Error)
-TomlDe(toml::de::Error)
-TomlSer(toml::ser::Error)
-```
-
-**`DuplicateProfileResult`:**
-
-```rust
-pub struct DuplicateProfileResult {
-    pub name: String,        // generated copy name, e.g. "MyGame (Copy)"
-    pub profile: GameProfile, // byte-for-byte clone of source
-}
-```
-
-**`validate_name(name: &str) -> Result<(), ProfileStoreError>`** — public function used for all name validation. Rules: non-empty, not `"."` or `".."`, no absolute path, no `/` `\` `:` `<` `>` `"` `|` `?` `*`.
-
-**Metadata sync is NOT inside `ProfileStore`** — the store is a pure TOML I/O layer. Sync hooks fire in Tauri commands after successful store operations.
-
-### 2.2 Launcher Functions (`crates/crosshook-core/src/export/launcher_store.rs`)
-
-These are free functions (not a struct), re-exported via `crosshook_core::export::*`:
-
-```rust
-// Check existence and staleness
-pub fn check_launcher_exists(
-    display_name: &str,
-    steam_app_id: &str,
-    trainer_path: &str,
-    target_home_path: &str,
-    steam_client_install_path: &str,
-) -> Result<LauncherInfo, LauncherStoreError>
-
-pub fn check_launcher_exists_for_request(
-    display_name: &str,
-    request: &SteamExternalLauncherExportRequest,
-) -> Result<LauncherInfo, LauncherStoreError>
-
-pub fn check_launcher_for_profile(
-    profile: &GameProfile,
-    target_home_path: &str,
-    steam_client_install_path: &str,
-) -> Result<LauncherInfo, LauncherStoreError>
-
-// Delete operations
-pub fn delete_launcher_files(
-    display_name: &str,
-    steam_app_id: &str,
-    trainer_path: &str,
-    target_home_path: &str,
-    steam_client_install_path: &str,
-) -> Result<LauncherDeleteResult, LauncherStoreError>
-
-pub fn delete_launcher_by_slug(
-    launcher_slug: &str,
-    target_home_path: &str,
-    steam_client_install_path: &str,
-) -> Result<LauncherDeleteResult, LauncherStoreError>
-
-pub fn delete_launcher_for_profile(
-    profile: &GameProfile,
-    target_home_path: &str,
-    steam_client_install_path: &str,
-) -> Result<LauncherDeleteResult, LauncherStoreError>
-
-// Rename
-pub fn rename_launcher_files(
-    old_launcher_slug: &str,
-    new_display_name: &str,
-    new_launcher_icon_path: &str,
-    target_home_path: &str,
-    steam_client_install_path: &str,
-    request: &SteamExternalLauncherExportRequest,
-) -> Result<LauncherRenameResult, LauncherStoreError>
-
-// List / discovery
-pub fn list_launchers(
-    target_home_path: &str,
-    steam_client_install_path: &str,
-) -> Vec<LauncherInfo>
-
-pub fn find_orphaned_launchers(
-    known_profile_slugs: &[String],
-    target_home_path: &str,
-    steam_client_install_path: &str,
-) -> Vec<LauncherInfo>
-```
-
-**`LauncherInfo`:**
-
-```rust
-pub struct LauncherInfo {
-    pub display_name: String,
-    pub launcher_slug: String,
-    pub script_path: String,
-    pub desktop_entry_path: String,
-    pub script_exists: bool,
-    pub desktop_entry_exists: bool,
-    pub is_stale: bool,        // only meaningful from check_launcher_*; list_launchers reports false
-}
-```
-
-**`LauncherDeleteResult`:**
-
-```rust
-pub struct LauncherDeleteResult {
-    pub script_deleted: bool,
-    pub desktop_entry_deleted: bool,
-    pub script_path: String,
-    pub desktop_entry_path: String,
-    pub script_skipped_reason: Option<String>,
-    pub desktop_entry_skipped_reason: Option<String>,
-}
-```
-
-**`LauncherRenameResult`:**
-
-```rust
-pub struct LauncherRenameResult {
-    pub old_slug: String,
-    pub new_slug: String,
-    pub new_script_path: String,
-    pub new_desktop_entry_path: String,
-    pub script_renamed: bool,
-    pub desktop_entry_renamed: bool,
-    pub old_script_cleanup_warning: Option<String>,
-    pub old_desktop_entry_cleanup_warning: Option<String>,
-}
-```
-
-**`LauncherStoreError` variants:**
-
-```rust
-Io(io::Error)
-HomePathResolutionFailed
-```
-
-**Watermarks** (important for metadata sync — never record an artifact as owned if watermark verification would fail):
-
-- Script: `"# Generated by CrossHook"` (constant `SCRIPT_WATERMARK`)
-- Desktop entry: `"Generated by CrossHook"` (constant `DESKTOP_ENTRY_WATERMARK`)
-
-**`SteamExternalLauncherExportRequest`** (`export/launcher.rs:14-26`):
-
-```rust
-pub struct SteamExternalLauncherExportRequest {
-    pub method: String,
-    pub launcher_name: String,
-    pub trainer_path: String,
-    pub trainer_loading_mode: TrainerLoadingMode,
-    pub launcher_icon_path: String,
-    pub prefix_path: String,
-    pub proton_path: String,
-    pub steam_app_id: String,
-    pub steam_client_install_path: String,
-    pub target_home_path: String,
-}
-```
-
-**`SteamExternalLauncherExportResult`** (`export/launcher.rs:28-33`):
-
-```rust
-pub struct SteamExternalLauncherExportResult {
-    pub display_name: String,
-    pub launcher_slug: String,
-    pub script_path: String,
-    pub desktop_entry_path: String,
-}
-```
-
-**Launcher path derivation** (`derive_launcher_paths` in `launcher_store.rs`):
-
-- Script: `{home}/.local/share/crosshook/launchers/{slug}-trainer.sh`
-- Desktop entry: `{home}/.local/share/applications/crosshook-{slug}-trainer.desktop`
-- Slug: `sanitize_launcher_slug(resolved_name)` from `export/launcher.rs`
-
-### 2.3 `CommunityTapStore` (`crates/crosshook-core/src/community/taps.rs`)
-
-**Construction:**
-
-```rust
-CommunityTapStore::try_new() -> Result<CommunityTapStore, String>
-CommunityTapStore::new() -> CommunityTapStore
-CommunityTapStore::with_base_path(base_path: PathBuf) -> CommunityTapStore
-```
-
-**Public API:**
-
-```rust
-pub fn resolve_workspace(
-    &self,
-    subscription: &CommunityTapSubscription,
-) -> Result<CommunityTapWorkspace, CommunityTapError>
-
-pub fn sync_tap(
-    &self,
-    subscription: &CommunityTapSubscription,
-) -> Result<CommunityTapSyncResult, CommunityTapError>
-
-pub fn sync_many(
-    &self,
-    subscriptions: &[CommunityTapSubscription],
-) -> Result<Vec<CommunityTapSyncResult>, CommunityTapError>
-
-pub fn index_workspaces(
-    &self,
-    workspaces: &[CommunityTapWorkspace],
-) -> Result<CommunityProfileIndex, CommunityTapError>
-```
-
-**Key types:**
-
-```rust
-pub struct CommunityTapSubscription {
-    pub url: String,
-    pub branch: Option<String>,   // defaults to "main" when None
-}
-
-pub struct CommunityTapWorkspace {
-    pub subscription: CommunityTapSubscription,
-    pub local_path: PathBuf,
-}
-
-pub struct CommunityTapSyncResult {
-    pub workspace: CommunityTapWorkspace,
-    pub status: CommunityTapSyncStatus,  // Cloned | Updated
-    pub head_commit: String,             // output of `git rev-parse HEAD` — KEY for idempotent re-index
-    pub index: CommunityProfileIndex,
-}
-
-pub enum CommunityTapSyncStatus {
-    Cloned,
-    Updated,
-}
-```
-
-**Metadata integration point**: After `community_sync` calls `tap_store.sync_many()`, each `CommunityTapSyncResult.head_commit` is compared against `community_taps.last_synced_commit` in SQLite. Re-indexing `community_profiles` only happens when HEAD changed.
-
-### 2.4 `SettingsStore` (`crates/crosshook-core/src/settings/mod.rs`)
-
-```rust
-pub struct SettingsStore { pub base_path: PathBuf }
-
-pub struct AppSettingsData {
-    pub auto_load_last_profile: bool,
-    pub last_used_profile: String,
-    pub community_taps: Vec<CommunityTapSubscription>,
-}
-
-// API
-pub fn load(&self) -> Result<AppSettingsData, SettingsStoreError>
-pub fn save(&self, settings: &AppSettingsData) -> Result<(), SettingsStoreError>
-pub fn settings_path(&self) -> PathBuf  // → {base_path}/settings.toml
-```
-
-**Community taps list lives in `AppSettingsData.community_taps`**. SQLite only mirrors tap _sync state_ and catalog cache — it does not own the authoritative taps list (TOML is authoritative).
-
-### 2.5 `RecentFilesStore` (`crates/crosshook-core/src/settings/recent.rs`)
-
-```rust
-pub struct RecentFilesStore { pub path: PathBuf }
-
-pub struct RecentFilesData {
-    pub game_paths: Vec<String>,     // max 10, existing files only on load
-    pub trainer_paths: Vec<String>,  // max 10
-    pub dll_paths: Vec<String>,      // max 10
-}
-
-// API
-pub fn load(&self) -> Result<RecentFilesData, RecentFilesStoreError>
-pub fn save(&self, recent_files: &RecentFilesData) -> Result<(), RecentFilesStoreError>
-```
-
-**Phase 1**: No SQLite integration. Phase 2+ may replace with `recent_file_entry` table with timestamps.
-
----
-
-## 3. Launch System
-
-### 3.1 `LaunchRequest` (`crates/crosshook-core/src/launch/request.rs`)
+**File:** `src/crosshook-native/crates/crosshook-core/src/launch/request.rs:16-37`
 
 ```rust
 pub struct LaunchRequest {
-    pub method: String,                              // "steam_applaunch" | "proton_run" | "native"
+    pub method: String,              // "steam_applaunch" | "proton_run" | "native"
     pub game_path: String,
     pub trainer_path: String,
     pub trainer_host_path: String,
@@ -425,96 +23,190 @@ pub struct LaunchRequest {
     pub launch_trainer_only: bool,
     pub launch_game_only: bool,
 }
-
-pub struct SteamLaunchConfig {
-    pub app_id: String,
-    pub compatdata_path: String,
-    pub proton_path: String,
-    pub steam_client_install_path: String,
-}
-
-pub struct RuntimeLaunchConfig {
-    pub prefix_path: String,
-    pub proton_path: String,
-    pub working_directory: String,
-}
-
-pub struct LaunchOptimizationsRequest {
-    pub enabled_option_ids: Vec<String>,
-}
 ```
 
-**Key methods:**
+Sub-structs:
+
+- `SteamLaunchConfig` (lines 42-51): `app_id`, `compatdata_path`, `proton_path`, `steam_client_install_path`
+- `RuntimeLaunchConfig` (lines 53-61): `prefix_path`, `proton_path`, `working_directory`
+- `LaunchOptimizationsRequest` (lines 63-71): `enabled_option_ids: Vec<String>`
+
+**profile_name gap:** `LaunchRequest` has no `profile_name` field. The name of the profile that produced the request is never propagated into the struct. This is the primary blocker for linking `launch_operations` rows to a `profile_id` in the metadata DB.
+
+The `log_target_slug()` method (lines 104-136) derives a filesystem-safe slug from `steam.app_id` or `game_path`, but this is not the profile name and cannot be used to look up `profile_id`.
+
+### Script Runner (execution flow, outcomes)
+
+**File:** `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`
+
+Four public builder functions — none returns an outcome; they only build a `tokio::process::Command`:
+
+- `build_helper_command(request, script_path, log_path) -> Command` — Steam applaunch path, delegates to a shell script
+- `build_trainer_command(request, script_path, log_path) -> Command` — Steam trainer launch via shell script
+- `build_proton_game_command(request, log_path) -> io::Result<Command>` — Direct Proton execution for game
+- `build_proton_trainer_command(request, log_path) -> io::Result<Command>` — Direct Proton execution for trainer; may stage trainer into prefix
+- `build_native_game_command(request, log_path) -> io::Result<Command>` — Native Linux game execution
+
+Outcome data is only available in the Tauri layer after the child process exits — script_runner itself has no outcome/return-value concept.
+
+### Launch Tauri Commands (signatures, async patterns, hook points)
+
+**File:** `src/crosshook-native/src-tauri/src/commands/launch.rs`
+
+**Public commands registered in `lib.rs`:**
+
+| Command                              | Signature                                                            | Async |
+| ------------------------------------ | -------------------------------------------------------------------- | ----- |
+| `launch_game`                        | `async fn(AppHandle, LaunchRequest) -> Result<LaunchResult, String>` | Yes   |
+| `launch_trainer`                     | `async fn(AppHandle, LaunchRequest) -> Result<LaunchResult, String>` | Yes   |
+| `validate_launch`                    | `fn(LaunchRequest) -> Result<(), LaunchValidationIssue>`             | No    |
+| `preview_launch`                     | `fn(LaunchRequest) -> Result<LaunchPreview, String>`                 | No    |
+| `build_steam_launch_options_command` | `fn(Vec<String>) -> Result<String, String>`                          | No    |
+
+**`LaunchResult` struct (lines 23-27):**
 
 ```rust
-fn resolved_method(&self) -> &str  // resolves ambiguous method to one of the 3 constants
-fn log_target_slug(&self) -> String // slug for log file naming
-fn should_copy_trainer_to_prefix(&self) -> bool
+pub struct LaunchResult {
+    pub succeeded: bool,
+    pub message: String,
+    pub helper_log_path: String,
+}
 ```
 
-**Constants:**
+**Async execution model in `launch_game` / `launch_trainer` (lines 48-123):**
+
+1. Mutate `request` to set `launch_game_only` / `launch_trainer_only`.
+2. Validate request.
+3. Resolve `method` as a `&'static str`.
+4. Create `log_path` via `create_log_path(prefix, slug)`.
+5. Build `Command` via script_runner.
+6. Spawn child process.
+7. Call `spawn_log_stream(app, log_path, child, method)` — this detaches a background async task.
+8. Return `LaunchResult` immediately (fire-and-forget pattern).
+
+**`spawn_log_stream` / `stream_log_lines` (lines 125-230):**
+
+The background task polls the log file and the child exit status every 500ms. When the child exits, it:
+
+- Does a final log tail read.
+- Calls `analyze(exit_status, &log_tail, method)` to produce a `DiagnosticReport`.
+- Emits `"launch-diagnostic"` event if the report should be surfaced.
+- Emits `"launch-complete"` event with `{ code, signal }`.
+
+**Phase 2 hook points:**
+
+- `record_launch_started` should be called in `launch_game` / `launch_trainer` after validation passes and before `command.spawn()` — line ~72 in `launch_game`.
+- `record_launch_finished` should be called inside `stream_log_lines` after the child exits (around line 203), after `exit_code` and `signal` are resolved and before/after `analyze()`.
+- The `operation_id` returned by `record_launch_started` must be threaded from the command function into `spawn_log_stream` and then into `stream_log_lines`. Currently `spawn_log_stream` takes `(app, log_path, child, method)` — a fifth `operation_id: String` parameter would be needed.
+
+**Important constraint:** `launch_game` and `launch_trainer` do not take `State<MetadataStore>` — it is managed via `app.state::<MetadataStore>()` pattern. The `AppHandle` is already available in both commands; `app.state::<MetadataStore>()` can be called without changing signatures.
+
+---
+
+## Export/Launcher APIs
+
+### LauncherStore (full API surface)
+
+**File:** `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs`
+
+Public free functions (no struct — all are module-level):
+
+| Function                            | Signature                                                                                                                                                                                    | Returns                                                      |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `check_launcher_exists`             | `(display_name, steam_app_id, trainer_path, target_home_path, steam_client_install_path) -> Result<LauncherInfo, LauncherStoreError>`                                                        | Checks by deriving slug from fields                          |
+| `check_launcher_exists_for_request` | `(display_name: &str, request: &SteamExternalLauncherExportRequest) -> Result<LauncherInfo, LauncherStoreError>`                                                                             | Full staleness check (script content + Name= comparison)     |
+| `check_launcher_for_profile`        | `(profile: &GameProfile, target_home_path, steam_client_install_path) -> Result<LauncherInfo, LauncherStoreError>`                                                                           | Profile-aware staleness; returns default for `native` method |
+| `delete_launcher_files`             | `(display_name, steam_app_id, trainer_path, target_home_path, steam_client_install_path) -> Result<LauncherDeleteResult, LauncherStoreError>`                                                | Deletes with watermark guard                                 |
+| `delete_launcher_by_slug`           | `(launcher_slug, target_home_path, steam_client_install_path) -> Result<LauncherDeleteResult, LauncherStoreError>`                                                                           | Slug-based delete                                            |
+| `delete_launcher_for_profile`       | `(profile: &GameProfile, target_home_path, steam_client_install_path) -> Result<LauncherDeleteResult, LauncherStoreError>`                                                                   | Profile-aware delete                                         |
+| `rename_launcher_files`             | `(old_slug, new_display_name, new_icon_path, target_home_path, steam_client_install_path, request: &SteamExternalLauncherExportRequest) -> Result<LauncherRenameResult, LauncherStoreError>` | Write-then-delete rename                                     |
+| `list_launchers`                    | `(target_home_path, steam_client_install_path) -> Vec<LauncherInfo>`                                                                                                                         | Directory scan, `is_stale=false`                             |
+
+**`LauncherInfo` struct (lines 28-43):**
 
 ```rust
-pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
-pub const METHOD_PROTON_RUN: &str = "proton_run";
-pub const METHOD_NATIVE: &str = "native";
+pub struct LauncherInfo {
+    pub display_name: String,
+    pub launcher_slug: String,
+    pub script_path: String,
+    pub desktop_entry_path: String,
+    pub script_exists: bool,
+    pub desktop_entry_exists: bool,
+    pub is_stale: bool,
+}
 ```
 
-**What to store in `launch_operations` vs. what NOT to store:**
+**`SteamExternalLauncherExportResult` struct (launcher.rs lines 29-34):**
 
-- ✅ Store: `method`, `game_path`, `trainer_path`, `steam.app_id`, `launch_game_only`, `launch_trainer_only`, started/ended timestamps, exit code, signal
-- ❌ Never store: full CLI argument lists, `steam.compatdata_path`, `steam.proton_path`, `runtime.*`, `optimizations.enabled_option_ids`, environment variables (potential credential leakage)
-
-### 3.2 Launch Flow and Event Emission
-
-**`launch_game` / `launch_trainer`** (both `async fn` in `commands/launch.rs`):
-
-1. Set `launch_game_only` / `launch_trainer_only` on request
-2. Call `validate()` — synchronous
-3. Resolve method → build command
-4. Spawn child process
-5. Call `spawn_log_stream(app, log_path, child, method)` — spawns background task
-
-**`stream_log_lines`** (background async fn — metadata hook insertion point):
-
-```
-loop:
-  → read log file → emit "launch-log" events
-  → check child.try_wait()
-  → sleep 500ms
-
-on process exit:
-  → final log read + emit remaining "launch-log" events
-  → extract exit_code (status.code()) and signal (status.signal())
-  → read log tail via safe_read_tail()
-  → call analyze(exit_status, &log_tail, method) → DiagnosticReport
-  → sanitize_diagnostic_report(report)
-  → if should_surface_report(&report): emit "launch-diagnostic" event
-  → emit "launch-complete" { code, signal }
+```rust
+pub struct SteamExternalLauncherExportResult {
+    pub display_name: String,
+    pub launcher_slug: String,
+    pub script_path: String,
+    pub desktop_entry_path: String,
+}
 ```
 
-**Metadata hook for launch must use `tokio::task::spawn_blocking`** because `rusqlite` is synchronous and `stream_log_lines` runs in an async context.
+### Launcher Generation (slug, paths)
 
-**Proposed insertion in `stream_log_lines`**:
+**File:** `src/crosshook-native/crates/crosshook-core/src/export/launcher.rs`
 
-```
-// After line 204 (exit_status extraction), before emit:
-// 1. record_launch_started() called in launch_game/launch_trainer at start of launch
-// 2. record_launch_finished(operation_id, exit_code, signal, &report) called here
-```
+Slug derivation: `sanitize_launcher_slug(value: &str) -> String` (line 265).
 
-**`DiagnosticReport`** (`crates/crosshook-core/src/launch/diagnostics/models.rs`):
+- Maps characters to lowercase ASCII alphanumeric, collapses non-alnum runs to `-`, trims leading/trailing `-`.
+- Falls back to `"crosshook-trainer"` for blank input.
+
+Path pattern:
+
+- Script: `{home}/.local/share/crosshook/launchers/{slug}-trainer.sh`
+- Desktop: `{home}/.local/share/applications/crosshook-{slug}-trainer.desktop`
+
+Display name resolution: `resolve_display_name(preferred_name, steam_app_id, trainer_path)` (line 230) — uses `preferred_name` first, then trainer file stem, then `app-{steam_app_id}`.
+
+Export entry point: `export_launchers(request: &SteamExternalLauncherExportRequest) -> Result<SteamExternalLauncherExportResult, SteamExternalLauncherExportError>` (line 175).
+
+### Export Tauri Commands (signatures, hook points)
+
+**File:** `src/crosshook-native/src-tauri/src/commands/export.rs`
+
+| Command                      | Signature                                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------------------------- |
+| `export_launchers`           | `fn(SteamExternalLauncherExportRequest) -> Result<SteamExternalLauncherExportResult, String>` |
+| `validate_launcher_export`   | `fn(SteamExternalLauncherExportRequest) -> Result<(), String>`                                |
+| `check_launcher_exists`      | `fn(SteamExternalLauncherExportRequest) -> Result<LauncherInfo, String>`                      |
+| `check_launcher_for_profile` | `fn(String, State<ProfileStore>) -> Result<LauncherInfo, String>`                             |
+| `delete_launcher`            | `fn(String, String, String, String, String) -> Result<LauncherDeleteResult, String>`          |
+| `delete_launcher_by_slug`    | `fn(String, String, String) -> Result<LauncherDeleteResult, String>`                          |
+| `rename_launcher`            | `fn(String × 10) -> Result<LauncherRenameResult, String>`                                     |
+| `list_launchers`             | `fn(String, String) -> Vec<LauncherInfo>`                                                     |
+| `find_orphaned_launchers`    | `fn(Vec<String>, String, String) -> Vec<LauncherInfo>`                                        |
+| `preview_launcher_script`    | `fn(SteamExternalLauncherExportRequest) -> Result<String, String>`                            |
+| `preview_launcher_desktop`   | `fn(SteamExternalLauncherExportRequest) -> Result<String, String>`                            |
+
+**Phase 2 hook points for `observe_launcher_exported`:**
+
+- `export_launchers` command (line 20): After `export_launchers_core(&request)` returns `Ok(result)`, call `observe_launcher_exported(profile_name, &result.launcher_slug, &result.script_path, &result.desktop_entry_path)`.
+- **Gap:** The `export_launchers` command takes a `SteamExternalLauncherExportRequest` — it has `launcher_name` but no `profile_name`. The profile name must be added to the request struct or passed as a separate parameter to know which `profile_id` to associate.
+- `export_launchers` is currently a synchronous free function with no `State` parameters — adding `State<MetadataStore>` requires also adding it to the command signature and ensuring it is managed (it already is in `lib.rs:80`).
+
+---
+
+## Diagnostics APIs
+
+### DiagnosticReport (struct, fields, serialization)
+
+**File:** `src/crosshook-native/crates/crosshook-core/src/launch/diagnostics/models.rs`
 
 ```rust
 pub struct DiagnosticReport {
-    pub severity: ValidationSeverity,     // Fatal | Warning | Info
+    pub severity: ValidationSeverity,       // Fatal | Warning | Info
     pub summary: String,
     pub exit_info: ExitCodeInfo,
     pub pattern_matches: Vec<PatternMatch>,
     pub suggestions: Vec<ActionableSuggestion>,
     pub launch_method: String,
     pub log_tail_path: Option<String>,
-    pub analyzed_at: String,
+    pub analyzed_at: String,               // RFC 3339 timestamp
 }
 
 pub struct ExitCodeInfo {
@@ -525,13 +217,6 @@ pub struct ExitCodeInfo {
     pub failure_mode: FailureMode,
     pub description: String,
     pub severity: ValidationSeverity,
-}
-
-pub enum FailureMode {
-    CleanExit, NonZeroExit, Segfault, Abort, Kill, BusError,
-    IllegalInstruction, FloatingPointException, BrokenPipe,
-    Terminated, CommandNotFound, PermissionDenied, UnknownSignal,
-    Indeterminate, Unknown,
 }
 
 pub struct PatternMatch {
@@ -549,240 +234,216 @@ pub struct ActionableSuggestion {
 }
 ```
 
-**Constants in diagnostics:**
+Serde: All structs derive `Serialize, Deserialize`. `FailureMode` uses `#[serde(rename_all = "snake_case")]`.
 
-```rust
-pub const MAX_LOG_TAIL_BYTES: u64 = 2 * 1024 * 1024;  // 2 MB
-pub const MAX_DIAGNOSTIC_ENTRIES: usize = 50;
-pub const MAX_LINE_DISPLAY_CHARS: usize = 500;
-```
+### FailureMode Enum
 
-**Sanitization** (`sanitize_display_path` in `commands/launch.rs:301-306`):
+14 variants (line 34-50): `CleanExit`, `NonZeroExit`, `Segfault`, `Abort`, `Kill`, `BusError`, `IllegalInstruction`, `FloatingPointException`, `BrokenPipe`, `Terminated`, `CommandNotFound`, `PermissionDenied`, `UnknownSignal`, `Indeterminate`, `Unknown`.
 
-- Replaces `$HOME` prefix with `~` in string paths
-- Applied to `report.summary`, `report.exit_info.description`, `report.launch_method`, `report.log_tail_path`, pattern match strings, and suggestion strings
-- Must be applied before storing to SQLite (store sanitized versions)
+### Size Estimation
 
-### 3.3 Log Path Creation
+Constants (models.rs lines 5-7):
 
-**`create_log_path(kind, slug)`** (from `commands/shared.rs`):
+- `MAX_LOG_TAIL_BYTES = 2 * 1024 * 1024` (2MB) — the log tail passed to `analyze()`
+- `MAX_DIAGNOSTIC_ENTRIES = 50` — max `pattern_matches` / `suggestions` entries
+- `MAX_LINE_DISPLAY_CHARS = 500`
 
-- Creates timestamped log files in the app data log directory
-- Path stored in `LaunchResult.helper_log_path` — this is what `launch_operations.log_path` stores
+**Estimated serialized size of `DiagnosticReport`:**
+A typical report has:
 
----
+- `summary`: ~100 chars
+- `exit_info`: ~200 chars (description, code, signal fields)
+- `pattern_matches`: 0–3 common matches × ~300 chars each = ~900 chars
+- `suggestions`: same as pattern_matches × ~300 chars = ~900 chars
+- `analyzed_at`: ~30 chars
+- Structural JSON overhead: ~300 chars
 
-## 4. Filesystem Layout
-
-All paths use XDG conventions via `directories::BaseDirs`.
-
-### 4.1 Config Directory (`~/.config/crosshook/`)
-
-| Path                                  | Purpose                                                               | Authority                     |
-| ------------------------------------- | --------------------------------------------------------------------- | ----------------------------- |
-| `~/.config/crosshook/profiles/*.toml` | GameProfile TOML files (one per profile, filename = profile name)     | **Filesystem/TOML canonical** |
-| `~/.config/crosshook/settings.toml`   | `AppSettingsData` (auto_load, last_used_profile, community_taps list) | Filesystem canonical          |
-
-**ProfileStore base**: `BaseDirs::config_dir().join("crosshook/profiles")`
-**SettingsStore base**: `BaseDirs::config_dir().join("crosshook")`
-
-### 4.2 Data Directory (`~/.local/share/crosshook/`)
-
-| Path                                       | Purpose                                                              | Authority            |
-| ------------------------------------------ | -------------------------------------------------------------------- | -------------------- |
-| `~/.local/share/crosshook/metadata.db`     | **SQLite database** (target location for new feature)                | SQLite canonical     |
-| `~/.local/share/crosshook/metadata.db-wal` | WAL sidecar — created automatically in WAL mode                      | SQLite managed       |
-| `~/.local/share/crosshook/metadata.db-shm` | WAL shared memory — created automatically                            | SQLite managed       |
-| `~/.local/share/crosshook/community/taps/` | CommunityTapStore base (one subdirectory per tap, named by URL slug) | Filesystem canonical |
-| `~/.local/share/crosshook/launchers/`      | Exported trainer launcher `.sh` scripts                              | Filesystem canonical |
-| `~/.local/share/crosshook/recent.toml`     | RecentFilesData (game/trainer/dll paths)                             | Filesystem canonical |
-
-**CommunityTapStore base**: `BaseDirs::data_local_dir().join("crosshook/community/taps")`
-**RecentFilesStore path**: `BaseDirs::data_local_dir().join("crosshook/recent.toml")`
-
-### 4.3 Desktop Entries (`~/.local/share/applications/`)
-
-| Path Pattern                                                   | Purpose                        | Authority            |
-| -------------------------------------------------------------- | ------------------------------ | -------------------- |
-| `~/.local/share/applications/crosshook-{slug}-trainer.desktop` | XDG desktop entry for launcher | Filesystem canonical |
-
-### 4.4 Log Files
-
-Log files are written during launch. Path stored in `LaunchResult.helper_log_path`. Exact directory determined by `commands/shared.rs:create_log_path`. Full path format: `{log_dir}/{kind}-{slug}-{timestamp}.log`.
-
-### 4.5 Security Constraints for DB File
-
-Per the feature spec security requirements:
-
-- `metadata.db` must be created with permissions `0600` (via `set_permissions()` after `Connection::open()`)
-- Parent directory `~/.local/share/crosshook/` must be `0700`
-- Before opening: verify path is a regular file (not a symlink) via `symlink_metadata()`
-- WAL (`.db-wal`) and SHM (`.db-shm`) sidecars inherit directory permissions
+Total typical: **~2,500 bytes (well under 4KB)**. A worst-case maximum of 50 pattern_matches × 500 chars for `matched_line` + overhead approaches ~30KB. The feature spec's 4KB diagnostic_json cap therefore requires truncation or pre-serialization size checking before inserting. The sanitized report (with paths stripped) will be smaller.
 
 ---
 
-## 5. Community System
+## Current Metadata Module API
 
-### 5.1 `CommunityTapSubscription` (authoritative source: `AppSettingsData.community_taps`)
+### MetadataStore Public Methods
+
+**File:** `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs`
 
 ```rust
-pub struct CommunityTapSubscription {
-    pub url: String,           // git repository URL
-    pub branch: Option<String>, // None → uses "main"
+impl MetadataStore {
+    pub fn try_new() -> Result<Self, String>
+    pub fn with_path(path: &Path) -> Result<Self, MetadataStoreError>
+    pub fn open_in_memory() -> Result<Self, MetadataStoreError>
+    pub fn disabled() -> Self
+
+    pub fn observe_profile_write(
+        &self,
+        name: &str,
+        profile: &GameProfile,
+        path: &Path,
+        source: SyncSource,
+        source_profile_id: Option<&str>,
+    ) -> Result<(), MetadataStoreError>
+
+    pub fn lookup_profile_id(
+        &self,
+        name: &str,
+    ) -> Result<Option<String>, MetadataStoreError>
+
+    pub fn observe_profile_rename(
+        &self,
+        old_name: &str,
+        new_name: &str,
+        old_path: &Path,
+        new_path: &Path,
+    ) -> Result<(), MetadataStoreError>
+
+    pub fn observe_profile_delete(
+        &self,
+        name: &str,
+    ) -> Result<(), MetadataStoreError>
+
+    pub fn sync_profiles_from_store(
+        &self,
+        store: &ProfileStore,
+    ) -> Result<SyncReport, MetadataStoreError>
 }
 ```
 
-**SQLite mirror** (`community_taps` table): Keyed on `(tap_url, tap_branch)` composite — matches the subscription identity. SQLite mirrors sync state and catalog cache only; it never adds or removes subscriptions (TOML is authoritative).
+Internal dispatch via `with_conn(&self, action: &'static str, f: F)` (lines 56-73):
 
-**Deduplication**: `community_add_tap` in `commands/community.rs` deduplicates by `(url, branch)` before persisting.
+- No-ops when `available = false` (disabled store), returning `T::default()`.
+- Locks `Arc<Mutex<Connection>>` before executing.
 
-### 5.2 `CommunityTapSyncResult` (produced by `sync_many`)
+### Profile ID Resolution Pattern
+
+`lookup_profile_id` (mod.rs line 95) queries `profiles WHERE current_filename = ?1 AND deleted_at IS NULL`. Returns `Option<String>`.
+
+In `profile_sync.rs` (line 72-86), the underlying SQL is:
+
+```sql
+SELECT profile_id FROM profiles WHERE current_filename = ?1 AND deleted_at IS NULL
+```
+
+For Phase 2: to insert a `launch_operations` row, the implementation must call `lookup_profile_id(profile_name)` to get the `profile_id`, then use that FK. If the profile is not yet in the metadata DB (possible on first launch before a profile_save), `lookup_profile_id` returns `None` and the operation should either be recorded with `profile_id = NULL` or skipped.
+
+### SyncSource Variants
+
+**File:** `src/crosshook-native/crates/crosshook-core/src/metadata/models.rs:70-79`
 
 ```rust
-pub struct CommunityTapSyncResult {
-    pub workspace: CommunityTapWorkspace,
-    pub status: CommunityTapSyncStatus,  // Cloned | Updated
-    pub head_commit: String,             // SHA from `git rev-parse HEAD`
-    pub index: CommunityProfileIndex,    // full parsed index for this tap
+pub enum SyncSource {
+    AppWrite,
+    AppRename,
+    AppDuplicate,
+    AppDelete,
+    FilesystemScan,
+    Import,
+    InitialCensus,
 }
 ```
 
-**Key integration decision**: `head_commit` enables idempotent re-indexing. When `community_sync` runs:
-
-1. Compare each result's `head_commit` against `community_taps.last_synced_commit` in SQLite
-2. Only update `community_profiles` rows for taps where HEAD changed
-3. Update `community_taps.last_synced_commit` and `last_synced_at` for all synced taps
-
-### 5.3 `CommunityProfileIndex` and `CommunityProfileIndexEntry`
-
-```rust
-pub struct CommunityProfileIndex {
-    pub entries: Vec<CommunityProfileIndexEntry>,
-    pub diagnostics: Vec<String>,         // non-fatal parse warnings
-}
-
-pub struct CommunityProfileIndexEntry {
-    pub tap_url: String,
-    pub tap_branch: Option<String>,
-    pub tap_path: PathBuf,                // absolute local path to tap workspace
-    pub manifest_path: PathBuf,           // absolute path to community-profile.json
-    pub relative_path: PathBuf,           // relative to tap root, e.g. "profiles/elden-ring/community-profile.json"
-    pub manifest: CommunityProfileManifest,
-}
-```
-
-**Manifest scanning**: `index_tap` in `community/index.rs` walks the tap workspace recursively, collecting all `community-profile.json` files. Skips hidden directories, skips manifests with `schema_version != 1`.
-
-### 5.4 `CommunityProfileManifest` and `CommunityProfileMetadata`
-
-```rust
-pub struct CommunityProfileManifest {
-    pub schema_version: u32,              // currently 1
-    pub metadata: CommunityProfileMetadata,
-    pub profile: GameProfile,             // embedded profile — NOT stored in SQLite
-}
-
-pub struct CommunityProfileMetadata {
-    pub game_name: String,
-    pub game_version: String,
-    pub trainer_name: String,
-    pub trainer_version: String,
-    pub proton_version: String,
-    pub platform_tags: Vec<String>,       // stored as JSON array in community_profiles
-    pub compatibility_rating: CompatibilityRating,
-    pub author: String,
-    pub description: String,
-}
-
-pub enum CompatibilityRating {
-    Unknown, Broken, Partial, Working, Platinum,
-}
-```
-
-**Serialized as snake_case** (`#[serde(rename_all = "snake_case")]` on `CompatibilityRating`).
-
-**Community profile files are JSON** (`community-profile.json`), not TOML. `CommunityProfileManifest` is serialized with `serde_json`.
-
-**SQLite storage** (`community_profiles` table): Only metadata fields are stored — never the embedded `GameProfile` (which is stored on disk in the tap workspace). `platform_tags` stored as JSON array string.
-
-### 5.5 Community Import Flow
-
-`community_import_profile` in `commands/community.rs`:
-
-1. Validates the import path is inside a known tap workspace
-2. Calls `import_community_profile(import_path, &profile_store.base_path)` from `crosshook_core::profile`
-3. Returns `CommunityImportResult`
-
-**Metadata hook**: After successful `community_import_profile`, create a new profile identity with source tagged as `"import"` in `profile_name_history.source`.
+Phase 2 does not require new `SyncSource` variants — launcher and launch operation events are distinct tables, not profile sync events.
 
 ---
 
-## 6. Tauri State Setup (`src-tauri/src/lib.rs`)
+## LaunchRequest.profile_name Gap Analysis
 
-Current managed state (lines 62-66):
+### Current State
 
-```rust
-.manage(profile_store)          // ProfileStore
-.manage(settings_store)         // SettingsStore
-.manage(recent_files_store)     // RecentFilesStore
-.manage(community_tap_store)    // CommunityTapStore
-.manage(commands::update::UpdateProcessState::new())
-```
+`LaunchRequest` is constructed entirely from profile data in the frontend (`ProfileEditor.tsx` / `LaunchPanel.tsx`) before being sent via IPC. The Tauri commands `launch_game` and `launch_trainer` receive the deserialized struct with no profile name context.
 
-**MetadataStore addition**:
+The test fixtures in `script_runner.rs` (lines 353-371) confirm the struct's fields — there is no `profile_name` anywhere.
 
-```rust
-.manage(metadata_store)         // Option<MetadataStore> — fail-soft; None if DB unavailable
-```
+### Required Changes
 
-MetadataStore must implement `Clone + Send + Sync`. Internal connection uses `Arc<Mutex<Connection>>` pattern.
+Two options:
 
-**Startup sequence** (`startup.rs`): Currently `resolve_auto_load_profile_name` → emits `"auto-load-profile"` event. MetadataStore initialization should happen in `run()` before `.manage()`. A full startup sync scan (`sync_profiles_from_store`) should be scheduled as a background task after the app setup completes, consistent with the existing pattern of spawning async tasks in the setup closure.
+**Option A — Add `profile_name: Option<String>` to `LaunchRequest`:**
 
----
+- Add `#[serde(default)]` field to `LaunchRequest`.
+- The frontend must populate it from the active profile name before calling `invoke("launch_game", ...)`.
+- In `launch_game` / `launch_trainer`, read `request.profile_name.as_deref()` to call `record_launch_started`.
+- Downstream: no existing callers break because `#[serde(default)]` means the field is optional in serialization.
 
-## 7. Edge Cases and Gotchas
+**Option B — Pass profile_name as a separate IPC parameter:**
 
-- **`list_launchers` sets `is_stale = false`**: The function does not have profile context, so staleness cannot be computed. Only `check_launcher_exists` / `check_launcher_exists_for_request` set `is_stale` accurately. Metadata bulk sync from `list_launchers` should record `is_stale = false` without overwriting values computed via `check_launcher_exists`.
+- Add `profile_name: Option<String>` as an extra argument to `launch_game` and `launch_trainer`.
+- Tauri IPC supports multiple parameters: `invoke("launch_game", { request: {...}, profileName: "foo" })`.
+- Cleaner separation: LaunchRequest stays a pure launch-config struct.
 
-- **Launcher paths are home-relative**: `derive_launcher_paths` calls `resolve_target_home_path` which falls back to `$HOME` when `target_home_path` and `steam_client_install_path` are both empty. SQLite must store absolute paths after resolution, not the raw inputs.
+Option B is architecturally cleaner (avoids polluting a data transfer struct with identity concerns) but requires frontend changes to `invoke()` calls. Option A requires fewer changes and is fully backwards compatible.
 
-- **Watermark verification before marking owned**: `delete_launcher_at_paths` verifies both watermarks before deleting. Metadata should never record an artifact as CrossHook-managed if the watermark check would fail. The `script_skipped_reason` / `desktop_entry_skipped_reason` fields on `LauncherDeleteResult` indicate when watermark verification failed.
+### Downstream Effects of Adding the Field
 
-- **`profile_rename` has a `had_launcher` return value**: The `bool` returned indicates whether a launcher existed before the rename. The Tauri command does launcher cleanup internally; the metadata hook runs after the rename and can use this information to decide whether to update launcher observations.
+If Option A (add to struct):
 
-- **`stream_log_lines` completion is async**: Metadata writes for `record_launch_finished` must use `tokio::task::spawn_blocking` to avoid blocking the async runtime. The `operation_id` (from `record_launch_started`) must be threaded through the async context.
-
-- **`community_sync` returns `Vec<CommunityTapSyncResult>`**: The full index is embedded in each result. Metadata indexing iterates this result set — no second pass is needed.
-
-- **`community_list_profiles` does NOT call `sync_many`**: It only calls `index_workspaces` on already-resolved workspaces. It will not trigger metadata sync. Only `community_sync` triggers tap sync and should trigger metadata updates.
-
-- **Schema version check in `index_tap`**: Manifests with `schema_version != 1` are skipped with a diagnostic message. Metadata indexing should replicate this behavior — do not insert `community_profiles` rows for unsupported schema versions.
-
-- **`CommunityTapStore` base path**: Uses `data_local_dir()` (not `config_dir()`). The per-tap workspace directory name is derived by `CommunityTapSubscription::directory_name()` (URL + branch slugified). The actual directory name is not stable if the URL changes — SQLite should key on `(tap_url, tap_branch)`, not on the directory name.
-
-- **`validate_name` is a public function**: Both `ProfileStore` and the new metadata module should call `validate_name` when resolving stored name values for filesystem operations. Never assume a name stored in SQLite has already been validated.
+- `request.rs`: Add `pub profile_name: Option<String>` with `#[serde(default)]`.
+- `LaunchRequest::Default` still works (field defaults to `None`).
+- Test fixtures in `script_runner.rs` (struct-literal construction at lines 353, 406, 498, etc.) all need `profile_name: None` added — these are in test code only, not public API.
+- No existing `script_runner.rs` command-building functions use `profile_name`, so no functional changes cascade.
+- Frontend `useLaunchState.ts` / `LaunchPanel.tsx` must populate the field.
 
 ---
 
-## Relevant Files
+## Startup Integration
 
-| File                                                                          | Description                                                                               |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `src/crosshook-native/src-tauri/src/commands/profile.rs`                      | Profile Tauri commands — all sync hooks fire here                                         |
-| `src/crosshook-native/src-tauri/src/commands/export.rs`                       | Launcher Tauri commands — launcher sync hooks fire here                                   |
-| `src/crosshook-native/src-tauri/src/commands/launch.rs`                       | Launch commands + `stream_log_lines` — launch history hooks fire here                     |
-| `src/crosshook-native/src-tauri/src/commands/community.rs`                    | Community tap commands — tap index sync fires here                                        |
-| `src/crosshook-native/src-tauri/src/lib.rs`                                   | Tauri app setup — MetadataStore added to `.manage()` here                                 |
-| `src/crosshook-native/src-tauri/src/startup.rs`                               | Startup profile resolution — startup reconciliation scan added here                       |
-| `src/crosshook-native/crates/crosshook-core/src/profile/toml_store.rs`        | ProfileStore API + `validate_name` + `DuplicateProfileResult`                             |
-| `src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs`     | Launcher free functions + `LauncherInfo`, `LauncherDeleteResult`, `LauncherRenameResult`  |
-| `src/crosshook-native/crates/crosshook-core/src/export/launcher.rs`           | `SteamExternalLauncherExportRequest`, `sanitize_launcher_slug`, path derivation           |
-| `src/crosshook-native/crates/crosshook-core/src/launch/request.rs`            | `LaunchRequest`, `SteamLaunchConfig`, method constants                                    |
-| `src/crosshook-native/crates/crosshook-core/src/launch/diagnostics/models.rs` | `DiagnosticReport`, `ExitCodeInfo`, `FailureMode`, `PatternMatch`, `ActionableSuggestion` |
-| `src/crosshook-native/crates/crosshook-core/src/community/taps.rs`            | `CommunityTapStore`, `CommunityTapSubscription`, `CommunityTapSyncResult`                 |
-| `src/crosshook-native/crates/crosshook-core/src/community/index.rs`           | `CommunityProfileIndex`, `CommunityProfileIndexEntry`, `index_tap`, `index_taps`          |
-| `src/crosshook-native/crates/crosshook-core/src/profile/community_schema.rs`  | `CommunityProfileManifest`, `CommunityProfileMetadata`, `CompatibilityRating`             |
-| `src/crosshook-native/crates/crosshook-core/src/settings/mod.rs`              | `SettingsStore`, `AppSettingsData`                                                        |
-| `src/crosshook-native/crates/crosshook-core/src/settings/recent.rs`           | `RecentFilesStore`, `RecentFilesData`                                                     |
-| `src/crosshook-native/crates/crosshook-core/src/lib.rs`                       | Module root — `pub mod metadata;` added here                                              |
+### Current Flow
+
+**File:** `src/crosshook-native/src-tauri/src/startup.rs`
+
+`run_metadata_reconciliation(metadata_store, profile_store)` (line 43-56):
+
+- Calls `metadata_store.sync_profiles_from_store(profile_store)`.
+- Logs `created` and `updated` counts.
+- Returns `Result<(), StartupError>`.
+
+Called from `lib.rs:53-57` inside the `.setup()` closure (synchronous, before the Tauri event loop).
+
+`resolve_auto_load_profile_name(settings_store, profile_store)` (line 58-88):
+
+- Reads settings, checks for a valid `last_used_profile`, verifies it exists in the profile list.
+- Returns `Option<String>`.
+
+`StartupError` (lines 7-41) wraps `MetadataStoreError`, `SettingsStoreError`, `ProfileStoreError`.
+
+### Abandoned Operation Sweep Placement
+
+The abandoned operation sweep (marking `launch_operations` rows with `outcome = 'abandoned'` where `ended_at IS NULL`) should run in the startup sequence **after** `run_metadata_reconciliation` and **before** the Tauri event loop starts accepting IPC calls.
+
+Concretely, add a `sweep_abandoned_operations(metadata_store: &MetadataStore) -> Result<(), MetadataStoreError>` function to `startup.rs`. Call it from `lib.rs` in the `.setup()` closure, after line 57, following the pattern:
+
+```rust
+if let Err(error) = startup::sweep_abandoned_operations(&metadata_for_startup) {
+    tracing::warn!(%error, "startup abandoned operation sweep failed");
+}
+```
+
+Non-fatal: consistent with the existing pattern — metadata failures warn but do not abort startup.
+
+The sweep SQL would be:
+
+```sql
+UPDATE launch_operations
+SET outcome = 'abandoned', ended_at = ?1
+WHERE ended_at IS NULL AND outcome IS NULL
+```
+
+This is safe to run before the event loop because no async launch tasks can be in-flight yet at that point in `setup()`.
+
+---
+
+## Key Findings Summary
+
+1. **`LaunchRequest` has no `profile_name` field** — this is the primary structural gap. Adding `Option<String>` with `#[serde(default)]` is backwards compatible and requires minimal upstream changes.
+
+2. **`record_launch_started` / `record_launch_finished` hook points** are in `src-tauri/src/commands/launch.rs`: started just before `command.spawn()` (around line 72), finished inside `stream_log_lines` after child exit (around line 203). `operation_id` must be threaded from the command into the background task.
+
+3. **`observe_launcher_exported` hook point** is in `src-tauri/src/commands/export.rs` inside `export_launchers` (line 20), after a successful `export_launchers_core` call. The export command needs a `profile_name` parameter added (same gap as launch).
+
+4. **`MetadataStore` is already managed Tauri state** (lib.rs:80) — can be accessed via `app.state::<MetadataStore>()` from `AppHandle` in both async launch commands without signature changes.
+
+5. **`DiagnosticReport` typically serializes to ~2.5KB** — under the 4KB limit for typical runs; worst-case with 50 pattern_matches may exceed 4KB and needs truncation logic.
+
+6. **`db::new_id()`** (db.rs:64) generates UUID v4 strings — Phase 2 `operation_id` should use the same helper for `launch_operations.id`.
+
+7. **Startup sweep placement** is straightforward — add after `run_metadata_reconciliation` in the `.setup()` closure; non-fatal, consistent with existing error-handling pattern.
