@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
 
 import type { HealthCheckSummary, ProfileHealthReport } from "../types";
+import { countProfileStatuses } from "../utils/health";
 
 type HealthStatus = "idle" | "loading" | "loaded" | "error";
 
@@ -24,27 +26,6 @@ const initialState: ProfileHealthState = {
   summary: null,
   error: null,
 };
-
-function recomputeCounts(profiles: ProfileHealthReport[]): Pick<
-  HealthCheckSummary,
-  "healthy_count" | "stale_count" | "broken_count" | "total_count"
-> {
-  let healthy_count = 0;
-  let stale_count = 0;
-  let broken_count = 0;
-
-  for (const profile of profiles) {
-    if (profile.status === "healthy") {
-      healthy_count++;
-    } else if (profile.status === "stale") {
-      stale_count++;
-    } else if (profile.status === "broken") {
-      broken_count++;
-    }
-  }
-
-  return { healthy_count, stale_count, broken_count, total_count: profiles.length };
-}
 
 function reducer(state: ProfileHealthState, action: ProfileHealthAction): ProfileHealthState {
   switch (action.type) {
@@ -69,7 +50,7 @@ function reducer(state: ProfileHealthState, action: ProfileHealthAction): Profil
               p.name === action.report.name ? action.report : p
             );
 
-      const counts = recomputeCounts(updatedProfiles);
+      const counts = countProfileStatuses(updatedProfiles);
 
       return {
         ...state,
@@ -126,14 +107,23 @@ export function useProfileHealth() {
   }, []);
 
   useEffect(() => {
+    let active = true;
     const controller = new AbortController();
     void batchValidate(controller.signal);
 
-    // Cleanup: abort signal guards against dispatch after unmount.
-    // Phase C will add listen("profile-health-batch-complete") here
-    // with the unlisten() cleanup pattern from useLaunchState.
+    const unlistenBatchComplete = listen<HealthCheckSummary>(
+      "profile-health-batch-complete",
+      (event) => {
+        if (active) {
+          dispatch({ type: "batch-complete", summary: event.payload });
+        }
+      }
+    );
+
     return () => {
+      active = false;
       controller.abort();
+      void unlistenBatchComplete.then((unlisten) => unlisten());
     };
   }, [batchValidate]);
 
