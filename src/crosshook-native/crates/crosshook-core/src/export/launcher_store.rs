@@ -309,6 +309,7 @@ pub fn check_launcher_for_profile(
             steam_app_id: profile.steam.app_id.clone(),
             steam_client_install_path: steam_client_install_path.to_string(),
             target_home_path: target_home_path.to_string(),
+            profile_name: None,
         },
     )
 }
@@ -745,6 +746,7 @@ mod tests {
             steam_app_id: String::new(),
             steam_client_install_path: String::new(),
             target_home_path: String::new(),
+            profile_name: None,
         }
     }
 
@@ -798,6 +800,7 @@ mod tests {
             steam_app_id: String::new(),
             steam_client_install_path: String::new(),
             target_home_path: home.clone(),
+            profile_name: None,
         };
 
         let info = check_launcher_exists_for_request(display_name, &request)
@@ -1084,6 +1087,7 @@ mod tests {
                 steam_app_id: profile.steam.app_id.clone(),
                 steam_client_install_path: String::new(),
                 target_home_path: home.clone(),
+                profile_name: None,
             },
         )
         .expect("check launcher exists for explicit steam request");

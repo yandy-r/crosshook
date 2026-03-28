@@ -13,6 +13,7 @@ use crosshook_core::launch::{
     validate, DiagnosticReport, LaunchPreview, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE,
     METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
+use crosshook_core::metadata::MetadataStore;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
@@ -73,7 +74,17 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
         .spawn()
         .map_err(|error| format!("failed to launch helper: {error}"))?;
 
-    spawn_log_stream(app, log_path.clone(), child, method);
+    let metadata_store = app.state::<MetadataStore>().inner().clone();
+    let sanitized_log_path = sanitize_display_path(&log_path.to_string_lossy());
+    let operation_id = record_launch_start(
+        &metadata_store,
+        request.profile_name.as_deref(),
+        method,
+        &sanitized_log_path,
+    )
+    .await;
+
+    spawn_log_stream(app, log_path.clone(), child, method, metadata_store, operation_id);
 
     Ok(LaunchResult {
         succeeded: true,
@@ -113,7 +124,17 @@ pub async fn launch_trainer(
         .spawn()
         .map_err(|error| format!("failed to launch trainer helper: {error}"))?;
 
-    spawn_log_stream(app, log_path.clone(), child, method);
+    let metadata_store = app.state::<MetadataStore>().inner().clone();
+    let sanitized_log_path = sanitize_display_path(&log_path.to_string_lossy());
+    let operation_id = record_launch_start(
+        &metadata_store,
+        request.profile_name.as_deref(),
+        method,
+        &sanitized_log_path,
+    )
+    .await;
+
+    spawn_log_stream(app, log_path.clone(), child, method, metadata_store, operation_id);
 
     Ok(LaunchResult {
         succeeded: true,
@@ -127,9 +148,11 @@ fn spawn_log_stream(
     log_path: PathBuf,
     child: tokio::process::Child,
     method: &'static str,
+    metadata_store: MetadataStore,
+    operation_id: Option<String>,
 ) {
     let handle = tauri::async_runtime::spawn(async move {
-        stream_log_lines(app, log_path, child, method).await;
+        stream_log_lines(app, log_path, child, method, metadata_store, operation_id).await;
     });
 
     tauri::async_runtime::spawn(async move {
@@ -139,11 +162,43 @@ fn spawn_log_stream(
     });
 }
 
+async fn record_launch_start(
+    metadata_store: &MetadataStore,
+    profile_name: Option<&str>,
+    method: &'static str,
+    log_path: &str,
+) -> Option<String> {
+    let ms_clone = metadata_store.clone();
+    let pn = profile_name.map(str::to_owned);
+    let lp = log_path.to_string();
+    let operation_id: String =
+        tauri::async_runtime::spawn_blocking(move || {
+            ms_clone.record_launch_started(pn.as_deref(), method, Some(&lp))
+        })
+        .await
+        .unwrap_or_else(|e| {
+            tracing::warn!("metadata spawn_blocking join failed: {e}");
+            Ok(String::new())
+        })
+        .unwrap_or_else(|e| {
+            tracing::warn!(%e, "record_launch_started failed");
+            String::new()
+        });
+
+    if operation_id.is_empty() {
+        None
+    } else {
+        Some(operation_id)
+    }
+}
+
 async fn stream_log_lines(
     app: AppHandle,
     log_path: PathBuf,
     mut child: tokio::process::Child,
     method: &'static str,
+    metadata_store: MetadataStore,
+    operation_id: Option<String>,
 ) {
     let mut last_len = 0usize;
     let mut exit_status: Option<std::process::ExitStatus> = None;
@@ -211,6 +266,23 @@ async fn stream_log_lines(
     let mut report = analyze(exit_status, &log_tail, method);
     report.log_tail_path = Some(sanitize_display_path(&log_path.to_string_lossy()));
     let report = sanitize_diagnostic_report(report);
+
+    if let Some(ref op_id) = operation_id {
+        let ms = metadata_store.clone();
+        let op = op_id.clone();
+        let ec = exit_code;
+        let sig = signal;
+        let rpt = report.clone();
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            if let Err(e) = ms.record_launch_finished(&op, ec, sig, &rpt) {
+                tracing::warn!(%e, operation_id = %op, "record_launch_finished failed");
+            }
+        })
+        .await;
+        if let Err(e) = result {
+            tracing::warn!(%e, operation_id = %op_id, "record_launch_finished join failed");
+        }
+    }
 
     if should_surface_report(&report) {
         if let Err(error) = app.emit("launch-diagnostic", &report) {
