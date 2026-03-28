@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import type { CachedHealthSnapshot, HealthCheckSummary, HealthStatus, ProfileHealthReport } from "../types";
 import { countProfileStatuses } from "../utils/health";
@@ -116,6 +116,7 @@ function normalizeError(error: unknown): string {
 export function useProfileHealth() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [cachedSnapshots, setCachedSnapshots] = useState<Record<string, CachedHealthSnapshot>>({});
+  const startupEventReceivedRef = useRef(false);
 
   const batchValidate = useCallback(async (signal?: AbortSignal) => {
     if (signal?.aborted) {
@@ -149,6 +150,17 @@ export function useProfileHealth() {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const unlistenBatchComplete = listen<HealthCheckSummary>(
+      "profile-health-batch-complete",
+      (event) => {
+        startupEventReceivedRef.current = true;
+        if (active) {
+          dispatch({ type: "batch-complete", summary: event.payload });
+        }
+      }
+    );
 
     const run = async () => {
       try {
@@ -163,23 +175,22 @@ export function useProfileHealth() {
       } catch {
         // Cached snapshots are advisory — ignore failures
       }
-      void batchValidate(controller.signal);
+      fallbackTimer = setTimeout(() => {
+        if (!active || startupEventReceivedRef.current) {
+          return;
+        }
+        void batchValidate(controller.signal);
+      }, 700);
     };
 
     void run();
 
-    const unlistenBatchComplete = listen<HealthCheckSummary>(
-      "profile-health-batch-complete",
-      (event) => {
-        if (active) {
-          dispatch({ type: "batch-complete", summary: event.payload });
-        }
-      }
-    );
-
     return () => {
       active = false;
       controller.abort();
+      if (fallbackTimer !== null) {
+        clearTimeout(fallbackTimer);
+      }
       void unlistenBatchComplete.then((unlisten) => unlisten());
     };
   }, [batchValidate]);

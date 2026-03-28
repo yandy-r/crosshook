@@ -52,7 +52,7 @@ export function HealthBadge({ status, report, metadata = null, trend = null, too
       onClick={isInteractive ? (e) => { e.preventDefault(); e.stopPropagation(); onClick?.(); } : undefined}
       role={isInteractive ? 'button' : undefined}
       tabIndex={isInteractive ? 0 : undefined}
-      onKeyDown={isInteractive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } } : undefined}
+      onKeyDown={isInteractive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onClick?.(); } } : undefined}
     >
       <span
         className={`crosshook-status-chip crosshook-compatibility-badge crosshook-compatibility-badge--${rating}`}

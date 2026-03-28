@@ -12,22 +12,22 @@ Phase D adds **health snapshot persistence and trend analysis** to the profile h
 
 ### Created (1 file)
 
-| File                                                 | Purpose                                                                                                                                    |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `crates/crosshook-core/src/metadata/health_store.rs` | SQLite persistence layer — `upsert_health_snapshot()`, `load_health_snapshots()`, `lookup_health_snapshot()` with `HealthSnapshotRow` type |
+| File | Purpose |
+| --- | --- |
+| `src/crosshook-native/crates/crosshook-core/src/metadata/health_store.rs` | SQLite persistence layer — `upsert_health_snapshot()`, `load_health_snapshots()`, `lookup_health_snapshot()` with `HealthSnapshotRow` type |
 
 ### Modified (8 files)
 
-| File                                               | Change                                                                                                                                                                                       |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crates/crosshook-core/src/metadata/migrations.rs` | Added `migrate_5_to_6()` — `health_snapshots` table (profile_id PK, status, issue_count, checked_at) + checked_at index                                                                      |
-| `crates/crosshook-core/src/metadata/mod.rs`        | Added `mod health_store`, `pub use HealthSnapshotRow`, and 3 public delegation methods under "Phase D: Health snapshot persistence" section                                                  |
-| `src-tauri/src/commands/health.rs`                 | Added fail-soft snapshot persistence in `build_enriched_health_summary()`, `CachedHealthSnapshot` IPC struct with `From<HealthSnapshotRow>`, and `get_cached_health_snapshots` Tauri command |
-| `src-tauri/src/lib.rs`                             | Registered `get_cached_health_snapshots` in `invoke_handler!`                                                                                                                                |
-| `src/types/health.ts`                              | Added `CachedHealthSnapshot` TypeScript interface                                                                                                                                            |
-| `src/hooks/useProfileHealth.ts`                    | Added cached snapshot loading on mount, `computeTrend()` function, `trendByName` and `staleInfoByName` derived state, renamed local `HealthStatus` to `HookStatus` to avoid collision        |
-| `src/components/HealthBadge.tsx`                   | Added `trend` prop with ↓/↑ arrow rendering (got_worse/got_better)                                                                                                                           |
-| `src/components/pages/ProfilesPage.tsx`            | Added stale-snapshot note in health detail CollapsibleSection ("Last checked N days ago — consider re-checking")                                                                             |
+| File | Change |
+| --- | --- |
+| `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs` | Added `migrate_5_to_6()` — `health_snapshots` table (profile_id PK, status, issue_count, checked_at) + checked_at index |
+| `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs` | Added `mod health_store`, `pub use HealthSnapshotRow`, and 3 public delegation methods under "Phase D: Health snapshot persistence" section |
+| `src/crosshook-native/src-tauri/src/commands/health.rs` | Added fail-soft snapshot persistence in `build_enriched_health_summary()`, `CachedHealthSnapshot` IPC struct with `From<HealthSnapshotRow>`, and `get_cached_health_snapshots` Tauri command |
+| `src/crosshook-native/src-tauri/src/lib.rs` | Registered `get_cached_health_snapshots` in `invoke_handler!` |
+| `src/crosshook-native/src/types/health.ts` | Added `CachedHealthSnapshot` TypeScript interface |
+| `src/crosshook-native/src/hooks/useProfileHealth.ts` | Added cached snapshot loading on mount, `computeTrend()` function, `trendByName` and `staleInfoByName` derived state, renamed local `HealthStatus` to `HookStatus` to avoid collision |
+| `src/crosshook-native/src/components/HealthBadge.tsx` | Added `trend` prop with ↓/↑ arrow rendering (got_worse/got_better) |
+| `src/crosshook-native/src/components/pages/ProfilesPage.tsx` | Added stale-snapshot note in health detail CollapsibleSection ("Last checked N days ago — consider re-checking") |
 
 ## Features Implemented
 

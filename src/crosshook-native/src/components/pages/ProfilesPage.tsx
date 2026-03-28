@@ -108,7 +108,16 @@ export function ProfilesPage() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const healthIssuesRef = useRef<HTMLDivElement>(null);
 
-  const { batchValidate, revalidateSingle, healthByName, summary, loading: healthLoading, staleInfoByName } = useProfileHealth();
+  const {
+    batchValidate,
+    revalidateSingle,
+    healthByName,
+    summary,
+    loading: healthLoading,
+    staleInfoByName,
+    cachedSnapshots,
+    trendByName,
+  } = useProfileHealth();
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -336,23 +345,34 @@ export function ProfilesPage() {
       ? `A profile named '${renameNameTrimmed}' already exists.`
       : null;
   const canConfirmRename = !renameIsEmpty && !renameIsUnchanged && !renameHasConflict && !renaming;
+  const selectedReport = selectedProfile ? healthByName[selectedProfile] : undefined;
+  const selectedCachedSnapshot = selectedProfile ? cachedSnapshots[selectedProfile] : undefined;
+  const selectedStaleInfo = selectedProfile ? staleInfoByName[selectedProfile] : undefined;
+  const selectedTrend = selectedProfile ? (trendByName[selectedProfile] ?? null) : null;
 
   const renderProfileHealthBadge = () => {
-    if (!selectedProfile || !healthByName[selectedProfile]) {
+    if (!selectedProfile) {
       return null;
     }
 
-    const profileReport = healthByName[selectedProfile];
-    const issueCount = profileReport.issues.length;
+    if (!selectedReport && !selectedCachedSnapshot) {
+      return null;
+    }
+
+    const badgeStatus = selectedReport ? selectedReport.status : selectedCachedSnapshot!.status;
+    const issueCount = selectedReport?.issues.length ?? selectedCachedSnapshot?.issue_count ?? 0;
     const issueTooltip = issueCount > 0
-      ? `${issueCount} issue${issueCount !== 1 ? 's' : ''}: ${profileReport.issues.slice(0, 3).map((i) => i.field + ' \u2014 ' + i.message).join('; ')}${issueCount > 3 ? ` (+${issueCount - 3} more)` : ''}`
+      ? selectedReport
+        ? `${issueCount} issue${issueCount !== 1 ? 's' : ''}: ${selectedReport.issues.slice(0, 3).map((i) => i.field + ' \u2014 ' + i.message).join('; ')}${issueCount > 3 ? ` (+${issueCount - 3} more)` : ''}`
+        : `${issueCount} issue${issueCount !== 1 ? 's' : ''} in cached snapshot`
       : null;
 
     return (
       <HealthBadge
-        status={profileReport.status}
+        status={badgeStatus}
+        trend={selectedTrend}
         tooltip={issueTooltip}
-        onClick={issueCount > 0 ? () => healthIssuesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : undefined}
+        onClick={selectedReport && issueCount > 0 ? () => healthIssuesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : undefined}
       />
     );
   };
@@ -423,6 +443,15 @@ export function ProfilesPage() {
               </button>
             </div>
           ) : null}
+          {!selectedReport && selectedStaleInfo?.isStale ? (
+            <p
+              className="crosshook-health-stale-note"
+              role="note"
+              style={{ color: 'var(--crosshook-color-text-muted)', fontSize: '0.85em', margin: '0 0 8px' }}
+            >
+              Last checked {selectedStaleInfo.daysAgo} days ago &mdash; consider re-checking
+            </p>
+          ) : null}
 
           <ProfileFormSections
             profileName={profileName}
@@ -470,7 +499,7 @@ export function ProfilesPage() {
           ) : null}
 
           {(() => {
-            const report = selectedProfile ? healthByName[selectedProfile] : undefined;
+            const report = selectedReport;
             if (!report || (report.status !== 'broken' && report.status !== 'stale') || report.issues.length === 0) {
               return null;
             }
@@ -488,20 +517,9 @@ export function ProfilesPage() {
                 ? driftMessage[metadata.launcher_drift_state] ?? null
                 : null;
 
-            const staleInfo = selectedProfile ? staleInfoByName[selectedProfile] : undefined;
-
             return (
               <div ref={healthIssuesRef}>
               <CollapsibleSection title="Health Issues" className="crosshook-panel">
-                {staleInfo?.isStale && summary === null ? (
-                  <p
-                    className="crosshook-health-stale-note"
-                    role="note"
-                    style={{ color: 'var(--crosshook-color-text-muted)', fontSize: '0.85em', margin: '0 0 8px' }}
-                  >
-                    Last checked {staleInfo.daysAgo} days ago &mdash; consider re-checking
-                  </p>
-                ) : null}
                 {metadata !== null ? (
                   <div style={{ marginBottom: 10, display: 'grid', gap: 4 }}>
                     {metadata.last_success !== null ? (

@@ -17,10 +17,14 @@ pub fn upsert_health_snapshot(
     issue_count: usize,
     checked_at: &str,
 ) -> Result<(), MetadataStoreError> {
+    let checked_issue_count = i64::try_from(issue_count).map_err(|_| {
+        MetadataStoreError::Validation("health snapshot issue_count exceeds i64 range".to_string())
+    })?;
+
     conn.execute(
         "INSERT OR REPLACE INTO health_snapshots (profile_id, status, issue_count, checked_at)
          VALUES (?1, ?2, ?3, ?4)",
-        params![profile_id, status, issue_count as i64, checked_at],
+        params![profile_id, status, checked_issue_count, checked_at],
     )
     .map_err(|source| MetadataStoreError::Database {
         action: "upsert a health snapshot row",
