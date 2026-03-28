@@ -125,6 +125,16 @@ pub fn run() {
             commands::update::validate_update_request,
             commands::update::update_game,
             commands::update::cancel_update,
+            // Phase 3: Catalog and Intelligence
+            commands::community::community_list_indexed_profiles,
+            commands::collections::collection_list,
+            commands::collections::collection_create,
+            commands::collections::collection_delete,
+            commands::collections::collection_add_profile,
+            commands::collections::collection_remove_profile,
+            commands::collections::collection_list_profiles,
+            commands::profile::profile_set_favorite,
+            commands::profile::profile_list_favorites,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");
