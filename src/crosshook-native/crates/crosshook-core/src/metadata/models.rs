@@ -92,6 +92,54 @@ impl SyncSource {
     }
 }
 
+/// Maps to the `launch_operations.status` TEXT column.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LaunchOutcome {
+    Started,
+    Succeeded,
+    Failed,
+    Abandoned,
+}
+
+impl LaunchOutcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Started => "started",
+            Self::Succeeded => "succeeded",
+            Self::Failed => "failed",
+            Self::Abandoned => "abandoned",
+        }
+    }
+}
+
+/// Maps to the `launchers.drift_state` TEXT column.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DriftState {
+    Unknown,
+    Aligned,
+    Missing,
+    Moved,
+    Stale,
+}
+
+impl DriftState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Aligned => "aligned",
+            Self::Missing => "missing",
+            Self::Moved => "moved",
+            Self::Stale => "stale",
+        }
+    }
+}
+
+/// Defensive storage cap: persist at most 4 KiB of diagnostic JSON to keep
+/// metadata rows bounded and reduce risk from oversized untrusted log-derived payloads.
+pub const MAX_DIAGNOSTIC_JSON_BYTES: usize = 4_096;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SyncReport {
     pub profiles_seen: usize,
@@ -114,4 +162,36 @@ pub(crate) struct ProfileRow {
     pub is_pinned: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub(crate) struct LauncherRow {
+    pub launcher_id: String,
+    pub profile_id: Option<String>,
+    pub launcher_slug: String,
+    pub display_name: String,
+    pub script_path: String,
+    pub desktop_entry_path: String,
+    pub drift_state: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub(crate) struct LaunchOperationRow {
+    pub operation_id: String,
+    pub profile_id: Option<String>,
+    pub profile_name: Option<String>,
+    pub launch_method: String,
+    pub status: String,
+    pub exit_code: Option<i32>,
+    pub signal: Option<i32>,
+    pub log_path: Option<String>,
+    pub diagnostic_json: Option<String>,
+    pub severity: Option<String>,
+    pub failure_mode: Option<String>,
+    pub started_at: String,
+    pub finished_at: Option<String>,
 }

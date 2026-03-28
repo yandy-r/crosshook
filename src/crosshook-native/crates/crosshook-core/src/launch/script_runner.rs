@@ -367,6 +367,7 @@ mod tests {
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: false,
             launch_game_only: true,
+            profile_name: None,
         }
     }
 
@@ -429,6 +430,7 @@ mod tests {
             },
             launch_trainer_only: false,
             launch_game_only: true,
+            profile_name: None,
         };
 
         let command = build_proton_game_command(&request, &log_path).expect("game command");
@@ -525,6 +527,7 @@ mod tests {
             },
             launch_trainer_only: true,
             launch_game_only: false,
+            profile_name: None,
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
@@ -652,6 +655,7 @@ mod tests {
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
             launch_game_only: false,
+            profile_name: None,
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
@@ -709,6 +713,7 @@ mod tests {
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
             launch_game_only: false,
+            profile_name: None,
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
@@ -771,6 +776,7 @@ mod tests {
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: false,
             launch_game_only: true,
+            profile_name: None,
         };
 
         let command = build_proton_game_command(&request, &log_path).expect("game command");
@@ -832,6 +838,7 @@ mod tests {
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
             launch_game_only: false,
+            profile_name: None,
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
