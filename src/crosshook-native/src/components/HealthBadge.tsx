@@ -1,8 +1,15 @@
 import type { HealthStatus, ProfileHealthReport, ProfileHealthMetadata } from '../types/health';
+import type { TrendDirection } from '../hooks/useProfileHealth';
 
-type HealthBadgeProps =
-  | { status: HealthStatus; report?: never; metadata?: ProfileHealthMetadata | null }
-  | { status?: never; report: ProfileHealthReport; metadata?: ProfileHealthMetadata | null };
+type HealthBadgeProps = {
+  metadata?: ProfileHealthMetadata | null;
+  trend?: TrendDirection | null;
+  tooltip?: string | null;
+  onClick?: () => void;
+} & (
+  | { status: HealthStatus; report?: never }
+  | { status?: never; report: ProfileHealthReport }
+);
 
 const STATUS_TO_RATING: Record<HealthStatus, string> = {
   healthy: 'working',
@@ -22,7 +29,7 @@ const STATUS_LABEL: Record<HealthStatus, string> = {
   broken: 'Broken',
 };
 
-export function HealthBadge({ status, report, metadata = null }: HealthBadgeProps) {
+export function HealthBadge({ status, report, metadata = null, trend = null, tooltip = null, onClick }: HealthBadgeProps) {
   const resolvedStatus: HealthStatus = status ?? report.status;
   const rating = STATUS_TO_RATING[resolvedStatus];
 
@@ -36,8 +43,17 @@ export function HealthBadge({ status, report, metadata = null }: HealthBadgeProp
     ? `Health status: ${STATUS_LABEL[resolvedStatus]}, ${failureCount} failures in last 30 days`
     : `Health status: ${STATUS_LABEL[resolvedStatus]}`;
 
+  const isInteractive = typeof onClick === 'function';
+
   return (
-    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+    <span
+      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: isInteractive ? 'pointer' : undefined }}
+      title={tooltip ?? undefined}
+      onClick={isInteractive ? (e) => { e.preventDefault(); e.stopPropagation(); onClick?.(); } : undefined}
+      role={isInteractive ? 'button' : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      onKeyDown={isInteractive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } } : undefined}
+    >
       <span
         className={`crosshook-status-chip crosshook-compatibility-badge crosshook-compatibility-badge--${rating}`}
         aria-label={ariaLabel}
@@ -57,6 +73,23 @@ export function HealthBadge({ status, report, metadata = null }: HealthBadgeProp
           }}
         >
           {'\u2191'}{failureCount}x
+        </span>
+      )}
+      {(trend === 'got_worse' || trend === 'got_better') && (
+        <span
+          role="img"
+          aria-label={trend === 'got_worse' ? 'trending worse' : 'trending better'}
+          style={{
+            fontSize: '0.75em',
+            fontWeight: 700,
+            color: trend === 'got_worse'
+              ? 'var(--crosshook-color-warning)'
+              : 'var(--crosshook-color-success)',
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {trend === 'got_worse' ? '\u2193' : '\u2191'}
         </span>
       )}
     </span>

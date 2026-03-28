@@ -106,8 +106,9 @@ export function ProfilesPage() {
   const [profilePreviewContent, setProfilePreviewContent] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const healthIssuesRef = useRef<HTMLDivElement>(null);
 
-  const { batchValidate, revalidateSingle, healthByName, summary, loading: healthLoading } = useProfileHealth();
+  const { batchValidate, revalidateSingle, healthByName, summary, loading: healthLoading, staleInfoByName } = useProfileHealth();
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -336,6 +337,26 @@ export function ProfilesPage() {
       : null;
   const canConfirmRename = !renameIsEmpty && !renameIsUnchanged && !renameHasConflict && !renaming;
 
+  const renderProfileHealthBadge = () => {
+    if (!selectedProfile || !healthByName[selectedProfile]) {
+      return null;
+    }
+
+    const profileReport = healthByName[selectedProfile];
+    const issueCount = profileReport.issues.length;
+    const issueTooltip = issueCount > 0
+      ? `${issueCount} issue${issueCount !== 1 ? 's' : ''}: ${profileReport.issues.slice(0, 3).map((i) => i.field + ' \u2014 ' + i.message).join('; ')}${issueCount > 3 ? ` (+${issueCount - 3} more)` : ''}`
+      : null;
+
+    return (
+      <HealthBadge
+        status={profileReport.status}
+        tooltip={issueTooltip}
+        onClick={issueCount > 0 ? () => healthIssuesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : undefined}
+      />
+    );
+  };
+
   return (
     <>
       <PageBanner
@@ -371,9 +392,7 @@ export function ProfilesPage() {
           className="crosshook-panel"
           meta={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {selectedProfile && healthByName[selectedProfile] ? (
-                <HealthBadge status={healthByName[selectedProfile].status} />
-              ) : null}
+              {renderProfileHealthBadge()}
               <button
                 type="button"
                 className="crosshook-button crosshook-button--secondary"
@@ -469,8 +488,20 @@ export function ProfilesPage() {
                 ? driftMessage[metadata.launcher_drift_state] ?? null
                 : null;
 
+            const staleInfo = selectedProfile ? staleInfoByName[selectedProfile] : undefined;
+
             return (
+              <div ref={healthIssuesRef}>
               <CollapsibleSection title="Health Issues" className="crosshook-panel">
+                {staleInfo?.isStale && summary === null ? (
+                  <p
+                    className="crosshook-health-stale-note"
+                    role="note"
+                    style={{ color: 'var(--crosshook-color-text-muted)', fontSize: '0.85em', margin: '0 0 8px' }}
+                  >
+                    Last checked {staleInfo.daysAgo} days ago &mdash; consider re-checking
+                  </p>
+                ) : null}
                 {metadata !== null ? (
                   <div style={{ marginBottom: 10, display: 'grid', gap: 4 }}>
                     {metadata.last_success !== null ? (
@@ -509,6 +540,7 @@ export function ProfilesPage() {
                   ))}
                 </ul>
               </CollapsibleSection>
+              </div>
             );
           })()}
         </CollapsibleSection>
