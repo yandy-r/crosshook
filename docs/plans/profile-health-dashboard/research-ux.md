@@ -1,177 +1,112 @@
-# UX Research: Profile Health Dashboard
+# UX Research: Profile Health Dashboard (Second Pass)
 
-**Date**: 2026-03-27
-**Feature**: Profile Health Dashboard with Staleness Detection
+**Date**: 2026-03-28 (revised from 2026-03-27)
+**Feature**: Profile Health Dashboard — Phase 2 with SQLite Metadata Enrichment
 **Researcher**: UX Research Specialist
+**Revision note**: This document supersedes the 2026-03-27 version. Sections that remain unchanged from the first pass are marked `[unchanged]`. Sections with new or revised content are marked `[revised]` or `[new]`.
 
 ---
 
 ## Executive Summary
 
-The profile health dashboard must surface per-profile health status (healthy / stale / broken) at a glance, allow targeted drill-down into broken profiles, and present actionable remediation steps — all within CrossHook's existing dark-theme, gamepad-first, 1280×800 constraint. The most critical design requirement is that **no essential information is hover-only**, every status indicator must be reachable via D-pad, and fix actions must be a single confirm-button press away.
+[revised]
 
-Three patterns dominate the research: (1) **inline health badges** appended to each profile row (reusing `crosshook-compatibility-badge` semantics), (2) a **startup notification banner** summarising broken/stale count with a single CTA, and (3) a **progressive-disclosure detail panel** (reusing `CollapsibleSection`) that reveals per-field remediation without loading a new screen.
+The original spec established the right foundation: inline health badges, progressive disclosure via `CollapsibleSection`, a startup notification banner for broken profiles, and full gamepad navigation. Those decisions remain valid and are preserved here.
 
-**Confidence**: High — corroborated by Carbon Design System status-indicator guidance, established game-launcher patterns (Steam, Lutris, Heroic), and existing CrossHook component precedents in `CompatibilityViewer`, `LaunchPanel`, and `useGamepadNav`.
+This second pass adds a layer of metadata-backed health intelligence enabled by the SQLite metadata store (PRs 89–91). The metadata layer provides three new data signals that change what the health dashboard can show:
+
+1. **Launch history trends** — `query_failure_trends(days)` returns profiles with repeated failures over a window (e.g. last 7 or 30 days). This enables trend indicators: a profile that has failed 4 of the last 5 launches is qualitatively more urgent than one that failed once.
+2. **Last-success timestamps** — `query_last_success_per_profile()` returns ISO 8601 timestamps. "Last worked 3 days ago" is now a displayable, accurate data point.
+3. **Launcher drift** — `DriftState` (`aligned`, `missing`, `moved`, `stale`) on exported launchers surfaces a separate but related health signal: a launcher script that no longer matches its profile.
+
+Additionally, the metadata layer supports collections and favorites, enabling a **filtered health summary** ("3 of 8 favorites have issues") without any new backend query.
+
+**Critical architectural constraint confirmed**: When the metadata store is unavailable (`MetadataStore::disabled()` or mutex poison), `with_conn` returns `Ok(T::default())` — an empty collection. The UX must treat empty metadata as "no enrichment available" and fall back gracefully to path-health-only badges. This is built into the store; the frontend does not need to detect the failure mode explicitly.
+
+**Confidence**: High — patterns corroborated by Carbon Design System, PatternFly, Cloudscape, Pencil & Paper, and direct codebase analysis.
 
 ---
 
-## Teammate Input Synthesis (2026-03-27)
+## Teammate Input Synthesis
 
-_Findings from tech-designer, business-analyzer, and security-researcher incorporated below._
+### Preserved from 2026-03-27 Pass (abridged)
 
-### Health State Model: 3-State Roll-Up + `HealthIssueKind` at Issue Level
+The following decisions from the first pass remain authoritative:
 
-**business-analyzer** has defined the `HealthIssueKind` enum in business rules. All six workflow decisions are now resolved.
+- **3-state health roll-up**: `healthy` / `stale` / `broken` with `HealthIssueKind` at the issue level (`Missing` / `Inaccessible` / `not_configured`)
+- **Notification rules**: Banner only for broken. Stale = badge only. Per-session dismiss.
+- **Batch complete pattern**: Single `profile-health-batch-complete` event; all badges update atomically.
+- **`sanitize_display_path()`**: All paths displayed as `~/...`, applied server-side before IPC.
+- **Community-import context note**: Prepend issue list with "This profile was imported…" when `community_tap_url` set and ≥2 `missing` issues.
+- **Component reuse**: `CompatibilityBadge` semantic for health badges; `CollapsibleSection` for detail panels; `crosshook-launch-panel__feedback-*` classes for issue layout.
+- **Architecture**: Inline in `ProfilesPage` (Option A), not a new tab.
+- **Phase 1 CTA**: Prose-only remediation + single "Open Profile" button per broken profile.
+- **Phase 2 CTA**: Add `code: Option<String>` to `LaunchValidationIssue` for per-field deep links.
 
-**Status definitions (business rules, not time-based):**
+### New in This Pass: Metadata-Enriched Signals
 
-- `Healthy` — all configured paths exist and are accessible.
-- `Stale` — a path that previously existed (or was configured) is now unreachable due to an external change (game uninstalled, Proton version removed, SD card not mounted). The `stale` label reflects "was valid, now broken by external change" — not age.
-- `Broken` — required field empty or path is wrong type. Misconfiguration, not external change.
-
-> **Important correction**: There is no time-based staleness threshold. Health status is NOT persisted to disk (security-researcher constraint). "Last checked X days ago" is not a valid UX pattern for this feature — every check is fresh. Remove all references to 7-day threshold.
-
-**Issue-level distinction (business-defined `HealthIssueKind`):**
-
-- `Missing` — ENOENT: path does not exist. Remedy: re-browse to file.
-- `Inaccessible` — EACCES: path exists but cannot be read. Remedy: check file permissions.
-
-| Roll-up status (badge) | Issue kind                | Display label | Remediation copy                                               |
-| ---------------------- | ------------------------- | ------------- | -------------------------------------------------------------- |
-| `healthy`              | —                         | Healthy       | (none)                                                         |
-| `stale`                | `missing` (external)      | Stale         | "Path no longer found — game or runtime may have been removed" |
-| `broken`               | `missing` (misconfigured) | Missing       | "Path not found — re-browse to the file"                       |
-| `broken`               | `inaccessible`            | Inaccessible  | "Path exists but cannot be read — check file permissions"      |
-| —                      | `not_configured`          | Not set       | Neutral, muted — optional field                                |
-
-> Note for tech-designer: the `HealthIssueKind` enum (`Missing`/`Inaccessible`) is now a defined business rule. This is the semantic the Phase 2 `code` field should express — the enum values are already named.
-
-**Notification rules (business rules final):**
-
-- Broken → startup banner always
-- Stale → badge only (no banner — stale is expected lifecycle noise)
-- Unconfigured → badge only (soft tone)
-- Notification dismiss: per-session; re-shows next launch if issues persist
-
-**api-researcher** (final answer from codebase inspection): `LaunchValidationIssue` has exactly three fields — `message: String`, `help: String`, `severity: ValidationSeverity`. No machine-readable state, no action IDs. The distinction between `missing` / `inaccessible` / `not_configured` is encoded in string content only. The typed `ValidationError` variant is flattened to strings before IPC.
-
-**UX recommendation — Phase 1: prose-only remediation, single "Open Profile" CTA**
-
-Ship v1 with the existing type shape. Do not add action-id CTAs in Phase 1:
-
-```typescript
-interface ProfileHealthResult {
-  profile_name: string;
-  status: 'healthy' | 'stale' | 'broken';
-  issues: LaunchValidationIssue[]; // existing type, reused as-is
-  checked_at: string; // ISO 8601
-}
-```
-
-Each broken issue shows: `message` (what is wrong) + `help` (how to fix it, as prose). At the **profile level** (not per-issue), a single "Open Profile" button navigates to the ProfileEditor for that profile. This is gamepad-accessible in one confirm press and aligns with the business-analyzer's confirmed flow ("CTA is 'Open Profile' to navigate to ProfileEditor").
-
-Rationale: prose help text already tells the user exactly what to do. "Re-browse to the current executable" is actionable even without a wired "Browse…" button — it just adds one navigation step (go to ProfileEditor → find the field → browse). For v1 this is acceptable.
-
-**UX recommendation — Phase 2: add `code` field, enable per-field deep links**
-
-When direct "Browse…" / "Auto-detect" CTAs are in scope (meaningful for Steam Deck), add a `code` field to `LaunchValidationIssue`:
+**api-researcher** (expected finding): The two new queries exposed from `MetadataStore` are:
 
 ```rust
-pub struct LaunchValidationIssue {
-    pub message: String,
-    pub help: String,
-    pub severity: ValidationSeverity,
-    pub code: Option<String>,  // e.g. "game_path_missing", "proton_missing"
+pub fn query_last_success_per_profile(&self) -> Result<Vec<(String, String)>, MetadataStoreError>
+// Returns (profile_name, ISO8601 timestamp) for each profile's most recent succeeded launch
+
+pub fn query_failure_trends(&self, days: u32) -> Result<Vec<FailureTrendRow>, MetadataStoreError>
+// Returns profiles with ≥1 failure in the window, with successes/failures counts and failure_modes
+```
+
+These are `with_conn`-wrapped — they return empty `Vec` when metadata is unavailable, not errors. The frontend can safely call both unconditionally and treat empty results as "no metadata".
+
+**Launcher drift** is surfaced via `DriftState` on `LauncherRow` entries. The existing `LauncherExport` component and `launcher_store.rs` manage drift detection. Drift state values: `unknown`, `aligned`, `missing`, `moved`, `stale`.
+
+### Tech-Designer Input (2026-03-28): Confirmed API Shape
+
+**tech-designer** has confirmed the enriched IPC shape. Key differences from UX assumptions that affect display:
+
+```typescript
+interface ProfileHealthReport {
+  name: string;
+  status: 'healthy' | 'stale' | 'broken';
+  launch_method: string;
+  issues: HealthIssue[];
+  checked_at: string;
+  metadata: ProfileHealthMetadata | null; // null when MetadataStore unavailable
+}
+
+interface ProfileHealthMetadata {
+  last_success: string | null; // ISO 8601
+  failure_count_30d: number; // failures in last 30 days (NOT 7 days)
+  total_launches: number; // all-time launch count
+  launcher_drift_state: string | null; // 'aligned'|'missing'|'moved'|'stale'|null
+  is_community_import: boolean; // source was 'import'
+  profile_id: string | null; // stable UUID from metadata DB
 }
 ```
 
-The frontend switches on `code` to determine which action button to render. This is the minimal non-breaking extension (api-researcher Option 2). Do not create a `HealthIssue` wrapper type unless health issues and launch validation issues diverge significantly in Phase 2.
+**UX adjustments from tech-designer's shape:**
 
-**"Open Profile" CTA mapping** (Phase 1 implementation target):
+1. **Window is 30 days, not 7**: All UX copy changes from "last 7 days" to "last 30 days". Threshold for `↑N` chip stays at `failures >= 2` but denominator is 30 days.
 
-The profile list health detail shows one button per broken/stale profile:
+2. **`total_launches` is available**: Enable launch count in trend line: "Launched 8 times • 3 failures in last 30 days". Show when `total_launches > 0` and `metadata !== null`.
 
-```
-[Broken]  My Cyberpunk Trainer
-          ✗ Game executable not found.
-            Re-browse to the current executable or use Auto-Populate.
-          ✗ Trainer path not found.
-            Set a trainer path or remove it.
-          [Open Profile]   ← single navigation CTA
-```
+3. **`metadata: null` wrapper** (not flat optional fields): Check `report.metadata !== null` once. A non-null block with `last_success: null` means "never succeeded." `metadata: null` means "MetadataStore unavailable."
 
-On gamepad: D-pad to the broken profile → Confirm to expand detail → D-pad to "Open Profile" → Confirm → ProfileEditor opens with that profile selected.
+4. **`is_community_import` is in metadata struct**: Apply community-import context note when `metadata !== null && metadata.is_community_import === true`.
 
-### Loading Pattern: Batch Complete (not per-profile streaming)
+5. **"Unconfigured" profiles need a softer badge** (new constraint): When `status === 'broken'` but all issues have `kind === 'not_configured'`, render with `unknown` badge class (muted, not red). Copy: "Profile not configured — no paths set." Does not trigger startup banner and does not count toward the "broken" tally in the summary chip.
 
-**api-researcher** clarifies: validation is fast (<50ms typical), fires as a batch via `profile-health-batch-complete` event, not per-profile. This simplifies the loading UX:
+   ```typescript
+   const isFullyUnconfigured = (report: ProfileHealthReport) =>
+     report.status === 'broken' && report.issues.every((i) => i.kind === 'not_configured');
+   ```
 
-1. Frontend calls `invoke('validate_all_profiles')` on component mount (not Rust startup — avoids race condition where events fire before listener registration).
-2. Show "Scanning profiles…" placeholder state across all profile rows (spinner badge = `unchecked`).
-3. When `profile-health-batch-complete` fires, update all badges atomically.
-4. No progressive-per-profile spinner needed.
-
-The startup notification banner (if any) should fire after the batch-complete event settles, not during the scan.
-
-### Startup Validation Approach (business-analyzer)
-
-Startup health check is **passive** — badges appear when the user navigates to the profile list. No modal or blocking flow. Top-level summary banner ("2 profiles broken") recommended for broken profiles; advisory-only for stale.
-
-### Path Display (security-researcher)
-
-`sanitize_display_path()` is in `src-tauri/src/commands/launch.rs:301`. Apply server-side before IPC crossing — frontend then never sees the raw home prefix. Rule: `~/…` notation in **all** UI display and all IPC responses.
-
-Developer logs should use raw paths at `debug` level only, never `info`.
-
-**Copy Report**: The existing `LaunchPanel` Copy Report pattern is acceptable to carry forward, **with one fix**: exported JSON must also use `~/` notation. If the current implementation exports raw absolute paths, that is an existing deficiency to fix in the same pass. Apply `sanitize_display_path()` to all path strings before including them in the report struct.
-
-### Community-Imported Profiles (security-researcher)
-
-When a community-imported profile shows many `missing` states, prepend the issue list with: _"This profile was imported — paths may need to be updated for your system."_ Prevents user confusion about whether CrossHook is broken.
-
-### Architecture Decision: Inline in ProfilesPage
-
-Business-analyzer and UX both agree — health dashboard augments the existing profile list inline, not a separate tab. Lowest gamepad navigation cost; additive to existing `ProfilesPage` surface.
-
-### Component Reuse Corrections (practices-researcher)
-
-- **`severityIcon()` extraction**: Do it. Move the 5-line lookup to `src/utils/severity.ts` alongside `clipboard.ts`. Not an abstraction — pure deduplication.
-- **`ValidationIssueItem` extraction**: Wait. Two call sites (LaunchPanel + health dashboard) is below the rule-of-three threshold. Build inline first; extract if a third site emerges.
-- **`isStale()` clarification**: Two distinct things exist in the codebase:
-  - `isStale(generatedAt: string)` in `LaunchPanel.tsx:119` — checks preview staleness at 60s. **Do not reuse or extract** — wrong threshold for health dashboard.
-  - `is_stale: boolean` on `LauncherInfo` (`types/launcher.ts:8`) — backend-computed launcher script staleness. Unrelated.
-  - The `checked_at` timestamp is display-only ("Checked just now"). No time-based staleness threshold — health status is not persisted, so age-based stale logic is undefined. Do not add `STALE_THRESHOLD_MS`.
-- **Focus trap duplication**: Out of scope — do not touch during this feature.
-- **Toast/notification**: Only add if the feature spec includes startup notification. On-demand-only health check requires no toast infrastructure.
-
-### Startup Validation Approach (business-analyzer)
-
-Business-analyzer confirmed: startup health check is **passive** — badges appear when the user navigates to the profile list. No modal or blocking flow. Top-level summary banner ("2 profiles broken") recommended for broken profiles; advisory-only for stale.
-
-### Path Display (security-researcher)
-
-Backend `sanitize_display_path()` converts `/home/yandy/...` to `~/...`. Frontend must display what the backend sends — do NOT reconstruct absolute paths in JavaScript.
-
-### Community-Imported Profiles (security-researcher)
-
-When a community-imported profile shows many `missing` states, the UI must add a contextual note: _"This profile was imported — paths may need to be updated for your system."_ This prevents user confusion ("did CrossHook break?") and avoids blaming the app for a configuration mismatch.
-
-### Architecture Decision Pending
-
-Business-analyzer raises: where does the health dashboard live?
-
-- Option A: Inline in profile list (augment `ProfilesPage`) — lowest navigation cost for gamepad users
-- Option B: New dedicated tab — more space, but requires an extra navigation step
-- **UX recommendation**: Option A for v1. The profile list already exists; adding badge + collapsible detail panel is additive. A new tab implies more content than a badge + issue list provides.
-
----
+6. **`trainer.path` and `steam_client_install_path` skipped by health check**: UX must not surface issues for these fields. Any `not_configured` issue for an unvalidated field is advisory-only.
 
 ---
 
 ## User Workflows
 
-### Primary Flow 1: Startup Health Notification
+### Primary Flow 1: Startup Health Notification [unchanged]
 
 ```
 App launches
@@ -181,331 +116,547 @@ App launches
        └─ [stale/unconfigured only] → Badges render, no banner (expected lifecycle noise)
 ```
 
-**Resolved (business-analyzer)**: Banner only for broken. Stale and unconfigured = badge only. Dismiss is per-session; re-shows next launch if issues persist.
+Banner only for broken. Dismiss is per-session; re-shows next launch if issues persist.
 
-### Primary Flow 2: Profile List Health At-A-Glance
+### Primary Flow 2: Metadata-Enriched Profile List [revised]
 
 ```
 User opens Profiles page
-  └─ Profile list renders with health badge per entry
-       [Broken]  My Cyberpunk Trainer   [Edit] [Recheck]
-       [Healthy] Elden Ring + FLiNG     [Edit]
-       [Stale]   Witcher 3 Trainer      [Edit] [Recheck]
-         ↓
+  └─ invoke('validate_all_profiles') + invoke('get_enrichment_data')
+       Profile list renders with composite health badge per entry:
+         [Broken ↑3x] My Cyberpunk Trainer   [Edit] [Recheck]
+         [Healthy]    Elden Ring + FLiNG      [Edit]
+         [Stale]      Witcher 3 Trainer       [Edit] [Recheck]
+         [Broken ✦]   Dark Souls Trainer      [Edit] [Recheck]   ← launcher drift
+           ↓
        User selects a broken profile (D-pad Down + Confirm)
          └─ Health detail section expands inline (CollapsibleSection)
-              Showing: which path is broken + remediation CTA
+              Path issues + trend context + last-success timestamp
 ```
 
-### Primary Flow 3: Drill-Down to Broken Profile
+The `↑3x` is a failure-count indicator: "3 failures in the last 30 days." The `✦` is a launcher drift badge overlay. Both are optional overlays on the existing health badge — they appear only when metadata is available and indicates enrichment.
+
+### Primary Flow 3: Drill-Down with Metadata Context [revised]
 
 ```
 User selects broken profile card
-  └─ Detail panel opens (modal OR inline CollapsibleSection)
+  └─ Detail panel opens (CollapsibleSection)
        Header:   [Broken] profile-name — 2 issues
-       Issue 1:  ✗ Game executable not found
-                 Path: /home/user/games/game.exe
-                 → [Browse…]  [Auto-detect from Steam]
-       Issue 2:  ! Trainer path not set
-                 → [Set Trainer Path]
-       Footer:   [Re-check]  [Close]
+                 "Last worked: 3 days ago  •  3 failures in last 30 days"
+       Issue 1:  ✗ Game executable not found.
+                 Re-browse to the current executable or use Auto-Populate.
+       Issue 2:  ✗ Trainer path not found.
+                 Set a trainer path or remove it.
+       Launcher: ⚠ Exported launcher is out of sync — regenerate to update.
+                 [Open Profile]   ← single navigation CTA
 ```
 
-### Primary Flow 4: Manual Re-check
+The metadata context ("Last worked: 3 days ago • 3 failures in last 30 days") appears as a secondary line in the detail header, below the issue count. It is omitted entirely when `metadata === null`.
+
+### Primary Flow 4: Manual Re-check [unchanged]
 
 ```
 User triggers re-check:
   ├─ [Recheck All] button in dashboard header
-  │    → Batch progress indicator (N / total profiles validated)
-  │    → Results appear progressively per profile
+  │    → All badges reset to spinner → batch-complete fires → badges update atomically
   └─ [Recheck] on individual profile
-       → Spinner on that profile row
-       → Badge updates in-place: Broken → Healthy / still Broken
+       → Spinner on that profile row → badge updates in-place
 ```
 
-### Alternative Flow: Startup Notification with No Interaction
+### Alternative Flow 1: Startup Notification with No Interaction [unchanged]
+
+User ignores the banner → goes to Launch page → launch validation catches same broken paths in `LaunchPanel` → familiar fatal feedback shown.
+
+### Alternative Flow 2: Filtered Health View by Collection [new]
 
 ```
-App launches → notification banner appears
-User ignores it → continues to Launch page → tries to launch broken profile
-  └─ Launch validation catches same broken paths (existing LaunchPanel behaviour)
-       → User sees familiar "fatal" validation feedback
-       → Remediation hints already present (existing `help` field on issues)
+User opens Profiles page → selects "Favorites" or a named collection from filter chips
+  └─ Profile list filters to collection members
+       Summary chip updates: "3 of 8 favorites have issues"
+       Only filtered profiles shown; health badges unchanged
+       [Recheck All] rechecks only visible profiles
 ```
 
-This means the health dashboard is additive, not the only path to discovering broken profiles.
+The filtered summary chip ("3 of 8 favorites have issues") is a derived count using existing list state — no new backend query. It counts profiles in the filtered view whose health status is `broken` or `stale`.
+
+### Alternative Flow 3: Fail-Soft Degradation [new]
+
+```
+Metadata store unavailable (disabled, path error, mutex poisoned)
+  └─ metadata queries return empty Vec (no error propagated)
+       Profile list renders with path-health-only badges (no trend indicators)
+       "Last worked" timestamps absent — section omitted
+       Launcher drift badges absent — section omitted
+       No error message to user — the absence of enrichment is silent
+```
+
+The fail-soft path is entirely server-side. The frontend receives the same `ProfileHealthResult` shape but without trend/timestamp enrichment fields populated. The UI simply does not render those sections when the data is absent (null/undefined guards).
 
 ---
 
 ## UI/UX Best Practices
 
-### Health Dashboard Patterns
+### Enhanced Health Badge UX: Composite Signal Display [new]
 
-**Inline status on list rows (recommended primary surface)**
-Research confirms ([Carbon Design System](https://carbondesignsystem.com/patterns/status-indicator-pattern/), [Pencil & Paper](https://www.pencilandpaper.io/articles/ux-pattern-analysis-data-dashboards)): status must be visible at-a-glance in the list, not just on drill-down. Append a health badge directly to each profile row, left of the edit button. Use the `crosshook-compatibility-badge--{rating}` class semantic, adapted to health vocabulary.
+The challenge with composite health (path + launch-trend + drift) is information density. Research confirms ([PatternFly Status and Severity](https://www.patternfly.org/patterns/status-and-severity/)) that the correct pattern is **aggregated severity with counts**, not stacked badges.
 
-**Summary banner at page top (recommended secondary surface)**
-A short count banner — "3 of 8 profiles have issues" — sets context before the user reads individual rows. Place it above the profile selector, dismissible but persistent until all issues resolved.
+**Recommended approach: Primary badge + secondary overlay chips**
 
-**Two-tier disclosure**
+The primary health badge (`healthy` / `stale` / `broken`) remains the dominant signal and maps directly to the existing `crosshook-compatibility-badge--{rating}` semantic. Secondary signals are compact overlays attached to the badge:
 
-- Tier 1: badge on profile row (always visible)
-- Tier 2: issue list in `CollapsibleSection` below the selected profile (on selection/expand)
-  Do not require a separate page or modal for basic health details; save the modal for complex fix flows (e.g. file picker).
+```
+[Broken ↑3]   ← primary badge + failure-count chip (only when failures > 1 in window)
+[Broken ✦]    ← primary badge + drift chip (only when drift_state != aligned)
+[Broken ↑3 ✦] ← all three signals combined
+[Healthy]     ← no enrichment overlays (clean)
+```
 
-### Status Indicator Design
+**Why not stack multiple full badges?**
+PatternFly recommends against showing multiple severity indicators side-by-side without count labels — it creates ambiguity about whether they represent the same issue or different domains. Keeping one primary badge with compact suffix chips preserves the primary signal while hinting at enrichment detail.
 
-**Map existing compatibility-badge vocabulary to health states (4-state model per security-researcher):**
+**Failure count indicator** (`↑3`):
 
-| Backend State    | Badge Class Suffix | Color Token                           | Icon | Display Label |
-| ---------------- | ------------------ | ------------------------------------- | ---- | ------------- |
-| `healthy`        | `working`          | `--crosshook-color-success` (#28c76f) | ✓    | Healthy       |
-| `stale`          | `partial`          | `--crosshook-color-warning` (#f5c542) | !    | Stale         |
-| `missing`        | `broken`           | `--crosshook-color-danger` (#ff758f)  | ✗    | Missing       |
-| `inaccessible`   | `broken`           | `--crosshook-color-danger` (#ff758f)  | ✗    | Inaccessible  |
-| `not_configured` | `unknown`          | muted text                            | –    | Not set       |
-| `unchecked`      | `unknown`          | muted text (spinner while pending)    | …    | Checking…     |
+- Show only when `failure_count_30d >= 2` (a single failure is noise)
+- Threshold is configurable constant `FAILURE_TREND_MIN_COUNT = 2`
+- Color follows the parent badge (no additional color; avoids confusion with severity spectrum)
+- Text: `↑N` where N is `failure_count_30d`. Up arrow indicates "repeated upward failure trend"
+- Tooltip / gamepad detail: "N failures in the last 30 days"
+- When `failure_count_30d >= 5`: use `↑5+` to cap (avoids single-digit overflow)
 
-Note: `missing` and `inaccessible` share the `broken` visual treatment but must carry distinct help text in the issue detail. The badge label distinguishes them for screen readers and controller users who cannot rely on color.
+**Launcher drift indicator** (`✦`):
 
-**Accessibility rule (Carbon DS)**: Never rely on color alone. Include icon shape + color + text label. This codebase already follows this pattern in `CompatibilityBadge` and `severityIcon()` in LaunchPanel.
+- Show only when at least one exported launcher for this profile has `drift_state IN ('missing', 'moved', 'stale')`
+- `unknown` drift state = no indicator (data not yet collected)
+- Symbol: `✦` (a distinct non-directional shape to avoid confusion with the trend arrow)
+- Color: `--crosshook-color-warning` (#f5c542), regardless of parent badge color
+- Tooltip / gamepad detail: "Exported launcher is out of sync"
 
-**Traffic light vs. badge vs. icon — recommendation**: Use the **badge pattern** (pill with text + icon), not standalone colored dots. Dots are problematic: hard to hit with gamepad, convey no information to colorblind users, and disappear at small sizes. Badges are already a proven component in this codebase.
+**Carbon DS rule** ([Carbon Design System](https://carbondesignsystem.com/patterns/status-indicator-pattern/)): Never rely on color alone. Each overlay chip must be readable by screen readers and distinct by shape, not only by color. The `↑` arrow and `✦` diamond are shape-distinct.
 
-### Progressive Disclosure of Health Details
+### Trend Visualization: Text-Based for Steam Deck [new]
 
-The existing `CollapsibleSection` (`<details>/<summary>`) is the correct primitive. Use it in two modes:
+Research surveyed sparkline micro-charts (React Sparklines, MUI X Sparkline, FluentUI SparklineChart). The verdict for Steam Deck: **do not use graphical sparklines in Phase 1**.
 
-1. **Per-profile in the list**: collapsed by default; expand on profile selection or explicit user action.
-2. **Batch summary**: `CollapsibleSection` with title "Health Summary" and meta `3 issues` — collapsed by default, auto-opens if any broken profiles exist on page load.
+Reasons:
 
-From [UX Patterns for Devs](https://uxpatterns.dev/glossary/progressive-loading): load the simplest view first (badge summary), then reveal details on request. This reduces cognitive load on the Steam Deck's 1280×800 viewport where vertical space is limited.
+1. 1280×800 @ typical viewing distance requires minimum 44px touch targets — a sparkline in a profile row would need to be at least 60×24px, which crowds the row
+2. Sparklines are cursor-hover interactive by convention; D-pad navigation cannot efficiently interact with a mini-chart embedded in a list row
+3. SVG rendering adds a dependency (or heavy canvas ops) for what is effectively a 3-number summary
 
-### Gamepad Navigation Considerations
+**Recommended pattern: Text-based trend summary in the detail panel**
 
-The existing `useGamepadNav` hook already handles:
+In the profile row: the `↑N` count chip (described above) is the only trend signal in the row.
 
-- **D-pad Up/Down**: moves through focusable elements sequentially
-- **D-pad Left/Right**: switches between sidebar and content zones
-- **L1/R1**: cycles sidebar tabs
-- **A (button 0)**: confirms (clicks) the focused element
-- **B (button 1)**: back / switches to sidebar zone
+In the detail panel (on expand):
 
-For the health dashboard these constraints translate directly to design requirements:
+```
+Last worked: 3 days ago  •  Launched 8 times  •  3 failures in last 30 days
+```
 
-1. **Each profile card must be a single focusable unit** (a `<button>` or `<a>`), not just a visual card. The current profile list uses a `<select>` dropdown — the health dashboard should present profiles as a focusable list of cards where D-pad down moves to the next profile.
+This is a single text line using `crosshook-launch-panel__feedback-help` muted styling — the same style used for path detail. It communicates the trend without a chart.
 
-2. **The health detail/fix section must open inline** (expand below the card) or use the existing modal pattern. Do NOT use a separate route — the gamepad `back` button is already wired to close modals and return to the sidebar zone.
+**When to show trend context in detail panel** (using `ProfileHealthMetadata` fields):
 
-3. **"Recheck" and "Fix" must be buttons** with `tabindex >= 0` and `min-height: var(--crosshook-touch-target-min)` (48px). Never put these in a hover-only tooltip or context menu.
+- "Last worked" — show when `metadata.last_success !== null`
+- "Launched N times" — show when `metadata.total_launches > 0` (field now confirmed available)
+- "N failures in last 30 days" — show when `metadata.failure_count_30d >= 1`
 
-4. **Controller prompt bar**: The existing `ControllerPrompts` overlay should contextually show the correct hints when a broken profile is focused:
-   - `A  Open` / `B  Back` / `Y  Recheck` / `X  Fix`
-     (map to gamepad buttons 0/1/3/2 respectively)
+**Text formulations for trend line:**
 
-5. **Scrolling**: Use `element.scrollIntoView({ block: 'nearest' })` (already in `focusElement()` in `useGamepadNav`) — health badges and fix actions must remain visible when a profile card is focused.
+| Condition                                     | Display                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------- |
+| `last_success` set, no failures               | "Last worked: 3 days ago • Launched 8 times"                              |
+| `last_success` set, failures present          | "Last worked: 3 days ago • Launched 8 times • 3 failures in last 30 days" |
+| `last_success` null, failures present         | "Never successfully launched • 3 failures in last 30 days"                |
+| `last_success` null, `total_launches > 0`     | "Launched N times, never succeeded"                                       |
+| `metadata === null`                           | (omit line entirely)                                                      |
+| `metadata !== null` but all fields empty/zero | (omit line entirely)                                                      |
+
+### Last-Success Timestamps: Relative Display [new]
+
+Research confirms ([Cloudscape Timestamps](https://cloudscape.design/patterns/general/timestamps/), [UX Movement](https://uxmovement.com/content/absolute-vs-relative-timestamps-when-to-use-which/)) that relative timestamps are superior for "last worked" type display in list contexts.
+
+**Recommended pattern:**
+
+| Age          | Displayed text                                                                      |
+| ------------ | ----------------------------------------------------------------------------------- |
+| < 60 seconds | "Just now"                                                                          |
+| 1–59 minutes | "N minutes ago"                                                                     |
+| 1–23 hours   | "N hours ago"                                                                       |
+| 1–6 days     | "N days ago"                                                                        |
+| 7–30 days    | "N weeks ago"                                                                       |
+| > 30 days    | "Over a month ago" (avoid exact month count — too much precision for "last worked") |
+| Never        | "Never successfully launched"                                                       |
+
+**Accessibility rule** (Cloudscape): Wrap in `<time>` element. Set `datetime` to the ISO 8601 string from `query_last_success_per_profile`. Set `title` to the human-readable absolute timestamp for hover/focus access:
+
+```tsx
+<time dateTime={lastSuccess} title={new Date(lastSuccess).toLocaleString()}>
+  3 days ago
+</time>
+```
+
+**Implementation note**: The `lastSuccess` ISO 8601 string from the backend is already UTC (`Utc::now().to_rfc3339()`). Use `Date.parse()` for age calculation. No additional library required.
+
+**Do not persist "last checked" timestamps** — the original spec constraint stands. `checked_at` on `ProfileHealthResult` is display-only after a manual recheck. The last-success timestamp from `query_last_success_per_profile` is a launch record from the DB, not a health check record.
+
+### Launcher Drift Indicators: Integrated, Not Separate [new]
+
+The question in the brief: separate badge or integrated? **Integrated** is the right choice.
+
+Rationale:
+
+- Launcher drift is a health signal, not a separate feature. A drifted launcher is a "things are not working correctly" indicator.
+- A separate badge column next to the health badge doubles the cognitive load for users who do not export launchers (which may be many Steam Deck users who prefer the native integration).
+- The `✦` chip overlaid on the health badge conveys "there is also a launcher issue" without requiring a separate conceptual domain.
+
+**When a launcher is drifted but the profile itself is healthy:**
+The health badge stays `healthy`. The drift chip `✦` is appended. This communicates "the profile configuration is fine, but your exported launcher needs regenerating."
+
+```
+[Healthy ✦]  My Game  [Edit]
+             Detail panel: "Exported launcher is out of sync — regenerate to update."
+                           [Open Profile]
+```
+
+The drift detail in the panel uses the existing `crosshook-launch-panel__feedback-*` layout with `warning` severity styling.
+
+**Drift state display mapping:**
+
+| `drift_state` | Chip shown    | Detail message                                                                     |
+| ------------- | ------------- | ---------------------------------------------------------------------------------- |
+| `aligned`     | None          | —                                                                                  |
+| `unknown`     | None          | —                                                                                  |
+| `missing`     | `✦` (warning) | "Exported launcher file was not found — it may have been deleted"                  |
+| `moved`       | `✦` (warning) | "Exported launcher file has moved — regenerate to update"                          |
+| `stale`       | `✦` (warning) | "Exported launcher is out of sync with the current profile — regenerate to update" |
+
+### Fail-Soft UX: Silent Absence [new]
+
+The metadata store's `with_conn` design already handles degradation server-side: if the store is disabled or the connection is poisoned, every query returns `Ok(Vec::default())` — an empty collection, no error.
+
+**Frontend rule**: Never display "metadata unavailable" to the user. The absence of enrichment signals is silent. This is the correct pattern because:
+
+1. The user cannot do anything about metadata unavailability
+2. An error message about the metadata DB is alarming and confusing for a non-technical user
+3. The path-health badge is still accurate — it is the primary product
+
+**Implementation guidance** (using confirmed `ProfileHealthReport` shape):
+
+```typescript
+// metadata: null → MetadataStore unavailable → render no enrichment, no error
+// metadata !== null → store available; individual fields may still be null
+
+function renderTrendLine(metadata: ProfileHealthMetadata | null): string | null {
+  if (!metadata) return null;
+  const parts: string[] = [];
+  if (metadata.last_success) parts.push(`Last worked: ${formatRelativeTime(metadata.last_success)}`);
+  if (metadata.total_launches > 0) parts.push(`Launched ${metadata.total_launches} times`);
+  if (metadata.failure_count_30d >= 1) parts.push(`${metadata.failure_count_30d} failures in last 30 days`);
+  return parts.length > 0 ? parts.join('  •  ') : null;
+}
+
+function shouldShowDriftChip(metadata: ProfileHealthMetadata | null): boolean {
+  if (!metadata) return false;
+  return (
+    metadata.launcher_drift_state !== null &&
+    metadata.launcher_drift_state !== 'aligned' &&
+    metadata.launcher_drift_state !== 'unknown'
+  );
+}
+
+function shouldShowTrendChip(metadata: ProfileHealthMetadata | null): boolean {
+  if (!metadata) return false;
+  return metadata.failure_count_30d >= FAILURE_TREND_MIN_COUNT; // 2
+}
+// Never render "No metadata available" or similar — absence is always silent
+```
+
+### Filtered Health Views: Collection and Favorites Chips [new]
+
+Research ([PatternFly Filters](https://www.patternfly.org/patterns/filters/design-guidelines/), [Pencil & Paper Dashboards](https://www.pencilandpaper.io/articles/ux-pattern-analysis-data-dashboards)) confirms that filter chips at the top of a list are the correct pattern for segmented views — no separate tab needed.
+
+**Recommended implementation:**
+
+Above the profile list, a filter row:
+
+```
+[All]  [Favorites ★]  [My Collection]  [Issues Only]
+```
+
+- `All` — default; shows all profiles
+- `Favorites ★` — filters to profiles where `is_favorite = true` (from `ProfileRow.is_favorite`)
+- Collection names — one chip per user-created collection from `list_collections()`
+- `Issues Only` — filters to profiles where `status != 'healthy'`
+
+The filtered summary chip updates dynamically:
+
+- When "Favorites" active: "3 of 8 favorites have issues" (count of broken/stale within favorites)
+- When "My Collection" active: "1 of 4 in My Collection has issues"
+- When "All" active: existing "N issues" summary
+
+**Gamepad navigation**: Filter chips are horizontally navigable with D-pad Left/Right when the chip row is focused. Standard `useGamepadNav` two-zone model applies — D-pad Down from the chip row moves to the profile list.
+
+**Implementation note**: The filter state lives entirely in React component state. No new Tauri commands needed. `list_favorite_profiles()` and `list_profiles_in_collection(collection_id)` both exist in `MetadataStore`. The favorites list can be fetched alongside the health batch, merged client-side.
+
+### Historical Health UX: Trend Direction Arrows [new]
+
+The brief asks: can we show "health improved/degraded since last check"?
+
+**Answer**: Yes, but only within a session (no cross-session persistence of health snapshots).
+
+**Session-scoped trend arrows** (viable in Phase 1):
+
+- Store the health result of the last batch check in React state
+- On the next manual "Recheck All", compare new status to stored status
+- Show a micro-indicator in the badge when status changed:
+  - `broken` → `healthy`: add `↓` improvement arrow (green) for one render cycle, then revert to clean `healthy` badge
+  - `healthy` → `broken`: the badge changing to red is sufficient; no additional arrow needed
+  - No change: no arrow
+
+This gives users satisfying feedback ("your recheck fixed 2 profiles") without requiring persistence.
+
+**Cross-session health trends** (defer to later phase):
+The metadata layer does not currently persist health snapshots — only launch outcomes. To show "health degraded since last week" would require a new `health_snapshots` table. Defer. The `failures_in_window` count from `query_failure_trends(7)` is a strong enough proxy for now: "3 failures in last 7 days" communicates degradation implicitly.
+
+**Trend direction in the Pencil & Paper pattern** ([source](https://www.pencilandpaper.io/articles/ux-pattern-analysis-data-dashboards)): Use a delta indicator (arrow + color + count) for unambiguous trend communication. The arrow must have a text label or be accompanied by a count — never arrow-only (accessibility rule: shape+color+text).
 
 ---
 
-## Error Handling UX
+## Status Indicator Design [revised]
+
+Map existing compatibility-badge vocabulary to health states (4-state model, extended with enrichment overlays):
+
+| Backend State    | Badge Class Suffix | Color Token                 | Icon | Display Label | Enrichment Overlay           |
+| ---------------- | ------------------ | --------------------------- | ---- | ------------- | ---------------------------- |
+| `healthy`        | `working`          | `--crosshook-color-success` | ✓    | Healthy       | None (or `✦` if drift)       |
+| `stale`          | `partial`          | `--crosshook-color-warning` | !    | Stale         | None (or trend chips)        |
+| `broken`         | `broken`           | `--crosshook-color-danger`  | ✗    | Broken        | `↑N` if trends, `✦` if drift |
+| `not_configured` | `unknown`          | muted text                  | –    | Not set       | None                         |
+| `unchecked`      | `unknown`          | muted (spinner)             | …    | Checking…     | None                         |
+
+The enrichment chips (`↑N`, `✦`) are additional `<span>` elements inside the badge `<button>`. They do not replace the primary badge class — they append to it:
+
+```tsx
+<span className={`crosshook-compatibility-badge crosshook-compatibility-badge--${badgeClass}`}>
+  {icon} {label}
+  {failureCount >= 2 && (
+    <span className="crosshook-health-badge__trend" aria-label={`${failureCount} failures in last 30 days`}>
+      ↑{failureCount > 5 ? '5+' : failureCount}
+    </span>
+  )}
+  {launcherDrift && (
+    <span className="crosshook-health-badge__drift" aria-label="exported launcher out of sync">
+      ✦
+    </span>
+  )}
+</span>
+```
+
+The `aria-label` on each chip gives screen reader users (and the gamepad announce layer) the full meaning without seeing the symbol.
+
+---
+
+## Error Handling UX [unchanged from first pass, with drift row added]
 
 ### Error States Table
 
-| Backend State    | Field              | Display label  | User-facing message                                                                     | Remediation action                         |
-| ---------------- | ------------------ | -------------- | --------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `missing`        | game executable    | Missing        | "Game executable not found — file may have moved"                                       | [Browse…] [Auto-detect from Steam]         |
-| `inaccessible`   | game executable    | Inaccessible   | "Game executable exists but cannot be read — check file permissions"                    | [Open in File Manager]                     |
-| `not_configured` | trainer            | Not set        | "No trainer configured — profile will launch game only"                                 | [Set Trainer Path] _(advisory, not error)_ |
-| `missing`        | trainer            | Missing        | "Trainer executable not found — file may have moved"                                    | [Browse…] [Remove Trainer]                 |
-| `missing`        | proton version     | Missing        | "Proton runtime not found — version may have been uninstalled"                          | [Change Proton Version] [Auto-detect]      |
-| `stale`          | steam prefix       | Stale          | "Steam compat data prefix not initialised — run game once via Steam"                    | [Open Profile]                             |
-| `broken`         | profile TOML       | Broken         | "Profile data could not be loaded — file may be corrupt"                                | [Delete Profile]                           |
-| `stale`          | any path           | Stale          | "Path no longer found — game or runtime may have been removed or moved"                 | [Open Profile] [Recheck]                   |
-| `missing`        | (community import) | Missing + note | "Paths not found — this profile was imported and may need path updates for your system" | [Open Profile]                             |
+| Backend State    | Field              | Display label  | User-facing message                                                                     | Remediation action          |
+| ---------------- | ------------------ | -------------- | --------------------------------------------------------------------------------------- | --------------------------- |
+| `missing`        | game executable    | Missing        | "Game executable not found — file may have moved"                                       | [Open Profile]              |
+| `inaccessible`   | game executable    | Inaccessible   | "Game executable exists but cannot be read — check file permissions"                    | [Open Profile]              |
+| `not_configured` | trainer            | Not set        | "No trainer configured — profile will launch game only"                                 | [Open Profile] _(advisory)_ |
+| `missing`        | trainer            | Missing        | "Trainer executable not found — file may have moved"                                    | [Open Profile]              |
+| `missing`        | proton version     | Missing        | "Proton runtime not found — version may have been uninstalled"                          | [Open Profile]              |
+| `stale`          | any path           | Stale          | "Path no longer found — game or runtime may have been removed"                          | [Open Profile] [Recheck]    |
+| `missing`        | (community import) | Missing + note | "Paths not found — this profile was imported and may need path updates for your system" | [Open Profile]              |
+| drift `missing`  | launcher           | Drift          | "Exported launcher file was not found — it may have been deleted"                       | [Open Profile]              |
+| drift `stale`    | launcher           | Drift          | "Exported launcher is out of sync — regenerate to update"                               | [Open Profile]              |
 
-**Sanitization rule** (from security-researcher): All paths in messages must be in `~/...` notation, sourced from backend `sanitize_display_path()`. Frontend must display what the backend sends — do NOT construct path strings in JavaScript.
+All paths: `~/...` notation via `sanitize_display_path()`, applied server-side.
 
-**Message design principles** ([Pencil & Paper error UX](https://www.pencilandpaper.io/articles/ux-pattern-analysis-error-feedback)):
+### Message Design Principles [unchanged]
 
 - State what happened, not just that an error occurred.
 - Tell the user what to do next — include a specific action.
-- Show path in a secondary/monospace element, never as the primary message.
-- Distinguish `missing` ("file may have moved") from `inaccessible` ("check permissions") — they need different fixes.
-- Avoid blame language — prefer passive or system-oriented framing.
-- For community-imported profiles with many missing paths, show a contextual note before the issue list.
-
-### Remediation Suggestion UI
-
-The existing `LaunchPanel` `validationFeedback` / `diagnosticFeedback` UI already implements this correctly:
-
-```
-[Badge: Fatal]   Game executable not found
-                 Path: /home/user/games/Cyberpunk2077.exe
-                 [Browse…]  [Auto-detect from Steam]
-```
-
-The health dashboard should reuse this layout:
-
-- `crosshook-launch-panel__feedback-header` + badge
-- `crosshook-launch-panel__feedback-title` for the message
-- `crosshook-launch-panel__feedback-help` for the path/detail
-- `crosshook-launch-panel__feedback-actions` for CTAs
-
-Prefer **one primary CTA per issue** (most likely fix) + **one secondary** (less common alternative). More than two CTAs per issue creates decision paralysis.
-
-### Batch Error Summary vs Individual Detail
-
-Use the **two-tier approach**:
-
-- **Batch summary**: "X of N profiles have issues" with breakdown (e.g. "2 broken, 1 stale"). This uses a `crosshook-status-chip` counter pattern already seen in `CompatibilityViewer`.
-- **Individual detail**: revealed on profile selection — do not show all broken profiles expanded simultaneously (too much noise, especially on 1280×800).
-
-**Never show all errors at once in a modal.** Heroic Games Launcher's experience shows users get overwhelmed by long validation error lists. Progressive reveal wins.
+- Distinguish `missing` from `inaccessible` — different root causes, different fixes.
+- For community-imported profiles with many missing paths, prepend the context note.
+- Avoid blame language — prefer system-oriented framing.
 
 ---
 
-## Performance UX
+## Performance UX [unchanged]
 
 ### Loading Indicators During Batch Validation
 
-**Pattern**: Show a spinner/pulse on each profile badge while it is being validated. Do not block the entire UI.
+1. All profiles render immediately with `[Checking…]` spinner badge.
+2. Enrichment fetch (metadata queries) runs in parallel with path validation.
+3. When `profile-health-batch-complete` fires, update all badges atomically.
+4. Enrichment data merges into the same atomic update — no separate render cycle for metadata.
 
-Implementation path for CrossHook:
+**api-researcher confirms**: validation is fast (<50ms typical). The enrichment queries (`query_failure_trends`, `query_last_success_per_profile`) are SQLite reads — similarly fast. Both can be fetched in the same `invoke` call or in parallel, merged before the single render.
 
-- Individual profile cards show `[Checking…]` spinner badge while their validation is pending.
-- Profiles that have already been validated show their final badge.
-- A global progress indicator (e.g. subtle progress bar in the section header meta slot of `CollapsibleSection`) shows "Checking 4 of 8…".
-
-From [Carbon Loading Pattern](https://carbondesignsystem.com/patterns/loading-pattern/): the inline spinner is preferred for items in a list; a skeleton placeholder works for initial load; a full-screen overlay is reserved for blocking operations only.
-
-### Batch Results Display
-
-**api-researcher confirms**: validation is fast (<50ms typical), so per-profile streaming is not needed. The backend fires a single `profile-health-batch-complete` event after all profiles are checked. The UI should:
-
-1. Show all profiles immediately with a spinner/`unchecked` badge (no empty list).
-2. Render a "Scanning profiles…" caption in the section header meta slot while the `invoke` is pending.
-3. When `profile-health-batch-complete` fires, update all badges atomically — the transition from spinner to final badge is the perceived "result".
-
-For >50 profiles where batch time is measurable, a progress counter (`health-check-progress` events: `{ current, total, profile_name }`) can be shown in the header — but individual badge updates still happen atomically at the end, not per-profile. This avoids partial-state visual noise.
-
-### Background Validation with Notification
-
-**Recommended startup sequence**:
-
-1. App starts → profiles list loads immediately from disk (no blocking).
-2. Background validation fires as a Tauri command (non-blocking, results streamed back).
-3. If zero profiles fail: no UI change (silent success).
-4. If ≥1 profile fails: a dismissible banner appears (similar to the existing `crosshook-rename-toast` pattern with `role="status"` and `aria-live="polite"`).
-
-**`checked_at` display**: Show "Checked just now" or relative time after a manual recheck, using the `checked_at` ISO timestamp from `ProfileHealthResult`. This is cosmetic feedback only — health status is not persisted, so there is no cross-session "last checked" display. Do not adapt `isStale()` or `generatedTimeLabel` from LaunchPanel for this purpose.
-
-### Optimistic UI Patterns
+### Optimistic UI Patterns [unchanged]
 
 When a user manually triggers "Recheck" on a single profile:
 
 1. Immediately set badge to spinner.
-2. On result: animate badge to new state (healthy → add check animation, broken → no animation).
-3. Do NOT reset badge to "unchecked" between checks — users trust "was healthy 3 minutes ago" more than "unknown".
+2. On result: animate badge to new state.
+3. Do NOT reset badge to "unchecked" — users trust "was healthy 3 minutes ago" over "unknown".
 
 ---
 
-## Competitive Analysis
+## Competitive Analysis [revised]
 
-### Steam Library: Verify Integrity of Game Files
+### Steam Library: Verify Integrity of Game Files [unchanged]
 
-- **Pattern**: Per-game, found via right-click → Properties → Installed Files → "Verify integrity of game files"
-- **Strengths**: Simple progress dialog, clear "N files failed to validate and will be reacquired" result
-- **Weaknesses**: No batch validation across library; no inline status badges on game library cards; hover/right-click only (not gamepad-accessible from main library view)
-- **Relevance**: CrossHook should learn from the "just fix it automatically" ethos — where possible, auto-repair (e.g. re-detect Proton version) rather than surfacing an error for the user to manually resolve
+- Inline status: No. Batch check: No. Gamepad-accessible: No. Remediation: No (auto-repairs).
 
-### Lutris: Runner/Wine Prefix Checks
+### Lutris: Runner/Wine Prefix Checks [unchanged]
 
-- **Pattern**: Games list shows an icon/tag for broken runners. Side panel shows error on selection.
-- **Strengths**: Inline status visible in the list; side panel shows specific error message
-- **Weaknesses**: Error messages are often technical (`wine: error accessing...`); no remediation suggestions; no batch health check
-- **Relevance**: CrossHook must go further — user-readable messages + actionable fix buttons, not just "this failed"
+- Inline status: Partial. Batch check: No. Gamepad: No. Error messages: technical (no remediation).
 
-### Heroic Games Launcher
+### Heroic Games Launcher [unchanged]
 
-- **Pattern**: Game cards show "Not Installed" or "Update Available" status badges. Repair option in context menu.
-- **Strengths**: Status badges are always visible; clear visual hierarchy
-- **Weaknesses**: Context menus are not gamepad-navigable without specific controller support; no proactive health dashboard
-- **Relevance**: The always-visible badge-on-card approach directly validates CrossHook's inline badge recommendation
+- Always-visible badge-on-card validates CrossHook's inline badge approach.
+- Context menus not gamepad-navigable — CrossHook's D-pad-first design must keep actions as buttons, never context menus.
 
-### Grafana / Datadog (Monitoring Dashboards)
+### Grafana / Datadog [revised]
 
-- **Pattern**: Traffic light icons (red/amber/green), metric cards, sparklines, drilldown on click
-- **Strengths**: High information density; clear severity hierarchy; expandable rows for details
-- **Weaknesses**: Designed for mouse/keyboard, not gamepad; often too dense for 1280×800
-- **Relevance**: The two-tier summary → detail pattern translates well. The "all green dashboard" concept (all profiles healthy) is a satisfying end state CrossHook should optimise for
+- **Trend indicators**: Grafana uses sparklines and delta arrows. For CrossHook's 1280×800 Steam Deck constraint, adopt the **text-based delta pattern** ("+2 failures" vs "-1 from last week") not the sparkline chart.
+- **Filtered health views**: Grafana's folder-based filtering (by team, namespace) maps to CrossHook's collections. The "filter chip updates summary count" pattern is directly applicable.
+- **Fail-soft**: Grafana shows "No data" panels when a datasource is unavailable — each panel degrades independently. CrossHook should follow this: each profile badge degrades independently. If metadata is unavailable for profile X but available for profile Y, Y gets enrichment and X does not.
 
-### Summary Matrix
+### Cloudscape / AWS Console [new]
 
-| Tool                 | Inline list badges | Batch health check | Gamepad-friendly | Remediation CTAs  | Progressive results |
-| -------------------- | ------------------ | ------------------ | ---------------- | ----------------- | ------------------- |
-| Steam                | No                 | No                 | No               | No (auto-repairs) | No (blocks UI)      |
-| Lutris               | Partial            | No                 | No               | No                | N/A                 |
-| Heroic               | Yes                | No                 | Partial          | Partial           | N/A                 |
-| Grafana              | Yes                | Yes                | No               | No                | Yes                 |
-| **CrossHook target** | **Yes**            | **Yes**            | **Yes**          | **Yes**           | **Yes**             |
+- **Timestamp patterns** ([Cloudscape Timestamps](https://cloudscape.design/patterns/general/timestamps/)): Relative timestamps in list views ("3 days ago"), absolute in detail tooltips. Pair with `<time datetime="...">` for accessibility.
+- **Status indicators**: Inline status in resource tables with aggregated severity counts in the header ("3 critical, 1 warning"). Maps directly to CrossHook's "3 of 8 favorites have issues" summary chip.
+
+### PatternFly (Red Hat Design System) [new]
+
+- **Aggregate status cards** ([PatternFly Aggregate Status](https://pf3.patternfly.org/v3/pattern-library/cards/aggregate-status-card/)): Shows count of resources per severity tier. Directly applicable to CrossHook's batch summary: "2 broken, 1 stale, 5 healthy".
+- **Multi-signal aggregation**: PatternFly recommends "when you use multiple severity icons, include a count for each icon." CrossHook should show counts in the summary chip ("2 broken (3 issues)") not just "N profiles have issues."
+
+### Summary Matrix [revised]
+
+| Tool                 | Inline badges | Batch check | Gamepad | Trend indicators | Last-success | Filtered views  | Fail-soft        |
+| -------------------- | ------------- | ----------- | ------- | ---------------- | ------------ | --------------- | ---------------- |
+| Steam                | No            | No          | No      | No               | No           | No              | N/A              |
+| Lutris               | Partial       | No          | No      | No               | No           | No              | No               |
+| Heroic               | Yes           | No          | Partial | No               | No           | No              | N/A              |
+| Grafana              | Yes           | Yes         | No      | Yes (sparklines) | No           | Yes (folders)   | Yes (per-panel)  |
+| Cloudscape           | Yes           | Yes         | No      | No               | Yes          | Yes (filters)   | Partial          |
+| **CrossHook target** | **Yes**       | **Yes**     | **Yes** | **Yes (text)**   | **Yes**      | **Yes (chips)** | **Yes (silent)** |
 
 ---
 
 ## Recommendations
 
-### Must Have
+### Must Have [revised]
 
-0. **4-state health model** — expose `missing`, `inaccessible`, `not_configured`, and `stale` as distinct states with distinct remediation copy. Do not collapse `missing` and `inaccessible` into a single "broken" badge — they require different user actions.
+0. **4-state health model with issue-level distinction** — `healthy` / `stale` / `broken` roll-up; `Missing` / `Inaccessible` / `not_configured` at issue level. Unchanged from first pass.
 
-1. **Inline health badge on every profile row** — reuse `crosshook-compatibility-badge` semantic with health-mapped CSS suffixes. Badge must be visible without expanding or hovering, and must be focusable/readable when profile is selected via gamepad. Integrate into `ProfilesPage` inline (Option A), not a new tab.
+1. **Inline health badge on every profile row** — `crosshook-compatibility-badge` semantic. Unchanged.
 
-2. **Startup background validation** — run on app launch, stream results; no blocking. Show notification banner only if ≥1 profile is broken.
+2. **Startup background validation** — batch complete; notification banner only for broken. Unchanged.
 
-3. **Per-issue remediation CTA** — every broken-path issue must have at least one actionable button (Browse / Auto-detect / Remove). Message must state what is wrong + what to do, never just the path string alone.
+3. **Per-issue prose remediation + single "Open Profile" CTA** — Phase 1. Unchanged.
 
-4. **Manual "Recheck" button** per profile and a "Recheck All" in the section header — always accessible without hover, minimum 48px height (`--crosshook-touch-target-min`). Progress reported via `health-check-progress` Tauri events (confirmed by tech-designer).
+4. **Manual Recheck button** — 48px min height, no hover. Unchanged.
 
-4a. **Community-import context note** — when a profile has a `community_tap_url` and shows ≥2 `missing` issues, prepend the issue list with: _"This profile was imported — paths may need to be updated for your system."_
+4a. **Community-import context note** — prepend for community-imported profiles with ≥2 missing issues. Unchanged.
 
-5. **Gamepad-accessible health detail** — health detail section opens inline (CollapsibleSection) or via existing modal pattern. Fix buttons must be reachable with D-pad + A confirm, no hover required.
+5. **Gamepad-accessible health detail** — inline CollapsibleSection, D-pad + A confirm. Unchanged.
 
-### Should Have
+**New must-have additions:**
 
-6. ~~**Staleness display**~~ — **Removed.** Health status is not persisted to disk (security-researcher constraint). Time-based staleness ("last checked X days ago") is undefined without persistence. `checked_at` is display-only post-recheck feedback. Stale status is binary (path exists or not), not age-based.
+6. **Fail-soft enrichment** — when `metadata === null`, render path-health-only badges silently. No error state surfaced to user. Frontend guards all enrichment renders on `metadata !== null`.
 
-7. **Batch summary** — `CollapsibleSection` header meta shows "N issues" count; auto-opens if broken profiles exist.
+7. **`ProfileHealthReport` confirmed shape** — use the `ProfileHealthMetadata` wrapper from tech-designer. See "Tech-Designer Input" section for authoritative shape. Frontend reads `report.metadata?.last_success`, `report.metadata?.failure_count_30d`, `report.metadata?.launcher_drift_state`.
 
-8. **Progressive badge updates** — as batch validation streams results, update individual badges in-place (spinner → healthy/broken), not all at once at the end.
+8. **"Unconfigured" profile softer badge** — detect via `isFullyUnconfigured()` check (all issues `kind === 'not_configured'`). Render `unknown` badge class, not `broken`. Does not trigger startup banner or count toward broken tally. Copy: "Profile not configured — no paths set."
 
-9. **Controller hint overlay updates** — `ControllerPrompts` should contextually show "Y Re-check" / "X Fix" when a broken profile is focused.
+### Should Have [revised]
 
-10. **Silent success** — do not notify the user when all profiles are healthy. Only surface the banner when action is needed.
+9. **Last-success relative timestamp in detail panel** — "Last worked: 3 days ago" using `<time datetime="...">` element with absolute title. Show when `metadata?.last_success !== null`.
 
-### Nice to Have
+10. **Failure trend chip on badge** — `↑N` chip using `metadata.failure_count_30d`. Show when `failure_count_30d >= 2`. Text-based, no sparkline.
 
-11. **"Fix All" quick action** — for issues that CrossHook can auto-resolve (re-detecting Steam paths, updating Proton version to currently installed), offer a single "Auto-fix N issues" button that runs repair logic in batch.
+11. **Launcher drift chip on badge** — `✦` chip (warning color) when `metadata.launcher_drift_state` is `missing`, `moved`, or `stale`. Integrated into health badge, not a separate badge column.
 
-12. **Health history** — store the last N validation timestamps per profile; surface a simple "validated 3 times, healthy" or "first broken at 2026-03-20" in the detail view.
+12. **Launcher drift detail in panel** — drift-specific message in the expanded detail. Uses `crosshook-launch-panel__feedback-*` layout with warning severity.
 
-13. **Optimistic "last known healthy" badge** — instead of reverting to "unchecked" between rechecks, keep the previous status visible with a "checking..." overlay until new result arrives.
+13. **Filter chips for collections/favorites** — `[All]` `[Favorites ★]` `[Collection name]` `[Issues Only]` above the profile list. Summary chip updates to "N of M in [context] have issues." Fully unconfigured profiles count as neither broken nor healthy in the tally.
+
+14. **Session-scoped health improvement indicator** — compare current recheck to previous in-session result. Show `↓` (green) improvement when status changed from broken → healthy for one render cycle.
+
+15. **Batch summary with severity count** — `CollapsibleSection` header meta: "2 broken, 1 stale" (not just "3 issues"). Auto-opens when broken profiles exist.
+
+16. **Progressive badge updates** — spinners → atomic update. Unchanged.
+
+17. **Controller hint overlay** — `Y Re-check` / `X Fix` when broken profile focused. Unchanged.
+
+18. **Silent success** — no notification when all profiles healthy. Unchanged.
+
+### Nice to Have [revised]
+
+18. **"Fix All" quick action** — auto-repair for issues CrossHook can resolve (re-detect Proton, update Steam paths). Unchanged.
+
+19. **Cross-session health snapshots** — "health degraded since last week." Requires new `health_snapshots` table. Defer.
+
+20. **Per-collection health summary panel** — a "Collection Health" view showing badge distribution per collection. Nice if collections feature usage grows.
+
+21. **Failure mode breakdown in trend** — `failure_modes` from `FailureTrendRow` contains comma-separated failure mode strings. Could show "3 failures (2× proton_crash, 1× exit_timeout)" in detail. Low priority; adds complexity.
 
 ---
 
 ## Open Questions
 
-0. ~~**Auto-revalidate on profile save?**~~ — **Closed.** Confirmed by business-analyzer: auto-revalidate on save is the business rule. After `invoke('save_profile')` resolves → call `invoke('validate_profile', { name })` (single-profile) → update that profile's badge in-place. Navigate-away edge case: hold last-known state, update silently when result arrives. "Recheck All" remains for post-external-change scenarios. Requires new Tauri command: `validate_profile(name: String) -> ProfileHealthResult`.
+0. **Auto-revalidate on profile save** — Closed (confirmed by business-analyzer): call `validate_profile(name)` after save resolves. Still pending implementation.
 
-1. **Validation depth**: Resolved by business-analyzer — shallow only for Phase 1: existence + type + permissions (`Missing` ENOENT / `Inaccessible` EACCES). No Proton prefix structure check, no Steam AppID network resolution.
+1. **Validation depth** — Closed (shallow: existence + type + permissions). Unchanged.
 
-2. ~~**Stale threshold configurability**~~ — **Closed.** Stale is binary (path exists or not), not time-based. No threshold to configure.
+2. **Stale threshold** — Closed (binary, not time-based). Unchanged.
 
-3. **Auto-repair scope**: Which issues should CrossHook attempt to auto-fix without user confirmation? Suggesting this scope to the business-analyzer and tech-designer for business rule definition.
+3. **Auto-repair scope** — Which issues CrossHook can auto-fix without user confirmation. Open; flagged for business-analyzer.
 
-4. **Path privacy in error messages**: Broken paths may reveal personal home directory structure. Should the UI truncate paths (e.g. `~/games/...`) or always show full absolute paths for debugging clarity? (Note: flagged separately to security-researcher.)
+4. ~~**`failures_in_window` window size**~~ — **Closed.** Tech-designer confirmed 30 days (`failure_count_30d`). All UX copy uses "last 30 days."
 
-5. **Notification persistence**: Should the startup notification persist across app restarts until the user resolves the issues, or only appear once per session?
+5. **Notification persistence** — Per-session dismiss. Re-shows next launch if issues persist. Unchanged.
 
-6. **Profile card vs. selector UX**: The current `ProfilesPage` uses a `<select>` dropdown for profile selection. A health dashboard implies a **list/card view** where badges are visible. Should the health dashboard introduce a new card-list presentation of profiles, or augment the existing selector with badge indicators? (Flagged for tech-designer on API implications.)
+6. **Profile card vs. selector UX** — Current `ProfilesPage` uses `<select>`. Health dashboard assumes a focusable card list. This remains a UI architecture decision for tech-designer.
+
+7. **Drift chip threshold** — Currently: show `✦` for any non-aligned, non-unknown drift state. Should `unknown` drift state (no launcher exported, never tracked) suppress the chip? Yes — `unknown` means "no launcher exported" which is not a problem. Confirmed in implementation guidance above.
+
+8. ~~**Trend window in IPC**~~ — **Closed.** Tech-designer confirmed 30-day window, exposed as `failure_count_30d` in the `ProfileHealthMetadata` struct.
+
+---
+
+## Codebase Observations [revised]
+
+| Existing pattern                                                 | File                        | Health dashboard application                            |
+| ---------------------------------------------------------------- | --------------------------- | ------------------------------------------------------- |
+| `CompatibilityBadge` + `crosshook-compatibility-badge--{rating}` | `CompatibilityViewer.tsx`   | Health badge primary class (unchanged)                  |
+| `severityIcon()` + `data-severity` attributes                    | `LaunchPanel.tsx`           | Health issue icons (extract to `src/utils/severity.ts`) |
+| `CollapsibleSection`                                             | `ui/CollapsibleSection.tsx` | Per-profile detail + batch summary panels               |
+| `crosshook-launch-panel__feedback-*` classes                     | `LaunchPanel.tsx`           | Remediation message + CTA layout                        |
+| `crosshook-rename-toast` + `role="status"` + `aria-live`         | `ProfilesPage.tsx`          | Startup notification banner                             |
+| `useGamepadNav` two-zone model                                   | `hooks/useGamepadNav.ts`    | Health content zone; profile cards as focusable units   |
+| `--crosshook-touch-target-min: 48px`                             | `variables.css`             | All Recheck and Fix buttons                             |
+| `--crosshook-color-success/warning/danger`                       | `variables.css`             | Badge and chip color tokens                             |
+| `query_last_success_per_profile()`                               | `metadata/mod.rs:401`       | Last-success timestamp source                           |
+| `query_failure_trends(days)`                                     | `metadata/mod.rs:437`       | Failure trend count source (`FailureTrendRow`)          |
+| `DriftState` enum (`aligned/missing/moved/stale/unknown`)        | `metadata/models.rs:121`    | Launcher drift chip source                              |
+| `MetadataStore::disabled()` + `with_conn` fail-soft              | `metadata/mod.rs:48,67`     | Fail-soft: empty Vec on unavailability                  |
+| `list_favorite_profiles()`                                       | `metadata/mod.rs:323`       | Favorites filter chip data                              |
+| `list_collections()`                                             | `metadata/mod.rs:262`       | Collection filter chips data                            |
+
+**New CSS classes to add:**
+
+- `crosshook-health-badge__trend` — for `↑N` failure chip inside the health badge
+- `crosshook-health-badge__drift` — for `✦` drift chip inside the health badge
+- `crosshook-health-filter-chips` — for the filter chip row above the profile list
+- `crosshook-health-trend-line` — for the "Last worked: N days ago • M failures" line in detail
 
 ---
 
@@ -513,36 +664,18 @@ When a user manually triggers "Recheck" on a single profile:
 
 - [Carbon Design System — Status Indicator Pattern](https://carbondesignsystem.com/patterns/status-indicator-pattern/)
 - [Carbon Design System — Loading Pattern](https://carbondesignsystem.com/patterns/loading-pattern/)
+- [PatternFly — Status and Severity](https://www.patternfly.org/patterns/status-and-severity/)
+- [PatternFly — Filters](https://www.patternfly.org/patterns/filters/design-guidelines/)
+- [PatternFly — Aggregate Status Card](https://pf3.patternfly.org/v3/pattern-library/cards/aggregate-status-card/)
+- [Cloudscape Design System — Timestamps](https://cloudscape.design/patterns/general/timestamps/)
 - [Pencil & Paper — Dashboard UX Patterns](https://www.pencilandpaper.io/articles/ux-pattern-analysis-data-dashboards)
 - [Pencil & Paper — Error UX Patterns](https://www.pencilandpaper.io/articles/ux-pattern-analysis-error-feedback)
-- [Pencil & Paper — Loading UX Patterns](https://www.pencilandpaper.io/articles/ux-pattern-analysis-loading-feedback)
-- [UX Patterns for Devs — Progressive Loading](https://uxpatterns.dev/glossary/progressive-loading)
+- [UX Movement — Absolute vs. Relative Timestamps](https://uxmovement.com/content/absolute-vs-relative-timestamps-when-to-use-which/)
 - [Heroic Games Launcher](https://heroicgameslauncher.com/)
-- [Heroic Games Launcher — Troubleshooting Wiki](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher/wiki/Troubleshooting)
 - [Steam Support — Verify Integrity of Game Files](https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB)
 - [MDN — :focus-visible](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:focus-visible)
-- [Sara Soueidan — Designing Accessible Focus Indicators](https://www.sarasoueidan.com/blog/focus-indicators/)
-- [Medium — Error Handling UX Design Patterns](https://medium.com/design-bootcamp/error-handling-ux-design-patterns-c2a5bbae5f8d)
-- [DesignRush — Dashboard Design Principles 2026](https://www.designrush.com/agency/ui-ux-design/dashboard/trends/dashboard-design-principles)
+- [NN/g — Indicators, Validations, and Notifications](https://www.nngroup.com/articles/indicators-validations-notifications/)
+- [Medium — Dashboard Design Principles 2025](https://medium.com/@allclonescript/20-best-dashboard-ui-ux-design-principles-you-need-in-2025-30b661f2f795)
 - [Unreal Engine — Gamepad UI Navigation](https://medium.com/@Jamesroha/dev-guide-gamepad-ui-navigation-in-unreal-engine-5-with-enhanced-input-3ab5403f8ab5)
-
----
-
-## Codebase Observations
-
-The following existing CrossHook patterns are directly reusable or directly applicable:
-
-| Existing pattern                                                 | File                             | Health dashboard application                                                                                                                                                                                                                                                       |
-| ---------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CompatibilityBadge` + `crosshook-compatibility-badge--{rating}` | `CompatibilityViewer.tsx`        | Reuse for health badge (healthy/stale/broken/unchecked mapping to working/partial/broken/unknown)                                                                                                                                                                                  |
-| `severityIcon()` + `data-severity` attributes                    | `LaunchPanel.tsx`                | Reuse severity icon and data-attribute pattern for health issues                                                                                                                                                                                                                   |
-| `isStale()` timestamp check                                      | `LaunchPanel.tsx:119`            | **Do not reuse** — checks preview staleness at 60s threshold, wrong for profile health (needs ~7d). Write a new inline staleness check in the health hook with a named constant. The `is_stale: boolean` on `LauncherInfo` (`types/launcher.ts:8`) is also distinct and unrelated. |
-| `CollapsibleSection`                                             | `ui/CollapsibleSection.tsx`      | Per-profile health detail + batch summary panels                                                                                                                                                                                                                                   |
-| `crosshook-launch-panel__feedback-*` classes                     | `LaunchPanel.tsx`                | Remediation message + CTA layout pattern. Render inline in health detail — do not prematurely extract `ValidationIssueItem` until 3+ call sites.                                                                                                                                   |
-| `severityIcon()`                                                 | `LaunchPanel.tsx`                | Extract to `src/utils/severity.ts` — pure deduplication (~5 lines), justified when health dashboard also needs it.                                                                                                                                                                 |
-| `crosshook-rename-toast` + `role="status"` + `aria-live`         | `ProfilesPage.tsx`               | Startup notification banner pattern                                                                                                                                                                                                                                                |
-| Modal focus-trap pattern                                         | `LaunchPanel.tsx` (PreviewModal) | If fix flow requires file-picker or complex multi-step repair                                                                                                                                                                                                                      |
-| `useGamepadNav` two-zone model                                   | `hooks/useGamepadNav.ts`         | Health dashboard content zone; profile cards as focusable units                                                                                                                                                                                                                    |
-| `data-crosshook-focus-root="modal"` attribute                    | `useGamepadNav.ts`               | For any health repair modal                                                                                                                                                                                                                                                        |
-| `--crosshook-touch-target-min: 48px`                             | `variables.css`                  | All Recheck and Fix buttons must meet this minimum                                                                                                                                                                                                                                 |
-| `--crosshook-color-success/warning/danger`                       | `variables.css`                  | Badge and icon color tokens already defined                                                                                                                                                                                                                                        |
+- [UX Patterns for Devs — Progressive Loading](https://uxpatterns.dev/glossary/progressive-loading)
+- [Infragistics — Sparkline Charts](https://www.infragistics.com/blogs/html5-sparkline-chart/)

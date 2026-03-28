@@ -1,21 +1,39 @@
 # Security Research: Profile Health Dashboard
 
-**Date**: 2026-03-27
+**Date**: 2026-03-28 (Second Pass — SQLite Metadata Integration)
 **Scope**: CrossHook native Linux desktop app (Tauri v2 / Rust backend)
 **Feature**: Batch-validate filesystem paths stored in all saved profiles; surface per-profile health status with remediation suggestions
+**Revision note**: This is a second pass incorporating the SQLite3 metadata layer (PRs 89-91). See change markers throughout.
 
 ---
 
 ## Executive Summary
 
-The profile health dashboard is a low-risk feature for this threat model. CrossHook is a local desktop app with no network exposure; the user who runs the app has full access to every path the health check would inspect. The main risks are:
+The profile health dashboard remains a low-risk feature under this threat model. The SQLite3 metadata layer (Phases 1-3 now implemented) changes the security picture in three meaningful ways:
 
-1. **CSP is disabled** (`"csp": null` in `tauri.conf.json`) — predates this feature but becomes slightly more relevant as the IPC surface grows.
-2. **Remediation messages may emit raw absolute paths** — the existing `sanitize_display_path()` helper must be reused to replace `$HOME` with `~`.
-3. **No new crate risk** — all required filesystem metadata APIs are in `std`. Zero new dependencies needed.
-4. **Path validation is already solid** — `validate_name()` in `toml_store.rs` prevents traversal via profile names. Profile-content paths (game_path, trainer_path, etc.) are user-controlled and are already used at launch time; health-checking them is equivalent in access scope.
+1. **Health data can now be persisted** — launch history and health-relevant metadata live in `launch_operations` and `profiles` tables. Persisting health check results alongside this history would widen the sensitive-data footprint in `metadata.db`. **The recommendation is still no-persist for health status itself**: health checks remain on-demand reads only.
+2. **SQLite-sourced paths require re-validation before filesystem ops** — W6 from the SQLite3 spec directly applies. Paths read back from `launch_operations.game_path`, `launch_operations.trainer_path`, or `launchers.script_path` must not be used in `metadata()` calls without re-validation.
+3. **`diagnostic_json` contains serialized `DiagnosticReport` structs** — if health enrichment surfaces any fields from this column (path references, pattern summaries, suggestions), `sanitize_display_path()` must be applied before those strings reach the IPC boundary.
 
-No CRITICAL blockers identified. The feature is implementable securely with the advisories below applied.
+Four findings from the original spec remain valid and unchanged. Two findings have been revised. Four new SQLite-specific findings are added. No critical blockers in either pass.
+
+### What Changed from the First Pass
+
+| Finding                        | Status in Second Pass                                                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| W-1 (CSP)                      | **Unchanged** — still must address                                                                                    |
+| W-2 (path sanitization on IPC) | **Revised** — now also applies to SQLite-sourced paths including `launchers.script_path`                              |
+| W-3 (diagnostic bundle export) | **Unchanged** — still must address                                                                                    |
+| A-1 (3-state path status)      | **Unchanged** — still advisory                                                                                        |
+| A-2 (symlink following)        | **Unchanged** — still advisory                                                                                        |
+| A-3 (TOCTOU)                   | **Revised** — now references SQLite timestamp-tracking                                                                |
+| A-4 (mutex poison)             | **Removed** — already handled in `MetadataStore.with_conn()`; health features reuse the same `Arc<Mutex<Connection>>` |
+| A-5 (batch concurrency)        | **Unchanged** — still advisory                                                                                        |
+| A-6 (IPC result type)          | **Unchanged** — still advisory                                                                                        |
+| **NEW: N-1**                   | Health queries reading SQLite paths must re-validate (W6 application)                                                 |
+| **NEW: N-2**                   | `diagnostic_json` field sensitivity when surfaced in health enrichment                                                |
+| **NEW: N-3**                   | `sanitize_display_path()` must be applied before persistence, not only before IPC                                     |
+| **NEW: N-4**                   | Health queries joining `profiles` must filter `deleted_at IS NULL`; existing queries do not                           |
 
 ---
 
@@ -23,7 +41,7 @@ No CRITICAL blockers identified. The feature is implementable securely with the 
 
 ### CRITICAL — Hard Stops
 
-**None.** The local desktop threat model does not surface any showstopper security issues for this feature. Path existence checks on user-configured paths are functionally equivalent to what the launch validation already does.
+**None.** The local desktop threat model does not surface any showstopper security issues for this feature. Path existence checks on user-configured paths are functionally equivalent to what the launch validation already does. SQLite integration does not introduce new critical findings; the W1-W8 mitigations from the SQLite3 spec are already implemented in `metadata/db.rs`.
 
 ---
 
@@ -32,12 +50,11 @@ No CRITICAL blockers identified. The feature is implementable securely with the 
 #### W-1: CSP is disabled (`"csp": null`)
 
 **File**: `src-tauri/tauri.conf.json:23`
+**Status**: Unchanged from first pass.
 
-The current Tauri configuration sets `"csp": null`, disabling Content Security Policy for the WebView. This means any XSS that reaches the WebView (via a maliciously crafted community profile name rendered without escaping, a future embedded web view, etc.) can invoke any registered Tauri command without restriction.
+The current Tauri configuration sets `"csp": null`, disabling Content Security Policy for the WebView. This means any XSS that reaches the WebView can invoke any registered Tauri command without restriction.
 
-The health dashboard adds new IPC commands that perform filesystem metadata lookups. With CSP disabled, a successful XSS could batch-probe arbitrary paths by invoking these commands.
-
-**Note**: This is an existing issue, not introduced by this feature. However, expanding the IPC surface without CSP increases the attack footprint.
+The health dashboard adds new IPC commands that perform filesystem metadata lookups. With CSP disabled, a successful XSS could batch-probe arbitrary paths by invoking these commands. The SQLite layer makes this marginally worse: an XSS could also invoke any metadata-reading command to extract launch history, paths, and game names from the database.
 
 **Mitigations** (team may choose one):
 
@@ -49,9 +66,30 @@ The health dashboard adds new IPC commands that perform filesystem metadata look
 
 ---
 
+#### W-2: Path sanitization applies to both profile-content paths AND SQLite-sourced paths
+
+**Status**: Revised from first pass — SQLite adds a second path-injection vector.
+
+**Original finding**: Remediation messages built from profile TOML content (`game_path`, `trainer_path`, etc.) must pass through `sanitize_display_path()` before reaching the IPC boundary.
+
+**Added in second pass**: Health enrichment queries may read paths back from SQLite (`launch_operations.game_path`, `launch_operations.trainer_path`, `launchers.script_path`, `launchers.desktop_entry_path`). These stored paths must also be sanitized before IPC serialization. This is the direct application of SQLite3 spec finding W2 to the health dashboard context.
+
+`sanitize_display_path()` is already in `src-tauri/src/commands/shared.rs:20`. The health dashboard Tauri command layer uses it the same way `sanitize_diagnostic_report()` does in the launch flow.
+
+**Two distinct cases require sanitization:**
+
+1. **Paths from profile TOML content** — user-entered fields read directly from `GameProfile` struct fields.
+2. **Paths from SQLite columns** — `game_path`, `trainer_path`, `script_path`, `desktop_entry_path` read via health history queries; treat as untrusted input even though CrossHook wrote them.
+
+**Mitigation**: Apply `sanitize_display_path()` to every path string in the health IPC response payload, regardless of source. The health command should not bypass this step for "obviously safe" paths — the sanitizer is cheap and the habit matters.
+
+**Confidence**: High.
+
+---
+
 #### W-3: Diagnostic bundle export must sanitize health report paths
 
-_(Added after cross-team review)_
+**Status**: Unchanged from first pass.
 
 If health report data flows into a future shareable diagnostic bundle (e.g., issue #49), raw absolute paths in the report expose the user's home directory, username, and installed software layout. This is a higher-risk surface than the UI because the data leaves the local machine.
 
@@ -61,24 +99,29 @@ If health report data flows into a future shareable diagnostic bundle (e.g., iss
 
 ---
 
-#### W-2: Remediation messages must not emit raw absolute paths for community-sourced profiles
+#### N-1: SQLite-sourced paths must be re-validated before any filesystem operation (W6 application)
 
-Health check remediation suggestions will say things like "path `/home/user/.steam/...` not found". If a profile was imported from a community tap with crafted paths (e.g., pointing at `/etc/shadow`, `/root/...`), the health message would confirm whether those paths exist on the local system.
+**Status**: New finding — SQLite integration.
 
-Within the single-user local threat model this is low impact — the user already has access to all their own paths. But:
+SQLite3 spec finding W6 states: "Re-apply `validate_name()` / path-safety checks on SQLite-sourced paths before fs ops." The health dashboard is the first feature that would read paths _from SQLite_ and then call `std::fs::metadata()` on them.
 
-- It leaks filesystem layout in log output or any future crash reporting.
-- It confirms path existence to any script that can read the IPC response (relevant if CSP is not fixed).
+The risk scenario: if `launch_operations.game_path` or `launch_operations.trainer_path` were written with an unexpected value (corrupted DB, manually tampered row, future bug in a write path), using that path directly in a `metadata()` call could confirm the existence of an attacker-controlled path on the local filesystem.
 
-**Mitigation**: Reuse the existing `sanitize_display_path()` function (defined in `src-tauri/src/commands/launch.rs:301-306`) for all path strings in health status results and remediation messages. This function already replaces `$HOME` with `~`. It should be moved to `src-tauri/src/commands/shared.rs` — this is a display-formatting utility for the Tauri command layer, not business logic, so it belongs alongside `create_log_path()` and `slugify_target()` rather than in `crosshook-core`. The health dashboard command calls it the same way `sanitize_diagnostic_report()` does in the launch flow.
+**This applies to**: any health enrichment that reads stored paths from `launch_operations`, `launchers`, or `profiles.current_path` and then calls `metadata()`.
 
-**Confidence**: High — function exists and works correctly; pattern is already validated in the launch diagnostic pipeline.
+**It does NOT apply to**: health checks that load profile content fresh from TOML (the normal health check path). TOML profiles are the canonical authority; paths read from them are subject only to the existing display sanitization rules.
+
+**Mitigation**: For any code path that reads a path from SQLite and then calls `std::fs::metadata()` on it, validate the path using the same checks applied at TOML-load time: it must be a non-empty `PathBuf` that is not obviously a traversal (no `..` components pointing outside expected roots). For simple health checks that just check existence, a non-empty absolute path check is sufficient. Do not fabricate elaborate allowlists — the realistic risk is low; the rule is a defense-in-depth habit.
+
+**Confidence**: High — W6 from the SQLite3 spec is directly applicable; the implementation pattern is new.
 
 ---
 
 ### ADVISORY — Best Practices, Safe to Defer
 
 #### A-1: Permission errors must be distinguished from "not found"
+
+**Status**: Unchanged from first pass.
 
 When calling `std::fs::metadata(path)`, the error kind can be:
 
@@ -91,7 +134,7 @@ The health status model should represent three states, not two:
 - `Missing` — `ENOENT`
 - `Inaccessible` — `EACCES` or other I/O error
 
-Collapsing `Inaccessible` into `Missing` gives wrong remediation advice ("re-browse to the file" when the real fix is "fix permissions").
+Collapsing `Inaccessible` into `Missing` gives wrong remediation advice.
 
 **Confidence**: High — standard Rust I/O error semantics.
 
@@ -99,66 +142,141 @@ Collapsing `Inaccessible` into `Missing` gives wrong remediation advice ("re-bro
 
 #### A-2: Symlink-following behavior is correct but should be documented
 
-Rust's `Path::exists()` and `std::fs::metadata()` follow symlinks (using `stat` not `lstat`). For a health check, this is the correct behavior — we care whether the game executable at the end of the chain exists, not whether each symlink in the chain is valid.
+**Status**: Unchanged from first pass.
 
-Edge case: a symlink pointing at a broken target returns `NotFound` from `metadata()`, which is the correct health status (`Missing`). `symlink_metadata()` would return `Ok` for the dangling symlink itself.
+Rust's `Path::exists()` and `std::fs::metadata()` follow symlinks. For a health check, this is the correct behavior. A symlink pointing at a broken target returns `NotFound` from `metadata()`, which is the correct health status (`Missing`).
 
-**Recommendation**: Use `std::fs::metadata()` (follows symlinks) rather than `fs::symlink_metadata()`. Add a code comment explaining the choice.
+The existing symlink protection in `metadata/db.rs` (`symlink_metadata()` check before `Connection::open()`) is specifically for the database file itself — it does not conflict with using `metadata()` to follow symlinks for health-checked game paths.
 
-**Confidence**: High — Rust stdlib docs confirm this behavior.
+**Recommendation**: Use `std::fs::metadata()` (follows symlinks) rather than `fs::symlink_metadata()`. Add a code comment explaining the distinction.
+
+**Confidence**: High.
 
 ---
 
-#### A-3: TOCTOU is inherent but non-exploitable for a status-only feature
+#### A-3: TOCTOU is inherent but non-exploitable; SQLite enables better staleness UX
 
-Any "check then display" pattern has a TOCTOU gap — the filesystem state can change between the check and the display. For a health dashboard this is acceptable because:
+**Status**: Revised from first pass — SQLite enables the "last checked" timestamp the original spec recommended.
+
+Any "check then display" pattern has a TOCTOU gap. For a health dashboard this is acceptable because:
 
 - The result is advisory only; it drives no automated action.
-- The "window" is milliseconds on local storage.
-- A local adversary who can race the check to change file existence can already do so via direct filesystem access.
+- A local adversary who can race the check has direct filesystem access already.
 
-**Recommendation**: Display a "last checked at" timestamp in the UI and do not persist health status to disk. This makes the staleness explicit to the user.
+**Revised recommendation**: The original spec suggested displaying a "last checked at" timestamp and not persisting health status to disk. With SQLite now available, there is a tempting path to persist health check results in a new column or table. **Resist this.** Persisting health status creates a stale-data UX problem (status says "Healthy" but game was uninstalled) that is worse than always checking live. The `launch_operations` table already captures "last launched at" and outcome, which provides richer historical signal than a persisted "last health check passed" flag. Display the `launch_operations.started_at` value for the most recent operation as a "last known good" timestamp instead.
 
-**Confidence**: High — well-understood limitation of all health-check UIs.
+**Confidence**: High — well-understood limitation of all health-check UIs; recommendation updated for SQLite context.
 
 ---
 
-#### A-4: Mutex poison handling if a health cache is introduced
+#### A-4: (Removed) Mutex poison handling
 
-_(Added after cross-team review)_
+**Status**: Removed — already handled by the implemented `MetadataStore`.
 
-If a health cache is added (e.g., `Arc<Mutex<HashMap<String, ProfileHealthStatus>>>`), a panic while the lock is held poisons the Mutex. Subsequent `lock()` calls return `Err(PoisonError)`, which would make all future health checks fail silently if `.unwrap()` is used.
-
-**Recommendation**: If a cache is used, either:
-
-- Use `RwLock` (preferred for read-heavy access: one writer, many readers) and handle `PoisonError` explicitly with `unwrap_or_else(|p| p.into_inner())`
-- Or avoid caching entirely — `metadata()` calls are fast enough to re-run on demand
-
-**Note**: The simplest safe design has no cache at all; health checks run on demand and results are not stored.
-
-**Confidence**: High — standard Rust concurrent data structure concern.
+The original finding warned about mutex poisoning if a health cache used `Arc<Mutex<...>>`. The `MetadataStore` already uses `Arc<Mutex<Connection>>` and handles `PoisonError` explicitly in `with_conn()` (returning `MetadataStoreError::Corrupt`). The health feature reuses `MetadataStore` — it does not create a new mutex. No action needed.
 
 ---
 
 #### A-5: Batch validation should be sequential or rate-limited, not fully concurrent
 
-Checking all profiles concurrently via `tokio::join!` or spawned tasks on a system with hundreds of profiles and slow storage (SD card, network-backed home) could cause momentary I/O pressure. This is not a security risk but can affect user experience.
+**Status**: Unchanged from first pass.
 
-**Recommendation**: Process profiles sequentially or with a bounded concurrency (e.g., 4 concurrent `metadata()` calls via `tokio::Semaphore`). Since `metadata()` is fast on local SSD/NVMe, sequential is simplest and fine for most cases.
+Checking all profiles concurrently via `tokio::join!` on a system with hundreds of profiles and slow storage (SD card, network-backed home) could cause momentary I/O pressure.
 
-**Confidence**: Medium — depends on how many profiles users accumulate and storage type.
+**Recommendation**: Process profiles sequentially or with bounded concurrency (e.g., 4 concurrent `metadata()` calls via `tokio::Semaphore`). Sequential is simplest and fine for typical profile counts.
+
+**Confidence**: Medium.
 
 ---
 
 #### A-6: IPC result type must not include raw profile file paths
 
-The health check IPC response will include health status per profile. Profile names (e.g., `"Elden Ring"`) are safe to include — they pass `validate_name()`. However, if the response includes the raw filesystem paths from inside the profile content (game_path, trainer_path, etc.) to support frontend display, those paths must be passed through `sanitize_display_path()` first.
+**Status**: Unchanged from first pass; now also covers SQLite-sourced paths.
 
-If the frontend only needs to know _which_ profiles are unhealthy and _what type of path_ is broken (game executable, trainer, Proton, etc.) without the raw path value, that is the safest IPC contract.
+The health check IPC response will include health status per profile. If the response includes raw filesystem paths (from TOML content or SQLite columns), those paths must pass through `sanitize_display_path()` first.
 
-**Recommendation**: The IPC response should use an enum-tagged field indicating what kind of path is problematic (`GameExecutable`, `TrainerExecutable`, `ProtonBinary`, `CompatdataDir`, `WinePrefix`) rather than returning raw path strings to the frontend. The frontend then generates a user-friendly label without needing the raw path. If raw paths are needed for display, apply `sanitize_display_path()` server-side before serializing.
+**Recommendation**: Prefer an enum-tagged field indicating what kind of path is problematic (`GameExecutable`, `TrainerExecutable`, `ProtonBinary`, `CompatdataDir`, `WinePrefix`) rather than raw path strings. If raw paths are needed for display, apply `sanitize_display_path()` server-side before serialization.
 
 **Confidence**: High.
+
+---
+
+#### N-2: `diagnostic_json` field sensitivity in health enrichment
+
+**Status**: New finding — SQLite integration.
+
+`launch_operations.diagnostic_json` stores up to 4 KB of serialized `DiagnosticReport`. The `DiagnosticReport` struct includes free-text `summary`, `description`, `suggestion.title`, `suggestion.description`, and `log_tail_path` fields that may contain absolute paths. This is already handled in the launch flow — `sanitize_diagnostic_report()` in `commands/launch.rs` applies `sanitize_display_path()` to each of those fields before IPC.
+
+If health enrichment surfaces any fields from `diagnostic_json` (e.g., last-failure summary, last failure mode, last suggestion), the same sanitization must be applied. The `severity` and `failure_mode` promoted columns are enum strings — they are safe to surface without sanitization. Any free-text content from the JSON blob requires sanitization.
+
+**Mitigation**: For health history queries that read from `diagnostic_json`, either:
+
+1. Read only the promoted enum columns (`severity`, `failure_mode`) — these are safe.
+2. If reading free-text fields from the JSON blob, deserialize to `DiagnosticReport` and apply `sanitize_diagnostic_report()` before including in the IPC response.
+
+**Confidence**: High — the sanitization requirement for `DiagnosticReport` fields is already established and tested in the launch command pipeline.
+
+---
+
+#### N-3: `sanitize_display_path()` must be applied before persistence, not only before IPC
+
+**Status**: New finding — identified during tech design review.
+
+If `health_snapshots` or any future health persistence table stores path-related fields (e.g., a `last_broken_path` column for displaying which path was problematic at last check), `sanitize_display_path()` must be applied before the value is written to SQLite — not only before it is serialized for the IPC response.
+
+The existing W-2 advisory (and its SQLite3 spec predecessor W2) covers sanitization at the IPC boundary. This finding closes a gap where an unsanitized absolute path could be written to disk and later read back already sanitized, creating inconsistent behavior: paths written before sanitization-at-persistence was enforced would contain raw `$HOME` values, while paths written after would contain `~`. This asymmetry is a source of bugs and a mild information-disclosure risk if `metadata.db` is ever inspected directly (e.g., with the `sqlite3` CLI during debugging).
+
+**Applies to**: any `MetadataStore` write method that accepts a path string derived from a health check result.
+
+**Does not apply to**: `launchers.script_path` and `launchers.desktop_entry_path` — these are written by the launcher export pipeline, not by health checks. Sanitization for launcher paths at export time is a separate concern for the launcher export command.
+
+**Mitigation**: Sanitize path strings with `sanitize_display_path()` at the point they are assembled into a health result struct — before either persistence or IPC serialization. One sanitization call covers both surfaces.
+
+**Confidence**: High.
+
+---
+
+#### N-4: Health queries joining `profiles` must filter `deleted_at IS NULL`
+
+**Status**: New finding — identified by code inspection of existing queries.
+
+The existing `query_last_success_per_profile()` and `query_failure_trends()` in `metadata/mod.rs` query `launch_operations` grouped by `profile_name`. These queries do not join `profiles` and therefore do not filter on `deleted_at`. For the current use of these methods (usage analytics), this is acceptable — historical launch data for deleted profiles is useful context.
+
+However, if health commands surface results for **all profiles including soft-deleted ones**, users will see health status for profiles they have already deleted. This is confusing at best and a mild information disclosure at worst (a deleted profile's path structure is surfaced in a "current health" view).
+
+**Code evidence**: `collections.rs:143` already uses `WHERE ... p.deleted_at IS NULL` in its `add_profile_to_collection` join. `profile_sync.rs:77` uses `WHERE current_filename = ?1 AND deleted_at IS NULL` in `lookup_profile_id`. The pattern is established — health queries must follow it.
+
+**Applies to**:
+- Any new `MetadataStore` method added for health enrichment that joins or references the `profiles` table.
+- The collection-scoped health query path: `JOIN collection_profiles cp ON ... JOIN profiles p ON ... WHERE ... p.deleted_at IS NULL` — must include the tombstone filter.
+- `query_last_success_per_profile()` and `query_failure_trends()` as currently implemented do not need this filter for their existing purpose, but if health commands use them to drive which profiles appear in results, the health command layer must cross-reference against the live `ProfileStore` list (which only returns non-deleted profiles via `ProfileStore::list()`).
+
+**Mitigation**: Health commands build their profile list from `ProfileStore::list()` (TOML-authoritative, never returns deleted profiles) and use SQLite only for enrichment keyed to those names. This is the correct architecture — the health command should never independently discover profiles from SQLite. If a dedicated health-scoped query method is added to `MetadataStore`, it must include `WHERE p.deleted_at IS NULL` in any `profiles` join.
+
+**Confidence**: High — `deleted_at` tombstone behavior is confirmed in `migrations.rs:73` and enforced in `profile_sync.rs`, `collections.rs`. The two existing enrichment queries do not expose this issue in their current form, but new collection-scoped health joins must guard against it.
+
+---
+
+## SQLite3 Spec Cross-Reference
+
+The SQLite3 security findings (W1-W8, A1-A6) from `docs/plans/sqlite3-addition/feature-spec.md` and their relevance to the health dashboard:
+
+| SQLite3 Finding                                        | Status for Health Dashboard                                                                                                                                                                                                         |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W1 — World-readable DB permissions                     | **Already mitigated** in `metadata/db.rs` (`0o600` / `0o700`). Health feature inherits protection. No action needed.                                                                                                                |
+| W2 — Inconsistent path sanitization in IPC             | **Directly applies** — health IPC returns path-containing data from both TOML and SQLite sources. Also applies before persistence (N-3). See W-2, N-2, N-3 above.                                                                  |
+| W3 — Unbounded cached payload sizes                    | **Does not apply** — health checks do not write cache payloads. If `health_snapshots` is added, it is bounded to one row per profile with no payload column.                                                                       |
+| W4 — SQL injection via dynamic query construction      | **Applies at design time** — any new health queries (e.g., `SELECT last N launches for profile_id`) must use `params![]`, never `format!()`. Already enforced by `MetadataStore` pattern; health queries must follow the same rule. |
+| W5 — Symlink attack on DB creation                     | **Already mitigated** in `metadata/db.rs`. Health feature reads the existing DB, does not create a new one.                                                                                                                         |
+| W6 — Stored paths used in fs ops without re-validation | **Directly applies** — health enrichment that reads paths from SQLite and calls `metadata()` must re-validate. See N-1 above.                                                                                                       |
+| W7 — `execute_batch()` with non-literal strings        | **Does not apply** — health feature adds read queries, not new schema migrations. If health-related schema changes are added, this rule applies to the migration SQL.                                                               |
+| W8 — Community tap fields rendered in React WebView    | **Does not apply directly** — health status values are not community-sourced. Profile names in health responses are already `validate_name()`-checked.                                                                              |
+| A1 — Track bundled SQLite version                      | **Already mitigated** — `rusqlite` 0.39.0 with `bundled` feature. Health feature adds no new version dependency.                                                                                                                    |
+| A2 — `PRAGMA secure_delete=ON`                         | **Already mitigated** in `configure_connection()`.                                                                                                                                                                                  |
+| A3 — Map errors to opaque `MetadataError`              | **Applies** — any new health query methods added to `MetadataStore` must return `MetadataStoreError`, not raw `rusqlite::Error`.                                                                                                    |
+| A4 — Single connection factory                         | **Already enforced** — health queries go through `MetadataStore.with_conn()`.                                                                                                                                                       |
+| A5 — `PRAGMA quick_check` at startup                   | **Already mitigated** in `configure_connection()`.                                                                                                                                                                                  |
+| A6 — Validate string lengths before insert             | **Does not apply** — health feature adds reads, not new inserts.                                                                                                                                                                    |
 
 ---
 
@@ -166,103 +284,15 @@ If the frontend only needs to know _which_ profiles are unhealthy and _what type
 
 ### Profile Name Traversal
 
-`validate_name()` in `profile/toml_store.rs:300-325` is robust:
-
-- Rejects empty, `.`, `..`
-- Rejects absolute paths and paths containing `/`, `\`, `:`
-- Rejects Windows reserved path characters
-
-The health check IPC will accept a profile name (for single-profile check) or no name at all (for batch check). In both cases, the profile name flows through `ProfileStore::load()` which calls `profile_path()` which calls `validate_name()`. **No additional validation needed.**
+`validate_name()` in `profile/toml_store.rs` is robust. Health check IPC accepting a profile name flows through `ProfileStore::load()` which calls `validate_name()`. **No additional validation needed.**
 
 ### Profile Content Path Traversal
 
-Paths stored _inside_ profiles (`game.executable_path`, `trainer.path`, `steam.compatdata_path`, `steam.proton_path`, `runtime.prefix_path`, etc.) are user-entered filesystem paths. These:
+Paths stored inside profiles (`game.executable_path`, `trainer.path`, etc.) are user-entered. The health check treats these identically to launch validation: call `std::fs::metadata(path)` and check the result. No expanded attack surface relative to existing code when working from TOML.
 
-- Can be absolute paths anywhere on the filesystem (correct and expected — games install anywhere)
-- Can contain `../` sequences (nothing prevents this, but there is no attack surface since we only call `metadata()` on them)
-- Cannot be restricted to a safe prefix without breaking legitimate use cases
+### SQLite-Sourced Path Handling (New)
 
-The health check treats these paths identically to how the launch validation treats them: call `std::fs::metadata(path)` and check the result. The launch validator (`launch/request.rs`) already calls `Path::exists()` and `Path::is_file()` on these same paths. The health dashboard does the same — no expanded attack surface relative to existing code.
-
-**Assessment**: No path traversal risk for a read-only metadata check. The concern only arises if the health check were to _read file contents_ from these paths (it should not).
-
-### Symlink Security
-
-Symlink following (via `metadata()`) is correct behavior and not exploitable in the local threat model. A symlink to `/etc/passwd` would report as "exists, is file" — the health check never reads the content.
-
----
-
-## Information Disclosure
-
-### What Health Status Reveals
-
-Health status reveals whether user-configured paths exist on the filesystem. This is:
-
-- **Intentional**: the entire purpose of the feature.
-- **Non-sensitive in the single-user local threat model**: the user already has access to all their own paths.
-- **Potentially sensitive if IPC is abused**: if CSP is disabled and XSS occurs, an attacker could probe arbitrary paths by calling the health check IPC with crafted profile names. **W-1 (CSP) covers this.**
-
-### Remediation Suggestions
-
-Remediation suggestions like "the game executable was not found — re-browse to the file" are safe. They should not embed the raw path in the IPC response unnecessarily. See **A-5** for the recommended IPC contract.
-
----
-
-## File System Access
-
-### Scope
-
-The health check requires read-only access to:
-
-1. `~/.config/crosshook/profiles/*.toml` — already accessed by all profile commands
-2. Arbitrary absolute paths stored in profile content — read-only `metadata()` calls only
-
-No writes occur during health checking. The `ProfileStore` is not modified. Profile TOML files are not written.
-
-### Enforcing Read-Only
-
-Rust has no `O_RDONLY`-equivalent enforcement at the type level for filesystem metadata checks. The read-only guarantee is by convention: the health check implementation must only call:
-
-- `std::fs::metadata(path)` or `path.exists()` / `path.is_file()` / `path.is_dir()`
-- `std::os::unix::fs::PermissionsExt::mode()` (for executable bit checks)
-
-It must never call `fs::write()`, `fs::remove_file()`, `fs::rename()`, or any function that opens a write file descriptor on the checked paths.
-
-**Recommendation**: The health check logic should follow the existing plain-function pattern used in `launch/diagnostics/` — a single function `check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthInfo` that builds and returns a result struct directly. Do not introduce a collector object (e.g., `HealthCollector` with `add_issue()` / `finalize()`) — this abstraction does not exist elsewhere in the codebase and the plain-function style is the established convention. The read-only constraint should be documented in a module-level doc comment: "all operations in this module are read-only metadata checks — no writes, no execution."
-
-### Permission Handling
-
-If `metadata()` returns `PermissionDenied`, the health status should be `Inaccessible` (see **A-1**), not a panic or unhandled error. The batch check must continue to the next profile and path even if one check fails.
-
----
-
-## Dependency Security
-
-### New Crates Required
-
-**None.** All required functionality is available in the Rust standard library:
-
-| Need                 | API                                         |
-| -------------------- | ------------------------------------------- |
-| Check path existence | `std::fs::metadata(path)`                   |
-| Check is file        | `Metadata::is_file()`                       |
-| Check is directory   | `Metadata::is_dir()`                        |
-| Check executable bit | `std::os::unix::fs::PermissionsExt::mode()` |
-| Async batch checking | `tokio` — already a dependency              |
-
-Zero new crates means zero new supply chain risk, zero new audit surface, and zero maintenance overhead.
-
-### Existing Dependency Health
-
-The current `crosshook-core` dependencies are all well-maintained crates with no known high-severity CVEs as of 2026-03-27:
-
-- `chrono 0.4` — stable, no outstanding CVEs
-- `directories 5` — minimal, stable
-- `serde 1 / serde_json 1 / toml 0.8` — foundational, heavily audited
-- `tokio 1` — foundational, actively maintained
-- `tracing 0.1 / tracing-subscriber 0.3` — stable
-
-No dependency additions are required or recommended for this feature.
+Paths read back from `launch_operations` or `launchers` table columns should not be assumed to be identical to what TOML contains at the time of the health check. The TOML profile is the canonical authority. For health enrichment, prefer reading paths from TOML (via `ProfileStore::load`) over reading them from SQLite history rows. Use SQLite paths only for display of historical context (last-used path), and apply both `sanitize_display_path()` (for display) and a basic non-traversal check (for any `metadata()` call).
 
 ---
 
@@ -270,7 +300,7 @@ No dependency additions are required or recommended for this feature.
 
 ### New Tauri Command Surface
 
-The health dashboard will likely add one or two new Tauri commands:
+The health dashboard will add new Tauri commands:
 
 | Command                              | Input                    | Output                     |
 | ------------------------------------ | ------------------------ | -------------------------- |
@@ -278,17 +308,72 @@ The health dashboard will likely add one or two new Tauri commands:
 | `profile_health_check(name: String)` | Profile name (validated) | `ProfileHealthReport`      |
 
 **Input validation**: Profile name passes through `ProfileStore` which calls `validate_name()`. ✓
-**Output safety**: Must apply `sanitize_display_path()` to any path strings before serialization. See **W-2** and **A-5**.
+**Output safety**: Must apply `sanitize_display_path()` to all path strings, both TOML-sourced and SQLite-sourced. See W-2.
+**Query safety**: Any SQLite queries for health enrichment must use `params![]`. No `format!()` in SQL strings.
 
 ### Capabilities
 
-The existing `capabilities/default.json` grants `core:default` and `dialog:default`. The health dashboard requires neither `fs:read` nor any new capability — `std::fs::metadata()` does not require a Tauri plugin capability (Tauri filesystem plugin is only needed for JavaScript-side file I/O; Rust-side I/O in Tauri commands is unrestricted).
-
-**No new Tauri capabilities needed.**
+No new Tauri capabilities needed. `std::fs::metadata()` does not require a Tauri plugin capability. SQLite operations go through the existing `MetadataStore` which is already managed in Tauri state.
 
 ### Event Emission
 
-If the health check streams progress updates (e.g., "checked 3 of 12 profiles"), it should emit Tauri events rather than polling IPC. Event payloads must similarly avoid raw paths. Use profile names (validated) and structured status enums.
+If health check streams progress updates (e.g., "checked 3 of 12 profiles"), it should emit Tauri events rather than polling IPC. Event payloads must similarly avoid raw paths. Use profile names (validated) and structured status enums.
+
+---
+
+## Health Data Persistence Security
+
+### Recommendation: Do Not Persist Health Status
+
+The SQLite metadata layer makes it _possible_ to persist health check results. The recommendation remains: **do not**. Reasons:
+
+1. **Staleness risk**: A persisted "Healthy" status will mislead users after a game is uninstalled. Always-live checks eliminate this class of bug.
+2. **Data sensitivity**: Health results reveal filesystem layout (which games exist, which trainers, which Proton builds). `launch_operations` already captures this at launch time; adding a separate health persistence table would not add value proportional to the cost.
+3. **Fail-soft compatibility**: Health checks fall back to filesystem-only when SQLite is unavailable. This behavior is already correct and requires no change.
+
+If a future requirement demands health persistence (e.g., "show health status on startup without waiting for a scan"), use the `profiles.updated_at` field and the `launch_operations` most-recent-success query as a proxy rather than introducing a new health-specific table.
+
+---
+
+## Information Disclosure
+
+### `diagnostic_json` Sensitivity
+
+The `diagnostic_json` column stores serialized `DiagnosticReport` including free-text summaries and suggestions that may contain paths. This data is Medium-High sensitivity (see SQLite3 spec data sensitivity table). Health enrichment that surfaces any of this data must apply `sanitize_diagnostic_report()` or equivalent field-level sanitization. Do not surface raw `diagnostic_json` blobs via IPC.
+
+### `launch_operations.log_path` Sensitivity
+
+The `log_path` column stores an absolute path to the launch log file. If the health command surfaces "last launch log available at..." messaging, this path must pass through `sanitize_display_path()`.
+
+### What Health Status Reveals
+
+Health status reveals whether user-configured paths exist on the filesystem:
+
+- **Intentional**: the entire purpose of the feature.
+- **Non-sensitive in the single-user local threat model**: the user has access to all their own paths.
+- **Potentially sensitive if IPC is abused**: CSP (W-1) mitigates this vector.
+
+---
+
+## Dependency Security
+
+### New Crates Required
+
+**None.** The SQLite layer (`rusqlite`, `uuid`) is already a dependency. All required filesystem metadata APIs are in `std`. Zero new crates.
+
+### Existing Dependency Health
+
+No changes to the dependency health assessment from the first pass. `rusqlite` 0.39.0 bundles SQLite 3.51.3, addressing all known CVEs.
+
+---
+
+## Fail-Soft Security
+
+When `MetadataStore` is unavailable (`available: false`), `with_conn()` returns `T::default()` immediately. For health enrichment queries:
+
+- Queries that return `Vec<_>` will return an empty vec — the health check falls back to filesystem-only checks from TOML. This is the correct fallback.
+- No new attack surface exists in degraded mode. SQLite-sourced enrichment simply does not run.
+- The health command must not fail or degrade UI usability when SQLite enrichment is unavailable. Health checks from TOML are sufficient and always-available.
 
 ---
 
@@ -296,7 +381,7 @@ If the health check streams progress updates (e.g., "checked 3 of 12 profiles"),
 
 For the health check implementation:
 
-1. **Use `std::fs::metadata(path)` — not `path.exists()`**: `metadata()` returns `Result<Metadata, io::Error>` and lets you distinguish `NotFound` from `PermissionDenied`. `path.exists()` swallows the error and returns `false` for both. Map error kinds as follows:
+1. **Use `std::fs::metadata(path)` — not `path.exists()`**: `metadata()` returns `Result<Metadata, io::Error>` and lets you distinguish `NotFound` from `PermissionDenied`.
 
    ```rust
    match std::fs::metadata(path) {
@@ -304,47 +389,60 @@ For the health check implementation:
        Err(e) => match e.kind() {
            io::ErrorKind::NotFound         => PathStatus::Missing,
            io::ErrorKind::PermissionDenied => PathStatus::Inaccessible,
-           _                               => PathStatus::Inaccessible, // unknown OS error
+           _                               => PathStatus::Inaccessible,
        }
    }
    ```
 
-   Note: dangling symlinks return `NotFound` (not `PermissionDenied`) because `metadata()` follows symlinks. The catch-all `_` maps to `Inaccessible` rather than `Missing` because the path's existence cannot be confirmed.
+2. **Never read file content from profile paths**: `metadata()` only. Do not open any file descriptor for reading on game_path, trainer_path, etc.
 
-2. **Never read file content from profile paths**: `metadata()` only. Do not open any file descriptor for reading on game_path, trainer_path, etc. The health check must never call `fs::read_to_string()` on user-configured paths.
+3. **Return structured status, not raw error strings**: IPC result type should be an enum (`Healthy`, `Missing`, `Inaccessible`, `NotConfigured`).
 
-3. **Return structured status, not raw error strings**: The IPC result type should be an enum (`Healthy`, `Missing`, `Inaccessible`, `NotConfigured`) rather than a raw `io::Error` string, to prevent leaking OS error messages that may contain path information.
-
-4. **Apply `sanitize_display_path()` to all path strings in IPC responses**: Move this function to `src-tauri/src/commands/shared.rs` (not `crosshook-core` — it is a display-formatting concern for the command layer, not business logic). The health dashboard command calls it the same way `sanitize_diagnostic_report()` does in the launch flow.
+4. **Apply `sanitize_display_path()` to all path strings in IPC responses**: covers both TOML-sourced and SQLite-sourced paths.
 
 5. **Profile batch check must not fail on single path error**: Use `match metadata(path) { Ok(m) => ..., Err(e) => log and continue }`. Never use `?` to propagate errors out of the per-path check loop.
 
-6. **Check executable bit on Linux using `PermissionsExt`**: For Proton binary and game executable paths, checking `is_file()` alone is insufficient — a file can exist but not be executable. Use `metadata.permissions().mode() & 0o111 != 0` for executable bit checks. This matches what the OS actually enforces at launch time.
+6. **Check executable bit on Linux using `PermissionsExt`**: For Proton binary and game executable paths, use `metadata.permissions().mode() & 0o111 != 0`.
 
-7. **Log at `debug` level, not `info`**: Health check results for individual paths should be logged at `debug` level only. Do not log raw paths at `info` or `warn` level as they appear in tracing output.
+7. **Log at `debug` level, not `info`**: Health check results for individual paths should be logged at `debug` level only. Do not log raw paths at `info` or `warn` level.
+
+8. **Health queries use `params![]` exclusively**: Any SQL in health-related `MetadataStore` methods follows the existing parameterized-query rule. No `format!()` in SQL strings. Note: `query_failure_trends()` in `mod.rs:442` uses `format!("-{days} days")` to build a string that is then passed to `params![]` — this is not an injection risk (the value is still a bound parameter), but the `format!()` call is unnecessary. New health query methods should use `format!()` only for the interval string construction pattern shown there, and in no other SQL context.
+
+9. **Re-validate SQLite-sourced paths before `metadata()` calls** (new): For any code path that reads a path from SQLite and then calls `metadata()`, validate the path is non-empty and absolute. This is defense-in-depth against DB corruption; the realistic risk is low.
+
+10. **Surface only promoted columns from `diagnostic_json` where possible**: For health enrichment, prefer `severity` and `failure_mode` enum columns over deserializing the full JSON blob. If free-text fields are needed, apply `sanitize_diagnostic_report()` before IPC.
+
+11. **Apply `sanitize_display_path()` before persistence, not only before IPC** (new — N-3): If any health-derived path string is written to SQLite (e.g., a `health_snapshots.last_broken_path` column), sanitize it before the write. One call at struct-assembly time covers both the write path and the IPC path.
+
+12. **Filter `deleted_at IS NULL` in all health queries joining `profiles`** (new — N-4): Health commands build their profile list from `ProfileStore::list()` (TOML-authoritative). Any `MetadataStore` method used for health enrichment that joins `profiles` must include `WHERE p.deleted_at IS NULL`. Do not surface health data for tombstoned profiles. Reference: existing pattern in `collections.rs:143` and `profile_sync.rs:77`.
 
 ---
 
 ## Trade-off Recommendations
 
-| Trade-off                                                       | Recommended Decision                                                                                                                                                    |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CSP: enforce now vs. defer                                      | Enforce alongside this feature (W-1). The implementation cost is a one-line change to `tauri.conf.json` and testing that existing commands still work.                  |
-| Raw paths in IPC: include vs. omit                              | Omit raw paths from IPC; use enum-tagged field types (A-5). Frontend can display human-readable labels without knowing the raw path.                                    |
-| Batch concurrency: sequential vs. async                         | Sequential for simplicity; add bounded concurrency only if profiling reveals it matters (A-4).                                                                          |
-| Path scope restriction: restrict to known dirs vs. unrestricted | Unrestricted — users install games anywhere. Restricting would break legitimate configurations. Accept the "existence confirmation" information disclosure as inherent. |
-| Error distinction: 2-state vs. 3-state                          | 3-state (`Healthy` / `Missing` / `Inaccessible`) — the implementation cost is negligible and the UX improvement is significant (A-1).                                   |
+| Trade-off                                                  | Recommended Decision                                                                                                                         |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| CSP: enforce now vs. defer                                 | Enforce alongside this feature (W-1). One-line `tauri.conf.json` change.                                                                     |
+| Raw paths in IPC: include vs. omit                         | Omit raw paths from IPC; use enum-tagged field types (A-6). Frontend displays human-readable labels without knowing the raw path.            |
+| Batch concurrency: sequential vs. async                    | Sequential for simplicity; add bounded concurrency only if profiling reveals it matters (A-5).                                               |
+| Health status persistence: persist vs. live-only           | Live-only — do not add a health status persistence table. Use `launch_operations` history as a proxy for "last known good".                  |
+| SQLite enrichment: always vs. best-effort                  | Best-effort only. Health checks from TOML must work standalone. SQLite enrichment is additive and must not block or fail the health command. |
+| `diagnostic_json` exposure: promoted columns vs. full blob | Prefer promoted `severity`/`failure_mode` columns. Only deserialize the JSON blob if free-text display is required, and sanitize before IPC. |
+| Path scope restriction: unrestricted vs. known dirs        | Unrestricted — users install games anywhere. Accept the "existence confirmation" information disclosure as inherent.                         |
+| Error distinction: 2-state vs. 3-state                     | 3-state (`Healthy` / `Missing` / `Inaccessible`) — negligible implementation cost, significant UX improvement (A-1).                         |
 
 ---
 
 ## Open Questions
 
-1. **Should health check persist results to disk?** Persisting would enable "health last checked on boot" UX but introduces a write path and staleness risk. Recommendation: do not persist; always check live on demand.
+1. **Will health enrichment read paths from SQLite at all?** If the health check reads paths exclusively from the loaded `GameProfile` TOML struct, N-1 (W6 application) becomes a preventive note rather than an active concern. The tech designer should clarify which fields, if any, are sourced from SQLite rather than TOML.
 
-2. **Should the IPC support partial re-check (single profile) or only batch?** Both are useful. The single-profile variant is needed for post-remediation "re-check" UX. Both should go through the same underlying `check_profile_health(profile: &GameProfile)` function.
+2. **Will health surface last-launch summary from `diagnostic_json`?** If the health report shows "last launch failed with: [reason]", the free-text fields require `sanitize_diagnostic_report()`. Confirm scope with tech designer and UX researcher.
 
-3. **How should the UI display `Inaccessible` vs `Missing`?** This is a UX decision, but the IPC layer must distinguish them. Coordinate with ux-researcher.
+3. **Should `launch_operations` health queries be bounded by recency?** If `profile_health_check` queries launch history for a given profile, bound the query (e.g., `LIMIT 10` most recent) to avoid unbounded reads on profiles with long histories.
 
-4. **CSP enforcement scope**: If CSP is enabled, will the existing `devUrl: "http://localhost:5173"` dev setup require a CSP exception? Yes — `script-src 'self' 'unsafe-eval'` may be needed for Vite dev mode. Production AppImage should use strict CSP.
+4. **CSP enforcement scope**: If CSP is enabled, the existing `devUrl: "http://localhost:5173"` dev setup may require `script-src 'self' 'unsafe-eval'` for Vite dev mode. Production AppImage should use strict CSP.
 
-5. **Should `Optional` paths (dll_paths with empty strings) be health-checked?** Profile fields can be empty strings (opt-out). The health check should skip empty-string paths with a `NotConfigured` status rather than reporting them as `Missing`.
+5. **Should `Optional` paths (empty strings) be health-checked?** The health check should skip empty-string paths with a `NotConfigured` status rather than reporting them as `Missing`.
+
+6. **How should `Inaccessible` vs `Missing` render in the UI?** IPC layer must distinguish them; UX decision delegated to ux-researcher.
