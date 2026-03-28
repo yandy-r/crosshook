@@ -12,6 +12,7 @@ import { copyToClipboard } from '../utils/clipboard';
 import '../styles/preview.css';
 
 /* ───────── Focus-trap helpers (mirrors LaunchPanel PreviewModal) ───────── */
+const RESET_SCROLL_MOMENTUM_EVENT = 'crosshook:reset-scroll-momentum';
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -88,6 +89,8 @@ export function LauncherPreviewModal({
     const portalHost = portalHostRef.current;
     if (!portalHost) return;
 
+    window.dispatchEvent(new Event(RESET_SCROLL_MOMENTUM_EVENT));
+
     previouslyFocusedRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
@@ -116,6 +119,7 @@ export function LauncherPreviewModal({
 
     return () => {
       window.cancelAnimationFrame(frame);
+      window.dispatchEvent(new Event(RESET_SCROLL_MOMENTUM_EVENT));
       body.style.overflow = bodyStyleRef.current;
       body.classList.remove('crosshook-modal-open');
 
