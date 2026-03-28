@@ -5,7 +5,9 @@ import { useEffect } from 'react';
 const WHEEL_MULTIPLIER = 2;
 const SMOOTH_FACTOR = 0.18;
 const ARROW_SCROLL_PX = 80;
-const SCROLLABLE = '.crosshook-content-area, .crosshook-console-drawer__body';
+const SCROLLABLE =
+  '.crosshook-content-area, .crosshook-console-drawer__body, .crosshook-modal__body';
+const RESET_SCROLL_MOMENTUM_EVENT = 'crosshook:reset-scroll-momentum';
 
 const INTERACTIVE_ROLES = new Set([
   'tablist',
@@ -78,6 +80,10 @@ export function useScrollEnhance(): void {
       const container = e.target.closest(SCROLLABLE) as HTMLElement | null;
       if (!container) return;
 
+      if (activeContainer && activeContainer !== container) {
+        resetMomentum();
+      }
+
       activeContainer = container;
       velocityY += e.deltaY * WHEEL_MULTIPLIER;
       velocityX += e.deltaX * WHEEL_MULTIPLIER;
@@ -130,14 +136,20 @@ export function useScrollEnhance(): void {
       }
     }
 
+    function onResetMomentum() {
+      resetMomentum();
+    }
+
     document.addEventListener('wheel', onWheel, { passive: true });
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener(RESET_SCROLL_MOMENTUM_EVENT, onResetMomentum);
 
     return () => {
       document.removeEventListener('wheel', onWheel);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener(RESET_SCROLL_MOMENTUM_EVENT, onResetMomentum);
       resetMomentum();
     };
   }, []);
