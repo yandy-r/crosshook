@@ -1,4 +1,3 @@
-use std::env;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -18,7 +17,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-use super::shared::create_log_path;
+use super::shared::{create_log_path, sanitize_display_path};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LaunchResult {
@@ -296,13 +295,6 @@ async fn safe_read_tail(path: &Path, max_bytes: u64) -> String {
     }
 
     String::from_utf8_lossy(&buffer).into_owned()
-}
-
-fn sanitize_display_path(path: &str) -> String {
-    match env::var("HOME") {
-        Ok(home) if path.starts_with(&home) => format!("~{}", &path[home.len()..]),
-        _ => path.to_string(),
-    }
 }
 
 fn sanitize_diagnostic_report(mut report: DiagnosticReport) -> DiagnosticReport {
