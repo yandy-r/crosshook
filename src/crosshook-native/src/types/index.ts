@@ -6,3 +6,4 @@ export * from './launcher';
 export * from './install';
 export * from './update';
 export * from './settings';
+export * from './health';

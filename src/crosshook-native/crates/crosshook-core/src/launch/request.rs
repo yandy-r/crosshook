@@ -697,7 +697,7 @@ fn require_trainer_paths_if_needed(request: &LaunchRequest) -> Result<(), Valida
     Ok(())
 }
 
-fn require_directory<'a>(
+pub(crate) fn require_directory<'a>(
     value: &'a str,
     required_error: ValidationError,
     missing_error: ValidationError,
@@ -718,7 +718,7 @@ fn require_directory<'a>(
     Ok(path)
 }
 
-fn require_executable_file(
+pub(crate) fn require_executable_file(
     value: &str,
     required_error: ValidationError,
     missing_error: ValidationError,
@@ -739,7 +739,7 @@ fn require_executable_file(
     Ok(())
 }
 
-fn is_executable_file(path: &Path) -> bool {
+pub(crate) fn is_executable_file(path: &Path) -> bool {
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(_) => return false,

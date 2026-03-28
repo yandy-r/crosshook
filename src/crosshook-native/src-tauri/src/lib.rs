@@ -135,6 +135,8 @@ pub fn run() {
             commands::collections::collection_list_profiles,
             commands::profile::profile_set_favorite,
             commands::profile::profile_list_favorites,
+            commands::health::batch_validate_profiles,
+            commands::health::get_profile_health,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");
