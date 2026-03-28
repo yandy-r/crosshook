@@ -1,66 +1,39 @@
-# SQLite Metadata Layer Phase 2 (Operational History) — Implementation Plan
+# SQLite Metadata Layer Phase 3 - Catalog and Intelligence Implementation Plan
 
-Phase 2 extends the existing `MetadataStore` (Phase 1: profile sync with `Arc<Mutex<Connection>>`, schema v2) with two new tables (`launchers` for export tracking with drift detection, `launch_operations` for launch history with `DiagnosticReport` JSON storage), three new public methods, and integration hooks in async launch commands (via `spawn_blocking`) and synchronous export commands. The sole external blocker is `LaunchRequest` missing a `profile_name` field — once added as `Option<String>` with `#[serde(default)]`, all launch history hooks can link operations to profile identities. Schema version bumps from v2 to v3; no new Cargo dependencies are required.
+Phase 3 extends the existing `MetadataStore` (schema v3, `Arc<Mutex<Connection>>`, 7 metadata files) with five new SQLite tables via a single `migrate_3_to_4` migration, two new metadata submodule files (`community_index.rs` for tap catalog indexing with HEAD commit watermark skip, `cache_store.rs` for bounded external metadata cache), a `collections.rs` submodule for collections/favorites CRUD, usage insights as SQL aggregate projections over existing `launch_operations`, and Tauri command integration across three command files. Every new construct follows the exact `with_conn` fail-soft, free-function, warn-and-continue patterns verified in Phases 1-2 — no new Cargo dependencies, no structural changes to existing modules, and FTS5 explicitly deferred.
 
 ## Critically Relevant Files and Documentation
 
-- docs/plans/sqlite3-addition/shared.md: Phase 2 shared context — locked design decisions, schema DDL, patterns, security constraints
-- docs/plans/sqlite3-addition/feature-spec.md: Master spec — Phase 2 schema (lines 189-222), API design (lines 246-249), business rules, edge cases
-- docs/plans/sqlite3-addition/research-architecture.md: Current metadata module structure, launch flow, async bridge requirements, integration points
-- docs/plans/sqlite3-addition/research-patterns.md: Phase 1 patterns extracted from source — with_conn, profile_sync, enum as_str, migration, test patterns
-- docs/plans/sqlite3-addition/research-integration.md: All Tauri command signatures, LaunchRequest gap, DiagnosticReport size, hook locations
-- docs/plans/sqlite3-addition/research-security.md: W3 (4KB diagnostic limit), W6 (re-validate stored paths), W2 (path sanitization), W7 (no format! in SQL)
-- docs/plans/sqlite3-addition/research-docs.md: Phase 2 requirements, edge cases, documentation gaps, must-read priority list
-- docs/plans/sqlite3-addition/analysis-context.md: Condensed Phase 2 context — async bridge pattern, security constraints, parallelization tracks
-- docs/plans/sqlite3-addition/analysis-code.md: Implementation patterns with code examples — with_conn shapes, UPSERT, spawn_blocking, test patterns
-- docs/plans/sqlite3-addition/analysis-tasks.md: Task structure analysis — 10 tasks across 5 phases, dependency DAG, parallelization schedule
-- src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs: MetadataStore struct, with_conn helper (lines 56-73), Phase 1 public API — all Phase 2 methods added here
-- src/crosshook-native/crates/crosshook-core/src/metadata/models.rs: MetadataStoreError, SyncSource enum with as_str() — template for LaunchOutcome and DriftState
-- src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs: Sequential migration runner (v0→v1→v2) — Phase 2 adds v2→v3
-- src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs: Free function pattern (conn: &Connection first arg) — template for launcher_sync.rs and launch_history.rs
-- src/crosshook-native/crates/crosshook-core/src/launch/request.rs: LaunchRequest struct (lines 16-37) — Phase 2 blocker: add profile_name
-- src/crosshook-native/crates/crosshook-core/src/launch/diagnostics/models.rs: DiagnosticReport, ExitCodeInfo, FailureMode — serialized to diagnostic_json column
-- src/crosshook-native/crates/crosshook-core/src/export/launcher.rs: SteamExternalLauncherExportRequest (lines 14-26), SteamExternalLauncherExportResult, sanitize_launcher_slug (line 265)
-- src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs: LauncherInfo, derive_launcher_paths() — launchers table maps to these types
-- src/crosshook-native/src-tauri/src/commands/launch.rs: Async launch_game/launch_trainer, spawn_log_stream, stream_log_lines — Phase 2 hook points
-- src/crosshook-native/src-tauri/src/commands/export.rs: Synchronous export commands — Phase 2 adds State<MetadataStore> and observe hooks
-- src/crosshook-native/src-tauri/src/commands/install.rs: Canonical spawn_blocking pattern (lines 10-18) — template for async metadata bridge
-- src/crosshook-native/src-tauri/src/startup.rs: run_metadata_reconciliation — Phase 2 adds sweep_abandoned_operations call
+- docs/plans/sqlite3-addition/shared.md: Phase 3 shared context — locked design decisions, schema DDL, patterns, security constraints, integration points
+- docs/plans/sqlite3-addition/feature-spec.md: Master spec — Phase 3 schema (line 223), task list (lines 524-534), business rules 7/13, security findings W3/W6/W8/A6
+- docs/plans/sqlite3-addition/analysis-context.md: Condensed Phase 3 context — data flow diagrams, parallelization tracks, cross-cutting security concerns, new Tauri commands list
+- docs/plans/sqlite3-addition/analysis-code.md: Implementation patterns with exact code shapes — `with_conn`/`with_conn_mut`, free function headers, migration shape, DELETE+INSERT transaction, warn-and-continue, test patterns
+- docs/plans/sqlite3-addition/analysis-tasks.md: Task structure analysis — 11 tasks across 5 phases, dependency DAG, parallelization schedule, file-to-task mapping
+- src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs: MetadataStore struct, `with_conn`/`with_conn_mut` at lines 59-95, all Phase 1-2 public API — Phase 3 adds ~15 new delegate methods
+- src/crosshook-native/crates/crosshook-core/src/metadata/models.rs: MetadataStoreError, existing enums (SyncSource, LaunchOutcome, DriftState) with `as_str()`, MAX_DIAGNOSTIC_JSON_BYTES — template for Phase 3 types
+- src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs: Sequential migration runner (v0→v3) — Phase 3 adds `migrate_3_to_4()` for all five new tables
+- src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs: `lookup_profile_id(conn, name)` at lines 72-86 — reusable bridge for collections/favorites FK resolution
+- src/crosshook-native/crates/crosshook-core/src/metadata/launcher_sync.rs: `Transaction::new(conn, TransactionBehavior::Immediate)` pattern — template for DELETE+INSERT community re-index
+- src/crosshook-native/crates/crosshook-core/src/metadata/launch_history.rs: Size-bounded JSON storage pattern at lines 66-82 — template for cache payload bounds
+- src/crosshook-native/crates/crosshook-core/src/community/taps.rs: `CommunityTapSyncResult` with `head_commit: String` at line 44 — watermark source; `CommunityTapSubscription` at lines 19-25
+- src/crosshook-native/crates/crosshook-core/src/community/index.rs: `CommunityProfileIndex`, `CommunityProfileIndexEntry` at lines 16-25, schema version check at line 145
+- src/crosshook-native/crates/crosshook-core/src/profile/community_schema.rs: `CommunityProfileManifest`, `CommunityProfileMetadata` field list, `CompatibilityRating` enum, `COMMUNITY_PROFILE_SCHEMA_VERSION`
+- src/crosshook-native/src-tauri/src/commands/community.rs: `community_sync` at line 124, `map_error` helper at lines 8-10 — Phase 3 adds `State<MetadataStore>` and sync_tap_index hook
+- src/crosshook-native/src-tauri/src/commands/export.rs: Warn-and-continue pattern at lines 26-38 — exact template for Phase 3 metadata hooks
+- src/crosshook-native/src-tauri/src/commands/profile.rs: Existing metadata hooks after profile CRUD — template for `profile_set_favorite`
+- src/crosshook-native/src-tauri/src/lib.rs: `.manage()` at line 80, `invoke_handler!` command list at lines 85-128 — Phase 3 registers ~9 new commands
 - CLAUDE.md: Project conventions — commit messages, build commands, Rust style, test commands
 
 ## Implementation Plan
 
-### Phase 1: Prerequisites
+### Phase 1: Foundation
 
-#### Task 1.1: Add `profile_name` to `LaunchRequest` and fix test fixtures Depends on [none]
-
-**READ THESE BEFORE TASK**
-
-- src/crosshook-native/crates/crosshook-core/src/launch/request.rs
-- docs/plans/sqlite3-addition/research-integration.md (LaunchRequest gap analysis section)
-- docs/plans/sqlite3-addition/shared.md (Design Decisions table)
-
-**Instructions**
-
-Files to Modify
-
-- src/crosshook-native/crates/crosshook-core/src/launch/request.rs
-- src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs (test fixtures only)
-
-Add `pub profile_name: Option<String>` with `#[serde(default)]` to the `LaunchRequest` struct in `request.rs`. Place it after the last existing field (`launch_game_only`) to minimize diff noise. The `Option<String>` type (not bare `String`) avoids sentinel-value checking at every call site and is consistent with `profiles.source_profile_id` being a nullable FK in the Phase 1 schema.
-
-After adding the field, grep for all struct literal constructions of `LaunchRequest` in the codebase. The test fixtures in `script_runner.rs` (approximately lines 353, 406, 498, and any others found) use exhaustive field lists — each needs `profile_name: None` appended. The `Default` derive on `LaunchRequest` already handles this for `..Default::default()` patterns.
-
-Verify with `cargo check --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`.
-
-### Phase 2: Foundation
-
-#### Task 2.1: Add Phase 2 types to `models.rs` Depends on [none]
+#### Task 1.1: Add Phase 3 types and constants to `metadata/models.rs` Depends on [none]
 
 **READ THESE BEFORE TASK**
 
 - src/crosshook-native/crates/crosshook-core/src/metadata/models.rs
-- docs/plans/sqlite3-addition/shared.md (schema section, Design Decisions table)
+- docs/plans/sqlite3-addition/shared.md (Design Decisions table)
 - docs/plans/sqlite3-addition/analysis-code.md (Enum with as_str() pattern)
 
 **Instructions**
@@ -69,27 +42,33 @@ Files to Modify
 
 - src/crosshook-native/crates/crosshook-core/src/metadata/models.rs
 
-Add the following types after the existing `SyncSource` enum (after line ~93):
+Add the following types after the existing `LaunchOperationRow` struct:
 
-1. **`LaunchOutcome` enum** — derives `Debug, Clone, Copy, Serialize, Deserialize` with `#[serde(rename_all = "snake_case")]` and `as_str() -> &'static str`. Variants: `Started` ("started"), `Succeeded` ("succeeded"), `Failed` ("failed"), `Abandoned` ("abandoned"). Maps to the `launch_operations.status` TEXT column.
+1. **`MAX_CACHE_PAYLOAD_BYTES` constant** — `pub const MAX_CACHE_PAYLOAD_BYTES: usize = 512_000;` Place alongside `MAX_DIAGNOSTIC_JSON_BYTES`.
 
-2. **`DriftState` enum** — same derives. Variants: `Unknown` ("unknown"), `Aligned` ("aligned"), `Missing` ("missing"), `Moved` ("moved"), `Stale` ("stale"). Maps to `launchers.drift_state` TEXT column.
+2. **`CacheEntryStatus` enum** — derives `Debug, Clone, Copy, Serialize, Deserialize` with `#[serde(rename_all = "snake_case")]` and `as_str() -> &'static str`. Variants: `Valid` ("valid"), `Stale` ("stale"), `Oversized` ("oversized"), `Corrupt` ("corrupt"). Follows the exact `DriftState` shape.
 
-3. **`MAX_DIAGNOSTIC_JSON_BYTES` constant** — `pub const MAX_DIAGNOSTIC_JSON_BYTES: usize = 4_096;` (W3 security requirement).
+3. **`CommunityTapRow` struct** — `#[derive(Debug, Clone, Serialize)]`, `pub(crate)` visibility. Fields: `tap_id: String`, `tap_url: String`, `tap_branch: String`, `local_path: String`, `last_head_commit: Option<String>`, `profile_count: i64`, `last_indexed_at: Option<String>`, `created_at: String`, `updated_at: String`.
 
-4. **`LauncherRow` struct** — `#[derive(Debug, Clone)]`, `#[allow(dead_code)]`, `pub(crate)` visibility. Fields: `launcher_id: String`, `profile_id: Option<String>`, `launcher_slug: String`, `display_name: String`, `script_path: String`, `desktop_entry_path: String`, `drift_state: String`, `created_at: String`, `updated_at: String`. All timestamps as `String` (RFC 3339), consistent with `ProfileRow`.
+4. **`CommunityProfileRow` struct** — `#[derive(Debug, Clone, Serialize)]`, `pub(crate)` visibility. Fields: `id: i64`, `tap_id: String`, `tap_url: String`, `relative_path: String`, `manifest_path: String`, `game_name: Option<String>`, `game_version: Option<String>`, `trainer_name: Option<String>`, `trainer_version: Option<String>`, `proton_version: Option<String>`, `compatibility_rating: Option<String>`, `author: Option<String>`, `description: Option<String>`, `platform_tags: Option<String>`, `schema_version: i64`, `created_at: String`. Note: `tap_url` is denormalized for IPC convenience — populated via JOIN in queries.
 
-5. **`LaunchOperationRow` struct** — same pattern. Fields: `operation_id: String`, `profile_id: Option<String>`, `profile_name: Option<String>`, `launch_method: String`, `status: String`, `exit_code: Option<i32>`, `signal: Option<i32>`, `log_path: Option<String>`, `diagnostic_json: Option<String>`, `severity: Option<String>`, `failure_mode: Option<String>`, `started_at: String`, `finished_at: Option<String>`.
+5. **`CollectionRow` struct** — `#[derive(Debug, Clone, Serialize)]`, `pub(crate)` visibility. Fields: `collection_id: String`, `name: String`, `description: Option<String>`, `profile_count: i64`, `created_at: String`, `updated_at: String`.
 
-Update the `pub use models::` line in `mod.rs` to add `LaunchOutcome, DriftState, MAX_DIAGNOSTIC_JSON_BYTES`.
+6. **`FailureTrendRow` struct** — `#[derive(Debug, Clone, Serialize)]`, `pub(crate)` visibility. Fields: `profile_name: String`, `successes: i64`, `failures: i64`, `failure_modes: Option<String>`.
 
-#### Task 2.2: Add `migrate_2_to_3()` to `migrations.rs` Depends on [none]
+7. **`MetadataStoreError::Validation` variant** — Add a new variant `Validation(String)` to the `MetadataStoreError` enum. Include it in the `Display` impl following the existing pattern (e.g., `Validation(msg) => write!(f, "metadata validation error: {msg}")`). This variant is used by `collections.rs` for empty-name rejection and can be reused for future input validation in the metadata layer.
+
+Do NOT update `pub use models::{...}` in `mod.rs` yet — defer to Task 3.1.
+
+Verify with `cargo check --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`.
+
+#### Task 1.2: Add `migrate_3_to_4()` to `metadata/migrations.rs` Depends on [none]
 
 **READ THESE BEFORE TASK**
 
 - src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs
-- docs/plans/sqlite3-addition/shared.md (schema DDL in "Relevant Tables" section)
-- docs/plans/sqlite3-addition/analysis-context.md (Phase 2 Schema section)
+- docs/plans/sqlite3-addition/shared.md (Relevant Tables section for full DDL)
+- docs/plans/sqlite3-addition/analysis-code.md (Migration Shape section)
 
 **Instructions**
 
@@ -97,12 +76,12 @@ Files to Modify
 
 - src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs
 
-Add a new migration guard after the existing `if version < 2` block in `run_migrations()`:
+Add a new migration guard after the existing `if version < 3` block in `run_migrations()`:
 
 ```rust
-if version < 3 {
-    migrate_2_to_3(conn)?;
-    conn.pragma_update(None, "user_version", 3_u32)
+if version < 4 {
+    migrate_3_to_4(conn)?;
+    conn.pragma_update(None, "user_version", 4_u32)
         .map_err(|source| MetadataStoreError::Database {
             action: "update metadata schema version",
             source,
@@ -110,94 +89,154 @@ if version < 3 {
 }
 ```
 
-Add the private `migrate_2_to_3` function using `conn.execute_batch()` with literal-only DDL (W7). The DDL creates two tables:
+Add the private `migrate_3_to_4` function using `conn.execute_batch()` with literal-only DDL (W7). The DDL creates five tables:
 
-**`launchers`**: `launcher_id TEXT PRIMARY KEY`, `profile_id TEXT REFERENCES profiles(profile_id)` (nullable), `launcher_slug TEXT NOT NULL UNIQUE`, `display_name TEXT NOT NULL`, `script_path TEXT NOT NULL`, `desktop_entry_path TEXT NOT NULL`, `drift_state TEXT NOT NULL DEFAULT 'unknown'`, `created_at TEXT NOT NULL`, `updated_at TEXT NOT NULL`. Indexes on `profile_id` and `launcher_slug`.
+**`community_taps`**: `tap_id TEXT PRIMARY KEY`, `tap_url TEXT NOT NULL`, `tap_branch TEXT NOT NULL DEFAULT ''` (empty string for absent branch — avoids NULL!=NULL UNIQUE index issue), `local_path TEXT NOT NULL`, `last_head_commit TEXT`, `profile_count INTEGER NOT NULL DEFAULT 0`, `last_indexed_at TEXT`, `created_at TEXT NOT NULL`, `updated_at TEXT NOT NULL`. UNIQUE index on `(tap_url, tap_branch)`.
 
-**`launch_operations`**: `operation_id TEXT PRIMARY KEY`, `profile_id TEXT REFERENCES profiles(profile_id)` (nullable), `profile_name TEXT`, `launch_method TEXT NOT NULL`, `status TEXT NOT NULL DEFAULT 'started'`, `exit_code INTEGER`, `signal INTEGER`, `log_path TEXT`, `diagnostic_json TEXT`, `severity TEXT`, `failure_mode TEXT`, `started_at TEXT NOT NULL`, `finished_at TEXT`. Indexes on `profile_id` and `started_at`.
+**`community_profiles`**: `id INTEGER PRIMARY KEY AUTOINCREMENT`, `tap_id TEXT NOT NULL REFERENCES community_taps(tap_id)`, `relative_path TEXT NOT NULL`, `manifest_path TEXT NOT NULL`, `game_name TEXT`, `game_version TEXT`, `trainer_name TEXT`, `trainer_version TEXT`, `proton_version TEXT`, `compatibility_rating TEXT`, `author TEXT`, `description TEXT`, `platform_tags TEXT` (space-separated string), `schema_version INTEGER NOT NULL DEFAULT 1`, `created_at TEXT NOT NULL`. UNIQUE index on `(tap_id, relative_path)`.
 
-The `launcher_slug` column has a `UNIQUE` constraint — this is the conflict target for the UPSERT in `observe_launcher_exported`. Follow the exact DDL pattern from `migrate_0_to_1` and `migrate_1_to_2`. Use `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` for idempotency.
+**`external_cache_entries`**: `cache_id TEXT PRIMARY KEY`, `source_url TEXT NOT NULL`, `cache_key TEXT NOT NULL UNIQUE`, `payload_json TEXT`, `payload_size INTEGER NOT NULL DEFAULT 0`, `fetched_at TEXT NOT NULL`, `expires_at TEXT`, `created_at TEXT NOT NULL`, `updated_at TEXT NOT NULL`.
 
-### Phase 3: Core Modules
+**`collections`**: `collection_id TEXT PRIMARY KEY`, `name TEXT NOT NULL UNIQUE`, `description TEXT`, `created_at TEXT NOT NULL`, `updated_at TEXT NOT NULL`.
 
-#### Task 3.1: Create `metadata/launcher_sync.rs` Depends on [2.1, 2.2]
+**`collection_profiles`**: `collection_id TEXT NOT NULL REFERENCES collections(collection_id) ON DELETE CASCADE`, `profile_id TEXT NOT NULL REFERENCES profiles(profile_id)`, `added_at TEXT NOT NULL`, `PRIMARY KEY (collection_id, profile_id)`. Index on `profile_id`.
+
+Do NOT include FTS5 virtual table DDL (deferred).
+
+Use `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` for idempotency. Follow the exact DDL pattern from `migrate_0_to_1`, `migrate_1_to_2`, and `migrate_2_to_3`.
+
+### Phase 2: Core Modules
+
+#### Task 2.1: Create `metadata/community_index.rs` Depends on [1.1, 1.2]
 
 **READ THESE BEFORE TASK**
 
-- src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs (template for free function pattern)
-- src/crosshook-native/crates/crosshook-core/src/export/launcher.rs (SteamExternalLauncherExportResult, sanitize_launcher_slug)
-- docs/plans/sqlite3-addition/analysis-code.md (UPSERT pattern, structured error mapping)
-- docs/plans/sqlite3-addition/research-security.md (W6: re-validate stored paths)
+- src/crosshook-native/crates/crosshook-core/src/metadata/launcher_sync.rs (Transaction pattern for DELETE+INSERT)
+- src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs (UPSERT pattern, lookup_profile_id)
+- src/crosshook-native/crates/crosshook-core/src/community/taps.rs (CommunityTapSyncResult struct)
+- src/crosshook-native/crates/crosshook-core/src/community/index.rs (CommunityProfileIndexEntry struct)
+- docs/plans/sqlite3-addition/shared.md (Design Decisions — DELETE+INSERT, tap_branch handling, A6 bounds)
+- docs/plans/sqlite3-addition/analysis-code.md (DELETE+INSERT Transaction Shape, A6 enforcement)
 
 **Instructions**
 
 Files to Create
 
-- src/crosshook-native/crates/crosshook-core/src/metadata/launcher_sync.rs
+- src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs
 
-Create the file following the `profile_sync.rs` free function pattern. All functions take `conn: &Connection` as first arg and return `Result<T, MetadataStoreError>`. Import `DriftState` from `super::models`, `db` from `super::db`, and `profile_sync::lookup_profile_id` from `super::profile_sync`.
+Create the file following the `profile_sync.rs` free function pattern. Import `super::{db, MetadataStoreError}`, `CommunityTapSyncResult` from `crate::community::taps`, `CommunityProfileIndexEntry` from `crate::community::index`, `CommunityProfileMetadata` from `crate::profile`, `chrono::Utc`, `rusqlite::{params, Connection, Transaction, TransactionBehavior}`.
 
 Implement:
 
-1. **`observe_launcher_exported(conn, profile_name: Option<&str>, slug: &str, display_name: &str, script_path: &str, desktop_entry_path: &str) -> Result<(), MetadataStoreError>`**
-   - If `profile_name` is `Some`, call `lookup_profile_id(conn, name)` to resolve the FK. If not found, proceed with `profile_id = NULL`.
-   - UPSERT into `launchers` with `ON CONFLICT(launcher_slug) DO UPDATE`. Set `drift_state = 'aligned'` on both INSERT and UPDATE paths. Use `COALESCE(excluded.profile_id, launchers.profile_id)` to preserve an existing `profile_id` if the new one is NULL.
-   - Use `db::new_id()` for the `launcher_id` PK on INSERT. Timestamps via `Utc::now().to_rfc3339()`.
-   - All SQL as literal strings with `params![]` — never `format!()`.
+1. **`pub fn index_community_tap_result(conn: &mut Connection, result: &CommunityTapSyncResult) -> Result<(), MetadataStoreError>`**
+   - Extract `tap_url = &result.workspace.subscription.url`, `tap_branch = result.workspace.subscription.branch.as_deref().unwrap_or("")`.
+   - Call `get_tap_head_commit(conn, tap_url, tap_branch)`. If returned head commit equals `result.head_commit`, return `Ok(())` immediately (watermark skip).
+   - UPSERT the `community_taps` row: `INSERT INTO community_taps (tap_id, tap_url, tap_branch, local_path, last_head_commit, profile_count, last_indexed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(tap_url, tap_branch) DO UPDATE SET local_path=excluded.local_path, last_head_commit=excluded.last_head_commit, profile_count=excluded.profile_count, last_indexed_at=excluded.last_indexed_at, updated_at=excluded.updated_at`. Use `db::new_id()` for `tap_id` on INSERT. Get `local_path` from `result.workspace.local_path.to_string_lossy()`.
+   - Retrieve the `tap_id` for this `(tap_url, tap_branch)`: `SELECT tap_id FROM community_taps WHERE tap_url = ?1 AND tap_branch = ?2`.
+   - Open `Transaction::new(conn, TransactionBehavior::Immediate)`.
+   - `DELETE FROM community_profiles WHERE tap_id = ?1`.
+   - For each entry in `result.index.entries`: access metadata fields via `entry.manifest.metadata` (e.g., `entry.manifest.metadata.game_name`, `entry.manifest.metadata.description`). Validate A6 string length bounds (`game_name` <= 512B, `description` <= 4096B, `platform_tags` <= 2048B, `trainer_name`/`author` <= 512B). If any field exceeds bounds, log `tracing::warn!` with the field name and entry's `relative_path`, then skip this entry (continue to next). Convert `entry.manifest.metadata.platform_tags: Vec<String>` to space-separated string via `.join(" ")`. Get `relative_path` from `entry.relative_path.to_string_lossy()` and `manifest_path` from `entry.manifest_path.to_string_lossy()`. INSERT into `community_profiles`.
+   - `tx.commit()`.
+   - UPDATE `community_taps SET profile_count = (SELECT COUNT(*) FROM community_profiles WHERE tap_id = ?1) WHERE tap_id = ?1`.
 
-2. **`observe_launcher_deleted(conn, launcher_slug: &str) -> Result<(), MetadataStoreError>`**
-   - UPDATE `launchers SET drift_state = 'missing', updated_at = ?1 WHERE launcher_slug = ?2`. Do not hard-delete — preserve for history.
+2. **`pub fn list_community_tap_profiles(conn: &Connection, tap_url: Option<&str>) -> Result<Vec<CommunityProfileRow>, MetadataStoreError>`**
+   - JOIN `community_profiles cp` with `community_taps ct ON cp.tap_id = ct.tap_id`. When `tap_url` is `Some`, add `WHERE ct.tap_url = ?1`.
+   - Map rows to `CommunityProfileRow` with `tap_url` populated from the JOIN.
 
-3. **`observe_launcher_renamed(conn, old_slug: &str, new_slug: &str, new_display_name: &str, new_script_path: &str, new_desktop_entry_path: &str) -> Result<(), MetadataStoreError>`**
-   - Tombstone old row: UPDATE `drift_state = 'missing'` WHERE `launcher_slug = old_slug`.
-   - UPSERT new row with new slug (same as `observe_launcher_exported` but uses the new slug). Use `TransactionBehavior::Immediate` for atomicity.
+3. **`fn get_tap_head_commit(conn: &Connection, tap_url: &str, tap_branch: &str) -> Result<Option<String>, MetadataStoreError>`**
+   - `SELECT last_head_commit FROM community_taps WHERE tap_url = ?1 AND tap_branch = ?2`.
+   - Return `Ok(None)` if no row found.
 
-#### Task 3.2: Create `metadata/launch_history.rs` Depends on [2.1, 2.2]
+#### Task 2.2: Create `metadata/cache_store.rs` Depends on [1.1, 1.2]
 
 **READ THESE BEFORE TASK**
 
+- src/crosshook-native/crates/crosshook-core/src/metadata/launch_history.rs (size-bounded JSON storage pattern)
 - src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs (free function pattern)
-- src/crosshook-native/crates/crosshook-core/src/launch/diagnostics/models.rs (DiagnosticReport struct)
-- docs/plans/sqlite3-addition/analysis-code.md (spawn_blocking pattern, truncation logic)
-- docs/plans/sqlite3-addition/research-security.md (W3: 4KB diagnostic limit)
+- docs/plans/sqlite3-addition/shared.md (Design Decisions — cache payload bound)
+- docs/plans/sqlite3-addition/analysis-code.md (Size-Bounded JSON Payload pattern)
 
 **Instructions**
 
 Files to Create
 
-- src/crosshook-native/crates/crosshook-core/src/metadata/launch_history.rs
+- src/crosshook-native/crates/crosshook-core/src/metadata/cache_store.rs
 
-Create the file following the `profile_sync.rs` pattern. Import `DiagnosticReport` from `crate::launch::diagnostics::models`, `LaunchOutcome` and `MAX_DIAGNOSTIC_JSON_BYTES` from `super::models`, and `db` from `super::db`.
+Create the file following the `profile_sync.rs` free function pattern. Import `super::{db, MetadataStoreError}`, `super::models::MAX_CACHE_PAYLOAD_BYTES`, `chrono::Utc`, `rusqlite::{params, Connection}`.
 
 Implement:
 
-1. **`record_launch_started(conn, profile_name: Option<&str>, method: &str, log_path: Option<&str>) -> Result<String, MetadataStoreError>`**
-   - Generate `operation_id` via `db::new_id()`.
-   - If `profile_name` is `Some`, call `lookup_profile_id(conn, name)` to resolve FK. Proceed with `NULL` if not found.
-   - INSERT into `launch_operations` with `status = 'started'`, `started_at = Utc::now().to_rfc3339()`. Leave `finished_at`, `exit_code`, `signal`, `diagnostic_json`, `severity`, `failure_mode` as NULL.
-   - Store `log_path` as-is (caller is responsible for sanitization via `sanitize_display_path`).
-   - Return the `operation_id` string.
+1. **`pub fn get_cache_entry(conn: &Connection, source_url: &str, cache_key: &str) -> Result<Option<String>, MetadataStoreError>`**
+   - `SELECT payload_json FROM external_cache_entries WHERE cache_key = ?1 AND (expires_at IS NULL OR expires_at > ?2)` with `?2 = Utc::now().to_rfc3339()`.
+   - Return `Ok(None)` if no row or expired.
 
-2. **`record_launch_finished(conn, operation_id: &str, exit_code: Option<i32>, signal: Option<i32>, report: &DiagnosticReport) -> Result<(), MetadataStoreError>`**
-   - Serialize report: `let json = serde_json::to_string(report).ok()`. Apply 4KB truncation: if `json.as_ref().map_or(0, |s| s.len()) > MAX_DIAGNOSTIC_JSON_BYTES`, set `json = None`. Still extract promoted columns regardless.
-   - Determine outcome: if `report.exit_info.failure_mode` is `CleanExit`, use `LaunchOutcome::Succeeded`; otherwise `LaunchOutcome::Failed`.
-   - Extract promoted columns: `severity` from `report.severity` (type `ValidationSeverity` from `crate::launch::request` — serialize via `serde_json::to_value(&report.severity)` and extract the string, or add an `as_str()` method), `failure_mode` from `report.exit_info.failure_mode` (type `FailureMode` — already has `#[serde(rename_all = "snake_case")]`, serialize the same way).
-   - UPDATE `launch_operations SET status = ?1, exit_code = ?2, signal = ?3, diagnostic_json = ?4, severity = ?5, failure_mode = ?6, finished_at = ?7 WHERE operation_id = ?8`.
-   - If the UPDATE affects 0 rows (unknown `operation_id`), log `tracing::warn!` and return `Ok(())` — do not panic.
+2. **`pub fn put_cache_entry(conn: &Connection, source_url: &str, cache_key: &str, payload: &str, expires_at: Option<&str>) -> Result<(), MetadataStoreError>`**
+   - Compute `payload_size = payload.len()`.
+   - If `payload_size > MAX_CACHE_PAYLOAD_BYTES`: store `payload_json = NULL`, still write `payload_size`. Log `tracing::warn!` with `cache_key` and size.
+   - Otherwise store `payload_json = Some(payload)`.
+   - UPSERT: `INSERT INTO external_cache_entries (cache_id, source_url, cache_key, payload_json, payload_size, fetched_at, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(cache_key) DO UPDATE SET source_url=excluded.source_url, payload_json=excluded.payload_json, payload_size=excluded.payload_size, fetched_at=excluded.fetched_at, expires_at=excluded.expires_at, updated_at=excluded.updated_at`.
+   - Use `db::new_id()` for `cache_id`.
 
-3. **`sweep_abandoned_operations(conn) -> Result<usize, MetadataStoreError>`**
-   - `UPDATE launch_operations SET status = 'abandoned', finished_at = ?1 WHERE status = 'started' AND finished_at IS NULL`.
-   - Use `Utc::now().to_rfc3339()` for `finished_at`. The 24-hour threshold from the feature spec is intentionally NOT enforced in SQL — sweep ALL incomplete operations at startup, since any incomplete row at startup is definitively abandoned (no async tasks survive app restart).
-   - Return the number of rows affected via `conn.execute(...)` return value.
+3. **`pub fn evict_expired_cache_entries(conn: &Connection) -> Result<usize, MetadataStoreError>`**
+   - `DELETE FROM external_cache_entries WHERE expires_at IS NOT NULL AND expires_at < ?1` with `Utc::now().to_rfc3339()`.
+   - Return rows deleted via `conn.execute(...)` return value.
 
-### Phase 4: Integration
+#### Task 2.3: Create `metadata/collections.rs` Depends on [1.1, 1.2]
 
-#### Task 4.1: Add Phase 2 method wrappers to `metadata/mod.rs` Depends on [3.1, 3.2]
+**READ THESE BEFORE TASK**
+
+- src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs (lookup_profile_id at lines 72-86)
+- src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs (with_conn delegation pattern)
+- docs/plans/sqlite3-addition/shared.md (Design Decisions — lookup_profile_id reuse, favorites columns)
+
+**Instructions**
+
+Files to Create
+
+- src/crosshook-native/crates/crosshook-core/src/metadata/collections.rs
+
+Create the file following the free function pattern. Import `super::{db, MetadataStoreError}`, `super::profile_sync::lookup_profile_id`, `super::models::CollectionRow`, `chrono::Utc`, `rusqlite::{params, Connection}`.
+
+Implement:
+
+1. **`pub fn list_collections(conn: &Connection) -> Result<Vec<CollectionRow>, MetadataStoreError>`**
+   - `SELECT c.collection_id, c.name, c.description, c.created_at, c.updated_at, (SELECT COUNT(*) FROM collection_profiles cp WHERE cp.collection_id = c.collection_id) as profile_count FROM collections c ORDER BY c.name`.
+
+2. **`pub fn create_collection(conn: &Connection, name: &str) -> Result<String, MetadataStoreError>`**
+   - Validate name is non-empty (return `MetadataStoreError::Validation` or similar if empty).
+   - `INSERT INTO collections (collection_id, name, description, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)`.
+   - Use `db::new_id()` for `collection_id`. Return the generated ID.
+
+3. **`pub fn delete_collection(conn: &Connection, collection_id: &str) -> Result<(), MetadataStoreError>`**
+   - `DELETE FROM collections WHERE collection_id = ?1`. The `ON DELETE CASCADE` on `collection_profiles` handles membership rows.
+
+4. **`pub fn add_profile_to_collection(conn: &Connection, collection_id: &str, profile_name: &str) -> Result<(), MetadataStoreError>`**
+   - Call `lookup_profile_id(conn, profile_name)` to resolve `profile_id`. If `None`, log `tracing::warn!` and return `Ok(())` — profile may not be indexed yet.
+   - `INSERT OR IGNORE INTO collection_profiles (collection_id, profile_id, added_at) VALUES (?, ?, ?)`.
+
+5. **`pub fn remove_profile_from_collection(conn: &Connection, collection_id: &str, profile_name: &str) -> Result<(), MetadataStoreError>`**
+   - Resolve `profile_id` via `lookup_profile_id`. If `None`, return `Ok(())`.
+   - `DELETE FROM collection_profiles WHERE collection_id = ?1 AND profile_id = ?2`.
+
+6. **`pub fn list_profiles_in_collection(conn: &Connection, collection_id: &str) -> Result<Vec<String>, MetadataStoreError>`**
+   - `SELECT p.current_filename FROM collection_profiles cp JOIN profiles p ON cp.profile_id = p.profile_id WHERE cp.collection_id = ?1 AND p.deleted_at IS NULL ORDER BY p.current_filename`.
+
+7. **`pub fn set_profile_favorite(conn: &Connection, profile_name: &str, favorite: bool) -> Result<(), MetadataStoreError>`**
+   - `UPDATE profiles SET is_favorite = ?1, updated_at = ?2 WHERE current_filename = ?3 AND deleted_at IS NULL`.
+   - No migration needed — `is_favorite` column exists from Phase 1 schema.
+
+8. **`pub fn list_favorite_profiles(conn: &Connection) -> Result<Vec<String>, MetadataStoreError>`**
+   - `SELECT current_filename FROM profiles WHERE is_favorite = 1 AND deleted_at IS NULL ORDER BY current_filename`.
+
+### Phase 3: MetadataStore API Surface
+
+#### Task 3.1: Add Phase 3 method wrappers to `metadata/mod.rs` Depends on [2.1, 2.2, 2.3]
 
 **READ THESE BEFORE TASK**
 
 - src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs
-- docs/plans/sqlite3-addition/analysis-code.md (with_conn delegation pattern shapes)
+- docs/plans/sqlite3-addition/analysis-code.md (with_conn Delegation Shape, usage insights inline SQL)
+- docs/plans/sqlite3-addition/analysis-tasks.md (P3-T6 task description)
 
 **Instructions**
 
@@ -205,191 +244,204 @@ Files to Modify
 
 - src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs
 
-1. Add submodule declarations after `pub mod profile_sync;`:
+1. Add submodule declarations after existing `mod launch_history;`:
 
    ```rust
-   mod launcher_sync;
-   mod launch_history;
+   mod cache_store;
+   mod collections;
+   mod community_index;
    ```
 
-   Both are private (`mod`, not `pub mod`) — they are accessed only through `MetadataStore` methods.
+   All three are private (`mod`, not `pub mod`) — accessed only through `MetadataStore` methods.
 
-2. Add imports for `DiagnosticReport` and `SteamExternalLauncherExportResult` at the top.
+2. Update `pub use models::{...}` to add: `CacheEntryStatus, MAX_CACHE_PAYLOAD_BYTES, CommunityProfileRow, CommunityTapRow, CollectionRow, FailureTrendRow`.
 
-3. Add these public methods to `impl MetadataStore`, after the existing `sync_profiles_from_store` method. Each delegates through `with_conn` following the exact same shape as `observe_profile_write`:
-   - `observe_launcher_exported(&self, profile_name: Option<&str>, slug: &str, display_name: &str, script_path: &str, desktop_entry_path: &str) -> Result<(), MetadataStoreError>` — action: `"observe a launcher export"`
-   - `observe_launcher_deleted(&self, launcher_slug: &str) -> Result<(), MetadataStoreError>` — action: `"observe a launcher deletion"`
-   - `observe_launcher_renamed(&self, old_slug: &str, new_slug: &str, new_display_name: &str, new_script_path: &str, new_desktop_entry_path: &str) -> Result<(), MetadataStoreError>` — action: `"observe a launcher rename"`
-   - `record_launch_started(&self, profile_name: Option<&str>, method: &str, log_path: Option<&str>) -> Result<String, MetadataStoreError>` — action: `"record a launch start"`
-   - `record_launch_finished(&self, operation_id: &str, exit_code: Option<i32>, signal: Option<i32>, report: &DiagnosticReport) -> Result<(), MetadataStoreError>` — action: `"record a launch finish"`
-   - `sweep_abandoned_operations(&self) -> Result<usize, MetadataStoreError>` — action: `"sweep abandoned operations"`
+3. Add imports at the top: `use crate::community::taps::CommunityTapSyncResult;`
 
-Note: `record_launch_started` returns `Result<String, ...>` where `String::default()` is `""`. Callers must filter empty strings to `None` before passing to `record_launch_finished`.
+4. Add public methods to `impl MetadataStore`. Each delegates through `with_conn` or `with_conn_mut`:
 
-#### Task 4.2: Wire launcher sync hooks into `commands/export.rs` Depends on [1.1, 4.1]
+   **Community index** (`with_conn_mut` — needs `&mut Connection` for transaction):
+   - `index_community_tap_result(&self, result: &CommunityTapSyncResult) -> Result<(), MetadataStoreError>` — action: `"index a community tap"`
+   - `list_community_tap_profiles(&self, tap_url: Option<&str>) -> Result<Vec<CommunityProfileRow>, MetadataStoreError>` — action: `"list community tap profiles"` (uses `with_conn`)
+
+   **Collections** (all `with_conn`):
+   - `list_collections(&self) -> Result<Vec<CollectionRow>, MetadataStoreError>` — action: `"list collections"`
+   - `create_collection(&self, name: &str) -> Result<String, MetadataStoreError>` — action: `"create a collection"`
+   - `delete_collection(&self, collection_id: &str) -> Result<(), MetadataStoreError>` — action: `"delete a collection"`
+   - `add_profile_to_collection(&self, collection_id: &str, profile_name: &str) -> Result<(), MetadataStoreError>` — action: `"add a profile to a collection"`
+   - `remove_profile_from_collection(&self, collection_id: &str, profile_name: &str) -> Result<(), MetadataStoreError>` — action: `"remove a profile from a collection"`
+   - `list_profiles_in_collection(&self, collection_id: &str) -> Result<Vec<String>, MetadataStoreError>` — action: `"list profiles in a collection"`
+
+   **Favorites** (all `with_conn`):
+   - `set_profile_favorite(&self, profile_name: &str, favorite: bool) -> Result<(), MetadataStoreError>` — action: `"set a profile favorite"`
+   - `list_favorite_profiles(&self) -> Result<Vec<String>, MetadataStoreError>` — action: `"list favorite profiles"`
+
+   **Cache** (all `with_conn`):
+   - `get_cache_entry(&self, source_url: &str, cache_key: &str) -> Result<Option<String>, MetadataStoreError>` — action: `"get a cache entry"`
+   - `put_cache_entry(&self, source_url: &str, cache_key: &str, payload: &str, expires_at: Option<&str>) -> Result<(), MetadataStoreError>` — action: `"put a cache entry"`
+   - `evict_expired_cache_entries(&self) -> Result<usize, MetadataStoreError>` — action: `"evict expired cache entries"`
+
+   **Usage insights** (inline SQL via `with_conn` — no separate module file):
+   - `query_most_launched(&self, limit: usize) -> Result<Vec<(String, i64)>, MetadataStoreError>` — `SELECT profile_name, COUNT(*) as launch_count FROM launch_operations WHERE status IN ('succeeded', 'failed') GROUP BY profile_name ORDER BY launch_count DESC LIMIT ?1`
+   - `query_last_success_per_profile(&self) -> Result<Vec<(String, String)>, MetadataStoreError>` — `SELECT profile_name, MAX(finished_at) as last_success FROM launch_operations WHERE status = 'succeeded' GROUP BY profile_name`
+   - `query_failure_trends(&self, days: u32) -> Result<Vec<FailureTrendRow>, MetadataStoreError>` — `SELECT profile_name, COUNT(*) FILTER (WHERE status = 'succeeded') as successes, COUNT(*) FILTER (WHERE status = 'failed') as failures, GROUP_CONCAT(DISTINCT failure_mode) as failure_modes FROM launch_operations WHERE started_at >= datetime('now', '-' || ?1 || ' days') GROUP BY profile_name HAVING failures > 0 ORDER BY failures DESC`
+
+Note: `query_most_launched` and `query_last_success_per_profile` return tuples; `query_failure_trends` returns `FailureTrendRow`. **Critical binding note for `query_failure_trends`**: the SQL `datetime('now', '-N days')` format requires the interval as a string. Construct it as `let interval = format!("-{days} days");` and bind `&interval` as a SQL parameter (e.g., `params![&interval]`). Do NOT interpolate `format!()` inside the SQL string itself — that would violate W7. The full SQL is: `WHERE started_at >= datetime('now', ?1)` with `?1 = "-30 days"` (for 30 days).
+
+### Phase 4: Tauri Integration
+
+#### Task 4.1: Wire community tap index hook into `commands/community.rs` Depends on [3.1]
 
 **READ THESE BEFORE TASK**
 
-- src/crosshook-native/src-tauri/src/commands/export.rs
-- src/crosshook-native/crates/crosshook-core/src/export/launcher.rs (SteamExternalLauncherExportRequest struct)
-- docs/plans/sqlite3-addition/research-integration.md (export hook points)
-- docs/plans/sqlite3-addition/analysis-code.md (warn-and-continue pattern)
+- src/crosshook-native/src-tauri/src/commands/community.rs
+- src/crosshook-native/src-tauri/src/commands/export.rs (warn-and-continue pattern at lines 26-38)
+- docs/plans/sqlite3-addition/analysis-context.md (Data Flow section)
 
 **Instructions**
 
 Files to Modify
 
-- src/crosshook-native/crates/crosshook-core/src/export/launcher.rs
-- src/crosshook-native/src-tauri/src/commands/export.rs
+- src/crosshook-native/src-tauri/src/commands/community.rs
 
-First, add `pub profile_name: Option<String>` with `#[serde(default)]` to `SteamExternalLauncherExportRequest` in `export/launcher.rs`. This mirrors the `LaunchRequest` change. Fix any struct literal constructions (check `rename_launcher` in `export.rs` around lines 95-108 — add `profile_name: None`).
+1. Add import: `use crosshook_core::metadata::MetadataStore;` and `use tauri::State;` (if not already imported).
 
-Then modify `commands/export.rs`:
-
-1. Add `use crosshook_core::metadata::MetadataStore;` and `use tauri::State;` imports.
-
-2. **`export_launchers`** (line ~20): Add `metadata_store: State<'_, MetadataStore>` parameter. After successful `export_launchers_core(&request)`, add:
+2. **Modify `community_sync`**: Add `metadata_store: State<'_, MetadataStore>` parameter. After `tap_store.sync_many(&taps)` returns `results`, add a fail-soft indexing loop:
 
    ```rust
-   if let Err(e) = metadata_store.observe_launcher_exported(
-       request.profile_name.as_deref(),
-       &result.launcher_slug,
-       &result.display_name,
-       &result.script_path,
-       &result.desktop_entry_path,
-   ) {
-       tracing::warn!(%e, launcher_slug = %result.launcher_slug, "metadata sync after export_launchers failed");
+   for result in &results {
+       if let Err(e) = metadata_store.index_community_tap_result(result) {
+           tracing::warn!(%e, tap_url = %result.workspace.subscription.url,
+               "community tap index sync failed");
+       }
    }
    ```
 
-3. **`delete_launcher`** (line ~47): Add `metadata_store: State<'_, MetadataStore>` parameter. This command takes individual string args (`display_name`, `steam_app_id`, `trainer_path`, `target_home_path`, `steam_client_install_path`) — it does NOT receive a `launcher_slug` directly. Derive the slug by calling `sanitize_launcher_slug(&display_name)` (import from `crosshook_core::export::launcher`), then call `metadata_store.observe_launcher_deleted(&slug)` with warn-and-continue.
-
-4. **`delete_launcher_by_slug`** (line ~66): Add `metadata_store: State<'_, MetadataStore>` parameter. The slug is already a parameter — call `metadata_store.observe_launcher_deleted(&launcher_slug)` directly.
-
-5. **`rename_launcher`** (line ~81): Add `metadata_store: State<'_, MetadataStore>` parameter. After successful `rename_launcher_files(...)`, the result is a `LauncherRenameResult` with fields `old_slug`, `new_slug`, `new_script_path`, `new_desktop_entry_path`. Call `metadata_store.observe_launcher_renamed(&result.old_slug, &result.new_slug, &new_display_name, &result.new_script_path, &result.new_desktop_entry_path)` with warn-and-continue.
-
-6. **Update `command_names_match_expected_ipc_contract` test** (lines ~163-188 in `export.rs`): This compile-time test casts each command function to its expected type signature. After adding `State<'_, MetadataStore>` to `export_launchers`, `delete_launcher`, `delete_launcher_by_slug`, and `rename_launcher`, update the corresponding type-cast assertions in this test to include the new parameter. **This test will fail to compile if skipped.**
-
-All export commands are synchronous — no `spawn_blocking` needed.
-
-#### Task 4.3: Wire launch history hooks into `commands/launch.rs` Depends on [4.1]
-
-**READ THESE BEFORE TASK**
-
-- src/crosshook-native/src-tauri/src/commands/launch.rs (full file — understand spawn_log_stream and stream_log_lines flow)
-- src/crosshook-native/src-tauri/src/commands/install.rs (spawn_blocking pattern, lines 10-18)
-- docs/plans/sqlite3-addition/analysis-code.md (spawn_blocking pattern, data flow for Phase 2)
-- docs/plans/sqlite3-addition/analysis-context.md (async bridge section)
-
-**Instructions**
-
-Files to Modify
-
-- src/crosshook-native/src-tauri/src/commands/launch.rs
-
-This is the most complex Phase 2 task. `launch_game` and `launch_trainer` are async commands; `rusqlite::Connection` is `!Send`; all metadata writes must use `tauri::async_runtime::spawn_blocking`.
-
-1. **Add import**: `use crosshook_core::metadata::MetadataStore;`
-
-2. **Modify `spawn_log_stream` signature** to accept two new parameters:
+3. **Add `community_list_indexed_profiles` command**: A new command that reads from the SQLite index:
 
    ```rust
-   fn spawn_log_stream(
-       app: AppHandle,
-       log_path: PathBuf,
-       child: tokio::process::Child,
-       method: &'static str,
-       metadata_store: MetadataStore,    // Arc clone
-       operation_id: Option<String>,     // None when store disabled or start failed
-   )
-   ```
-
-   Thread both into the `stream_log_lines` call inside the spawned task.
-
-3. **Modify `stream_log_lines` signature** to accept `metadata_store: MetadataStore` and `operation_id: Option<String>`.
-
-4. **In `launch_game` and `launch_trainer`**, before `spawn_log_stream`:
-
-   ```rust
-   let metadata_store = app.state::<MetadataStore>().inner().clone();
-   let pn = request.profile_name.clone();
-   let lp = sanitize_display_path(&log_path.to_string_lossy());
-   let ms_clone = metadata_store.clone();
-   let operation_id: Option<String> = tauri::async_runtime::spawn_blocking(move || {
-       ms_clone.record_launch_started(pn.as_deref(), method, Some(&lp))
-   })
-   .await
-   .unwrap_or_else(|e| {
-       tracing::warn!("metadata spawn_blocking join failed: {e}");
-       Ok(String::new())
-   })
-   .unwrap_or_else(|e| {
-       tracing::warn!(%e, "record_launch_started failed");
-       String::new()
-   });
-   let operation_id = if operation_id.is_empty() { None } else { Some(operation_id) };
-   ```
-
-   Pass `metadata_store` and `operation_id` to `spawn_log_stream`.
-
-5. **In `stream_log_lines`**, after `let report = sanitize_diagnostic_report(report);` (around line 211), before the `should_surface_report` check:
-
-   ```rust
-   if let Some(ref op_id) = operation_id {
-       let ms = metadata_store.clone();
-       let op = op_id.clone();
-       let ec = exit_code;
-       let sig = signal;
-       let rpt = report.clone();
-       let _ = tauri::async_runtime::spawn_blocking(move || {
-           if let Err(e) = ms.record_launch_finished(&op, ec, sig, &rpt) {
-               tracing::warn!(%e, operation_id = %op, "record_launch_finished failed");
-           }
-       }).await;
+   #[tauri::command]
+   pub fn community_list_indexed_profiles(
+       metadata_store: State<'_, MetadataStore>,
+   ) -> Result<Vec<crosshook_core::metadata::CommunityProfileRow>, String> {
+       metadata_store.list_community_tap_profiles(None).map_err(map_error)
    }
    ```
 
-6. Both `launch_game` and `launch_trainer` follow the same pattern. Extract the `record_launch_started` block into a private helper if the duplication is excessive, but the two commands have slightly different `method` resolution — keep them separate if simpler.
+The primary `community_sync` return value is unaffected — metadata failure never blocks.
 
-#### Task 4.4: Add `sweep_abandoned_operations` to startup Depends on [4.1]
+#### Task 4.2: Create `commands/collections.rs` with collection CRUD Depends on [3.1]
 
 **READ THESE BEFORE TASK**
 
-- src/crosshook-native/src-tauri/src/startup.rs
-- src/crosshook-native/src-tauri/src/lib.rs (setup closure around line 50)
-- docs/plans/sqlite3-addition/analysis-context.md (startup sweep section)
+- src/crosshook-native/src-tauri/src/commands/community.rs (command structure, map_error helper)
+- src/crosshook-native/src-tauri/src/commands/profile.rs (State<MetadataStore> usage)
+- docs/plans/sqlite3-addition/analysis-tasks.md (P3-T8 task description)
+
+**Instructions**
+
+Files to Create
+
+- src/crosshook-native/src-tauri/src/commands/collections.rs
+
+Create the file with all collection CRUD commands following existing command signature shape. Add a private `fn map_error(e: impl ToString) -> String { e.to_string() }` helper (same as `community.rs:8-10`). Check `commands/mod.rs` first — if a shared helper exists, use it instead.
+
+Implement all commands with `State<'_, MetadataStore>` and `Result<T, String>` return:
+
+1. `collection_list(metadata_store) -> Result<Vec<CollectionRow>, String>` — delegates to `metadata_store.list_collections()`
+2. `collection_create(name: String, metadata_store) -> Result<String, String>` — returns the new collection_id
+3. `collection_delete(collection_id: String, metadata_store) -> Result<(), String>`
+4. `collection_add_profile(collection_id: String, profile_name: String, metadata_store) -> Result<(), String>`
+5. `collection_remove_profile(collection_id: String, profile_name: String, metadata_store) -> Result<(), String>`
+6. `collection_list_profiles(collection_id: String, metadata_store) -> Result<Vec<String>, String>`
+
+All error mapping uses `map_error`. No warn-and-continue needed here — collections are the primary operation, not a side-effect.
+
+#### Task 4.3: Add `profile_set_favorite` and `profile_list_favorites` to `commands/profile.rs` Depends on [3.1]
+
+**READ THESE BEFORE TASK**
+
+- src/crosshook-native/src-tauri/src/commands/profile.rs
+- docs/plans/sqlite3-addition/shared.md (Design Decisions — favorites columns reuse)
 
 **Instructions**
 
 Files to Modify
 
-- src/crosshook-native/src-tauri/src/startup.rs
+- src/crosshook-native/src-tauri/src/commands/profile.rs
 
-Add the sweep call inside `run_metadata_reconciliation`, after the existing `sync_profiles_from_store` call and its log statement:
+Add two new commands:
 
-```rust
-match metadata_store.sweep_abandoned_operations() {
-    Ok(count) if count > 0 => {
-        tracing::info!(swept = count, "startup abandoned operation sweep complete");
-    }
-    Err(error) => {
-        tracing::warn!(%error, "startup abandoned operation sweep failed");
-    }
-    _ => {}
-}
-```
+1. **`profile_set_favorite`**:
 
-This follows the existing log discipline in `run_metadata_reconciliation`: INFO for non-zero results, WARN for failures, silent for zero-work. The sweep runs before the Tauri event loop starts, so no async launch tasks can be in-flight. Non-fatal — the app starts regardless.
+   ```rust
+   #[tauri::command]
+   pub fn profile_set_favorite(
+       name: String,
+       favorite: bool,
+       metadata_store: State<'_, MetadataStore>,
+   ) -> Result<(), String> {
+       metadata_store.set_profile_favorite(&name, favorite).map_err(|e| e.to_string())
+   }
+   ```
+
+2. **`profile_list_favorites`**:
+
+   ```rust
+   #[tauri::command]
+   pub fn profile_list_favorites(
+       metadata_store: State<'_, MetadataStore>,
+   ) -> Result<Vec<String>, String> {
+       metadata_store.list_favorite_profiles().map_err(|e| e.to_string())
+   }
+   ```
+
+These write to the existing `profiles.is_favorite` column from Phase 1. No schema change needed.
+
+#### Task 4.4: Register all Phase 3 commands in `lib.rs` Depends on [4.1, 4.2, 4.3]
+
+**READ THESE BEFORE TASK**
+
+- src/crosshook-native/src-tauri/src/lib.rs
+- src/crosshook-native/src-tauri/src/commands/mod.rs (if exists)
+
+**Instructions**
+
+Files to Modify
+
+- src/crosshook-native/src-tauri/src/commands/mod.rs
+- src/crosshook-native/src-tauri/src/lib.rs
+
+1. Add `pub mod collections;` to `commands/mod.rs` alongside existing module declarations.
+
+2. Add all new Phase 3 commands to the `invoke_handler!` macro in `lib.rs`:
+
+   ```rust
+   // Phase 3: Catalog and Intelligence
+   commands::community::community_list_indexed_profiles,
+   commands::collections::collection_list,
+   commands::collections::collection_create,
+   commands::collections::collection_delete,
+   commands::collections::collection_add_profile,
+   commands::collections::collection_remove_profile,
+   commands::collections::collection_list_profiles,
+   commands::profile::profile_set_favorite,
+   commands::profile::profile_list_favorites,
+   ```
+
+No new `.manage()` call needed — `MetadataStore` is already registered.
+
+Verify with `cargo check --manifest-path src/crosshook-native/Cargo.toml`.
 
 ### Phase 5: Testing
 
-#### Task 5.1: Add Phase 2 unit and integration tests Depends on [4.2, 4.3, 4.4]
+#### Task 5.1: Add Phase 3 unit and integration tests Depends on [4.4]
 
 **READ THESE BEFORE TASK**
 
-- src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs (existing test module, sample_profile helper, connection helper)
-- docs/plans/sqlite3-addition/analysis-code.md (test patterns section)
-- docs/plans/sqlite3-addition/analysis-tasks.md (required test cases)
+- src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs (existing test module, connection() helper)
+- docs/plans/sqlite3-addition/analysis-code.md (Test Shape section)
+- docs/plans/sqlite3-addition/analysis-tasks.md (P3-T11 test cases)
 
 **Instructions**
 
@@ -397,42 +449,68 @@ Files to Modify
 
 - src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs (add tests in existing `#[cfg(test)] mod tests`)
 
-Add the following tests using `MetadataStore::open_in_memory()` and the existing `connection()` helper:
+Add the following tests using `MetadataStore::open_in_memory()` and the existing `connection()` helper. To create test `CommunityTapSyncResult` data, construct mock instances with the necessary fields.
 
-1. **`test_observe_launcher_exported_creates_row`** — Call `observe_launcher_exported(None, "test-slug", "Test Name", "/path/script.sh", "/path/desktop.desktop")`. Query `launchers` table directly. Verify row exists with correct slug, `drift_state = 'aligned'`, non-empty `launcher_id`.
+**Community index tests:**
 
-2. **`test_observe_launcher_exported_idempotent`** — Call twice with same slug. Verify single row (UPSERT not duplicate). Second call should update `updated_at`.
+1. **`test_index_tap_result_inserts_tap_and_profile_rows`** — Create a mock `CommunityTapSyncResult` with 2 entries. Call `index_community_tap_result`. Query `community_taps` — verify 1 row with correct `tap_url`, `last_head_commit`, `profile_count = 2`. Query `community_profiles` — verify 2 rows.
 
-3. **`test_observe_launcher_deleted_tombstones`** — Export then delete by slug. Verify `drift_state = 'missing'`, row not hard-deleted.
+2. **`test_index_tap_result_skips_on_unchanged_head`** — Index once, then call again with the same `head_commit`. Verify `community_profiles` rows are unchanged (no DELETE+INSERT churn). Check `updated_at` on `community_taps` row is NOT updated on the second call.
 
-4. **`test_record_launch_started_returns_operation_id`** — Call `record_launch_started(Some("test-profile"), "native", None)`. Verify non-empty string returned. Query `launch_operations` — verify row with `status = 'started'`, non-null `started_at`.
+3. **`test_index_tap_result_replaces_stale_profiles`** — Index with 3 entries, then index with 1 entry (different `head_commit`). Verify `community_profiles` COUNT = 1 (the 2 removed entries are gone).
 
-5. **`test_record_launch_finished_updates_row`** — Start then finish. Verify `status`, `exit_code`, `diagnostic_json` (or `None` if over 4KB), `severity`, `failure_mode`, non-null `finished_at`.
+4. **`test_index_tap_result_disabled_store_noop`** — Call on `MetadataStore::disabled()`. Verify `Ok(())` returned.
 
-6. **`test_diagnostic_json_truncated_at_4kb`** — Test BOTH boundary cases: (a) Create a `DiagnosticReport` that serializes to exactly 4096 bytes — verify `diagnostic_json` IS stored (not truncated). (b) Create one that exceeds 4096 bytes — verify `diagnostic_json IS NULL` but `severity` and `failure_mode` are still populated. The nullify approach is correct — do NOT truncate to a partial JSON string (malformed JSON is worse than NULL).
+**Cache store tests:**
 
-7. **`test_sweep_abandoned_marks_old_operations`** — Insert a `launch_operations` row with `status = 'started'` and `finished_at IS NULL` by calling `record_launch_started`. Then call `sweep_abandoned_operations`. Verify the row's `status` is now `'abandoned'` and `finished_at` is non-null.
+5. **`test_put_get_cache_entry_round_trip`** — Put an entry, get it back. Verify same payload returned.
 
-8. **`test_record_launch_finished_unknown_op_id_noop`** — Call `record_launch_finished("nonexistent-id", ...)`. Verify `Ok(())` returned, no panic.
+6. **`test_put_cache_entry_idempotent`** — Put twice with same `cache_key`. Verify single row (UPSERT, not duplicate).
 
-9. **`test_observe_launcher_renamed_atomic`** — Export a launcher, then rename. Verify old row has `drift_state = 'missing'`, new row exists with new slug and `drift_state = 'aligned'`. Verify the transaction is atomic (both changes or neither).
+7. **`test_cache_payload_oversized_stored_as_null`** — Create a payload string > 512,000 bytes. Put it. Query directly — verify `payload_json IS NULL` but `payload_size` equals the original size.
 
-10. **`test_phase2_disabled_store_noop`** — Add to the existing `test_unavailable_store_noop` test. Call all Phase 2 methods on `MetadataStore::disabled()`. Verify all return `Ok(...)` — `record_launch_started` returns empty string.
+8. **`test_evict_expired_entries`** — Insert one expired entry and one non-expired. Call `evict_expired_cache_entries`. Verify only expired row removed.
+
+9. **`test_cache_entry_disabled_store_noop`** — Call get on disabled store. Verify `Ok(None)`.
+
+**Collections tests:**
+
+10. **`test_create_collection_returns_id`** — Create a collection, verify non-empty string returned. Query `collections` — verify 1 row.
+
+11. **`test_add_profile_to_collection`** — First create a profile row via `observe_profile_write`. Then create a collection, add the profile. Query `collection_profiles` — verify 1 row.
+
+12. **`test_collection_delete_cascades`** — Create a collection with a profile. Delete the collection. Verify `collection_profiles` rows are gone (CASCADE).
+
+13. **`test_set_profile_favorite_toggles`** — Create a profile via `observe_profile_write`. Call `set_profile_favorite(name, true)`. Query `profiles.is_favorite` — verify 1. Call again with `false` — verify 0.
+
+14. **`test_list_favorite_profiles_excludes_deleted`** — Create 2 profiles, favorite both, then soft-delete one via `observe_profile_delete`. Call `list_favorite_profiles` — verify only the non-deleted one is returned.
+
+**Usage insights tests:**
+
+15. **`test_query_most_launched`** — Create 3 `launch_operations` rows (via `record_launch_started` + `record_launch_finished`). Call `query_most_launched(10)`. Verify ordered by count.
+
+16. **`test_query_failure_trends`** — Create launch operations with various statuses. Call `query_failure_trends(30)`. Verify only profiles with failures appear.
 
 Run all tests with: `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
 
 ## Advice
 
-- **`record_launch_started` returns empty string when disabled, not `None`** — The `with_conn` helper returns `Ok(T::default())` when the store is disabled. `String::default()` is `""`. Callers in `commands/launch.rs` must filter: `let operation_id = if operation_id.is_empty() { None } else { Some(operation_id) };`. This is not obvious from reading the `with_conn` signature alone.
-- **`launcher_slug` UNIQUE constraint means the UPSERT conflicts on slug, not PK** — Even though `launcher_id` is the PK, the `ON CONFLICT(launcher_slug)` clause is what makes re-export idempotent. If you accidentally write `ON CONFLICT(launcher_id)`, every re-export will create a duplicate row.
-- **`DiagnosticReport` truncation must happen in `launch_history.rs`, not the command layer** — This keeps W3 enforcement in one place. The command passes the full report; the metadata layer decides whether to store or truncate. Promoted columns (`severity`, `failure_mode`) are extracted before truncation and always stored.
-- **`tauri::async_runtime::spawn_blocking`, not `tokio::task::spawn_blocking`** — Both work (Tauri wraps Tokio), but the codebase convention from `commands/install.rs` uses the Tauri alias. Be consistent.
-- **`stream_log_lines` already has `app: AppHandle`** — Access `MetadataStore` via `app.state::<MetadataStore>()` if preferred over threading as a parameter. However, cloning once in the command and passing through is cheaper than calling `.state()` twice (once for start, once for finish). The analysis team chose the clone-and-pass approach.
-- **The sweep SQL should NOT use the 24-hour threshold from the feature spec** — At startup, any incomplete operation is definitively abandoned because no child process survives app restart. The 24-hour rule was for potential mid-session cleanup which is not implemented in Phase 2. Sweep all `status = 'started'` rows unconditionally.
-- **`profile_name` field is stored as TEXT in `launch_operations` even when `profile_id` is also stored** — This is intentional redundancy. If a profile is later deleted (soft-deleted in Phase 1), the `profile_name` column preserves the display name for history queries without needing to join through a tombstoned `profiles` row.
-- **`SteamExternalLauncherExportRequest` also needs `profile_name`** — This is a separate struct from `LaunchRequest` in a different file (`export/launcher.rs`). Task 4.2 handles this, not Task 1.1. The two gaps are in different module trees and can be resolved independently.
-- **P2-T4 (`launcher_sync.rs`) has no dependency on P2-T1** — It doesn't need `LaunchRequest.profile_name`. It can start as soon as models and migrations are done, even if the `LaunchRequest` change is still in review.
-- **`validate_name()` is NOT called in Phase 2 functions** — Phase 1 validates profile names in `profile_sync.rs`. Phase 2 functions receive `profile_name` as an opaque `Option<&str>` and pass it to `lookup_profile_id`, which already validates. Do not add redundant validation.
-- **Nullify oversized diagnostic JSON, do NOT truncate to partial JSON** — `analysis-code.md` shows a truncation example (`&s[..4096]`) that produces structurally broken JSON. The correct approach (used in `launch_history.rs`) is: if serialized size > `MAX_DIAGNOSTIC_JSON_BYTES`, store `diagnostic_json = NULL` and rely on the promoted scalar columns (`severity`, `failure_mode`, `exit_code`, `signal`). Malformed partial JSON is worse than NULL for any consumer.
-- **`delete_launcher` command has no `launcher_slug` parameter** — Unlike `delete_launcher_by_slug`, the `delete_launcher` command takes individual args. Derive the slug via `sanitize_launcher_slug(&display_name)` imported from `crosshook_core::export::launcher`. This is the same derivation path the export system uses internally.
-- **`command_names_match_expected_ipc_contract` test in `export.rs` will fail** — After adding `State<'_, MetadataStore>` to export commands, the type-cast assertions in this compile-time test (lines ~163-188) must be updated. This is easy to miss and will block compilation.
+- **`index_community_tap_result` requires `with_conn_mut`, not `with_conn`** — The DELETE+INSERT re-index requires a `Transaction::new(conn, ...)` which needs `&mut Connection`. If you accidentally use `with_conn`, you'll get a compiler error about mutability. Only `index_community_tap_result` needs `with_conn_mut` in Phase 3; all other Phase 3 methods use `with_conn`.
+
+- **The UPSERT for `community_taps` and DELETE+INSERT for `community_profiles` are intentionally different strategies** — The tap-level row is stable (one per subscription) and uses UPSERT on the `(tap_url, tap_branch)` UNIQUE constraint. The profile-level rows must be fully replaced per re-index because UPSERT cannot detect removed profiles. This asymmetry is correct and intentional — do not "simplify" both to the same strategy.
+
+- **`tap_branch` empty string convention is critical** — `result.workspace.subscription.branch` is `Option<String>`. Use `.as_deref().unwrap_or("")` to convert `None` to `""` before storing in SQLite. The `tap_branch TEXT NOT NULL DEFAULT ''` DDL ensures the UNIQUE index on `(tap_url, tap_branch)` works correctly (SQLite `NULL != NULL` would allow duplicates).
+
+- **Usage insights `FILTER (WHERE ...)` syntax requires SQLite >= 3.30.0** — The bundled SQLite in rusqlite 0.38 is >= 3.45.0, so this is safe. However, if the `FILTER` clause causes issues, the equivalent `SUM(CASE WHEN status = 'succeeded' THEN 1 ELSE 0 END)` works on all SQLite versions.
+
+- **`query_failure_trends` day parameter binding** — The SQL `datetime('now', '-N days')` format requires the interval as a string like `"-30 days"`. Construct this as `let interval = format!("-{days} days");` and bind `&interval` as a parameter. Do NOT put `format!()` inside the SQL string itself.
+
+- **The `community_list_indexed_profiles` command returns `CommunityProfileRow` (metadata only)** — This is intentionally smaller than the full `CommunityProfileIndexEntry` which includes the entire `GameProfile`. The SQLite index stores only metadata fields, not the full profile content. The frontend can use this for fast browse/search and fall back to `community_list_profiles` (disk scan) when it needs the full manifest for import.
+
+- **Collections `add_profile_to_collection` silently succeeds when profile not found** — This is a deliberate design choice matching the fail-soft pattern. If a profile hasn't been indexed in SQLite yet (e.g., first run before reconciliation), the collection membership silently does nothing rather than blocking the user. Once the profile is indexed, the next add attempt will succeed. Do not return an error for "profile not found" in the metadata layer.
+
+- **`map_error` helper duplication** — `community.rs` and `collections.rs` each have their own `fn map_error`. Check `commands/mod.rs` for a shared version first. If none exists, the duplication is acceptable (3 lines each, same as Phase 2 approach in `export.rs`). Do not create a shared utility just for this.
+
+- **`external_cache_entries` is infrastructure-only in Phase 3** — No Tauri command currently calls `put_cache_entry` or `get_cache_entry`. The table, functions, and MetadataStore methods exist so future features (ProtonDB integration, artwork caching) can use them without a new migration. The only Phase 3 test that exercises it is the unit test in Task 5.1.
+
+- **FTS5 is explicitly deferred** — Do not add `CREATE VIRTUAL TABLE community_profiles_fts USING fts5(...)` to the migration. Do not add FTS5-related functions to `community_index.rs`. If needed later, FTS5 can be added in a `migrate_4_to_5` without affecting any Phase 3 code.

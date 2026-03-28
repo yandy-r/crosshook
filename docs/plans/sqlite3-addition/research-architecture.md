@@ -1,407 +1,320 @@
-# Architecture Research: SQLite Metadata Layer Phase 2 (Operational History)
+# Architecture Research: SQLite Metadata Layer Phase 3 — Catalog and Intelligence
 
-## Current Metadata Module (Phase 1)
+## System Overview
 
-Phase 1 is fully implemented across five files under `src/crosshook-native/crates/crosshook-core/src/metadata/`.
+CrossHook's metadata layer is a fail-soft SQLite database (`~/.local/share/crosshook/metadata.db`) that provides stable identity, relationships, and history without replacing TOML profiles as canonical. Phases 1 and 2 are complete: `metadata/` has six files, schema is at v3 (three migrations), and all profile/launcher/launch hooks are wired into Tauri command handlers following a strict warn-and-continue pattern. Phase 3 adds community catalog indexing, collections/favorites UX, usage insights queries, and an external metadata cache — all as new files and a migration from v3 to v4+ that the existing migration runner will pick up automatically.
 
-### Module Structure
+## Current Metadata Module Structure
 
-```
-metadata/
-  mod.rs          — MetadataStore struct, public API methods, with_conn helper
-  db.rs           — Connection factory, PRAGMA setup, symlink check, chmod 0600
-  migrations.rs   — user_version-based migration runner (0→1→2 currently at v2)
-  models.rs       — MetadataStoreError, SyncReport, SyncSource, ProfileRow
-  profile_sync.rs — Profile lifecycle reconciliation (observe_write, rename, delete, sync_from_store)
-```
+All files are under `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/`.
 
-### MetadataStore Struct (`mod.rs:14-18`)
+### Files (post-Phase 2)
+
+- `mod.rs` — `MetadataStore` struct (`conn: Option<Arc<Mutex<Connection>>>`, `available: bool`), `with_conn` and `with_conn_mut` fail-soft helpers, all public API methods delegating to submodule free functions
+- `db.rs` — `open_at_path()`, `open_in_memory()`, `new_id()` (UUID v4), `configure_connection()` with all PRAGMAs and quick_check validation
+- `migrations.rs` — sequential runner: `if version < N { migrate_N_to_M(conn)?; pragma_update(N)? }`. Currently v0→v1→v2→v3. Phase 3 adds `migrate_3_to_4()`.
+- `models.rs` — `MetadataStoreError`, `SyncSource`, `LaunchOutcome`, `DriftState`, `MAX_DIAGNOSTIC_JSON_BYTES` (4096), `SyncReport`, `ProfileRow`, `LauncherRow`, `LaunchOperationRow`
+- `profile_sync.rs` — free functions: `observe_profile_write`, `observe_profile_rename`, `observe_profile_delete`, `sync_profiles_from_store`, `lookup_profile_id`
+- `launcher_sync.rs` — free functions: `observe_launcher_exported`, `observe_launcher_deleted`, `observe_launcher_renamed`
+- `launch_history.rs` — free functions: `record_launch_started`, `record_launch_finished`, `sweep_abandoned_operations`
+
+### Public API Pattern
+
+Every public method on `MetadataStore` has this shape:
 
 ```rust
-pub struct MetadataStore {
-    conn: Option<Arc<Mutex<Connection>>>,
-    available: bool,
+pub fn observe_something(&self, ...) -> Result<T, MetadataStoreError> {
+    self.with_conn("action gerund", |conn| {
+        submodule::free_function(conn, ...)
+    })
 }
 ```
 
-- `Clone` is derived; `Arc<Mutex<Connection>>` allows cheap cloning across Tauri state.
-- `disabled()` constructor sets `available = false`; used as soft-fail fallback in `lib.rs:32-35`.
-- In `lib.rs`, `MetadataStore` is managed via `.manage(metadata_store)` at line 80.
+`with_conn` no-ops (returns `T::default()`) when `available = false`. `with_conn_mut` is used only when a mutable `Connection` ref is needed (e.g., for `Transaction::new`).
 
-### `with_conn` Helper (`mod.rs:56-73`)
+### Current Schema (v3)
 
-```rust
-fn with_conn<F, T>(&self, action: &'static str, f: F) -> Result<T, MetadataStoreError>
-where
-    F: FnOnce(&Connection) -> Result<T, MetadataStoreError>,
-    T: Default,
+- `profiles` (v1): `profile_id TEXT PK`, `current_filename TEXT NOT NULL UNIQUE`, `current_path`, `game_name`, `launch_method`, `content_hash`, `is_favorite INTEGER DEFAULT 0`, `is_pinned INTEGER DEFAULT 0`, `source_profile_id TEXT FK`, `deleted_at`, `created_at`, `updated_at`
+- `profile_name_history` (v1): `id AUTOINCREMENT`, `profile_id FK`, `old_name`, `new_name`, `old_path`, `new_path`, `source`, `created_at`
+- `launchers` (v3): `launcher_id TEXT PK`, `profile_id FK NULLABLE`, `launcher_slug NOT NULL UNIQUE`, `display_name`, `script_path`, `desktop_entry_path`, `drift_state NOT NULL DEFAULT 'unknown'`, `created_at`, `updated_at`
+- `launch_operations` (v3): `operation_id TEXT PK`, `profile_id FK NULLABLE`, `profile_name`, `launch_method`, `status DEFAULT 'started'`, `exit_code`, `signal`, `log_path`, `diagnostic_json` (max 4KB), `severity`, `failure_mode`, `started_at`, `finished_at`
+
+### Dependency Versions
+
+From `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/Cargo.toml`:
+
+- `rusqlite = { version = "0.38", features = ["bundled"] }` — note: spec recommends 0.39.0; current is 0.38
+- `uuid = { version = "1", features = ["v4", "serde"] }`
+- `chrono = "0.4"` — used for `Utc::now().to_rfc3339()` timestamps
+- `sha2 = "0.10"` — for `compute_content_hash()` in profile_sync
+
+## Community Tap Module
+
+Files under `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/community/`:
+
+- `mod.rs` — re-exports from `index`, `taps`, and from `crate::profile` (`CommunityProfileManifest`, `CommunityProfileMetadata`, `CompatibilityRating`, `COMMUNITY_PROFILE_SCHEMA_VERSION`)
+- `taps.rs` — `CommunityTapStore`, `CommunityTapSubscription` (`url: String`, `branch: Option<String>`), `CommunityTapWorkspace`, `CommunityTapSyncResult` (includes `head_commit: String` and `index: CommunityProfileIndex`)
+- `index.rs` — `CommunityProfileIndex` (`entries: Vec<CommunityProfileIndexEntry>`, `diagnostics: Vec<String>`), `CommunityProfileIndexEntry` (`tap_url`, `tap_branch`, `tap_path`, `manifest_path`, `relative_path`, `manifest: CommunityProfileManifest`)
+
+`CommunityProfileManifest` is defined in `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/community_schema.rs`:
+
+- `schema_version: u32` — `COMMUNITY_PROFILE_SCHEMA_VERSION = 1`
+- `metadata: CommunityProfileMetadata` — `game_name`, `game_version`, `trainer_name`, `trainer_version`, `proton_version`, `platform_tags: Vec<String>`, `compatibility_rating: CompatibilityRating`, `author`, `description`
+- `profile: GameProfile`
+
+### Tap Data Flow
+
+1. `CommunityTapStore::sync_tap()` clones or fetches the tap git repo under `~/.local/share/crosshook/community/taps/`
+2. `rev_parse_head()` returns the HEAD commit SHA string — this is the **watermark** for HEAD commit skip
+3. `index::index_tap()` recursively walks the local path looking for `community-profile.json` files
+4. Each found manifest produces a `CommunityProfileIndexEntry` with `tap_url`, `tap_path`, `manifest_path`, `relative_path`
+5. `CommunityTapSyncResult.head_commit` carries the SHA — Phase 3 must persist this to `community_taps.last_head_commit` to enable skip-if-unchanged
+
+### Key Gotcha: No HEAD Tracking Yet
+
+`CommunityTapSyncResult.head_commit` is returned but never persisted anywhere. The watermark skip requires Phase 3 to store this in SQLite and compare before re-indexing. The field is already populated by `taps.rs:179`.
+
+### Key Gotcha: index.rs Does Not Validate Size
+
+`collect_manifests()` reads every `community-profile.json` without size bounds. Security finding A6 from the spec requires length validation before inserting manifest fields into SQLite (game_name <= 512B, description <= 4KB).
+
+## Community Tauri Commands
+
+File: `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/community.rs`
+
+| Command                    | Signature                                                                                                                | Notes                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `community_add_tap`        | `(tap: CommunityTapSubscription, settings_store: State<SettingsStore>) -> Result<Vec<CommunityTapSubscription>, String>` | Persists tap list to settings.toml; no metadata hook                         |
+| `community_list_profiles`  | `(settings_store, tap_store) -> Result<CommunityProfileIndex, String>`                                                   | Calls `index_workspaces()` on disk; no SQLite read yet                       |
+| `community_import_profile` | `(path: String, profile_store, settings_store, tap_store) -> Result<CommunityImportResult, String>`                      | Validates path is inside a tap workspace; no metadata hook                   |
+| `community_sync`           | `(settings_store, tap_store) -> Result<Vec<CommunityTapSyncResult>, String>`                                             | Returns `head_commit` per tap; **Phase 3 hook point** for `sync_tap_index()` |
+
+The spec (files-to-modify list) identifies `community_sync` as the Phase 3 hook point: after `sync_many()`, call a new `sync_tap_index(results, metadata_store)` that persists the index to `community_taps` and `community_profiles` tables with the HEAD watermark.
+
+`community_list_profiles` is a second Phase 3 integration point with a two-tier fast path: (1) if `MetadataStore` is available AND all subscribed taps have a `last_head_commit` row in `community_taps`, serve `community_profiles` rows from SQLite; (2) otherwise fall back to `index_workspaces()` full disk scan. This keeps first-run and degraded-mode behavior identical to current. Both `community_sync` and `community_list_profiles` need `State<'_, MetadataStore>` added.
+
+### State Injection Gap
+
+`community.rs` currently takes `State<SettingsStore>` and `State<CommunityTapStore>` but **not** `State<MetadataStore>`. Phase 3 must add `State<MetadataStore>` to `community_sync` (and optionally `community_list_profiles`). The `MetadataStore` is already registered via `.manage(metadata_store)` in `lib.rs:80`.
+
+## Frontend Community Integration
+
+### useCommunityProfiles.ts
+
+File: `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useCommunityProfiles.ts`
+
+- Maintains `taps: CommunityTapSubscription[]` and `index: CommunityProfileIndex` in local React state
+- On mount: loads `settings_load` to populate `taps`, then calls `refreshProfiles()` which invokes `community_list_profiles`
+- `syncTaps()` calls `community_sync` then `refreshProfiles()` — the Phase 3 hook in `community_sync` on the backend will be transparent to this hook
+- **No SQLite-facing types** exist in the frontend yet; community data is always fresh from the backend IPC response
+
+### CommunityBrowser.tsx
+
+File: `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/components/CommunityBrowser.tsx`
+
+- In-browser search is done via `matchesQuery()` at line 30: a concatenated-haystack `includes()` check. This is the current "search" — no backend FTS, no SQLite.
+- Filter by `ratingFilter` and `query` is entirely client-side on `index.entries`
+- Sort is client-side in `sortProfiles()` by compatibility rating then game name
+- The "Import" button calls `community_import_profile` with `entry.manifest_path`
+
+**Phase 3 FTS impact**: if FTS5 is added, `community_list_profiles` would accept a query parameter and return filtered results from SQLite, replacing the current client-side `matchesQuery()`. The component would need a debounced search that invokes a new IPC command instead of filtering locally.
+
+**Collections/Favorites UI impact**: the profile grid cards have no favorite/collection actions yet. Adding them requires new IPC commands (e.g., `community_toggle_favorite`, `collections_add`) and new state in `useCommunityProfiles`.
+
+## Favorites/Collections Integration Points
+
+### Existing Profile Favorites Infrastructure
+
+The `profiles` table already has `is_favorite INTEGER NOT NULL DEFAULT 0` and `is_pinned INTEGER NOT NULL DEFAULT 0` columns (migration v1, `mod.rs` tests verify these columns exist). However:
+
+- No `MetadataStore` API method exposes `set_favorite` or `set_pinned`
+- No Tauri command exposes these to the frontend
+- No frontend component renders or toggles them
+
+Phase 3 collections are a new concept (`collections` + `collection_profiles` tables) but the `is_favorite`/`is_pinned` flags are already schema-ready for Phase 3 to wire up.
+
+### Profile Listing in Frontend
+
+`useProfile.ts` lists profiles via `invoke<string[]>('profile_list')` which delegates to `ProfileStore::list()` — a pure TOML directory scan. The list returns filename stems only (no metadata). Phase 3 favorites/pins would need either:
+
+1. A new `profile_list_with_metadata` command that joins TOML names with SQLite `is_favorite`/`is_pinned`
+2. Or a separate `metadata_get_profile_flags` command invoked after `profile_list`
+
+### Collections Schema (Phase 3)
+
+From the feature spec, Phase 3 adds:
+
+- `collections` table: `collection_id TEXT PK`, `name TEXT NOT NULL`, `description TEXT`, `created_at`, `updated_at`
+- `collection_profiles` table: `collection_id FK`, `profile_id FK`, `added_at TEXT NOT NULL` (many-to-many)
+
+Collections are local-only in Phase 3 but designed with future export semantics. They are profile-centric (keyed by `profile_id` from the `profiles` table) not community-centric.
+
+## External Cache Architecture
+
+### What Would Be Cached
+
+Phase 3's `external_cache_entries` table is designed to cache external metadata lookups — the spec does not define a specific external API to call, but the typical use case is:
+
+- ProtonDB compatibility reports
+- SteamGrid artwork/banners
+- Any future community-sourced metadata beyond what tap manifests contain
+
+The spec's security finding W3 defines bounds: 512 KB max per cache entry, 4 KB per diagnostic summary.
+
+### Current Caching Patterns
+
+There is **no existing external metadata fetch** in the codebase. Community data comes entirely from local git clones. The cache_store.rs file does not exist yet. There is no HTTP client dependency in crosshook-core currently.
+
+### cache_store.rs Integration Points
+
+The new `cache_store.rs` module would:
+
+1. Be invoked from Tauri commands (likely new commands: `cache_fetch_metadata`, or embedded in existing commands like `community_list_profiles`)
+2. Use `with_conn` pattern for all SQLite operations
+3. Require a `MetadataStore` API method like `get_cached_entry(url, max_age)` and `set_cached_entry(url, payload, expires_at)`
+4. Payload validation: check byte length before INSERT (`payload.len() <= 512 * 1024`)
+5. No HTTP client exists in crosshook-core — **external fetch belongs in the Tauri command layer, not in `cache_store.rs`**. The MetadataStore never initiates I/O; it only receives data and writes to SQLite. This matches the existing pattern: `commands/launch.rs` coordinates process execution and passes the `DiagnosticReport` down to `record_launch_finished()`. A future external metadata fetch follows the same boundary: Tauri command fetches and validates, then calls `metadata_store.put_cache_entry(source_url, key, payload, expires_at)`. No new Cargo dependency needed in crosshook-core.
+
+## Usage Insights Architecture
+
+### Available Data Sources
+
+From the current `launch_operations` table (Phase 2):
+
+- `profile_name TEXT` — which profile was launched (denormalized for resilience to deletes)
+- `profile_id TEXT FK NULLABLE` — stable identity linkage
+- `launch_method TEXT` — `steam_applaunch`, `proton_run`, `native`
+- `status TEXT` — `started`, `succeeded`, `failed`, `abandoned`
+- `exit_code INTEGER`, `signal INTEGER`
+- `severity TEXT`, `failure_mode TEXT` — promoted from DiagnosticReport
+- `started_at TEXT`, `finished_at TEXT`
+
+### SQL Aggregate Query Patterns
+
+The spec's "Projection Rule" says insights are derived via SQL aggregates, not materialized tables. Example queries:
+
+```sql
+-- Most launched profiles (last 30 days)
+SELECT profile_name, COUNT(*) as launch_count
+FROM launch_operations
+WHERE started_at >= datetime('now', '-30 days')
+  AND status IN ('succeeded', 'failed')
+GROUP BY profile_name
+ORDER BY launch_count DESC
+LIMIT 10;
+
+-- Success rate per profile
+SELECT profile_name,
+  COUNT(*) FILTER (WHERE status = 'succeeded') as successes,
+  COUNT(*) FILTER (WHERE status = 'failed') as failures
+FROM launch_operations
+WHERE status != 'abandoned'
+GROUP BY profile_name;
+
+-- Last launch outcome per profile
+SELECT profile_name, status, failure_mode, started_at
+FROM launch_operations
+WHERE (profile_name, started_at) IN (
+  SELECT profile_name, MAX(started_at) FROM launch_operations GROUP BY profile_name
+);
 ```
 
-- If `available == false` or `conn` is `None`, returns `Ok(T::default())` — complete no-op.
-- Locks the mutex; maps poison errors to `MetadataStoreError::Corrupt`.
-- All Phase 2 methods must follow this same pattern.
-- The `T: Default` bound is load-bearing; Phase 2 return types (`()`, counters, `Option<String>`) all satisfy it.
+### UI Surface for Insights
 
-### Migration System (`migrations.rs`)
+No insights UI exists yet. The feature spec lists "usage insights queries" as a Phase 3 task without prescribing the UI. Integration points:
 
-- Current schema version: **2** (migration 1→2 added `source TEXT` column to `profiles`).
-- Phase 2 requires a **3rd migration** (version 2→3) adding `launchers` and `launch_operations` tables.
-- Migration function signature pattern: `fn migrate_N_to_M(conn: &Connection) -> Result<(), MetadataStoreError>`.
-- `run_migrations` uses `if version < N` guards — idempotent if run on an already-migrated DB.
-- New guard needed: `if version < 3 { migrate_2_to_3(conn)?; conn.pragma_update(None, "user_version", 3_u32)?; }`.
+1. New Tauri commands (e.g., `metadata_usage_summary`) returning structured data
+2. New frontend hook (e.g., `useUsageInsights`) calling those commands
+3. Display in `ProfileEditor.tsx` (per-profile stats panel) or a new tab/section in `App.tsx`
 
-### Error Model (`models.rs:8-21`)
+The `ConsoleView.tsx` component already renders launch log output — a natural sibling for a "Launch History" expandable panel.
 
-```rust
-pub enum MetadataStoreError {
-    HomeDirectoryUnavailable,
-    Database { action: &'static str, source: SqlError },
-    Io { action: &'static str, path: PathBuf, source: std::io::Error },
-    Corrupt(String),
-    SymlinkDetected(PathBuf),
-}
+## FTS5 Integration Points
+
+### Current Search
+
+`CommunityBrowser.tsx:30-51` implements client-side search: concatenates all text fields into a haystack string and uses `String.includes()`. This works for small catalogs but degrades at scale.
+
+### FTS5 Availability
+
+The `bundled` feature of `rusqlite` includes FTS5 (SQLite `SQLITE_ENABLE_FTS5` is set in the bundled build). No additional Cargo dependency needed.
+
+### Text Data That Would Benefit
+
+From `CommunityProfileMetadata`:
+
+- `game_name`, `game_version`, `trainer_name`, `trainer_version`, `proton_version`, `author`, `description`
+- `platform_tags` (stored as a JSON array or space-separated string in the FTS5 virtual table)
+
+From `community_profiles` (Phase 3 table):
+
+- All metadata fields above, indexed in an FTS5 virtual table
+
+### FTS5 Schema Pattern
+
+```sql
+CREATE VIRTUAL TABLE IF NOT EXISTS community_profiles_fts USING fts5(
+    game_name,
+    trainer_name,
+    author,
+    description,
+    platform_tags,
+    content='community_profiles',
+    content_rowid='rowid'
+);
 ```
 
-- `action` strings are always `&'static str` — never runtime-constructed strings.
-- Phase 2 should reuse `Database { action: "...", source }` for all SQL errors.
-- `From<SqlError>` impl exists for ergonomic `?` on `conn.execute(...)` calls.
+The content table approach keeps the FTS index synchronized with `community_profiles`. Triggers on INSERT/UPDATE/DELETE maintain the FTS index.
 
-### Profile Sync Patterns (`profile_sync.rs`)
+### FTS5 Integration Decision
 
-Key patterns usable in Phase 2:
-
-- `validate_profile_name(name)` called at entry to every public function.
-- Timestamps via `Utc::now().to_rfc3339()`.
-- `db::new_id()` generates UUID v4 strings for primary keys.
-- `Transaction::new_unchecked(conn, TransactionBehavior::Immediate)` used for multi-step operations (e.g., rename).
-- `OptionalExtension` from rusqlite used for `query_row(...).optional()` to return `Option<T>`.
-- ON CONFLICT upsert pattern used in `observe_profile_write` — preferred over separate INSERT/UPDATE logic.
-
----
-
-## Launch System Architecture
-
-### `LaunchRequest` Struct (`launch/request.rs:15-37`)
-
-Current fields:
-
-- `method: String`
-- `game_path: String`
-- `trainer_path: String`
-- `trainer_host_path: String`
-- `trainer_loading_mode: TrainerLoadingMode`
-- `steam: SteamLaunchConfig`
-- `runtime: RuntimeLaunchConfig`
-- `optimizations: LaunchOptimizationsRequest`
-- `launch_trainer_only: bool`
-- `launch_game_only: bool`
-
-**Phase 2 requires adding `profile_name: String`** with `#[serde(default)]`. This field is populated by the frontend before invoking `launch_game` or `launch_trainer`. It is used by the metadata layer to look up `profile_id` for the `launch_operations` FK.
-
-The `log_target_slug()` method (`request.rs:104-136`) is the current way to derive a short identifier — Phase 2 should use `profile_name` directly instead.
-
-### Launch Flow (`commands/launch.rs`)
-
-```
-launch_game (async, line 48) / launch_trainer (async, line 86)
-  ├── validate(&request)
-  ├── create_log_path(kind, slug) -> log_path
-  ├── command.spawn() -> child
-  └── spawn_log_stream(app, log_path, child, method)   [line 76/116]
-        └── [detached tokio task] stream_log_lines(app, log_path, child, method)  [line 142]
-              ├── polling loop: read log, emit "launch-log" events
-              ├── child.try_wait() -> exits loop on completion
-              ├── final log read
-              ├── safe_read_tail() -> log_tail string
-              ├── analyze(exit_status, &log_tail, method) -> DiagnosticReport  [line 211]
-              ├── sanitize_diagnostic_report(report)
-              ├── should_surface_report(&report) -> app.emit("launch-diagnostic", &report)  [line 215]
-              └── app.emit("launch-complete", {code, signal})  [line 221]
-```
-
-**Phase 2 insertion points:**
-
-1. **Before `command.spawn()`** in `launch_game`/`launch_trainer` (lines 74/114): call `record_launch_started(profile_name, method)` → returns `operation_id`.
-2. **After `analyze()` call** inside `stream_log_lines` (after line 211): call `record_launch_finished(operation_id, exit_status, &report)`.
-3. Both calls cross the async/sync boundary and require `spawn_blocking` (see Async Bridge section).
-
-The `operation_id` must be threaded from `launch_game`/`launch_trainer` into the spawned log stream task via closure capture.
-
-### `DiagnosticReport` Fields (`launch/diagnostics/models.rs:10-18`)
-
-```rust
-pub struct DiagnosticReport {
-    pub severity: ValidationSeverity,       // Fatal | Warning | Info
-    pub summary: String,
-    pub exit_info: ExitCodeInfo,            // contains failure_mode, code, signal, description
-    pub pattern_matches: Vec<PatternMatch>,
-    pub suggestions: Vec<ActionableSuggestion>,
-    pub launch_method: String,
-    pub log_tail_path: Option<String>,
-    pub analyzed_at: String,               // RFC3339 timestamp
-}
-```
-
-`DiagnosticReport` derives `Serialize + Deserialize` — safe to store as `serde_json::to_string(&report)` in the `diagnostic_json TEXT` column of `launch_operations`. `MAX_LOG_TAIL_BYTES` (2 MB) is the tail buffer for `analyze()`; the serialized `DiagnosticReport` is much smaller (typically < 4 KB).
-
----
-
-## Export/Launcher System
-
-### `SteamExternalLauncherExportRequest` (`export/launcher.rs:14-26`)
-
-```rust
-pub struct SteamExternalLauncherExportRequest {
-    pub method: String,
-    pub launcher_name: String,
-    pub trainer_path: String,
-    pub trainer_loading_mode: TrainerLoadingMode,
-    pub launcher_icon_path: String,
-    pub prefix_path: String,
-    pub proton_path: String,
-    pub steam_app_id: String,
-    pub steam_client_install_path: String,
-    pub target_home_path: String,
-}
-```
-
-**Notably absent: `profile_name`**. Phase 2 must either add `profile_name: String` to this struct (with `#[serde(default)]`) or look up profile_name from slug at insert time.
-
-### Slug Generation (`export/launcher.rs:265-290`)
-
-`sanitize_launcher_slug(value: &str) -> String` — lowercases, replaces non-alphanumeric with `-`, collapses runs, trims edges. Fallback: `"crosshook-trainer"`. This slug is the filesystem identity for exported launchers.
-
-`resolve_display_name(preferred_name, steam_app_id, trainer_path) -> String` — prefers `launcher_name`, falls back to trainer file stem, then `steam-{app_id}-trainer`.
-
-Path structure:
-
-- Script: `~/.local/share/crosshook/launchers/{slug}-trainer.sh`
-- Desktop: `~/.local/share/applications/crosshook-{slug}-trainer.desktop`
-
-### `LauncherInfo` Struct (`export/launcher_store.rs:27-43`)
-
-```rust
-pub struct LauncherInfo {
-    pub display_name: String,
-    pub launcher_slug: String,
-    pub script_path: String,
-    pub desktop_entry_path: String,
-    pub script_exists: bool,
-    pub desktop_entry_exists: bool,
-    pub is_stale: bool,         // populated only when profile context is available
-}
-```
-
-Phase 2 `launchers` table tracks: `profile_id FK`, `launcher_slug`, `script_path`, `desktop_entry_path`, `drift_state`. The `is_stale` field from `LauncherInfo` maps to drift state.
-
-### Export Command Signatures (`commands/export.rs`)
-
-All export commands are **synchronous** (not `async`). They take `State<'_, ProfileStore>` only where needed. No `MetadataStore` injection currently. Phase 2 adds `State<'_, MetadataStore>` to:
-
-- `export_launchers` (line 19) — to call `observe_launcher_exported` after `export_launchers_core`
-- `delete_launcher` (line 47) / `delete_launcher_by_slug` (line 66) — to call `observe_launcher_deleted`
-- `rename_launcher` (line 81) — to call `observe_launcher_renamed`
-
-**Critical gap**: `delete_launcher_by_slug` (line 66) has no `profile_name` — it only receives a `launcher_slug`. Phase 2 must do a reverse lookup from `launchers` table by slug to find the `profile_id`, or accept that FK is nullable for slug-only deletes.
-
----
-
-## Diagnostics System
-
-### Analysis Pipeline (`launch/diagnostics/mod.rs:17-37`)
-
-```rust
-pub fn analyze(exit_status: Option<ExitStatus>, log_tail: &str, method: &str) -> DiagnosticReport
-```
-
-Called in `stream_log_lines` after the child exits. Returns a fully-populated `DiagnosticReport`.
-
-`should_surface_report(&report) -> bool` — determines whether to emit `launch-diagnostic`. This is separate from whether to record: Phase 2 should **always** record the DiagnosticReport in `launch_operations`, regardless of surface worthiness.
-
-### Serialization
-
-`DiagnosticReport` derives `serde::Serialize + Deserialize`. `serde_json` is already in `crosshook-core/Cargo.toml` at line 10. Use `serde_json::to_string(&report)` for the `diagnostic_json` column.
-
----
-
-## Async Bridge Requirements
-
-### The Core Problem
-
-`rusqlite::Connection` is `!Send` — it cannot be moved across thread boundaries. The `MetadataStore` wraps it in `Arc<Mutex<Connection>>`, but accessing it from an `async` context still requires special handling.
-
-### Current Pattern in Commands
-
-All profile commands (`commands/profile.rs`) are **synchronous** (`fn`, not `async fn`). They can call `metadata_store.observe_*()` directly — no `spawn_blocking` needed. This is why profile sync works today without any special bridge.
-
-### `launch_game` / `launch_trainer` Are Async
-
-Both are `async fn` Tauri commands (lines 48, 86 in `commands/launch.rs`). The entire launch flow runs on the Tauri async runtime (Tokio).
-
-`stream_log_lines` is an `async fn` spawned via `tauri::async_runtime::spawn` (line 131). Inside it, after the child exits, `analyze()` is called.
-
-### Required Pattern for Phase 2 Metadata Writes
-
-For the `record_launch_started` call in `launch_game`/`launch_trainer`:
-
-```rust
-let metadata = metadata_store.clone();  // cheap Arc clone
-let op_id = tokio::task::spawn_blocking(move || {
-    metadata.record_launch_started(&profile_name, method)
-}).await
-  .map_err(|join_err| format!("spawn_blocking panicked: {join_err}"))??;
-```
-
-For `record_launch_finished` inside `stream_log_lines` (which is also async):
-
-```rust
-let metadata = metadata_store.clone();
-let report_clone = report.clone();
-tokio::task::spawn_blocking(move || {
-    metadata.record_launch_finished(op_id, exit_status_code, &report_clone)
-}).await
-  .map_err(|join_err| tracing::warn!("metadata record_launch_finished panicked: {join_err}"))
-  .ok();
-```
-
-The `operation_id` (`String`) must be captured in the `spawn_log_stream` closure, then passed into `stream_log_lines`. This requires adjusting `stream_log_lines`'s signature from `(app, log_path, child, method)` to add `operation_id: Option<String>` (optional so it degrades gracefully if metadata is unavailable).
-
-### Why `Option<String>` for `operation_id`
-
-`record_launch_started` can fail (store disabled, lock contention). If it returns `Err`, `operation_id` is `None` and `record_launch_finished` is skipped — no orphaned half-record.
-
----
-
-## Tauri Command Integration Points
-
-### `commands/launch.rs` Integration Points
-
-**Point 1 — `launch_game` (line 48)**:
-
-```rust
-pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<LaunchResult, String> {
-    // ... existing validate, log_path setup ...
-
-    // PHASE 2: record start — before spawn()
-    let metadata_store = app.state::<MetadataStore>().inner().clone();
-    let profile_name = request.profile_name.clone();
-    let op_id = tokio::task::spawn_blocking(move || {
-        metadata_store.record_launch_started(&profile_name, method)
-    }).await.ok().and_then(|r| r.ok());
-
-    let child = command.spawn()...;
-    spawn_log_stream(app, log_path.clone(), child, method, op_id);  // pass op_id
-
-    Ok(LaunchResult { ... })
-}
-```
-
-**Point 2 — `stream_log_lines` (after line 211)**:
-
-After `let report = sanitize_diagnostic_report(report);`:
-
-```rust
-if let Some(op_id) = operation_id {
-    let metadata_store = app.state::<MetadataStore>().inner().clone();
-    let report_clone = report.clone();
-    let exit_code = exit_status.and_then(|s| s.code());
-    tokio::task::spawn_blocking(move || {
-        let _ = metadata_store.record_launch_finished(&op_id, exit_code, &report_clone);
-    }).await.ok();
-}
-```
-
-`app: AppHandle` is already available in `stream_log_lines` for `app.emit()` calls. Accessing `app.state::<MetadataStore>()` requires the `Manager` trait, already imported at line 17.
-
-### `commands/export.rs` Integration Points
-
-All export commands are synchronous, so no `spawn_blocking` is needed. Add `State<'_, MetadataStore>` parameter:
-
-**`export_launchers` (line 19)**:
-
-```rust
-pub fn export_launchers(
-    request: SteamExternalLauncherExportRequest,
-    metadata_store: State<'_, MetadataStore>,
-) -> Result<SteamExternalLauncherExportResult, String> {
-    let result = export_launchers_core(&request).map_err(|e| e.to_string())?;
-    if let Err(e) = metadata_store.observe_launcher_exported(&request.profile_name, &result) {
-        tracing::warn!(%e, "metadata sync after export_launchers failed");
-    }
-    Ok(result)
-}
-```
-
-**`delete_launcher_by_slug` (line 66)**: Needs `State<'_, MetadataStore>`. No `profile_name` available — call `metadata_store.observe_launcher_deleted_by_slug(&launcher_slug)` which does a reverse lookup from the `launchers` table.
-
-**`rename_launcher` (line 81)**: Needs `State<'_, MetadataStore>`. Call `metadata_store.observe_launcher_renamed(&old_launcher_slug, &result.new_slug)`.
-
-### New Handler Registration in `lib.rs`
-
-No new Tauri commands are added by Phase 2 — only existing commands gain `State<'_, MetadataStore>` parameters. The `invoke_handler!` macro registration at line 85-128 does not change.
-
----
+Per the spec: "defer unless proven necessary; `LIKE` queries sufficient for v1." The current client-side search is equivalent to `LIKE` query coverage. Phase 3 should implement FTS5 as optional — build the `community_profiles` table first, then add FTS5 virtual table and triggers only if query performance proves insufficient with `LIKE '%query%'` on a real-world catalog.
 
 ## Key Dependencies
 
-Phase 2 has no new Cargo dependencies. All required crates are already present:
+### Existing (No New Cargo Dependencies Needed for Core Phase 3)
 
-| Crate        | Version         | Usage in Phase 2                                                |
-| ------------ | --------------- | --------------------------------------------------------------- |
-| `rusqlite`   | `0.38, bundled` | `launchers` and `launch_operations` tables                      |
-| `serde_json` | `1`             | `DiagnosticReport` serialization for `diagnostic_json` column   |
-| `chrono`     | `0.4`           | RFC3339 timestamps for `started_at`, `finished_at`              |
-| `uuid`       | `1, v4`         | `operation_id` UUID for `launch_operations` PK                  |
-| `tokio`      | `1`             | `spawn_blocking` for metadata writes from async launch commands |
+- `rusqlite 0.38` with `bundled` — provides SQLite + FTS5 already
+- `serde_json` — for manifest payload serialization in cache
+- `chrono` — for `expires_at` timestamps in cache entries
+- `sha2` — could be reused for cache key hashing (URL → hash → lookup)
+- `uuid` — for `collection_id`, `cache_entry_id` PKs
 
-Phase 2 new files to create:
+### Potentially New
 
-- `src/crosshook-native/crates/crosshook-core/src/metadata/launcher_sync.rs` — `observe_launcher_exported`, `observe_launcher_deleted`, `observe_launcher_renamed`, `observe_launcher_deleted_by_slug`
-- `src/crosshook-native/crates/crosshook-core/src/metadata/launch_history.rs` — `record_launch_started`, `record_launch_finished`, `sweep_abandoned_operations`
+- HTTP client (e.g., `ureq`) if `cache_store.rs` makes outbound requests inside crosshook-core. Currently no HTTP client exists in crosshook-core. If external fetch stays in the Tauri command layer (recommended), this can be deferred.
 
-Phase 2 files to modify:
+### Internal Module Dependencies for Phase 3
 
-- `metadata/mod.rs` — add public method wrappers for all Phase 2 functions
-- `metadata/migrations.rs` — add `migrate_2_to_3()` + guard in `run_migrations()`
-- `launch/request.rs` — add `profile_name: String` field with `#[serde(default)]`
-- `commands/launch.rs` — add `spawn_blocking` hooks pre-spawn and post-analyze
-- `commands/export.rs` — add `State<'_, MetadataStore>` to export/delete/rename commands
+- `community_index.rs` depends on: `db::new_id()`, `MetadataStoreError`, `CommunityTapSyncResult` (from `crosshook_core::community`), `CommunityProfileManifest`
+- `cache_store.rs` depends on: `db::new_id()`, `MetadataStoreError`, `chrono`, `serde_json`
+- Both new files follow the same free-function pattern as `profile_sync.rs`, `launcher_sync.rs`, `launch_history.rs`
 
-Also must update `lib.rs` invoke_handler registration if any command signature changes require it (signatures with new State params do not require re-listing, but are a compile-time check).
+### Tauri State Already Available
 
----
+`lib.rs` already manages: `ProfileStore`, `SettingsStore`, `RecentFilesStore`, `CommunityTapStore`, `MetadataStore`. Phase 3 does not need new Tauri-managed state — `MetadataStore` is already available as `State<MetadataStore>` in any command that declares it.
 
-## Schema for Phase 2 Migration
+## Phase 3 New Files
 
-```sql
-CREATE TABLE IF NOT EXISTS launchers (
-    launcher_id   TEXT PRIMARY KEY,
-    profile_id    TEXT REFERENCES profiles(profile_id),
-    launcher_slug TEXT NOT NULL,
-    script_path   TEXT NOT NULL,
-    desktop_entry_path TEXT NOT NULL,
-    drift_state   TEXT NOT NULL DEFAULT 'unknown',
-    created_at    TEXT NOT NULL,
-    updated_at    TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_launchers_profile_id ON launchers(profile_id);
-CREATE INDEX IF NOT EXISTS idx_launchers_launcher_slug ON launchers(launcher_slug);
+Per the feature spec:
 
-CREATE TABLE IF NOT EXISTS launch_operations (
-    operation_id  TEXT PRIMARY KEY,
-    profile_id    TEXT REFERENCES profiles(profile_id),
-    profile_name  TEXT,
-    launch_method TEXT NOT NULL,
-    status        TEXT NOT NULL DEFAULT 'started',
-    exit_code     INTEGER,
-    diagnostic_json TEXT,
-    started_at    TEXT NOT NULL,
-    finished_at   TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_launch_ops_profile_id ON launch_operations(profile_id);
-CREATE INDEX IF NOT EXISTS idx_launch_ops_started_at ON launch_operations(started_at);
-```
+- `src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs` — tap/catalog indexing, HEAD watermark check, `community_taps` + `community_profiles` table writes
+- `src/crosshook-native/crates/crosshook-core/src/metadata/cache_store.rs` — external metadata cache, payload size validation, TTL-based expiry
 
-- `drift_state` values: `'current'`, `'stale'`, `'missing'`, `'unknown'`
-- `status` values: `'started'`, `'succeeded'`, `'failed'`, `'abandoned'`
-- Startup sweep: `UPDATE launch_operations SET status='abandoned' WHERE status='started' AND started_at < datetime('now', '-24 hours')`
+## Phase 3 Files to Modify
+
+- `metadata/mod.rs` — add new public API methods: `index_community_tap()`, `list_community_profiles()` (with optional query), `get_collection()`, `create_collection()`, etc.
+- `metadata/migrations.rs` — add `migrate_3_to_4()` for `community_taps`, `community_profiles`, `external_cache_entries`, `collections`, `collection_profiles`
+- `src-tauri/src/commands/community.rs` — add `State<MetadataStore>` to `community_sync`; call `sync_tap_index()` after `sync_many()`; optionally add SQLite read path in `community_list_profiles`
+- `metadata/models.rs` — add row structs for new tables if needed
+
+## Relevant Docs
+
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/sqlite3-addition/feature-spec.md` — Phase 3 task list (lines 524-534), Phase 3 schema additions, security findings A6/W3/W6
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/sqlite3-addition/shared.md` — Phase 2 patterns reference; all patterns apply to Phase 3 unchanged
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/sqlite3-addition/research-patterns.md` — with_conn pattern, free function shape, migration pattern, test patterns
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/sqlite3-addition/research-security.md` — W3 (512KB payload bound), A6 (validate string lengths before INSERT), W6 (re-validate stored paths)
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/sqlite3-addition/research-technical.md` — type-to-table mapping for Phase 3 (lines 48–84): `CommunityTapSubscription` → `community_taps`, `CommunityProfileIndexEntry` → `community_profiles`; authority boundary matrix
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/sqlite3-addition/analysis-context.md` — Phase 2 data flow and integration points; Phase 3 follows the same hook-in-command pattern
+- <https://www.sqlite.org/fts5.html> — FTS5 virtual table reference
+- <https://www.sqlite.org/json1.html> — JSON storage for `platform_tags` array and cache payloads
