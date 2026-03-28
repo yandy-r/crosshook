@@ -1,68 +1,76 @@
-# SQLite Metadata Layer
+# SQLite Metadata Layer — Phase 2: Operational History
 
-CrossHook's backend is a Rust workspace (`crosshook-core` library + `crosshook-cli` binary + `src-tauri` Tauri v2 shell) with a React 18 TypeScript frontend. The new `MetadataStore` adds SQLite (`rusqlite` 0.39.0, bundled SQLite 3.51.3) as a secondary metadata store inside `crosshook-core/src/metadata/`, keeping TOML profiles canonical. Metadata sync hooks live exclusively in Tauri command handlers (`src-tauri/src/commands/`), following the existing best-effort cascade pattern where `ProfileStore` remains a pure TOML I/O layer. The store uses `Arc<Mutex<Connection>>` (matching the `RotatingLogWriter` precedent), is registered via `.manage()` in `lib.rs`, and carries an internal `available` flag for fail-soft degradation — methods no-op when SQLite is unavailable.
+Phase 1 established the `MetadataStore` with `Arc<Mutex<Connection>>`, profile sync hooks, and the `with_conn` fail-soft wrapper across five files in `crates/crosshook-core/src/metadata/`. Phase 2 extends this foundation with two new tables (`launchers` and `launch_operations`), three new MetadataStore methods, and integration hooks in the async launch commands and synchronous export commands. The critical blocker is that `LaunchRequest` has no `profile_name` field — this must be added (as `Option<String>` with `#[serde(default)]`) before any Phase 2 hook can link a launch operation to a profile identity. All new methods follow the existing `with_conn` delegation pattern, new enums follow the `SyncSource` derive+`as_str()` pattern, and new SQL uses parameterized queries exclusively.
 
 ## Relevant Files
 
-- src/crosshook-native/crates/crosshook-core/src/lib.rs: Module root; add `pub mod metadata;` alongside existing community, export, launch, profile, settings, steam modules
-- src/crosshook-native/crates/crosshook-core/Cargo.toml: Add `rusqlite = { version = "0.39", features = ["bundled"] }` and `uuid = { version = "1", features = ["v4", "serde"] }` to dependencies
-- src/crosshook-native/crates/crosshook-core/src/profile/toml_store.rs: Primary store pattern template — `try_new()`, `with_base_path()`, `validate_name()`, error enum; NOT modified for metadata
-- src/crosshook-native/crates/crosshook-core/src/profile/models.rs: `GameProfile` struct — `observe_profile_write` extracts `game_name` and `launch_method` from this
-- src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs: `LauncherInfo`, `LauncherDeleteResult`, `LauncherRenameResult`, `sanitize_launcher_slug()`, `derive_launcher_paths()` — Phase 2 launcher table maps to these
-- src/crosshook-native/crates/crosshook-core/src/launch/request.rs: `LaunchRequest` — missing `profile_name` field (Phase 2 blocker)
-- src/crosshook-native/crates/crosshook-core/src/launch/diagnostics/models.rs: `DiagnosticReport`, `FailureMode`, `ExitCodeInfo` — Phase 2 launch_operations stores serialized DiagnosticReport
-- src/crosshook-native/crates/crosshook-core/src/settings/mod.rs: `SettingsStore` pattern; `AppSettingsData` includes `community_taps` and `last_used_profile`
-- src/crosshook-native/crates/crosshook-core/src/settings/recent.rs: `RecentFilesStore` — uses `data_local_dir()`, confirms correct base for `metadata.db`
-- src/crosshook-native/crates/crosshook-core/src/community/taps.rs: `CommunityTapStore`, `CommunityTapSyncResult` with `head_commit` for idempotent re-indexing
-- src/crosshook-native/crates/crosshook-core/src/community/index.rs: `index_tap()` recursive manifest scan — Phase 3 SQLite augments this as read cache
-- src/crosshook-native/crates/crosshook-core/src/logging.rs: `Arc<Mutex<RotatingLogState>>` — precedent for `MetadataStore` connection wrapper pattern
-- src/crosshook-native/src-tauri/src/lib.rs: Store initialization, `.manage()` registration, `invoke_handler` command list — MetadataStore goes here
-- src/crosshook-native/src-tauri/src/startup.rs: Auto-load profile; add startup reconciliation scan (`sync_profiles_from_store`)
-- src/crosshook-native/src-tauri/src/commands/profile.rs: Profile lifecycle commands — metadata sync hooks after `save`, `rename`, `delete`, `duplicate`, `import_legacy`
-- src/crosshook-native/src-tauri/src/commands/launch.rs: Async launch commands — Phase 2 `record_launch_started/finished` via `spawn_blocking`; `sanitize_display_path()` at line ~301 (must promote to shared.rs)
-- src/crosshook-native/src-tauri/src/commands/export.rs: Launcher export/delete/rename — Phase 2 metadata sync for launcher observations
-- src/crosshook-native/src-tauri/src/commands/community.rs: `community_sync` — Phase 3 `sync_tap_index()` after `sync_many()`
-- src/crosshook-native/src-tauri/src/commands/shared.rs: `create_log_path`, `slugify_target` — destination for promoted `sanitize_display_path()`
-- src/crosshook-native/src-tauri/src/commands/mod.rs: Add `pub mod metadata;` for new metadata Tauri commands
+- src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs: MetadataStore struct, `with_conn` fail-soft helper, public API delegates — all Phase 2 methods added here following the same delegation shape
+- src/crosshook-native/crates/crosshook-core/src/metadata/db.rs: Connection factory, `new_id()` for UUID v4 generation — Phase 2 uses `new_id()` for `launcher_id` and `operation_id` PKs
+- src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs: Sequential migration runner (currently v0→v1→v2) — Phase 2 adds `migrate_2_to_3()` for `launchers` and `launch_operations` DDL
+- src/crosshook-native/crates/crosshook-core/src/metadata/models.rs: MetadataStoreError, SyncSource, SyncReport, ProfileRow — Phase 2 adds LaunchOutcome, DriftState enums and LauncherRow, LaunchOperationRow structs
+- src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs: Profile lifecycle reconciliation — template for Phase 2 free functions (conn: &Connection first arg, structured error mapping)
+- src/crosshook-native/crates/crosshook-core/src/launch/request.rs: LaunchRequest struct (lines 16-37) — must add `profile_name: Option<String>` with `#[serde(default)]` (Phase 2 blocker)
+- src/crosshook-native/crates/crosshook-core/src/launch/diagnostics/models.rs: DiagnosticReport, ExitCodeInfo, FailureMode — serialized to `diagnostic_json` column (4KB max)
+- src/crosshook-native/crates/crosshook-core/src/launch/diagnostics/mod.rs: `analyze()` entry point producing DiagnosticReport — called in `stream_log_lines` before Phase 2 hook
+- src/crosshook-native/crates/crosshook-core/src/export/launcher_store.rs: LauncherInfo, LauncherDeleteResult, LauncherRenameResult, `derive_launcher_paths()` — Phase 2 `launchers` table maps to these types
+- src/crosshook-native/crates/crosshook-core/src/export/launcher.rs: `sanitize_launcher_slug()` (line 265), `SteamExternalLauncherExportRequest` (lines 14-26, missing `profile_name`), `SteamExternalLauncherExportResult`
+- src/crosshook-native/src-tauri/src/commands/launch.rs: Async `launch_game`/`launch_trainer` commands, `spawn_log_stream`/`stream_log_lines` — Phase 2 hooks `record_launch_started` before spawn and `record_launch_finished` after analyze
+- src/crosshook-native/src-tauri/src/commands/export.rs: Synchronous export commands — Phase 2 adds `State<MetadataStore>` and `observe_launcher_exported` after successful export
+- src/crosshook-native/src-tauri/src/commands/profile.rs: Existing warn-and-continue pattern for metadata sync — template for Phase 2 command hooks
+- src/crosshook-native/src-tauri/src/commands/shared.rs: `sanitize_display_path()` — apply to `log_path` before storing in `launch_operations`
+- src/crosshook-native/src-tauri/src/commands/install.rs: `spawn_blocking` canonical pattern (lines 10-18) — template for async metadata calls in launch commands
+- src/crosshook-native/src-tauri/src/lib.rs: MetadataStore initialization with fail-soft fallback, `.manage()` registration, `.setup()` closure — calls `run_metadata_reconciliation` which includes the sweep
+- src/crosshook-native/src-tauri/src/startup.rs: `run_metadata_reconciliation()`, StartupError — Phase 2 adds `sweep_abandoned_operations()` call
+- src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs: Command builders — test fixtures (struct literals) need `profile_name: None` added
 
 ## Relevant Tables
 
-- profiles: Stable UUID identity, current filename/path, game_name, launch_method, is_favorite, is_pinned, source_profile_id, deleted_at, created_at, updated_at
-- profile_name_history: Append-only rename events — profile_id FK, old/new name/path, source (app_rename, filesystem_scan, import, initial_census), created_at
-- launchers (Phase 2): Composite PK (profile_id, launcher_slug), display_name, script_path, desktop_entry_path, drift_state, created_at, updated_at
-- launch_operations (Phase 2): Launch attempts — profile_id FK, method, game/trainer paths, outcome (incomplete/succeeded/failed/abandoned), exit_code, signal, diagnostic_json (max 4KB), severity, failure_mode
-- community_taps (Phase 3): (tap_url, tap_branch) PK, head_commit for idempotent skip, last_synced_at
-- community_profiles (Phase 3): Indexed manifest rows — tap FK, game_name, trainer_name, compatibility_rating, platform_tags_json
-- external_cache_entries (Phase 3): Typed cache with freshness — cache_bucket, cache_key, payload_json (max 512KB), fetched_at, expires_at
+- profiles: Stable UUID identity (Phase 1) — `profile_id` is the FK target for both Phase 2 tables; `lookup_profile_id()` resolves name→id
+- profile_name_history: Append-only rename events (Phase 1) — unmodified by Phase 2
+- launchers (Phase 2 NEW): `launcher_id TEXT PK`, `profile_id TEXT FK NULLABLE`, `launcher_slug TEXT NOT NULL`, `display_name TEXT NOT NULL`, `script_path TEXT NOT NULL`, `desktop_entry_path TEXT NOT NULL`, `drift_state TEXT NOT NULL DEFAULT 'unknown'`, `created_at TEXT NOT NULL`, `updated_at TEXT NOT NULL`; indexes on `profile_id` and `launcher_slug`
+- launch_operations (Phase 2 NEW): `operation_id TEXT PK`, `profile_id TEXT FK NULLABLE`, `profile_name TEXT`, `launch_method TEXT NOT NULL`, `status TEXT NOT NULL DEFAULT 'started'`, `exit_code INTEGER`, `signal INTEGER`, `log_path TEXT`, `diagnostic_json TEXT` (max 4KB), `severity TEXT`, `failure_mode TEXT`, `started_at TEXT NOT NULL`, `finished_at TEXT`; indexes on `profile_id` and `started_at`
 
 ## Relevant Patterns
 
-**Three-Constructor Store Pattern**: Every store exposes `try_new() -> Result<Self, String>` (production), `new() -> Self` (panic wrapper), and `with_base_path()`/`with_path()` (test injection). See [src/crosshook-native/crates/crosshook-core/src/profile/toml_store.rs](src/crosshook-native/crates/crosshook-core/src/profile/toml_store.rs) lines 83-98.
+**`with_conn` Fail-Soft Delegation**: Every public MetadataStore method delegates through `with_conn(action, |conn| ...)` which no-ops when disabled (`T::default()`) and locks the mutex when available. Phase 2 methods replicate this exact shape. See [src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs](src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs) lines 56-73.
 
-**Best-Effort Cascade**: Multi-step Tauri commands where the critical TOML operation propagates errors with `?` and all subsequent steps (launcher cleanup, display_name update, settings update) use `if let Err(e) { tracing::warn!(...) }`. See [src/crosshook-native/src-tauri/src/commands/profile.rs](src/crosshook-native/src-tauri/src/commands/profile.rs) `profile_rename` at lines 149-194. Metadata sync hooks follow this exact pattern as additional best-effort steps.
+**Free Function + Module Delegation**: Sync functions in submodules take `conn: &Connection` as first arg and return `Result<T, MetadataStoreError>`. The `mod.rs` method wraps them via `with_conn`. Phase 2 adds `launcher_sync.rs` and `launch_history.rs` following this pattern. See [src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs](src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs).
 
-**IPC Error Boundary**: All Tauri commands return `Result<T, String>`. Domain errors are converted via `.map_err(|e| e.to_string())` or a private `map_error` helper. Raw `rusqlite::Error` must never reach the frontend. See [src/crosshook-native/src-tauri/src/commands/profile.rs](src/crosshook-native/src-tauri/src/commands/profile.rs) lines 9-11.
+**Structured Error Mapping**: SQL errors are mapped with `MetadataStoreError::Database { action: "lowercase gerund phrase", source }` where `action` finishes the sentence "failed to \_\_\_". Never use `format!()` for action strings. See [src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs](src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs) lines 25-30.
 
-**Arc<Mutex<...>> Shared State**: `RotatingLogWriter` wraps mutable state in `Arc<Mutex<RotatingLogState>>` for `Clone` + thread-safe access. `MetadataStore` uses `Arc<Mutex<Connection>>` identically. See [src/crosshook-native/crates/crosshook-core/src/logging.rs](src/crosshook-native/crates/crosshook-core/src/logging.rs) lines 118-120.
+**Enum with `as_str()`**: Metadata enums derive `Debug + Clone + Copy + Serialize + Deserialize` with `#[serde(rename_all = "snake_case")]` and expose `as_str() -> &'static str` for SQL storage. Phase 2 `LaunchOutcome` and `DriftState` follow this. See [src/crosshook-native/crates/crosshook-core/src/metadata/models.rs](src/crosshook-native/crates/crosshook-core/src/metadata/models.rs) lines 69-93.
 
-**Structured Error Enum**: Each module defines its own error enum with `Io { action: &'static str, path: PathBuf, source }` variant, `Display` impl, `Error` impl, and `From` impls. See [src/crosshook-native/crates/crosshook-core/src/community/taps.rs](src/crosshook-native/crates/crosshook-core/src/community/taps.rs) lines 48-91.
+**Warn-and-Continue**: Tauri commands call metadata hooks in `if let Err(e) { tracing::warn!(...) }` blocks — metadata failures never block the primary operation. See [src/crosshook-native/src-tauri/src/commands/profile.rs](src/crosshook-native/src-tauri/src/commands/profile.rs) lines 106-113.
 
-**UPSERT Reconciliation**: SQLite `INSERT ... ON CONFLICT DO UPDATE` for idempotent sync from TOML/filesystem scans. Required for `sync_profiles_from_store()` and all observation writes.
+**`spawn_blocking` Async Bridge**: `rusqlite::Connection` is `!Send`; async Tauri commands must use `tauri::async_runtime::spawn_blocking` for metadata writes, cloning the `MetadataStore` (cheap `Arc` clone) into the closure. See [src/crosshook-native/src-tauri/src/commands/install.rs](src/crosshook-native/src-tauri/src/commands/install.rs) lines 10-18.
 
-**spawn_blocking Async Bridge**: `rusqlite::Connection` is `!Send`. Async Tauri commands (`launch_game`/`launch_trainer`) must use `tokio::task::spawn_blocking` for metadata writes. No existing example in codebase — new pattern for Phase 2.
+**UPSERT Reconciliation**: `INSERT ... ON CONFLICT DO UPDATE` for idempotent sync. Used in `observe_profile_write` for profile census; Phase 2 uses same pattern for `observe_launcher_exported`. See [src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs](src/crosshook-native/crates/crosshook-core/src/metadata/profile_sync.rs) lines 17-50.
+
+**Sequential Migration Runner**: `if version < N { migrate(conn)?; pragma_update(N)?; }` guards with `migrate_N_to_M()` private functions using `conn.execute_batch()` for literal-only DDL. See [src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs](src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs).
 
 ## Relevant Docs
 
-**docs/plans/sqlite3-addition/feature-spec.md**: You _must_ read this when working on any sqlite3-addition task. Master spec with authority matrix, Phase 1/2/3 schemas, business rules, success criteria, security findings, and adopted defaults.
+**docs/plans/sqlite3-addition/feature-spec.md**: You _must_ read this when working on any Phase 2 task. Phase 2 schema (lines 189-222), API design (lines 246-249), business rules 10-13, edge cases, success criteria. Authority matrix and security findings apply to Phase 2.
 
-**docs/plans/sqlite3-addition/research-technical.md**: You _must_ read this when creating new metadata module files or modifying existing files. Verified file inventory, type-to-table mappings, API design, integration points with exact function signatures.
+**docs/plans/sqlite3-addition/research-architecture.md**: You _must_ read this when wiring launch or export commands. Current metadata module structure, launch system flow, async bridge requirements, Tauri command integration points with exact line numbers.
 
-**docs/plans/sqlite3-addition/research-practices.md**: You _must_ read this when designing MetadataStore interfaces or writing tests. Existing reusable code with file:line references, KISS assessment, minimal Phase 1 schema guidance, testability patterns.
+**docs/plans/sqlite3-addition/research-patterns.md**: You _must_ read this when creating new metadata module files. Phase 1 patterns extracted from source: `with_conn`, `profile_sync` function shape, models pattern, migration pattern, testing patterns — all with code examples.
 
-**docs/plans/sqlite3-addition/research-security.md**: You _must_ read this when implementing connection setup, path handling, or IPC responses. W1-W8 security findings with required mitigations (file permissions, parameterized queries, path sanitization, payload bounds).
+**docs/plans/sqlite3-addition/research-integration.md**: You _must_ read this when modifying launch or export commands. All Tauri command signatures, LaunchRequest gap analysis, DiagnosticReport size estimation, hook point locations, startup sweep placement.
 
-**docs/plans/sqlite3-addition/research-integration.md**: You _must_ read this when adding metadata sync hooks to Tauri commands. All 30 Tauri IPC command signatures, store APIs, launch system hooks, filesystem paths.
+**docs/plans/sqlite3-addition/research-docs.md**: You _must_ read this for Phase 2 business rules, edge cases, security findings (W2/W3/W6), documentation gaps, and must-read document priority list.
 
-**docs/plans/sqlite3-addition/research-patterns.md**: You _must_ read this when following codebase conventions. Three-constructor pattern, error enum pattern, cascade pattern, testing patterns with concrete code examples.
+**docs/plans/sqlite3-addition/research-security.md**: You _must_ read this when implementing connection setup, path handling, or diagnostic storage. W3 (4KB payload bound), W6 (re-validate stored paths), W2 (path sanitization), W7 (no format! in SQL).
 
 **CLAUDE.md**: You _must_ read this for project conventions — commit messages, build commands, Rust style, test commands, label taxonomy.
+
+## Design Decisions (Locked)
+
+| Decision                                          | Choice                                               | Rationale                                                                                    |
+| ------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `launch_operations` PK                            | UUID TEXT via `db::new_id()`                         | Consistent with Phase 1 `profiles` PK pattern; avoids being the only AUTOINCREMENT in schema |
+| `launchers` PK                                    | UUID TEXT (`launcher_id`) + index on `launcher_slug` | Nullable `profile_id` in composite PK creates SQLite ambiguity; UUID PK is clean             |
+| `profile_name` type                               | `Option<String>` with `#[serde(default)]`            | Avoids sentinel-value checking; consistent with nullable FK pattern in Phase 1               |
+| `SteamExternalLauncherExportRequest.profile_name` | `Option<String>` with `#[serde(default)]`            | Same reasoning; backwards compatible with existing frontend callers                          |
+| Startup sweep threshold                           | Rows with `status = 'started'` and no `finished_at`  | Run in `.setup()` closure after reconciliation; non-fatal warn-only                          |
+| DiagnosticReport truncation                       | Truncate `diagnostic_json` before INSERT when > 4KB  | Still record outcome, exit_code, severity, failure_mode in promoted columns                  |
