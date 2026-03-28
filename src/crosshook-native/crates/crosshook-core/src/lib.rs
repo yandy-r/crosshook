@@ -3,6 +3,7 @@ pub mod export;
 pub mod install;
 pub mod launch;
 pub mod logging;
+pub mod metadata;
 pub mod profile;
 pub mod settings;
 pub mod steam;
