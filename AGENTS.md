@@ -49,7 +49,7 @@ src/crosshook-native/
       community/                # Community profile taps (index.rs, taps.rs)
       export/                   # Launcher export — shell script + .desktop entry generation (launcher.rs, launcher_store.rs)
       launch/                   # Launch orchestration (env.rs, request.rs, script_runner.rs)
-      profile/                  # Profile management (models.rs, toml_store.rs [includes rename], legacy.rs, exchange.rs, community_schema.rs)
+      profile/                  # Profile management (models.rs, toml_store.rs [includes rename, duplicate], legacy.rs, exchange.rs, community_schema.rs)
       settings/                 # App settings + recent files (mod.rs, recent.rs)
       steam/                    # Steam integration (discovery, libraries, manifest, proton, vdf, auto_populate, diagnostics)
       logging.rs                # Structured logging
@@ -143,6 +143,12 @@ src/crosshook-native/
 - No test framework is configured for the frontend; Rust tests exist for `crosshook-core` (`cargo test -p crosshook-core`)
 - Environment management uses `direnv` with `.envrc` and `dotenvx` for encrypted env vars
 - Never commit `.env`, `.env.encrypted`, or `.env.keys` files
+
+## Model Context Protocol (MCP)
+
+- When MCP servers are available in the environment (for example GitHub, IDE browser, documentation, or other configured integrations), **use them for work they are meant to handle**—repository and issue/PR operations, live docs or API references, browser verification, and similar tasks—instead of relying on stale knowledge or extra manual steps when a tool already exposes the right capability.
+- Before calling an MCP tool, read its schema or descriptor so parameters, auth, and side effects match what you intend.
+- If a server is not enabled, not authenticated, or a better path exists (for example this repo’s `gh` / script conventions in **GitHub Workflow**), use that path and do not treat MCP absence as a blocker.
 
 ## GitHub Workflow
 
