@@ -106,8 +106,18 @@ export function ProfilesPage() {
   const [profilePreviewContent, setProfilePreviewContent] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const healthIssuesRef = useRef<HTMLDivElement>(null);
 
-  const { batchValidate, revalidateSingle, healthByName, summary, loading: healthLoading } = useProfileHealth();
+  const {
+    batchValidate,
+    revalidateSingle,
+    healthByName,
+    summary,
+    loading: healthLoading,
+    staleInfoByName,
+    cachedSnapshots,
+    trendByName,
+  } = useProfileHealth();
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -335,6 +345,37 @@ export function ProfilesPage() {
       ? `A profile named '${renameNameTrimmed}' already exists.`
       : null;
   const canConfirmRename = !renameIsEmpty && !renameIsUnchanged && !renameHasConflict && !renaming;
+  const selectedReport = selectedProfile ? healthByName[selectedProfile] : undefined;
+  const selectedCachedSnapshot = selectedProfile ? cachedSnapshots[selectedProfile] : undefined;
+  const selectedStaleInfo = selectedProfile ? staleInfoByName[selectedProfile] : undefined;
+  const selectedTrend = selectedProfile ? (trendByName[selectedProfile] ?? null) : null;
+
+  const renderProfileHealthBadge = () => {
+    if (!selectedProfile) {
+      return null;
+    }
+
+    if (!selectedReport && !selectedCachedSnapshot) {
+      return null;
+    }
+
+    const badgeStatus = selectedReport ? selectedReport.status : selectedCachedSnapshot!.status;
+    const issueCount = selectedReport?.issues.length ?? selectedCachedSnapshot?.issue_count ?? 0;
+    const issueTooltip = issueCount > 0
+      ? selectedReport
+        ? `${issueCount} issue${issueCount !== 1 ? 's' : ''}: ${selectedReport.issues.slice(0, 3).map((i) => i.field + ' \u2014 ' + i.message).join('; ')}${issueCount > 3 ? ` (+${issueCount - 3} more)` : ''}`
+        : `${issueCount} issue${issueCount !== 1 ? 's' : ''} in cached snapshot`
+      : null;
+
+    return (
+      <HealthBadge
+        status={badgeStatus}
+        trend={selectedTrend}
+        tooltip={issueTooltip}
+        onClick={selectedReport && issueCount > 0 ? () => healthIssuesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : undefined}
+      />
+    );
+  };
 
   return (
     <>
@@ -371,9 +412,7 @@ export function ProfilesPage() {
           className="crosshook-panel"
           meta={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {selectedProfile && healthByName[selectedProfile] ? (
-                <HealthBadge status={healthByName[selectedProfile].status} />
-              ) : null}
+              {renderProfileHealthBadge()}
               <button
                 type="button"
                 className="crosshook-button crosshook-button--secondary"
@@ -403,6 +442,15 @@ export function ProfilesPage() {
                 {healthLoading ? 'Checking...' : 'Re-check All'}
               </button>
             </div>
+          ) : null}
+          {!selectedReport && selectedStaleInfo?.isStale ? (
+            <p
+              className="crosshook-health-stale-note"
+              role="note"
+              style={{ color: 'var(--crosshook-color-text-muted)', fontSize: '0.85em', margin: '0 0 8px' }}
+            >
+              Last checked {selectedStaleInfo.daysAgo} days ago &mdash; consider re-checking
+            </p>
           ) : null}
 
           <ProfileFormSections
@@ -451,7 +499,7 @@ export function ProfilesPage() {
           ) : null}
 
           {(() => {
-            const report = selectedProfile ? healthByName[selectedProfile] : undefined;
+            const report = selectedReport;
             if (!report || (report.status !== 'broken' && report.status !== 'stale') || report.issues.length === 0) {
               return null;
             }
@@ -470,6 +518,7 @@ export function ProfilesPage() {
                 : null;
 
             return (
+              <div ref={healthIssuesRef}>
               <CollapsibleSection title="Health Issues" className="crosshook-panel">
                 {metadata !== null ? (
                   <div style={{ marginBottom: 10, display: 'grid', gap: 4 }}>
@@ -509,6 +558,7 @@ export function ProfilesPage() {
                   ))}
                 </ul>
               </CollapsibleSection>
+              </div>
             );
           })()}
         </CollapsibleSection>

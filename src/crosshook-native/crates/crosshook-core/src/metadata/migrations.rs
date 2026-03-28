@@ -54,6 +54,24 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 6 {
+        migrate_5_to_6(conn)?;
+        conn.pragma_update(None, "user_version", 6_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version",
+                source,
+            })?;
+    }
+
+    if version < 7 {
+        migrate_6_to_7(conn)?;
+        conn.pragma_update(None, "user_version", 7_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -227,6 +245,53 @@ fn migrate_4_to_5(conn: &Connection) -> Result<(), MetadataStoreError> {
     )
     .map_err(|source| MetadataStoreError::Database {
         action: "run metadata migration 4 to 5",
+        source,
+    })?;
+
+    Ok(())
+}
+
+fn migrate_5_to_6(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS health_snapshots (
+            profile_id  TEXT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            status      TEXT NOT NULL,
+            issue_count INTEGER NOT NULL DEFAULT 0,
+            checked_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_health_snapshots_checked_at ON health_snapshots(checked_at);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 5 to 6",
+        source,
+    })?;
+
+    Ok(())
+}
+
+fn migrate_6_to_7(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        BEGIN TRANSACTION;
+        CREATE TABLE health_snapshots_new (
+            profile_id  TEXT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            status      TEXT NOT NULL,
+            issue_count INTEGER NOT NULL DEFAULT 0,
+            checked_at  TEXT NOT NULL
+        );
+        INSERT INTO health_snapshots_new (profile_id, status, issue_count, checked_at)
+        SELECT profile_id, status, issue_count, checked_at
+        FROM health_snapshots;
+        DROP TABLE health_snapshots;
+        ALTER TABLE health_snapshots_new RENAME TO health_snapshots;
+        CREATE INDEX IF NOT EXISTS idx_health_snapshots_checked_at ON health_snapshots(checked_at);
+        COMMIT;
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 6 to 7",
         source,
     })?;
 

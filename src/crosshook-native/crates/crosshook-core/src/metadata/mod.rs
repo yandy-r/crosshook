@@ -2,12 +2,14 @@ mod cache_store;
 mod collections;
 mod community_index;
 mod db;
+mod health_store;
 mod launch_history;
 mod launcher_sync;
 mod migrations;
 mod models;
 pub mod profile_sync;
 
+pub use health_store::HealthSnapshotRow;
 pub use models::{
     CacheEntryStatus, CollectionRow, CommunityProfileRow, CommunityTapRow, DriftState,
     FailureTrendRow, LaunchOutcome, MAX_CACHE_PAYLOAD_BYTES, MAX_DIAGNOSTIC_JSON_BYTES,
@@ -147,7 +149,7 @@ impl MetadataStore {
         self.with_conn("query profile ids for names", |conn| {
             let placeholders = Self::in_clause_placeholders(profile_names.len());
             let sql = format!(
-                "SELECT current_filename, id \
+                "SELECT current_filename, profile_id \
                  FROM profiles \
                  WHERE deleted_at IS NULL AND current_filename IN ({placeholders})"
             );
@@ -786,6 +788,37 @@ impl MetadataStore {
                 })?);
             }
             Ok(result)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase D: Health snapshot persistence
+    // -------------------------------------------------------------------------
+
+    pub fn upsert_health_snapshot(
+        &self,
+        profile_id: &str,
+        status: &str,
+        issue_count: usize,
+        checked_at: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("upsert a health snapshot", |conn| {
+            health_store::upsert_health_snapshot(conn, profile_id, status, issue_count, checked_at)
+        })
+    }
+
+    pub fn load_health_snapshots(&self) -> Result<Vec<HealthSnapshotRow>, MetadataStoreError> {
+        self.with_conn("load health snapshots", |conn| {
+            health_store::load_health_snapshots(conn)
+        })
+    }
+
+    pub fn lookup_health_snapshot(
+        &self,
+        profile_id: &str,
+    ) -> Result<Option<HealthSnapshotRow>, MetadataStoreError> {
+        self.with_conn("look up a health snapshot", |conn| {
+            health_store::lookup_health_snapshot(conn, profile_id)
         })
     }
 }

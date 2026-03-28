@@ -69,7 +69,7 @@ _Goal: Users know when things are broken and why._
 | Order | Issue                                      | Status | Rationale                                                                                                                              |
 | :---: | ------------------------------------------ | :----: | -------------------------------------------------------------------------------------------------------------------------------------- |
 |   3   | **#36** -- Post-launch failure diagnostics |  Done  | Builds on #39's error communication pattern. Adds exit code analysis, Proton error detection, crash report collection.                 |
-|   4   | **#38** -- Profile health dashboard        |        | Batch `validate()` across all profiles. Reuses the validation help text from #39. Surface health in sidebar.                           |
+|   4   | **#38** -- Profile health dashboard        |  Done  | Batch `validate()` across all profiles. Reuses the validation help text from #39. Surface health in sidebar.                           |
 |   5   | **#49** -- Diagnostic bundle export        |        | Combines outputs from #36 (launch logs) and #38 (profile health) into a shareable archive. Natural capstone for the diagnostics phase. |
 
 **Dependencies**: #39 should be done first (establishes error patterns). #36 and #38 can run in parallel.

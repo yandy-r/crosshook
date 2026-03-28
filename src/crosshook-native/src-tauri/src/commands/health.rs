@@ -1,6 +1,7 @@
-use crosshook_core::metadata::{DriftState, MetadataStore};
+use crosshook_core::metadata::{DriftState, HealthSnapshotRow, MetadataStore};
 use crosshook_core::profile::health::{
-    batch_check_health, check_profile_health, HealthCheckSummary, HealthIssue, ProfileHealthReport,
+    batch_check_health, check_profile_health, HealthCheckSummary, HealthIssue, HealthStatus,
+    ProfileHealthReport,
 };
 use crosshook_core::profile::ProfileStore;
 use serde::{Deserialize, Serialize};
@@ -219,6 +220,31 @@ pub(crate) fn build_enriched_health_summary(
         .map(|report| enrich_profile(report, &prefetch))
         .collect();
 
+    // Persist health snapshots (fail-soft)
+    for enriched in &enriched_profiles {
+        if let Some(ref metadata) = enriched.metadata {
+            if let Some(ref profile_id) = metadata.profile_id {
+                let status_str = match enriched.core.status {
+                    HealthStatus::Healthy => "healthy",
+                    HealthStatus::Stale => "stale",
+                    HealthStatus::Broken => "broken",
+                };
+                if let Err(error) = metadata_store.upsert_health_snapshot(
+                    profile_id,
+                    status_str,
+                    enriched.core.issues.len(),
+                    &enriched.core.checked_at,
+                ) {
+                    tracing::warn!(
+                        %error,
+                        profile_id,
+                        "failed to persist health snapshot"
+                    );
+                }
+            }
+        }
+    }
+
     EnrichedHealthSummary {
         healthy_count,
         stale_count,
@@ -241,6 +267,44 @@ pub fn batch_validate_profiles(
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<EnrichedHealthSummary, String> {
     Ok(build_enriched_health_summary(&store, &metadata_store))
+}
+
+/// IPC-facing struct for a cached health snapshot row.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedHealthSnapshot {
+    pub profile_id: String,
+    pub profile_name: String,
+    pub status: String,
+    pub issue_count: i64,
+    pub checked_at: String,
+}
+
+impl From<HealthSnapshotRow> for CachedHealthSnapshot {
+    fn from(row: HealthSnapshotRow) -> Self {
+        CachedHealthSnapshot {
+            profile_id: row.profile_id,
+            profile_name: row.profile_name,
+            status: row.status,
+            issue_count: row.issue_count,
+            checked_at: row.checked_at,
+        }
+    }
+}
+
+/// Returns the cached health snapshots from the last batch validation run.
+///
+/// Called on frontend mount to display instant badge status before the live scan
+/// completes. Only returns rows for non-deleted profiles (enforced by the JOIN in
+/// `load_health_snapshots`). Returns an empty list when MetadataStore is unavailable.
+#[tauri::command]
+pub fn get_cached_health_snapshots(
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<Vec<CachedHealthSnapshot>, String> {
+    let snapshots = metadata_store
+        .load_health_snapshots()
+        .map_err(|e| e.to_string())?;
+
+    Ok(snapshots.into_iter().map(CachedHealthSnapshot::from).collect())
 }
 
 /// Returns the health check result for a single named profile, enriched with
