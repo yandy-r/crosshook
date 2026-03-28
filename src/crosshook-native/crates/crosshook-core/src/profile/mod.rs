@@ -23,3 +23,5 @@ pub use models::{
 pub use toml_store::{
     DuplicateProfileResult, ProfileStore, ProfileStoreError, profile_to_shareable_toml,
 };
+pub mod health;
+pub use health::{HealthStatus, HealthIssueSeverity, HealthIssue, ProfileHealthReport, HealthCheckSummary};

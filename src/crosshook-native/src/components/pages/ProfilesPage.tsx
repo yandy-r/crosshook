@@ -6,8 +6,10 @@ import ProfileActions from '../ProfileActions';
 import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
 import ProfilePreviewModal from '../ProfilePreviewModal';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
+import { HealthBadge } from '../HealthBadge';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
+import { useProfileHealth } from '../../hooks/useProfileHealth';
 import { PageBanner, ProfilesArt } from '../layout/PageBanner';
 import { deriveTargetHomePath } from '../../utils/steam';
 
@@ -71,6 +73,8 @@ export function ProfilesPage() {
   const [profilePreviewContent, setProfilePreviewContent] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+
+  const { batchValidate, revalidateSingle, healthByName, summary, loading: healthLoading } = useProfileHealth();
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -199,6 +203,13 @@ export function ProfilesPage() {
     setRenameToast(null);
   }, []);
 
+  const handleSave = useCallback(async () => {
+    await saveProfile();
+    if (profileName.trim()) {
+      void revalidateSingle(profileName.trim());
+    }
+  }, [saveProfile, profileName, revalidateSingle]);
+
   const undoRename = useCallback(() => {
     if (!renameToast) {
       return;
@@ -284,19 +295,40 @@ export function ProfilesPage() {
           title="Profile"
           className="crosshook-panel"
           meta={
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--secondary"
-              onClick={(event) => {
-                event.preventDefault();
-                void refreshProfiles();
-              }}
-            >
-              Refresh
-            </button>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {selectedProfile && healthByName[selectedProfile] ? (
+                <HealthBadge status={healthByName[selectedProfile].status} />
+              ) : null}
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--secondary"
+                onClick={(event) => {
+                  event.preventDefault();
+                  void refreshProfiles();
+                }}
+              >
+                Refresh
+              </button>
+            </span>
           }
         >
           <p className="crosshook-help-text">Edit the current profile, then save it before launching or exporting.</p>
+
+          {summary !== null && (summary.stale_count + summary.broken_count) > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span className="crosshook-status-chip">
+                {summary.stale_count + summary.broken_count} of {summary.total_count} profile{summary.total_count !== 1 ? 's' : ''} have issues
+              </span>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--secondary"
+                disabled={healthLoading}
+                onClick={() => void batchValidate()}
+              >
+                {healthLoading ? 'Checking...' : 'Re-check All'}
+              </button>
+            </div>
+          ) : null}
 
           <ProfileFormSections
             profileName={profileName}
@@ -328,7 +360,7 @@ export function ProfilesPage() {
             canRename={canRename}
             canPreview={canPreview}
             previewing={previewing}
-            onSave={saveProfile}
+            onSave={handleSave}
             onDelete={() => confirmDelete(profileName)}
             onDuplicate={() => duplicateProfile(profileName)}
             onRename={() => {
@@ -342,6 +374,30 @@ export function ProfilesPage() {
               Preview failed: {previewError}
             </p>
           ) : null}
+
+          {(() => {
+            const report = selectedProfile ? healthByName[selectedProfile] : undefined;
+            if (!report || (report.status !== 'broken' && report.status !== 'stale') || report.issues.length === 0) {
+              return null;
+            }
+
+            return (
+              <CollapsibleSection title="Health Issues" className="crosshook-panel">
+                <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
+                  {report.issues.map((issue, index) => (
+                    <li key={index} style={{ borderLeft: '3px solid var(--crosshook-danger, #ef4444)', paddingLeft: 10 }}>
+                      <strong>{issue.field}</strong>
+                      {issue.path ? <span className="crosshook-muted"> — {issue.path}</span> : null}
+                      <p style={{ margin: '2px 0' }}>{issue.message}</p>
+                      {issue.remediation ? (
+                        <p className="crosshook-help-text" style={{ margin: '2px 0' }}>{issue.remediation}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </CollapsibleSection>
+            );
+          })()}
         </CollapsibleSection>
 
         {supportsLauncherExport ? (
