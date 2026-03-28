@@ -348,6 +348,7 @@ export function ProfilesPage() {
           <CollapsibleSection title="Launcher Export" className="crosshook-panel">
             <LauncherExport
               profile={profile}
+              profileName={profileName}
               method={launchMethod}
               steamClientInstallPath={effectiveSteamClientInstallPath}
               targetHomePath={targetHomePath}
