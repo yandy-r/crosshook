@@ -1,8 +1,8 @@
-import type { HealthStatus, ProfileHealthReport } from '../types/health';
+import type { HealthStatus, ProfileHealthReport, ProfileHealthMetadata } from '../types/health';
 
 type HealthBadgeProps =
-  | { status: HealthStatus; report?: never }
-  | { status?: never; report: ProfileHealthReport };
+  | { status: HealthStatus; report?: never; metadata?: ProfileHealthMetadata | null }
+  | { status?: never; report: ProfileHealthReport; metadata?: ProfileHealthMetadata | null };
 
 const STATUS_TO_RATING: Record<HealthStatus, string> = {
   healthy: 'working',
@@ -22,17 +22,43 @@ const STATUS_LABEL: Record<HealthStatus, string> = {
   broken: 'Broken',
 };
 
-export function HealthBadge({ status, report }: HealthBadgeProps) {
+export function HealthBadge({ status, report, metadata = null }: HealthBadgeProps) {
   const resolvedStatus: HealthStatus = status ?? report.status;
   const rating = STATUS_TO_RATING[resolvedStatus];
 
+  const showFailureTrend = metadata !== null && metadata.failure_count_30d >= 2;
+  const failureCount = metadata?.failure_count_30d ?? 0;
+  const trendColor = failureCount >= 5
+    ? 'var(--crosshook-color-warning)'
+    : 'var(--crosshook-color-text-muted)';
+
+  const ariaLabel = showFailureTrend
+    ? `Health status: ${STATUS_LABEL[resolvedStatus]}, ${failureCount} failures in last 30 days`
+    : `Health status: ${STATUS_LABEL[resolvedStatus]}`;
+
   return (
-    <span
-      className={`crosshook-status-chip crosshook-compatibility-badge crosshook-compatibility-badge--${rating}`}
-      aria-label={`Health status: ${STATUS_LABEL[resolvedStatus]}`}
-    >
-      <span aria-hidden="true">{STATUS_ICON[resolvedStatus]}</span>
-      {STATUS_LABEL[resolvedStatus]}
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      <span
+        className={`crosshook-status-chip crosshook-compatibility-badge crosshook-compatibility-badge--${rating}`}
+        aria-label={ariaLabel}
+      >
+        <span aria-hidden="true">{STATUS_ICON[resolvedStatus]}</span>
+        {STATUS_LABEL[resolvedStatus]}
+      </span>
+      {showFailureTrend && (
+        <span
+          aria-hidden="true"
+          style={{
+            fontSize: '0.7em',
+            fontWeight: 600,
+            color: trendColor,
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {'\u2191'}{failureCount}x
+        </span>
+      )}
     </span>
   );
 }

@@ -8,7 +8,7 @@ use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{RecentFilesStore, SettingsStore};
 pub use paths::resolve_script_path;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::time::{sleep, Duration};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -66,6 +66,34 @@ pub fn run() {
                                 profile_name,
                                 "failed to emit auto-load-profile event"
                             );
+                        }
+                    });
+                }
+
+                {
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        sleep(Duration::from_millis(500)).await;
+                        let store = app_handle.state::<ProfileStore>();
+                        let metadata_store = app_handle.state::<MetadataStore>();
+                        let summary =
+                            commands::health::build_enriched_health_summary(&store, &metadata_store);
+                        match app_handle.emit("profile-health-batch-complete", &summary) {
+                            Ok(()) => {
+                                tracing::info!(
+                                    total = summary.total_count,
+                                    healthy = summary.healthy_count,
+                                    stale = summary.stale_count,
+                                    broken = summary.broken_count,
+                                    "startup health scan complete"
+                                );
+                            }
+                            Err(error) => {
+                                tracing::warn!(
+                                    %error,
+                                    "failed to emit profile-health-batch-complete event"
+                                );
+                            }
                         }
                     });
                 }

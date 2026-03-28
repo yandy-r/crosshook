@@ -12,13 +12,32 @@ import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealth } from '../../hooks/useProfileHealth';
 import { PageBanner, ProfilesArt } from '../layout/PageBanner';
 import { deriveTargetHomePath } from '../../utils/steam';
+import type { EnrichedProfileHealthReport } from '../../types';
 
 interface RenameToast {
   newName: string;
   oldName: string;
 }
 
+function formatRelativeTime(isoString: string): string {
+  const then = new Date(isoString).getTime();
+  const nowMs = new Date().getTime();
+  const diffDays = Math.floor((nowMs - then) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks} week${weeks !== 1 ? 's' : ''} ago`;
+  }
+  const months = Math.floor(diffDays / 30);
+  return `${months} month${months !== 1 ? 's' : ''} ago`;
+}
+
 const RENAME_TOAST_DURATION_MS = 6000;
+const HEALTH_BANNER_DISMISSED_SESSION_KEY = 'crosshook.healthBannerDismissed';
+const RENAME_TOAST_DISMISSED_SESSION_KEY = 'crosshook.renameToastDismissed';
 
 function sortProtonInstalls(installs: ProtonInstallOption[]): ProtonInstallOption[] {
   return [...installs].sort((left, right) => {
@@ -67,6 +86,20 @@ export function ProfilesPage() {
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [renameToast, setRenameToast] = useState<RenameToast | null>(null);
+  const [healthBannerDismissed, setHealthBannerDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(HEALTH_BANNER_DISMISSED_SESSION_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [renameToastDismissed, setRenameToastDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(RENAME_TOAST_DISMISSED_SESSION_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const renameToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingLauncherReExport, setPendingLauncherReExport] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
@@ -187,6 +220,13 @@ export function ProfilesPage() {
       clearTimeout(renameToastTimerRef.current);
     }
 
+    setRenameToastDismissed(false);
+    try {
+      sessionStorage.removeItem(RENAME_TOAST_DISMISSED_SESSION_KEY);
+    } catch {
+      // Ignore storage errors in restricted environments.
+    }
+
     setRenameToast({ oldName, newName });
     renameToastTimerRef.current = setTimeout(() => {
       setRenameToast(null);
@@ -201,6 +241,21 @@ export function ProfilesPage() {
     }
 
     setRenameToast(null);
+    setRenameToastDismissed(true);
+    try {
+      sessionStorage.setItem(RENAME_TOAST_DISMISSED_SESSION_KEY, '1');
+    } catch {
+      // Ignore storage errors in restricted environments.
+    }
+  }, []);
+
+  const dismissHealthBanner = useCallback(() => {
+    setHealthBannerDismissed(true);
+    try {
+      sessionStorage.setItem(HEALTH_BANNER_DISMISSED_SESSION_KEY, '1');
+    } catch {
+      // Ignore storage errors in restricted environments.
+    }
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -289,6 +344,26 @@ export function ProfilesPage() {
         copy="Select an existing profile or build a new one, then save it before switching to launch or export workflows."
         illustration={<ProfilesArt />}
       />
+
+      {summary !== null && !healthLoading && summary.broken_count > 0 && !healthBannerDismissed ? (
+        <div
+          className="crosshook-rename-toast"
+          role="status"
+          aria-live="polite"
+        >
+          <span>
+            {summary.broken_count} profile{summary.broken_count !== 1 ? 's' : ''} have issues that may prevent launching
+          </span>
+          <button
+            type="button"
+            className="crosshook-rename-toast-dismiss"
+            onClick={dismissHealthBanner}
+            aria-label="Dismiss"
+          >
+            &times;
+          </button>
+        </div>
+      ) : null}
 
       <div style={{ display: 'grid', gap: 24 }}>
         <CollapsibleSection
@@ -381,8 +456,46 @@ export function ProfilesPage() {
               return null;
             }
 
+            const enriched = report as EnrichedProfileHealthReport;
+            const metadata = enriched.metadata ?? null;
+
+            const driftMessage: Record<string, string> = {
+              missing: 'Exported launcher not found — re-export recommended',
+              moved: 'Exported launcher has moved — re-export recommended',
+              stale: 'Exported launcher may be outdated — re-export recommended',
+            };
+            const driftWarning =
+              metadata !== null && metadata.launcher_drift_state !== null
+                ? driftMessage[metadata.launcher_drift_state] ?? null
+                : null;
+
             return (
               <CollapsibleSection title="Health Issues" className="crosshook-panel">
+                {metadata !== null ? (
+                  <div style={{ marginBottom: 10, display: 'grid', gap: 4 }}>
+                    {metadata.last_success !== null ? (
+                      <p className="crosshook-help-text" style={{ margin: 0 }}>
+                        Last worked: {formatRelativeTime(metadata.last_success)}
+                      </p>
+                    ) : null}
+                    {metadata.total_launches > 0 ? (
+                      <p className="crosshook-help-text" style={{ margin: 0 }}>
+                        Launched {metadata.total_launches} time{metadata.total_launches !== 1 ? 's' : ''}{' '}
+                        &bull; {metadata.failure_count_30d} failure{metadata.failure_count_30d !== 1 ? 's' : ''} in last 30 days
+                      </p>
+                    ) : null}
+                    {driftWarning !== null ? (
+                      <p className="crosshook-danger" style={{ margin: 0 }} role="alert">
+                        {driftWarning}
+                      </p>
+                    ) : null}
+                    {metadata.is_community_import && (report.status === 'broken' || report.status === 'stale') ? (
+                      <p className="crosshook-help-text" style={{ margin: 0 }}>
+                        This profile was imported from a community tap — paths may need adjustment for your system.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
                   {report.issues.map((issue, index) => (
                     <li key={index} style={{ borderLeft: '3px solid var(--crosshook-danger, #ef4444)', paddingLeft: 10 }}>
@@ -514,7 +627,7 @@ export function ProfilesPage() {
         </div>
       ) : null}
 
-      {renameToast ? (
+      {renameToast && !renameToastDismissed ? (
         <div
           className="crosshook-rename-toast"
           role="status"
