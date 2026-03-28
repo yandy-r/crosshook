@@ -40,8 +40,15 @@ pub fn index_community_tap_result(
     let local_path = result.workspace.local_path.to_string_lossy();
     let profile_count = result.index.entries.len() as i64;
 
-    // UPSERT the community_taps row.
-    conn.execute(
+    // Transactional UPSERT+DELETE+INSERT so watermark does not advance on partial failures.
+    let tx = Transaction::new(conn, TransactionBehavior::Immediate).map_err(|source| {
+        MetadataStoreError::Database {
+            action: "start a community profiles re-index transaction",
+            source,
+        }
+    })?;
+
+    tx.execute(
         "INSERT INTO community_taps (
             tap_id, tap_url, tap_branch, local_path,
             last_head_commit, profile_count, last_indexed_at,
@@ -71,7 +78,7 @@ pub fn index_community_tap_result(
     })?;
 
     // Retrieve the tap_id for this (tap_url, tap_branch).
-    let tap_id: String = conn
+    let tap_id: String = tx
         .query_row(
             "SELECT tap_id FROM community_taps WHERE tap_url = ?1 AND tap_branch = ?2",
             params![tap_url, tap_branch],
@@ -81,14 +88,6 @@ pub fn index_community_tap_result(
             action: "look up community_taps tap_id after upsert",
             source,
         })?;
-
-    // Transactional DELETE+INSERT to replace all profiles for this tap.
-    let tx = Transaction::new(conn, TransactionBehavior::Immediate).map_err(|source| {
-        MetadataStoreError::Database {
-            action: "start a community profiles re-index transaction",
-            source,
-        }
-    })?;
 
     tx.execute(
         "DELETE FROM community_profiles WHERE tap_id = ?1",
@@ -145,13 +144,8 @@ pub fn index_community_tap_result(
         })?;
     }
 
-    tx.commit().map_err(|source| MetadataStoreError::Database {
-        action: "commit the community profiles re-index transaction",
-        source,
-    })?;
-
     // Update profile_count to the actual inserted count.
-    conn.execute(
+    tx.execute(
         "UPDATE community_taps
          SET profile_count = (SELECT COUNT(*) FROM community_profiles WHERE tap_id = ?1)
          WHERE tap_id = ?1",
@@ -162,6 +156,10 @@ pub fn index_community_tap_result(
         source,
     })?;
 
+    tx.commit().map_err(|source| MetadataStoreError::Database {
+        action: "commit the community profiles re-index transaction",
+        source,
+    })?;
     Ok(())
 }
 
