@@ -10,8 +10,6 @@ use tauri::State;
 use super::shared::sanitize_display_path;
 
 const FAILURE_TREND_WINDOW_DAYS: u32 = 30;
-// Bound "most launched" prefetch size to avoid unbounded scans on large datasets.
-const MAX_MOST_LAUNCHED_LIMIT: usize = 10_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfileHealthMetadata {
@@ -59,89 +57,46 @@ fn sanitize_report(report: ProfileHealthReport) -> ProfileHealthReport {
 }
 
 fn build_profile_metadata(
-    profile_name: &str,
-    metadata_store: &MetadataStore,
     failure_count_30d: i64,
     total_launches: i64,
     last_success: Option<String>,
-    favorite_profiles: &HashSet<String>,
+    profile_id: Option<String>,
+    launcher_drift_state: Option<DriftState>,
+    profile_source: Option<&str>,
+    is_favorite: bool,
 ) -> ProfileHealthMetadata {
-    let profile_id = metadata_store.lookup_profile_id(profile_name).ok().flatten();
-
-    let launcher_drift_state = profile_id.as_deref().and_then(|pid| {
-        metadata_store
-            .query_launcher_drift_for_profile(pid)
-            .ok()
-            .flatten()
-    });
-
-    let is_community_import = profile_id
-        .as_deref()
-        .and_then(|_| metadata_store.query_profile_source(profile_name).ok().flatten())
-        .map(|source| source == "import")
-        .unwrap_or(false);
-
-    let is_favorite = favorite_profiles.contains(profile_name);
-
     ProfileHealthMetadata {
         profile_id,
         last_success,
         failure_count_30d,
         total_launches,
         launcher_drift_state,
-        is_community_import,
+        is_community_import: profile_source == Some("import"),
         is_favorite,
     }
 }
 
-fn enrich_profile(
-    report: ProfileHealthReport,
-    metadata_store: &MetadataStore,
-    failure_trends: &HashMap<String, (i64, i64)>,
-    last_success_map: &HashMap<String, String>,
-    total_launches_map: &HashMap<String, i64>,
-    favorite_profiles: &HashSet<String>,
-) -> EnrichedProfileHealthReport {
-    let (failure_count_30d, _successes) = failure_trends
-        .get(&report.name)
-        .copied()
-        .unwrap_or((0, 0));
-
-    let total_launches = total_launches_map
-        .get(&report.name)
-        .copied()
-        .unwrap_or(0);
-
-    let last_success = last_success_map.get(&report.name).cloned();
-    let metadata = Some(build_profile_metadata(
-        &report.name,
-        metadata_store,
-        failure_count_30d,
-        total_launches,
-        last_success,
-        favorite_profiles,
-    ));
-
-    EnrichedProfileHealthReport {
-        core: sanitize_report(report),
-        metadata,
-    }
+#[derive(Default)]
+struct BatchMetadataPrefetch {
+    metadata_available: bool,
+    failure_trends: HashMap<String, (i64, i64)>,
+    last_success_map: HashMap<String, String>,
+    total_launches_map: HashMap<String, i64>,
+    favorite_profiles: HashSet<String>,
+    profile_id_map: HashMap<String, String>,
+    launcher_drift_map: HashMap<String, DriftState>,
+    profile_source_map: HashMap<String, String>,
 }
 
-/// Returns health check results for all profiles in the store, enriched with
-/// MetadataStore failure trends, last-success timestamps, and launcher drift state.
-///
-/// Path strings in every `HealthIssue` are sanitized (home directory replaced with `~`)
-/// before being sent over IPC. Metadata enrichment is fail-soft — if MetadataStore is
-/// unavailable the `metadata` field is still populated with zero/null defaults.
-#[tauri::command]
-pub fn batch_validate_profiles(
-    store: State<'_, ProfileStore>,
-    metadata_store: State<'_, MetadataStore>,
-) -> Result<EnrichedHealthSummary, String> {
-    let summary = batch_check_health(&store);
+fn prefetch_batch_metadata(
+    metadata_store: &MetadataStore,
+    profile_names: &[String],
+) -> BatchMetadataPrefetch {
+    let metadata_available = metadata_store.is_available();
+    if !metadata_available {
+        return BatchMetadataPrefetch::default();
+    }
 
-    // Batch-fetch failure trends and last-success before the per-profile loop.
     let failure_trends: HashMap<String, (i64, i64)> = metadata_store
         .query_failure_trends(FAILURE_TREND_WINDOW_DAYS)
         .unwrap_or_default()
@@ -155,9 +110,8 @@ pub fn batch_validate_profiles(
         .into_iter()
         .collect();
 
-    // query_most_launched returns (profile_name, total_count) across all time.
     let total_launches_map: HashMap<String, i64> = metadata_store
-        .query_most_launched(MAX_MOST_LAUNCHED_LIMIT)
+        .query_total_launches_for_profiles(profile_names)
         .unwrap_or_default()
         .into_iter()
         .collect();
@@ -167,6 +121,89 @@ pub fn batch_validate_profiles(
         .unwrap_or_default()
         .into_iter()
         .collect();
+
+    let profile_id_map: HashMap<String, String> = metadata_store
+        .query_profile_ids_for_names(profile_names)
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+
+    let profile_ids: Vec<String> = profile_id_map.values().cloned().collect();
+    let launcher_drift_map: HashMap<String, DriftState> = metadata_store
+        .query_launcher_drift_for_profile_ids(&profile_ids)
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+
+    let profile_source_map: HashMap<String, String> = metadata_store
+        .query_profile_sources_for_names(profile_names)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(name, source)| source.map(|value| (name, value)))
+        .collect();
+
+    BatchMetadataPrefetch {
+        metadata_available,
+        failure_trends,
+        last_success_map,
+        total_launches_map,
+        favorite_profiles,
+        profile_id_map,
+        launcher_drift_map,
+        profile_source_map,
+    }
+}
+
+fn enrich_profile(
+    report: ProfileHealthReport,
+    prefetch: &BatchMetadataPrefetch,
+) -> EnrichedProfileHealthReport {
+    let (failure_count_30d, _successes) = prefetch
+        .failure_trends
+        .get(&report.name)
+        .copied()
+        .unwrap_or((0, 0));
+
+    let total_launches = prefetch
+        .total_launches_map
+        .get(&report.name)
+        .copied()
+        .unwrap_or(0);
+
+    let last_success = prefetch.last_success_map.get(&report.name).cloned();
+    let profile_id = prefetch.profile_id_map.get(&report.name).cloned();
+    let launcher_drift_state = profile_id
+        .as_deref()
+        .and_then(|pid| prefetch.launcher_drift_map.get(pid).copied());
+    let profile_source = prefetch.profile_source_map.get(&report.name).map(String::as_str);
+    let is_favorite = prefetch.favorite_profiles.contains(&report.name);
+    let metadata = if prefetch.metadata_available {
+        Some(build_profile_metadata(
+            failure_count_30d,
+            total_launches,
+            last_success,
+            profile_id,
+            launcher_drift_state,
+            profile_source,
+            is_favorite,
+        ))
+    } else {
+        None
+    };
+
+    EnrichedProfileHealthReport {
+        core: sanitize_report(report),
+        metadata,
+    }
+}
+
+pub(crate) fn build_enriched_health_summary(
+    store: &ProfileStore,
+    metadata_store: &MetadataStore,
+) -> EnrichedHealthSummary {
+    let summary = batch_check_health(store);
+    let profile_names: Vec<String> = summary.profiles.iter().map(|report| report.name.clone()).collect();
+    let prefetch = prefetch_batch_metadata(metadata_store, &profile_names);
 
     let HealthCheckSummary {
         profiles: raw_profiles,
@@ -179,26 +216,31 @@ pub fn batch_validate_profiles(
 
     let enriched_profiles: Vec<EnrichedProfileHealthReport> = raw_profiles
         .into_iter()
-        .map(|report| {
-            enrich_profile(
-                report,
-                &metadata_store,
-                &failure_trends,
-                &last_success_map,
-                &total_launches_map,
-                &favorite_profiles,
-            )
-        })
+        .map(|report| enrich_profile(report, &prefetch))
         .collect();
 
-    Ok(EnrichedHealthSummary {
+    EnrichedHealthSummary {
         healthy_count,
         stale_count,
         broken_count,
         total_count,
         validated_at,
         profiles: enriched_profiles,
-    })
+    }
+}
+
+/// Returns health check results for all profiles in the store, enriched with
+/// MetadataStore failure trends, last-success timestamps, and launcher drift state.
+///
+/// Path strings in every `HealthIssue` are sanitized (home directory replaced with `~`)
+/// before being sent over IPC. Metadata enrichment is fail-soft — if MetadataStore is
+/// unavailable the `metadata` field is omitted.
+#[tauri::command]
+pub fn batch_validate_profiles(
+    store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<EnrichedHealthSummary, String> {
+    Ok(build_enriched_health_summary(&store, &metadata_store))
 }
 
 /// Returns the health check result for a single named profile, enriched with
@@ -214,6 +256,12 @@ pub fn get_profile_health(
 ) -> Result<EnrichedProfileHealthReport, String> {
     let profile = store.load(&name).map_err(|e| e.to_string())?;
     let report = check_profile_health(&name, &profile);
+    if !metadata_store.is_available() {
+        return Ok(EnrichedProfileHealthReport {
+            core: sanitize_report(report),
+            metadata: None,
+        });
+    }
 
     let (failure_count_30d, _successes) = metadata_store
         .query_failure_trend_for_profile(&name, FAILURE_TREND_WINDOW_DAYS)
@@ -233,15 +281,26 @@ pub fn get_profile_health(
         .into_iter()
         .collect();
 
+    let profile_id = metadata_store.lookup_profile_id(&name).ok().flatten();
+    let launcher_drift_state = profile_id.as_deref().and_then(|pid| {
+        metadata_store
+            .query_launcher_drift_for_profile(pid)
+            .ok()
+            .flatten()
+    });
+    let profile_source = metadata_store.query_profile_source(&name).ok().flatten();
+    let is_favorite = favorite_profiles.contains(&name);
+
     Ok(EnrichedProfileHealthReport {
         core: sanitize_report(report),
         metadata: Some(build_profile_metadata(
-            &name,
-            &metadata_store,
             failure_count_30d,
             total_launches,
             last_success,
-            &favorite_profiles,
+            profile_id,
+            launcher_drift_state,
+            profile_source.as_deref(),
+            is_favorite,
         )),
     })
 }

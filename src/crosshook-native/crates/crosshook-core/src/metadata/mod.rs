@@ -18,7 +18,7 @@ use crate::community::taps::CommunityTapSyncResult;
 use crate::launch::diagnostics::models::DiagnosticReport;
 use crate::profile::{GameProfile, ProfileStore};
 use directories::BaseDirs;
-use rusqlite::{Connection, OptionalExtension};
+use rusqlite::{params_from_iter, Connection, OptionalExtension};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -29,6 +29,10 @@ pub struct MetadataStore {
 }
 
 impl MetadataStore {
+    fn in_clause_placeholders(count: usize) -> String {
+        std::iter::repeat_n("?", count).collect::<Vec<_>>().join(", ")
+    }
+
     pub fn try_new() -> Result<Self, String> {
         let path = BaseDirs::new()
             .ok_or("home directory not found — CrossHook requires a user home directory")?
@@ -50,6 +54,10 @@ impl MetadataStore {
             conn: None,
             available: false,
         }
+    }
+
+    pub fn is_available(&self) -> bool {
+        self.available && self.conn.is_some()
     }
 
     fn open(path: &Path) -> Result<Self, MetadataStoreError> {
@@ -125,6 +133,47 @@ impl MetadataStore {
     pub fn lookup_profile_id(&self, name: &str) -> Result<Option<String>, MetadataStoreError> {
         self.with_conn("look up a profile id", |conn| {
             profile_sync::lookup_profile_id(conn, name)
+        })
+    }
+
+    pub fn query_profile_ids_for_names(
+        &self,
+        profile_names: &[String],
+    ) -> Result<Vec<(String, String)>, MetadataStoreError> {
+        if profile_names.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        self.with_conn("query profile ids for names", |conn| {
+            let placeholders = Self::in_clause_placeholders(profile_names.len());
+            let sql = format!(
+                "SELECT current_filename, id \
+                 FROM profiles \
+                 WHERE deleted_at IS NULL AND current_filename IN ({placeholders})"
+            );
+            let mut stmt =
+                conn.prepare(&sql)
+                    .map_err(|source| MetadataStoreError::Database {
+                        action: "prepare query_profile_ids_for_names statement",
+                        source,
+                    })?;
+            let rows = stmt
+                .query_map(params_from_iter(profile_names.iter()), |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "execute query_profile_ids_for_names",
+                    source,
+                })?;
+
+            let mut result = Vec::new();
+            for row in rows {
+                result.push(row.map_err(|source| MetadataStoreError::Database {
+                    action: "read a query_profile_ids_for_names row",
+                    source,
+                })?);
+            }
+            Ok(result)
         })
     }
 
@@ -398,6 +447,50 @@ impl MetadataStore {
         })
     }
 
+    pub fn query_total_launches_for_profiles(
+        &self,
+        profile_names: &[String],
+    ) -> Result<Vec<(String, i64)>, MetadataStoreError> {
+        if profile_names.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        self.with_conn("query total launches for profiles", |conn| {
+            let placeholders = Self::in_clause_placeholders(profile_names.len());
+            let sql = format!(
+                "SELECT profile_name, COUNT(*) as launch_count \
+                 FROM launch_operations \
+                 WHERE status IN ('succeeded', 'failed') \
+                   AND profile_name IS NOT NULL \
+                   AND profile_name IN ({placeholders}) \
+                 GROUP BY profile_name"
+            );
+            let mut stmt =
+                conn.prepare(&sql)
+                    .map_err(|source| MetadataStoreError::Database {
+                        action: "prepare query_total_launches_for_profiles statement",
+                        source,
+                    })?;
+            let rows = stmt
+                .query_map(params_from_iter(profile_names.iter()), |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+                })
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "execute query_total_launches_for_profiles",
+                    source,
+                })?;
+
+            let mut result = Vec::new();
+            for row in rows {
+                result.push(row.map_err(|source| MetadataStoreError::Database {
+                    action: "read a query_total_launches_for_profiles row",
+                    source,
+                })?);
+            }
+            Ok(result)
+        })
+    }
+
     pub fn query_last_success_per_profile(
         &self,
     ) -> Result<Vec<(String, String)>, MetadataStoreError> {
@@ -498,7 +591,7 @@ impl MetadataStore {
         })
     }
 
-    /// Returns the most recent non-missing drift state for a given profile_id,
+    /// Returns the most recent launcher drift state for a given profile_id,
     /// or `None` if no launcher rows exist for that profile.
     pub fn query_launcher_drift_for_profile(
         &self,
@@ -508,7 +601,7 @@ impl MetadataStore {
             let result = conn
                 .query_row(
                     "SELECT drift_state FROM launchers \
-                     WHERE profile_id = ?1 AND drift_state != 'missing' \
+                     WHERE profile_id = ?1 \
                      ORDER BY updated_at DESC LIMIT 1",
                     rusqlite::params![profile_id],
                     |row| row.get::<_, String>(0),
@@ -521,6 +614,7 @@ impl MetadataStore {
 
             let drift = result.map(|s| match s.as_str() {
                 "aligned" => DriftState::Aligned,
+                "missing" => DriftState::Missing,
                 "moved" => DriftState::Moved,
                 "stale" => DriftState::Stale,
                 _ => DriftState::Unknown,
@@ -547,6 +641,103 @@ impl MetadataStore {
                 action: "query profile source",
                 source,
             })
+        })
+    }
+
+    pub fn query_profile_sources_for_names(
+        &self,
+        profile_names: &[String],
+    ) -> Result<Vec<(String, Option<String>)>, MetadataStoreError> {
+        if profile_names.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        self.with_conn("query profile sources for names", |conn| {
+            let placeholders = Self::in_clause_placeholders(profile_names.len());
+            let sql = format!(
+                "SELECT current_filename, source \
+                 FROM profiles \
+                 WHERE deleted_at IS NULL AND current_filename IN ({placeholders})"
+            );
+            let mut stmt =
+                conn.prepare(&sql)
+                    .map_err(|source| MetadataStoreError::Database {
+                        action: "prepare query_profile_sources_for_names statement",
+                        source,
+                    })?;
+            let rows = stmt
+                .query_map(params_from_iter(profile_names.iter()), |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+                })
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "execute query_profile_sources_for_names",
+                    source,
+                })?;
+
+            let mut result = Vec::new();
+            for row in rows {
+                result.push(row.map_err(|source| MetadataStoreError::Database {
+                    action: "read a query_profile_sources_for_names row",
+                    source,
+                })?);
+            }
+            Ok(result)
+        })
+    }
+
+    pub fn query_launcher_drift_for_profile_ids(
+        &self,
+        profile_ids: &[String],
+    ) -> Result<Vec<(String, DriftState)>, MetadataStoreError> {
+        if profile_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        self.with_conn("query launcher drift for profile ids", |conn| {
+            let placeholders = Self::in_clause_placeholders(profile_ids.len());
+            let sql = format!(
+                "SELECT l.profile_id, l.drift_state \
+                 FROM launchers l \
+                 INNER JOIN ( \
+                   SELECT profile_id, MAX(updated_at) AS max_updated_at \
+                   FROM launchers \
+                   WHERE profile_id IN ({placeholders}) \
+                   GROUP BY profile_id \
+                 ) latest \
+                   ON latest.profile_id = l.profile_id AND latest.max_updated_at = l.updated_at"
+            );
+            let mut stmt =
+                conn.prepare(&sql)
+                    .map_err(|source| MetadataStoreError::Database {
+                        action: "prepare query_launcher_drift_for_profile_ids statement",
+                        source,
+                    })?;
+            let rows = stmt
+                .query_map(params_from_iter(profile_ids.iter()), |row| {
+                    let profile_id = row.get::<_, String>(0)?;
+                    let drift_state = row.get::<_, String>(1)?;
+                    let drift = match drift_state.as_str() {
+                        "aligned" => DriftState::Aligned,
+                        "missing" => DriftState::Missing,
+                        "moved" => DriftState::Moved,
+                        "stale" => DriftState::Stale,
+                        _ => DriftState::Unknown,
+                    };
+                    Ok((profile_id, drift))
+                })
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "execute query_launcher_drift_for_profile_ids",
+                    source,
+                })?;
+
+            let mut result = Vec::new();
+            for row in rows {
+                result.push(row.map_err(|source| MetadataStoreError::Database {
+                    action: "read a query_launcher_drift_for_profile_ids row",
+                    source,
+                })?);
+            }
+            Ok(result)
         })
     }
 

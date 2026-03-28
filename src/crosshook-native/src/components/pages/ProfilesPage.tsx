@@ -36,6 +36,8 @@ function formatRelativeTime(isoString: string): string {
 }
 
 const RENAME_TOAST_DURATION_MS = 6000;
+const HEALTH_BANNER_DISMISSED_SESSION_KEY = 'crosshook.healthBannerDismissed';
+const RENAME_TOAST_DISMISSED_SESSION_KEY = 'crosshook.renameToastDismissed';
 
 function sortProtonInstalls(installs: ProtonInstallOption[]): ProtonInstallOption[] {
   return [...installs].sort((left, right) => {
@@ -84,7 +86,20 @@ export function ProfilesPage() {
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [renameToast, setRenameToast] = useState<RenameToast | null>(null);
-  const [healthBannerDismissed, setHealthBannerDismissed] = useState(false);
+  const [healthBannerDismissed, setHealthBannerDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(HEALTH_BANNER_DISMISSED_SESSION_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [renameToastDismissed, setRenameToastDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem(RENAME_TOAST_DISMISSED_SESSION_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const renameToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingLauncherReExport, setPendingLauncherReExport] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
@@ -205,6 +220,13 @@ export function ProfilesPage() {
       clearTimeout(renameToastTimerRef.current);
     }
 
+    setRenameToastDismissed(false);
+    try {
+      sessionStorage.removeItem(RENAME_TOAST_DISMISSED_SESSION_KEY);
+    } catch {
+      // Ignore storage errors in restricted environments.
+    }
+
     setRenameToast({ oldName, newName });
     renameToastTimerRef.current = setTimeout(() => {
       setRenameToast(null);
@@ -219,6 +241,21 @@ export function ProfilesPage() {
     }
 
     setRenameToast(null);
+    setRenameToastDismissed(true);
+    try {
+      sessionStorage.setItem(RENAME_TOAST_DISMISSED_SESSION_KEY, '1');
+    } catch {
+      // Ignore storage errors in restricted environments.
+    }
+  }, []);
+
+  const dismissHealthBanner = useCallback(() => {
+    setHealthBannerDismissed(true);
+    try {
+      sessionStorage.setItem(HEALTH_BANNER_DISMISSED_SESSION_KEY, '1');
+    } catch {
+      // Ignore storage errors in restricted environments.
+    }
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -320,7 +357,7 @@ export function ProfilesPage() {
           <button
             type="button"
             className="crosshook-rename-toast-dismiss"
-            onClick={() => setHealthBannerDismissed(true)}
+            onClick={dismissHealthBanner}
             aria-label="Dismiss"
           >
             &times;
@@ -590,7 +627,7 @@ export function ProfilesPage() {
         </div>
       ) : null}
 
-      {renameToast ? (
+      {renameToast && !renameToastDismissed ? (
         <div
           className="crosshook-rename-toast"
           role="status"

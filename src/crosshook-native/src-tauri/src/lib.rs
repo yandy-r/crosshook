@@ -75,8 +75,9 @@ pub fn run() {
                     tauri::async_runtime::spawn(async move {
                         sleep(Duration::from_millis(500)).await;
                         let store = app_handle.state::<ProfileStore>();
+                        let metadata_store = app_handle.state::<MetadataStore>();
                         let summary =
-                            crosshook_core::profile::health::batch_check_health(&store);
+                            commands::health::build_enriched_health_summary(&store, &metadata_store);
                         match app_handle.emit("profile-health-batch-complete", &summary) {
                             Ok(()) => {
                                 tracing::info!(
