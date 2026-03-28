@@ -35,6 +35,7 @@ export interface ProfileHealthMetadata {
   total_launches: number;
   launcher_drift_state: string | null;
   is_community_import: boolean;
+  is_favorite?: boolean;
 }
 
 export interface EnrichedProfileHealthReport extends ProfileHealthReport {

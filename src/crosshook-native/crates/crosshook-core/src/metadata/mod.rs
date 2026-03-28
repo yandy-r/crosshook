@@ -18,7 +18,7 @@ use crate::community::taps::CommunityTapSyncResult;
 use crate::launch::diagnostics::models::DiagnosticReport;
 use crate::profile::{GameProfile, ProfileStore};
 use directories::BaseDirs;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -431,6 +431,122 @@ impl MetadataStore {
                 })?);
             }
             Ok(result)
+        })
+    }
+
+    /// Returns `(failures, successes)` for a single profile over the last `days`.
+    /// Missing rows are represented as zero counts.
+    pub fn query_failure_trend_for_profile(
+        &self,
+        profile_name: &str,
+        days: u32,
+    ) -> Result<(i64, i64), MetadataStoreError> {
+        self.with_conn("query failure trend for profile", |conn| {
+            let interval = format!("-{days} days");
+            conn.query_row(
+                "SELECT COUNT(*) FILTER (WHERE status = 'failed') as failures, \
+                        COUNT(*) FILTER (WHERE status = 'succeeded') as successes \
+                 FROM launch_operations \
+                 WHERE started_at >= datetime('now', ?1) AND profile_name = ?2",
+                rusqlite::params![&interval, profile_name],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .map_err(|source| MetadataStoreError::Database {
+                action: "query failure trend for profile",
+                source,
+            })
+        })
+    }
+
+    /// Returns the latest succeeded launch timestamp for a single profile.
+    pub fn query_last_success_for_profile(
+        &self,
+        profile_name: &str,
+    ) -> Result<Option<String>, MetadataStoreError> {
+        self.with_conn("query last success for profile", |conn| {
+            conn.query_row(
+                "SELECT MAX(finished_at) \
+                 FROM launch_operations \
+                 WHERE status = 'succeeded' AND profile_name = ?1",
+                rusqlite::params![profile_name],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .map_err(|source| MetadataStoreError::Database {
+                action: "query last success for profile",
+                source,
+            })
+        })
+    }
+
+    /// Returns the total launches recorded for a single profile.
+    pub fn query_total_launches_for_profile(
+        &self,
+        profile_name: &str,
+    ) -> Result<i64, MetadataStoreError> {
+        self.with_conn("query total launches for profile", |conn| {
+            conn.query_row(
+                "SELECT COUNT(*) \
+                 FROM launch_operations \
+                 WHERE status IN ('succeeded', 'failed') AND profile_name = ?1",
+                rusqlite::params![profile_name],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|source| MetadataStoreError::Database {
+                action: "query total launches for profile",
+                source,
+            })
+        })
+    }
+
+    /// Returns the most recent non-missing drift state for a given profile_id,
+    /// or `None` if no launcher rows exist for that profile.
+    pub fn query_launcher_drift_for_profile(
+        &self,
+        profile_id: &str,
+    ) -> Result<Option<DriftState>, MetadataStoreError> {
+        self.with_conn("query launcher drift for profile", |conn| {
+            let result = conn
+                .query_row(
+                    "SELECT drift_state FROM launchers \
+                     WHERE profile_id = ?1 AND drift_state != 'missing' \
+                     ORDER BY updated_at DESC LIMIT 1",
+                    rusqlite::params![profile_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "query launcher drift for profile",
+                    source,
+                })?;
+
+            let drift = result.map(|s| match s.as_str() {
+                "aligned" => DriftState::Aligned,
+                "moved" => DriftState::Moved,
+                "stale" => DriftState::Stale,
+                _ => DriftState::Unknown,
+            });
+            Ok(drift)
+        })
+    }
+
+    /// Returns the `source` field from the profiles table for a given profile name,
+    /// or `None` if the profile is not found in the metadata store.
+    pub fn query_profile_source(
+        &self,
+        name: &str,
+    ) -> Result<Option<String>, MetadataStoreError> {
+        self.with_conn("query profile source", |conn| {
+            conn.query_row(
+                "SELECT source FROM profiles WHERE current_filename = ?1 AND deleted_at IS NULL",
+                rusqlite::params![name],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map(|opt| opt.flatten())
+            .map_err(|source| MetadataStoreError::Database {
+                action: "query profile source",
+                source,
+            })
         })
     }
 
@@ -1723,5 +1839,60 @@ mod tests {
         assert_eq!(trends[0].profile_name, "flaky-profile");
         assert_eq!(trends[0].successes, 1);
         assert_eq!(trends[0].failures, 2);
+    }
+
+    #[test]
+    fn test_single_profile_usage_queries() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let clean_report = clean_exit_report();
+
+        let ok = store
+            .record_launch_started(Some("target-profile"), "native", None)
+            .unwrap();
+        store
+            .record_launch_finished(&ok, Some(0), None, &clean_report)
+            .unwrap();
+
+        let failure_report = DiagnosticReport {
+            severity: ValidationSeverity::Warning,
+            summary: "Non-zero exit".to_string(),
+            exit_info: ExitCodeInfo {
+                code: Some(1),
+                signal: None,
+                signal_name: None,
+                core_dumped: false,
+                failure_mode: FailureMode::NonZeroExit,
+                description: "Process exited with code 1".to_string(),
+                severity: ValidationSeverity::Warning,
+            },
+            pattern_matches: vec![],
+            suggestions: vec![],
+            launch_method: "native".to_string(),
+            log_tail_path: None,
+            analyzed_at: "2026-01-01T00:00:00Z".to_string(),
+        };
+
+        let failed = store
+            .record_launch_started(Some("target-profile"), "native", None)
+            .unwrap();
+        store
+            .record_launch_finished(&failed, Some(1), None, &failure_report)
+            .unwrap();
+
+        let (failures, successes) = store
+            .query_failure_trend_for_profile("target-profile", 30)
+            .unwrap();
+        assert_eq!(failures, 1);
+        assert_eq!(successes, 1);
+
+        let last_success = store
+            .query_last_success_for_profile("target-profile")
+            .unwrap();
+        assert!(last_success.is_some());
+
+        let total_launches = store
+            .query_total_launches_for_profile("target-profile")
+            .unwrap();
+        assert_eq!(total_launches, 2);
     }
 }

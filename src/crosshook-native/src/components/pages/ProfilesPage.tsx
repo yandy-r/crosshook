@@ -11,11 +11,29 @@ import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealth } from '../../hooks/useProfileHealth';
 import { PageBanner, ProfilesArt } from '../layout/PageBanner';
+import { countProfileStatuses } from '../../utils/health';
 import { deriveTargetHomePath } from '../../utils/steam';
+import type { EnrichedProfileHealthReport } from '../../types';
 
 interface RenameToast {
   newName: string;
   oldName: string;
+}
+
+function formatRelativeTime(isoString: string): string {
+  const then = new Date(isoString).getTime();
+  const nowMs = new Date().getTime();
+  const diffDays = Math.floor((nowMs - then) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks} week${weeks !== 1 ? 's' : ''} ago`;
+  }
+  const months = Math.floor(diffDays / 30);
+  return `${months} month${months !== 1 ? 's' : ''} ago`;
 }
 
 const RENAME_TOAST_DURATION_MS = 6000;
@@ -67,6 +85,7 @@ export function ProfilesPage() {
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
   const [renameToast, setRenameToast] = useState<RenameToast | null>(null);
+  const [healthBannerDismissed, setHealthBannerDismissed] = useState(false);
   const renameToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingLauncherReExport, setPendingLauncherReExport] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
@@ -75,6 +94,29 @@ export function ProfilesPage() {
   const [previewError, setPreviewError] = useState<string | null>(null);
 
   const { batchValidate, revalidateSingle, healthByName, summary, loading: healthLoading } = useProfileHealth();
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
+  // MetadataStore is considered unavailable when no profile has enrichment metadata.
+  const metadataAvailable = useMemo(() => {
+    if (!summary || summary.profiles.length === 0) return false;
+    return summary.profiles.some(
+      (p) => (p as EnrichedProfileHealthReport).metadata != null,
+    );
+  }, [summary]);
+
+  // Client-side filter: favorites only when the toggle is active.
+  const filteredSummary = useMemo(() => {
+    if (!summary) return null;
+    if (!showFavoritesOnly) return summary;
+
+    const filtered = summary.profiles.filter(
+      (p) => (p as EnrichedProfileHealthReport).metadata?.is_favorite === true,
+    );
+
+    const { healthy_count, stale_count, broken_count, total_count } = countProfileStatuses(filtered);
+
+    return { ...summary, profiles: filtered, healthy_count, stale_count, broken_count, total_count };
+  }, [summary, showFavoritesOnly]);
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -290,6 +332,26 @@ export function ProfilesPage() {
         illustration={<ProfilesArt />}
       />
 
+      {summary !== null && !healthLoading && summary.broken_count > 0 && !healthBannerDismissed ? (
+        <div
+          className="crosshook-rename-toast"
+          role="status"
+          aria-live="polite"
+        >
+          <span>
+            {summary.broken_count} profile{summary.broken_count !== 1 ? 's' : ''} have issues that may prevent launching
+          </span>
+          <button
+            type="button"
+            className="crosshook-rename-toast-dismiss"
+            onClick={() => setHealthBannerDismissed(true)}
+            aria-label="Dismiss"
+          >
+            &times;
+          </button>
+        </div>
+      ) : null}
+
       <div style={{ display: 'grid', gap: 24 }}>
         <CollapsibleSection
           title="Profile"
@@ -314,19 +376,36 @@ export function ProfilesPage() {
         >
           <p className="crosshook-help-text">Edit the current profile, then save it before launching or exporting.</p>
 
-          {summary !== null && (summary.stale_count + summary.broken_count) > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span className="crosshook-status-chip">
-                {summary.stale_count + summary.broken_count} of {summary.total_count} profile{summary.total_count !== 1 ? 's' : ''} have issues
-              </span>
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--secondary"
-                disabled={healthLoading}
-                onClick={() => void batchValidate()}
-              >
-                {healthLoading ? 'Checking...' : 'Re-check All'}
-              </button>
+          {summary !== null ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              {metadataAvailable ? (
+                <div className="crosshook-health-filter-bar" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '0.875rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={showFavoritesOnly}
+                      onChange={(event) => setShowFavoritesOnly(event.target.checked)}
+                    />
+                    Favorites only
+                  </label>
+                </div>
+              ) : null}
+              {filteredSummary !== null && (filteredSummary.stale_count + filteredSummary.broken_count) > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="crosshook-status-chip">
+                    {filteredSummary.stale_count + filteredSummary.broken_count} of {filteredSummary.total_count} profile{filteredSummary.total_count !== 1 ? 's' : ''} have issues
+                    {showFavoritesOnly ? ' (favorites)' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--secondary"
+                    disabled={healthLoading}
+                    onClick={() => void batchValidate()}
+                  >
+                    {healthLoading ? 'Checking...' : 'Re-check All'}
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -381,8 +460,46 @@ export function ProfilesPage() {
               return null;
             }
 
+            const enriched = report as EnrichedProfileHealthReport;
+            const metadata = enriched.metadata ?? null;
+
+            const driftMessage: Record<string, string> = {
+              missing: 'Exported launcher not found — re-export recommended',
+              moved: 'Exported launcher has moved — re-export recommended',
+              stale: 'Exported launcher may be outdated — re-export recommended',
+            };
+            const driftWarning =
+              metadata !== null && metadata.launcher_drift_state !== null
+                ? driftMessage[metadata.launcher_drift_state] ?? null
+                : null;
+
             return (
               <CollapsibleSection title="Health Issues" className="crosshook-panel">
+                {metadata !== null ? (
+                  <div style={{ marginBottom: 10, display: 'grid', gap: 4 }}>
+                    {metadata.last_success !== null ? (
+                      <p className="crosshook-help-text" style={{ margin: 0 }}>
+                        Last worked: {formatRelativeTime(metadata.last_success)}
+                      </p>
+                    ) : null}
+                    {metadata.total_launches > 0 ? (
+                      <p className="crosshook-help-text" style={{ margin: 0 }}>
+                        Launched {metadata.total_launches} time{metadata.total_launches !== 1 ? 's' : ''}{' '}
+                        &bull; {metadata.failure_count_30d} failure{metadata.failure_count_30d !== 1 ? 's' : ''} in last 30 days
+                      </p>
+                    ) : null}
+                    {driftWarning !== null ? (
+                      <p className="crosshook-danger" style={{ margin: 0 }} role="alert">
+                        {driftWarning}
+                      </p>
+                    ) : null}
+                    {metadata.is_community_import && (report.status === 'broken' || report.status === 'stale') ? (
+                      <p className="crosshook-help-text" style={{ margin: 0 }}>
+                        This profile was imported from a community tap — paths may need adjustment for your system.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
                   {report.issues.map((issue, index) => (
                     <li key={index} style={{ borderLeft: '3px solid var(--crosshook-danger, #ef4444)', paddingLeft: 10 }}>
