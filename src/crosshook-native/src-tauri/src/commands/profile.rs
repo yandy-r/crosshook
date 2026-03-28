@@ -1,6 +1,10 @@
-use crosshook_core::profile::{DuplicateProfileResult, GameProfile, ProfileStore, ProfileStoreError};
+use crosshook_core::metadata::{MetadataStore, SyncSource};
+use crosshook_core::profile::{
+    DuplicateProfileResult, GameProfile, ProfileStore, ProfileStoreError,
+};
 use crosshook_core::settings::SettingsStore;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use tauri::State;
 
 const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
@@ -97,8 +101,18 @@ pub fn profile_save(
     name: String,
     data: GameProfile,
     store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
-    store.save(&name, &data).map_err(map_error)
+    store.save(&name, &data).map_err(map_error)?;
+
+    let profile_path = store.base_path.join(format!("{name}.toml"));
+    if let Err(e) =
+        metadata_store.observe_profile_write(&name, &data, &profile_path, SyncSource::AppWrite, None)
+    {
+        tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save failed");
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -106,12 +120,36 @@ pub fn profile_save_launch_optimizations(
     name: String,
     optimizations: LaunchOptimizationsPayload,
     store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
-    save_launch_optimizations_for_profile(&name, &optimizations, &store)
+    save_launch_optimizations_for_profile(&name, &optimizations, &store)?;
+
+    if let Ok(updated) = store.load(&name) {
+        let profile_path = store.base_path.join(format!("{name}.toml"));
+        if let Err(e) = metadata_store.observe_profile_write(
+            &name,
+            &updated,
+            &profile_path,
+            SyncSource::AppWrite,
+            None,
+        ) {
+            tracing::warn!(
+                %e,
+                profile_name = %name,
+                "metadata sync after save_launch_optimizations failed"
+            );
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
-pub fn profile_delete(name: String, store: State<'_, ProfileStore>) -> Result<(), String> {
+pub fn profile_delete(
+    name: String,
+    store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<(), String> {
     // Best-effort launcher cleanup before profile deletion.
     // Profile deletion must succeed even if launcher cleanup fails.
     if let Ok(profile) = store.load(&name) {
@@ -120,7 +158,13 @@ pub fn profile_delete(name: String, store: State<'_, ProfileStore>) -> Result<()
         }
     }
 
-    store.delete(&name).map_err(map_error)
+    store.delete(&name).map_err(map_error)?;
+
+    if let Err(e) = metadata_store.observe_profile_delete(&name) {
+        tracing::warn!(%e, profile_name = %name, "metadata sync after profile_delete failed");
+    }
+
+    Ok(())
 }
 
 /// Duplicates an existing profile under a unique copy name.
@@ -141,8 +185,27 @@ pub fn profile_delete(name: String, store: State<'_, ProfileStore>) -> Result<()
 pub fn profile_duplicate(
     name: String,
     store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<DuplicateProfileResult, String> {
-    store.duplicate(&name).map_err(map_error)
+    let source_profile_id = metadata_store
+        .lookup_profile_id(&name)
+        .ok()
+        .flatten();
+
+    let result = store.duplicate(&name).map_err(map_error)?;
+
+    let copy_path = store.base_path.join(format!("{}.toml", result.name));
+    if let Err(e) = metadata_store.observe_profile_write(
+        &result.name,
+        &result.profile,
+        &copy_path,
+        SyncSource::AppDuplicate,
+        source_profile_id.as_deref(),
+    ) {
+        tracing::warn!(%e, name = %result.name, "metadata sync after profile_duplicate failed");
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -150,12 +213,21 @@ pub fn profile_rename(
     old_name: String,
     new_name: String,
     store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
     settings_store: State<'_, SettingsStore>,
 ) -> Result<bool, String> {
     // Load profile BEFORE rename for launcher cleanup and display_name update.
     let old_profile = store.load(&old_name).ok();
 
     store.rename(&old_name, &new_name).map_err(map_error)?;
+
+    let old_path = store.base_path.join(format!("{old_name}.toml"));
+    let new_path = store.base_path.join(format!("{new_name}.toml"));
+    if let Err(e) =
+        metadata_store.observe_profile_rename(&old_name, &new_name, &old_path, &new_path)
+    {
+        tracing::warn!(%e, %old_name, %new_name, "metadata sync after profile_rename failed");
+    }
 
     // Best-effort: delete old launcher files so the frontend can re-export with correct paths.
     let had_launcher = if let Some(ref profile) = old_profile {
@@ -197,10 +269,22 @@ pub fn profile_rename(
 pub fn profile_import_legacy(
     path: String,
     store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<GameProfile, String> {
-    store
-        .import_legacy(std::path::Path::new(&path))
-        .map_err(map_error)
+    let profile = store.import_legacy(Path::new(&path)).map_err(map_error)?;
+
+    let stem = Path::new(&path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("imported");
+    let import_path = store.base_path.join(format!("{stem}.toml"));
+    if let Err(e) =
+        metadata_store.observe_profile_write(stem, &profile, &import_path, SyncSource::Import, None)
+    {
+        tracing::warn!(%e, profile_name = %stem, "metadata sync after import_legacy failed");
+    }
+
+    Ok(profile)
 }
 
 /// Serializes the provided in-memory profile to a shareable TOML string

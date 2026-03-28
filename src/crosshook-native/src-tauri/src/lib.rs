@@ -4,6 +4,7 @@ mod startup;
 
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::logging;
+use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{RecentFilesStore, SettingsStore};
 pub use paths::resolve_script_path;
@@ -28,11 +29,17 @@ pub fn run() {
         eprintln!("CrossHook: failed to initialize community tap store: {error}");
         std::process::exit(1);
     });
+    let metadata_store = MetadataStore::try_new().unwrap_or_else(|error| {
+        tracing::warn!(%error, "metadata store unavailable — SQLite features disabled");
+        MetadataStore::disabled()
+    });
+    let metadata_for_startup = metadata_store.clone();
 
     tauri::Builder::default()
         .setup({
             let profile_store = profile_store.clone();
             let settings_store = settings_store.clone();
+            let metadata_for_startup = metadata_for_startup.clone();
 
             move |app| {
                 let log_path = logging::init_logging(false)?;
@@ -40,9 +47,16 @@ pub fn run() {
 
                 paths::ensure_development_scripts_executable()?;
 
-                if let Some(profile_name) =
-                    startup::resolve_auto_load_profile_name(&settings_store, &profile_store)?
+                let auto_load_profile_name =
+                    startup::resolve_auto_load_profile_name(&settings_store, &profile_store)?;
+
+                if let Err(error) =
+                    startup::run_metadata_reconciliation(&metadata_for_startup, &profile_store)
                 {
+                    tracing::warn!(%error, "startup metadata reconciliation failed");
+                }
+
+                if let Some(profile_name) = auto_load_profile_name {
                     let app_handle = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
                         sleep(Duration::from_millis(350)).await;
@@ -63,6 +77,7 @@ pub fn run() {
         .manage(settings_store)
         .manage(recent_files_store)
         .manage(community_tap_store)
+        .manage(metadata_store)
         .manage(commands::update::UpdateProcessState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
