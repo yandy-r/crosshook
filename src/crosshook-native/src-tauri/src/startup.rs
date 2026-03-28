@@ -1,9 +1,11 @@
+use crosshook_core::metadata::{MetadataStore, MetadataStoreError};
 use crosshook_core::profile::{ProfileStore, ProfileStoreError};
 use crosshook_core::settings::{AppSettingsData, SettingsStore, SettingsStoreError};
 use std::fmt;
 
 #[derive(Debug)]
 pub enum StartupError {
+    Metadata(MetadataStoreError),
     Settings(SettingsStoreError),
     Profiles(ProfileStoreError),
 }
@@ -11,6 +13,7 @@ pub enum StartupError {
 impl fmt::Display for StartupError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Metadata(error) => write!(f, "{error}"),
             Self::Settings(error) => write!(f, "{error}"),
             Self::Profiles(error) => write!(f, "{error}"),
         }
@@ -25,10 +28,31 @@ impl From<SettingsStoreError> for StartupError {
     }
 }
 
+impl From<MetadataStoreError> for StartupError {
+    fn from(value: MetadataStoreError) -> Self {
+        Self::Metadata(value)
+    }
+}
+
 impl From<ProfileStoreError> for StartupError {
     fn from(value: ProfileStoreError) -> Self {
         Self::Profiles(value)
     }
+}
+
+pub fn run_metadata_reconciliation(
+    metadata_store: &MetadataStore,
+    profile_store: &ProfileStore,
+) -> Result<(), StartupError> {
+    let report = metadata_store.sync_profiles_from_store(profile_store)?;
+    if report.created > 0 || report.updated > 0 {
+        tracing::info!(
+            created = report.created,
+            updated = report.updated,
+            "startup metadata reconciliation complete"
+        );
+    }
+    Ok(())
 }
 
 pub fn resolve_auto_load_profile_name(
