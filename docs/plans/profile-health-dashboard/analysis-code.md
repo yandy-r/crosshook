@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The existing codebase provides all the primitive building blocks for profile health validation without changes to public APIs. Private path-checking helpers in `request.rs` need visibility promotion to `pub(crate)`; `ProfileStore::list()`/`load()` already support batch iteration; and the `crosshook-status-chip` CSS pattern in `CompatibilityViewer` is a drop-in for `HealthBadge`. New code consists of one Rust module (`profile/health.rs`), two Tauri commands in the existing `profile.rs`, one React hook, one badge component, and TypeScript types.
+The existing codebase provides all the primitive building blocks for profile health validation without changes to public APIs. Private path-checking helpers in `request.rs` need visibility promotion to `pub(crate)`; `ProfileStore::list()`/`load()` already support batch iteration; and the `crosshook-status-chip` CSS pattern in `CompatibilityViewer` is a drop-in for `HealthBadge`. New code consists of one Rust module (`profile/health.rs`), two Tauri commands added to the existing `profile.rs`, one React hook, one badge component, and TypeScript types. `sanitize_display_path()` is **already in `shared.rs`** — the move is complete, do not repeat it.
 
 ---
 
@@ -10,29 +10,27 @@ The existing codebase provides all the primitive building blocks for profile hea
 
 ### Rust Backend
 
-| File                                                 | Role                                                                                                                                                |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crates/crosshook-core/src/launch/request.rs`        | `ValidationError` enum, `validate_all()`, `require_directory()`, `require_executable_file()`, `is_executable_file()` — all path-checking primitives |
-| `crates/crosshook-core/src/profile/models.rs`        | `GameProfile` + all section structs; defines every path field to validate                                                                           |
-| `crates/crosshook-core/src/profile/toml_store.rs`    | `ProfileStore::list()`, `load()`, `with_base_path()` — batch iteration + test harness                                                               |
-| `crates/crosshook-core/src/profile/mod.rs`           | Module root — **add `pub mod health;` here**                                                                                                        |
-| `crates/crosshook-core/src/lib.rs`                   | Crate root — health types exported through `profile::health`                                                                                        |
-| `crates/crosshook-core/src/export/launcher_store.rs` | `LauncherInfo.is_stale` — analogous staleness flag pattern                                                                                          |
-| `src-tauri/src/commands/profile.rs`                  | All profile CRUD Tauri commands — **add health commands here**                                                                                      |
-| `src-tauri/src/commands/launch.rs`                   | `sanitize_display_path()` at line 301 — **must move to `shared.rs`** before health commands can use it                                              |
-| `src-tauri/src/commands/shared.rs`                   | Already has `create_log_path`, `slugify_target` — **`sanitize_display_path()` migrates here**                                                       |
-| `src-tauri/src/lib.rs`                               | `invoke_handler!` flat list at line 70 — **register new commands here**; async task spawn pattern at lines 46–56 is how health triggers too         |
+| File                                              | Role                                                                                                                                                               |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `crates/crosshook-core/src/launch/request.rs`     | `ValidationError` enum, `validate_all()`, private `require_directory()`, `require_executable_file()`, `is_executable_file()` — path-checking primitives to promote |
+| `crates/crosshook-core/src/profile/models.rs`     | `GameProfile` + section structs (`GameSection`, `TrainerSection`, `InjectionSection`, `SteamSection`, `RuntimeSection`) — all path fields                          |
+| `crates/crosshook-core/src/profile/toml_store.rs` | `ProfileStore::list()`, `load()`, `with_base_path()` — batch iteration and test harness                                                                            |
+| `crates/crosshook-core/src/profile/mod.rs`        | Module root — **add `pub mod health;` here**                                                                                                                       |
+| `crates/crosshook-core/src/lib.rs`                | Crate root — health types exported through `profile::health`                                                                                                       |
+| `src-tauri/src/commands/profile.rs`               | All profile CRUD Tauri commands — **add health commands here**                                                                                                     |
+| `src-tauri/src/commands/shared.rs`                | `sanitize_display_path()` at line 20 — **already here**, import via `use super::shared::sanitize_display_path`                                                     |
+| `src-tauri/src/lib.rs`                            | `invoke_handler!` flat list at line 85 — register new commands here; async spawn pattern at lines 61–71                                                            |
 
 ### TypeScript Frontend
 
-| File                                     | Role                                                                                             |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `src/hooks/useLaunchState.ts`            | `useReducer` + typed action union pattern — model for `useProfileHealth`                         |
-| `src/types/launch.ts`                    | `LaunchValidationIssue`, `LaunchFeedback` discriminated union — pattern for health types         |
-| `src/types/index.ts`                     | Barrel re-exports — **add `export * from './health'`**                                           |
-| `src/components/CompatibilityViewer.tsx` | `crosshook-status-chip crosshook-compatibility-badge--{rating}` badge pattern                    |
-| `src/components/pages/ProfilesPage.tsx`  | Profile list integration point; consumes `ProfileContext` + `ProfileFormSections`                |
-| `src/styles/variables.css`               | Color tokens: `--crosshook-color-success` `--crosshook-color-warning` `--crosshook-color-danger` |
+| File                                     | Role                                                                                               |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `src/hooks/useLaunchState.ts`            | `useReducer` + typed action union pattern — exact model for `useProfileHealth`                     |
+| `src/types/launch.ts`                    | `LaunchValidationIssue`, `LaunchFeedback` discriminated union — pattern for health types           |
+| `src/types/index.ts`                     | Barrel re-exports — **add `export * from './health'`**                                             |
+| `src/components/CompatibilityViewer.tsx` | `crosshook-status-chip crosshook-compatibility-badge--{rating}` badge pattern                      |
+| `src/components/pages/ProfilesPage.tsx`  | Profile list integration point                                                                     |
+| `src/styles/variables.css`               | Color tokens: `--crosshook-color-success`, `--crosshook-color-warning`, `--crosshook-color-danger` |
 
 ---
 
@@ -40,67 +38,115 @@ The existing codebase provides all the primitive building blocks for profile hea
 
 ### 1. Path-Checking Primitives (Rust)
 
-The three private helpers in `request.rs` must be promoted to `pub(crate)` for reuse in the new `profile/health.rs`:
+Three private helpers in `request.rs` (lines 700–756) must be promoted to `pub(crate)` for reuse in `profile/health.rs`:
 
 ```rust
-// request.rs lines 698–756 (currently private — promote to pub(crate))
-fn require_directory<'a>(
+// request.rs — change `fn` to `pub(crate) fn` for all three
+
+pub(crate) fn require_directory<'a>(
     value: &'a str,
     required_error: ValidationError,
     missing_error: ValidationError,
     not_directory_error: ValidationError,
 ) -> Result<&'a Path, ValidationError>
 
-fn require_executable_file(
+pub(crate) fn require_executable_file(
     value: &str,
     required_error: ValidationError,
     missing_error: ValidationError,
     not_executable_error: ValidationError,
 ) -> Result<(), ValidationError>
 
-fn is_executable_file(path: &Path) -> bool  // uses mode & 0o111 on Unix
+pub(crate) fn is_executable_file(path: &Path) -> bool  // mode & 0o111 on Unix
 ```
 
-Health validation uses `std::fs::metadata()` directly via these helpers rather than constructing a `LaunchRequest`.
+The health module calls these helpers directly against `GameProfile` path fields via `std::fs::metadata()`. No `LaunchRequest` construction is needed (Option B from feature-spec).
 
 ### 2. ValidationError → LaunchValidationIssue Pipeline
 
 ```rust
-// All ValidationError variants produce Fatal severity today
-pub fn severity(&self) -> ValidationSeverity {
-    ValidationSeverity::Fatal  // line 430 — health module needs Warning/Info variants
+// ValidationError produces a LaunchValidationIssue via .issue()
+impl ValidationError {
+    pub fn issue(&self) -> LaunchValidationIssue {
+        LaunchValidationIssue {
+            message: self.message(),
+            help: self.help(),
+            severity: self.severity(),  // currently always Fatal
+        }
+    }
 }
-
-// Conversion pattern
-let issue: LaunchValidationIssue = some_validation_error.issue();
-// issue = { message: String, help: String, severity: ValidationSeverity }
 ```
 
-The health module will introduce a new `HealthIssueKind` enum for machine-readable classification alongside the existing `message`/`help`/`severity` structure. `ValidationSeverity` is already `Serialize/Deserialize` with `serde(rename_all = "snake_case")`.
+All `ValidationError` variants today return `ValidationSeverity::Fatal` (line 431). Health validation needs `Warning` and `Info` severities for optional fields. The new `HealthIssueKind` enum provides machine-readable classification alongside the existing `message`/`help`/`severity` structure.
 
-### 3. ProfileStore Batch Iteration (Option B: Direct GameProfile Validation)
+`ValidationSeverity` is `#[derive(Serialize, Deserialize)]` with `#[serde(rename_all = "snake_case")]` — it crosses the IPC boundary already.
 
-The feature-spec chose **Option B** — validate `GameProfile` path fields directly via `std::fs::metadata()`, without constructing a `LaunchRequest`. Do not analyze the `to_launch_request()` conversion path.
+### 3. GameProfile Path Fields — Complete Inventory
+
+```
+profile.game.executable_path          → String  (require file exists)
+profile.trainer.path                  → String  (require file exists if non-empty)
+profile.injection.dll_paths           → Vec<String>  (iterate all, require file for each non-empty)
+profile.steam.compatdata_path         → String  (require directory if steam.enabled)
+profile.steam.proton_path             → String  (require executable if steam.enabled)
+profile.steam.launcher.icon_path      → String  (optional, warn if non-empty and missing)
+profile.runtime.prefix_path           → String  (require directory if non-empty)
+profile.runtime.proton_path           → String  (require executable if non-empty)
+profile.runtime.working_directory     → String  (optional, warn if non-empty and missing)
+```
+
+Key: `injection.dll_paths` is a `Vec<String>` — must iterate all entries, not just index 0.
+
+### 4. ProfileStore Batch Iteration
 
 ```rust
-// toml_store.rs — batch pattern used for health validation
-let names = store.list()?;        // Vec<String>, sorted alphabetically
+// Per-profile error isolation — the CORRECT pattern
+let names = store.list()?;  // Vec<String>
+let mut results = HashMap::new();
 for name in &names {
-    let profile = store.load(name)?;
-    // validate profile.game.executable_path, profile.trainer.path, etc.
-    // using std::fs::metadata() directly — NOT via LaunchRequest conversion
+    match store.load(name) {
+        Ok(profile) => {
+            results.insert(name.clone(), validate_profile_health(name, &profile));
+        }
+        Err(e) => {
+            results.insert(name.clone(), ProfileHealthSummary::load_error(e.to_string()));
+        }
+    }
+}
+
+// WRONG — propagates with ? and kills the batch on one bad TOML
+for name in &names {
+    let profile = store.load(name)?;  // aborts entire batch
 }
 ```
 
-`ProfileStore::with_base_path()` is the test harness entry point — all health module tests follow the `tempfile::tempdir()` + `with_base_path(tmp.path().join("profiles"))` convention.
+`ProfileStore::with_base_path(tmp.path().join("profiles"))` is the test harness entry point — tests always follow `tempfile::tempdir()` + this constructor.
 
-### 4. Tauri Command Pattern
+### 5. Dual-Store Tauri Command Pattern (from profile.rs)
 
 ```rust
-// commands/profile.rs — exact pattern for new health commands
+// The canonical dual-store pattern for health commands
 #[tauri::command]
-pub fn profile_list(store: State<'_, ProfileStore>) -> Result<Vec<String>, String> {
-    store.list().map_err(map_error)
+pub fn batch_validate_profiles(
+    store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<HashMap<String, ProfileHealthSummary>, String> {
+    // 1. Filesystem validation via ProfileStore (always runs)
+    let names = store.list().map_err(map_error)?;
+    let mut results = HashMap::new();
+    for name in &names {
+        match store.load(name) {
+            Ok(profile) => results.insert(name.clone(), health::validate_profile_health(name, &profile)),
+            Err(e) => results.insert(name.clone(), ProfileHealthSummary::load_error(e.to_string())),
+        };
+    }
+
+    // 2. Metadata enrichment (fail-soft, non-blocking)
+    let failure_trends = metadata_store.query_failure_trends(30).unwrap_or_default();
+    let last_successes = metadata_store.query_last_success_per_profile().unwrap_or_default();
+    // enrich results...
+
+    Ok(results)
 }
 
 fn map_error(error: ProfileStoreError) -> String {
@@ -108,51 +154,64 @@ fn map_error(error: ProfileStoreError) -> String {
 }
 ```
 
-New health commands follow identical structure: `store: State<'_, ProfileStore>`, return `Result<T, String>`, errors stringified via `.to_string()`. No new `State` is needed — health validation reads through the existing `ProfileStore`.
+The `map_error` helper (line 13 of `profile.rs`) is already present in the file — reuse it, do not redefine.
 
-### 5. sanitize_display_path() — Must Migrate to shared.rs First
+### 6. MetadataStore Fail-Soft Pattern
 
 ```rust
-// commands/launch.rs line 301 — currently private to launch.rs, must move to shared.rs
-fn sanitize_display_path(path: &str) -> String {
+// with_conn() internals — returns T::default() when unavailable or poisoned
+fn with_conn<F, T>(&self, action: &'static str, f: F) -> Result<T, MetadataStoreError>
+where
+    F: FnOnce(&Connection) -> Result<T, MetadataStoreError>,
+    T: Default,  // <-- required bound; Vec<_>, HashMap<_>, Option<_> all satisfy it
+{
+    if !self.available {
+        return Ok(T::default());
+    }
+    // ...
+}
+```
+
+Health commands use `unwrap_or_default()` on enrichment results — no explicit `available` checks needed:
+
+```rust
+let trends = metadata_store.query_failure_trends(30).unwrap_or_default();
+let successes = metadata_store.query_last_success_per_profile().unwrap_or_default();
+```
+
+**Key signatures** (from metadata/mod.rs lines 401–483):
+
+- `query_last_success_per_profile() -> Result<Vec<(String, String)>, MetadataStoreError>` — `(profile_name, finished_at_iso)` pairs
+- `query_failure_trends(days: u32) -> Result<Vec<FailureTrendRow>, MetadataStoreError>` — only profiles with `failures > 0`
+
+`FailureTrendRow` fields (from `metadata/models.rs`): `profile_name: String`, `successes: i64`, `failures: i64`, `failure_modes: Option<String>`.
+
+### 7. sanitize_display_path() — Already in shared.rs
+
+```rust
+// src-tauri/src/commands/shared.rs line 20 — ALREADY HERE
+pub fn sanitize_display_path(path: &str) -> String {
     match env::var("HOME") {
-        Ok(home) if path.starts_with(&home) => format!("~{}", &path[home.len()..]),
+        Ok(home) => {
+            let path = Path::new(path);
+            let home = Path::new(&home);
+            match path.strip_prefix(home) {
+                Ok(suffix) if suffix.as_os_str().is_empty() => "~/".to_string(),
+                Ok(suffix) => format!("~/{}", suffix.display()),
+                Err(_) => path.display().to_string(),
+            }
+        }
         _ => path.to_string(),
     }
 }
 ```
 
-`commands/shared.rs` already exists with `create_log_path` and `slugify_target`. **`sanitize_display_path()` must be moved (not duplicated) to `shared.rs`** and re-imported in `launch.rs`. Health commands in `profile.rs` then import it from `super::shared`. Every path string in health IPC responses must pass through it before serialization.
+Import in `profile.rs` via `use super::shared::sanitize_display_path;`. Apply to every path string in health IPC responses before serialization.
 
-### 5b. Per-Profile Error Isolation in Batch Loop
-
-```rust
-// CORRECT — per-profile isolation: one broken profile does not abort the batch
-let mut results = HashMap::new();
-for name in store.list()? {
-    match store.load(&name) {
-        Ok(profile) => {
-            results.insert(name, validate_profile_health(&name, &profile, method));
-        }
-        Err(e) => {
-            results.insert(name, ProfileHealthSummary::load_error(e.to_string()));
-        }
-    }
-}
-
-// WRONG — propagates with ? and aborts on first load failure
-for name in store.list()? {
-    let profile = store.load(&name)?;  // ← kills the entire batch on any error
-    ...
-}
-```
-
-`ProfileStoreError` must be caught per-profile using `match` or `.unwrap_or_else`. The batch command returns a result for every profile regardless of individual load failures.
-
-### 6. Command Registration Pattern
+### 8. Command Registration Pattern
 
 ```rust
-// src-tauri/src/lib.rs line 70 — flat list, append new commands here
+// src-tauri/src/lib.rs line 85 — flat list, append new commands
 .invoke_handler(tauri::generate_handler![
     // ... existing commands ...
     commands::profile::batch_validate_profiles,  // NEW
@@ -160,37 +219,9 @@ for name in store.list()? {
 ])
 ```
 
-The new commands are registered in the same flat `invoke_handler!` macro — no sub-routing or module nesting.
+No sub-routing, no new `mod`, no new `.manage()` call needed — `ProfileStore` and `MetadataStore` are already managed at lines 76 and 80.
 
-### 7. LauncherInfo.is_stale — Analogous Pattern
-
-```rust
-// export/launcher_store.rs line 42
-pub struct LauncherInfo {
-    pub is_stale: bool,  // set from profile context; list() always sets false
-    // ... other fields
-}
-```
-
-`ProfileHealthSummary.status: HealthStatus` follows the same pattern — derived with profile context, serialized with `#[serde(default)]`.
-
-### 8. useReducer Async State Hook (TypeScript)
-
-```typescript
-// hooks/useLaunchState.ts — model for useProfileHealth
-type LaunchState = { phase: LaunchPhase; feedback: LaunchFeedback | null; ... }
-type LaunchAction = { type: "reset" } | { type: "game-start" } | { type: "failure"; ... }
-
-const [state, dispatch] = useReducer(reducer, initialState);
-
-// Async invoke pattern
-const result = await invoke<T>("command_name", { args });
-dispatch({ type: "success", result });
-```
-
-`useProfileHealth` mirrors this exactly: `idle → loading → loaded | error` states, typed action union, `invoke<ProfileHealthMap>("batch_validate_profiles", {})`.
-
-### 9. CompatibilityBadge — Drop-in Pattern for HealthBadge
+### 9. CompatibilityBadge — Drop-in CSS Pattern for HealthBadge
 
 ```tsx
 // CompatibilityViewer.tsx lines 76–82
@@ -203,20 +234,57 @@ function CompatibilityBadge({ rating }: { rating: CompatibilityRating }) {
 }
 ```
 
-`HealthBadge` uses the same `crosshook-status-chip` base class with `crosshook-health-badge--healthy`, `crosshook-health-badge--stale`, `crosshook-health-badge--broken` modifiers and the same three CSS color tokens.
+`HealthBadge` uses the same `crosshook-status-chip` base class with modifiers:
 
-### 10. LaunchValidationIssue TypeScript Type
+- `crosshook-health-badge--healthy` (maps to `working` token)
+- `crosshook-health-badge--stale` (maps to `partial` token)
+- `crosshook-health-badge--broken` (maps to `broken` token)
+
+No new CSS architecture needed — add three modifier rules to an existing stylesheet.
+
+### 10. useReducer + Event Listener Pattern (TypeScript)
 
 ```typescript
-// types/launch.ts lines 37–41
-export interface LaunchValidationIssue {
-  message: string;
-  help: string;
-  severity: LaunchValidationSeverity; // 'fatal' | 'warning' | 'info'
+// hooks/useLaunchState.ts — exact model for useProfileHealth
+
+// State shape
+type LaunchState = { phase: LaunchPhase; feedback: LaunchFeedback | null; ... }
+
+// Action union with discriminants
+type LaunchAction =
+  | { type: "reset" }
+  | { type: "game-start" }
+  | { type: "failure"; fallbackPhase: LaunchPhase; feedback: LaunchFeedback }
+
+// Hook body
+const [state, dispatch] = useReducer(reducer, initialState);
+
+// Cleanup pattern for event listeners
+useEffect(() => {
+  let active = true;
+  const unlisten = listen<T>("event-name", (event) => {
+    if (!active) return;
+    dispatch({ type: "received", payload: event.payload });
+  });
+  return () => {
+    active = false;
+    void unlisten.then((fn) => fn());
+  };
+}, []);
+```
+
+`useProfileHealth` follows this exactly: `idle → loading → loaded | error` states, typed action union, `invoke<ProfileHealthMap>("batch_validate_profiles", {})`.
+
+### 11. TypeScript Type Guard Pattern
+
+```typescript
+// types/launch.ts — existing type guard to model health guards after
+export function isLaunchValidationIssue(value: unknown): value is LaunchValidationIssue {
+  return typeof value === 'object' && value !== null && 'message' in value && 'help' in value && 'severity' in value;
 }
 ```
 
-`HealthIssue` in `src/types/health.ts` follows this shape but adds `kind: HealthIssueKind` for machine-readable classification and optional `path?: string` for display.
+Add matching guards `isProfileHealthSummary`, `isHealthIssue` in `src/types/health.ts`.
 
 ---
 
@@ -224,23 +292,23 @@ export interface LaunchValidationIssue {
 
 ### Files to Create
 
-| File                                          | Purpose                                                                                                                 |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `crates/crosshook-core/src/profile/health.rs` | New Rust module — `validate_profile_health()`, `ProfileHealthSummary`, `HealthStatus`, `HealthIssue`, `HealthIssueKind` |
-| `src/types/health.ts`                         | TypeScript types — `ProfileHealthSummary`, `HealthStatus`, `HealthIssue`, `HealthIssueKind`                             |
-| `src/hooks/useProfileHealth.ts`               | React hook — `useReducer` state machine calling `batch_validate_profiles` / `get_profile_health`                        |
-| `src/components/HealthBadge.tsx`              | Inline badge component using `crosshook-status-chip` pattern                                                            |
+| File                                          | Purpose                                                                                               |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `crates/crosshook-core/src/profile/health.rs` | `validate_profile_health()`, `ProfileHealthSummary`, `HealthStatus`, `HealthIssue`, `HealthIssueKind` |
+| `src/types/health.ts`                         | TypeScript types + type guards                                                                        |
+| `src/hooks/useProfileHealth.ts`               | `useReducer` state machine, `invoke` calls                                                            |
+| `src/components/HealthBadge.tsx`              | Inline badge using `crosshook-status-chip`                                                            |
 
 ### Files to Modify
 
-| File                                          | Change                                                                                                           |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `crates/crosshook-core/src/launch/request.rs` | Promote `require_directory`, `require_executable_file`, `is_executable_file` to `pub(crate)`                     |
-| `crates/crosshook-core/src/profile/mod.rs`    | Add `pub mod health;` and re-export health types                                                                 |
-| `src-tauri/src/commands/profile.rs`           | Add `batch_validate_profiles` and `get_profile_health` Tauri commands                                            |
-| `src-tauri/src/lib.rs`                        | Register the two new commands in `invoke_handler!`                                                               |
-| `src/types/index.ts`                          | Add `export * from './health'`                                                                                   |
-| `src/components/pages/ProfilesPage.tsx`       | Import `useProfileHealth`, render `HealthBadge` inline in profile list via `ProfileFormSections.profileSelector` |
+| File                                          | Change                                                                                                               |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `crates/crosshook-core/src/launch/request.rs` | Promote `require_directory`, `require_executable_file`, `is_executable_file` to `pub(crate)`                         |
+| `crates/crosshook-core/src/profile/mod.rs`    | Add `pub mod health;` and re-export health types                                                                     |
+| `src-tauri/src/commands/profile.rs`           | Add `batch_validate_profiles` and `get_profile_health` commands; import `sanitize_display_path` from `super::shared` |
+| `src-tauri/src/lib.rs`                        | Register two new commands in `invoke_handler!` at line 85                                                            |
+| `src/types/index.ts`                          | Add `export * from './health'`                                                                                       |
+| `src/components/pages/ProfilesPage.tsx`       | Import `useProfileHealth`, render `HealthBadge` in profile list                                                      |
 
 ---
 
@@ -248,27 +316,28 @@ export interface LaunchValidationIssue {
 
 ### Rust
 
-- All new types that cross the IPC boundary need `#[derive(Debug, Clone, Serialize, Deserialize)]`
-- Serde enums use `#[serde(rename_all = "snake_case")]`
-- Optional fields use `#[serde(default)]`
-- Errors convert to `String` via `.to_string()` at the Tauri boundary using the `map_error` helper pattern
-- Tests use `tempfile::tempdir()` + `ProfileStore::with_base_path(tmp.path())` — never mock the filesystem
+- All new types that cross the IPC boundary: `#[derive(Debug, Clone, Serialize, Deserialize)]`
+- Serde enums: `#[serde(rename_all = "snake_case")]`
+- Optional fields: `#[serde(default)]`
+- Error conversion at Tauri boundary: `.to_string()` via the existing `map_error` helper in `profile.rs` (line 13)
+- Tests: `tempfile::tempdir()` + `ProfileStore::with_base_path(tmp.path().join("profiles"))` — never mock the filesystem
+- `MetadataStore::open_in_memory()` for SQLite tests — runs all migrations automatically
 
 ### TypeScript
 
-- Discriminated unions for state (`HealthStatus`) and feedback (`HealthIssue`)
-- `invoke<T>('command_name', { camelCaseArgs })` — args serialize to `snake_case` Rust params via Tauri
-- Type guard functions (`isHealthSummary(value): value is ProfileHealthSummary`) follow `isLaunchValidationIssue` pattern from `types/launch.ts:48`
+- Discriminated unions for state (`HealthStatus`) and issue types (`HealthIssue`)
+- `invoke<T>('command_name', { camelCaseArgs })` — args serialize to `snake_case` Rust params
+- Type guard functions follow the `isLaunchValidationIssue` pattern
 - CSS classes follow BEM-like `crosshook-{component}__{element}--{modifier}` pattern
 
 ---
 
 ## Dependencies and Services
 
-- **No new Tauri plugins needed** — health commands use existing `ProfileStore` state already managed in `lib.rs`
-- **No new Rust crates** — `std::fs::metadata()` is sufficient; `tempfile` (dev) already used in `toml_store.rs` tests
-- **`crosshook-core`** is a library crate; the new `profile/health.rs` module lives there and is consumed by `src-tauri`
-- **`resolve_launch_method()`** from `profile/models.rs` is needed for method-aware validation dispatch in health checks — already `pub` and re-exported
+- **No new Tauri plugins needed** — health commands use `ProfileStore` and `MetadataStore` already managed in `lib.rs` at lines 76 and 80
+- **No new Rust crates** — `std::fs::metadata()` is sufficient; `tempfile` (dev-dependency) already used in tests
+- **`resolve_launch_method()`** from `profile/models.rs` is already `pub` — use it for method-aware validation dispatch in health checks
+- **`MetadataStore::disabled()`** is the fallback when SQLite is unavailable — `with_conn()` silently returns defaults; health enrichment degrades gracefully
 
 ---
 
@@ -276,62 +345,80 @@ export interface LaunchValidationIssue {
 
 ### Path-Checking Helpers are Private
 
-`require_directory`, `require_executable_file`, and `is_executable_file` are private functions in `request.rs`. They must be promoted to `pub(crate)` before the health module can use them. Do not duplicate the logic.
+`require_directory`, `require_executable_file`, and `is_executable_file` are `fn` (private) in `request.rs` at lines 700–756. Change them to `pub(crate) fn`. Do not duplicate the logic.
 
 ### All ValidationErrors are Fatal — Health Needs New Severities
 
-`ValidationError::severity()` returns `ValidationSeverity::Fatal` unconditionally (line 430). Health validation needs `Warning` (path missing but optional field) and `Info` (empty/skipped field) severities. The new `HealthIssueKind` enum provides machine-readable classification separate from severity.
+`ValidationError::severity()` returns `ValidationSeverity::Fatal` unconditionally (line 431). Health validation needs `Warning` (path missing but optional field) and `Info` (empty/skipped). The new `HealthIssueKind` enum provides machine-readable classification separate from severity.
 
-### isStale in LaunchPanel Must NOT Be Reused
+### sanitize_display_path Is Already in shared.rs (Not launch.rs)
 
-`LaunchPanel.tsx` has a local `isStale()` check based on a 60-second preview age threshold. This is unrelated to profile path health and must not be confused with `HealthStatus.stale`.
+Previous analysis drafts described this function as being in `launch.rs` and needing migration. It is **already at `src-tauri/src/commands/shared.rs` line 20** and is `pub`. Import via `use super::shared::sanitize_display_path;` in `profile.rs`. No migration needed.
 
-### Health Check Must NOT Be Added to startup.rs
+### injection.dll_paths Is a Vec — Must Iterate All Entries
 
-`src-tauri/src/startup.rs` is a hard constraint — synchronous, do not modify it. Health validation is async I/O triggered only from the frontend via `invoke()`. If a startup health emit is ever needed, it mirrors the `tauri::async_runtime::spawn` pattern in `lib.rs:47-56` (the existing `auto-load-profile` emit) — but the current spec defers to frontend-only triggers.
+`profile.injection.dll_paths: Vec<String>` — validation must iterate every element with a non-empty value, not just index 0.
 
-### ProfilesPage Uses ProfileFormSections for Profile List Rendering
+### Batch Command Must Isolate Per-Profile Errors
 
-The profile selector list is rendered inside `ProfileFormSections` via the `profileSelector` prop (not directly in `ProfilesPage`). Health badges in the profile list require passing health data through this prop boundary or via a separate React context.
+Use `match store.load(name) { Ok(p) => ..., Err(e) => ProfileHealthSummary::load_error(...) }` per iteration. Never propagate with `?` inside the batch loop — a single corrupt TOML must not abort the entire response.
 
-### Injection DLL Paths are a Vec
+### Health Validation Must NOT Be Added to startup.rs
 
-`injection.dll_paths: Vec<String>` — health validation must iterate all entries, not just check the first. Each non-empty DLL path should be validated as an existing file.
+`startup.rs` is synchronous. Do not add health validation there. The spec triggers health checks from the frontend via `invoke()`. Any startup notification follows the `tauri::async_runtime::spawn` + `app_handle.emit()` pattern already used for `auto-load-profile` in `lib.rs` lines 61–71.
 
-### Path Display Must Be Sanitized Before IPC
+### ProfilesPage Badge Integration Path
 
-Any path returned in a health issue must pass through `sanitize_display_path()` (replaces `$HOME` with `~`) before serialization. This applies to the optional `path` field in `HealthIssue`. Failure to sanitize is a medium-severity security finding.
+Profile list rendering uses `ProfileFormSections` with a `profileSelector` prop. Health badges in the list require either threading health data through that prop boundary or a React context. Confirm with the UI design before choosing the injection point.
+
+### query_failure_trends Only Returns Profiles With Failures
+
+`query_failure_trends(days)` uses `HAVING failures > 0` — it returns nothing for healthy profiles. To find the absence of failures, cross-reference the full profile name list from `store.list()` against the trends result set.
 
 ### launcher_store.rs list() Always Reports is_stale = false
 
-The analogous `LauncherInfo.is_stale` is documented as only meaningful when derived with profile context (see launcher_store.rs line 22 comment). The health module avoids this pitfall by always computing status inline during validation.
+`LauncherInfo.is_stale` is only meaningful when set with profile context; `list()` sets it to `false`. The health module avoids this pattern by computing status inline during validation.
 
 ---
 
 ## Task-Specific Guidance
 
-### Phase 1: Rust Core (`profile/health.rs`)
+### Phase A: Rust Core (`profile/health.rs`)
 
-1. Promote `require_directory`, `require_executable_file`, `is_executable_file` in `request.rs` to `pub(crate)`
-2. Create `profile/health.rs` with `HealthStatus` enum, `HealthIssue` struct, `HealthIssueKind` enum, `ProfileHealthSummary` struct, `validate_profile_health(name, profile, method) -> ProfileHealthSummary`
-3. Add `pub mod health;` to `profile/mod.rs` and re-export from `profile::health`
-4. Write tests using `tempfile` + real file creation (not mocks)
+1. In `request.rs`: change `fn require_directory`, `fn require_executable_file`, `fn is_executable_file` to `pub(crate) fn`
+2. Create `crates/crosshook-core/src/profile/health.rs`:
+   - `pub enum HealthStatus { Healthy, Stale, Broken }`
+   - `pub enum HealthIssueKind { PathMissing, PathNotFile, PathNotDirectory, PathNotExecutable, LoadError }`
+   - `pub struct HealthIssue { pub kind: HealthIssueKind, pub message: String, pub help: String, pub severity: ValidationSeverity, pub path: Option<String> }`
+   - `pub struct ProfileHealthSummary { pub status: HealthStatus, pub issues: Vec<HealthIssue> }`
+   - `pub fn validate_profile_health(name: &str, profile: &GameProfile, method: &str) -> ProfileHealthSummary`
+3. Add `pub mod health;` to `profile/mod.rs` and re-export types
+4. Tests: `tempfile::tempdir()` + real file creation — test each field type (missing file, missing directory, missing exe)
 
-### Phase 2: Tauri Commands (`commands/profile.rs`)
+### Phase B: Tauri Commands (`commands/profile.rs`)
 
-1. Add `batch_validate_profiles(store) -> Result<HashMap<String, ProfileHealthSummary>, String>` — iterates `store.list()` + `store.load()` per name
-2. Add `get_profile_health(name, store) -> Result<ProfileHealthSummary, String>` — single profile check
-3. Apply `sanitize_display_path()` to all path strings in returned summaries
-4. Register both in `lib.rs` `invoke_handler!`
+1. Add `use super::shared::sanitize_display_path;` import
+2. Add `batch_validate_profiles(store, metadata_store) -> Result<HashMap<String, ProfileHealthSummary>, String>`:
+   - Iterate `store.list()`, load each profile, call `health::validate_profile_health()`
+   - Enrich with `metadata_store.query_failure_trends(30).unwrap_or_default()` and `query_last_success_per_profile().unwrap_or_default()`
+   - Apply `sanitize_display_path()` to all path strings in `HealthIssue.path`
+3. Add `get_profile_health(name, store, metadata_store) -> Result<ProfileHealthSummary, String>` for single-profile refresh
+4. Register both in `lib.rs` `invoke_handler!` at the comment block around line 128
 
-### Phase 3: TypeScript Types and Hook
+### Phase C: TypeScript Types and Hook
 
-1. Create `src/types/health.ts` with `HealthStatus`, `HealthIssue`, `HealthIssueKind`, `ProfileHealthSummary` interfaces and type guard
+1. Create `src/types/health.ts`: `HealthStatus`, `HealthIssue`, `HealthIssueKind`, `ProfileHealthSummary`, type guards
 2. Add `export * from './health'` to `src/types/index.ts`
-3. Create `src/hooks/useProfileHealth.ts` using `useReducer` pattern from `useLaunchState.ts`
+3. Create `src/hooks/useProfileHealth.ts` using `useReducer` pattern from `useLaunchState.ts`: `idle → loading → loaded | error` states
 
-### Phase 4: UI Components and Integration
+### Phase D: UI Components and Integration (if Phase D from spec)
 
-1. Create `src/components/HealthBadge.tsx` using `crosshook-status-chip` pattern
-2. Integrate into `ProfilesPage.tsx` / `ProfileFormSections` profile selector
-3. Add CSS for `crosshook-health-badge--{healthy,stale,broken}` modifiers using existing color tokens
+1. Create `src/components/HealthBadge.tsx` using `crosshook-status-chip` pattern from `CompatibilityViewer.tsx:76–82`
+2. CSS modifiers: `crosshook-health-badge--healthy`, `crosshook-health-badge--stale`, `crosshook-health-badge--broken`
+3. Integrate into `ProfilesPage.tsx` profile list
+
+### Phase D: Metadata Persistence (health_snapshots migration)
+
+1. Add migration v6 in `metadata/migrations.rs` — `health_snapshots` table (one row per profile_id, UPSERT, FK cascade)
+2. Add `upsert_health_snapshot(profile_id, status, checked_at)` and `get_health_snapshot(profile_id)` to `metadata/mod.rs`
+3. Call `upsert_health_snapshot` from `batch_validate_profiles` and `get_profile_health` after computing results
