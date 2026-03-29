@@ -18,6 +18,7 @@ const VALID_APP_ROUTES: Record<AppRoute, true> = {
   community: true,
   compatibility: true,
   settings: true,
+  health: true,
 };
 
 function isAppRoute(value: string): value is AppRoute {
