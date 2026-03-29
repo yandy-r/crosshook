@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { useEffect, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import type { LauncherDeleteResult, LauncherInfo } from '../types';
+import { useLauncherManagement } from '../hooks/useLauncherManagement';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 
 interface RecentFilesState {
@@ -82,44 +81,34 @@ function ManageLaunchersSection({
   targetHomePath: string;
   steamClientInstallPath: string;
 }) {
-  const [launchers, setLaunchers] = useState<LauncherInfo[]>([]);
-  const [deleting, setDeleting] = useState<string | null>(null);
   const [confirmSlug, setConfirmSlug] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadLaunchers = useCallback(async () => {
-    try {
-      const result = await invoke<LauncherInfo[]>('list_launchers', {
-        targetHomePath,
-        steamClientInstallPath,
-      });
-      setLaunchers(result);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [targetHomePath, steamClientInstallPath]);
+  const {
+    launchers,
+    error,
+    isListing,
+    deletingSlug,
+    reexportingSlug,
+    listLaunchers,
+    deleteLauncher,
+    reexportLauncher,
+  } = useLauncherManagement({
+    targetHomePath,
+    steamClientInstallPath,
+  });
 
   useEffect(() => {
-    void loadLaunchers();
-  }, [loadLaunchers]);
+    void listLaunchers();
+  }, [listLaunchers]);
 
   async function handleDelete(slug: string) {
-    setDeleting(slug);
-    setError(null);
-    try {
-      await invoke<LauncherDeleteResult>('delete_launcher_by_slug', {
-        launcherSlug: slug,
-        targetHomePath,
-        steamClientInstallPath,
-      });
+    const deleted = await deleteLauncher(slug);
+    if (deleted) {
       setConfirmSlug(null);
-      await loadLaunchers();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeleting(null);
     }
+  }
+
+  async function handleReexport(slug: string) {
+    await reexportLauncher(slug);
   }
 
   if (launchers.length === 0 && !error) {
@@ -141,10 +130,10 @@ function ManageLaunchersSection({
             className="crosshook-button crosshook-button--ghost crosshook-button--ghost--small crosshook-settings-small-button"
             onClick={(event) => {
               event.preventDefault();
-              void loadLaunchers();
+              void listLaunchers();
             }}
           >
-            Refresh
+            {isListing ? 'Refreshing...' : 'Refresh'}
           </button>
         </>
       }
@@ -162,6 +151,11 @@ function ManageLaunchersSection({
               <div>
                 <div className="crosshook-recent-item__label crosshook-settings-launcher-label">
                   {launcher.launcher_slug}
+                  {launcher.is_stale ? (
+                    <span className="crosshook-health-chip crosshook-health-chip--warning" style={{ marginLeft: 8 }}>
+                      Stale
+                    </span>
+                  ) : null}
                 </div>
                 <div className="crosshook-recent-item__label crosshook-settings-launcher-path">
                   {launcher.script_exists ? truncatePath(launcher.script_path) : null}
@@ -170,15 +164,25 @@ function ManageLaunchersSection({
                 </div>
               </div>
               <div className="crosshook-settings-launcher-actions">
+                {launcher.is_stale ? (
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--warning crosshook-settings-small-button"
+                    disabled={reexportingSlug === launcher.launcher_slug}
+                    onClick={() => void handleReexport(launcher.launcher_slug)}
+                  >
+                    {reexportingSlug === launcher.launcher_slug ? 'Re-exporting...' : 'Re-export'}
+                  </button>
+                ) : null}
                 {confirmSlug === launcher.launcher_slug ? (
                   <>
                     <button
                       type="button"
                       className="crosshook-button crosshook-button--danger crosshook-settings-small-button"
-                      disabled={deleting === launcher.launcher_slug}
+                      disabled={deletingSlug === launcher.launcher_slug || reexportingSlug === launcher.launcher_slug}
                       onClick={() => void handleDelete(launcher.launcher_slug)}
                     >
-                      {deleting === launcher.launcher_slug ? 'Deleting...' : 'Confirm'}
+                      {deletingSlug === launcher.launcher_slug ? 'Deleting...' : 'Confirm'}
                     </button>
                     <button
                       type="button"
