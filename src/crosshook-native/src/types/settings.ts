@@ -1,6 +1,7 @@
 export interface CommunityTapSubscription {
   url: string;
   branch?: string;
+  pinned_commit?: string;
 }
 
 export interface AppSettingsData {

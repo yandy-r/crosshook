@@ -81,19 +81,60 @@ async function chooseCommunityProfileImport(): Promise<string | null> {
 function TapChip({
   tap,
   onRemove,
+  onPin,
+  onUnpin,
+  headCommit,
+  busy,
 }: {
   tap: CommunityTapSubscription;
   onRemove: (tap: CommunityTapSubscription) => void;
+  onPin: (tap: CommunityTapSubscription) => void;
+  onUnpin: (tap: CommunityTapSubscription) => void;
+  headCommit?: string;
+  busy: boolean;
 }) {
+  const shortPinnedCommit = tap.pinned_commit ? tap.pinned_commit.slice(0, 12) : null;
+  const shortHeadCommit = headCommit ? headCommit.slice(0, 12) : null;
+
   return (
     <div className="crosshook-community-tap">
       <div className="crosshook-community-tap__meta">
         <strong className="crosshook-community-tap__url">{tap.url}</strong>
         <span className="crosshook-community-tap__branch">{tap.branch ? `Branch: ${tap.branch}` : 'Default branch'}</span>
+        <span className="crosshook-community-tap__branch">
+          {shortPinnedCommit ? `Pinned: ${shortPinnedCommit}` : `Tracking: ${shortHeadCommit ?? 'unsynced'}`}
+        </span>
       </div>
-      <button type="button" className="crosshook-button crosshook-button--secondary" onClick={() => onRemove(tap)}>
-        Remove
-      </button>
+      <div className="crosshook-community-browser__button-row">
+        {tap.pinned_commit ? (
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--secondary"
+            onClick={() => onUnpin(tap)}
+            disabled={busy}
+          >
+            Unpin
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--secondary"
+            onClick={() => onPin(tap)}
+            disabled={busy || !headCommit}
+            title={headCommit ? 'Pin this tap to the currently synced commit' : 'Sync taps first to capture a commit'}
+          >
+            Pin to Current Version
+          </button>
+        )}
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={() => onRemove(tap)}
+          disabled={busy}
+        >
+          Remove
+        </button>
+      </div>
     </div>
   );
 }
@@ -126,6 +167,9 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
     syncTaps,
     addTap,
     removeTap,
+    pinTapToCurrentVersion,
+    unpinTap,
+    getTapHeadCommit,
     importCommunityProfile,
     setError,
   } = state ?? internalState;
@@ -266,12 +310,30 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
           <div className="crosshook-community-browser__tap-list">
             {taps.map((tap) => (
               <TapChip
-                key={`${tap.url}::${tap.branch ?? ''}`}
+                key={`${tap.url}::${tap.branch ?? ''}::${tap.pinned_commit ?? ''}`}
                 tap={tap}
+                headCommit={getTapHeadCommit(tap)}
+                busy={loading || syncing}
                 onRemove={(tapToRemove) => {
                   void removeTap(tapToRemove).catch((removeError) => {
                     setError(removeError instanceof Error ? removeError.message : String(removeError));
                   });
+                }}
+                onPin={(tapToPin) => {
+                  setNotice(null);
+                  void pinTapToCurrentVersion(tapToPin)
+                    .then(() => setNotice(`Pinned ${tapToPin.url} to ${getTapHeadCommit(tapToPin)?.slice(0, 12) ?? 'current commit'}.`))
+                    .catch((pinError) => {
+                      setError(pinError instanceof Error ? pinError.message : String(pinError));
+                    });
+                }}
+                onUnpin={(tapToUnpin) => {
+                  setNotice(null);
+                  void unpinTap(tapToUnpin)
+                    .then(() => setNotice(`Unpinned ${tapToUnpin.url}; next sync will track branch head.`))
+                    .catch((unpinError) => {
+                      setError(unpinError instanceof Error ? unpinError.message : String(unpinError));
+                    });
                 }}
               />
             ))}

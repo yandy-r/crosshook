@@ -133,6 +133,7 @@ mod tests {
             community_taps: vec![CommunityTapSubscription {
                 url: "https://example.invalid/community.git".to_string(),
                 branch: Some("main".to_string()),
+                pinned_commit: Some("deadbeef".to_string()),
             }],
         };
 

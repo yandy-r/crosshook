@@ -18,7 +18,9 @@ fn dedupe_taps(taps: Vec<CommunityTapSubscription>) -> Vec<CommunityTapSubscript
 
     for tap in taps {
         let already_present = unique.iter().any(|existing: &CommunityTapSubscription| {
-            existing.url == tap.url && existing.branch == tap.branch
+            existing.url == tap.url
+                && existing.branch == tap.branch
+                && existing.pinned_commit == tap.pinned_commit
         });
 
         if !already_present {
@@ -208,17 +210,25 @@ mod tests {
             CommunityTapSubscription {
                 url: "https://example.invalid/community.git".to_string(),
                 branch: Some("main".to_string()),
+                pinned_commit: None,
             },
             CommunityTapSubscription {
                 url: "https://example.invalid/community.git".to_string(),
                 branch: Some("main".to_string()),
+                pinned_commit: None,
             },
             CommunityTapSubscription {
                 url: "https://example.invalid/community.git".to_string(),
                 branch: Some("beta".to_string()),
+                pinned_commit: None,
+            },
+            CommunityTapSubscription {
+                url: "https://example.invalid/community.git".to_string(),
+                branch: Some("main".to_string()),
+                pinned_commit: Some("abc123".to_string()),
             },
         ]);
 
-        assert_eq!(taps.len(), 2);
+        assert_eq!(taps.len(), 3);
     }
 }
