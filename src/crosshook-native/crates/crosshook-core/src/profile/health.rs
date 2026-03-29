@@ -592,6 +592,7 @@ mod tests {
                 method: "steam_applaunch".to_string(),
                 ..Default::default()
             },
+            local_override: crate::profile::LocalOverrideSection::default(),
         }
     }
 
@@ -790,6 +791,7 @@ mod tests {
                 method: "proton_run".to_string(),
                 ..Default::default()
             },
+            local_override: crate::profile::LocalOverrideSection::default(),
         };
 
         let report = check_profile_health("proton-run-game", &profile);

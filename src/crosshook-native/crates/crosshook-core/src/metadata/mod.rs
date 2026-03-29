@@ -838,7 +838,7 @@ mod tests {
     use crate::launch::request::ValidationSeverity;
     use crate::profile::{
         GameProfile, GameSection, InjectionSection, LaunchSection, LauncherSection, ProfileStore,
-        RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
+        RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection, LocalOverrideSection,
     };
     use rusqlite::params;
     use std::fs;
@@ -880,6 +880,7 @@ mod tests {
                 method: "steam_applaunch".to_string(),
                 ..Default::default()
             },
+            local_override: LocalOverrideSection::default(),
         }
     }
 

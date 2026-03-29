@@ -43,6 +43,8 @@ pub struct GameProfile {
     pub runtime: RuntimeSection,
     #[serde(default)]
     pub launch: LaunchSection,
+    #[serde(default, skip_serializing_if = "LocalOverrideSection::is_empty")]
+    pub local_override: LocalOverrideSection,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -164,6 +166,131 @@ pub struct LaunchSection {
     pub optimizations: LaunchOptimizationsSection,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LocalOverrideSection {
+    #[serde(default)]
+    pub game: LocalOverrideGameSection,
+    #[serde(default)]
+    pub trainer: LocalOverrideTrainerSection,
+    #[serde(default)]
+    pub steam: LocalOverrideSteamSection,
+    #[serde(default)]
+    pub runtime: LocalOverrideRuntimeSection,
+}
+
+impl LocalOverrideSection {
+    pub fn is_empty(&self) -> bool {
+        self.game.is_empty()
+            && self.trainer.is_empty()
+            && self.steam.is_empty()
+            && self.runtime.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LocalOverrideGameSection {
+    #[serde(rename = "executable_path", default)]
+    pub executable_path: String,
+}
+
+impl LocalOverrideGameSection {
+    pub fn is_empty(&self) -> bool {
+        self.executable_path.trim().is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LocalOverrideTrainerSection {
+    #[serde(default)]
+    pub path: String,
+}
+
+impl LocalOverrideTrainerSection {
+    pub fn is_empty(&self) -> bool {
+        self.path.trim().is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LocalOverrideSteamSection {
+    #[serde(rename = "compatdata_path", default)]
+    pub compatdata_path: String,
+    #[serde(rename = "proton_path", default)]
+    pub proton_path: String,
+}
+
+impl LocalOverrideSteamSection {
+    pub fn is_empty(&self) -> bool {
+        self.compatdata_path.trim().is_empty() && self.proton_path.trim().is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct LocalOverrideRuntimeSection {
+    #[serde(rename = "prefix_path", default)]
+    pub prefix_path: String,
+}
+
+impl LocalOverrideRuntimeSection {
+    pub fn is_empty(&self) -> bool {
+        self.prefix_path.trim().is_empty()
+    }
+}
+
+impl GameProfile {
+    /// Returns the effective profile used at runtime where local overrides take precedence
+    /// over portable base values.
+    pub fn effective_profile(&self) -> Self {
+        let mut merged = self.clone();
+
+        if !self.local_override.game.executable_path.trim().is_empty() {
+            merged.game.executable_path = self.local_override.game.executable_path.clone();
+        }
+        if !self.local_override.trainer.path.trim().is_empty() {
+            merged.trainer.path = self.local_override.trainer.path.clone();
+        }
+        if !self.local_override.steam.compatdata_path.trim().is_empty() {
+            merged.steam.compatdata_path = self.local_override.steam.compatdata_path.clone();
+        }
+        if !self.local_override.steam.proton_path.trim().is_empty() {
+            merged.steam.proton_path = self.local_override.steam.proton_path.clone();
+        }
+        if !self.local_override.runtime.prefix_path.trim().is_empty() {
+            merged.runtime.prefix_path = self.local_override.runtime.prefix_path.clone();
+        }
+
+        merged
+    }
+
+    /// Returns the storage representation where machine-specific paths are moved into
+    /// the local override section and portable base fields are path-free.
+    pub fn storage_profile(&self) -> Self {
+        let effective = self.effective_profile();
+        let mut storage = effective.clone();
+
+        storage.local_override.game.executable_path = effective.game.executable_path.clone();
+        storage.local_override.trainer.path = effective.trainer.path.clone();
+        storage.local_override.steam.compatdata_path = effective.steam.compatdata_path.clone();
+        storage.local_override.steam.proton_path = effective.steam.proton_path.clone();
+        storage.local_override.runtime.prefix_path = effective.runtime.prefix_path.clone();
+
+        storage.game.executable_path.clear();
+        storage.trainer.path.clear();
+        storage.steam.compatdata_path.clear();
+        storage.steam.proton_path.clear();
+        storage.runtime.prefix_path.clear();
+
+        storage
+    }
+
+    /// Returns the portable profile representation with all local machine-specific data removed.
+    pub fn portable_profile(&self) -> Self {
+        let mut portable = self.storage_profile();
+        portable.local_override = LocalOverrideSection::default();
+        portable
+    }
+}
+
 impl From<LegacyProfileData> for GameProfile {
     fn from(value: LegacyProfileData) -> Self {
         let method = derive_launch_method_from_legacy(&value);
@@ -197,6 +324,7 @@ impl From<LegacyProfileData> for GameProfile {
                 method,
                 ..Default::default()
             },
+            local_override: LocalOverrideSection::default(),
         }
     }
 }
@@ -250,6 +378,7 @@ mod tests {
             steam: SteamSection::default(),
             runtime: RuntimeSection::default(),
             launch: LaunchSection::default(),
+            local_override: LocalOverrideSection::default(),
         }
     }
 
@@ -288,5 +417,74 @@ mod tests {
         profile.game.executable_path = "/games/test.sh".to_string();
 
         assert_eq!(resolve_launch_method(&profile), "native");
+    }
+
+    #[test]
+    fn effective_profile_prefers_local_override_paths() {
+        let mut profile = sample_profile();
+        profile.game.executable_path = "/portable/game.exe".to_string();
+        profile.local_override.game.executable_path = "/local/game.exe".to_string();
+
+        let effective = profile.effective_profile();
+        assert_eq!(effective.game.executable_path, "/local/game.exe");
+    }
+
+    #[test]
+    fn storage_profile_moves_machine_paths_to_local_override() {
+        let mut profile = sample_profile();
+        profile.game.executable_path = "/games/test.exe".to_string();
+        profile.trainer.path = "/trainers/test.exe".to_string();
+        profile.steam.compatdata_path = "/steam/compatdata/123".to_string();
+        profile.steam.proton_path = "/steam/proton/proton".to_string();
+        profile.runtime.prefix_path = "/prefix/123".to_string();
+
+        let storage = profile.storage_profile();
+        assert_eq!(storage.game.executable_path, "");
+        assert_eq!(storage.trainer.path, "");
+        assert_eq!(storage.steam.compatdata_path, "");
+        assert_eq!(storage.steam.proton_path, "");
+        assert_eq!(storage.runtime.prefix_path, "");
+        assert_eq!(storage.local_override.game.executable_path, "/games/test.exe");
+        assert_eq!(storage.local_override.trainer.path, "/trainers/test.exe");
+        assert_eq!(
+            storage.local_override.steam.compatdata_path,
+            "/steam/compatdata/123"
+        );
+        assert_eq!(
+            storage.local_override.steam.proton_path,
+            "/steam/proton/proton"
+        );
+        assert_eq!(storage.local_override.runtime.prefix_path, "/prefix/123");
+    }
+
+    #[test]
+    fn portable_profile_clears_local_override_fields() {
+        let mut profile = sample_profile();
+        profile.game.executable_path = "/games/test.exe".to_string();
+        profile.trainer.path = "/trainers/test.exe".to_string();
+        profile.steam.compatdata_path = "/steam/compatdata/123".to_string();
+        profile.steam.proton_path = "/steam/proton/proton".to_string();
+        profile.runtime.prefix_path = "/prefix/123".to_string();
+
+        let portable = profile.portable_profile();
+        assert_eq!(portable.local_override.game.executable_path, "");
+        assert_eq!(portable.local_override.trainer.path, "");
+        assert_eq!(portable.local_override.steam.compatdata_path, "");
+        assert_eq!(portable.local_override.steam.proton_path, "");
+        assert_eq!(portable.local_override.runtime.prefix_path, "");
+    }
+
+    #[test]
+    fn storage_profile_roundtrip_is_idempotent() {
+        let mut profile = sample_profile();
+        profile.game.executable_path = "/games/test.exe".to_string();
+        profile.trainer.path = "/trainers/test.exe".to_string();
+        profile.steam.compatdata_path = "/steam/compatdata/123".to_string();
+        profile.steam.proton_path = "/steam/proton/proton".to_string();
+        profile.runtime.prefix_path = "/prefix/123".to_string();
+
+        let storage_once = profile.storage_profile();
+        let storage_twice = storage_once.effective_profile().storage_profile();
+        assert_eq!(storage_twice, storage_once);
     }
 }

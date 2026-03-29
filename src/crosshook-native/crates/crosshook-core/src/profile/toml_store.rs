@@ -1,4 +1,4 @@
-use super::models::LaunchOptimizationsSection;
+use super::models::{LaunchOptimizationsSection, LocalOverrideSection};
 use crate::launch::is_known_launch_optimization_id;
 use crate::profile::{legacy, GameProfile};
 use directories::BaseDirs;
@@ -104,13 +104,17 @@ impl ProfileStore {
         }
 
         let content = fs::read_to_string(&path)?;
-        Ok(toml::from_str(&content)?)
+        let profile: GameProfile = toml::from_str(&content)?;
+        let mut effective = profile.effective_profile();
+        effective.local_override = LocalOverrideSection::default();
+        Ok(effective)
     }
 
     pub fn save(&self, name: &str, profile: &GameProfile) -> Result<(), ProfileStoreError> {
         let path = self.profile_path(name)?;
         fs::create_dir_all(&self.base_path)?;
-        fs::write(path, toml::to_string_pretty(profile)?)?;
+        let storage_profile = profile.storage_profile();
+        fs::write(path, toml::to_string_pretty(&storage_profile)?)?;
         Ok(())
     }
 
@@ -389,6 +393,7 @@ mod tests {
                 method: "steam_applaunch".to_string(),
                 ..Default::default()
             },
+            local_override: crate::profile::LocalOverrideSection::default(),
         }
     }
 
