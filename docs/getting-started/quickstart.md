@@ -15,6 +15,10 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
 - [Launch modes](#launch-modes)
 - [External launcher export](#external-launcher-export)
 - [Community profiles](#community-profiles)
+- [Pinned profiles](#pinned-profiles)
+- [Health dashboard](#health-dashboard)
+- [Diagnostic export](#diagnostic-export)
+- [Dry run / preview mode](#dry-run--preview-mode)
 - [Troubleshooting](#troubleshooting)
 - [Related guides](#related-guides)
 
@@ -119,6 +123,10 @@ If you used `Install Game` first, make sure you save the reviewed profile before
 
 The console view in CrossHook streams the runner output in real-time so you can see exactly what is happening at each step.
 
+## Dry Run / Preview Mode
+
+Before launching, you can preview exactly what commands CrossHook will execute. Use the dry run option to see the full command line, environment variables, and launch sequence without starting any processes. This is useful for debugging launch configurations or verifying that paths are correct.
+
 ## Launch Modes
 
 CrossHook supports three launch methods. The right choice depends on how your game is installed and run.
@@ -185,6 +193,24 @@ CrossHook supports community profile sharing through a taps system, similar to H
 
 Community profiles are a convenient starting point, but you will still need to adjust paths to match your local system.
 
+## Pinned Profiles
+
+Pin your most-used profiles for quick access. Pinned profiles appear as a strip at the top of both the Profiles and Launch pages, letting you switch configurations with a single click. Pin and unpin profiles from the profile action bar.
+
+## Health Dashboard
+
+The Health Dashboard provides an overview of all your profiles' health. It shows:
+
+- Health scores calculated from path validity, configuration completeness, and staleness indicators.
+- Sortable metadata columns including last launched, launch count, and profile age.
+- Trend analysis showing whether profile health is improving or degrading over time.
+
+Access the Health Dashboard from the main navigation tabs.
+
+## Diagnostic Export
+
+If you run into issues, CrossHook can generate a diagnostic bundle containing system information, application state, and relevant logs. Use this when reporting bugs or troubleshooting launch problems. The export is available from the Settings panel.
+
 ## Troubleshooting
 
 - **CrossHook does not discover my Steam games.** Verify that Steam is installed and that `~/.steam/root` or `~/.local/share/Steam` exists. For Flatpak Steam, CrossHook also checks `~/.var/app/com.valvesoftware.Steam/data/Steam`. If your install is somewhere else, set the Steam root path in Settings.
@@ -194,8 +220,11 @@ Community profiles are a convenient starting point, but you will still need to a
 - **The trainer fails to start under Proton.** Test the same trainer manually with `proton run` outside CrossHook to confirm the Proton version supports that trainer. Some trainers only work with specific Proton or GE-Proton versions.
 - **Exported launcher does not work.** Verify that all required fields (trainer path, Steam App ID, compatdata path, Proton path) were populated when you exported. Run the generated `.sh` script manually from a terminal to see error output.
 - **Permission errors when attaching to a process.** Advanced features that use `ptrace` may be restricted by your kernel's `yama.ptrace_scope` setting. The primary trainer workflow (Proton run) is unaffected by this.
+- **Health scores show "unknown" for a profile.** Launch the game at least once so CrossHook can record operational metadata. Health scores require at least one launch event to calculate.
+- **Dry run output differs from actual launch.** The dry run captures the planned command at preview time. If you change profile fields after the preview, the actual launch will use the updated values.
 
 ## Related Guides
 
 - [Steam / Proton trainer workflow](../features/steam-proton-trainer-launch.doc.md)
+- [Profile duplication](../features/profile-duplication.doc.md)
 - [README](../../README.md)
