@@ -132,7 +132,10 @@ pub fn export_community_profile(
 
     let store = ProfileStore::with_base_path(profiles_dir.to_path_buf());
     let profile = store.load(profile_name)?;
-    let manifest = CommunityProfileManifest::new(build_metadata(&profile), profile);
+    // Metadata (e.g. trainer display name) is derived from the on-disk profile before stripping paths.
+    let metadata = build_metadata(&profile);
+    let shareable_profile = sanitize_profile_for_community_export(&profile);
+    let manifest = CommunityProfileManifest::new(metadata, shareable_profile);
 
     write_manifest(output_path, &manifest)?;
 
@@ -214,6 +217,23 @@ fn require_field(
             message: format!("manifest is missing required field '{field}'"),
         })
     }
+}
+
+/// Clears filesystem-specific paths from a profile so a community JSON manifest does not embed
+/// the exporter's machine layout. Non-path hints (game name, Steam app id, launch method, etc.)
+/// are preserved.
+fn sanitize_profile_for_community_export(profile: &GameProfile) -> GameProfile {
+    let mut out = profile.clone();
+    out.game.executable_path.clear();
+    out.trainer.path.clear();
+    out.injection.dll_paths.clear();
+    out.steam.compatdata_path.clear();
+    out.steam.proton_path.clear();
+    out.steam.launcher.icon_path.clear();
+    out.runtime.prefix_path.clear();
+    out.runtime.proton_path.clear();
+    out.runtime.working_directory.clear();
+    out
 }
 
 fn build_metadata(profile: &GameProfile) -> CommunityProfileMetadata {
@@ -322,6 +342,7 @@ fn write_manifest(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::profile::GameProfile;
     use tempfile::tempdir;
 
     fn sample_profile() -> GameProfile {
@@ -361,6 +382,48 @@ mod tests {
         }
     }
 
+    fn sample_profile_sanitized_for_export() -> GameProfile {
+        let mut p = sample_profile();
+        p.game.executable_path.clear();
+        p.trainer.path.clear();
+        p.injection.dll_paths.clear();
+        p.steam.compatdata_path.clear();
+        p.steam.proton_path.clear();
+        p.steam.launcher.icon_path.clear();
+        p.runtime.prefix_path.clear();
+        p.runtime.proton_path.clear();
+        p.runtime.working_directory.clear();
+        p
+    }
+
+    #[test]
+    fn export_strips_machine_specific_paths() {
+        let temp_dir = tempdir().unwrap();
+        let profiles_dir = temp_dir.path().join("profiles");
+        let export_path = temp_dir.path().join("exports").join("elden-ring.json");
+        let store = ProfileStore::with_base_path(profiles_dir.clone());
+        let profile = sample_profile();
+        let expected_shareable = sample_profile_sanitized_for_export();
+
+        store.save("elden-ring", &profile).unwrap();
+
+        let exported = export_community_profile(&profiles_dir, "elden-ring", &export_path).unwrap();
+        assert_eq!(exported.manifest.profile, expected_shareable);
+        assert_ne!(exported.manifest.profile, profile);
+        assert_eq!(exported.manifest.metadata.trainer_name, "elden-ring");
+
+        let json = fs::read_to_string(&export_path).unwrap();
+        let value: Value = serde_json::from_str(&json).unwrap();
+        let prof = value.get("profile").and_then(Value::as_object).unwrap();
+        let game = prof.get("game").and_then(Value::as_object).unwrap();
+        assert_eq!(game.get("executable_path").and_then(Value::as_str), Some(""));
+        let trainer = prof.get("trainer").and_then(Value::as_object).unwrap();
+        assert_eq!(trainer.get("path").and_then(Value::as_str), Some(""));
+        let steam = prof.get("steam").and_then(Value::as_object).unwrap();
+        assert_eq!(steam.get("compatdata_path").and_then(Value::as_str), Some(""));
+        assert_eq!(steam.get("proton_path").and_then(Value::as_str), Some(""));
+    }
+
     #[test]
     fn export_and_import_round_trip_profile() {
         let temp_dir = tempdir().unwrap();
@@ -368,22 +431,23 @@ mod tests {
         let export_path = temp_dir.path().join("exports").join("elden-ring.json");
         let store = ProfileStore::with_base_path(profiles_dir.clone());
         let profile = sample_profile();
+        let shareable = sample_profile_sanitized_for_export();
 
         store.save("elden-ring", &profile).unwrap();
 
         let exported = export_community_profile(&profiles_dir, "elden-ring", &export_path).unwrap();
         assert_eq!(exported.profile_name, "elden-ring");
-        assert_eq!(exported.manifest.profile, profile);
+        assert_eq!(exported.manifest.profile, shareable);
         assert_eq!(exported.manifest.metadata.game_name, "Elden Ring");
         assert_eq!(exported.manifest.metadata.trainer_name, "elden-ring");
 
         let imported_profiles_dir = temp_dir.path().join("imported-profiles");
         let imported = import_community_profile(&export_path, &imported_profiles_dir).unwrap();
         assert_eq!(imported.profile_name, "elden-ring");
-        assert_eq!(imported.manifest.profile, profile);
+        assert_eq!(imported.manifest.profile, shareable);
 
         let imported_store = ProfileStore::with_base_path(imported_profiles_dir);
-        assert_eq!(imported_store.load("elden-ring").unwrap(), profile);
+        assert_eq!(imported_store.load("elden-ring").unwrap(), shareable);
     }
 
     #[test]
