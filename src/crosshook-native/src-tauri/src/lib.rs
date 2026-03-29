@@ -124,6 +124,7 @@ pub fn run() {
             commands::export::preview_launcher_script,
             commands::export::preview_launcher_desktop,
             commands::community::community_add_tap,
+            commands::community::community_export_profile,
             commands::community::community_import_profile,
             commands::community::community_list_profiles,
             commands::community::community_sync,

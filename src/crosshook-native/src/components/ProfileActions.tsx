@@ -4,6 +4,9 @@
  * The `canDuplicate` and `duplicating` props were added for the profile duplication
  * feature (#56). `canDuplicate` should be true when a saved profile is selected;
  * `duplicating` is true while the backend IPC call is in-flight.
+ *
+ * Community export (#55): `canExportCommunity` when a saved profile exists; `exportingCommunity`
+ * while the export IPC call is in-flight.
  */
 export interface ProfileActionsProps {
   dirty: boolean;
@@ -25,6 +28,10 @@ export interface ProfileActionsProps {
   canPreview: boolean;
   /** True while the profile TOML export is in-flight. Disables the Preview button. */
   previewing: boolean;
+  /** True when a saved profile is selected and community JSON export is allowed. */
+  canExportCommunity: boolean;
+  /** True while the `community_export_profile` IPC call is in-flight. */
+  exportingCommunity: boolean;
   onSave: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
   /** Initiates profile duplication via the backend. */
@@ -33,6 +40,8 @@ export interface ProfileActionsProps {
   onRename: () => void | Promise<void>;
   /** Exports the profile as TOML and shows a preview modal. */
   onPreview: () => void | Promise<void>;
+  /** Exports the profile as community-shareable JSON (save dialog + backend). */
+  onExportCommunity: () => void | Promise<void>;
 }
 
 export function ProfileActions({
@@ -49,11 +58,14 @@ export function ProfileActions({
   canRename,
   canPreview,
   previewing,
+  canExportCommunity,
+  exportingCommunity,
   onSave,
   onDelete,
   onDuplicate,
   onRename,
   onPreview,
+  onExportCommunity,
 }: ProfileActionsProps) {
   return (
     <div>
@@ -84,6 +96,14 @@ export function ProfileActions({
           disabled={!canPreview || previewing}
         >
           {previewing ? 'Loading Preview...' : 'Preview Profile'}
+        </button>
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={() => void onExportCommunity()}
+          disabled={!canExportCommunity || exportingCommunity}
+        >
+          {exportingCommunity ? 'Exporting...' : 'Export as Community Profile'}
         </button>
         <button
           type="button"

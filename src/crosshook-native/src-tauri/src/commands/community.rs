@@ -2,7 +2,10 @@ use crosshook_core::community::{
     CommunityProfileIndex, CommunityTapStore, CommunityTapSubscription, CommunityTapSyncResult,
 };
 use crosshook_core::metadata::MetadataStore;
-use crosshook_core::profile::{import_community_profile, CommunityImportResult, ProfileStore};
+use crosshook_core::profile::{
+    export_community_profile, import_community_profile, CommunityExportResult, CommunityImportResult,
+    ProfileStore,
+};
 use crosshook_core::settings::{AppSettingsData, SettingsStore};
 use tauri::State;
 
@@ -75,6 +78,16 @@ pub fn community_list_profiles(
     let taps = load_community_taps(&settings_store)?;
     let workspaces = current_workspaces(&tap_store, &taps)?;
     tap_store.index_workspaces(&workspaces).map_err(map_error)
+}
+
+#[tauri::command]
+pub fn community_export_profile(
+    profile_name: String,
+    output_path: String,
+    profile_store: State<'_, ProfileStore>,
+) -> Result<CommunityExportResult, String> {
+    let out = std::path::Path::new(&output_path);
+    export_community_profile(&profile_store.base_path, profile_name.trim(), out).map_err(map_error)
 }
 
 #[tauri::command]
@@ -164,6 +177,12 @@ mod tests {
                 State<'_, SettingsStore>,
                 State<'_, CommunityTapStore>,
             ) -> Result<CommunityProfileIndex, String>;
+        let _ = community_export_profile
+            as fn(
+                String,
+                String,
+                State<'_, ProfileStore>,
+            ) -> Result<CommunityExportResult, String>;
         let _ = community_import_profile
             as fn(
                 String,

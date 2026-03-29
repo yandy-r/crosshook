@@ -11,8 +11,19 @@ import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { PageBanner, ProfilesArt } from '../layout/PageBanner';
+import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
+import { chooseSaveFile } from '../../utils/dialog';
 import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
+
+function suggestedCommunityExportFilename(profileName: string): string {
+  const base = profileName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${base || 'community-profile'}.json`;
+}
 
 interface RenameToast {
   newName: string;
@@ -90,6 +101,9 @@ export function ProfilesPage() {
   const [profilePreviewContent, setProfilePreviewContent] = useState('');
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [exportingCommunity, setExportingCommunity] = useState(false);
+  const [communityExportError, setCommunityExportError] = useState<string | null>(null);
+  const [communityExportSuccess, setCommunityExportSuccess] = useState<string | null>(null);
   const healthIssuesRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -121,6 +135,14 @@ export function ProfilesPage() {
   const canDuplicate = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
   const canRename = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
   const canPreview = profileName.trim().length > 0 && !loading;
+  const canExportCommunity =
+    profileExists &&
+    !saving &&
+    !deleting &&
+    !loading &&
+    !duplicating &&
+    !renaming &&
+    !exportingCommunity;
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
 
   useEffect(() => {
@@ -163,6 +185,11 @@ export function ProfilesPage() {
       renameInputRef.current?.select();
     }
   }, [pendingRename]);
+
+  useEffect(() => {
+    setCommunityExportError(null);
+    setCommunityExportSuccess(null);
+  }, [selectedProfile]);
 
   // F2 keyboard shortcut: open rename dialog when a profile is selected and no modal is open
   useEffect(() => {
@@ -290,6 +317,44 @@ export function ProfilesPage() {
       }
     });
   }, [renameProfile, showRenameToast]);
+
+  const handleExportCommunityProfile = useCallback(async () => {
+    const nameOnDisk = selectedProfile.trim();
+    if (!nameOnDisk || !profiles.includes(nameOnDisk)) {
+      setCommunityExportError('Save the profile before exporting as a community manifest.');
+      setCommunityExportSuccess(null);
+      return;
+    }
+
+    setCommunityExportError(null);
+    setCommunityExportSuccess(null);
+
+    const outputPath = await chooseSaveFile('Export community profile', {
+      defaultPath: suggestedCommunityExportFilename(nameOnDisk),
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+
+    if (outputPath === null) {
+      return;
+    }
+
+    setExportingCommunity(true);
+    try {
+      const result = await invoke<CommunityExportResult>('community_export_profile', {
+        profile_name: nameOnDisk,
+        output_path: outputPath,
+      });
+      setCommunityExportSuccess(`Community profile saved to ${result.output_path}`);
+      setCommunityExportError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('Community profile export failed:', err);
+      setCommunityExportError(message);
+      setCommunityExportSuccess(null);
+    } finally {
+      setExportingCommunity(false);
+    }
+  }, [profiles, selectedProfile]);
 
   async function handlePreviewProfile() {
     setPreviewing(true);
@@ -467,6 +532,8 @@ export function ProfilesPage() {
             canRename={canRename}
             canPreview={canPreview}
             previewing={previewing}
+            canExportCommunity={canExportCommunity}
+            exportingCommunity={exportingCommunity}
             onSave={handleSave}
             onDelete={() => confirmDelete(profileName)}
             onDuplicate={() => duplicateProfile(profileName)}
@@ -475,10 +542,21 @@ export function ProfilesPage() {
               setRenameValue(selectedProfile);
             }}
             onPreview={handlePreviewProfile}
+            onExportCommunity={handleExportCommunityProfile}
           />
           {previewError ? (
             <p className="crosshook-danger" role="alert" style={{ marginTop: 12 }}>
               Preview failed: {previewError}
+            </p>
+          ) : null}
+          {communityExportError ? (
+            <p className="crosshook-danger" role="alert" style={{ marginTop: 12 }}>
+              Community export failed: {communityExportError}
+            </p>
+          ) : null}
+          {communityExportSuccess ? (
+            <p className="crosshook-help-text" role="status" style={{ marginTop: 12 }}>
+              {communityExportSuccess}
             </p>
           ) : null}
 
