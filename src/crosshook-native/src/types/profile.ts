@@ -64,6 +64,7 @@ export interface GameProfile {
     };
     runtime: {
       prefix_path: string;
+      proton_path: string;
     };
   };
 }

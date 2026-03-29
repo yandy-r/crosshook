@@ -229,11 +229,13 @@ impl LocalOverrideSteamSection {
 pub struct LocalOverrideRuntimeSection {
     #[serde(rename = "prefix_path", default)]
     pub prefix_path: String,
+    #[serde(rename = "proton_path", default)]
+    pub proton_path: String,
 }
 
 impl LocalOverrideRuntimeSection {
     pub fn is_empty(&self) -> bool {
-        self.prefix_path.trim().is_empty()
+        self.prefix_path.trim().is_empty() && self.proton_path.trim().is_empty()
     }
 }
 
@@ -258,6 +260,9 @@ impl GameProfile {
         if !self.local_override.runtime.prefix_path.trim().is_empty() {
             merged.runtime.prefix_path = self.local_override.runtime.prefix_path.clone();
         }
+        if !self.local_override.runtime.proton_path.trim().is_empty() {
+            merged.runtime.proton_path = self.local_override.runtime.proton_path.clone();
+        }
 
         merged
     }
@@ -273,12 +278,14 @@ impl GameProfile {
         storage.local_override.steam.compatdata_path = effective.steam.compatdata_path.clone();
         storage.local_override.steam.proton_path = effective.steam.proton_path.clone();
         storage.local_override.runtime.prefix_path = effective.runtime.prefix_path.clone();
+        storage.local_override.runtime.proton_path = effective.runtime.proton_path.clone();
 
         storage.game.executable_path.clear();
         storage.trainer.path.clear();
         storage.steam.compatdata_path.clear();
         storage.steam.proton_path.clear();
         storage.runtime.prefix_path.clear();
+        storage.runtime.proton_path.clear();
 
         storage
     }
@@ -424,9 +431,12 @@ mod tests {
         let mut profile = sample_profile();
         profile.game.executable_path = "/portable/game.exe".to_string();
         profile.local_override.game.executable_path = "/local/game.exe".to_string();
+        profile.runtime.proton_path = "/portable/proton".to_string();
+        profile.local_override.runtime.proton_path = "/local/proton".to_string();
 
         let effective = profile.effective_profile();
         assert_eq!(effective.game.executable_path, "/local/game.exe");
+        assert_eq!(effective.runtime.proton_path, "/local/proton");
     }
 
     #[test]
@@ -437,6 +447,7 @@ mod tests {
         profile.steam.compatdata_path = "/steam/compatdata/123".to_string();
         profile.steam.proton_path = "/steam/proton/proton".to_string();
         profile.runtime.prefix_path = "/prefix/123".to_string();
+        profile.runtime.proton_path = "/runtime/proton".to_string();
 
         let storage = profile.storage_profile();
         assert_eq!(storage.game.executable_path, "");
@@ -444,6 +455,7 @@ mod tests {
         assert_eq!(storage.steam.compatdata_path, "");
         assert_eq!(storage.steam.proton_path, "");
         assert_eq!(storage.runtime.prefix_path, "");
+        assert_eq!(storage.runtime.proton_path, "");
         assert_eq!(storage.local_override.game.executable_path, "/games/test.exe");
         assert_eq!(storage.local_override.trainer.path, "/trainers/test.exe");
         assert_eq!(
@@ -455,6 +467,7 @@ mod tests {
             "/steam/proton/proton"
         );
         assert_eq!(storage.local_override.runtime.prefix_path, "/prefix/123");
+        assert_eq!(storage.local_override.runtime.proton_path, "/runtime/proton");
     }
 
     #[test]
@@ -465,6 +478,7 @@ mod tests {
         profile.steam.compatdata_path = "/steam/compatdata/123".to_string();
         profile.steam.proton_path = "/steam/proton/proton".to_string();
         profile.runtime.prefix_path = "/prefix/123".to_string();
+        profile.runtime.proton_path = "/runtime/proton".to_string();
 
         let portable = profile.portable_profile();
         assert_eq!(portable.local_override.game.executable_path, "");
@@ -472,6 +486,7 @@ mod tests {
         assert_eq!(portable.local_override.steam.compatdata_path, "");
         assert_eq!(portable.local_override.steam.proton_path, "");
         assert_eq!(portable.local_override.runtime.prefix_path, "");
+        assert_eq!(portable.local_override.runtime.proton_path, "");
     }
 
     #[test]
@@ -482,6 +497,7 @@ mod tests {
         profile.steam.compatdata_path = "/steam/compatdata/123".to_string();
         profile.steam.proton_path = "/steam/proton/proton".to_string();
         profile.runtime.prefix_path = "/prefix/123".to_string();
+        profile.runtime.proton_path = "/runtime/proton".to_string();
 
         let storage_once = profile.storage_profile();
         let storage_twice = storage_once.effective_profile().storage_profile();
