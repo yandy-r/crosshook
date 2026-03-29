@@ -7,6 +7,7 @@ export type CommunityCompatibilityRating = 'unknown' | 'broken' | 'partial' | 'w
 export interface CommunityTapSubscription {
   url: string;
   branch?: string;
+  pinned_commit?: string;
 }
 
 export interface CommunityProfileMetadata {
@@ -100,6 +101,7 @@ export interface UseCommunityProfilesOptions {
 export interface UseCommunityProfilesResult {
   taps: CommunityTapSubscription[];
   index: CommunityProfileIndex;
+  lastSyncedCommits: Record<string, string>;
   loading: boolean;
   syncing: boolean;
   importing: boolean;
@@ -108,8 +110,27 @@ export interface UseCommunityProfilesResult {
   syncTaps: () => Promise<void>;
   addTap: (tap: CommunityTapSubscription) => Promise<CommunityTapSubscription[]>;
   removeTap: (tap: CommunityTapSubscription) => Promise<void>;
+  pinTapToCurrentVersion: (tap: CommunityTapSubscription) => Promise<void>;
+  unpinTap: (tap: CommunityTapSubscription) => Promise<void>;
+  getTapHeadCommit: (tap: CommunityTapSubscription) => string | undefined;
   importCommunityProfile: (jsonPath: string) => Promise<CommunityImportResult>;
   setError: (message: string | null) => void;
+}
+
+function tapIdentityKey(tap: CommunityTapSubscription): string {
+  return `${tap.url}::${tap.branch ?? ''}::${tap.pinned_commit ?? ''}`;
+}
+
+function tapSyncKey(tap: CommunityTapSubscription): string {
+  return `${tap.url}::${tap.branch ?? ''}`;
+}
+
+function isSameTapIdentity(left: CommunityTapSubscription, right: CommunityTapSubscription): boolean {
+  return (
+    left.url === right.url &&
+    (left.branch ?? '') === (right.branch ?? '') &&
+    (left.pinned_commit ?? '') === (right.pinned_commit ?? '')
+  );
 }
 
 function normalizeTap(tap: CommunityTapSubscription): CommunityTapSubscription {
@@ -124,6 +145,11 @@ function normalizeTap(tap: CommunityTapSubscription): CommunityTapSubscription {
     normalized.branch = branch;
   }
 
+  const pinnedCommit = tap.pinned_commit?.trim();
+  if (pinnedCommit) {
+    normalized.pinned_commit = pinnedCommit;
+  }
+
   return normalized;
 }
 
@@ -133,7 +159,7 @@ function dedupeTaps(taps: CommunityTapSubscription[]): CommunityTapSubscription[
 
   for (const tap of taps) {
     const normalized = normalizeTap(tap);
-    const key = `${normalized.url}::${normalized.branch ?? ''}`;
+    const key = tapIdentityKey(normalized);
     if (seen.has(key)) {
       continue;
     }
@@ -151,6 +177,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     entries: [],
     diagnostics: [],
   });
+  const [lastSyncedCommits, setLastSyncedCommits] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -182,7 +209,14 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     setError(null);
 
     try {
-      await invoke<CommunityTapSyncResult[]>('community_sync');
+      const results = await invoke<CommunityTapSyncResult[]>('community_sync');
+      setLastSyncedCommits((previous) => {
+        const next = { ...previous };
+        for (const result of results) {
+          next[tapSyncKey(result.workspace.subscription)] = result.head_commit;
+        }
+        return next;
+      });
       await refreshProfiles();
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : String(syncError));
@@ -217,7 +251,54 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
       setError(null);
       const normalized = normalizeTap(tap);
       const nextTaps = taps.filter(
-        (entry) => !(entry.url === normalized.url && (entry.branch ?? '') === (normalized.branch ?? ''))
+        (entry) => tapIdentityKey(normalizeTap(entry)) !== tapIdentityKey(normalized)
+      );
+      const deduped = dedupeTaps(nextTaps);
+      await saveSettingsTaps(deduped);
+      setTaps(deduped);
+      await refreshProfiles();
+    },
+    [refreshProfiles, saveSettingsTaps, taps]
+  );
+
+  const getTapHeadCommit = useCallback(
+    (tap: CommunityTapSubscription) => {
+      const normalized = normalizeTap(tap);
+      return lastSyncedCommits[tapSyncKey(normalized)];
+    },
+    [lastSyncedCommits]
+  );
+
+  const pinTapToCurrentVersion = useCallback(
+    async (tap: CommunityTapSubscription) => {
+      setError(null);
+      const normalized = normalizeTap(tap);
+      const headCommit = lastSyncedCommits[tapSyncKey(normalized)];
+      if (!headCommit) {
+        throw new Error('No synced commit found for this tap. Sync taps first, then pin.');
+      }
+
+      const nextTaps = taps.map((entry) =>
+        isSameTapIdentity(normalizeTap(entry), normalized)
+          ? normalizeTap({ ...entry, pinned_commit: headCommit })
+          : normalizeTap(entry)
+      );
+      const deduped = dedupeTaps(nextTaps);
+      await saveSettingsTaps(deduped);
+      setTaps(deduped);
+      await refreshProfiles();
+    },
+    [lastSyncedCommits, refreshProfiles, saveSettingsTaps, taps]
+  );
+
+  const unpinTap = useCallback(
+    async (tap: CommunityTapSubscription) => {
+      setError(null);
+      const normalized = normalizeTap(tap);
+      const nextTaps = taps.map((entry) =>
+        isSameTapIdentity(normalizeTap(entry), normalized)
+          ? normalizeTap({ ...entry, pinned_commit: undefined })
+          : normalizeTap(entry)
       );
       const deduped = dedupeTaps(nextTaps);
       await saveSettingsTaps(deduped);
@@ -287,6 +368,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
   return {
     taps,
     index,
+    lastSyncedCommits,
     loading,
     syncing,
     importing,
@@ -295,6 +377,9 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     syncTaps,
     addTap,
     removeTap,
+    pinTapToCurrentVersion,
+    unpinTap,
+    getTapHeadCommit,
     importCommunityProfile,
     setError,
   };

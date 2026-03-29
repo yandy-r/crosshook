@@ -25,7 +25,7 @@ These features require minimal effort because the infrastructure already exists.
 | #55 | Community profile export      |  Done  | Hours  | Add Tauri command wrapping existing `export_community_profile()` + UI button              | `src-tauri/src/commands/community.rs`                                                                                                              |
 | #64 | Stale launcher detection      |  Done  | Hours  | Implement real `is_stale` logic: compare launcher paths vs current profile                | `crates/crosshook-core/src/export/launcher_store.rs`                                                                                               |
 | #54 | Adaptive Deck Mode layout     |  Done  | Hours  | CSS custom properties keyed on `data-crosshook-controller-mode` attribute                 | `src/styles/variables.css`, `src/styles/theme.css`                                                                                                 |
-| #59 | Tap pinning                   |        | Hours  | Add `pinned_commit: Option<String>` to `CommunityTapSubscription`, gate `fetch_and_reset` | `crates/crosshook-core/src/community/taps.rs`                                                                                                      |
+| #59 | Tap pinning                   |  Done  | Hours  | Add `pinned_commit: Option<String>` to `CommunityTapSubscription`, gate `fetch_and_reset` | `crates/crosshook-core/src/community/taps.rs`                                                                                                      |
 | #58 | Extended optimization catalog |  Done  | Hours  | Add 8 new entries to `LAUNCH_OPTIMIZATION_DEFINITIONS` array                              | `crates/crosshook-core/src/launch/optimizations.rs`                                                                                                |
 
 **Recommended approach**: Batch these into a single sprint or PR series. Each is independently shippable.
@@ -151,7 +151,7 @@ These features have no strict ordering. Prioritize based on community feedback.
 | Issue | Category                         | Status | Effort  | Good Pairing With         |
 | ----- | -------------------------------- | :----: | ------- | ------------------------- |
 | #58   | Extended optimization catalog    |  Done  | Low     | #66 (data-driven catalog) |
-| #59   | Tap pinning                      |        | Low     | #55 (community export)    |
+| #59   | Tap pinning                      |  Done  | Low     | #55 (community export)    |
 | #54   | Adaptive Deck Mode layout        |  Done  | Low     | #47 (pinned profiles)     |
 | #50   | Optimization presets             |        | Medium  | #58 (extended catalog)    |
 | #57   | Custom env vars per profile      |        | Low-Med | #58 (extended catalog)    |
