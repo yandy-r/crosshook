@@ -3,6 +3,66 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+## [v0.2.4] - 2026-03-29
+
+
+### Bug Fixes
+
+- **launcher:** Populate profile_id when exporting launchers ([`5a6602b`](https://github.com/yandy-r/crosshook/commit/5a6602b23d40bc00588a1644856d33b57d10dfb0))
+
+- **metadata:** Enhance community tap indexing with transactional UPSERT and migration improvements ([`252e65b`](https://github.com/yandy-r/crosshook/commit/252e65b53091c6f26d6e8ad13d3c6e4c07bde8fe))
+
+- **security:** Enforce baseline Tauri CSP ([`7810d58`](https://github.com/yandy-r/crosshook/commit/7810d58754671e193b3490322bdbd6ac338120f0))
+
+- **ui:** Smooth launcher preview modal scrolling ([#97](https://github.com/yandy-r/crosshook/issues/97)) ([`984537e`](https://github.com/yandy-r/crosshook/commit/984537ee03ad4dcf7e46e87aa01e99094655a28a))
+
+
+### Documentation
+
+- **profile-health:** Revise health dashboard spec and integrate SQLite metadata layer ([`2294f20`](https://github.com/yandy-r/crosshook/commit/2294f20ada1333351d6575c563599e3f63ebe02e))
+
+- **health:** Add Health Dashboard Page for profile diagnostics ([`10f35bc`](https://github.com/yandy-r/crosshook/commit/10f35bcdf0147405def4cae99d1ce23e86342d7b))
+
+- **health:** Add implementation plan for Health Dashboard Page ([`b9150ec`](https://github.com/yandy-r/crosshook/commit/b9150ecb6bdc18f89ddceb9eec2298e697f86fb9))
+
+
+### Features
+
+- **launch:** Add dry run / preview launch mode ([#86](https://github.com/yandy-r/crosshook/issues/86)) ([`f29e891`](https://github.com/yandy-r/crosshook/commit/f29e891448537adbdb3b5093d73e3ff1e7f0e8f6))
+
+- **launch:** Add post-launch failure diagnostics ([`82e3187`](https://github.com/yandy-r/crosshook/commit/82e31874505cb818e50bb8b0df7e73f490cdfaa8))
+
+- **launch:** Enhance launch state management with helper log path tracking ([`7a62b65`](https://github.com/yandy-r/crosshook/commit/7a62b65c9cf682ae387fd2e4d46e49b29c2be559))
+
+- **metadata:** Add SQLite metadata layer for stable profile identity (Phase 1) ([`062ac1f`](https://github.com/yandy-r/crosshook/commit/062ac1f8ef478fe8fcd44508e40918b6cae64067))
+
+- **metadata:** Add operational history tracking for launches and launchers (Phase 2) ([`2d8d6b7`](https://github.com/yandy-r/crosshook/commit/2d8d6b724e1463bbcd1ae6bb484ae52b163027cd))
+
+- **metadata:** Add community catalog, collections, cache, and usage insights (Phase 3) ([`fffe10f`](https://github.com/yandy-r/crosshook/commit/fffe10f7472f512db0f8466fdc9f065b9fe5e7a1))
+
+- **health:** Add profile health dashboard MVP ([`779766c`](https://github.com/yandy-r/crosshook/commit/779766c3f087599e355d295c41d344c59de62945))
+
+- **health:** Metadata enrichment + startup integration (Phases B & C) ([#98](https://github.com/yandy-r/crosshook/issues/98)) ([`3b9901c`](https://github.com/yandy-r/crosshook/commit/3b9901cea6af37b0431532e1ef3ed47e4956ef69))
+
+- **health:** Health snapshot persistence + trend analysis (Phase D) ([#100](https://github.com/yandy-r/crosshook/issues/100)) ([`125e6b1`](https://github.com/yandy-r/crosshook/commit/125e6b149e2532549c217b95dead2feafcf9d069))
+
+- **health:** Add Health Dashboard page with profile diagnostics ([#104](https://github.com/yandy-r/crosshook/issues/104)) ([`8fd4b44`](https://github.com/yandy-r/crosshook/commit/8fd4b444dd31e1dea28994d0b4eba94ee1c4f0fc))
+
+- **health:** Expand dashboard table with sortable metadata columns ([#105](https://github.com/yandy-r/crosshook/issues/105)) ([`8d1386a`](https://github.com/yandy-r/crosshook/commit/8d1386a5fde55f183fcb786bba1ca1712567af63))
+
+- **export:** Detect stale launchers in manager ([#106](https://github.com/yandy-r/crosshook/issues/106)) ([`52d5e44`](https://github.com/yandy-r/crosshook/commit/52d5e448303ae71ea4d5ca6d5237b6706964ca95))
+
+- **community:** Export shareable profiles from GUI ([#107](https://github.com/yandy-r/crosshook/issues/107)) ([`740c7cd`](https://github.com/yandy-r/crosshook/commit/740c7cd20f9355b6dd5babf2a1a6481f1d7505bd))
+
+- **ui:** Adaptive Deck layout ([#54](https://github.com/yandy-r/crosshook/issues/54)) ([#108](https://github.com/yandy-r/crosshook/issues/108)) ([`efa0d5e`](https://github.com/yandy-r/crosshook/commit/efa0d5ee373b5b71bec97f6959934ca2029b02c0))
+
+- **launch:** Extend optimization catalog and vendor options UI ([#109](https://github.com/yandy-r/crosshook/issues/109)) ([`20f6b27`](https://github.com/yandy-r/crosshook/commit/20f6b27d519a77f669c0f850664e681840a740e9))
+
+- **community:** Add tap commit pinning and pin/unpin UI ([#110](https://github.com/yandy-r/crosshook/issues/110)) ([`cc6fa44`](https://github.com/yandy-r/crosshook/commit/cc6fa440c1950d8e30c4f2aee5f46becafc397e4))
+
+- **diagnostics:** Add diagnostic bundle export ([`f7bd08b`](https://github.com/yandy-r/crosshook/commit/f7bd08b8945b073a72baf8e2eecbfc4768ab1cbd))
+
+
 ## [v0.2.3] - 2026-03-27
 
 
