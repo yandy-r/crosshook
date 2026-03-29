@@ -1,8 +1,8 @@
 .crosshook-app-layout {
   width: min(100%, var(--crosshook-content-width));
   min-width: 0;
-  height: calc(100vh - (var(--crosshook-page-padding) * 2));
-  max-height: calc(100vh - (var(--crosshook-page-padding) * 2));
+  height: calc(100dvh - (var(--crosshook-page-padding) * 2));
+  max-height: calc(100dvh - (var(--crosshook-page-padding) * 2));
   display: flex;
   margin: 0 auto;
   background: transparent;
@@ -42,14 +42,14 @@
 }
 
 .crosshook-content-area > * {
-  width: min(100%, 1440px);
+  width: min(100%, var(--crosshook-content-width));
   margin: 0 auto;
 }
 
 .crosshook-page-header {
   display: grid;
-  gap: 10px;
-  margin-bottom: 24px;
+  gap: var(--crosshook-page-header-gap);
+  margin-bottom: var(--crosshook-page-header-margin-bottom);
 }
 
 .crosshook-page-banner {
@@ -57,10 +57,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  min-height: 120px;
-  padding: calc(var(--crosshook-page-padding) + 24px) 28px 24px;
-  margin-bottom: 24px;
+  gap: var(--crosshook-page-banner-gap);
+  min-height: var(--crosshook-page-banner-min-height);
+  padding:
+    calc(var(--crosshook-page-padding) + var(--crosshook-page-banner-padding-top-offset))
+    var(--crosshook-page-banner-padding-inline)
+    var(--crosshook-page-banner-padding-bottom);
+  margin-bottom: var(--crosshook-page-banner-margin-bottom);
   border-radius: 0 0 var(--crosshook-radius-lg) var(--crosshook-radius-lg);
   border: 1px solid var(--crosshook-color-border);
   border-top: none;
@@ -152,5 +155,12 @@
 
   .crosshook-content-area > * {
     width: 100%;
+  }
+}
+
+@media (max-height: 820px) {
+  .crosshook-app-layout {
+    height: calc(100dvh - var(--crosshook-page-padding));
+    max-height: calc(100dvh - var(--crosshook-page-padding));
   }
 }
