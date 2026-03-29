@@ -116,6 +116,7 @@ impl InstallGameRequest {
                 method: "proton_run".to_string(),
                 ..Default::default()
             },
+            local_override: crate::profile::LocalOverrideSection::default(),
         }
     }
 }

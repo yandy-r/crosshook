@@ -1,7 +1,7 @@
 use crosshook_core::community::{
     CommunityProfileIndex, CommunityTapStore, CommunityTapSubscription, CommunityTapSyncResult,
 };
-use crosshook_core::metadata::MetadataStore;
+use crosshook_core::metadata::{MetadataStore, SyncSource};
 use crosshook_core::profile::{
     export_community_profile, import_community_profile, CommunityExportResult, CommunityImportResult,
     ProfileStore,
@@ -98,10 +98,27 @@ pub fn community_import_profile(
     profile_store: State<'_, ProfileStore>,
     settings_store: State<'_, SettingsStore>,
     tap_store: State<'_, CommunityTapStore>,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<CommunityImportResult, String> {
     let import_path = std::path::Path::new(&path);
     validate_import_path_in_workspace(import_path, &settings_store, &tap_store)?;
-    import_community_profile(import_path, &profile_store.base_path).map_err(map_error)
+    let result = import_community_profile(import_path, &profile_store.base_path).map_err(map_error)?;
+
+    if let Err(e) = metadata_store.observe_profile_write(
+        &result.profile_name,
+        &result.profile,
+        &result.profile_path,
+        SyncSource::Import,
+        None,
+    ) {
+        tracing::warn!(
+            %e,
+            profile_name = %result.profile_name,
+            "metadata sync after community_import_profile failed"
+        );
+    }
+
+    Ok(result)
 }
 
 fn validate_import_path_in_workspace(
@@ -191,6 +208,7 @@ mod tests {
                 State<'_, ProfileStore>,
                 State<'_, SettingsStore>,
                 State<'_, CommunityTapStore>,
+                State<'_, MetadataStore>,
             ) -> Result<CommunityImportResult, String>;
         let _ = community_sync
             as fn(

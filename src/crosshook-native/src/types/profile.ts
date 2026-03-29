@@ -51,6 +51,22 @@ export interface GameProfile {
     method: LaunchMethod;
     optimizations: LaunchOptimizations;
   };
+  local_override?: {
+    game: {
+      executable_path: string;
+    };
+    trainer: {
+      path: string;
+    };
+    steam: {
+      compatdata_path: string;
+      proton_path: string;
+    };
+    runtime: {
+      prefix_path: string;
+      proton_path: string;
+    };
+  };
 }
 
 /**
