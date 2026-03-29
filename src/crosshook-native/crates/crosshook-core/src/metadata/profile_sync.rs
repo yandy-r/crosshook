@@ -274,7 +274,8 @@ fn created_at_for_insert(path: &Path, source: SyncSource) -> Option<String> {
         | SyncSource::AppDuplicate
         | SyncSource::AppDelete
         | SyncSource::FilesystemScan
-        | SyncSource::Import => None,
+        | SyncSource::Import
+        | SyncSource::AppMigration => None,
     }
 }
 

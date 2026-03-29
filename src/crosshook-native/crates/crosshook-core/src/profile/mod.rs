@@ -26,3 +26,4 @@ pub use toml_store::{
 };
 pub mod health;
 pub use health::{HealthStatus, HealthIssueSeverity, HealthIssue, ProfileHealthReport, HealthCheckSummary};
+pub mod migration;

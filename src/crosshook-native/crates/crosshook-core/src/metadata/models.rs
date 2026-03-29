@@ -81,6 +81,7 @@ pub enum SyncSource {
     FilesystemScan,
     Import,
     InitialCensus,
+    AppMigration,
 }
 
 impl SyncSource {
@@ -93,6 +94,7 @@ impl SyncSource {
             Self::FilesystemScan => "filesystem_scan",
             Self::Import => "import",
             Self::InitialCensus => "initial_census",
+            Self::AppMigration => "app_migration",
         }
     }
 }
