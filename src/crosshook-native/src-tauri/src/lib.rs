@@ -119,6 +119,7 @@ pub fn run() {
             commands::export::delete_launcher_by_slug,
             commands::export::rename_launcher,
             commands::export::list_launchers,
+            commands::export::reexport_launcher_by_slug,
             commands::export::find_orphaned_launchers,
             commands::export::preview_launcher_script,
             commands::export::preview_launcher_desktop,

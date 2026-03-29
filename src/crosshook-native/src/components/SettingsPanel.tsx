@@ -84,6 +84,7 @@ function ManageLaunchersSection({
 }) {
   const [launchers, setLaunchers] = useState<LauncherInfo[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [reexporting, setReexporting] = useState<string | null>(null);
   const [confirmSlug, setConfirmSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,6 +120,23 @@ function ManageLaunchersSection({
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setDeleting(null);
+    }
+  }
+
+  async function handleReexport(slug: string) {
+    setReexporting(slug);
+    setError(null);
+    try {
+      await invoke('reexport_launcher_by_slug', {
+        launcherSlug: slug,
+        targetHomePath,
+        steamClientInstallPath,
+      });
+      await loadLaunchers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setReexporting(null);
     }
   }
 
@@ -162,6 +180,11 @@ function ManageLaunchersSection({
               <div>
                 <div className="crosshook-recent-item__label crosshook-settings-launcher-label">
                   {launcher.launcher_slug}
+                  {launcher.is_stale ? (
+                    <span className="crosshook-health-chip crosshook-health-chip--warning" style={{ marginLeft: 8 }}>
+                      Stale
+                    </span>
+                  ) : null}
                 </div>
                 <div className="crosshook-recent-item__label crosshook-settings-launcher-path">
                   {launcher.script_exists ? truncatePath(launcher.script_path) : null}
@@ -170,12 +193,22 @@ function ManageLaunchersSection({
                 </div>
               </div>
               <div className="crosshook-settings-launcher-actions">
+                {launcher.is_stale ? (
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--warning crosshook-settings-small-button"
+                    disabled={reexporting === launcher.launcher_slug}
+                    onClick={() => void handleReexport(launcher.launcher_slug)}
+                  >
+                    {reexporting === launcher.launcher_slug ? 'Re-exporting...' : 'Re-export'}
+                  </button>
+                ) : null}
                 {confirmSlug === launcher.launcher_slug ? (
                   <>
                     <button
                       type="button"
                       className="crosshook-button crosshook-button--danger crosshook-settings-small-button"
-                      disabled={deleting === launcher.launcher_slug}
+                      disabled={deleting === launcher.launcher_slug || reexporting === launcher.launcher_slug}
                       onClick={() => void handleDelete(launcher.launcher_slug)}
                     >
                       {deleting === launcher.launcher_slug ? 'Deleting...' : 'Confirm'}
