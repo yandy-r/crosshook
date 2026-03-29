@@ -270,7 +270,7 @@ fn mapping_names(compat_tool_mappings: &CompatToolMappings, key: &str) -> Vec<St
         .unwrap_or_default()
 }
 
-fn resolve_compat_tool_by_name<'a>(
+pub(crate) fn resolve_compat_tool_by_name<'a>(
     requested_tool_name: &str,
     installed_tools: &'a [ProtonInstall],
 ) -> Vec<&'a ProtonInstall> {
@@ -408,7 +408,7 @@ fn push_alias(aliases: &mut Vec<String>, seen_aliases: &mut HashSet<String>, ali
     }
 }
 
-fn normalize_alias(alias: &str) -> Option<String> {
+pub(crate) fn normalize_alias(alias: &str) -> Option<String> {
     let normalized = alias
         .chars()
         .filter(|character| character.is_ascii_alphanumeric())

@@ -7,3 +7,4 @@ export * from './install';
 export * from './update';
 export * from './settings';
 export * from './health';
+export * from './migration';
