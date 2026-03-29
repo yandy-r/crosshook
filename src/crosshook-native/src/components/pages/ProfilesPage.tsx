@@ -9,7 +9,7 @@ import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { HealthBadge } from '../HealthBadge';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
-import { useProfileHealth } from '../../hooks/useProfileHealth';
+import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { PageBanner, ProfilesArt } from '../layout/PageBanner';
 import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
@@ -101,7 +101,7 @@ export function ProfilesPage() {
     staleInfoByName,
     cachedSnapshots,
     trendByName,
-  } = useProfileHealth();
+  } = useProfileHealthContext();
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,

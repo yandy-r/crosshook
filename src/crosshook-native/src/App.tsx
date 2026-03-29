@@ -8,6 +8,7 @@ import ConsoleDrawer from './components/layout/ConsoleDrawer';
 import Sidebar, { type AppRoute } from './components/layout/Sidebar';
 import { PreferencesProvider } from './context/PreferencesContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
+import { ProfileHealthProvider } from './context/ProfileHealthContext';
 import { useGamepadNav } from './hooks/useGamepadNav';
 import { useScrollEnhance } from './hooks/useScrollEnhance';
 
@@ -113,7 +114,9 @@ export function App() {
   return (
     <main ref={gamepadNav.rootRef} className="crosshook-app crosshook-focus-scope">
       <ProfileProvider>
-        <AppShell controllerMode={gamepadNav.controllerMode} />
+        <ProfileHealthProvider>
+          <AppShell controllerMode={gamepadNav.controllerMode} />
+        </ProfileHealthProvider>
       </ProfileProvider>
     </main>
   );

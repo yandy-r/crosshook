@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
 import type { AppRoute } from '../layout/Sidebar';
 import { HealthDashboardArt, PageBanner } from '../layout/PageBanner';
-import { useProfileHealth } from '../../hooks/useProfileHealth';
+import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import type { TrendDirection } from '../../hooks/useProfileHealth';
 import { HealthBadge } from '../HealthBadge';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
@@ -454,7 +454,7 @@ function CommunityImportHealthPanel({ profiles }: { profiles: EnrichedProfileHea
 }
 
 export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRoute) => void }) {
-  const { summary, loading, error, batchValidate, cachedSnapshots, revalidateSingle, trendByName, staleInfoByName } = useProfileHealth();
+  const { summary, loading, error, batchValidate, cachedSnapshots, revalidateSingle, trendByName, staleInfoByName } = useProfileHealthContext();
   const { selectProfile } = useProfileContext();
 
   const [sortField, setSortField] = useState<SortField>('status');
