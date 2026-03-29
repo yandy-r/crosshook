@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
-import type { CachedHealthSnapshot, HealthCheckSummary, HealthStatus, ProfileHealthReport } from "../types";
+import type { CachedHealthSnapshot, EnrichedHealthSummary, EnrichedProfileHealthReport, HealthStatus } from "../types";
 import { countProfileStatuses } from "../utils/health";
 
 export type TrendDirection = 'got_worse' | 'got_better' | 'unchanged' | null;
@@ -23,15 +23,15 @@ type HookStatus = "idle" | "loading" | "loaded" | "error";
 
 type ProfileHealthState = {
   status: HookStatus;
-  summary: HealthCheckSummary | null;
+  summary: EnrichedHealthSummary | null;
   error: string | null;
 };
 
 type ProfileHealthAction =
   | { type: "batch-loading" }
-  | { type: "batch-complete"; summary: HealthCheckSummary }
+  | { type: "batch-complete"; summary: EnrichedHealthSummary }
   | { type: "single-loading" }
-  | { type: "single-complete"; report: ProfileHealthReport }
+  | { type: "single-complete"; report: EnrichedProfileHealthReport }
   | { type: "error"; message: string }
   | { type: "reset" };
 
@@ -124,7 +124,7 @@ export function useProfileHealth() {
     }
     dispatch({ type: "batch-loading" });
     try {
-      const summary = await invoke<HealthCheckSummary>("batch_validate_profiles");
+      const summary = await invoke<EnrichedHealthSummary>("batch_validate_profiles");
       if (signal?.aborted) {
         return;
       }
@@ -140,7 +140,7 @@ export function useProfileHealth() {
   const revalidateSingle = useCallback(async (name: string) => {
     dispatch({ type: "single-loading" });
     try {
-      const report = await invoke<ProfileHealthReport>("get_profile_health", { name });
+      const report = await invoke<EnrichedProfileHealthReport>("get_profile_health", { name });
       dispatch({ type: "single-complete", report });
     } catch (error) {
       dispatch({ type: "error", message: normalizeError(error) });
@@ -152,7 +152,7 @@ export function useProfileHealth() {
     const controller = new AbortController();
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const unlistenBatchComplete = listen<HealthCheckSummary>(
+    const unlistenBatchComplete = listen<EnrichedHealthSummary>(
       "profile-health-batch-complete",
       (event) => {
         startupEventReceivedRef.current = true;
@@ -195,7 +195,7 @@ export function useProfileHealth() {
     };
   }, [batchValidate]);
 
-  const healthByName = useMemo<Record<string, ProfileHealthReport>>(() => {
+  const healthByName = useMemo<Record<string, EnrichedProfileHealthReport>>(() => {
     if (!state.summary) {
       return {};
     }

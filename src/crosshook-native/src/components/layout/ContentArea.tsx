@@ -3,6 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 
 import CompatibilityPage from '../pages/CompatibilityPage';
 import CommunityPage from '../pages/CommunityPage';
+import HealthDashboardPage from '../pages/HealthDashboardPage';
 import InstallPage from '../pages/InstallPage';
 import LaunchPage from '../pages/LaunchPage';
 import ProfilesPage from '../pages/ProfilesPage';
@@ -44,6 +45,8 @@ export function ContentArea({ route, onNavigate }: ContentAreaProps) {
         return <CompatibilityPage />;
       case 'settings':
         return <SettingsPage />;
+      case 'health':
+        return <HealthDashboardPage onNavigate={onNavigate} />;
       default: {
         const _exhaustive: never = route;
         return _exhaustive;

@@ -156,4 +156,28 @@ export function SettingsArt() {
   );
 }
 
+export function HealthDashboardArt() {
+  return (
+    <svg {...SVG_DEFAULTS}>
+      {/* Background panel */}
+      <rect x="45" y="20" width="110" height="80" rx="10" strokeWidth={1.2} opacity={0.3} />
+      {/* Heartbeat / pulse line */}
+      <path d="M55 60h18l8-20 12 40 8-20 10 0h34" strokeWidth={1.5} opacity={0.5} />
+      {/* Summary card outlines */}
+      <rect x="55" y="30" width="22" height="18" rx="4" opacity={0.2} />
+      <rect x="82" y="30" width="22" height="18" rx="4" opacity={0.15} />
+      <rect x="109" y="30" width="22" height="18" rx="4" opacity={0.12} />
+      <rect x="136" y="30" width="14" height="18" rx="4" opacity={0.1} />
+      {/* Status indicator dots */}
+      <circle cx="63" cy="39" r="3" fill="currentColor" opacity={0.18} stroke="none" />
+      <circle cx="90" cy="39" r="3" fill="currentColor" opacity={0.14} stroke="none" />
+      <circle cx="117" cy="39" r="3" fill="currentColor" opacity={0.1} stroke="none" />
+      {/* Accent particles */}
+      <circle cx="165" cy="20" r="2.5" fill="currentColor" opacity={0.1} stroke="none" />
+      <circle cx="38" cy="90" r="3" fill="currentColor" opacity={0.08} stroke="none" />
+      <circle cx="170" cy="95" r="2" fill="currentColor" opacity={0.1} stroke="none" />
+    </svg>
+  );
+}
+
 export default PageBanner;
