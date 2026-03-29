@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use args::{
-    Cli, Command, GlobalOptions, LaunchCommand, ProfileArgs, ProfileCommand, SteamArgs,
-    SteamCommand,
+    Cli, Command, DiagnosticsArgs, DiagnosticsCommand, GlobalOptions, LaunchCommand, ProfileArgs,
+    ProfileCommand, SteamArgs, SteamCommand,
 };
 use clap::Parser;
 use crosshook_core::launch::request::LaunchOptimizationsRequest;
@@ -14,7 +14,9 @@ use crosshook_core::launch::{
     self, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, ValidationSeverity,
     METHOD_STEAM_APPLAUNCH,
 };
+use crosshook_core::export::diagnostics::DiagnosticBundleOptions;
 use crosshook_core::profile::{GameProfile, ProfileStore};
+use crosshook_core::settings::SettingsStore;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::time::{sleep, Duration};
@@ -37,6 +39,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         Command::Launch(command) => launch_profile(command, &cli.global).await?,
         Command::Profile(command) => handle_profile_command(command, &cli.global).await?,
         Command::Steam(command) => handle_steam_command(command, &cli.global).await?,
+        Command::Diagnostics(args) => handle_diagnostics_command(args, &cli.global)?,
         Command::Status => emit_placeholder(&cli.global, "status"),
     }
 
@@ -137,6 +140,41 @@ async fn handle_steam_command(
     }
 
     Ok(())
+}
+
+fn handle_diagnostics_command(
+    args: DiagnosticsArgs,
+    global: &GlobalOptions,
+) -> Result<(), Box<dyn Error>> {
+    match args.command {
+        DiagnosticsCommand::Export(command) => {
+            let profile_store = profile_store(global.config.clone());
+            let settings_store = SettingsStore::try_new()
+                .map_err(|error| format!("settings store: {error}"))?;
+
+            let options = DiagnosticBundleOptions {
+                redact_paths: command.redact_paths,
+                output_dir: command.output,
+            };
+
+            let result = crosshook_core::export::export_diagnostic_bundle(
+                &profile_store,
+                &settings_store,
+                &options,
+            )?;
+
+            if global.json {
+                println!("{}", serde_json::to_string_pretty(&result)?);
+            } else {
+                println!("Diagnostic bundle exported: {}", result.archive_path);
+                println!("  Profiles:        {}", result.summary.profile_count);
+                println!("  Log files:       {}", result.summary.log_file_count);
+                println!("  Proton versions: {}", result.summary.proton_install_count);
+            }
+
+            Ok(())
+        }
+    }
 }
 
 fn emit_placeholder(global: &GlobalOptions, command: &str) {

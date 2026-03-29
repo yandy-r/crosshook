@@ -1,8 +1,13 @@
-//! Launcher export helpers.
+//! Export helpers — launcher scripts and diagnostic bundles.
 
+pub mod diagnostics;
 pub mod launcher;
 pub mod launcher_store;
 
+pub use diagnostics::{
+    export_diagnostic_bundle, DiagnosticBundleError, DiagnosticBundleOptions,
+    DiagnosticBundleResult, DiagnosticBundleSummary,
+};
 pub use launcher::{
     export_launchers, preview_desktop_entry_content, preview_trainer_script_content, validate,
     SteamExternalLauncherExportError, SteamExternalLauncherExportRequest,
