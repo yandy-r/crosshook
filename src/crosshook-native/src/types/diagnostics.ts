@@ -128,3 +128,18 @@ export function isDiagnosticReport(value: unknown): value is DiagnosticReport {
     typeof candidate.analyzed_at === 'string'
   );
 }
+
+// -- Diagnostic bundle export types --
+
+export interface DiagnosticBundleSummary {
+  crosshook_version: string;
+  profile_count: number;
+  log_file_count: number;
+  proton_install_count: number;
+  generated_at: string;
+}
+
+export interface DiagnosticBundleResult {
+  archive_path: string;
+  summary: DiagnosticBundleSummary;
+}
