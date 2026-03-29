@@ -168,7 +168,6 @@ pub(crate) struct ProfileRow {
     pub launch_method: Option<String>,
     pub source: Option<String>,
     pub is_favorite: bool,
-    pub is_pinned: bool,
     pub created_at: String,
     pub updated_at: String,
 }
