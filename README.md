@@ -67,13 +67,42 @@ For trainers or tools that run natively on Linux without WINE/Proton. CrossHook 
 
 ## Features
 
+### Profiles and Launch
+
 - **Steam Library Auto-Populate** -- Discovers installed Steam games, their App IDs, Proton versions, and compatdata paths automatically.
 - **Profile Management** -- Save and load launch configurations per game. Switch between trainer setups instantly.
+- **Profile Rename with Overwrite Protection** -- Rename profiles with launcher cascade and collision prevention.
+- **Profile Duplication** -- Clone profiles with unique name generation.
+- **Pinned Profiles** -- Pin favorite profiles for quick launch access on the Profiles and Launch pages.
 - **Install Game Workflow** -- Install a Windows game from the Profile panel, review the generated profile, and save it explicitly after install.
+- **Update Game Panel** -- Apply patches to Proton prefixes for game updates directly from the profile.
+- **Dry Run / Preview Launch Mode** -- Preview the exact commands CrossHook will execute before actually launching.
+- **Post-Launch Failure Diagnostics** -- Enhanced launch state management with helper log path tracking and failure analysis.
+
+### Launch Configuration
+
 - **Launch Optimizations** -- Adjust curated `proton_run` tweaks with readable labels, per-option info tooltips, and autosave for already-saved profiles.
-- **Launcher Export** -- Generate standalone shell scripts and `.desktop` entries from any profile for one-click launching without opening CrossHook.
-- **Community Profile Sharing** -- Share and import launch profiles with other users.
+- **Extended Launch Optimization Catalog** -- Expanded curated optimization toggles with vendor-specific (AMD, NVIDIA, Intel) options.
 - **Proton Selector** -- Choose which Proton version to use for each trainer, with auto-detection of installed versions.
+- **Compatibility Viewer** -- View game/trainer compatibility information and known working configurations.
+
+### Launcher Export and Community
+
+- **Launcher Export** -- Generate standalone shell scripts and `.desktop` entries from any profile for one-click launching without opening CrossHook.
+- **Stale Launcher Detection** -- Detect when exported launchers are out of sync with the current profile state.
+- **Community Profile Sharing** -- Browse, import, and export launch profiles with other users via Git-based taps.
+- **Community Profile Export** -- Export shareable profiles from the GUI directly to community taps.
+- **Tap Commit Pinning** -- Pin community taps to specific commits with pin/unpin UI for reproducible installs.
+
+### Diagnostics and Health
+
+- **Health Dashboard** -- Profile diagnostics page showing health scores, staleness detection, trend analysis, and sortable metadata columns for all profiles.
+- **Diagnostic Bundle Export** -- Export a diagnostic bundle of system and app state for troubleshooting.
+- **SQLite Metadata Layer** -- Persistent metadata tracking for stable profile identity, operational history (launches, launchers), community catalog, collections, cache, and usage insights.
+
+### UI and Platform
+
+- **Adaptive Deck Layout** -- Responsive layout that adapts to Steam Deck Gaming Mode for comfortable big-picture use.
 - **Gamepad Navigation** -- Full controller and touchscreen support for Steam Deck Gaming Mode.
 - **Console Log Viewer** -- See exactly what commands CrossHook executes, with real-time process output for debugging.
 - **Dark Theme** -- Native dark UI that fits in on Steam Deck and Linux desktops.
@@ -82,6 +111,7 @@ For trainers or tools that run natively on Linux without WINE/Proton. CrossHook 
 
 - [Quickstart guide](docs/getting-started/quickstart.md)
 - [Steam / Proton trainer workflow](docs/features/steam-proton-trainer-launch.doc.md)
+- [Profile duplication](docs/features/profile-duplication.doc.md)
 
 ## Build
 

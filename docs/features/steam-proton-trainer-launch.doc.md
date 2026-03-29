@@ -15,6 +15,9 @@ This guide covers the three launch methods, auto-discovery, launcher export, and
 - [Launcher export](#launcher-export)
 - [Launcher lifecycle management](#launcher-lifecycle-management)
 - [Console view](#console-view)
+- [Dry run / preview mode](#dry-run--preview-mode)
+- [Post-launch diagnostics](#post-launch-diagnostics)
+- [Health dashboard integration](#health-dashboard-integration)
 - [Current limitations](#current-limitations)
 - [Troubleshooting](#troubleshooting)
 - [Related guides](#related-guides)
@@ -101,6 +104,16 @@ The **Launch Optimizations** panel appears in the right column for `proton_run` 
 - Option labels stay grouped by area (input, performance, display, graphics, compatibility). Every visible option has an info icon with help text.
 - Saved profiles autosave this section after a short debounce; new profiles show a save-first warning until they are written once.
 - Advanced and community-documented entries stay visually separated. Wrapper-based toggles require the matching binaries on `PATH`; the Steam line generator surfaces a clear error if a dependency is missing.
+
+## Dry Run / Preview Mode
+
+CrossHook supports a dry run mode that shows exactly what commands, environment variables, and launch sequence will be used -- without starting any processes. This is useful for:
+
+- Verifying that paths, Proton versions, and environment variables are correct before launching.
+- Debugging launch configurations that fail silently.
+- Sharing your launch configuration with others for troubleshooting.
+
+The dry run output includes the full `proton run` command line, all exported environment variables, and the trainer staging steps (if applicable).
 
 ## Auto-Populate and Steam Discovery
 
@@ -300,11 +313,30 @@ CrossHook includes a console panel that streams runner output in real-time. When
 
 The console view is the first place to look when a launch does not behave as expected. All output is also written to log files in `~/.local/share/crosshook/logs/`.
 
+## Post-Launch Diagnostics
+
+When a launch fails or a trainer does not attach, CrossHook provides post-launch diagnostic information:
+
+- **Helper log path tracking**: CrossHook records the paths to Proton helper logs generated during the launch, making it easy to find relevant log files for debugging.
+- **Failure analysis**: The launch state tracks failure reasons and surfaces actionable guidance in the console view.
+- **Diagnostic bundle export**: From the Settings panel, you can export a diagnostic bundle containing system information, application state, and recent launch logs. Use this when reporting bugs or seeking help.
+
+## Health Dashboard Integration
+
+Profile health data integrates with the Health Dashboard page, which shows:
+
+- Health scores for each profile based on path validity, configuration completeness, and staleness.
+- Operational history including launch counts, last launch time, and launcher export status.
+- Trend analysis showing whether profiles are improving or degrading over time.
+- Sortable metadata columns for quick triage of problematic profiles.
+
+The Health Dashboard uses the SQLite metadata layer for persistent tracking across sessions.
+
 ## Current Limitations
 
 - **Game must be launched through Steam first (in `steam_applaunch` mode).** CrossHook does not bypass Steam's DRM or overlay initialization. The game must be started via `steam -applaunch` before the trainer can be launched.
 - **Trainer staging requires write access to compatdata.** The trainer `.exe` is copied into the game's compatdata prefix before Proton runs it. If the prefix is on a read-only filesystem, staging will fail.
-- **Exported launchers are for single-file trainers.** Directory-based trainer bundles are not supported by the generated launcher scripts.
+- **Exported launchers follow the profile's trainer loading mode.** Source-directory mode exports run the trainer from its original path. Copy-to-prefix mode stages the trainer bundle into the prefix before launch.
 - **No macOS support yet.** The native application currently targets Linux. macOS support is planned for a future release.
 - **Trainer compatibility depends on the Proton version.** A trainer that fails under one Proton version may work under a different one (especially GE-Proton). CrossHook does not control Proton compatibility.
 - **Native mode does not support trainers.** The `native` launch method runs Linux-native executables only and does not include a trainer step.
@@ -326,3 +358,4 @@ The console view is the first place to look when a launch does not behave as exp
 ## Related Guides
 
 - [CrossHook quickstart](../getting-started/quickstart.md)
+- [Profile duplication](profile-duplication.doc.md)

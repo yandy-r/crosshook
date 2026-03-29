@@ -2,7 +2,7 @@
 
 **Tracking issue**: #78
 **Research source**: docs/research/additional-features/deep-research-report.md
-**Last updated**: 2026-03-26
+**Last updated**: 2026-03-29
 
 This document provides a recommended implementation order, dependency map, and quick-win guide for the features identified in the deep research analysis. Use it alongside the GitHub issues to plan sprints.
 
@@ -238,16 +238,16 @@ Phase 6 (Polish) ── pick based on demand ───────────�
 
 ## Effort Estimates by Phase
 
-| Phase                  | Issues | Status | Estimated Total | Cumulative |
-| ---------------------- | :----: | :----: | :-------------: | :--------: |
-| Quick Wins             |   7    |        |    2-3 days     |  2-3 days  |
-| Phase 1: Foundation    |   2    |        |    2-3 days     |  ~1 week   |
-| Phase 2: Diagnostics   |   3    |        |    1-2 weeks    |  ~3 weeks  |
-| Phase 3: Profiles      |   7    |        |    2-3 weeks    |  ~6 weeks  |
-| Phase 4: Version Intel |   3    |        |    2-3 weeks    |  ~9 weeks  |
-| Phase 5: CLI           |   2    |        |    1-2 weeks    | ~11 weeks  |
-| Phase 6: Polish        |   17   |        |  Pick & choose  |  Ongoing   |
-| Phase 7: Future        |   11   |        |  Not scheduled  |  Backlog   |
+| Phase                  | Issues | Status    | Estimated Total | Cumulative |
+| ---------------------- | :----: | :-------: | :-------------: | :--------: |
+| Quick Wins             |   7    |   Done    |    2-3 days     |  2-3 days  |
+| Phase 1: Foundation    |   2    |   Done    |    2-3 days     |  ~1 week   |
+| Phase 2: Diagnostics   |   3    |   Done    |    1-2 weeks    |  ~3 weeks  |
+| Phase 3: Profiles      |   7    |  Partial  |    2-3 weeks    |  ~6 weeks  |
+| Phase 4: Version Intel |   3    |           |    2-3 weeks    |  ~9 weeks  |
+| Phase 5: CLI           |   2    |           |    1-2 weeks    | ~11 weeks  |
+| Phase 6: Polish        |   17   |  Partial  |  Pick & choose  |  Ongoing   |
+| Phase 7: Future        |   11   |           |  Not scheduled  |  Backlog   |
 
 ---
 
