@@ -111,9 +111,73 @@ const LAUNCH_OPTIMIZATION_DEFINITIONS: &[LaunchOptimizationDefinition] = &[
         required_binary: None,
     },
     LaunchOptimizationDefinition {
+        id: "disable_esync",
+        applies_to_method: METHOD_PROTON_RUN,
+        env: &[("PROTON_NO_ESYNC", "1")],
+        wrappers: &[],
+        conflicts_with: &[],
+        required_binary: None,
+    },
+    LaunchOptimizationDefinition {
+        id: "disable_fsync",
+        applies_to_method: METHOD_PROTON_RUN,
+        env: &[("PROTON_NO_FSYNC", "1")],
+        wrappers: &[],
+        conflicts_with: &[],
+        required_binary: None,
+    },
+    LaunchOptimizationDefinition {
+        id: "enable_nvapi",
+        applies_to_method: METHOD_PROTON_RUN,
+        env: &[("PROTON_ENABLE_NVAPI", "1")],
+        wrappers: &[],
+        conflicts_with: &[],
+        required_binary: None,
+    },
+    LaunchOptimizationDefinition {
+        id: "force_large_address_aware",
+        applies_to_method: METHOD_PROTON_RUN,
+        env: &[("PROTON_FORCE_LARGE_ADDRESS_AWARE", "1")],
+        wrappers: &[],
+        conflicts_with: &[],
+        required_binary: None,
+    },
+    LaunchOptimizationDefinition {
+        id: "enable_proton_log",
+        applies_to_method: METHOD_PROTON_RUN,
+        env: &[("PROTON_LOG", "1")],
+        wrappers: &[],
+        conflicts_with: &[],
+        required_binary: None,
+    },
+    LaunchOptimizationDefinition {
         id: "enable_local_shader_cache",
         applies_to_method: METHOD_PROTON_RUN,
         env: &[("PROTON_LOCAL_SHADER_CACHE", "1")],
+        wrappers: &[],
+        conflicts_with: &[],
+        required_binary: None,
+    },
+    LaunchOptimizationDefinition {
+        id: "enable_dxvk_async",
+        applies_to_method: METHOD_PROTON_RUN,
+        env: &[("DXVK_ASYNC", "1")],
+        wrappers: &[],
+        conflicts_with: &[],
+        required_binary: None,
+    },
+    LaunchOptimizationDefinition {
+        id: "cap_dxvk_frame_rate",
+        applies_to_method: METHOD_PROTON_RUN,
+        env: &[("DXVK_FRAME_RATE", "60")],
+        wrappers: &[],
+        conflicts_with: &[],
+        required_binary: None,
+    },
+    LaunchOptimizationDefinition {
+        id: "enable_vkd3d_dxr",
+        applies_to_method: METHOD_PROTON_RUN,
+        env: &[("VKD3D_CONFIG", "dxr")],
         wrappers: &[],
         conflicts_with: &[],
         required_binary: None,
@@ -423,6 +487,40 @@ mod tests {
 
         assert_eq!(directives.wrappers, vec!["mangohud", "gamemoderun"]);
         assert!(directives.env.is_empty());
+    }
+
+    #[test]
+    fn resolves_issue_58_env_directives_in_catalog_order() {
+        let request = optimization_request(vec![
+            "enable_vkd3d_dxr",
+            "disable_esync",
+            "enable_dxvk_async",
+            "enable_nvapi",
+            "cap_dxvk_frame_rate",
+            "force_large_address_aware",
+            "enable_proton_log",
+            "disable_fsync",
+        ]);
+
+        let directives = resolve_launch_directives(&request).expect("resolve directives");
+
+        assert_eq!(
+            directives.env,
+            vec![
+                ("PROTON_NO_ESYNC".to_string(), "1".to_string()),
+                ("PROTON_NO_FSYNC".to_string(), "1".to_string()),
+                ("PROTON_ENABLE_NVAPI".to_string(), "1".to_string()),
+                (
+                    "PROTON_FORCE_LARGE_ADDRESS_AWARE".to_string(),
+                    "1".to_string()
+                ),
+                ("PROTON_LOG".to_string(), "1".to_string()),
+                ("DXVK_ASYNC".to_string(), "1".to_string()),
+                ("DXVK_FRAME_RATE".to_string(), "60".to_string()),
+                ("VKD3D_CONFIG".to_string(), "dxr".to_string()),
+            ]
+        );
+        assert!(directives.wrappers.is_empty());
     }
 
     #[test]
