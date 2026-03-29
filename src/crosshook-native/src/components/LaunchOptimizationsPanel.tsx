@@ -113,6 +113,18 @@ function formatConflictSummary(conflict: LaunchOptimizationConflict): string {
   return `${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflict.optionId].label} conflicts with ${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflict.conflictsWith].label}.`;
 }
 
+function getGpuVendorLabel(option: LaunchOptimizationOption): string | null {
+  if (option.targetGpuVendor === 'nvidia') {
+    return 'NVIDIA';
+  }
+
+  if (option.targetGpuVendor === 'amd') {
+    return 'AMD';
+  }
+
+  return null;
+}
+
 function OptionGroup(props: {
   group: GroupedOptions;
   enabledIds: Set<LaunchOptimizationId>;
@@ -179,6 +191,7 @@ function OptionGroup(props: {
               className={joinClasses(
                 'crosshook-launch-optimizations__option',
                 isEnabled && 'crosshook-launch-optimizations__option--enabled',
+                isTooltipOpen && 'crosshook-launch-optimizations__option--tooltip-open',
                 !isSupported && 'crosshook-launch-optimizations__option--disabled'
               )}
             >
@@ -212,6 +225,20 @@ function OptionGroup(props: {
                         Community
                       </span>
                     ) : null}
+                    {getGpuVendorLabel(option) ? (
+                      <span
+                        className={joinClasses(
+                          'crosshook-launch-optimizations__option-pill',
+                          'crosshook-launch-optimizations__option-pill--vendor',
+                          option.targetGpuVendor === 'nvidia' &&
+                            'crosshook-launch-optimizations__option-pill--vendor-nvidia',
+                          option.targetGpuVendor === 'amd' &&
+                            'crosshook-launch-optimizations__option-pill--vendor-amd'
+                        )}
+                      >
+                        {getGpuVendorLabel(option)}
+                      </span>
+                    ) : null}
                     {conflictLabels.length > 0 ? (
                       <span className="crosshook-launch-optimizations__option-pill crosshook-launch-optimizations__option-pill--warning">
                         Conflicts with {conflictLabels.join(', ')}
@@ -235,53 +262,58 @@ function OptionGroup(props: {
                 </div>
               </div>
 
-              <button
-                type="button"
-                className="crosshook-launch-optimizations__info-button"
-                aria-label={`More information about ${option.label}`}
-                aria-expanded={isTooltipOpen}
-                aria-describedby={isTooltipOpen ? tooltipIdValue : undefined}
-                onFocus={() => setTooltipId(option.id)}
-                onBlur={() => setTooltipId(null)}
+              <div
+                className="crosshook-launch-optimizations__info-anchor"
                 onMouseEnter={() => setTooltipId(option.id)}
                 onMouseLeave={() => setTooltipId(null)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    setTooltipId(null);
-                  }
-                }}
               >
-                i
-              </button>
+                <button
+                  type="button"
+                  className="crosshook-launch-optimizations__info-button"
+                  aria-label={`More information about ${option.label}`}
+                  aria-expanded={isTooltipOpen}
+                  aria-describedby={isTooltipOpen ? tooltipIdValue : undefined}
+                  onFocus={() => setTooltipId(option.id)}
+                  onBlur={() => setTooltipId(null)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      setTooltipId(null);
+                    }
+                  }}
+                >
+                  i
+                </button>
 
-              <div
-                id={tooltipIdValue}
-                role="tooltip"
-                aria-hidden={!isTooltipOpen}
-                className={joinClasses(
-                  'crosshook-launch-optimizations__tooltip',
-                  isTooltipOpen && 'crosshook-launch-optimizations__tooltip--open'
-                )}
-              >
-                <p className="crosshook-launch-optimizations__tooltip-title">{option.label}</p>
-                <p className="crosshook-launch-optimizations__tooltip-kicker">What it does</p>
-                <p className="crosshook-launch-optimizations__tooltip-copy">{option.description}</p>
-                <p className="crosshook-launch-optimizations__tooltip-kicker">When it helps</p>
-                <p className="crosshook-launch-optimizations__tooltip-copy">{option.helpText}</p>
-                <p className="crosshook-launch-optimizations__tooltip-kicker">Main caveat</p>
-                <p className="crosshook-launch-optimizations__tooltip-copy">
-                  {getMainCaveat(option, conflictLabels)}
-                </p>
-                {blockedByLabels.length > 0 ? (
+                <div
+                  id={tooltipIdValue}
+                  role="tooltip"
+                  aria-hidden={!isTooltipOpen}
+                  className={joinClasses(
+                    'crosshook-launch-optimizations__tooltip',
+                    isTooltipOpen && 'crosshook-launch-optimizations__tooltip--open'
+                  )}
+                >
+                  <p className="crosshook-launch-optimizations__tooltip-title">{option.label}</p>
+                  <p className="crosshook-launch-optimizations__tooltip-kicker">What it does</p>
+                  <p className="crosshook-launch-optimizations__tooltip-copy">{option.description}</p>
+                  <p className="crosshook-launch-optimizations__tooltip-kicker">When it helps</p>
+                  <p className="crosshook-launch-optimizations__tooltip-copy">{option.helpText}</p>
+                  <p className="crosshook-launch-optimizations__tooltip-kicker">Main caveat</p>
                   <p className="crosshook-launch-optimizations__tooltip-copy">
-                    Selection is currently blocked by {formatConflictLabels(blockedByLabels)}.
+                    {getMainCaveat(option, conflictLabels)}
                   </p>
-                ) : null}
-                {conflictLabels.length > 0 ? (
-                  <p className="crosshook-launch-optimizations__tooltip-copy">
-                    Conflict note: {conflictLabels.join(', ')} should not be enabled together with this option.
-                  </p>
-                ) : null}
+                  {blockedByLabels.length > 0 ? (
+                    <p className="crosshook-launch-optimizations__tooltip-copy">
+                      Selection is currently blocked by {formatConflictLabels(blockedByLabels)}.
+                    </p>
+                  ) : null}
+                  {conflictLabels.length > 0 ? (
+                    <p className="crosshook-launch-optimizations__tooltip-copy">
+                      Conflict note: {conflictLabels.join(', ')} should not be enabled together with
+                      this option.
+                    </p>
+                  ) : null}
+                </div>
               </div>
             </div>
           );

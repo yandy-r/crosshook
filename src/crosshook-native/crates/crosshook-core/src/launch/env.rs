@@ -52,7 +52,15 @@ pub const LAUNCH_OPTIMIZATION_ENV_VARS: &[&str] = &[
     "PROTON_ENABLE_HDR",
     "PROTON_ENABLE_WAYLAND",
     "PROTON_USE_NTSYNC",
+    "PROTON_NO_ESYNC",
+    "PROTON_NO_FSYNC",
+    "PROTON_ENABLE_NVAPI",
+    "PROTON_FORCE_LARGE_ADDRESS_AWARE",
+    "PROTON_LOG",
     "PROTON_LOCAL_SHADER_CACHE",
+    "DXVK_ASYNC",
+    "DXVK_FRAME_RATE",
+    "VKD3D_CONFIG",
     "PROTON_FSR4_UPGRADE",
     "PROTON_FSR4_RDNA3_UPGRADE",
     "PROTON_XESS_UPGRADE",
@@ -99,8 +107,12 @@ mod tests {
 
     #[test]
     fn launch_optimization_vars_match_expected_list() {
-        assert_eq!(LAUNCH_OPTIMIZATION_ENV_VARS.len(), 14);
+        assert_eq!(LAUNCH_OPTIMIZATION_ENV_VARS.len(), 22);
         assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_NO_STEAMINPUT"));
+        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_NO_ESYNC"));
+        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_FORCE_LARGE_ADDRESS_AWARE"));
+        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"DXVK_ASYNC"));
+        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"VKD3D_CONFIG"));
         assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_ENABLE_HDR"));
         assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"SteamDeck"));
     }
