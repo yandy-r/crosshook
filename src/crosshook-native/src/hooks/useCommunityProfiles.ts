@@ -87,6 +87,12 @@ export interface CommunityImportResult {
   manifest: CommunityProfileManifest;
 }
 
+export interface CommunityExportResult {
+  profile_name: string;
+  output_path: string;
+  manifest: CommunityProfileManifest;
+}
+
 export interface UseCommunityProfilesOptions {
   profilesDirectoryPath?: string;
 }
