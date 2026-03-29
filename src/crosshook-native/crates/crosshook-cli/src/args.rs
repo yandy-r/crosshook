@@ -40,6 +40,7 @@ pub enum Command {
     Launch(LaunchCommand),
     Profile(ProfileArgs),
     Steam(SteamArgs),
+    Diagnostics(DiagnosticsArgs),
     Status,
 }
 
@@ -103,11 +104,35 @@ pub struct SteamAutoPopulateCommand {
     pub game_path: PathBuf,
 }
 
+#[derive(Debug, Args)]
+pub struct DiagnosticsArgs {
+    #[command(subcommand)]
+    pub command: DiagnosticsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+#[command(rename_all = "kebab-case")]
+pub enum DiagnosticsCommand {
+    /// Export a diagnostic bundle as a .tar.gz archive
+    Export(DiagnosticsExportCommand),
+}
+
+#[derive(Debug, Args)]
+pub struct DiagnosticsExportCommand {
+    /// Redact home directory paths in profile configs and settings
+    #[arg(long)]
+    pub redact_paths: bool,
+
+    /// Output directory for the archive (default: system temp directory)
+    #[arg(long, value_name = "PATH")]
+    pub output: Option<PathBuf>,
+}
+
 #[cfg(test)]
 mod tests {
     use clap::Parser;
 
-    use super::{Cli, Command, ProfileCommand, SteamCommand};
+    use super::{Cli, Command, DiagnosticsCommand, ProfileCommand, SteamCommand};
 
     #[test]
     fn parses_launch_command_with_global_flags() {
@@ -183,6 +208,52 @@ mod tests {
                     );
                 }
                 other => panic!("unexpected steam command: {other:?}"),
+            },
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_diagnostics_export_command() {
+        let cli = Cli::try_parse_from(["crosshook", "diagnostics", "export"])
+            .expect("parser should accept diagnostics export");
+
+        match cli.command {
+            Command::Diagnostics(args) => match args.command {
+                DiagnosticsCommand::Export(command) => {
+                    assert!(!command.redact_paths);
+                    assert!(command.output.is_none());
+                }
+                #[allow(unreachable_patterns)]
+                other => panic!("unexpected diagnostics command: {other:?}"),
+            },
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_diagnostics_export_with_flags() {
+        let cli = Cli::try_parse_from([
+            "crosshook",
+            "diagnostics",
+            "export",
+            "--redact-paths",
+            "--output",
+            "/tmp/diag",
+        ])
+        .expect("parser should accept diagnostics export with flags");
+
+        match cli.command {
+            Command::Diagnostics(args) => match args.command {
+                DiagnosticsCommand::Export(command) => {
+                    assert!(command.redact_paths);
+                    assert_eq!(
+                        command.output.as_deref(),
+                        Some(std::path::Path::new("/tmp/diag"))
+                    );
+                }
+                #[allow(unreachable_patterns)]
+                other => panic!("unexpected diagnostics command: {other:?}"),
             },
             other => panic!("unexpected command: {other:?}"),
         }
