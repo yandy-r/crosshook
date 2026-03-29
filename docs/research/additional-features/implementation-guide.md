@@ -93,7 +93,7 @@ _Goal: Profiles are robust, portable, and easy to manage._
 |   6   | **#56** -- Profile clone               |  Done  | Quick win. Unblocks #50 (optimization presets need easy profile variants).                                                                |
 |   7   | **#55** -- Community export from GUI   |  Done  | Quick win. Backend function exists.                                                                                                       |
 |   8   | **#64** -- Stale launcher detection    |  Done  | Quick win. Flip `is_stale` from always-false to real comparison.                                                                          |
-|   9   | **#47** -- Pinned profiles / favorites |        | Small `AppSettingsData` extension. High UX value on Steam Deck.                                                                           |
+|   9   | **#47** -- Pinned profiles / favorites |  Done  | Small `AppSettingsData` extension. High UX value on Steam Deck.                                                                           |
 |  10   | **#48** -- Proton migration tool       |        | Detect stale Proton paths, suggest replacements from discovery. Natural extension of #38 health dashboard.                                |
 |  11   | **#42** -- Profile override layers     |        | The biggest single improvement for community profile adoption. Split portable base from local paths.                                      |
 |  12   | **#45** -- Import wizard               |        | Depends on #42 (override layers) to properly separate portable and local concerns during import. Orchestrates auto-populate + validation. |
