@@ -27,6 +27,7 @@
   --crosshook-radius-sm: 10px;
   --crosshook-content-width: 1440px;
   --crosshook-touch-target-min: 48px;
+  --crosshook-touch-target-compact: 36px;
   --crosshook-sidebar-width: 200px;
   --crosshook-sidebar-width-collapsed: 56px;
   --crosshook-console-drawer-height: 280px;

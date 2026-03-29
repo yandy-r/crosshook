@@ -427,7 +427,11 @@ textarea {
   border-radius: var(--crosshook-radius-md);
   transition: border-color 0.15s ease, color 0.15s ease;
   white-space: nowrap;
-  min-height: 36px;
+  min-height: var(--crosshook-touch-target-min);
+}
+
+.crosshook-button--ghost--small {
+  min-height: var(--crosshook-touch-target-compact);
 }
 
 .crosshook-button--ghost:hover:not(:disabled) {

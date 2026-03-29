@@ -361,7 +361,7 @@ function IssueDetailRow({
 }: {
   report: EnrichedProfileHealthReport;
   onRevalidate: (name: string) => void;
-  onFixNavigate: (name: string) => void;
+  onFixNavigate: (name: string) => void | Promise<void>;
 }) {
   const meta = report.metadata;
   return (
@@ -410,7 +410,7 @@ function IssueDetailRow({
               <button
                 type="button"
                 className="crosshook-button crosshook-button--small"
-                onClick={() => onFixNavigate(report.name)}
+                onClick={() => void onFixNavigate(report.name)}
                 aria-label={`Fix ${report.name}`}
               >
                 Fix
@@ -465,8 +465,8 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
 
   const deferredSearch = useDeferredValue(searchQuery);
 
-  function handleFixNavigation(profileName: string) {
-    void selectProfile(profileName);
+  async function handleFixNavigation(profileName: string) {
+    await selectProfile(profileName);
     onNavigate?.('profiles');
   }
 
@@ -777,12 +777,12 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                     aria-label={`${snap.profile_name} — ${snap.status}, ${snap.issue_count} issues`}
                     onClick={() => {
                       if (snap.status !== 'healthy') {
-                        handleFixNavigation(snap.profile_name);
+                        void handleFixNavigation(snap.profile_name);
                       }
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && snap.status !== 'healthy') {
-                        handleFixNavigation(snap.profile_name);
+                        void handleFixNavigation(snap.profile_name);
                       }
                     }}
                     style={snap.status !== 'healthy' ? { cursor: 'pointer' } : undefined}
@@ -863,7 +863,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                             <button
                               type="button"
                               className="crosshook-button crosshook-button--small"
-                              onClick={() => handleFixNavigation(report.name)}
+                              onClick={() => void handleFixNavigation(report.name)}
                               aria-label={`Fix ${report.name}`}
                             >
                               Fix
