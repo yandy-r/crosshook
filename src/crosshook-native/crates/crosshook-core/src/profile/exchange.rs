@@ -3,6 +3,11 @@ use super::community_schema::{
     COMMUNITY_PROFILE_SCHEMA_VERSION,
 };
 use crate::profile::{GameProfile, ProfileStore, ProfileStoreError};
+use crate::steam::{
+    attempt_auto_populate, discover_steam_root_candidates, SteamAutoPopulateFieldState,
+    SteamAutoPopulateRequest,
+};
+use crate::steam::proton::resolve_proton_path;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::error::Error;
@@ -75,6 +80,7 @@ pub struct CommunityImportResult {
     pub profile_name: String,
     pub source_path: PathBuf,
     pub profile_path: PathBuf,
+    pub profile: GameProfile,
     pub manifest: CommunityProfileManifest,
 }
 
@@ -111,14 +117,16 @@ pub fn import_community_profile(
     validate_schema_version(manifest.schema_version)?;
 
     let profile_name = derive_import_name(&manifest, json_path);
+    let hydrated_profile = hydrate_imported_profile(&manifest.profile);
 
     let store = ProfileStore::with_base_path(profiles_dir.to_path_buf());
-    store.save(&profile_name, &manifest.profile)?;
+    store.save(&profile_name, &hydrated_profile)?;
 
     Ok(CommunityImportResult {
         profile_name: profile_name.clone(),
         source_path: json_path.to_path_buf(),
         profile_path: profiles_dir.join(format!("{profile_name}.toml")),
+        profile: hydrated_profile,
         manifest,
     })
 }
@@ -223,17 +231,87 @@ fn require_field(
 /// the exporter's machine layout. Non-path hints (game name, Steam app id, launch method, etc.)
 /// are preserved.
 fn sanitize_profile_for_community_export(profile: &GameProfile) -> GameProfile {
-    let mut out = profile.clone();
-    out.game.executable_path.clear();
-    out.trainer.path.clear();
+    let mut out = profile.portable_profile();
     out.injection.dll_paths.clear();
-    out.steam.compatdata_path.clear();
-    out.steam.proton_path.clear();
     out.steam.launcher.icon_path.clear();
-    out.runtime.prefix_path.clear();
     out.runtime.proton_path.clear();
     out.runtime.working_directory.clear();
     out
+}
+
+fn hydrate_imported_profile(profile: &GameProfile) -> GameProfile {
+    let mut hydrated = profile.effective_profile();
+
+    let game_path = hydrated.game.executable_path.trim();
+    if !game_path.is_empty() {
+        let request = SteamAutoPopulateRequest {
+            game_path: PathBuf::from(game_path),
+            steam_client_install_path: PathBuf::new(),
+        };
+        let auto = attempt_auto_populate(&request);
+
+        if hydrated.steam.app_id.trim().is_empty()
+            && matches!(auto.app_id_state, SteamAutoPopulateFieldState::Found)
+            && !auto.app_id.trim().is_empty()
+        {
+            hydrated.steam.app_id = auto.app_id;
+        }
+
+        if hydrated.steam.compatdata_path.trim().is_empty()
+            && matches!(auto.compatdata_state, SteamAutoPopulateFieldState::Found)
+            && !auto.compatdata_path.as_os_str().is_empty()
+        {
+            hydrated.steam.compatdata_path = auto.compatdata_path.to_string_lossy().into_owned();
+        }
+
+        if hydrated.steam.proton_path.trim().is_empty()
+            && matches!(auto.proton_state, SteamAutoPopulateFieldState::Found)
+            && !auto.proton_path.as_os_str().is_empty()
+        {
+            hydrated.steam.proton_path = auto.proton_path.to_string_lossy().into_owned();
+        }
+    }
+
+    hydrate_from_steam_app_id(&mut hydrated);
+
+    if hydrated.runtime.prefix_path.trim().is_empty() && !hydrated.steam.compatdata_path.trim().is_empty()
+    {
+        hydrated.runtime.prefix_path = hydrated.steam.compatdata_path.clone();
+    }
+
+    hydrated
+}
+
+fn hydrate_from_steam_app_id(profile: &mut GameProfile) {
+    let steam_app_id = profile.steam.app_id.trim().to_string();
+    if steam_app_id.is_empty() {
+        return;
+    }
+
+    let mut diagnostics = Vec::new();
+    let steam_roots = discover_steam_root_candidates("", &mut diagnostics);
+
+    if profile.steam.compatdata_path.trim().is_empty() {
+        for steam_root in &steam_roots {
+            let candidate = steam_root
+                .join("steamapps")
+                .join("compatdata")
+                .join(&steam_app_id);
+            if candidate.is_dir() {
+                profile.steam.compatdata_path = candidate.to_string_lossy().into_owned();
+                break;
+            }
+        }
+    }
+
+    if profile.steam.proton_path.trim().is_empty() {
+        let proton = resolve_proton_path(&steam_app_id, &steam_roots, &mut diagnostics);
+        if matches!(proton.state, SteamAutoPopulateFieldState::Found)
+            && !proton.proton_path.as_os_str().is_empty()
+        {
+            profile.steam.proton_path = proton.proton_path.to_string_lossy().into_owned();
+        }
+    }
 }
 
 fn build_metadata(profile: &GameProfile) -> CommunityProfileMetadata {
@@ -379,6 +457,7 @@ mod tests {
                 method: "steam_applaunch".to_string(),
                 ..Default::default()
             },
+            local_override: crate::profile::LocalOverrideSection::default(),
         }
     }
 

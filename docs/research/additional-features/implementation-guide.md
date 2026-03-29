@@ -95,7 +95,7 @@ _Goal: Profiles are robust, portable, and easy to manage._
 |   8   | **#64** -- Stale launcher detection    |  Done  | Quick win. Flip `is_stale` from always-false to real comparison.                                                                          |
 |   9   | **#47** -- Pinned profiles / favorites |  Done  | Small `AppSettingsData` extension. High UX value on Steam Deck.                                                                           |
 |  10   | **#48** -- Proton migration tool       |        | Detect stale Proton paths, suggest replacements from discovery. Natural extension of #38 health dashboard.                                |
-|  11   | **#42** -- Profile override layers     |        | The biggest single improvement for community profile adoption. Split portable base from local paths.                                      |
+|  11   | **#42** -- Profile override layers     |  Done  | The biggest single improvement for community profile adoption. Split portable base from local paths.                                      |
 |  12   | **#45** -- Import wizard               |        | Depends on #42 (override layers) to properly separate portable and local concerns during import. Orchestrates auto-populate + validation. |
 
 **Dependencies**: #42 should precede #45. Quick wins (#56, #55, #64) have no dependencies.
@@ -238,16 +238,16 @@ Phase 6 (Polish) ── pick based on demand ───────────�
 
 ## Effort Estimates by Phase
 
-| Phase                  | Issues | Status    | Estimated Total | Cumulative |
-| ---------------------- | :----: | :-------: | :-------------: | :--------: |
-| Quick Wins             |   7    |   Done    |    2-3 days     |  2-3 days  |
-| Phase 1: Foundation    |   2    |   Done    |    2-3 days     |  ~1 week   |
-| Phase 2: Diagnostics   |   3    |   Done    |    1-2 weeks    |  ~3 weeks  |
-| Phase 3: Profiles      |   7    |  Partial  |    2-3 weeks    |  ~6 weeks  |
-| Phase 4: Version Intel |   3    |           |    2-3 weeks    |  ~9 weeks  |
-| Phase 5: CLI           |   2    |           |    1-2 weeks    | ~11 weeks  |
-| Phase 6: Polish        |   17   |  Partial  |  Pick & choose  |  Ongoing   |
-| Phase 7: Future        |   11   |           |  Not scheduled  |  Backlog   |
+| Phase                  | Issues | Status  | Estimated Total | Cumulative |
+| ---------------------- | :----: | :-----: | :-------------: | :--------: |
+| Quick Wins             |   7    |  Done   |    2-3 days     |  2-3 days  |
+| Phase 1: Foundation    |   2    |  Done   |    2-3 days     |  ~1 week   |
+| Phase 2: Diagnostics   |   3    |  Done   |    1-2 weeks    |  ~3 weeks  |
+| Phase 3: Profiles      |   7    | Partial |    2-3 weeks    |  ~6 weeks  |
+| Phase 4: Version Intel |   3    |         |    2-3 weeks    |  ~9 weeks  |
+| Phase 5: CLI           |   2    |         |    1-2 weeks    | ~11 weeks  |
+| Phase 6: Polish        |   17   | Partial |  Pick & choose  |  Ongoing   |
+| Phase 7: Future        |   11   |         |  Not scheduled  |  Backlog   |
 
 ---
 

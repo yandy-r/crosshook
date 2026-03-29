@@ -17,8 +17,9 @@ pub use exchange::{
 pub use legacy::{delete, list, load, save, validate_name};
 pub use models::{
     GameProfile, GameSection, InjectionSection, LaunchOptimizationsSection, LaunchSection,
-    LauncherSection, LegacyProfileData, RuntimeSection, SteamSection, TrainerLoadingMode,
-    TrainerSection, resolve_launch_method,
+    LauncherSection, LegacyProfileData, LocalOverrideGameSection, LocalOverrideRuntimeSection,
+    LocalOverrideSection, LocalOverrideSteamSection, LocalOverrideTrainerSection, RuntimeSection,
+    SteamSection, TrainerLoadingMode, TrainerSection, resolve_launch_method,
 };
 pub use toml_store::{
     DuplicateProfileResult, ProfileStore, ProfileStoreError, profile_to_shareable_toml,

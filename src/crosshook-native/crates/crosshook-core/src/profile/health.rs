@@ -337,7 +337,8 @@ fn check_optional_path(field: &str, path: &str) -> Option<HealthIssue> {
 /// Method-aware: only fields required by the resolved launch method are checked as required.
 /// All populated optional fields (icon_path, working_directory) are validated at Info severity.
 pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthReport {
-    let launch_method = resolve_launch_method(profile).to_string();
+    let effective_profile = profile.effective_profile();
+    let launch_method = resolve_launch_method(&effective_profile).to_string();
     let mut issues: Vec<HealthIssue> = Vec::new();
     let mut has_stale = false;
     let mut has_broken = false;
@@ -348,20 +349,20 @@ pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthR
     // game.executable_path — required for all methods
     required_results.push(check_required_file(
         "game.executable_path",
-        &profile.game.executable_path,
+        &effective_profile.game.executable_path,
     ));
 
     // trainer.path — required only if non-empty
-    if !profile.trainer.path.trim().is_empty() {
+    if !effective_profile.trainer.path.trim().is_empty() {
         required_results.push(check_file_path(
             "trainer.path",
-            &profile.trainer.path,
+            &effective_profile.trainer.path,
             HealthIssueSeverity::Error,
         ));
     }
 
     // injection.dll_paths — each non-empty entry must exist as a file
-    for (i, dll_path) in profile.injection.dll_paths.iter().enumerate() {
+    for (i, dll_path) in effective_profile.injection.dll_paths.iter().enumerate() {
         if !dll_path.trim().is_empty() {
             required_results.push(check_file_path(
                 &format!("injection.dll_paths[{i}]"),
@@ -376,21 +377,21 @@ pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthR
         METHOD_STEAM_APPLAUNCH => {
             required_results.push(check_required_directory(
                 "steam.compatdata_path",
-                &profile.steam.compatdata_path,
+                &effective_profile.steam.compatdata_path,
             ));
             required_results.push(check_required_executable(
                 "steam.proton_path",
-                &profile.steam.proton_path,
+                &effective_profile.steam.proton_path,
             ));
         }
         METHOD_PROTON_RUN => {
             required_results.push(check_required_directory(
                 "runtime.prefix_path",
-                &profile.runtime.prefix_path,
+                &effective_profile.runtime.prefix_path,
             ));
             required_results.push(check_required_executable(
                 "runtime.proton_path",
-                &profile.runtime.proton_path,
+                &effective_profile.runtime.proton_path,
             ));
         }
         _ => {
@@ -413,12 +414,12 @@ pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthR
     // Optional fields — checked at Info severity regardless of method
     if let Some(issue) = check_optional_path(
         "steam.launcher.icon_path",
-        &profile.steam.launcher.icon_path,
+        &effective_profile.steam.launcher.icon_path,
     ) {
         issues.push(issue);
     }
     if let Some(issue) =
-        check_optional_path("runtime.working_directory", &profile.runtime.working_directory)
+        check_optional_path("runtime.working_directory", &effective_profile.runtime.working_directory)
     {
         issues.push(issue);
     }
@@ -592,6 +593,7 @@ mod tests {
                 method: "steam_applaunch".to_string(),
                 ..Default::default()
             },
+            local_override: crate::profile::LocalOverrideSection::default(),
         }
     }
 
@@ -790,6 +792,7 @@ mod tests {
                 method: "proton_run".to_string(),
                 ..Default::default()
             },
+            local_override: crate::profile::LocalOverrideSection::default(),
         };
 
         let report = check_profile_health("proton-run-game", &profile);

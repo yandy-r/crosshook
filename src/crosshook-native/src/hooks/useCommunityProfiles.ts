@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { AppSettingsData } from '../types';
+import type { AppSettingsData, GameProfile } from '../types';
 
 export type CommunityCompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
 
@@ -25,34 +25,7 @@ export interface CommunityProfileMetadata {
 export interface CommunityProfileManifest {
   schema_version: number;
   metadata: CommunityProfileMetadata;
-  profile: {
-    game: {
-      name: string;
-      executable_path: string;
-    };
-    trainer: {
-      path: string;
-      type: string;
-      loading_mode: 'source_directory' | 'copy_to_prefix';
-    };
-    injection: {
-      dll_paths: string[];
-      inject_on_launch: boolean[];
-    };
-    steam: {
-      enabled: boolean;
-      app_id: string;
-      compatdata_path: string;
-      proton_path: string;
-      launcher: {
-        icon_path: string;
-        display_name: string;
-      };
-    };
-    launch: {
-      method: string;
-    };
-  };
+  profile: GameProfile;
 }
 
 export interface CommunityProfileIndexEntry {
@@ -85,6 +58,7 @@ export interface CommunityImportResult {
   profile_name: string;
   source_path: string;
   profile_path: string;
+  profile: GameProfile;
   manifest: CommunityProfileManifest;
 }
 
