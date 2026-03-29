@@ -48,7 +48,7 @@ function categorizeIssue(issue: HealthIssue): IssueCategory {
   return 'other';
 }
 
-type SortField = 'name' | 'status' | 'issues';
+type SortField = 'name' | 'status' | 'issues' | 'last_success' | 'launch_method' | 'failures' | 'favorite';
 type SortDirection = 'asc' | 'desc';
 type StatusFilter = 'all' | HealthStatus;
 
@@ -329,7 +329,7 @@ function IssueBreakdownPanel({ profiles }: { profiles: EnrichedProfileHealthRepo
   const maxCount = categoryCounts.length > 0 ? categoryCounts[0].count : 1;
 
   return (
-    <CollapsibleSection title="Issue Breakdown" defaultOpen={false}>
+    <CollapsibleSection title="Issue Breakdown" defaultOpen>
       {categoryCounts.length === 0 ? (
         <p className="crosshook-muted">No issues found across all profiles.</p>
       ) : (
@@ -366,7 +366,7 @@ function IssueDetailRow({
   const meta = report.metadata;
   return (
     <tr className="crosshook-health-dashboard-expanded-row">
-      <td colSpan={4}>
+      <td colSpan={9}>
         <div className="crosshook-health-dashboard-expanded-content">
           <div className="crosshook-health-dashboard-expanded-meta">
             <span><strong>Launch Method:</strong> {report.launch_method}</span>
@@ -518,6 +518,24 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
         case 'issues':
           cmp = a.issues.length - b.issues.length;
           break;
+        case 'last_success': {
+          const aSuccess = a.metadata?.last_success ?? '';
+          const bSuccess = b.metadata?.last_success ?? '';
+          cmp = aSuccess.localeCompare(bSuccess);
+          break;
+        }
+        case 'launch_method':
+          cmp = a.launch_method.localeCompare(b.launch_method);
+          break;
+        case 'failures':
+          cmp = (a.metadata?.failure_count_30d ?? 0) - (b.metadata?.failure_count_30d ?? 0);
+          break;
+        case 'favorite': {
+          const aFavSort = a.metadata?.is_favorite ? 1 : 0;
+          const bFavSort = b.metadata?.is_favorite ? 1 : 0;
+          cmp = aFavSort - bFavSort;
+          break;
+        }
         default:
           cmp = 0;
       }
@@ -766,6 +784,12 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   <th role="columnheader" scope="col">Status</th>
                   <th role="columnheader" scope="col">Name</th>
                   <th role="columnheader" scope="col">Issues</th>
+                  <th role="columnheader" scope="col">Last Success</th>
+                  <th role="columnheader" scope="col">Method</th>
+                  <th role="columnheader" scope="col">Failures</th>
+                  <th role="columnheader" scope="col">&#9733;</th>
+                  <th role="columnheader" scope="col">Source</th>
+                  <th role="columnheader" scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -792,6 +816,12 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                     </td>
                     <td>{snap.profile_name}</td>
                     <td>{snap.issue_count}</td>
+                    <td>&#8212;</td>
+                    <td>&#8212;</td>
+                    <td>&#8212;</td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
                   </tr>
                 ))}
               </tbody>
@@ -824,6 +854,11 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   {renderSortHeader('status', 'Status')}
                   {renderSortHeader('name', 'Name')}
                   {renderSortHeader('issues', 'Issues')}
+                  {renderSortHeader('last_success', 'Last Success')}
+                  {renderSortHeader('launch_method', 'Method')}
+                  {renderSortHeader('failures', 'Failures')}
+                  {renderSortHeader('favorite', '★')}
+                  <th role="columnheader" scope="col" className="crosshook-health-dashboard-th">Source</th>
                   <th role="columnheader" scope="col" className="crosshook-health-dashboard-th crosshook-health-dashboard-th--actions">Actions</th>
                 </tr>
               </thead>
@@ -858,6 +893,21 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                         </td>
                         <td>{report.name}</td>
                         <td className="crosshook-health-dashboard-td--issues">{report.issues.length}</td>
+                        <td className="crosshook-health-dashboard-td--last-success">
+                          {report.metadata?.last_success ? formatRelativeTime(report.metadata.last_success) : 'N/A'}
+                        </td>
+                        <td className="crosshook-health-dashboard-td--method">{report.launch_method}</td>
+                        <td className="crosshook-health-dashboard-td--failures">
+                          {report.metadata != null ? report.metadata.failure_count_30d : 'N/A'}
+                        </td>
+                        <td className="crosshook-health-dashboard-td--favorite">
+                          {report.metadata?.is_favorite ? '★' : ''}
+                        </td>
+                        <td className="crosshook-health-dashboard-td--source">
+                          {report.metadata?.is_community_import ? (
+                            <span className="crosshook-status-chip">Community</span>
+                          ) : null}
+                        </td>
                         <td className="crosshook-health-dashboard-td--actions" onClick={(e) => e.stopPropagation()}>
                           {report.status !== 'healthy' && (
                             <button
