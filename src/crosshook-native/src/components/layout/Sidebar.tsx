@@ -7,9 +7,10 @@ import {
   BrowseIcon,
   CompatibilityIcon,
   SettingsIcon,
+  HealthIcon,
 } from '../icons/SidebarIcons';
 
-export type AppRoute = 'profiles' | 'launch' | 'install' | 'community' | 'compatibility' | 'settings';
+export type AppRoute = 'profiles' | 'launch' | 'install' | 'community' | 'compatibility' | 'settings' | 'health';
 
 export interface SidebarProps {
   activeRoute: AppRoute;
@@ -42,6 +43,10 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [{ route: 'install', label: 'Install Game', icon: InstallIcon }],
   },
   {
+    label: 'Dashboards',
+    items: [{ route: 'health', label: 'Health', icon: HealthIcon }],
+  },
+  {
     label: 'Community',
     items: [
       { route: 'community', label: 'Browse', icon: BrowseIcon },
@@ -57,6 +62,7 @@ const ROUTE_LABELS: Record<AppRoute, string> = {
   community: 'Browse',
   compatibility: 'Compatibility',
   settings: 'Settings',
+  health: 'Health',
 };
 
 function SidebarTrigger({ activeRoute, onNavigate, route, label, icon: Icon }: SidebarSectionItem & Pick<SidebarProps, 'activeRoute' | 'onNavigate'>) {

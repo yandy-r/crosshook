@@ -9,30 +9,14 @@ import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { HealthBadge } from '../HealthBadge';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
-import { useProfileHealth } from '../../hooks/useProfileHealth';
+import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { PageBanner, ProfilesArt } from '../layout/PageBanner';
 import { deriveTargetHomePath } from '../../utils/steam';
-import type { EnrichedProfileHealthReport } from '../../types';
+import { formatRelativeTime } from '../../utils/format';
 
 interface RenameToast {
   newName: string;
   oldName: string;
-}
-
-function formatRelativeTime(isoString: string): string {
-  const then = new Date(isoString).getTime();
-  const nowMs = new Date().getTime();
-  const diffDays = Math.floor((nowMs - then) / (1000 * 60 * 60 * 24));
-
-  if (diffDays <= 0) return 'today';
-  if (diffDays === 1) return 'yesterday';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) {
-    const weeks = Math.floor(diffDays / 7);
-    return `${weeks} week${weeks !== 1 ? 's' : ''} ago`;
-  }
-  const months = Math.floor(diffDays / 30);
-  return `${months} month${months !== 1 ? 's' : ''} ago`;
 }
 
 const RENAME_TOAST_DURATION_MS = 6000;
@@ -117,7 +101,7 @@ export function ProfilesPage() {
     staleInfoByName,
     cachedSnapshots,
     trendByName,
-  } = useProfileHealth();
+  } = useProfileHealthContext();
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -504,8 +488,7 @@ export function ProfilesPage() {
               return null;
             }
 
-            const enriched = report as EnrichedProfileHealthReport;
-            const metadata = enriched.metadata ?? null;
+            const metadata = report.metadata ?? null;
 
             const driftMessage: Record<string, string> = {
               missing: 'Exported launcher not found — re-export recommended',

@@ -418,9 +418,30 @@ textarea {
 }
 
 .crosshook-button--ghost {
-  border-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   background: transparent;
   color: var(--crosshook-color-text-muted);
+  font-size: 0.82rem;
+  padding: 5px 14px;
+  cursor: pointer;
+  border-radius: var(--crosshook-radius-md);
+  transition: border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  min-height: var(--crosshook-touch-target-min);
+}
+
+.crosshook-button--ghost--small {
+  min-height: var(--crosshook-touch-target-compact);
+}
+
+.crosshook-button--ghost:hover:not(:disabled) {
+  border-color: var(--crosshook-color-accent);
+  color: var(--crosshook-color-accent);
+}
+
+.crosshook-button--ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .crosshook-button--warning {
@@ -2604,5 +2625,314 @@ textarea {
 
   .crosshook-button:hover {
     transform: none;
+  }
+}
+
+/* Health Dashboard — base grid and card styles */
+.crosshook-health-dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--crosshook-grid-gap);
+  margin-bottom: var(--crosshook-grid-gap);
+}
+
+.crosshook-health-dashboard-card {
+  border-left: 4px solid transparent;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crosshook-health-dashboard-card__count {
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.crosshook-health-dashboard-card__label {
+  font-size: 0.875rem;
+}
+
+.crosshook-health-dashboard-error {
+  margin-bottom: var(--crosshook-grid-gap);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-left: 4px solid var(--crosshook-color-danger);
+}
+
+.crosshook-health-dashboard-checking {
+  margin-bottom: var(--crosshook-grid-gap);
+}
+
+.crosshook-health-dashboard-empty {
+  margin-top: var(--crosshook-grid-gap);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.crosshook-health-dashboard-all-healthy {
+  margin-top: var(--crosshook-grid-gap);
+}
+
+/* Health Dashboard — section divider between cards and table */
+.crosshook-health-dashboard-section {
+  margin-top: 28px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+
+.crosshook-health-dashboard-section__heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--crosshook-color-text-muted);
+  margin: 0;
+}
+
+/* Health Dashboard — table layout */
+.crosshook-health-dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.crosshook-health-dashboard-th {
+  cursor: pointer;
+  user-select: none;
+  padding: 10px 12px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.crosshook-health-dashboard-th--actions {
+  cursor: default;
+  width: 72px;
+  text-align: right;
+}
+
+.crosshook-health-dashboard-th__inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.crosshook-health-dashboard-sort-arrow {
+  font-size: 0.75em;
+  line-height: 1;
+}
+
+.crosshook-health-dashboard-sort-arrow--inactive {
+  opacity: 0.3;
+}
+
+.crosshook-health-dashboard-sort-arrow--active {
+  opacity: 1;
+  color: var(--crosshook-color-accent);
+}
+
+.crosshook-health-dashboard-row {
+  cursor: pointer;
+  min-height: var(--crosshook-touch-target-min);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.1s ease;
+}
+
+.crosshook-health-dashboard-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.crosshook-health-dashboard-row--expanded {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.crosshook-health-dashboard-row td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.crosshook-health-dashboard-td--status {
+  width: 100px;
+}
+
+.crosshook-health-dashboard-td--issues {
+  width: 72px;
+}
+
+.crosshook-health-dashboard-td--actions {
+  width: 72px;
+  text-align: right;
+}
+
+.crosshook-health-dashboard-stale-hint {
+  font-size: 0.7em;
+  display: block;
+  white-space: nowrap;
+}
+
+/* Health Dashboard — expanded row detail */
+.crosshook-health-dashboard-expanded-row td {
+  padding: 12px 24px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.crosshook-health-dashboard-expanded-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crosshook-health-dashboard-expanded-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 0.85rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-health-dashboard-expanded-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Health Dashboard — toolbar */
+.crosshook-health-dashboard-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.crosshook-health-dashboard-toolbar__filters {
+  display: flex;
+  gap: 6px;
+}
+
+.crosshook-health-dashboard-toolbar__pill {
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.crosshook-health-dashboard-toolbar__pill--active {
+  opacity: 1;
+}
+
+.crosshook-health-dashboard-toolbar__search {
+  flex: 1;
+  min-width: 140px;
+}
+
+.crosshook-health-dashboard-toolbar__count {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.crosshook-health-dashboard-toolbar__recheck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.crosshook-health-dashboard-toolbar__validated {
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+/* Health Dashboard — validation summary strip (fixed height, no layout shift) */
+.crosshook-health-dashboard-validation-strip {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.crosshook-health-dashboard-validation-strip__text {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--crosshook-color-text-muted);
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--crosshook-radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Health Dashboard — responsive summary card grid */
+@media (max-width: 1100px) {
+  .crosshook-health-dashboard-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .crosshook-health-dashboard-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Ensure minimum 48px touch target height on all interactive health dashboard elements */
+.crosshook-health-dashboard-card,
+.crosshook-health-dashboard-cards button,
+.crosshook-health-dashboard-cards a {
+  min-height: var(--crosshook-touch-target-min);
+}
+
+/* Health Dashboard — skeleton loading states */
+@keyframes crosshook-skeleton-pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.crosshook-health-dashboard-skeleton {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  animation: crosshook-skeleton-pulse 1.5s ease infinite;
+}
+
+.crosshook-health-dashboard-skeleton-card {
+  border-left: 4px solid rgba(255, 255, 255, 0.1);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: var(--crosshook-touch-target-min);
+}
+
+.crosshook-health-dashboard-skeleton-card__count {
+  height: 2.4rem;
+  width: 48px;
+  border-radius: 4px;
+}
+
+.crosshook-health-dashboard-skeleton-card__label {
+  height: 0.875rem;
+  width: 72px;
+  border-radius: 4px;
+}
+
+.crosshook-health-dashboard-skeleton-row td {
+  padding: 12px 8px;
+}
+
+.crosshook-health-dashboard-skeleton-cell {
+  height: 1rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-health-dashboard-skeleton {
+    animation: none;
   }
 }

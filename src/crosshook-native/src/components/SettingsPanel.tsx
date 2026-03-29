@@ -138,7 +138,7 @@ function ManageLaunchersSection({
           </span>
           <button
             type="button"
-            className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
+            className="crosshook-button crosshook-button--ghost crosshook-button--ghost--small crosshook-settings-small-button"
             onClick={(event) => {
               event.preventDefault();
               void loadLaunchers();
@@ -182,7 +182,7 @@ function ManageLaunchersSection({
                     </button>
                     <button
                       type="button"
-                      className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
+                      className="crosshook-button crosshook-button--ghost crosshook-button--ghost--small crosshook-settings-small-button"
                       onClick={() => setConfirmSlug(null)}
                     >
                       Cancel
@@ -191,7 +191,7 @@ function ManageLaunchersSection({
                 ) : (
                   <button
                     type="button"
-                    className="crosshook-button crosshook-button--ghost crosshook-settings-small-button"
+                    className="crosshook-button crosshook-button--ghost crosshook-button--ghost--small crosshook-settings-small-button"
                     onClick={() => setConfirmSlug(launcher.launcher_slug)}
                   >
                     Delete
