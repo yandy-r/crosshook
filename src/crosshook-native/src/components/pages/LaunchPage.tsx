@@ -1,5 +1,8 @@
+import { useCallback, useMemo } from 'react';
+
 import LaunchOptimizationsPanel from '../LaunchOptimizationsPanel';
 import LaunchPanel from '../LaunchPanel';
+import { PinnedProfilesStrip } from '../PinnedProfilesStrip';
 import SteamLaunchOptionsPanel from '../SteamLaunchOptionsPanel';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
@@ -54,6 +57,13 @@ export function LaunchPage() {
   const showsOptimizationPanels =
     profileState.launchMethod === 'proton_run' || profileState.launchMethod === 'steam_applaunch';
   const showsSteamLaunchOptions = profileState.launchMethod === 'steam_applaunch';
+  const pinnedSet = useMemo(() => new Set(profileState.favoriteProfiles), [profileState.favoriteProfiles]);
+  const handleTogglePin = useCallback(
+    (value: string) => {
+      void profileState.toggleFavorite(value, !pinnedSet.has(value));
+    },
+    [pinnedSet, profileState.toggleFavorite]
+  );
 
   return (
     <>
@@ -75,9 +85,22 @@ export function LaunchPage() {
             value={profileState.selectedProfile}
             onValueChange={(name) => void profileState.selectProfile(name)}
             placeholder="Select a profile"
+            pinnedValues={pinnedSet}
+            onTogglePin={handleTogglePin}
             options={profileState.profiles.map((name) => ({ value: name, label: name }))}
           />
         </section>
+
+        {profileState.favoriteProfiles.length > 0 ? (
+          <section className="crosshook-panel">
+            <PinnedProfilesStrip
+              favoriteProfiles={profileState.favoriteProfiles}
+              selectedProfile={profileState.selectedProfile}
+              onSelectProfile={profileState.selectProfile}
+              onToggleFavorite={profileState.toggleFavorite}
+            />
+          </section>
+        ) : null}
 
         {showsOptimizationPanels ? (
           <CollapsibleSection title="Launch Optimizations" className="crosshook-panel">

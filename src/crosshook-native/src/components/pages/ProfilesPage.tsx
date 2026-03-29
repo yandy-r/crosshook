@@ -55,6 +55,7 @@ export function ProfilesPage() {
     duplicating,
     error,
     executeDelete,
+    favoriteProfiles,
     loading,
     pendingDelete,
     profile,
@@ -71,6 +72,7 @@ export function ProfilesPage() {
     setProfileName,
     cancelDelete,
     confirmDelete,
+    toggleFavorite,
     updateProfile,
     launchMethod,
     steamClientInstallPath,
@@ -511,8 +513,10 @@ export function ProfilesPage() {
             profileExists={profileExists}
             profileSelector={{
               profiles,
+              favoriteProfiles,
               selectedProfile,
               onSelectProfile: selectProfile,
+              onToggleFavorite: toggleFavorite,
             }}
             onProfileNameChange={setProfileName}
             onUpdateProfile={updateProfile}

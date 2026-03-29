@@ -72,6 +72,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 8 {
+        migrate_7_to_8(conn)?;
+        conn.pragma_update(None, "user_version", 8_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -86,7 +95,6 @@ fn migrate_0_to_1(conn: &Connection) -> Result<(), MetadataStoreError> {
             launch_method TEXT,
             content_hash TEXT,
             is_favorite INTEGER NOT NULL DEFAULT 0,
-            is_pinned INTEGER NOT NULL DEFAULT 0,
             source_profile_id TEXT REFERENCES profiles(profile_id),
             deleted_at TEXT,
             created_at TEXT NOT NULL,
@@ -294,6 +302,35 @@ fn migrate_6_to_7(conn: &Connection) -> Result<(), MetadataStoreError> {
         action: "run metadata migration 6 to 7",
         source,
     })?;
+
+    Ok(())
+}
+
+fn migrate_7_to_8(conn: &Connection) -> Result<(), MetadataStoreError> {
+    let has_column = {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(profiles)")
+            .map_err(|source| MetadataStoreError::Database {
+                action: "check profiles columns for migration 7 to 8",
+                source,
+            })?;
+        let found = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|source| MetadataStoreError::Database {
+                action: "read profiles columns for migration 7 to 8",
+                source,
+            })?
+            .any(|name| matches!(name.as_deref(), Ok("is_pinned")));
+        found
+    };
+
+    if has_column {
+        conn.execute_batch("ALTER TABLE profiles DROP COLUMN is_pinned;")
+            .map_err(|source| MetadataStoreError::Database {
+                action: "run metadata migration 7 to 8",
+                source,
+            })?;
+    }
 
     Ok(())
 }

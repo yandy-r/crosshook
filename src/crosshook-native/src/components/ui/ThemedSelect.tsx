@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import * as Select from '@radix-ui/react-select';
 
 /**
@@ -14,25 +15,80 @@ export interface SelectOption {
   disabled?: boolean;
 }
 
+export interface SelectOptionGroup {
+  label: string;
+  options: SelectOption[];
+}
+
 interface ThemedSelectProps {
   value: string;
   onValueChange: (value: string) => void;
-  options: SelectOption[];
+  options?: SelectOption[];
+  groups?: SelectOptionGroup[];
+  pinnedValues?: ReadonlySet<string>;
+  onTogglePin?: (value: string) => void;
   placeholder?: string;
   id?: string;
   className?: string;
+}
+
+function SelectItemNode({
+  opt,
+  isPinned,
+  onTogglePin,
+}: {
+  opt: SelectOption;
+  isPinned?: boolean;
+  onTogglePin?: (value: string) => void;
+}) {
+  return (
+    <Select.Item
+      value={toRadix(opt.value)}
+      disabled={opt.disabled}
+      className="crosshook-themed-select__item"
+    >
+      <Select.ItemText>{opt.label}</Select.ItemText>
+      {onTogglePin ? (
+        <span
+          role="button"
+          tabIndex={-1}
+          className={`crosshook-themed-select__pin${isPinned ? ' crosshook-themed-select__pin--active' : ''}`}
+          aria-label={isPinned ? `Unpin ${opt.label}` : `Pin ${opt.label}`}
+          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+          onPointerUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onTogglePin(opt.value);
+          }}
+        >
+          {isPinned ? '\u2605' : '\u2606'}
+        </span>
+      ) : (
+        <Select.ItemIndicator className="crosshook-themed-select__check">
+          <CheckIcon />
+        </Select.ItemIndicator>
+      )}
+    </Select.Item>
+  );
 }
 
 export function ThemedSelect({
   value,
   onValueChange,
   options,
+  groups,
+  pinnedValues,
+  onTogglePin,
   placeholder = 'Select\u2026',
   id,
   className,
 }: ThemedSelectProps) {
+  const allOptions = groups && groups.length > 0
+    ? groups.flatMap((g) => g.options)
+    : (options ?? []);
   const radixValue = toRadix(value);
-  const hasValue = options.some((o) => o.value === value);
+  const hasValue = allOptions.some((o) => o.value === value);
 
   return (
     <Select.Root
@@ -61,19 +117,24 @@ export function ThemedSelect({
           </Select.ScrollUpButton>
 
           <Select.Viewport className="crosshook-themed-select__viewport">
-            {options.map((opt) => (
-              <Select.Item
-                key={opt.value}
-                value={toRadix(opt.value)}
-                disabled={opt.disabled}
-                className="crosshook-themed-select__item"
-              >
-                <Select.ItemText>{opt.label}</Select.ItemText>
-                <Select.ItemIndicator className="crosshook-themed-select__check">
-                  <CheckIcon />
-                </Select.ItemIndicator>
-              </Select.Item>
-            ))}
+            {groups && groups.length > 0
+              ? groups.map((group, gi) => (
+                  <Fragment key={group.label}>
+                    {gi > 0 && <Select.Separator className="crosshook-themed-select__separator" />}
+                    <Select.Group>
+                      <Select.Label className="crosshook-themed-select__group-label">
+                        {group.label}
+                      </Select.Label>
+                      {group.options.map((opt) => (
+                        <SelectItemNode key={opt.value} opt={opt} isPinned={pinnedValues?.has(opt.value)} onTogglePin={onTogglePin} />
+                      ))}
+                    </Select.Group>
+                  </Fragment>
+                ))
+              : (options ?? []).map((opt) => (
+                  <SelectItemNode key={opt.value} opt={opt} isPinned={pinnedValues?.has(opt.value)} onTogglePin={onTogglePin} />
+                ))
+            }
           </Select.Viewport>
 
           <Select.ScrollDownButton className="crosshook-themed-select__scroll-btn">
