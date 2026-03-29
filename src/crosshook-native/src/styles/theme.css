@@ -2769,6 +2769,25 @@ textarea {
   text-align: right;
 }
 
+.crosshook-health-dashboard-td--last-success,
+.crosshook-health-dashboard-td--method {
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.crosshook-health-dashboard-td--failures {
+  text-align: center;
+}
+
+.crosshook-health-dashboard-td--favorite {
+  text-align: center;
+  font-size: 1rem;
+}
+
+.crosshook-health-dashboard-td--source {
+  font-size: 0.85rem;
+}
+
 .crosshook-health-dashboard-stale-hint {
   font-size: 0.7em;
   display: block;
