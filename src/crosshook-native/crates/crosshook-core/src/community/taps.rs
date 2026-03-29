@@ -22,6 +22,8 @@ pub struct CommunityTapSubscription {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_commit: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,10 +171,17 @@ impl CommunityTapStore {
         })?;
 
         let status = if workspace.local_path.exists() {
-            self.fetch_and_reset(workspace)?;
+            if workspace.subscription.pinned_commit.is_some() {
+                self.fetch_and_checkout_pinned(workspace)?;
+            } else {
+                self.fetch_and_reset(workspace)?;
+            }
             CommunityTapSyncStatus::Updated
         } else {
             self.clone_tap(workspace)?;
+            if workspace.subscription.pinned_commit.is_some() {
+                self.checkout_pinned_commit(workspace)?;
+            }
             CommunityTapSyncStatus::Cloned
         };
 
@@ -223,14 +232,51 @@ impl CommunityTapStore {
         self.run_git(
             workspace,
             "fetch community tap",
-            ["fetch", "--prune", "origin", workspace.branch()],
+            &["fetch", "--prune", "origin", workspace.branch()],
         )?;
         self.run_git(
             workspace,
             "reset community tap",
-            ["reset", "--hard", "FETCH_HEAD"],
+            &["reset", "--hard", "FETCH_HEAD"],
         )?;
-        self.run_git(workspace, "clean community tap", ["clean", "-fdx"])?;
+        self.run_git(workspace, "clean community tap", &["clean", "-fdx"])?;
+        Ok(())
+    }
+
+    fn fetch_and_checkout_pinned(
+        &self,
+        workspace: &CommunityTapWorkspace,
+    ) -> Result<(), CommunityTapError> {
+        self.run_git(
+            workspace,
+            "fetch community tap",
+            &["fetch", "--prune", "origin", workspace.branch()],
+        )?;
+        self.checkout_pinned_commit(workspace)?;
+        self.run_git(workspace, "clean community tap", &["clean", "-fdx"])?;
+        Ok(())
+    }
+
+    fn checkout_pinned_commit(
+        &self,
+        workspace: &CommunityTapWorkspace,
+    ) -> Result<(), CommunityTapError> {
+        let pinned_commit =
+            workspace
+                .subscription
+                .pinned_commit
+                .as_deref()
+                .ok_or_else(|| CommunityTapError::Git {
+                    action: "checkout pinned commit",
+                    command: "git checkout --detach <commit>".to_string(),
+                    stderr: "missing pinned commit".to_string(),
+                })?;
+
+        self.run_git(
+            workspace,
+            "checkout pinned commit",
+            &["checkout", "--detach", pinned_commit],
+        )?;
         Ok(())
     }
 
@@ -257,11 +303,11 @@ impl CommunityTapStore {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
 
-    fn run_git<const N: usize>(
+    fn run_git(
         &self,
         workspace: &CommunityTapWorkspace,
         action: &'static str,
-        args: [&str; N],
+        args: &[&str],
     ) -> Result<(), CommunityTapError> {
         let output = git_command()
             .arg("-C")
@@ -322,6 +368,11 @@ fn normalize_subscription(
             .as_ref()
             .map(|branch| branch.trim().to_string())
             .filter(|branch| !branch.is_empty()),
+        pinned_commit: subscription
+            .pinned_commit
+            .as_ref()
+            .map(|commit| commit.trim().to_string())
+            .filter(|commit| !commit.is_empty()),
     })
 }
 
@@ -443,6 +494,21 @@ mod tests {
         );
     }
 
+    fn rev_parse_head(path: &Path) -> String {
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(path)
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    }
+
     #[test]
     fn syncs_and_indexes_local_tap_repo() {
         let temp_dir = tempdir().unwrap();
@@ -476,6 +542,7 @@ mod tests {
         let subscription = CommunityTapSubscription {
             url: source_repo.display().to_string(),
             branch: Some("main".to_string()),
+            pinned_commit: None,
         };
 
         let result = store.sync_tap(&subscription).unwrap();
@@ -498,9 +565,81 @@ mod tests {
             .sync_tap(&CommunityTapSubscription {
                 url: "   ".to_string(),
                 branch: None,
+                pinned_commit: None,
             })
             .unwrap_err();
 
         assert!(matches!(error, CommunityTapError::EmptyTapUrl));
+    }
+
+    #[test]
+    fn pinned_tap_stays_on_selected_commit() {
+        let temp_dir = tempdir().unwrap();
+        let source_repo = temp_dir.path().join("source");
+        let store_root = temp_dir.path().join("store");
+        fs::create_dir_all(&source_repo).unwrap();
+        init_repo(&source_repo);
+
+        let manifest_v1 = CommunityProfileManifest::new(
+            CommunityProfileMetadata {
+                game_name: "Elden Ring".to_string(),
+                game_version: "1.0".to_string(),
+                trainer_name: "Trainer".to_string(),
+                trainer_version: "1".to_string(),
+                proton_version: "9".to_string(),
+                platform_tags: vec!["linux".to_string()],
+                compatibility_rating: CompatibilityRating::Working,
+                author: "CrossHook".to_string(),
+                description: "Pinned v1".to_string(),
+            },
+            GameProfile::default(),
+        );
+        commit_file(
+            &source_repo,
+            "profiles/elden-ring/community-profile.json",
+            &serde_json::to_string_pretty(&manifest_v1).unwrap(),
+            "add v1 profile",
+        );
+        let pinned_commit = rev_parse_head(&source_repo);
+
+        let store = CommunityTapStore::with_base_path(store_root);
+        let subscription = CommunityTapSubscription {
+            url: source_repo.display().to_string(),
+            branch: Some("main".to_string()),
+            pinned_commit: Some(pinned_commit.clone()),
+        };
+
+        let first_sync = store.sync_tap(&subscription).unwrap();
+        assert_eq!(first_sync.head_commit, pinned_commit);
+
+        let manifest_v2 = CommunityProfileManifest::new(
+            CommunityProfileMetadata {
+                game_name: "Elden Ring".to_string(),
+                game_version: "1.1".to_string(),
+                trainer_name: "Trainer".to_string(),
+                trainer_version: "2".to_string(),
+                proton_version: "9".to_string(),
+                platform_tags: vec!["linux".to_string()],
+                compatibility_rating: CompatibilityRating::Working,
+                author: "CrossHook".to_string(),
+                description: "Pinned v2".to_string(),
+            },
+            GameProfile::default(),
+        );
+        commit_file(
+            &source_repo,
+            "profiles/elden-ring/community-profile.json",
+            &serde_json::to_string_pretty(&manifest_v2).unwrap(),
+            "update profile",
+        );
+
+        let second_sync = store.sync_tap(&subscription).unwrap();
+        assert_eq!(second_sync.status, CommunityTapSyncStatus::Updated);
+        assert_eq!(second_sync.head_commit, pinned_commit);
+        assert_eq!(second_sync.index.entries.len(), 1);
+        assert_eq!(
+            second_sync.index.entries[0].manifest.metadata.trainer_version,
+            "1"
+        );
     }
 }

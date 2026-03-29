@@ -192,6 +192,7 @@ mod tests {
             subscription: CommunityTapSubscription {
                 url: "https://example.invalid/taps/community.git".to_string(),
                 branch: Some("main".to_string()),
+                pinned_commit: None,
             },
             local_path: path,
         }

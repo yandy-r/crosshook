@@ -1505,6 +1505,7 @@ mod tests {
             subscription: CommunityTapSubscription {
                 url: url.to_string(),
                 branch: None,
+                pinned_commit: None,
             },
             local_path: PathBuf::from("/tmp/test-tap"),
         }
