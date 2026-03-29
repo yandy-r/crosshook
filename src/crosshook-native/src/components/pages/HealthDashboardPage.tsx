@@ -329,7 +329,7 @@ function IssueBreakdownPanel({ profiles }: { profiles: EnrichedProfileHealthRepo
   const maxCount = categoryCounts.length > 0 ? categoryCounts[0].count : 1;
 
   return (
-    <CollapsibleSection title="Issue Breakdown" defaultOpen>
+    <CollapsibleSection title="Issue Breakdown" defaultOpen={false}>
       {categoryCounts.length === 0 ? (
         <p className="crosshook-muted">No issues found across all profiles.</p>
       ) : (
