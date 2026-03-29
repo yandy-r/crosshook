@@ -19,6 +19,7 @@ export type PersistProfileDraft = (name: string, profile: GameProfile) => Promis
 
 export interface UseProfileResult {
   profiles: string[];
+  favoriteProfiles: string[];
   selectedProfile: string;
   profileName: string;
   profile: GameProfile;
@@ -49,6 +50,7 @@ export interface UseProfileResult {
   executeDelete: () => Promise<void>;
   cancelDelete: () => void;
   refreshProfiles: () => Promise<void>;
+  toggleFavorite: (name: string, favorite: boolean) => Promise<void>;
 }
 
 export interface UseProfileOptions {
@@ -328,6 +330,7 @@ function createEmptyProfile(): GameProfile {
 
 export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [profiles, setProfiles] = useState<string[]>([]);
+  const [favoriteProfiles, setFavoriteProfiles] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState('');
   const [profileName, setProfileName] = useState('');
   const [profile, setProfile] = useState<GameProfile>(createEmptyProfile);
@@ -368,6 +371,25 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       } satisfies RecentFilesData,
     });
   }, []);
+
+  const loadFavorites = useCallback(async () => {
+    try {
+      const names = await invoke<string[]>('profile_list_favorites');
+      setFavoriteProfiles(names);
+    } catch {
+      setFavoriteProfiles([]);
+    }
+  }, []);
+
+  const toggleFavorite = useCallback(async (name: string, favorite: boolean) => {
+    try {
+      await invoke('profile_set_favorite', { name, favorite });
+      await loadFavorites();
+    } catch (err) {
+      console.error('Failed to update profile favorite state', err);
+      throw err;
+    }
+  }, [loadFavorites]);
 
   const loadProfile = useCallback(
     async (name: string, loadOptions?: { loadErrorContext?: string }) => {
@@ -453,6 +475,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       }
       const names = await invoke<string[]>('profile_list');
       setProfiles(names);
+      void loadFavorites();
 
       if (names.length === 0) {
         setSelectedProfile('');
@@ -467,7 +490,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         loadErrorContext: 'Profile deleted, but loading the next profile failed',
       });
     },
-    [loadProfile]
+    [loadFavorites, loadProfile]
   );
 
   const hydrateProfile = useCallback(
@@ -624,6 +647,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         const hadLauncher = await invoke<boolean>('profile_rename', { oldName: oldName.trim(), newName: newName.trim() });
         await refreshProfiles();
         await loadProfile(newName.trim());
+        await loadFavorites();
         return { ok: true, hadLauncher };
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -632,7 +656,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         setRenaming(false);
       }
     },
-    [loadProfile, refreshProfiles]
+    [loadFavorites, loadProfile, refreshProfiles]
   );
 
   const confirmDelete = useCallback(async (name: string) => {
@@ -689,7 +713,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     void refreshProfiles().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : String(err));
     });
-  }, [refreshProfiles]);
+    void loadFavorites();
+  }, [loadFavorites, refreshProfiles]);
 
   useEffect(() => {
     const method = resolveLaunchMethod(profile);
@@ -768,6 +793,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   return {
     profiles,
+    favoriteProfiles,
     selectedProfile,
     profileName,
     profile,
@@ -794,5 +820,6 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     executeDelete,
     cancelDelete,
     refreshProfiles,
+    toggleFavorite,
   };
 }
