@@ -28,6 +28,28 @@
   --crosshook-content-width: 1440px;
   --crosshook-touch-target-min: 48px;
   --crosshook-touch-target-compact: 36px;
+  --crosshook-layout-main-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+  --crosshook-subtab-min-height: 40px;
+  --crosshook-subtab-padding-inline: 16px;
+  --crosshook-panel-padding: 20px;
+  --crosshook-card-padding: 28px;
+  --crosshook-settings-grid-gap: 20px;
+  --crosshook-settings-grid-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  --crosshook-community-toolbar-columns: repeat(3, minmax(0, 1fr));
+  --crosshook-community-profile-grid-min: 280px;
+  --crosshook-launch-panel-gap: 24px;
+  --crosshook-launch-panel-padding: 28px;
+  --crosshook-launch-panel-action-min-height: 52px;
+  --crosshook-launch-panel-action-padding-inline: 22px;
+  --crosshook-launch-panel-action-secondary-padding-inline: 20px;
+  --crosshook-page-header-gap: 10px;
+  --crosshook-page-header-margin-bottom: 24px;
+  --crosshook-page-banner-gap: 16px;
+  --crosshook-page-banner-min-height: 120px;
+  --crosshook-page-banner-padding-top-offset: 24px;
+  --crosshook-page-banner-padding-inline: 28px;
+  --crosshook-page-banner-padding-bottom: 24px;
+  --crosshook-page-banner-margin-bottom: 24px;
   --crosshook-sidebar-width: 200px;
   --crosshook-sidebar-width-collapsed: 56px;
   --crosshook-console-drawer-height: 280px;
@@ -37,6 +59,33 @@
   --crosshook-page-padding: 32px;
   --crosshook-transition-fast: 140ms;
   --crosshook-transition-standard: 220ms;
+}
+
+:root[data-crosshook-controller-mode='true'] {
+  --crosshook-touch-target-min: 56px;
+  --crosshook-touch-target-compact: 44px;
+  --crosshook-layout-main-columns: 1fr;
+  --crosshook-subtab-min-height: 48px;
+  --crosshook-subtab-padding-inline: 20px;
+  --crosshook-panel-padding: 24px;
+  --crosshook-card-padding: 32px;
+  --crosshook-settings-grid-gap: 24px;
+  --crosshook-settings-grid-columns: 1fr;
+  --crosshook-community-toolbar-columns: 1fr;
+  --crosshook-community-profile-grid-min: 340px;
+  --crosshook-launch-panel-gap: 28px;
+  --crosshook-launch-panel-padding: 32px;
+  --crosshook-launch-panel-action-min-height: 60px;
+  --crosshook-launch-panel-action-padding-inline: 26px;
+  --crosshook-launch-panel-action-secondary-padding-inline: 24px;
+  --crosshook-page-header-gap: 12px;
+  --crosshook-page-header-margin-bottom: 28px;
+  --crosshook-page-banner-gap: 20px;
+  --crosshook-page-banner-min-height: 140px;
+  --crosshook-page-banner-padding-top-offset: 28px;
+  --crosshook-page-banner-padding-inline: 32px;
+  --crosshook-page-banner-padding-bottom: 28px;
+  --crosshook-page-banner-margin-bottom: 28px;
 }
 
 @media (max-width: 1360px) {
@@ -50,5 +99,34 @@
   :root {
     --crosshook-page-padding: 16px;
     --crosshook-grid-gap: 14px;
+  }
+}
+
+@media (max-height: 820px) {
+  :root {
+    --crosshook-page-padding: 14px;
+    --crosshook-grid-gap: 12px;
+    --crosshook-touch-target-min: 44px;
+    --crosshook-touch-target-compact: 32px;
+    --crosshook-panel-padding: 16px;
+    --crosshook-card-padding: 20px;
+    --crosshook-launch-panel-padding: 20px;
+    --crosshook-launch-panel-gap: 18px;
+    --crosshook-launch-panel-action-min-height: 48px;
+    --crosshook-page-banner-min-height: 96px;
+    --crosshook-page-banner-padding-top-offset: 14px;
+    --crosshook-page-banner-padding-inline: 20px;
+    --crosshook-page-banner-padding-bottom: 16px;
+    --crosshook-page-banner-margin-bottom: 18px;
+  }
+}
+
+@media (max-height: 820px) {
+  :root[data-crosshook-controller-mode='true'] {
+    --crosshook-touch-target-min: 50px;
+    --crosshook-touch-target-compact: 38px;
+    --crosshook-launch-panel-action-min-height: 54px;
+    --crosshook-page-banner-min-height: 112px;
+    --crosshook-page-banner-padding-inline: 24px;
   }
 }

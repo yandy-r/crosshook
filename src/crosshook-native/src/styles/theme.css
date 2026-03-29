@@ -51,7 +51,7 @@ textarea {
 }
 
 .crosshook-app {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: var(--crosshook-page-padding);
   color: var(--crosshook-color-text);
   background:
@@ -69,7 +69,7 @@ textarea {
 .crosshook-layout {
   display: grid;
   gap: var(--crosshook-grid-gap);
-  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
+  grid-template-columns: var(--crosshook-layout-main-columns);
   align-items: start;
 }
 
@@ -113,8 +113,8 @@ textarea {
 }
 
 .crosshook-subtab {
-  min-height: 40px;
-  padding: 0 16px;
+  min-height: var(--crosshook-subtab-min-height);
+  padding: 0 var(--crosshook-subtab-padding-inline);
   border-radius: 999px;
   border: 1px solid transparent;
   background: transparent;
@@ -144,11 +144,11 @@ textarea {
 }
 
 .crosshook-panel {
-  padding: 20px;
+  padding: var(--crosshook-panel-padding);
 }
 
 .crosshook-card {
-  padding: 28px;
+  padding: var(--crosshook-card-padding);
 }
 
 .crosshook-heading-eyebrow {
@@ -198,8 +198,8 @@ textarea {
 
 .crosshook-settings-grid {
   display: grid;
-  gap: 20px;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: var(--crosshook-settings-grid-gap);
+  grid-template-columns: var(--crosshook-settings-grid-columns);
   align-items: start;
 }
 
@@ -506,7 +506,7 @@ textarea {
 .crosshook-compatibility-viewer__filters {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: var(--crosshook-community-toolbar-columns);
   align-items: end;
 }
 
@@ -528,7 +528,7 @@ textarea {
 }
 
 .crosshook-community-browser__profile-grid {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--crosshook-community-profile-grid-min), 1fr));
 }
 
 .crosshook-community-browser__profile-card,
@@ -1324,8 +1324,8 @@ textarea {
   align-content: start;
   box-sizing: border-box;
   height: 100%;
-  gap: 24px;
-  padding: 28px;
+  gap: var(--crosshook-launch-panel-gap);
+  padding: var(--crosshook-launch-panel-padding);
   border-radius: 20px;
   border: 1px solid rgba(120, 160, 255, 0.22);
   background: rgba(14, 20, 40, 0.82);
@@ -1556,8 +1556,8 @@ textarea {
 }
 
 .crosshook-launch-panel__action {
-  min-height: 52px;
-  padding: 0 22px;
+  min-height: var(--crosshook-launch-panel-action-min-height);
+  padding: 0 var(--crosshook-launch-panel-action-padding-inline);
 }
 
 .crosshook-launch-panel__action:disabled {
@@ -1566,7 +1566,7 @@ textarea {
 }
 
 .crosshook-launch-panel__action--secondary {
-  padding: 0 20px;
+  padding: 0 var(--crosshook-launch-panel-action-secondary-padding-inline);
 }
 
 .crosshook-launch-panel__indicator {
