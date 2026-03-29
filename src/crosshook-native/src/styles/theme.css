@@ -982,9 +982,10 @@ textarea {
 }
 
 .crosshook-launch-optimizations__option {
+  position: relative;
   display: grid;
   gap: 10px;
-  padding: 14px;
+  padding: 14px 56px 14px 14px;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
@@ -1001,6 +1002,10 @@ textarea {
 
 .crosshook-launch-optimizations__option--disabled {
   opacity: 0.72;
+}
+
+.crosshook-launch-optimizations__option--tooltip-open {
+  z-index: 2;
 }
 
 .crosshook-launch-optimizations__option-body {
@@ -1076,6 +1081,23 @@ textarea {
   color: #d6c9ff;
 }
 
+.crosshook-launch-optimizations__option-pill--vendor {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.crosshook-launch-optimizations__option-pill--vendor-nvidia {
+  background: rgba(118, 185, 0, 0.16);
+  border-color: rgba(118, 185, 0, 0.32);
+  color: #dbff9d;
+}
+
+.crosshook-launch-optimizations__option-pill--vendor-amd {
+  background: rgba(237, 28, 36, 0.16);
+  border-color: rgba(237, 28, 36, 0.32);
+  color: #ffd2d4;
+}
+
 .crosshook-launch-optimizations__option-pill--warning {
   background: rgba(245, 197, 66, 0.1);
   border-color: rgba(245, 197, 66, 0.22);
@@ -1089,9 +1111,9 @@ textarea {
 }
 
 .crosshook-launch-optimizations__info-button {
+  position: relative;
   width: 32px;
   height: 32px;
-  margin-left: auto;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
@@ -1115,14 +1137,25 @@ textarea {
   box-shadow: 0 0 0 3px var(--crosshook-color-accent-soft);
 }
 
+.crosshook-launch-optimizations__info-anchor {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
 .crosshook-launch-optimizations__tooltip {
   display: none;
   gap: 8px;
   padding: 12px 12px 14px;
+  width: min(340px, calc(100vw - 72px));
   border-radius: 14px;
   background: rgba(7, 12, 24, 0.96);
   border: 1px solid rgba(0, 120, 212, 0.24);
   box-shadow: var(--crosshook-shadow-soft);
+  pointer-events: none;
 }
 
 .crosshook-launch-optimizations__tooltip--open {

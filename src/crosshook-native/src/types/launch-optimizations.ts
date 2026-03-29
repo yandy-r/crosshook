@@ -7,6 +7,7 @@ export const LAUNCH_OPTIMIZATION_CATEGORIES = [
 ] as const;
 
 export type LaunchOptimizationCategory = (typeof LAUNCH_OPTIMIZATION_CATEGORIES)[number];
+export type LaunchOptimizationGpuVendor = 'nvidia' | 'amd';
 
 export const LAUNCH_OPTIMIZATION_CATEGORY_LABELS: Record<LaunchOptimizationCategory, string> = {
   input: 'Input & Controller',
@@ -31,7 +32,15 @@ export const LAUNCH_OPTIMIZATION_IDS = [
   'enable_hdr',
   'enable_wayland_driver',
   'use_ntsync',
+  'disable_esync',
+  'disable_fsync',
+  'enable_nvapi',
+  'force_large_address_aware',
+  'enable_proton_log',
   'enable_local_shader_cache',
+  'enable_dxvk_async',
+  'cap_dxvk_frame_rate',
+  'enable_vkd3d_dxr',
   'enable_fsr4_upgrade',
   'enable_fsr4_rdna3_upgrade',
   'enable_xess_upgrade',
@@ -53,6 +62,7 @@ export interface LaunchOptimizationOption {
   description: string;
   helpText: string;
   category: LaunchOptimizationCategory;
+  targetGpuVendor?: LaunchOptimizationGpuVendor;
   advanced: boolean;
   community: boolean;
   applicableMethods: readonly LaunchOptimizationLaunchMethod[];
@@ -167,6 +177,62 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
+    id: 'disable_esync',
+    label: 'Disable esync',
+    description: 'Turn off Proton esync for compatibility troubleshooting.',
+    helpText:
+      'Useful for games that crash, hang, or become unstable with esync enabled. Leave this off unless you are debugging a known esync-specific issue.',
+    category: 'compatibility',
+    advanced: true,
+    community: false,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
+  },
+  {
+    id: 'disable_fsync',
+    label: 'Disable fsync',
+    description: 'Turn off Proton fsync for compatibility troubleshooting.',
+    helpText:
+      'Useful when fsync causes launch failures or instability on specific kernels or Proton builds. Keep disabled unless troubleshooting a known fsync issue.',
+    category: 'compatibility',
+    advanced: true,
+    community: false,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
+  },
+  {
+    id: 'enable_nvapi',
+    label: 'Enable NVAPI support',
+    description: 'Expose NVIDIA NVAPI paths used by some games and features.',
+    helpText:
+      'Primarily relevant for NVIDIA hardware and DLSS-related integration paths. Keep this off on non-NVIDIA systems.',
+    category: 'graphics',
+    targetGpuVendor: 'nvidia',
+    advanced: true,
+    community: false,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
+  },
+  {
+    id: 'force_large_address_aware',
+    label: 'Force Large Address Aware',
+    description: 'Enable larger virtual address space for some 32-bit games.',
+    helpText:
+      'Can help memory-limited 32-bit titles avoid out-of-memory failures. Use this as a targeted compatibility fix, not a default toggle.',
+    category: 'compatibility',
+    advanced: true,
+    community: false,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
+  },
+  {
+    id: 'enable_proton_log',
+    label: 'Enable Proton logging',
+    description: 'Write Proton diagnostic logs during launch and runtime.',
+    helpText:
+      'Helpful for collecting debugging evidence when diagnosing crashes or startup issues. Disable during normal play to avoid noisy log output.',
+    category: 'compatibility',
+    advanced: true,
+    community: false,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
+  },
+  {
     id: 'enable_local_shader_cache',
     label: 'Isolate shader cache per game',
     description: 'Keep shader cache data separated for the current profile.',
@@ -178,12 +244,46 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
   },
   {
+    id: 'enable_dxvk_async',
+    label: 'Enable DXVK async',
+    description: 'Use async shader compilation when DXVK supports it.',
+    helpText:
+      'Can reduce shader-compilation stutter for some titles, but behavior depends on DXVK and game compatibility. Treat it as an advanced graphics toggle.',
+    category: 'graphics',
+    advanced: true,
+    community: false,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
+  },
+  {
+    id: 'cap_dxvk_frame_rate',
+    label: 'Cap DXVK frame rate (60 FPS)',
+    description: 'Apply a fixed DXVK frame-rate cap for steadier pacing.',
+    helpText:
+      'Uses a fixed 60 FPS cap via DXVK_FRAME_RATE to help thermals and battery life. This is a preset cap, not a configurable value.',
+    category: 'performance',
+    advanced: true,
+    community: false,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
+  },
+  {
+    id: 'enable_vkd3d_dxr',
+    label: 'Enable VKD3D DXR',
+    description: 'Request VKD3D ray-tracing path with VKD3D_CONFIG=dxr.',
+    helpText:
+      'Only useful for DX12 titles and stacks that support the DXR path correctly. Use while testing ray tracing behavior, not as a default optimization.',
+    category: 'graphics',
+    advanced: true,
+    community: false,
+    applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
+  },
+  {
     id: 'enable_fsr4_upgrade',
     label: 'Auto-upgrade FSR4',
     description: 'Use the community FSR4 upgrade path when available.',
     helpText:
       'Community-documented and potentially useful on compatible titles, but not universal Proton behavior. Treat it as an advanced graphics tweak.',
     category: 'graphics',
+    targetGpuVendor: 'amd',
     advanced: true,
     community: true,
     applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
@@ -196,6 +296,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     helpText:
       'Only relevant for RDNA3 hardware and should not be treated as a general graphics fix. Keep it grouped with the other advanced graphics options.',
     category: 'graphics',
+    targetGpuVendor: 'amd',
     advanced: true,
     community: true,
     applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
@@ -219,6 +320,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     helpText:
       'Best treated as an NVIDIA-specific compatibility tool, not a general performance boost. The game still has to support the upscaler path.',
     category: 'graphics',
+    targetGpuVendor: 'nvidia',
     advanced: true,
     community: true,
     applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
@@ -230,6 +332,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     helpText:
       'Useful for confirming that the DLSS-related upgrade path is active in supported games. It is primarily diagnostic and cosmetic.',
     category: 'graphics',
+    targetGpuVendor: 'nvidia',
     advanced: true,
     community: true,
     applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
@@ -241,6 +344,7 @@ export const LAUNCH_OPTIMIZATION_OPTIONS: readonly LaunchOptimizationOption[] = 
     helpText:
       'Only meaningful on NVIDIA systems and Proton variants that support the flag. Keep it in the advanced graphics group because it is hardware-specific.',
     category: 'graphics',
+    targetGpuVendor: 'nvidia',
     advanced: true,
     community: true,
     applicableMethods: LAUNCH_OPTIMIZATION_APPLICABLE_METHODS,
