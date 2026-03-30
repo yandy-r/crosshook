@@ -570,7 +570,6 @@ dependencies = [
  "crosshook-core",
  "serde",
  "serde_json",
- "sha2 0.11.0",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

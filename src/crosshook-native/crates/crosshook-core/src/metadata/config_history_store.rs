@@ -58,6 +58,29 @@ pub fn insert_config_revision(
         return Ok(None);
     }
 
+    // Validate that source_revision_id (if provided) belongs to the same profile.
+    if let Some(src_rev_id) = source_revision_id {
+        let owner: Option<String> = tx
+            .query_row(
+                "SELECT profile_id FROM config_revisions WHERE id = ?1",
+                params![src_rev_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|source| MetadataStoreError::Database {
+                action: "validate source_revision_id ownership",
+                source,
+            })?;
+        match owner.as_deref() {
+            Some(owner_pid) if owner_pid == profile_id => {}
+            _ => {
+                return Err(MetadataStoreError::Validation(format!(
+                    "source_revision_id {src_rev_id} does not belong to profile {profile_id}"
+                )));
+            }
+        }
+    }
+
     let now = Utc::now().to_rfc3339();
     tx.execute(
         "INSERT INTO config_revisions
@@ -723,6 +746,30 @@ mod tests {
         assert!(
             store.clear_known_good_revision("profile-1").is_ok(),
             "disabled store clear_known_good must return Ok"
+        );
+    }
+
+    // ── source_revision_id ownership ─────────────────────────────────────────
+
+    #[test]
+    fn cross_profile_lineage_is_rejected() {
+        let conn = open_test_db();
+        let rev_a = insert_revision(&conn, "profile-a", "hash-a");
+        ensure_profile(&conn, "profile-b");
+
+        let result = insert_config_revision(
+            &conn,
+            "profile-b",
+            "Profile B",
+            ConfigRevisionSource::RollbackApply,
+            "hash-b",
+            "some toml",
+            Some(rev_a), // points to profile-a's revision
+        );
+
+        assert!(
+            matches!(result, Err(MetadataStoreError::Validation(_))),
+            "cross-profile source_revision_id must be rejected, got {result:?}"
         );
     }
 }

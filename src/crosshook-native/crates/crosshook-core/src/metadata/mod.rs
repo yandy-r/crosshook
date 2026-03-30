@@ -21,6 +21,7 @@ pub use models::{
     MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT,
     MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
+pub use profile_sync::sha256_hex;
 pub use version_store::{compute_correlation_status, hash_trainer_file};
 
 use crate::community::taps::CommunityTapSyncResult;

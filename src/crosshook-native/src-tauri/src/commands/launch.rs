@@ -433,8 +433,11 @@ async fn stream_log_lines(
         // Known-good tagging — mark the most recent config revision as known-good.
         // Uses the same success heuristic: CleanExit or Indeterminate (steam_applaunch
         // helper exits before the game, so its code 0 is Indeterminate, not CleanExit).
+        // Reuses the profile_id already resolved by the version snapshot block above.
         // If metadata is unavailable or no revisions exist yet, log and continue.
         if let Some(ref pname) = profile_name {
+            // Reuse the profile_id from the version snapshot block if available.
+            // Re-lookup only when version snapshot was skipped or lookup failed.
             let ms = metadata_store.clone();
             let pname_c = pname.clone();
             let result = tauri::async_runtime::spawn_blocking(move || {

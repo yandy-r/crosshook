@@ -158,7 +158,8 @@ export function ProfilesPage() {
     !deleting &&
     !loading &&
     !duplicating &&
-    !renaming;
+    !renaming &&
+    !exportingCommunity;
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
 
   useEffect(() => {

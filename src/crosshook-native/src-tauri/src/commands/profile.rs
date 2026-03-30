@@ -1,6 +1,6 @@
 use crosshook_core::metadata::{
     BundledOptimizationPresetRow, ConfigRevisionSource, MetadataStore, MetadataStoreError,
-    ProfileLaunchPresetOrigin, SyncSource, MAX_HISTORY_LIST_LIMIT,
+    ProfileLaunchPresetOrigin, SyncSource, sha256_hex, MAX_HISTORY_LIST_LIMIT,
 };
 use crosshook_core::profile::{
     bundled_optimization_preset_toml_key, DuplicateProfileResult, GameProfile, ProfileStore,
@@ -127,9 +127,6 @@ fn capture_config_revision(
     source_revision_id: Option<i64>,
     metadata_store: &MetadataStore,
 ) -> Option<i64> {
-    use sha2::Digest as _;
-    use std::fmt::Write as _;
-
     if !metadata_store.is_available() {
         return None;
     }
@@ -146,11 +143,7 @@ fn capture_config_revision(
         }
     };
 
-    let digest = sha2::Sha256::digest(snapshot_toml.as_bytes());
-    let mut content_hash = String::with_capacity(64);
-    for byte in digest {
-        let _ = write!(content_hash, "{byte:02x}");
-    }
+    let content_hash = sha256_hex(snapshot_toml.as_bytes());
 
     let profile_id = match metadata_store.lookup_profile_id(profile_name) {
         Ok(Some(id)) => id,
@@ -644,6 +637,8 @@ pub struct ConfigDiffResult {
     pub diff_text: String,
     pub added_lines: usize,
     pub removed_lines: usize,
+    /// True when either input exceeded the line limit and the diff may be incomplete.
+    pub truncated: bool,
 }
 
 /// Result from a profile config rollback operation.
@@ -667,17 +662,22 @@ const DIFF_MAX_LINES: usize = 2000;
 const MAX_DIFF_OUTPUT_BYTES: usize = 512 * 1024;
 
 /// Compute a unified diff between two text strings using an LCS-based algorithm.
-/// Returns `(diff_text, added_lines, removed_lines)`. `diff_text` is empty when
-/// the two inputs are identical.
+/// Returns `(diff_text, added_lines, removed_lines, truncated)`. `diff_text` is
+/// empty when the two inputs are identical. `truncated` is true when either input
+/// exceeds `DIFF_MAX_LINES` and the diff may be incomplete.
 fn compute_unified_diff(
     old_label: &str,
     new_label: &str,
     old_text: &str,
     new_text: &str,
-) -> (String, usize, usize) {
+) -> (String, usize, usize, bool) {
     if old_text == new_text {
-        return (String::new(), 0, 0);
+        return (String::new(), 0, 0, false);
     }
+
+    let old_total = old_text.lines().count();
+    let new_total = new_text.lines().count();
+    let truncated = old_total > DIFF_MAX_LINES || new_total > DIFF_MAX_LINES;
 
     let old_lines: Vec<&str> = old_text.lines().take(DIFF_MAX_LINES).collect();
     let new_lines: Vec<&str> = new_text.lines().take(DIFF_MAX_LINES).collect();
@@ -731,7 +731,7 @@ fn compute_unified_diff(
         .collect();
 
     if change_positions.is_empty() {
-        return (String::new(), 0, 0);
+        return (String::new(), 0, 0, truncated);
     }
 
     // Group changes into hunks with context lines
@@ -810,7 +810,7 @@ fn compute_unified_diff(
         }
     }
 
-    (output, added, removed)
+    (output, added, removed, truncated)
 }
 
 // ── Config history Tauri commands ─────────────────────────────────────────────
@@ -838,7 +838,7 @@ pub fn profile_config_history(
         None => return Ok(Vec::new()),
     };
 
-    let capped_limit = limit.map(|l| l.min(MAX_HISTORY_LIST_LIMIT));
+    let capped_limit = Some(limit.unwrap_or(MAX_HISTORY_LIST_LIMIT).min(MAX_HISTORY_LIST_LIMIT));
     let rows = metadata_store
         .list_config_revisions(&profile_id, capped_limit)
         .map_err(|e| e.to_string())?;
@@ -916,7 +916,7 @@ pub fn profile_config_diff(
     };
 
     let left_label = format!("revision/{revision_id}");
-    let (diff_text, added_lines, removed_lines) =
+    let (diff_text, added_lines, removed_lines, truncated) =
         compute_unified_diff(&left_label, &right_label, &left_row.snapshot_toml, &right_text);
 
     if diff_text.len() > MAX_DIFF_OUTPUT_BYTES {
@@ -933,6 +933,7 @@ pub fn profile_config_diff(
         diff_text,
         added_lines,
         removed_lines,
+        truncated,
     })
 }
 
@@ -973,13 +974,7 @@ pub fn profile_config_rollback(
     // Integrity check: re-compute the SHA-256 of the stored snapshot and compare
     // against the recorded content_hash to detect DB corruption or tampering.
     {
-        use sha2::Digest as _;
-        use std::fmt::Write as _;
-        let digest = sha2::Sha256::digest(revision.snapshot_toml.as_bytes());
-        let mut computed = String::with_capacity(64);
-        for byte in digest {
-            let _ = write!(computed, "{byte:02x}");
-        }
+        let computed = sha256_hex(revision.snapshot_toml.as_bytes());
         if computed != revision.content_hash {
             return Err(format!(
                 "integrity check failed for revision {revision_id}: content hash mismatch"

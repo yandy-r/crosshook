@@ -462,6 +462,17 @@ fn migrate_10_to_11(conn: &Connection) -> Result<(), MetadataStoreError> {
             ON config_revisions(profile_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_config_revisions_profile_id_content_hash
             ON config_revisions(profile_id, content_hash);
+
+        CREATE TRIGGER IF NOT EXISTS trg_config_revisions_lineage_ownership
+        BEFORE INSERT ON config_revisions
+        WHEN NEW.source_revision_id IS NOT NULL
+        BEGIN
+            SELECT RAISE(ABORT, 'source_revision_id references a revision from a different profile')
+            WHERE NOT EXISTS (
+                SELECT 1 FROM config_revisions
+                WHERE id = NEW.source_revision_id AND profile_id = NEW.profile_id
+            );
+        END;
         ",
     )
     .map_err(|source| MetadataStoreError::Database {

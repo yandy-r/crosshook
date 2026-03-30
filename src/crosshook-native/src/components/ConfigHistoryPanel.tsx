@@ -82,6 +82,11 @@ function DiffView({ diff }: { diff: ConfigDiffResult }) {
       <div className="crosshook-history-diff-stats">
         <span className="crosshook-history-stat--add">+{diff.added_lines} added</span>
         <span className="crosshook-history-stat--remove">-{diff.removed_lines} removed</span>
+        {diff.truncated && (
+          <span className="crosshook-help-text" style={{ marginLeft: 8 }}>
+            (truncated — profile exceeds 2 000 lines)
+          </span>
+        )}
       </div>
       <pre className="crosshook-history-diff-code" aria-label="Unified diff">
         {lines.map((line, idx) => {
@@ -545,6 +550,27 @@ export function ConfigHistoryPanel({
 
           {/* Detail column */}
           <div className="crosshook-history-detail">
+            {restoreSuccess ? (
+              <div
+                className="crosshook-history-restore-success"
+                role="status"
+                aria-live="polite"
+              >
+                {restoreSuccess}
+              </div>
+            ) : null}
+
+            {historyRefreshWarning ? (
+              <p
+                className="crosshook-help-text"
+                role="status"
+                aria-live="polite"
+                style={{ marginTop: 8, color: 'var(--crosshook-color-text-muted, #9bb1c8)' }}
+              >
+                {historyRefreshWarning}
+              </p>
+            ) : null}
+
             {!selectedRevision ? (
               <div className="crosshook-history-empty" style={{ alignItems: 'flex-start' }}>
                 <p className="crosshook-help-text">
@@ -615,27 +641,6 @@ export function ConfigHistoryPanel({
                     )}
                   </div>
                 </div>
-
-                {restoreSuccess ? (
-                  <div
-                    className="crosshook-history-restore-success"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {restoreSuccess}
-                  </div>
-                ) : null}
-
-                {historyRefreshWarning ? (
-                  <p
-                    className="crosshook-help-text"
-                    role="status"
-                    aria-live="polite"
-                    style={{ marginTop: 8, color: 'var(--crosshook-color-text-muted, #9bb1c8)' }}
-                  >
-                    {historyRefreshWarning}
-                  </p>
-                ) : null}
 
                 <div className="crosshook-history-diff-area">
                   {diffLoading ? (

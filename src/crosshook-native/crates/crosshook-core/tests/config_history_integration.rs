@@ -4,7 +4,7 @@
 //! revision capture, diff validation, rollback lineage, rename continuity, and
 //! graceful degradation when the metadata store is unavailable.
 
-use crosshook_core::metadata::{ConfigRevisionSource, MetadataStore, SyncSource};
+use crosshook_core::metadata::{sha256_hex, ConfigRevisionSource, MetadataStore, SyncSource};
 use crosshook_core::profile::GameProfile;
 use std::path::Path;
 
@@ -53,7 +53,7 @@ fn end_to_end_save_revision_rollback_lineage() {
 
     // ── revision 1: initial save ─────────────────────────────────────────────
     let toml_v1 = profile_to_toml(&profile_v1);
-    let hash_v1 = format!("hash-v1-{}", toml_v1.len());
+    let hash_v1 = sha256_hex(toml_v1.as_bytes());
 
     let rev1_id = store
         .insert_config_revision(
@@ -71,7 +71,7 @@ fn end_to_end_save_revision_rollback_lineage() {
     let mut profile_v2 = profile_v1.clone();
     profile_v2.game.name = "Elden Ring — trainer path updated".to_string();
     let toml_v2 = profile_to_toml(&profile_v2);
-    let hash_v2 = format!("hash-v2-{}", toml_v2.len());
+    let hash_v2 = sha256_hex(toml_v2.as_bytes());
 
     let rev2_id = store
         .insert_config_revision(
@@ -217,6 +217,13 @@ fn rename_continuity_via_profile_id() {
             Path::new("/test/profiles/hollow-knight-v2.toml"),
         )
         .expect("observe_profile_rename must succeed");
+
+    // ── the new name must resolve to the same stable profile_id ───────────────
+    let renamed_id = lookup_id(&store, "hollow-knight-v2");
+    assert_eq!(
+        renamed_id, profile_id,
+        "observe_profile_rename must preserve the stable profile_id"
+    );
 
     // ── revision after the rename (new name, same profile_id) ────────────────
     let mut profile3 = profile2.clone();

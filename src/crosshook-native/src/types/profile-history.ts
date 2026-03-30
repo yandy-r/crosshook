@@ -42,6 +42,8 @@ export interface ConfigDiffResult {
   diff_text: string;
   added_lines: number;
   removed_lines: number;
+  /** True when either input exceeded the line limit and the diff may be incomplete. */
+  truncated: boolean;
 }
 
 /**
