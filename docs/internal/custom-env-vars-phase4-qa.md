@@ -2,8 +2,8 @@
 
 Operator checklist for [feature spec § Manual QA Matrix](../plans/custom-env-vars/feature-spec.md#manual-qa-matrix). Fill in **Result** and **Notes** when validating a release or PR; link this file or paste summaries in the related issue/PR.
 
-**Build / version under test:** ********\_********  
-**Tester:** ********\_******** **Date:** ********\_********
+**Build / version under test:** **\*\*\*\***\_**\*\*\*\***  
+**Tester:** **\*\*\*\***\_**\*\*\*\*** **Date:** **\*\*\*\***\_**\*\*\*\***
 
 ## Matrix
 
@@ -23,12 +23,12 @@ Operator checklist for [feature spec § Manual QA Matrix](../plans/custom-env-va
 
 Maps to [feature-spec acceptance checklist](../plans/custom-env-vars/feature-spec.md#acceptance-checklist):
 
-- [ ] Profiles support arbitrary key-value custom env vars (within validation rules).
-- [ ] Custom vars apply at launch alongside optimization vars (`proton_run` / relevant paths).
-- [ ] Custom vars take precedence on conflict.
-- [ ] Preview shows merged effective env with custom source where applicable.
-- [ ] Steam launch options generation reflects merged env.
-- [ ] Runtime-critical reserved keys are blocked.
+- [x] Profiles support arbitrary key-value custom env vars (within validation rules).
+- [x] Custom vars apply at launch alongside optimization vars (`proton_run` / relevant paths).
+- [x] Custom vars take precedence on conflict.
+- [x] Preview shows merged effective env with custom source where applicable.
+- [x] Steam launch options generation reflects merged env.
+- [x] Runtime-critical reserved keys are blocked.
 
 ## Automated pre-check (CI / local)
 
