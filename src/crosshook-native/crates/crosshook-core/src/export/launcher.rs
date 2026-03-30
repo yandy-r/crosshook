@@ -593,6 +593,7 @@ fn shell_single_quoted(value: &str) -> String {
 fn escape_desktop_exec_argument(value: &str) -> String {
     value
         .replace('\\', "\\\\")
+        .replace('%', "%%")
         .replace(' ', "\\ ")
         .replace('"', "\\\"")
 }
@@ -708,6 +709,14 @@ mod tests {
         assert_eq!(
             escape_desktop_exec_argument("/tmp/Cross Hook/runner\".sh"),
             "/tmp/Cross\\ Hook/runner\\\".sh"
+        );
+    }
+
+    #[test]
+    fn desktop_exec_escaping_doubles_percent_signs() {
+        assert_eq!(
+            escape_desktop_exec_argument("/opt/trainers/%u/trainer.exe"),
+            "/opt/trainers/%%u/trainer.exe"
         );
     }
 

@@ -315,6 +315,11 @@ fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
         let source_path = entry.path();
         let destination_path = destination.join(entry.file_name());
 
+        if source_path.is_symlink() {
+            tracing::debug!(path = %source_path.display(), "skipping symlink during trainer staging");
+            continue;
+        }
+
         if source_path.is_dir() {
             copy_dir_all(&source_path, &destination_path)?;
         } else {
@@ -864,5 +869,30 @@ mod tests {
             key == "STEAM_COMPAT_DATA_PATH"
                 && value.as_deref() == Some(compatdata_root.to_string_lossy().as_ref())
         }));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn copy_dir_all_skips_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let source_dir = temp_dir.path().join("source");
+        let destination_dir = temp_dir.path().join("destination");
+
+        fs::create_dir_all(&source_dir).expect("source dir");
+
+        // Create a regular file that should be copied
+        fs::write(source_dir.join("real.dll"), b"content").expect("real file");
+
+        // Create a symlink that should be skipped
+        let external_target = temp_dir.path().join("external_target.dll");
+        fs::write(&external_target, b"external").expect("external file");
+        symlink(&external_target, source_dir.join("link.dll")).expect("symlink");
+
+        copy_dir_all(&source_dir, &destination_dir).expect("copy_dir_all");
+
+        assert!(destination_dir.join("real.dll").exists(), "regular file should be copied");
+        assert!(!destination_dir.join("link.dll").exists(), "symlink should be skipped");
     }
 }

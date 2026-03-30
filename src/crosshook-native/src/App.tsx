@@ -1,11 +1,14 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
+import { listen } from '@tauri-apps/api/event';
 
 import ContentArea from './components/layout/ContentArea';
 import ControllerPrompts from './components/layout/ControllerPrompts';
 import ConsoleDrawer from './components/layout/ConsoleDrawer';
 import Sidebar, { type AppRoute } from './components/layout/Sidebar';
+import { OnboardingWizard } from './components/OnboardingWizard';
+import type { OnboardingCheckPayload } from './types/onboarding';
 import { LaunchStateProvider } from './context/LaunchStateContext';
 import { PreferencesProvider } from './context/PreferencesContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
@@ -40,9 +43,17 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const [route, setRoute] = useState<AppRoute>('profiles');
   const lastProfile = profileName.trim() || selectedProfile;
   const consolePanelRef = useRef<PanelImperativeHandle>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useLayoutEffect(() => {
     consolePanelRef.current?.collapse();
+  }, []);
+
+  useEffect(() => {
+    const p = listen<OnboardingCheckPayload>('onboarding-check', (event) => {
+      if (event.payload.show && !event.payload.has_profiles) setShowOnboarding(true);
+    });
+    return () => { p.then(f => f()); };
   }, []);
 
   return (
@@ -104,6 +115,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
         </div>
         {controllerMode ? <ControllerPrompts /> : null}
       </Tabs.Root>
+      {showOnboarding && <OnboardingWizard open={showOnboarding} onComplete={() => setShowOnboarding(false)} onDismiss={() => setShowOnboarding(false)} />}
       </LaunchStateProvider>
     </PreferencesProvider>
   );

@@ -51,6 +51,7 @@ pub struct CommunityTapSyncResult {
 pub enum CommunityTapError {
     EmptyTapUrl,
     InvalidTapUrl(String),
+    InvalidBranch(String),
     InvalidPinnedCommit(String),
     Io {
         action: &'static str,
@@ -70,6 +71,10 @@ impl fmt::Display for CommunityTapError {
         match self {
             Self::EmptyTapUrl => write!(f, "tap url cannot be empty"),
             Self::InvalidTapUrl(url) => write!(f, "invalid tap url: {url}"),
+            Self::InvalidBranch(branch) => write!(
+                f,
+                "invalid branch name (allowed: a-z A-Z 0-9 / . _ -, max 200 chars, must not start with '-'): {branch}"
+            ),
             Self::InvalidPinnedCommit(commit) => write!(
                 f,
                 "invalid pinned commit (must be 7-64 hex characters): {commit}"
@@ -237,7 +242,7 @@ impl CommunityTapStore {
         self.run_git(
             workspace,
             "fetch community tap",
-            &["fetch", "--prune", "origin", workspace.branch()],
+            &["fetch", "--prune", "origin", "--", workspace.branch()],
         )?;
         self.run_git(
             workspace,
@@ -255,7 +260,7 @@ impl CommunityTapStore {
         self.run_git(
             workspace,
             "fetch community tap",
-            &["fetch", "--prune", "origin", workspace.branch()],
+            &["fetch", "--prune", "origin", "--", workspace.branch()],
         )?;
         self.checkout_pinned_commit(workspace)?;
         self.run_git(workspace, "clean community tap", &["clean", "-fdx"])?;
@@ -371,13 +376,21 @@ fn normalize_subscription(
         return Err(CommunityTapError::InvalidTapUrl(subscription.url.clone()));
     }
 
+    validate_tap_url(url)?;
+
+    let branch = subscription
+        .branch
+        .as_ref()
+        .map(|b| b.trim().to_string())
+        .filter(|b| !b.is_empty());
+
+    if let Some(ref branch_name) = branch {
+        validate_branch_name(branch_name)?;
+    }
+
     Ok(CommunityTapSubscription {
         url: url.to_string(),
-        branch: subscription
-            .branch
-            .as_ref()
-            .map(|branch| branch.trim().to_string())
-            .filter(|branch| !branch.is_empty()),
+        branch,
         pinned_commit: subscription
             .pinned_commit
             .as_ref()
@@ -411,6 +424,45 @@ impl CommunityTapSubscription {
 /// from being passed to `git checkout` as a positional argument.
 fn is_valid_git_sha(commit: &str) -> bool {
     (7..=64).contains(&commit.len()) && commit.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Validates that a branch name is safe to pass as a git positional argument.
+///
+/// Rejects names starting with `-` (would be interpreted as git flags) and names
+/// containing characters outside `[a-zA-Z0-9/._-]` (max 200 chars).
+fn validate_branch_name(branch: &str) -> Result<(), CommunityTapError> {
+    if branch.starts_with('-') {
+        return Err(CommunityTapError::InvalidBranch(branch.to_string()));
+    }
+    if branch.len() > 200 {
+        return Err(CommunityTapError::InvalidBranch(branch.to_string()));
+    }
+    if !branch
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '_' | '-'))
+    {
+        return Err(CommunityTapError::InvalidBranch(branch.to_string()));
+    }
+    Ok(())
+}
+
+/// Validates that a community tap URL uses an allowed scheme.
+///
+/// Accepted forms:
+/// - `https://...`
+/// - `ssh://git@...`
+/// - SCP-style `git@host:path` (the default SSH clone URL on GitHub/GitLab)
+///
+/// Rejects `file://`, `git://`, bare paths, and any other scheme not explicitly permitted.
+fn validate_tap_url(url: &str) -> Result<(), CommunityTapError> {
+    if url.starts_with("https://")
+        || url.starts_with("ssh://git@")
+        || url.starts_with("git@")
+    {
+        Ok(())
+    } else {
+        Err(CommunityTapError::InvalidTapUrl(url.to_string()))
+    }
 }
 
 fn git_command() -> Command {
@@ -562,8 +614,13 @@ mod tests {
             branch: Some("main".to_string()),
             pinned_commit: None,
         };
+        // Use sync_workspace directly to bypass URL scheme validation (test uses local path).
+        let workspace = CommunityTapWorkspace {
+            local_path: store.workspace_path(&subscription),
+            subscription,
+        };
 
-        let result = store.sync_tap(&subscription).unwrap();
+        let result = store.sync_workspace(&workspace).unwrap();
         assert_eq!(result.status, CommunityTapSyncStatus::Cloned);
         assert_eq!(result.index.entries.len(), 1);
         assert_eq!(
@@ -571,7 +628,7 @@ mod tests {
             "Elden Ring"
         );
 
-        let second = store.sync_tap(&subscription).unwrap();
+        let second = store.sync_workspace(&workspace).unwrap();
         assert_eq!(second.status, CommunityTapSyncStatus::Updated);
         assert_eq!(second.index.entries.len(), 1);
     }
@@ -647,8 +704,13 @@ mod tests {
             branch: Some("main".to_string()),
             pinned_commit: Some("'; rm -rf /".to_string()),
         };
+        // Use sync_workspace directly to bypass URL scheme validation (test uses local path).
+        let workspace = CommunityTapWorkspace {
+            local_path: store.workspace_path(&subscription),
+            subscription,
+        };
 
-        let err = store.sync_tap(&subscription).unwrap_err();
+        let err = store.sync_workspace(&workspace).unwrap_err();
         assert!(
             matches!(err, CommunityTapError::InvalidPinnedCommit(_)),
             "expected InvalidPinnedCommit, got: {err}"
@@ -691,8 +753,13 @@ mod tests {
             branch: Some("main".to_string()),
             pinned_commit: Some(pinned_commit.clone()),
         };
+        // Use sync_workspace directly to bypass URL scheme validation (test uses local path).
+        let workspace = CommunityTapWorkspace {
+            local_path: store.workspace_path(&subscription),
+            subscription,
+        };
 
-        let first_sync = store.sync_tap(&subscription).unwrap();
+        let first_sync = store.sync_workspace(&workspace).unwrap();
         assert_eq!(first_sync.head_commit, pinned_commit);
 
         let manifest_v2 = CommunityProfileManifest::new(
@@ -716,7 +783,7 @@ mod tests {
             "update profile",
         );
 
-        let second_sync = store.sync_tap(&subscription).unwrap();
+        let second_sync = store.sync_workspace(&workspace).unwrap();
         assert_eq!(second_sync.status, CommunityTapSyncStatus::Updated);
         assert_eq!(second_sync.head_commit, pinned_commit);
         assert_eq!(second_sync.index.entries.len(), 1);
@@ -727,5 +794,82 @@ mod tests {
                 .trainer_version,
             "1"
         );
+    }
+
+    #[test]
+    fn validate_branch_name_accepts_valid_names() {
+        assert!(validate_branch_name("main").is_ok());
+        assert!(validate_branch_name("feature/my-branch").is_ok());
+        assert!(validate_branch_name("release_1.0").is_ok());
+        assert!(validate_branch_name("v2.3-stable").is_ok());
+        assert!(validate_branch_name("a/b/c.d_e-f").is_ok());
+    }
+
+    #[test]
+    fn validate_branch_name_rejects_leading_dash() {
+        assert!(matches!(
+            validate_branch_name("--upload-pack=/evil"),
+            Err(CommunityTapError::InvalidBranch(_))
+        ));
+        assert!(matches!(
+            validate_branch_name("-q"),
+            Err(CommunityTapError::InvalidBranch(_))
+        ));
+    }
+
+    #[test]
+    fn validate_branch_name_rejects_special_chars() {
+        assert!(matches!(
+            validate_branch_name("branch;rm -rf /"),
+            Err(CommunityTapError::InvalidBranch(_))
+        ));
+        assert!(matches!(
+            validate_branch_name("branch$(evil)"),
+            Err(CommunityTapError::InvalidBranch(_))
+        ));
+        assert!(matches!(
+            validate_branch_name("branch with spaces"),
+            Err(CommunityTapError::InvalidBranch(_))
+        ));
+    }
+
+    #[test]
+    fn validate_tap_url_accepts_https() {
+        assert!(validate_tap_url("https://github.com/user/repo").is_ok());
+        assert!(validate_tap_url("https://gitlab.com/org/crosshook-taps").is_ok());
+    }
+
+    #[test]
+    fn validate_tap_url_accepts_ssh_git() {
+        assert!(validate_tap_url("ssh://git@github.com/user/repo").is_ok());
+        assert!(validate_tap_url("ssh://git@gitlab.com/user/repo").is_ok());
+    }
+
+    #[test]
+    fn validate_tap_url_rejects_file_scheme() {
+        assert!(matches!(
+            validate_tap_url("file:///home/user/.ssh/"),
+            Err(CommunityTapError::InvalidTapUrl(_))
+        ));
+        assert!(matches!(
+            validate_tap_url("file:///etc/passwd"),
+            Err(CommunityTapError::InvalidTapUrl(_))
+        ));
+    }
+
+    #[test]
+    fn validate_tap_url_rejects_git_scheme() {
+        assert!(matches!(
+            validate_tap_url("git://github.com/user/repo"),
+            Err(CommunityTapError::InvalidTapUrl(_))
+        ));
+    }
+
+    #[test]
+    fn validate_tap_url_rejects_bare_paths() {
+        assert!(matches!(
+            validate_tap_url("/tmp/local-repo"),
+            Err(CommunityTapError::InvalidTapUrl(_))
+        ));
     }
 }

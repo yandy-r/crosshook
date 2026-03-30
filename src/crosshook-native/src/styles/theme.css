@@ -2467,6 +2467,30 @@ textarea {
   justify-content: flex-end;
 }
 
+.crosshook-onboarding-wizard.crosshook-modal__surface {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.crosshook-onboarding-wizard__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.crosshook-onboarding-wizard__nav-primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.crosshook-onboarding-wizard__footer .crosshook-controller-prompts {
+  position: static;
+  z-index: auto;
+  text-align: right;
+}
+
 .crosshook-muted {
   color: var(--crosshook-color-text-subtle);
 }
