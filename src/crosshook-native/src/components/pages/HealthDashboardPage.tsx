@@ -85,6 +85,7 @@ function getVersionStatusLabel(status: VersionCorrelationStatus | null | undefin
     case 'both_changed': return 'Both Changed';
     case 'update_in_progress': return 'Updating';
     case 'untracked': return 'Untracked';
+    case 'unknown': return 'Unknown';
     default: return 'Untracked';
   }
 }

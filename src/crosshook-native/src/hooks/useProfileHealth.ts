@@ -144,6 +144,7 @@ export function useProfileHealth() {
       dispatch({ type: "single-complete", report });
     } catch (error) {
       dispatch({ type: "error", message: normalizeError(error) });
+      throw error;
     }
   }, []);
 

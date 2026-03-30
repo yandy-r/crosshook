@@ -30,6 +30,7 @@ type ProfileFormSectionsBaseProps = {
   reviewMode?: boolean;
   profileExists?: boolean;
   trainerVersion?: string | null;
+  onVersionSet?: () => void;
   onProfileNameChange: (value: string) => void;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
 };
@@ -334,7 +335,7 @@ function ProfileSelectorField({
   );
 }
 
-function TrainerVersionSetField({ profileName }: { profileName: string }) {
+function TrainerVersionSetField({ profileName, onVersionSet }: { profileName: string; onVersionSet?: () => void }) {
   const [pendingVersion, setPendingVersion] = useState('');
   const [setting, setSetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -349,6 +350,7 @@ function TrainerVersionSetField({ profileName }: { profileName: string }) {
     setSuccess(false);
     try {
       await invoke('set_trainer_version', { name: profileName, version });
+      onVersionSet?.();
       setPendingVersion('');
       setSuccess(true);
     } catch (err) {
@@ -406,6 +408,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     reviewMode = false,
     profileExists = false,
     trainerVersion = null,
+    onVersionSet,
     onProfileNameChange,
     onUpdateProfile,
   } = props;
@@ -603,7 +606,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
               ) : null}
 
               {profileExists && !reviewMode ? (
-                <TrainerVersionSetField profileName={profileName} />
+                <TrainerVersionSetField profileName={profileName} onVersionSet={onVersionSet} />
               ) : null}
             </div>
           </OptionalSection>

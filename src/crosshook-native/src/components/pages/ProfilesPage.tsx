@@ -562,6 +562,7 @@ export function ProfilesPage() {
             protonInstallsError={protonInstallsError}
             profileExists={profileExists}
             trainerVersion={selectedTrainerVersion}
+            onVersionSet={() => { if (selectedProfile) void revalidateSingle(selectedProfile); }}
             profileSelector={{
               profiles,
               favoriteProfiles,

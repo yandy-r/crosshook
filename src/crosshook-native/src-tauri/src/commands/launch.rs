@@ -407,6 +407,11 @@ async fn stream_log_lines(
                     state_flags,
                 );
 
+                if matches!(status, crosshook_core::metadata::VersionCorrelationStatus::UpdateInProgress) {
+                    tracing::debug!(profile_name = %pname_c, "version snapshot skipped: game update in progress");
+                    return;
+                }
+
                 if let Err(e) = ms.upsert_version_snapshot(
                     &profile_id,
                     app_id_c.trim(),
