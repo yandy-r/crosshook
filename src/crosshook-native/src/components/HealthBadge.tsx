@@ -39,6 +39,19 @@ export function HealthBadge({ status, report, metadata = null, trend = null, too
     ? 'var(--crosshook-color-warning)'
     : 'var(--crosshook-color-text-muted)';
 
+  const showVersionMismatch =
+    metadata !== null && (
+      metadata.version_status === 'game_updated' ||
+      metadata.version_status === 'trainer_changed' ||
+      metadata.version_status === 'both_changed'
+    );
+  const versionMismatchLabel =
+    metadata?.version_status === 'both_changed'
+      ? 'game and trainer version changed'
+      : metadata?.version_status === 'trainer_changed'
+        ? 'trainer version changed'
+        : 'game version changed';
+
   const ariaLabel = showFailureTrend
     ? `Health status: ${STATUS_LABEL[resolvedStatus]}, ${failureCount} failures in last 30 days`
     : `Health status: ${STATUS_LABEL[resolvedStatus]}`;
@@ -90,6 +103,21 @@ export function HealthBadge({ status, report, metadata = null, trend = null, too
           }}
         >
           {trend === 'got_worse' ? '\u2193' : '\u2191'}
+        </span>
+      )}
+      {showVersionMismatch && (
+        <span
+          role="img"
+          aria-label={versionMismatchLabel}
+          style={{
+            fontSize: '0.7em',
+            fontWeight: 600,
+            color: 'var(--crosshook-color-warning)',
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {'\u26a0'}
         </span>
       )}
     </span>

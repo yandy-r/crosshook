@@ -119,6 +119,46 @@ pub fn community_import_profile(
         );
     }
 
+    // Seed initial version snapshot from community metadata (display-only, BR-8/W3).
+    // game_version → human_game_ver (display label only), steam_build_id stays None.
+    let game_version = result.manifest.metadata.game_version.as_str();
+    let trainer_version = result.manifest.metadata.trainer_version.as_str();
+
+    if !game_version.is_empty() || !trainer_version.is_empty() {
+        match metadata_store.lookup_profile_id(&result.profile_name) {
+            Ok(Some(profile_id)) => {
+                if let Err(e) = metadata_store.upsert_version_snapshot(
+                    &profile_id,
+                    result.profile.steam.app_id.trim(),
+                    None,
+                    if trainer_version.is_empty() { None } else { Some(trainer_version) },
+                    None,
+                    if game_version.is_empty() { None } else { Some(game_version) },
+                    "untracked",
+                ) {
+                    tracing::warn!(
+                        %e,
+                        profile_name = %result.profile_name,
+                        "version snapshot seed after community import failed"
+                    );
+                }
+            }
+            Ok(None) => {
+                tracing::warn!(
+                    profile_name = %result.profile_name,
+                    "version snapshot seed skipped: profile not found in metadata"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    %e,
+                    profile_name = %result.profile_name,
+                    "version snapshot seed skipped: profile id lookup failed"
+                );
+            }
+        }
+    }
+
     Ok(result)
 }
 

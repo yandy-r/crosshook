@@ -1,3 +1,10 @@
+import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+
+import { useProfileContext } from '../context/ProfileContext';
+import { useProfileHealthContext } from '../context/ProfileHealthContext';
+import type { VersionCorrelationStatus } from '../types/version';
+
 /**
  * Props for the profile action bar (Save, Duplicate, Delete buttons and status indicator).
  *
@@ -44,6 +51,12 @@ export interface ProfileActionsProps {
   onExportCommunity: () => void | Promise<void>;
 }
 
+const VERSION_MISMATCH_STATUSES = new Set<VersionCorrelationStatus>([
+  'game_updated',
+  'trainer_changed',
+  'both_changed',
+]);
+
 export function ProfileActions({
   dirty,
   loading,
@@ -67,6 +80,33 @@ export function ProfileActions({
   onPreview,
   onExportCommunity,
 }: ProfileActionsProps) {
+  const { selectedProfile } = useProfileContext();
+  const { healthByName, revalidateSingle } = useProfileHealthContext();
+  const [markingVerified, setMarkingVerified] = useState(false);
+
+  const versionStatus = healthByName[selectedProfile]?.metadata?.version_status;
+  const showMarkVerified = versionStatus != null && VERSION_MISMATCH_STATUSES.has(versionStatus);
+
+  const handleMarkVerified = async () => {
+    setMarkingVerified(true);
+    try {
+      await invoke('acknowledge_version_change', { name: selectedProfile });
+      try {
+        await revalidateSingle(selectedProfile);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('Failed to refresh profile health after acknowledge_version_change', error);
+        window.alert(`Version change was acknowledged, but health data refresh failed: ${message}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Failed to acknowledge version change', error);
+      window.alert(`Could not mark profile as verified: ${message}`);
+    } finally {
+      setMarkingVerified(false);
+    }
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
@@ -105,6 +145,16 @@ export function ProfileActions({
         >
           {exportingCommunity ? 'Exporting...' : 'Export as Community Profile'}
         </button>
+        {showMarkVerified && (
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--secondary"
+            onClick={() => void handleMarkVerified()}
+            disabled={markingVerified}
+          >
+            {markingVerified ? 'Verifying...' : 'Mark as Verified'}
+          </button>
+        )}
         <button
           type="button"
           className="crosshook-button crosshook-button--secondary"

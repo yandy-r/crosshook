@@ -3,7 +3,10 @@ use crosshook_core::profile::health::{
     batch_check_health, check_profile_health, HealthCheckSummary, HealthIssue, HealthIssueSeverity,
     HealthStatus, ProfileHealthReport,
 };
-use crosshook_core::profile::ProfileStore;
+use crosshook_core::profile::{GameProfile, ProfileStore};
+use crosshook_core::steam::manifest::parse_manifest_full;
+use crosshook_core::steam::libraries::discover_steam_libraries;
+use crosshook_core::steam::{discover_steam_root_candidates, SteamLibrary};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use tauri::State;
@@ -89,6 +92,95 @@ fn build_profile_metadata(
     }
 }
 
+/// Same derivation as `commands/profile.rs::derive_steam_client_install_path` — profiles
+/// store Proton compatdata, not the Steam client install path directly.
+fn steam_client_install_path_from_profile(profile: &GameProfile) -> String {
+    const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
+    let compatdata_path = profile.steam.compatdata_path.trim().replace('\\', "/");
+    compatdata_path
+        .split_once(STEAM_COMPATDATA_MARKER)
+        .map(|(steam_root, _)| steam_root.to_string())
+        .unwrap_or_default()
+}
+
+fn manifest_build_id_from_libraries(libraries: &[SteamLibrary], app_id: &str) -> Option<String> {
+    for library in libraries {
+        let candidate = library
+            .steamapps_path
+            .join(format!("appmanifest_{app_id}.acf"));
+        if candidate.is_file() {
+            if let Ok(data) = parse_manifest_full(&candidate) {
+                if !data.build_id.is_empty() {
+                    return Some(data.build_id);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Live Steam `buildid` from the installed app manifest for this profile's App ID.
+fn live_steam_build_id_for_profile(profile: &GameProfile) -> Option<String> {
+    let app_id = profile.steam.app_id.trim();
+    if app_id.is_empty() {
+        return None;
+    }
+    let mut diagnostics = Vec::new();
+    let configured = steam_client_install_path_from_profile(profile);
+    let steam_roots = discover_steam_root_candidates(
+        if configured.is_empty() { "" } else { configured.as_str() },
+        &mut diagnostics,
+    );
+    let libraries = discover_steam_libraries(&steam_roots, &mut diagnostics);
+    for entry in &diagnostics {
+        tracing::debug!(entry, "health steam discovery diagnostic");
+    }
+    manifest_build_id_from_libraries(&libraries, app_id)
+}
+
+/// Resolve live build IDs for many profiles, running Steam discovery once per distinct
+/// configured Steam client install path.
+fn live_steam_build_ids_for_profiles(
+    profile_store: &ProfileStore,
+    profile_names: &[String],
+) -> HashMap<String, Option<String>> {
+    let mut by_steam_path: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    for name in profile_names {
+        let Ok(profile) = profile_store.load(name) else {
+            continue;
+        };
+        let app_id = profile.steam.app_id.trim().to_string();
+        if app_id.is_empty() {
+            continue;
+        }
+        let path_key = steam_client_install_path_from_profile(&profile);
+        by_steam_path
+            .entry(path_key)
+            .or_default()
+            .push((name.clone(), app_id));
+    }
+
+    let mut out: HashMap<String, Option<String>> = HashMap::new();
+    for (steam_path, entries) in by_steam_path {
+        let mut diagnostics = Vec::new();
+        let steam_roots = discover_steam_root_candidates(
+            if steam_path.is_empty() { "" } else { steam_path.as_str() },
+            &mut diagnostics,
+        );
+        let libraries = discover_steam_libraries(&steam_roots, &mut diagnostics);
+        for entry in &diagnostics {
+            tracing::debug!(entry, "health batch steam discovery diagnostic");
+        }
+        for (profile_name, app_id) in entries {
+            out.insert(
+                profile_name,
+                manifest_build_id_from_libraries(&libraries, &app_id),
+            );
+        }
+    }
+    out
+}
+
 #[derive(Default)]
 struct BatchMetadataPrefetch {
     metadata_available: bool,
@@ -100,10 +192,12 @@ struct BatchMetadataPrefetch {
     launcher_drift_map: HashMap<String, DriftState>,
     profile_source_map: HashMap<String, String>,
     version_snapshot_map: HashMap<String, VersionSnapshotRow>,
+    live_build_id_by_profile: HashMap<String, Option<String>>,
 }
 
 fn prefetch_batch_metadata(
     metadata_store: &MetadataStore,
+    profile_store: &ProfileStore,
     profile_names: &[String],
 ) -> BatchMetadataPrefetch {
     let metadata_available = metadata_store.is_available();
@@ -163,6 +257,8 @@ fn prefetch_batch_metadata(
         .map(|row| (row.profile_id.clone(), row))
         .collect();
 
+    let live_build_id_by_profile = live_steam_build_ids_for_profiles(profile_store, profile_names);
+
     BatchMetadataPrefetch {
         metadata_available,
         failure_trends,
@@ -173,6 +269,7 @@ fn prefetch_batch_metadata(
         launcher_drift_map,
         profile_source_map,
         version_snapshot_map,
+        live_build_id_by_profile,
     }
 }
 
@@ -209,6 +306,11 @@ fn enrich_profile(
     let version_status = version_snapshot.map(|s| s.status.clone());
     let snapshot_build_id = version_snapshot.and_then(|s| s.steam_build_id.clone());
     let trainer_version = version_snapshot.and_then(|s| s.trainer_version.clone());
+    let current_build_id = prefetch
+        .live_build_id_by_profile
+        .get(&report.name)
+        .cloned()
+        .flatten();
 
     // Inject version mismatch as a Warning health issue (BR-6: Warning, not Error)
     let mut report = report;
@@ -251,7 +353,7 @@ fn enrich_profile(
             is_favorite,
             version_status,
             snapshot_build_id,
-            None,
+            current_build_id,
             trainer_version,
         ))
     } else {
@@ -274,7 +376,7 @@ pub(crate) fn build_enriched_health_summary(
         .iter()
         .map(|report| report.name.clone())
         .collect();
-    let prefetch = prefetch_batch_metadata(metadata_store, &profile_names);
+    let prefetch = prefetch_batch_metadata(metadata_store, store, &profile_names);
 
     let HealthCheckSummary {
         profiles: raw_profiles,
@@ -437,6 +539,7 @@ pub fn get_profile_health(
     let version_status = version_snapshot.as_ref().map(|s| s.status.clone());
     let snapshot_build_id = version_snapshot.as_ref().and_then(|s| s.steam_build_id.clone());
     let trainer_version = version_snapshot.as_ref().and_then(|s| s.trainer_version.clone());
+    let current_build_id = live_steam_build_id_for_profile(&profile);
 
     Ok(EnrichedProfileHealthReport {
         core: sanitize_report(report),
@@ -450,7 +553,7 @@ pub fn get_profile_health(
             is_favorite,
             version_status,
             snapshot_build_id,
-            None,
+            current_build_id,
             trainer_version,
         )),
     })

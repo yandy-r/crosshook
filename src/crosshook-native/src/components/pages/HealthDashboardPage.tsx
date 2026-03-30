@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type { AppRoute } from '../layout/Sidebar';
 import { HealthDashboardArt, PageBanner } from '../layout/PageBanner';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
@@ -8,6 +9,7 @@ import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { formatRelativeTime } from '../../utils/format';
 import { useProfileContext } from '../../context/ProfileContext';
 import type { EnrichedProfileHealthReport, HealthIssue, HealthStatus } from '../../types/health';
+import type { VersionCorrelationStatus } from '../../types/version';
 import { useProtonMigration } from '../../hooks/useProtonMigration';
 import type { MigrationSuggestion, ProtonPathField } from '../../types';
 import { MigrationReviewModal } from '../MigrationReviewModal';
@@ -51,11 +53,41 @@ function categorizeIssue(issue: HealthIssue): IssueCategory {
   return 'other';
 }
 
-type SortField = 'name' | 'status' | 'issues' | 'last_success' | 'launch_method' | 'failures' | 'favorite';
+type SortField = 'name' | 'status' | 'issues' | 'last_success' | 'launch_method' | 'failures' | 'favorite' | 'version_status';
 type SortDirection = 'asc' | 'desc';
 type StatusFilter = 'all' | HealthStatus;
 
 const STATUS_RANK: Record<string, number> = { broken: 2, stale: 1, healthy: 0 };
+
+const VERSION_STATUS_RANK: Partial<Record<VersionCorrelationStatus, number>> = {
+  both_changed: 3,
+  game_updated: 2,
+  trainer_changed: 2,
+  matched: 1,
+  update_in_progress: 0,
+  untracked: -1,
+  unknown: -1,
+};
+
+function getVersionStatusColor(status: VersionCorrelationStatus | null | undefined): string {
+  if (status === 'matched') return 'var(--crosshook-color-success)';
+  if (status === 'game_updated' || status === 'trainer_changed' || status === 'both_changed') {
+    return 'var(--crosshook-color-warning)';
+  }
+  return 'var(--crosshook-color-text-subtle)';
+}
+
+function getVersionStatusLabel(status: VersionCorrelationStatus | null | undefined): string {
+  switch (status) {
+    case 'matched': return 'Matched';
+    case 'game_updated': return 'Game Updated';
+    case 'trainer_changed': return 'Trainer Changed';
+    case 'both_changed': return 'Both Changed';
+    case 'update_in_progress': return 'Updating';
+    case 'untracked': return 'Untracked';
+    default: return 'Untracked';
+  }
+}
 
 type CardTrend = 'up' | 'down' | null;
 
@@ -123,6 +155,9 @@ function TableToolbar({
   missingProtonCount,
   onFixProtonPaths,
   isScanning,
+  onCheckAllVersions,
+  isVersionScanning,
+  versionScanProgress,
 }: {
   statusFilter: StatusFilter;
   onStatusFilter: (f: StatusFilter) => void;
@@ -136,6 +171,9 @@ function TableToolbar({
   missingProtonCount?: number;
   onFixProtonPaths?: () => void;
   isScanning?: boolean;
+  onCheckAllVersions?: () => void;
+  isVersionScanning?: boolean;
+  versionScanProgress?: { done: number; total: number } | null;
 }) {
   const statusOptions: { value: StatusFilter; label: string }[] = [
     { value: 'all', label: 'All' },
@@ -186,6 +224,23 @@ function TableToolbar({
         >
           {loading ? '↻ Checking...' : '↻ Re-check All'}
         </button>
+        {onCheckAllVersions !== undefined && (
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--ghost crosshook-focus-ring crosshook-nav-target"
+            style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
+            disabled={isVersionScanning}
+            onClick={onCheckAllVersions}
+            aria-label="Check version status for all displayed profiles"
+            aria-disabled={isVersionScanning}
+          >
+            {isVersionScanning
+              ? versionScanProgress
+                ? `Checking ${versionScanProgress.done}/${versionScanProgress.total}\u2026`
+                : 'Checking\u2026'
+              : 'Check All Versions'}
+          </button>
+        )}
         {missingProtonCount !== undefined &&
           missingProtonCount >= 2 &&
           onFixProtonPaths !== undefined && (
@@ -423,7 +478,7 @@ function IssueDetailRow({
   const meta = report.metadata;
   return (
     <tr className="crosshook-health-dashboard-expanded-row">
-      <td colSpan={9}>
+      <td colSpan={10}>
         <div className="crosshook-health-dashboard-expanded-content">
           <div className="crosshook-health-dashboard-expanded-meta">
             <span><strong>Launch Method:</strong> {report.launch_method}</span>
@@ -665,6 +720,8 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedProfile, setExpandedProfile] = useState<string | null>(null);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isVersionScanning, setIsVersionScanning] = useState(false);
+  const [versionScanProgress, setVersionScanProgress] = useState<{ done: number; total: number } | null>(null);
 
   const deferredSearch = useDeferredValue(searchQuery);
 
@@ -682,6 +739,19 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
 
   function handleMigrationModalClose() {
     setIsMigrationModalOpen(false);
+  }
+
+  async function handleCheckAllVersions() {
+    if (isVersionScanning || filteredProfiles.length === 0) return;
+    setIsVersionScanning(true);
+    setVersionScanProgress({ done: 0, total: filteredProfiles.length });
+    for (const report of filteredProfiles) {
+      await invoke('check_version_status', { name: report.name }).catch(() => {});
+      setVersionScanProgress((prev) => prev ? { ...prev, done: prev.done + 1 } : null);
+    }
+    setIsVersionScanning(false);
+    setVersionScanProgress(null);
+    void batchValidate();
   }
 
   function handleSortClick(field: SortField) {
@@ -754,6 +824,12 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
           const aFavSort = a.metadata?.is_favorite ? 1 : 0;
           const bFavSort = b.metadata?.is_favorite ? 1 : 0;
           cmp = aFavSort - bFavSort;
+          break;
+        }
+        case 'version_status': {
+          const aRank = VERSION_STATUS_RANK[a.metadata?.version_status ?? 'unknown'] ?? -1;
+          const bRank = VERSION_STATUS_RANK[b.metadata?.version_status ?? 'unknown'] ?? -1;
+          cmp = aRank - bRank;
           break;
         }
         default:
@@ -1008,6 +1084,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   <th role="columnheader" scope="col">Method</th>
                   <th role="columnheader" scope="col">Failures</th>
                   <th role="columnheader" scope="col">&#9733;</th>
+                  <th role="columnheader" scope="col">Version</th>
                   <th role="columnheader" scope="col">Source</th>
                   <th role="columnheader" scope="col">Actions</th>
                 </tr>
@@ -1042,6 +1119,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                     <td></td>
                     <td></td>
                     <td></td>
+                    <td></td>
                   </tr>
                 ))}
               </tbody>
@@ -1064,6 +1142,9 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
               missingProtonCount={missingProtonCount}
               onFixProtonPaths={() => void handleFixProtonPaths()}
               isScanning={isBatchScanning}
+              onCheckAllVersions={() => void handleCheckAllVersions()}
+              isVersionScanning={isVersionScanning}
+              versionScanProgress={versionScanProgress}
             />
 
             <table
@@ -1081,6 +1162,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   {renderSortHeader('launch_method', 'Method')}
                   {renderSortHeader('failures', 'Failures')}
                   {renderSortHeader('favorite', '★')}
+                  {renderSortHeader('version_status', 'Version')}
                   <th role="columnheader" scope="col" className="crosshook-health-dashboard-th">Source</th>
                   <th role="columnheader" scope="col" className="crosshook-health-dashboard-th crosshook-health-dashboard-th--actions">Actions</th>
                 </tr>
@@ -1125,6 +1207,14 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                         </td>
                         <td className="crosshook-health-dashboard-td--favorite">
                           {report.metadata?.is_favorite ? '★' : ''}
+                        </td>
+                        <td className="crosshook-health-dashboard-td--version">
+                          <span
+                            className="crosshook-status-chip crosshook-health-dashboard-version-badge"
+                            style={{ color: getVersionStatusColor(report.metadata?.version_status) }}
+                          >
+                            {getVersionStatusLabel(report.metadata?.version_status)}
+                          </span>
                         </td>
                         <td className="crosshook-health-dashboard-td--source">
                           {report.metadata?.is_community_import ? (

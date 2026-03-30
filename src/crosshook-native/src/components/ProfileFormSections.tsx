@@ -1,4 +1,5 @@
-import { useId, useMemo, type ChangeEvent, type ReactNode } from 'react';
+import { useId, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
 import AutoPopulate from './AutoPopulate';
 import { ThemedSelect } from './ui/ThemedSelect';
@@ -28,6 +29,7 @@ type ProfileFormSectionsBaseProps = {
   protonInstallsError: string | null;
   reviewMode?: boolean;
   profileExists?: boolean;
+  trainerVersion?: string | null;
   onProfileNameChange: (value: string) => void;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
 };
@@ -332,6 +334,68 @@ function ProfileSelectorField({
   );
 }
 
+function TrainerVersionSetField({ profileName }: { profileName: string }) {
+  const [pendingVersion, setPendingVersion] = useState('');
+  const [setting, setSetting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const inputId = useId();
+
+  const handleSet = async () => {
+    const version = pendingVersion.trim();
+    if (!version) return;
+    setSetting(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      await invoke('set_trainer_version', { name: profileName, version });
+      setPendingVersion('');
+      setSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSetting(false);
+    }
+  };
+
+  return (
+    <div className="crosshook-field">
+      <label className="crosshook-label" htmlFor={inputId}>
+        Set Trainer Version
+      </label>
+      <div className="crosshook-install-field-control">
+        <input
+          id={inputId}
+          className="crosshook-input"
+          style={{ flex: 1, minWidth: 0 }}
+          value={pendingVersion}
+          placeholder="e.g. v1.0.2 or 2024.01.15"
+          onChange={(event: ChangeEvent<HTMLInputElement>) => {
+            setPendingVersion(event.target.value);
+            setSuccess(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') void handleSet();
+          }}
+        />
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={() => void handleSet()}
+          disabled={setting || !pendingVersion.trim()}
+        >
+          {setting ? 'Saving...' : 'Set'}
+        </button>
+      </div>
+      <p className="crosshook-help-text">
+        Manually record the trainer version when it cannot be auto-detected.
+      </p>
+      {error ? <p className="crosshook-danger">{error}</p> : null}
+      {success ? <p className="crosshook-help-text" role="status">Trainer version saved.</p> : null}
+    </div>
+  );
+}
+
 export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const {
     profileName,
@@ -341,6 +405,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     protonInstallsError,
     reviewMode = false,
     profileExists = false,
+    trainerVersion = null,
     onProfileNameChange,
     onUpdateProfile,
   } = props;
@@ -522,6 +587,24 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                   Use the original trainer location by default so stateful bundles like Aurora keep one shared install. Switch to copy mode only when a trainer requires prefix-local files.
                 </p>
               </div>
+
+              {trainerVersion ? (
+                <div className="crosshook-field">
+                  <label className="crosshook-label">Trainer Version</label>
+                  <input
+                    className="crosshook-input"
+                    value={trainerVersion}
+                    readOnly
+                    aria-readonly="true"
+                    style={{ opacity: 0.7 }}
+                  />
+                  <p className="crosshook-help-text">Version recorded at last successful launch.</p>
+                </div>
+              ) : null}
+
+              {profileExists && !reviewMode ? (
+                <TrainerVersionSetField profileName={profileName} />
+              ) : null}
             </div>
           </OptionalSection>
         </div>
