@@ -5,7 +5,7 @@ use crosshook_core::profile::{
 use crosshook_core::settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
 const STEAM_ROOT_SUFFIXES: [&str; 2] = ["/.local/share/Steam", "/.steam/root"];
@@ -76,6 +76,12 @@ fn save_launch_optimizations_for_profile(
         .map_err(map_error)
 }
 
+fn emit_profiles_changed(app: &AppHandle, reason: &str) {
+    if let Err(error) = app.emit("profiles-changed", reason.to_string()) {
+        tracing::warn!(%error, reason, "failed to emit profiles-changed event");
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LaunchOptimizationsPayload {
     #[serde(
@@ -100,6 +106,7 @@ pub fn profile_load(name: String, store: State<'_, ProfileStore>) -> Result<Game
 pub fn profile_save(
     name: String,
     data: GameProfile,
+    app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
@@ -116,6 +123,7 @@ pub fn profile_save(
         tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save failed");
     }
 
+    emit_profiles_changed(&app, "saved");
     Ok(())
 }
 
@@ -151,6 +159,7 @@ pub fn profile_save_launch_optimizations(
 #[tauri::command]
 pub fn profile_delete(
     name: String,
+    app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
@@ -168,6 +177,7 @@ pub fn profile_delete(
         tracing::warn!(%e, profile_name = %name, "metadata sync after profile_delete failed");
     }
 
+    emit_profiles_changed(&app, "deleted");
     Ok(())
 }
 
@@ -269,6 +279,7 @@ pub fn profile_rename(
 #[tauri::command]
 pub fn profile_import_legacy(
     path: String,
+    app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<GameProfile, String> {
@@ -285,6 +296,7 @@ pub fn profile_import_legacy(
         tracing::warn!(%e, profile_name = %stem, "metadata sync after import_legacy failed");
     }
 
+    emit_profiles_changed(&app, "imported-legacy");
     Ok(profile)
 }
 

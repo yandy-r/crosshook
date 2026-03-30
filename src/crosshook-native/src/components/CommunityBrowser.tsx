@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import {
+  deriveCommunityImportProfileName,
+  type CommunityImportPreview,
   type CommunityCompatibilityRating,
   type CommunityProfileIndexEntry,
   type CommunityTapSubscription,
@@ -9,6 +11,7 @@ import {
 } from '../hooks/useCommunityProfiles';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { ThemedSelect } from './ui/ThemedSelect';
+import CommunityImportWizardModal from './CommunityImportWizardModal';
 
 export interface CommunityBrowserProps {
   profilesDirectoryPath?: string;
@@ -153,12 +156,15 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
   const [query, setQuery] = useState('');
   const [ratingFilter, setRatingFilter] = useState<'all' | CommunityCompatibilityRating>('all');
   const [notice, setNotice] = useState<string | null>(null);
+  const [importDraft, setImportDraft] = useState<CommunityImportPreview | null>(null);
+  const [importDraftSource, setImportDraftSource] = useState<string | null>(null);
   const internalState = useCommunityProfiles({
     profilesDirectoryPath,
   });
   const {
     taps,
     index,
+    importedProfileNames,
     loading,
     syncing,
     importing,
@@ -170,7 +176,8 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
     pinTapToCurrentVersion,
     unpinTap,
     getTapHeadCommit,
-    importCommunityProfile,
+    prepareCommunityImport,
+    saveImportedProfile,
     setError,
   } = state ?? internalState;
 
@@ -206,8 +213,9 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
     }
 
     try {
-      const imported = await importCommunityProfile(path);
-      setNotice(`Imported ${imported.profile_name} into ${profilesDirectoryPath}.`);
+      const draft = await prepareCommunityImport(path);
+      setImportDraft(draft);
+      setImportDraftSource('file');
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : String(importError));
     }
@@ -216,8 +224,9 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
   async function handleImportEntry(entry: CommunityProfileIndexEntry) {
     setNotice(null);
     try {
-      const imported = await importCommunityProfile(entry.manifest_path);
-      setNotice(`Imported ${imported.profile_name} from ${entry.tap_url}.`);
+      const draft = await prepareCommunityImport(entry.manifest_path);
+      setImportDraft(draft);
+      setImportDraftSource(entry.tap_url);
     } catch (importError) {
       setError(importError instanceof Error ? importError.message : String(importError));
     }
@@ -412,71 +421,101 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
           </p>
         ) : (
           <div className="crosshook-community-browser__profile-grid">
-            {visibleEntries.map((entry) => (
-              <article key={`${entry.tap_url}::${entry.relative_path}`} className="crosshook-community-browser__profile-card">
-                <div className="crosshook-community-browser__profile-header">
-                  <div className="crosshook-community-browser__profile-title">
-                    <h3 className="crosshook-community-browser__profile-name">
-                      {entry.manifest.metadata.game_name || 'Untitled profile'}
-                    </h3>
-                    <div className="crosshook-muted crosshook-community-browser__profile-author">
-                      {entry.manifest.metadata.author || 'Unknown author'}
+            {visibleEntries.map((entry) => {
+              const importedProfileName = deriveCommunityImportProfileName(entry);
+              const isImported = importedProfileNames.has(importedProfileName);
+              return (
+                <article key={`${entry.tap_url}::${entry.relative_path}`} className="crosshook-community-browser__profile-card">
+                  <div className="crosshook-community-browser__profile-header">
+                    <div className="crosshook-community-browser__profile-title">
+                      <h3 className="crosshook-community-browser__profile-name">
+                        {entry.manifest.metadata.game_name || 'Untitled profile'}
+                      </h3>
+                      <div className="crosshook-muted crosshook-community-browser__profile-author">
+                        {entry.manifest.metadata.author || 'Unknown author'}
+                      </div>
                     </div>
+                    <CompatibilityBadge rating={entry.manifest.metadata.compatibility_rating} />
                   </div>
-                  <CompatibilityBadge rating={entry.manifest.metadata.compatibility_rating} />
-                </div>
 
-                <div className="crosshook-community-browser__meta-grid">
-                  <div className="crosshook-muted crosshook-community-browser__meta-line">
-                    Trainer: {entry.manifest.metadata.trainer_name || 'Unknown'}{' '}
-                    {entry.manifest.metadata.trainer_version ? `(${entry.manifest.metadata.trainer_version})` : ''}
+                  <div className="crosshook-community-browser__meta-grid">
+                    <div className="crosshook-muted crosshook-community-browser__meta-line">
+                      Trainer: {entry.manifest.metadata.trainer_name || 'Unknown'}{' '}
+                      {entry.manifest.metadata.trainer_version ? `(${entry.manifest.metadata.trainer_version})` : ''}
+                    </div>
+                    <div className="crosshook-muted crosshook-community-browser__meta-line">
+                      Proton: {entry.manifest.metadata.proton_version || 'Unknown'}
+                    </div>
+                    <div className="crosshook-muted crosshook-community-browser__meta-line">
+                      Game version: {entry.manifest.metadata.game_version || 'Unknown'}
+                    </div>
+                    <p className="crosshook-heading-copy crosshook-community-browser__description">
+                      {entry.manifest.metadata.description || 'No description provided.'}
+                    </p>
                   </div>
-                  <div className="crosshook-muted crosshook-community-browser__meta-line">
-                    Proton: {entry.manifest.metadata.proton_version || 'Unknown'}
-                  </div>
-                  <div className="crosshook-muted crosshook-community-browser__meta-line">
-                    Game version: {entry.manifest.metadata.game_version || 'Unknown'}
-                  </div>
-                  <p className="crosshook-heading-copy crosshook-community-browser__description">
-                    {entry.manifest.metadata.description || 'No description provided.'}
-                  </p>
-                </div>
 
-                <div className="crosshook-community-browser__chip-row">
-                  {entry.manifest.metadata.platform_tags.length > 0 ? (
-                    entry.manifest.metadata.platform_tags.map((tag) => (
-                      <span key={tag} className="crosshook-community-browser__platform-tag">
-                        {tag}
+                  <div className="crosshook-community-browser__chip-row">
+                    {entry.manifest.metadata.platform_tags.length > 0 ? (
+                      entry.manifest.metadata.platform_tags.map((tag) => (
+                        <span key={tag} className="crosshook-community-browser__platform-tag">
+                          {tag}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="crosshook-muted crosshook-community-browser__platform-tag crosshook-community-browser__platform-tag--empty">
+                        No platform tags
                       </span>
-                    ))
-                  ) : (
-                    <span className="crosshook-muted crosshook-community-browser__platform-tag crosshook-community-browser__platform-tag--empty">
-                      No platform tags
-                    </span>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                <div className="crosshook-muted crosshook-community-browser__source">
-                  Source: {entry.tap_url}
-                </div>
+                  <div className="crosshook-muted crosshook-community-browser__source">
+                    Source: {entry.tap_url}
+                  </div>
 
-                <div className="crosshook-community-browser__button-row">
-                  <button
-                    type="button"
-                    className="crosshook-button"
-                    onClick={() => {
-                      void handleImportEntry(entry);
-                    }}
-                    disabled={importing}
-                  >
-                    {importing ? 'Importing...' : 'Import'}
-                  </button>
-                </div>
-              </article>
-            ))}
+                  <div className="crosshook-community-browser__button-row">
+                    {isImported ? (
+                      <span className="crosshook-community-browser__imported-badge" aria-label="Already imported">
+                        Imported
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="crosshook-button"
+                        onClick={() => {
+                          void handleImportEntry(entry);
+                        }}
+                        disabled={importing}
+                      >
+                        {importing ? 'Importing...' : 'Import'}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </CollapsibleSection>
+      <CommunityImportWizardModal
+        open={importDraft !== null}
+        draft={importDraft}
+        saving={importing}
+        onClose={() => {
+          setImportDraft(null);
+          setImportDraftSource(null);
+        }}
+        onSave={async (profileName, profile, summary) => {
+          await saveImportedProfile(profileName, profile);
+          const sourceLabel = importDraftSource === 'file' || importDraftSource === null
+            ? profilesDirectoryPath
+            : importDraftSource;
+          setNotice(
+            `Imported ${profileName} (${summary.autoResolvedCount} auto-resolved, ${summary.unresolvedCount} unresolved) from ${sourceLabel}.`
+          );
+          setImportDraft(null);
+          setImportDraftSource(null);
+        }}
+      />
     </section>
   );
 }

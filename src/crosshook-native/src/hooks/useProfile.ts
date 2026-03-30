@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import type { AppSettingsData, DuplicateProfileResult, GameProfile, LauncherInfo, RecentFilesData } from '../types';
 import {
   LAUNCH_OPTIMIZATION_OPTIONS_BY_ID,
@@ -714,6 +715,25 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setError(err instanceof Error ? err.message : String(err));
     });
     void loadFavorites();
+  }, [loadFavorites, refreshProfiles]);
+
+  useEffect(() => {
+    let active = true;
+    const unlistenPromise = listen<string>('profiles-changed', () => {
+      if (!active) {
+        return;
+      }
+
+      void refreshProfiles().catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+      void loadFavorites();
+    });
+
+    return () => {
+      active = false;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
   }, [loadFavorites, refreshProfiles]);
 
   useEffect(() => {

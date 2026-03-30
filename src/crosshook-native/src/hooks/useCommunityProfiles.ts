@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import type { AppSettingsData, GameProfile } from '../types';
 
 export type CommunityCompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
@@ -62,6 +63,13 @@ export interface CommunityImportResult {
   manifest: CommunityProfileManifest;
 }
 
+export interface CommunityImportPreview {
+  profile_name: string;
+  source_path: string;
+  profile: GameProfile;
+  manifest: CommunityProfileManifest;
+}
+
 export interface CommunityExportResult {
   profile_name: string;
   output_path: string;
@@ -76,6 +84,7 @@ export interface UseCommunityProfilesResult {
   taps: CommunityTapSubscription[];
   index: CommunityProfileIndex;
   lastSyncedCommits: Record<string, string>;
+  importedProfileNames: Set<string>;
   loading: boolean;
   syncing: boolean;
   importing: boolean;
@@ -87,8 +96,48 @@ export interface UseCommunityProfilesResult {
   pinTapToCurrentVersion: (tap: CommunityTapSubscription) => Promise<void>;
   unpinTap: (tap: CommunityTapSubscription) => Promise<void>;
   getTapHeadCommit: (tap: CommunityTapSubscription) => string | undefined;
-  importCommunityProfile: (jsonPath: string) => Promise<CommunityImportResult>;
+  prepareCommunityImport: (jsonPath: string) => Promise<CommunityImportPreview>;
+  saveImportedProfile: (name: string, profile: GameProfile) => Promise<void>;
   setError: (message: string | null) => void;
+}
+
+function sanitizeProfileName(name: string): string {
+  let slug = '';
+  let lastWasSeparator = false;
+  for (const ch of name.trim()) {
+    if (/^[a-zA-Z0-9]$/.test(ch)) {
+      slug += ch.toLowerCase();
+      lastWasSeparator = false;
+    } else if (!lastWasSeparator) {
+      slug += '-';
+      lastWasSeparator = true;
+    }
+  }
+
+  const trimmed = slug.replace(/^-+|-+$/g, '');
+  return trimmed.length === 0 ? 'community-profile' : trimmed;
+}
+
+function basename(value: string): string {
+  const normalized = value.replace(/\\/g, '/').replace(/\/+$/, '');
+  const parts = normalized.split('/');
+  return parts[parts.length - 1] ?? '';
+}
+
+export function deriveCommunityImportProfileName(entry: CommunityProfileIndexEntry): string {
+  const gameName = entry.manifest.metadata.game_name.trim();
+  if (gameName.length > 0) {
+    return sanitizeProfileName(gameName);
+  }
+
+  const normalizedRelativePath = entry.relative_path.replace(/\\/g, '/');
+  const segments = normalizedRelativePath.split('/').filter((segment) => segment.length > 0);
+  const parent = segments.length > 1 ? segments[segments.length - 2] : basename(normalizedRelativePath);
+  if (parent.length > 0) {
+    return sanitizeProfileName(parent);
+  }
+
+  return 'community-profile';
 }
 
 function tapIdentityKey(tap: CommunityTapSubscription): string {
@@ -152,6 +201,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     diagnostics: [],
   });
   const [lastSyncedCommits, setLastSyncedCommits] = useState<Record<string, string>>({});
+  const [importedProfileNames, setImportedProfileNames] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -176,6 +226,11 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
   const refreshProfiles = useCallback(async () => {
     const response = await invoke<CommunityProfileIndex>('community_list_profiles');
     setIndex(response);
+  }, []);
+
+  const refreshImportedProfileNames = useCallback(async () => {
+    const names = await invoke<string[]>('profile_list');
+    setImportedProfileNames(new Set(names.map((name) => name.trim()).filter((name) => name.length > 0)));
   }, []);
 
   const syncTaps = useCallback(async () => {
@@ -282,12 +337,12 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     [refreshProfiles, saveSettingsTaps, taps]
   );
 
-  const importCommunityProfile = useCallback(async (jsonPath: string) => {
+  const prepareCommunityImport = useCallback(async (jsonPath: string) => {
     setImporting(true);
     setError(null);
 
     try {
-      return await invoke<CommunityImportResult>('community_import_profile', {
+      return await invoke<CommunityImportPreview>('community_prepare_import', {
         path: jsonPath,
       });
     } catch (importError) {
@@ -297,6 +352,24 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
       setImporting(false);
     }
   }, []);
+
+  const saveImportedProfile = useCallback(async (name: string, profile: GameProfile) => {
+    setImporting(true);
+    setError(null);
+
+    try {
+      await invoke('profile_save', {
+        name,
+        data: profile,
+      });
+      await refreshImportedProfileNames();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
+      throw saveError;
+    } finally {
+      setImporting(false);
+    }
+  }, [refreshImportedProfileNames]);
 
   useEffect(() => {
     let active = true;
@@ -323,11 +396,34 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     }
 
     void loadInitialState();
+    void refreshImportedProfileNames().catch((loadError) => {
+      if (active) {
+        setError(loadError instanceof Error ? loadError.message : String(loadError));
+      }
+    });
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshImportedProfileNames]);
+
+  useEffect(() => {
+    let active = true;
+    const unlistenPromise = listen<string>('profiles-changed', () => {
+      if (!active) {
+        return;
+      }
+
+      void refreshImportedProfileNames().catch((syncError) => {
+        setError(syncError instanceof Error ? syncError.message : String(syncError));
+      });
+    });
+
+    return () => {
+      active = false;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [refreshImportedProfileNames]);
 
   useEffect(() => {
     if (loading) {
@@ -343,6 +439,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     taps,
     index,
     lastSyncedCommits,
+    importedProfileNames,
     loading,
     syncing,
     importing,
@@ -354,7 +451,8 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     pinTapToCurrentVersion,
     unpinTap,
     getTapHeadCommit,
-    importCommunityProfile,
+    prepareCommunityImport,
+    saveImportedProfile,
     setError,
   };
 }
