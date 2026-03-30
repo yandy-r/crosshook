@@ -71,6 +71,37 @@ pub fn run() {
                 }
 
                 {
+                    let show_onboarding = settings_store
+                        .load()
+                        .map(|s| !s.onboarding_completed)
+                        .unwrap_or(true);
+                    let has_profiles = profile_store
+                        .list()
+                        .map(|p| !p.is_empty())
+                        .unwrap_or(false);
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        sleep(Duration::from_millis(350)).await;
+
+                        #[derive(serde::Serialize)]
+                        struct OnboardingCheckPayload {
+                            show: bool,
+                            has_profiles: bool,
+                        }
+
+                        if let Err(error) = app_handle.emit(
+                            "onboarding-check",
+                            &OnboardingCheckPayload {
+                                show: show_onboarding,
+                                has_profiles,
+                            },
+                        ) {
+                            tracing::warn!(%error, "failed to emit onboarding-check event");
+                        }
+                    });
+                }
+
+                {
                     let app_handle = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
                         sleep(Duration::from_millis(500)).await;
@@ -194,6 +225,9 @@ pub fn run() {
             commands::version::get_version_snapshot,
             commands::version::set_trainer_version,
             commands::version::acknowledge_version_change,
+            commands::onboarding::check_readiness,
+            commands::onboarding::dismiss_onboarding,
+            commands::onboarding::get_trainer_guidance,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

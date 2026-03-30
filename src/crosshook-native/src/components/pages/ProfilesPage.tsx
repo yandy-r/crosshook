@@ -5,8 +5,10 @@ import ConfigHistoryPanel from '../ConfigHistoryPanel';
 import LauncherExport from '../LauncherExport';
 import ProfileActions from '../ProfileActions';
 import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
+import { OnboardingWizard } from '../OnboardingWizard';
 import ProfilePreviewModal from '../ProfilePreviewModal';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
+import { ThemedSelect } from '../ui/ThemedSelect';
 import { HealthBadge } from '../HealthBadge';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
@@ -104,6 +106,8 @@ export function ProfilesPage() {
   });
   const renameToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingLauncherReExport, setPendingLauncherReExport] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardMode, setWizardMode] = useState<'create' | 'edit'>('create');
   const [showProfilePreview, setShowProfilePreview] = useState(false);
   const [profilePreviewContent, setProfilePreviewContent] = useState('');
   const [previewing, setPreviewing] = useState(false);
@@ -526,9 +530,79 @@ export function ProfilesPage() {
       ) : null}
 
       <div style={{ display: 'grid', gap: 24 }}>
-        <CollapsibleSection
-          title="Profile"
-          className="crosshook-panel"
+        <div className="crosshook-panel" style={{ display: 'grid', gap: 0 }}>
+          {/* Wizard area */}
+          <div
+            style={{
+              padding: 'var(--crosshook-card-padding)',
+              borderBottom: '1px solid var(--crosshook-color-border, rgba(255,255,255,0.08))',
+              background: 'var(--crosshook-color-accent-soft)',
+            }}
+          >
+            <div className="crosshook-heading-eyebrow" style={{ marginBottom: 4 }}>Guided Setup</div>
+            <h2 style={{ margin: '4px 0 8px', fontSize: '1.1em', fontWeight: 600 }}>Profile Setup Wizard</h2>
+            <p className="crosshook-help-text" style={{ marginBottom: 16 }}>
+              {profiles.length === 0
+                ? 'Set up your first game + trainer combo in minutes with step-by-step guidance.'
+                : 'Use the guided wizard to create another profile with automatic readiness checks.'}
+            </p>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="crosshook-button"
+                onClick={() => { setWizardMode('create'); setShowWizard(true); }}
+              >
+                New Profile
+              </button>
+              {profileExists && (
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--secondary"
+                  onClick={() => { setWizardMode('edit'); setShowWizard(true); }}
+                >
+                  Edit in Wizard
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Profile selector — always visible */}
+          {profiles.length > 0 && (
+            <div
+              style={{
+                padding: '12px var(--crosshook-card-padding)',
+                borderBottom: '1px solid var(--crosshook-color-border, rgba(255,255,255,0.08))',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <label
+                className="crosshook-label"
+                htmlFor="profile-selector-top"
+                style={{ margin: 0, whiteSpace: 'nowrap' }}
+              >
+                Active Profile
+              </label>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <ThemedSelect
+                  id="profile-selector-top"
+                  value={selectedProfile}
+                  onValueChange={(val) => void selectProfile(val)}
+                  placeholder="Create New"
+                  options={[
+                    { value: '', label: 'Create New' },
+                    ...profiles.map((name) => ({ value: name, label: name })),
+                  ]}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Advanced (collapsed by default) */}
+          <CollapsibleSection
+            title="Advanced"
+            defaultOpen={false}
           meta={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {renderProfileHealthBadge()}
@@ -582,60 +656,9 @@ export function ProfilesPage() {
             profileExists={profileExists}
             trainerVersion={selectedTrainerVersion}
             onVersionSet={() => { if (selectedProfile) void revalidateSingle(selectedProfile); }}
-            profileSelector={{
-              profiles,
-              favoriteProfiles,
-              selectedProfile,
-              onSelectProfile: selectProfile,
-              onToggleFavorite: toggleFavorite,
-            }}
             onProfileNameChange={setProfileName}
             onUpdateProfile={updateProfile}
           />
-
-          <ProfileActions
-            dirty={dirty}
-            loading={loading}
-            saving={saving}
-            deleting={deleting}
-            duplicating={duplicating}
-            renaming={renaming}
-            error={error}
-            canSave={canSave}
-            canDelete={canDelete}
-            canDuplicate={canDuplicate}
-            canRename={canRename}
-            canPreview={canPreview}
-            previewing={previewing}
-            canExportCommunity={canExportCommunity}
-            exportingCommunity={exportingCommunity}
-            canViewHistory={canViewHistory}
-            onSave={handleSave}
-            onDelete={() => confirmDelete(profileName)}
-            onDuplicate={() => duplicateProfile(profileName)}
-            onRename={() => {
-              setPendingRename(selectedProfile);
-              setRenameValue(selectedProfile);
-            }}
-            onPreview={handlePreviewProfile}
-            onExportCommunity={handleExportCommunityProfile}
-            onViewHistory={() => setShowHistoryPanel(true)}
-          />
-          {previewError ? (
-            <p className="crosshook-danger" role="alert" style={{ marginTop: 12 }}>
-              Preview failed: {previewError}
-            </p>
-          ) : null}
-          {communityExportError ? (
-            <p className="crosshook-danger" role="alert" style={{ marginTop: 12 }}>
-              Community export failed: {communityExportError}
-            </p>
-          ) : null}
-          {communityExportSuccess ? (
-            <p className="crosshook-help-text" role="status" style={{ marginTop: 12 }}>
-              {communityExportSuccess}
-            </p>
-          ) : null}
 
           {(() => {
             const report = selectedReport;
@@ -699,7 +722,55 @@ export function ProfilesPage() {
               </div>
             );
           })()}
-        </CollapsibleSection>
+          </CollapsibleSection>
+
+          {/* Actions — always visible at bottom of container */}
+          <div style={{ padding: 'var(--crosshook-card-padding)', borderTop: '1px solid var(--crosshook-color-border, rgba(255,255,255,0.08))' }}>
+            <ProfileActions
+              dirty={dirty}
+              loading={loading}
+              saving={saving}
+              deleting={deleting}
+              duplicating={duplicating}
+              renaming={renaming}
+              error={error}
+              canSave={canSave}
+              canDelete={canDelete}
+              canDuplicate={canDuplicate}
+              canRename={canRename}
+              canPreview={canPreview}
+              previewing={previewing}
+              canExportCommunity={canExportCommunity}
+              exportingCommunity={exportingCommunity}
+              canViewHistory={canViewHistory}
+              onSave={handleSave}
+              onDelete={() => confirmDelete(profileName)}
+              onDuplicate={() => duplicateProfile(profileName)}
+              onRename={() => {
+                setPendingRename(selectedProfile);
+                setRenameValue(selectedProfile);
+              }}
+              onPreview={handlePreviewProfile}
+              onExportCommunity={handleExportCommunityProfile}
+              onViewHistory={() => setShowHistoryPanel(true)}
+            />
+            {previewError ? (
+              <p className="crosshook-danger" role="alert" style={{ marginTop: 12 }}>
+                Preview failed: {previewError}
+              </p>
+            ) : null}
+            {communityExportError ? (
+              <p className="crosshook-danger" role="alert" style={{ marginTop: 12 }}>
+                Community export failed: {communityExportError}
+              </p>
+            ) : null}
+            {communityExportSuccess ? (
+              <p className="crosshook-help-text" role="status" style={{ marginTop: 12 }}>
+                {communityExportSuccess}
+              </p>
+            ) : null}
+          </div>
+        </div>
 
         {supportsLauncherExport ? (
           <CollapsibleSection title="Launcher Export" className="crosshook-panel">
@@ -857,6 +928,15 @@ export function ProfilesPage() {
           rollbackConfig={rollbackConfig}
           markKnownGood={markKnownGood}
           onAfterRollback={handleAfterRollback}
+        />
+      ) : null}
+
+      {showWizard ? (
+        <OnboardingWizard
+          open={showWizard}
+          mode={wizardMode}
+          onComplete={() => setShowWizard(false)}
+          onDismiss={() => setShowWizard(false)}
         />
       ) : null}
     </>

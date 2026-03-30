@@ -6,6 +6,7 @@ pub mod health;
 pub mod install;
 pub mod launch;
 pub mod migration;
+pub mod onboarding;
 pub mod profile;
 pub mod settings;
 mod shared;

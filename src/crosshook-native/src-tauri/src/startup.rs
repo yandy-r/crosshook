@@ -254,6 +254,7 @@ mod tests {
                 auto_load_last_profile: false,
                 last_used_profile: "elden-ring".to_string(),
                 community_taps: Vec::new(),
+                onboarding_completed: false,
             })
             .unwrap();
         profile_store
@@ -273,6 +274,7 @@ mod tests {
                 auto_load_last_profile: true,
                 last_used_profile: "elden-ring".to_string(),
                 community_taps: Vec::new(),
+                onboarding_completed: false,
             })
             .unwrap();
         profile_store
@@ -292,6 +294,7 @@ mod tests {
                 auto_load_last_profile: true,
                 last_used_profile: "missing-profile".to_string(),
                 community_taps: Vec::new(),
+                onboarding_completed: false,
             })
             .unwrap();
 
@@ -308,6 +311,7 @@ mod tests {
                 auto_load_last_profile: true,
                 last_used_profile: "   ".to_string(),
                 community_taps: Vec::new(),
+                onboarding_completed: false,
             })
             .unwrap();
 
