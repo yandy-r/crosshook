@@ -178,9 +178,10 @@ pub fn acknowledge_version_change(
 /// Pure comparison function — no I/O. Determines the correlation status between
 /// the current game build and the last recorded snapshot.
 ///
-/// Returns `UpdateInProgress` when `state_flags != Some(4)` (Steam is updating
-/// the game and the build ID is unstable). Returns `Untracked` when no snapshot
-/// exists. Otherwise compares build ID and trainer hash to detect changes.
+/// Returns `UpdateInProgress` when `state_flags` is `Some(n)` where `n != 4`
+/// (Steam is actively updating the game). When `state_flags` is `None` (manifest
+/// not found), proceeds normally. Returns `Untracked` when no snapshot exists.
+/// Otherwise compares build ID and trainer hash to detect changes.
 pub fn compute_correlation_status(
     current_build_id: &str,
     snapshot_build_id: Option<&str>,
@@ -188,8 +189,10 @@ pub fn compute_correlation_status(
     snapshot_trainer_hash: Option<&str>,
     state_flags: Option<u32>,
 ) -> VersionCorrelationStatus {
-    if state_flags != Some(4) {
-        return VersionCorrelationStatus::UpdateInProgress;
+    if let Some(flags) = state_flags {
+        if flags != 4 {
+            return VersionCorrelationStatus::UpdateInProgress;
+        }
     }
 
     let Some(snapshot_build) = snapshot_build_id else {

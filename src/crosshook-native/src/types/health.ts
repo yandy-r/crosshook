@@ -1,3 +1,5 @@
+import type { VersionCorrelationStatus } from './version';
+
 export type HealthStatus = 'healthy' | 'stale' | 'broken';
 export type HealthIssueSeverity = 'error' | 'warning' | 'info';
 
@@ -26,8 +28,6 @@ export interface HealthCheckSummary {
   validated_at: string;
 }
 
-// Phase B stubs — all enrichment fields are nullable/optional so Phase B tasks
-// do not need to update this file.
 export interface ProfileHealthMetadata {
   profile_id: string | null;
   last_success: string | null;
@@ -36,6 +36,10 @@ export interface ProfileHealthMetadata {
   launcher_drift_state: string | null;
   is_community_import: boolean;
   is_favorite?: boolean;
+  version_status?: VersionCorrelationStatus | null;
+  snapshot_build_id?: string | null;
+  current_build_id?: string | null;
+  trainer_version?: string | null;
 }
 
 export interface EnrichedProfileHealthReport extends ProfileHealthReport {

@@ -400,6 +400,55 @@ export function ProfilesPage() {
   const selectedCachedSnapshot = selectedProfile ? cachedSnapshots[selectedProfile] : undefined;
   const selectedStaleInfo = selectedProfile ? staleInfoByName[selectedProfile] : undefined;
   const selectedTrend = selectedProfile ? (trendByName[selectedProfile] ?? null) : null;
+  const selectedVersionStatus = selectedReport?.metadata?.version_status ?? null;
+  const selectedTrainerVersion = selectedReport?.metadata?.trainer_version ?? null;
+
+  const VERSION_STATUS_LABELS: Record<string, string> = {
+    game_updated: 'Game updated',
+    trainer_changed: 'Trainer changed',
+    both_changed: 'Both changed',
+    update_in_progress: 'Update in progress',
+  };
+
+  const renderVersionStatusBadge = () => {
+    if (
+      !selectedVersionStatus ||
+      selectedVersionStatus === 'untracked' ||
+      selectedVersionStatus === 'unknown' ||
+      selectedVersionStatus === 'matched'
+    ) {
+      return null;
+    }
+
+    const isWarning =
+      selectedVersionStatus === 'game_updated' ||
+      selectedVersionStatus === 'trainer_changed' ||
+      selectedVersionStatus === 'both_changed';
+
+    return (
+      <span
+        className="crosshook-version-badge"
+        title={
+          isWarning
+            ? 'Version mismatch detected since last successful launch'
+            : 'Steam is currently updating this game'
+        }
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '2px 8px',
+          borderRadius: 4,
+          fontSize: '0.75em',
+          fontWeight: 600,
+          background: isWarning ? 'rgba(217, 119, 6, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+          color: isWarning ? '#d97706' : '#3b82f6',
+          border: `1px solid ${isWarning ? 'rgba(217, 119, 6, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+        }}
+      >
+        {VERSION_STATUS_LABELS[selectedVersionStatus] ?? selectedVersionStatus}
+      </span>
+    );
+  };
 
   const renderProfileHealthBadge = () => {
     if (!selectedProfile) {
@@ -464,6 +513,7 @@ export function ProfilesPage() {
           meta={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {renderProfileHealthBadge()}
+              {renderVersionStatusBadge()}
               <button
                 type="button"
                 className="crosshook-button crosshook-button--secondary"
@@ -511,6 +561,8 @@ export function ProfilesPage() {
             protonInstalls={protonInstalls}
             protonInstallsError={protonInstallsError}
             profileExists={profileExists}
+            trainerVersion={selectedTrainerVersion}
+            onVersionSet={() => { if (selectedProfile) void revalidateSingle(selectedProfile); }}
             profileSelector={{
               profiles,
               favoriteProfiles,

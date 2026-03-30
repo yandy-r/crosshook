@@ -2602,11 +2602,7 @@ mod tests {
 
     #[test]
     fn test_compute_correlation_status_update_in_progress() {
-        // state_flags != Some(4) → UpdateInProgress regardless of other inputs.
-        assert!(matches!(
-            compute_correlation_status("build1", Some("build1"), None, None, None),
-            VersionCorrelationStatus::UpdateInProgress
-        ));
+        // state_flags Some(non-4) → UpdateInProgress regardless of other inputs.
         assert!(matches!(
             compute_correlation_status("build1", Some("build1"), None, None, Some(0)),
             VersionCorrelationStatus::UpdateInProgress
@@ -2614,6 +2610,11 @@ mod tests {
         assert!(matches!(
             compute_correlation_status("build1", Some("build1"), None, None, Some(6)),
             VersionCorrelationStatus::UpdateInProgress
+        ));
+        // state_flags None (manifest not found) → falls through to comparison, not UpdateInProgress.
+        assert!(matches!(
+            compute_correlation_status("build1", Some("build1"), None, None, None),
+            VersionCorrelationStatus::Matched
         ));
     }
 
