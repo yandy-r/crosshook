@@ -12,6 +12,7 @@ const MAX_DESCRIPTION_BYTES: usize = 4_096;
 const MAX_PLATFORM_TAGS_BYTES: usize = 2_048;
 const MAX_TRAINER_NAME_BYTES: usize = 512;
 const MAX_AUTHOR_BYTES: usize = 512;
+const MAX_VERSION_BYTES: usize = 256;
 
 /// Index the sync result for a single community tap into the metadata store.
 ///
@@ -299,6 +300,30 @@ fn check_a6_bounds(entry: &CommunityProfileIndexEntry) -> Result<String, String>
         ));
     }
 
+    if meta.game_version.len() > MAX_VERSION_BYTES {
+        return Err(format!(
+            "game_version exceeds {} bytes ({} bytes)",
+            MAX_VERSION_BYTES,
+            meta.game_version.len()
+        ));
+    }
+
+    if meta.trainer_version.len() > MAX_VERSION_BYTES {
+        return Err(format!(
+            "trainer_version exceeds {} bytes ({} bytes)",
+            MAX_VERSION_BYTES,
+            meta.trainer_version.len()
+        ));
+    }
+
+    if meta.proton_version.len() > MAX_VERSION_BYTES {
+        return Err(format!(
+            "proton_version exceeds {} bytes ({} bytes)",
+            MAX_VERSION_BYTES,
+            meta.proton_version.len()
+        ));
+    }
+
     Ok(joined_tags)
 }
 
@@ -341,4 +366,64 @@ fn map_community_profile_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Commun
         schema_version: row.get(14)?,
         created_at: row.get(15)?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::community::index::CommunityProfileIndexEntry;
+    use crate::community::{CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating};
+    use crate::profile::GameProfile;
+    use std::path::PathBuf;
+
+    fn make_entry(game_version: String, trainer_version: String, proton_version: String) -> CommunityProfileIndexEntry {
+        CommunityProfileIndexEntry {
+            tap_url: "https://example.invalid".to_string(),
+            tap_branch: None,
+            tap_path: PathBuf::from("/tmp"),
+            manifest_path: PathBuf::from("/tmp/community-profile.json"),
+            relative_path: PathBuf::from("community-profile.json"),
+            manifest: CommunityProfileManifest::new(
+                CommunityProfileMetadata {
+                    game_name: "Test Game".to_string(),
+                    game_version,
+                    trainer_name: String::new(),
+                    trainer_version,
+                    proton_version,
+                    platform_tags: vec![],
+                    compatibility_rating: CompatibilityRating::Unknown,
+                    author: String::new(),
+                    description: String::new(),
+                },
+                GameProfile::default(),
+            ),
+        }
+    }
+
+    #[test]
+    fn rejects_oversized_game_version() {
+        let entry = make_entry("a".repeat(257), String::new(), String::new());
+        let err = check_a6_bounds(&entry).unwrap_err();
+        assert!(err.contains("game_version"), "expected game_version in error: {err}");
+    }
+
+    #[test]
+    fn rejects_oversized_trainer_version() {
+        let entry = make_entry(String::new(), "a".repeat(257), String::new());
+        let err = check_a6_bounds(&entry).unwrap_err();
+        assert!(err.contains("trainer_version"), "expected trainer_version in error: {err}");
+    }
+
+    #[test]
+    fn rejects_oversized_proton_version() {
+        let entry = make_entry(String::new(), String::new(), "a".repeat(257));
+        let err = check_a6_bounds(&entry).unwrap_err();
+        assert!(err.contains("proton_version"), "expected proton_version in error: {err}");
+    }
+
+    #[test]
+    fn accepts_exactly_256_byte_version_strings() {
+        let entry = make_entry("a".repeat(256), "a".repeat(256), "a".repeat(256));
+        assert!(check_a6_bounds(&entry).is_ok());
+    }
 }
