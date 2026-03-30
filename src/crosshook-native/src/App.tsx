@@ -6,6 +6,7 @@ import ContentArea from './components/layout/ContentArea';
 import ControllerPrompts from './components/layout/ControllerPrompts';
 import ConsoleDrawer from './components/layout/ConsoleDrawer';
 import Sidebar, { type AppRoute } from './components/layout/Sidebar';
+import { LaunchStateProvider } from './context/LaunchStateContext';
 import { PreferencesProvider } from './context/PreferencesContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
 import { ProfileHealthProvider } from './context/ProfileHealthContext';
@@ -46,6 +47,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
 
   return (
     <PreferencesProvider activeProfileName={lastProfile}>
+      <LaunchStateProvider>
       <Tabs.Root
         orientation="vertical"
         value={route}
@@ -102,6 +104,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
         </div>
         {controllerMode ? <ControllerPrompts /> : null}
       </Tabs.Root>
+      </LaunchStateProvider>
     </PreferencesProvider>
   );
 }

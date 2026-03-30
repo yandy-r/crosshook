@@ -8,52 +8,19 @@ import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useProfileContext } from '../../context/ProfileContext';
 import { PageBanner, LaunchArt } from '../layout/PageBanner';
-import type { GameProfile, LaunchMethod, LaunchRequest } from '../../types';
-
-function buildLaunchRequest(
-  profile: GameProfile,
-  launchMethod: Exclude<LaunchMethod, ''>,
-  steamClientInstallPath: string
-): LaunchRequest | null {
-  if (!profile.game.executable_path.trim()) {
-    return null;
-  }
-
-  return {
-    method: launchMethod,
-    game_path: profile.game.executable_path,
-    trainer_path: profile.trainer.path,
-    trainer_host_path: profile.trainer.path,
-    trainer_loading_mode: profile.trainer.loading_mode,
-    steam: {
-      app_id: profile.steam.app_id,
-      compatdata_path: profile.steam.compatdata_path,
-      proton_path: profile.steam.proton_path,
-      steam_client_install_path: steamClientInstallPath,
-    },
-    runtime: {
-      prefix_path: profile.runtime.prefix_path,
-      proton_path: profile.runtime.proton_path,
-      working_directory: profile.runtime.working_directory,
-    },
-    optimizations: {
-      enabled_option_ids:
-        launchMethod === 'proton_run' ? profile.launch.optimizations.enabled_option_ids : [],
-    },
-    launch_trainer_only: false,
-    launch_game_only: false,
-  };
-}
+import { buildProfileLaunchRequest } from '../../utils/launch';
 
 export function LaunchPage() {
   const profileState = useProfileContext();
   const profile = profileState.profile;
-  const launchRequest = buildLaunchRequest(
+  const selectedName = profileState.selectedProfile || '';
+  const launchRequest = buildProfileLaunchRequest(
     profile,
     profileState.launchMethod,
-    profileState.steamClientInstallPath
+    profileState.steamClientInstallPath,
+    selectedName,
   );
-  const profileId = profileState.profileName.trim() || profileState.selectedProfile || 'new-profile';
+  const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
   const showsOptimizationPanels =
     profileState.launchMethod === 'proton_run' || profileState.launchMethod === 'steam_applaunch';
   const showsSteamLaunchOptions = profileState.launchMethod === 'steam_applaunch';

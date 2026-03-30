@@ -1,9 +1,50 @@
-import type { GameProfile } from '../types';
+import type { GameProfile, LaunchMethod, LaunchRequest } from '../types';
 
 export type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
 
 export function looksLikeWindowsExecutable(path: string): boolean {
   return path.trim().toLowerCase().endsWith('.exe');
+}
+
+/**
+ * Build a LaunchRequest from a GameProfile for IPC dispatch.
+ * Shared by LaunchStateContext (provider) and LaunchPage (preview).
+ */
+export function buildProfileLaunchRequest(
+  profile: GameProfile,
+  launchMethod: Exclude<LaunchMethod, ''>,
+  steamClientInstallPath: string,
+  profileName: string,
+): LaunchRequest | null {
+  if (!profile.game.executable_path.trim()) {
+    return null;
+  }
+
+  return {
+    method: launchMethod,
+    game_path: profile.game.executable_path,
+    trainer_path: profile.trainer.path,
+    trainer_host_path: profile.trainer.path,
+    trainer_loading_mode: profile.trainer.loading_mode,
+    steam: {
+      app_id: profile.steam.app_id,
+      compatdata_path: profile.steam.compatdata_path,
+      proton_path: profile.steam.proton_path,
+      steam_client_install_path: steamClientInstallPath,
+    },
+    runtime: {
+      prefix_path: profile.runtime.prefix_path,
+      proton_path: profile.runtime.proton_path,
+      working_directory: profile.runtime.working_directory,
+    },
+    optimizations: {
+      enabled_option_ids:
+        launchMethod === 'proton_run' ? profile.launch.optimizations.enabled_option_ids : [],
+    },
+    launch_trainer_only: false,
+    launch_game_only: false,
+    profile_name: profileName || undefined,
+  };
 }
 
 export function resolveLaunchMethod(profile: GameProfile): ResolvedLaunchMethod {

@@ -163,9 +163,12 @@ pub async fn run_version_scan(app_handle: AppHandle) {
             }
         };
 
-        // Skip profiles whose game is currently being updated by Steam
-        if manifest.state_flags != Some(4) {
-            continue;
+        // Skip only when StateFlags is present and not 4 (Steam update in progress).
+        // None is treated like compute_correlation_status: proceed with comparison.
+        if let Some(flags) = manifest.state_flags {
+            if flags != 4 {
+                continue;
+            }
         }
 
         let profile_id = match profile_id_map.get(name) {
