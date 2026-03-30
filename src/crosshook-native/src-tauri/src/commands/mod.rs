@@ -11,3 +11,4 @@ pub mod settings;
 mod shared;
 pub mod steam;
 pub mod update;
+pub mod version;

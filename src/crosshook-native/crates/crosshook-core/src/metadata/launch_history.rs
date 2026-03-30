@@ -66,9 +66,11 @@ pub fn record_launch_finished(
     let json = serde_json::to_string(report).ok();
     let json = json.filter(|s| s.len() <= MAX_DIAGNOSTIC_JSON_BYTES);
 
-    // Determine outcome from failure_mode
+    // Determine outcome from failure_mode.
+    // Indeterminate means the helper exited cleanly but the game may still be running
+    // (steam_applaunch). Treat as success — we can't distinguish from a real success.
     let outcome = match report.exit_info.failure_mode {
-        FailureMode::CleanExit => LaunchOutcome::Succeeded,
+        FailureMode::CleanExit | FailureMode::Indeterminate => LaunchOutcome::Succeeded,
         _ => LaunchOutcome::Failed,
     };
 

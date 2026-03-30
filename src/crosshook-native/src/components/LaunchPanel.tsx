@@ -8,6 +8,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type {
   PatternMatch,
   EnvVarSource,
@@ -19,8 +20,9 @@ import type {
   PreviewEnvVar,
 } from '../types';
 import { LaunchPhase } from '../types';
-import { useLaunchState } from '../hooks/useLaunchState';
+import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { usePreviewState } from '../hooks/usePreviewState';
+import { useProfileHealthContext } from '../context/ProfileHealthContext';
 import { copyToClipboard } from '../utils/clipboard';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import '../styles/preview.css';
@@ -664,16 +666,45 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
     phase,
     reset,
     statusText,
-  } = useLaunchState({
-    profileId,
-    method,
-    request,
-  });
+  } = useLaunchStateContext();
 
   const { loading, preview, error: previewError, requestPreview, clearPreview } = usePreviewState();
+  const { healthByName, revalidateSingle } = useProfileHealthContext();
   const [showPreview, setShowPreview] = useState(false);
   const [diagnosticExpanded, setDiagnosticExpanded] = useState(false);
   const [diagnosticCopyLabel, setDiagnosticCopyLabel] = useState('Copy Report');
+  const [verifyBusy, setVerifyBusy] = useState(false);
+
+  const metadata = healthByName[profileId]?.metadata ?? null;
+  const versionStatus = metadata?.version_status ?? null;
+  const hasVersionMismatch =
+    versionStatus === 'game_updated' ||
+    versionStatus === 'trainer_changed' ||
+    versionStatus === 'both_changed';
+  const isUpdateInProgress = versionStatus === 'update_in_progress';
+
+  async function handleMarkAsVerified() {
+    if (verifyBusy) return;
+    setVerifyBusy(true);
+    try {
+      await invoke('acknowledge_version_change', { name: profileId });
+      await revalidateSingle(profileId);
+    } catch {
+      // silently ignore — user can retry
+    } finally {
+      setVerifyBusy(false);
+    }
+  }
+
+  function versionMismatchMessage(): string {
+    if (versionStatus === 'both_changed') {
+      return 'Game and trainer have both changed since last successful launch';
+    }
+    if (versionStatus === 'trainer_changed') {
+      return 'Trainer has changed since last successful launch';
+    }
+    return 'Game version has changed since last successful launch';
+  }
 
   useEffect(() => {
     if (preview) {
@@ -921,6 +952,42 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
           Reset
         </button>
       </div>
+
+      {hasVersionMismatch ? (
+        <div
+          className="crosshook-launch-panel__feedback"
+          data-kind="version"
+          data-severity="warning"
+          role="alert"
+          aria-live="polite"
+        >
+          <div className="crosshook-launch-panel__feedback-header">
+            <span className="crosshook-launch-panel__feedback-badge">Warning</span>
+            <p className="crosshook-launch-panel__feedback-title">{versionMismatchMessage()}</p>
+          </div>
+          <div className="crosshook-launch-panel__feedback-actions">
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary crosshook-launch-panel__feedback-action"
+              onClick={() => void handleMarkAsVerified()}
+              disabled={verifyBusy}
+            >
+              {verifyBusy ? 'Verifying\u2026' : 'Mark as Verified'}
+            </button>
+          </div>
+        </div>
+      ) : isUpdateInProgress ? (
+        <div
+          className="crosshook-launch-panel__feedback"
+          data-kind="version"
+          data-severity="info"
+          role="status"
+        >
+          <p className="crosshook-launch-panel__feedback-title">
+            Steam update in progress \u2014 version check skipped
+          </p>
+        </div>
+      ) : null}
 
       {previewError ? (
         <p className="crosshook-preview-modal__preview-error" role="alert">
