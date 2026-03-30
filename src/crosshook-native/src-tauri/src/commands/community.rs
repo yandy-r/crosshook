@@ -129,8 +129,54 @@ pub fn community_prepare_import(
     tap_store: State<'_, CommunityTapStore>,
 ) -> Result<CommunityImportPreview, String> {
     let import_path = std::path::Path::new(&path);
-    validate_import_path_in_workspace(import_path, &settings_store, &tap_store)?;
+    validate_import_path_for_prepare(import_path, &settings_store, &tap_store)?;
     preview_community_profile_import(import_path).map_err(map_error)
+}
+
+fn validate_import_path_for_prepare(
+    path: &std::path::Path,
+    settings_store: &SettingsStore,
+    tap_store: &CommunityTapStore,
+) -> Result<(), String> {
+    let canonical = path.canonicalize().map_err(|error| {
+        format!(
+            "cannot resolve community profile path '{}': {error}",
+            path.display()
+        )
+    })?;
+
+    if !canonical.is_file() {
+        return Err(format!(
+            "community profile path '{}' is not a file",
+            path.display()
+        ));
+    }
+
+    let is_json = canonical
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+    if !is_json {
+        return Err(format!(
+            "community profile path '{}' must point to a .json file",
+            path.display()
+        ));
+    }
+
+    // Local filesystem imports selected from the file-picker are valid.
+    // When the path belongs to a known tap workspace, this also passes.
+    let taps = load_community_taps(settings_store)?;
+    let workspaces = current_workspaces(tap_store, &taps)?;
+    let _is_workspace_path = workspaces.iter().any(|workspace| {
+        workspace
+            .local_path
+            .canonicalize()
+            .map(|root| canonical.starts_with(&root))
+            .unwrap_or(false)
+    });
+
+    Ok(())
 }
 
 fn validate_import_path_in_workspace(
