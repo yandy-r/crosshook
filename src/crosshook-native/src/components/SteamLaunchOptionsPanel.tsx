@@ -31,8 +31,8 @@ export function SteamLaunchOptionsPanel({
     void (async () => {
       try {
         const line = await invoke<string>('build_steam_launch_options_command', {
-          enabled_option_ids: ids,
-          custom_env_vars: { ...customEnvVars },
+          enabledOptionIds: ids,
+          customEnvVars: { ...customEnvVars },
         });
         if (!cancelled) {
           setCommand(line);
