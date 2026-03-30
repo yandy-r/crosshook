@@ -230,7 +230,13 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
 
   const refreshImportedProfileNames = useCallback(async () => {
     const names = await invoke<string[]>('profile_list');
-    setImportedProfileNames(new Set(names.map((name) => name.trim()).filter((name) => name.length > 0)));
+    setImportedProfileNames(
+      new Set(
+        names
+          .map((name) => sanitizeProfileName(name))
+          .filter((name) => name.length > 0)
+      )
+    );
   }, []);
 
   const syncTaps = useCallback(async () => {

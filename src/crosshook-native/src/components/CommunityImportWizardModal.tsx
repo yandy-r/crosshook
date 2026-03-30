@@ -142,6 +142,15 @@ function toStatusClass(state: SteamFieldState): string {
   }
 }
 
+function isStrictLaunchValidationIssue(value: unknown): value is LaunchValidationIssue {
+  if (!isLaunchValidationIssue(value) || typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const allowedKeys = new Set(['message', 'help', 'severity']);
+  return Object.keys(value).every((key) => allowedKeys.has(key));
+}
+
 export function CommunityImportWizardModal({
   open,
   draft,
@@ -599,7 +608,7 @@ export function CommunityImportWizardModal({
               try {
                 await invoke<void>('validate_launch', { request });
               } catch (error) {
-                if (isLaunchValidationIssue(error)) {
+                if (isStrictLaunchValidationIssue(error)) {
                   setValidationIssues([error]);
                   setStep(3);
                   return;
@@ -609,7 +618,7 @@ export function CommunityImportWizardModal({
                 return;
               }
 
-              await onSave(profileName, profile, {
+              await onSave(profileName.trim(), profile, {
                 autoResolvedCount: autoResolvedFields.size,
                 unresolvedCount,
               });
