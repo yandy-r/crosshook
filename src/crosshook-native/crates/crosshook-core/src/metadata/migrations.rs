@@ -99,6 +99,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 11 {
+        migrate_10_to_11(conn)?;
+        conn.pragma_update(None, "user_version", 11_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -427,6 +436,36 @@ fn migrate_8_to_9(conn: &Connection) -> Result<(), MetadataStoreError> {
     )
     .map_err(|source| MetadataStoreError::Database {
         action: "run metadata migration 8 to 9",
+        source,
+    })?;
+
+    Ok(())
+}
+
+fn migrate_10_to_11(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS config_revisions (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id           TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            profile_name_at_write TEXT NOT NULL,
+            source               TEXT NOT NULL,
+            content_hash         TEXT NOT NULL,
+            snapshot_toml        TEXT NOT NULL,
+            source_revision_id   INTEGER REFERENCES config_revisions(id),
+            is_last_known_working INTEGER NOT NULL DEFAULT 0,
+            created_at           TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_config_revisions_profile_id_id
+            ON config_revisions(profile_id, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_config_revisions_profile_id_created_at
+            ON config_revisions(profile_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_config_revisions_profile_id_content_hash
+            ON config_revisions(profile_id, content_hash);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 10 to 11",
         source,
     })?;
 

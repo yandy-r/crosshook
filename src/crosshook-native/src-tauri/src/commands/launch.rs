@@ -429,6 +429,52 @@ async fn stream_log_lines(
                 tracing::warn!(%e, "version snapshot spawn_blocking join failed");
             }
         }
+
+        // Known-good tagging — mark the most recent config revision as known-good.
+        // Uses the same success heuristic: CleanExit or Indeterminate (steam_applaunch
+        // helper exits before the game, so its code 0 is Indeterminate, not CleanExit).
+        // If metadata is unavailable or no revisions exist yet, log and continue.
+        if let Some(ref pname) = profile_name {
+            let ms = metadata_store.clone();
+            let pname_c = pname.clone();
+            let result = tauri::async_runtime::spawn_blocking(move || {
+                let profile_id = match ms.lookup_profile_id(&pname_c) {
+                    Ok(Some(id)) => id,
+                    Ok(None) => {
+                        tracing::debug!(profile_name = %pname_c, "known-good tagging skipped: profile not in metadata");
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::warn!(%e, "known-good tagging skipped: lookup_profile_id failed");
+                        return;
+                    }
+                };
+
+                let revisions = match ms.list_config_revisions(&profile_id, Some(1)) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::warn!(%e, "known-good tagging skipped: list_config_revisions failed");
+                        return;
+                    }
+                };
+
+                let latest = match revisions.into_iter().next() {
+                    Some(r) => r,
+                    None => {
+                        tracing::debug!(profile_name = %pname_c, "known-good tagging skipped: no config revisions exist");
+                        return;
+                    }
+                };
+
+                if let Err(e) = ms.set_known_good_revision(&profile_id, latest.id) {
+                    tracing::warn!(%e, "known-good tagging failed: set_known_good_revision failed");
+                }
+            })
+            .await;
+            if let Err(e) = result {
+                tracing::warn!(%e, "known-good tagging spawn_blocking join failed");
+            }
+        }
     }
 
     if should_surface_report(&report) {

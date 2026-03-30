@@ -39,6 +39,8 @@ export interface ProfileActionsProps {
   canExportCommunity: boolean;
   /** True while the `community_export_profile` IPC call is in-flight. */
   exportingCommunity: boolean;
+  /** True when a saved profile is selected and config history can be viewed. */
+  canViewHistory: boolean;
   onSave: () => void | Promise<void>;
   onDelete: () => void | Promise<void>;
   /** Initiates profile duplication via the backend. */
@@ -49,6 +51,8 @@ export interface ProfileActionsProps {
   onPreview: () => void | Promise<void>;
   /** Exports the profile as community-shareable JSON (save dialog + backend). */
   onExportCommunity: () => void | Promise<void>;
+  /** Opens the configuration history panel for the current profile. */
+  onViewHistory: () => void;
 }
 
 const VERSION_MISMATCH_STATUSES = new Set<VersionCorrelationStatus>([
@@ -73,12 +77,14 @@ export function ProfileActions({
   previewing,
   canExportCommunity,
   exportingCommunity,
+  canViewHistory,
   onSave,
   onDelete,
   onDuplicate,
   onRename,
   onPreview,
   onExportCommunity,
+  onViewHistory,
 }: ProfileActionsProps) {
   const { selectedProfile } = useProfileContext();
   const { healthByName, revalidateSingle } = useProfileHealthContext();
@@ -155,6 +161,14 @@ export function ProfileActions({
             {markingVerified ? 'Verifying...' : 'Mark as Verified'}
           </button>
         )}
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--secondary"
+          onClick={onViewHistory}
+          disabled={!canViewHistory}
+        >
+          History
+        </button>
         <button
           type="button"
           className="crosshook-button crosshook-button--secondary"

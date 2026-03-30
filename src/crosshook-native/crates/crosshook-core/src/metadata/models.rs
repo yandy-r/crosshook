@@ -315,6 +315,18 @@ pub struct FailureTrendRow {
 /// Older rows beyond this limit are pruned after each insert.
 pub const MAX_VERSION_SNAPSHOTS_PER_PROFILE: usize = 20;
 
+/// Maximum number of config revision rows retained per profile.
+/// Older rows beyond this limit are pruned in the same transaction as each insert.
+pub const MAX_CONFIG_REVISIONS_PER_PROFILE: usize = 20;
+
+/// Defensive storage cap: persist at most 256 KiB of TOML snapshot content per revision row.
+/// Rejects oversized profiles before they reach the database.
+pub const MAX_SNAPSHOT_TOML_BYTES: usize = 262_144;
+
+/// Maximum number of revision rows returned per a single history list request.
+/// Caps the `limit` parameter on `profile_config_history` to prevent large IPC payloads.
+pub const MAX_HISTORY_LIST_LIMIT: usize = 50;
+
 /// Maps to a row in the `version_snapshots` multi-row history table.
 #[derive(Debug, Clone)]
 pub struct VersionSnapshotRow {
@@ -361,4 +373,44 @@ impl VersionCorrelationStatus {
             Self::UpdateInProgress => "update_in_progress",
         }
     }
+}
+
+/// Maps to the `config_revisions.source` TEXT column.
+/// Identifies which write path produced the revision snapshot.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfigRevisionSource {
+    ManualSave,
+    LaunchOptimizationSave,
+    PresetApply,
+    RollbackApply,
+    Import,
+    Migration,
+}
+
+impl ConfigRevisionSource {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ManualSave => "manual_save",
+            Self::LaunchOptimizationSave => "launch_optimization_save",
+            Self::PresetApply => "preset_apply",
+            Self::RollbackApply => "rollback_apply",
+            Self::Import => "import",
+            Self::Migration => "migration",
+        }
+    }
+}
+
+/// Maps to a row in the `config_revisions` append-only history table.
+#[derive(Debug, Clone)]
+pub struct ConfigRevisionRow {
+    pub id: i64,
+    pub profile_id: String,
+    pub profile_name_at_write: String,
+    pub source: String,
+    pub content_hash: String,
+    pub snapshot_toml: String,
+    pub source_revision_id: Option<i64>,
+    pub is_last_known_working: bool,
+    pub created_at: String,
 }

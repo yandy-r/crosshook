@@ -3364,3 +3364,192 @@ textarea {
     animation: none;
   }
 }
+
+/* ── Config History Panel ── */
+
+.crosshook-history-panel.crosshook-modal__surface {
+  width: min(1200px, calc(100vw - 32px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.crosshook-history-panel .crosshook-modal__body {
+  padding: 0;
+  overflow: hidden;
+}
+
+.crosshook-history-body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.crosshook-history-timeline {
+  overflow-y: auto;
+  border-right: 1px solid var(--crosshook-color-border);
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.crosshook-history-timeline-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--crosshook-color-text);
+  transition: background var(--crosshook-transition-fast) ease;
+  width: 100%;
+}
+
+.crosshook-history-timeline-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.crosshook-history-timeline-item--selected {
+  background: rgba(0, 120, 212, 0.12);
+  border-left-color: var(--crosshook-color-accent);
+}
+
+.crosshook-history-timeline-item__header {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.crosshook-history-timeline-item__time {
+  font-size: 0.78rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-history-timeline-item__oldname {
+  font-size: 0.74rem;
+}
+
+.crosshook-history-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(0, 120, 212, 0.15);
+  color: var(--crosshook-color-accent-strong);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.crosshook-history-badge--known-good {
+  background: rgba(40, 199, 111, 0.14);
+  color: var(--crosshook-color-success);
+}
+
+.crosshook-history-detail {
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.crosshook-history-detail-header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--crosshook-color-border);
+}
+
+.crosshook-history-diff-area {
+  flex: 1;
+  min-height: 0;
+}
+
+.crosshook-history-diff-stats {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.crosshook-history-stat--add {
+  color: #4ade80;
+}
+
+.crosshook-history-stat--remove {
+  color: var(--crosshook-color-danger);
+}
+
+.crosshook-history-diff-code {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--crosshook-radius-sm);
+  border: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface-strong);
+  font-family: var(--crosshook-font-mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.crosshook-history-diff-line {
+  display: block;
+}
+
+.crosshook-history-diff-line--add {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.07);
+}
+
+.crosshook-history-diff-line--remove {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.07);
+}
+
+.crosshook-history-diff-line--meta {
+  color: #7dd3fc;
+}
+
+.crosshook-history-detail-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 1px solid var(--crosshook-color-border);
+  margin-top: auto;
+}
+
+.crosshook-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+  text-align: center;
+  flex: 1;
+}
+
+.crosshook-history-confirm {
+  padding: 22px;
+  border-radius: var(--crosshook-radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 14, 26, 0.6);
+}
+
+.crosshook-history-restore-success {
+  padding: 10px 14px;
+  border-radius: var(--crosshook-radius-sm);
+  background: rgba(40, 199, 111, 0.12);
+  border: 1px solid rgba(40, 199, 111, 0.25);
+  color: var(--crosshook-color-success);
+  font-size: 0.875rem;
+}
