@@ -308,3 +308,89 @@ fn compute_content_hash(profile: &GameProfile) -> Option<String> {
     }
     Some(hex)
 }
+
+#[cfg(test)]
+mod launch_preset_metadata_tests {
+    use super::observe_profile_write;
+    use crate::metadata::{db, migrations, SyncSource};
+    use crate::profile::{GameProfile, LaunchOptimizationsSection, LaunchSection};
+    use rusqlite::{params, OptionalExtension};
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    #[test]
+    fn observe_profile_write_content_hash_changes_when_launch_presets_change() {
+        let conn = db::open_in_memory().expect("open memory db");
+        migrations::run_migrations(&conn).expect("migrations");
+        let path = Path::new("/fake/profiles/demo.toml");
+
+        let mut launch = LaunchSection::default();
+        launch.method = "proton_run".to_string();
+        launch.optimizations.enabled_option_ids = vec!["use_gamemode".to_string()];
+        let mut presets = BTreeMap::new();
+        presets.insert(
+            "p".to_string(),
+            LaunchOptimizationsSection {
+                enabled_option_ids: vec![],
+            },
+        );
+        launch.presets = presets;
+
+        let profile_v1 = GameProfile {
+            launch: launch.clone(),
+            ..GameProfile::default()
+        };
+
+        observe_profile_write(
+            &conn,
+            "demo",
+            &profile_v1,
+            path,
+            SyncSource::AppWrite,
+            None,
+        )
+        .expect("observe v1");
+
+        let h1: Option<String> = conn
+            .query_row(
+                "SELECT content_hash FROM profiles WHERE current_filename = ?1",
+                params!["demo"],
+                |row| row.get(0),
+            )
+            .optional()
+            .expect("query")
+            .flatten();
+
+        let mut launch = launch;
+        launch.presets.get_mut("p").expect("preset").enabled_option_ids =
+            vec!["enable_hdr".to_string()];
+
+        let profile_v2 = GameProfile {
+            launch,
+            ..GameProfile::default()
+        };
+
+        observe_profile_write(
+            &conn,
+            "demo",
+            &profile_v2,
+            path,
+            SyncSource::AppWrite,
+            None,
+        )
+        .expect("observe v2");
+
+        let h2: Option<String> = conn
+            .query_row(
+                "SELECT content_hash FROM profiles WHERE current_filename = ?1",
+                params!["demo"],
+                |row| row.get(0),
+            )
+            .optional()
+            .expect("query")
+            .flatten();
+
+        assert!(h1.is_some() && h2.is_some());
+        assert_ne!(h1, h2);
+    }
+}

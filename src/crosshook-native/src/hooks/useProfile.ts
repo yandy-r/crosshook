@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { AppSettingsData, DuplicateProfileResult, GameProfile, LauncherInfo, RecentFilesData } from '../types';
+import type {
+  AppSettingsData,
+  BundledOptimizationPreset,
+  DuplicateProfileResult,
+  GameProfile,
+  LauncherInfo,
+  RecentFilesData,
+} from '../types';
 import {
   LAUNCH_OPTIMIZATION_OPTIONS_BY_ID,
   getConflictingLaunchOptimizationIds,
   type LaunchOptimizationId,
+  type LaunchOptimizations,
 } from '../types/launch-optimizations';
 import { resolveLaunchMethod, type ResolvedLaunchMethod } from '../utils/launch';
 
@@ -37,6 +45,16 @@ export interface UseProfileResult {
   hydrateProfile: (name: string, profile: GameProfile) => void;
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   toggleLaunchOptimization: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
+  /** Persists switching the active named optimization preset (requires presets in profile TOML). */
+  switchLaunchOptimizationPreset: (presetName: string) => Promise<void>;
+  /** GPU vendor presets from the app catalog (metadata DB); empty when metadata is off. */
+  bundledOptimizationPresets: BundledOptimizationPreset[];
+  /** Applies a bundled preset: writes `launch.presets.bundled/<id>` and activates it. */
+  applyBundledOptimizationPreset: (presetId: string) => Promise<void>;
+  /** Saves current checkbox selection as a new user preset and activates it. */
+  saveManualOptimizationPreset: (presetDisplayName: string) => Promise<void>;
+  /** True while apply/save bundled or manual preset IPC is in flight. */
+  optimizationPresetActionBusy: boolean;
   saveProfile: () => Promise<void>;
   /** Duplicates the named profile on the backend and auto-selects the new copy. */
   duplicateProfile: (sourceName: string) => Promise<void>;
@@ -65,6 +83,27 @@ export interface RenameProfileResult {
 
 const automaticLauncherSuffix = ' - Trainer';
 const launchOptimizationsAutosaveDelayMs = 350;
+
+/** Tauri invoke failures are sometimes plain objects, not Error instances. */
+function formatInvokeError(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (typeof err === 'string') {
+    return err;
+  }
+  if (err && typeof err === 'object') {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === 'string' && message.length > 0) {
+      return message;
+    }
+  }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
 
 export type LaunchOptimizationsStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
 
@@ -155,12 +194,19 @@ function applyLaunchOptimizationToggle(
     ? normalizeLaunchOptimizationIds([...currentIds, optionId])
     : currentIds.filter((currentOptionId) => currentOptionId !== optionId);
 
+  const activeKey = (current.launch.active_preset ?? '').trim();
+  const presets = { ...(current.launch.presets ?? {}) };
+  if (activeKey && presets[activeKey]) {
+    presets[activeKey] = { enabled_option_ids: nextIds };
+  }
+
   return {
     ok: true,
     profile: {
       ...current,
       launch: {
         ...current.launch,
+        presets,
         optimizations: {
           enabled_option_ids: nextIds,
         },
@@ -210,6 +256,27 @@ function buildLaunchOptimizationsStatus(
   };
 }
 
+function normalizeLaunchPresetsSection(profile: GameProfile): {
+  presets: Record<string, LaunchOptimizations>;
+  active_preset: string;
+} {
+  const raw = profile.launch.presets;
+  const presets: Record<string, LaunchOptimizations> = {};
+  if (raw && typeof raw === 'object') {
+    for (const [key, value] of Object.entries(raw)) {
+      const name = key.trim();
+      if (!name) {
+        continue;
+      }
+      presets[name] = {
+        enabled_option_ids: normalizeLaunchOptimizationIds(value?.enabled_option_ids),
+      };
+    }
+  }
+  const active_preset = (profile.launch.active_preset ?? '').trim();
+  return { presets, active_preset };
+}
+
 function normalizeProfileForEdit(profile: GameProfile): GameProfile {
   const method = resolveLaunchMethod(profile);
   const runtime = profile.runtime ?? {
@@ -217,9 +284,13 @@ function normalizeProfileForEdit(profile: GameProfile): GameProfile {
     proton_path: '',
     working_directory: '',
   };
-  const enabledOptionIds = normalizeLaunchOptimizationIds(
+  const { presets, active_preset } = normalizeLaunchPresetsSection(profile);
+  let enabledOptionIds = normalizeLaunchOptimizationIds(
     profile.launch.optimizations?.enabled_option_ids
   );
+  if (active_preset && presets[active_preset]) {
+    enabledOptionIds = presets[active_preset].enabled_option_ids;
+  }
 
   return {
     ...profile,
@@ -244,6 +315,8 @@ function normalizeProfileForEdit(profile: GameProfile): GameProfile {
     launch: {
       ...profile.launch,
       method,
+      presets,
+      active_preset,
       optimizations: {
         enabled_option_ids: enabledOptionIds,
       },
@@ -325,6 +398,8 @@ function createEmptyProfile(): GameProfile {
       optimizations: {
         enabled_option_ids: [],
       },
+      presets: {},
+      active_preset: '',
     },
   };
 }
@@ -346,10 +421,27 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [launchOptimizationsStatus, setLaunchOptimizationsStatus] = useState<LaunchOptimizationsStatus>(
     buildLaunchOptimizationsStatus('proton_run', false)
   );
+  const [bundledOptimizationPresets, setBundledOptimizationPresets] = useState<BundledOptimizationPreset[]>([]);
+  const [optimizationPresetActionBusy, setOptimizationPresetActionBusy] = useState(false);
   const launchOptimizationsAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedLaunchOptimizationIdsRef = useRef<LaunchOptimizationId[]>([]);
+  const hasExistingSavedProfileRef = useRef(false);
+  const pendingLaunchPresetRef = useRef<string | null>(null);
   const profileRef = useRef(profile);
   profileRef.current = profile;
+  const selectedProfileRef = useRef(selectedProfile);
+  selectedProfileRef.current = selectedProfile;
+
+  /** Serializes launch-optimization disk IPC so autosave / flush / preset saves cannot clobber each other. */
+  const launchProfileWriteChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const enqueueLaunchProfileWrite = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
+    const run: Promise<T> = launchProfileWriteChainRef.current.then(() => fn());
+    launchProfileWriteChainRef.current = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
+  }, []);
 
   const syncProfileMetadata = useCallback(async (name: string, currentProfile: GameProfile) => {
     const settings = await invoke<AppSettingsData>('settings_load');
@@ -530,6 +622,46 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     );
   }, [profileName, profiles, selectedProfile]);
 
+  hasExistingSavedProfileRef.current = hasExistingSavedProfile;
+
+  /** Clears any debounced launch-optimizations timer and persists pending edits immediately (same IPC as autosave). */
+  const flushPendingLaunchOptimizationsSave = useCallback(async (nameForSave: string): Promise<void> => {
+    if (launchOptimizationsAutosaveTimerRef.current !== null) {
+      clearTimeout(launchOptimizationsAutosaveTimerRef.current);
+      launchOptimizationsAutosaveTimerRef.current = null;
+    }
+
+    if (!hasExistingSavedProfileRef.current) {
+      return;
+    }
+
+    const current = profileRef.current;
+    const method = resolveLaunchMethod(current);
+    if (method !== 'proton_run' && method !== 'steam_applaunch') {
+      return;
+    }
+
+    const trimmed = nameForSave.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const currentIds = current.launch.optimizations.enabled_option_ids;
+    if (areLaunchOptimizationIdsEqual(currentIds, lastSavedLaunchOptimizationIdsRef.current)) {
+      return;
+    }
+
+    await enqueueLaunchProfileWrite(async () => {
+      await invoke('profile_save_launch_optimizations', {
+        name: trimmed,
+        optimizations: {
+          enabled_option_ids: [...currentIds],
+        },
+      });
+      lastSavedLaunchOptimizationIdsRef.current = [...currentIds];
+    });
+  }, [enqueueLaunchProfileWrite]);
+
   const toggleLaunchOptimization = useCallback(
     (optionId: LaunchOptimizationId, nextEnabled: boolean) => {
       const result = applyLaunchOptimizationToggle(profileRef.current, optionId, nextEnabled);
@@ -546,6 +678,283 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setDirty((currentDirty) => currentDirty || !hasExistingSavedProfile);
     },
     [hasExistingSavedProfile]
+  );
+
+  const switchLaunchOptimizationPreset = useCallback(
+    async (presetName: string): Promise<void> => {
+      const trimmedName = profileName.trim();
+      const key = presetName.trim();
+      const requestProfileName = trimmedName;
+
+      if (!trimmedName || !hasExistingSavedProfile || !key) {
+        return;
+      }
+
+      const presets = profileRef.current.launch.presets ?? {};
+      if (!presets[key]) {
+        setLaunchOptimizationsStatus({
+          tone: 'warning',
+          label: 'Unknown preset',
+          detail: `No launch optimization preset named "${key}" is defined in this profile.`,
+        });
+        return;
+      }
+
+      const method = resolveLaunchMethod(profileRef.current);
+      if (method !== 'proton_run' && method !== 'steam_applaunch') {
+        return;
+      }
+
+      try {
+        await flushPendingLaunchOptimizationsSave(trimmedName);
+      } catch (err) {
+        setDirty(true);
+        const message = formatInvokeError(err);
+        setError(message);
+        setLaunchOptimizationsStatus({
+          tone: 'error',
+          label: 'Failed to save',
+          detail: message,
+        });
+        return;
+      }
+
+      launchOptimizationsAutosaveTimerRef.current = null;
+
+      const currentAfterFlush = profileRef.current;
+      const presetsMap = currentAfterFlush.launch.presets ?? {};
+      const targetSection = presetsMap[key];
+      if (!targetSection) {
+        setLaunchOptimizationsStatus({
+          tone: 'warning',
+          label: 'Unknown preset',
+          detail: `No launch optimization preset named "${key}" is defined in this profile.`,
+        });
+        return;
+      }
+
+      // IDs for the preset we are switching *to* (not the previously active one). The backend
+      // currently ignores enabled_option_ids when switch_active_preset is set, but the payload
+      // should still match the target preset. We reuse this snapshot after IPC instead of
+      // profileRef.current, which may not reflect disk if state moves elsewhere.
+      const targetPresetIds = normalizeLaunchOptimizationIds(targetSection.enabled_option_ids);
+
+      setError(null);
+      pendingLaunchPresetRef.current = key;
+
+      try {
+        await enqueueLaunchProfileWrite(async () => {
+          await invoke('profile_save_launch_optimizations', {
+            name: trimmedName,
+            optimizations: {
+              enabled_option_ids: [...targetPresetIds],
+              switch_active_preset: key,
+            },
+          });
+        });
+
+        if (
+          pendingLaunchPresetRef.current !== key ||
+          selectedProfileRef.current.trim() !== requestProfileName
+        ) {
+          return;
+        }
+
+        setProfile((current) => ({
+          ...current,
+          launch: {
+            ...current.launch,
+            active_preset: key,
+            optimizations: { enabled_option_ids: targetPresetIds },
+          },
+        }));
+        lastSavedLaunchOptimizationIdsRef.current = targetPresetIds;
+        setLaunchOptimizationsStatus({
+          tone: 'success',
+          label: 'Saved automatically',
+          detail: 'Active optimization preset updated.',
+        });
+      } catch (err) {
+        if (
+          pendingLaunchPresetRef.current !== key ||
+          selectedProfileRef.current.trim() !== requestProfileName
+        ) {
+          return;
+        }
+
+        setDirty(true);
+        const message = formatInvokeError(err);
+        setError(message);
+        setLaunchOptimizationsStatus({
+          tone: 'error',
+          label: 'Failed to save',
+          detail: message,
+        });
+      } finally {
+        if (pendingLaunchPresetRef.current === key) {
+          pendingLaunchPresetRef.current = null;
+        }
+      }
+    },
+    [
+      enqueueLaunchProfileWrite,
+      flushPendingLaunchOptimizationsSave,
+      hasExistingSavedProfile,
+      profileName,
+    ]
+  );
+
+  const applyBundledOptimizationPreset = useCallback(
+    async (presetId: string): Promise<void> => {
+      const trimmedName = profileName.trim();
+      const pid = presetId.trim();
+      if (!trimmedName || !hasExistingSavedProfile || !pid) {
+        return;
+      }
+
+      const method = resolveLaunchMethod(profileRef.current);
+      if (method !== 'proton_run' && method !== 'steam_applaunch') {
+        return;
+      }
+
+      try {
+        await flushPendingLaunchOptimizationsSave(trimmedName);
+      } catch (err) {
+        setDirty(true);
+        const message = formatInvokeError(err);
+        setError(message);
+        setLaunchOptimizationsStatus({
+          tone: 'error',
+          label: 'Failed to save',
+          detail: message,
+        });
+        return;
+      }
+
+      launchOptimizationsAutosaveTimerRef.current = null;
+      setOptimizationPresetActionBusy(true);
+      setError(null);
+
+      try {
+        const updated = await enqueueLaunchProfileWrite(() =>
+          invoke<GameProfile>('profile_apply_bundled_optimization_preset', {
+            name: trimmedName,
+            presetId: pid,
+          })
+        );
+        const normalized = normalizeProfileForEdit(updated);
+        setProfile(normalized);
+        lastSavedLaunchOptimizationIdsRef.current = normalized.launch.optimizations.enabled_option_ids;
+        setLaunchOptimizationsStatus({
+          tone: 'success',
+          label: 'Bundled preset applied',
+          detail: 'Preset saved under launch.presets and activated for this profile.',
+        });
+      } catch (err) {
+        const message = formatInvokeError(err);
+        setError(message);
+        setLaunchOptimizationsStatus({
+          tone: 'error',
+          label: 'Failed to apply bundled preset',
+          detail: message,
+        });
+      } finally {
+        setOptimizationPresetActionBusy(false);
+      }
+    },
+    [
+      enqueueLaunchProfileWrite,
+      flushPendingLaunchOptimizationsSave,
+      hasExistingSavedProfile,
+      profileName,
+    ]
+  );
+
+  const saveManualOptimizationPreset = useCallback(
+    async (presetDisplayName: string): Promise<void> => {
+      const trimmedName = profileName.trim();
+      const key = presetDisplayName.trim();
+      if (!trimmedName || !hasExistingSavedProfile) {
+        return;
+      }
+
+      if (!key) {
+        setLaunchOptimizationsStatus({
+          tone: 'warning',
+          label: 'Preset name required',
+          detail: 'Enter a name for the new preset.',
+        });
+        throw new Error('Preset name must not be empty');
+      }
+
+      if (key.startsWith('bundled/')) {
+        setLaunchOptimizationsStatus({
+          tone: 'warning',
+          label: 'Reserved name',
+          detail: 'Names starting with bundled/ are reserved for app-shipped GPU presets.',
+        });
+        throw new Error('Preset name must not start with bundled/');
+      }
+
+      const method = resolveLaunchMethod(profileRef.current);
+      if (method !== 'proton_run' && method !== 'steam_applaunch') {
+        return;
+      }
+
+      try {
+        await flushPendingLaunchOptimizationsSave(trimmedName);
+      } catch (err) {
+        setDirty(true);
+        const message = formatInvokeError(err);
+        setError(message);
+        setLaunchOptimizationsStatus({
+          tone: 'error',
+          label: 'Failed to save',
+          detail: message,
+        });
+        throw err;
+      }
+
+      launchOptimizationsAutosaveTimerRef.current = null;
+      const ids = normalizeLaunchOptimizationIds(profileRef.current.launch.optimizations.enabled_option_ids);
+      setOptimizationPresetActionBusy(true);
+      setError(null);
+
+      try {
+        const updated = await enqueueLaunchProfileWrite(() =>
+          invoke<GameProfile>('profile_save_manual_optimization_preset', {
+            name: trimmedName,
+            presetName: key,
+            enabledOptionIds: ids,
+          })
+        );
+        const normalized = normalizeProfileForEdit(updated);
+        setProfile(normalized);
+        lastSavedLaunchOptimizationIdsRef.current = normalized.launch.optimizations.enabled_option_ids;
+        setLaunchOptimizationsStatus({
+          tone: 'success',
+          label: 'Preset saved',
+          detail: `Saved as "${key}" and set as the active preset.`,
+        });
+      } catch (err) {
+        const message = formatInvokeError(err);
+        setError(message);
+        setLaunchOptimizationsStatus({
+          tone: 'error',
+          label: 'Failed to save preset',
+          detail: message,
+        });
+        throw err;
+      } finally {
+        setOptimizationPresetActionBusy(false);
+      }
+    },
+    [
+      enqueueLaunchProfileWrite,
+      flushPendingLaunchOptimizationsSave,
+      hasExistingSavedProfile,
+      profileName,
+    ]
   );
 
   const persistProfileDraft = useCallback(
@@ -718,6 +1127,25 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   }, [loadFavorites, refreshProfiles]);
 
   useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await invoke<BundledOptimizationPreset[]>('profile_list_bundled_optimization_presets');
+        if (!cancelled) {
+          setBundledOptimizationPresets(rows);
+        }
+      } catch {
+        if (!cancelled) {
+          setBundledOptimizationPresets([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const unlistenPromise = listen<string>('profiles-changed', () => {
       if (!active) {
@@ -768,11 +1196,13 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     launchOptimizationsAutosaveTimerRef.current = setTimeout(() => {
       void (async () => {
         try {
-          await invoke('profile_save_launch_optimizations', {
-            name: trimmedName,
-            optimizations: {
-              enabled_option_ids: normalizedIds,
-            },
+          await enqueueLaunchProfileWrite(async () => {
+            await invoke('profile_save_launch_optimizations', {
+              name: trimmedName,
+              optimizations: {
+                enabled_option_ids: normalizedIds,
+              },
+            });
           });
 
           if (cancelled) {
@@ -794,7 +1224,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
           setLaunchOptimizationsStatus({
             tone: 'error',
             label: 'Failed to save',
-            detail: err instanceof Error ? err.message : String(err),
+            detail: formatInvokeError(err),
           });
         }
       })();
@@ -807,7 +1237,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         launchOptimizationsAutosaveTimerRef.current = null;
       }
     };
-  }, [hasExistingSavedProfile, profile, profileName]);
+  }, [enqueueLaunchProfileWrite, hasExistingSavedProfile, profile, profileName]);
 
   const profileExists = useMemo(() => profiles.includes(profileName.trim()), [profileName, profiles]);
 
@@ -832,6 +1262,11 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     hydrateProfile,
     updateProfile,
     toggleLaunchOptimization,
+    switchLaunchOptimizationPreset,
+    bundledOptimizationPresets,
+    applyBundledOptimizationPreset,
+    saveManualOptimizationPreset,
+    optimizationPresetActionBusy,
     saveProfile,
     duplicateProfile,
     renameProfile,

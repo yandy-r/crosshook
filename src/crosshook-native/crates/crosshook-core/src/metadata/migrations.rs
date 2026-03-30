@@ -90,6 +90,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 10 {
+        migrate_9_to_10(conn)?;
+        conn.pragma_update(None, "user_version", 10_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -340,6 +349,58 @@ fn migrate_7_to_8(conn: &Connection) -> Result<(), MetadataStoreError> {
                 source,
             })?;
     }
+
+    Ok(())
+}
+
+fn migrate_9_to_10(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS bundled_optimization_presets (
+            preset_id           TEXT PRIMARY KEY,
+            display_name        TEXT NOT NULL,
+            vendor              TEXT NOT NULL,
+            mode                TEXT NOT NULL,
+            option_ids_json     TEXT NOT NULL,
+            catalog_version     INTEGER NOT NULL DEFAULT 1,
+            created_at          TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_bundled_optimization_presets_vendor_mode
+            ON bundled_optimization_presets(vendor, mode);
+
+        CREATE TABLE IF NOT EXISTS profile_launch_preset_metadata (
+            profile_id                  TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            preset_name                 TEXT NOT NULL,
+            origin                      TEXT NOT NULL,
+            source_bundled_preset_id    TEXT,
+            created_at                  TEXT NOT NULL,
+            updated_at                  TEXT NOT NULL,
+            PRIMARY KEY (profile_id, preset_name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_profile_launch_preset_metadata_profile_id
+            ON profile_launch_preset_metadata(profile_id);
+
+        INSERT INTO bundled_optimization_presets
+            (preset_id, display_name, vendor, mode, option_ids_json, catalog_version, created_at)
+        VALUES
+            ('nvidia_performance', 'NVIDIA · Performance', 'nvidia', 'performance',
+             '[\"use_gamemode\",\"enable_nvapi\",\"enable_nvidia_libs\",\"enable_dxvk_async\",\"use_ntsync\",\"force_large_address_aware\"]',
+             1, datetime('now')),
+            ('nvidia_quality', 'NVIDIA · Quality', 'nvidia', 'quality',
+             '[\"enable_nvapi\",\"enable_nvidia_libs\",\"enable_dlss_upgrade\",\"show_dlss_indicator\",\"enable_hdr\",\"enable_local_shader_cache\"]',
+             1, datetime('now')),
+            ('amd_performance', 'AMD · Performance', 'amd', 'performance',
+             '[\"use_gamemode\",\"enable_dxvk_async\",\"use_ntsync\",\"force_large_address_aware\",\"enable_fsr4_upgrade\"]',
+             1, datetime('now')),
+            ('amd_quality', 'AMD · Quality', 'amd', 'quality',
+             '[\"enable_fsr4_upgrade\",\"enable_xess_upgrade\",\"enable_hdr\",\"enable_local_shader_cache\",\"enable_vkd3d_dxr\"]',
+             1, datetime('now'));
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 9 to 10",
+        source,
+    })?;
 
     Ok(())
 }

@@ -160,6 +160,34 @@ pub struct SyncReport {
     pub errors: Vec<String>,
 }
 
+/// Row from `bundled_optimization_presets` (GPU vendor presets shipped with the app).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BundledOptimizationPresetRow {
+    pub preset_id: String,
+    pub display_name: String,
+    pub vendor: String,
+    pub mode: String,
+    /// JSON array of launch optimization option ids, e.g. `["enable_nvapi"]`.
+    pub option_ids_json: String,
+    pub catalog_version: i64,
+}
+
+/// Origin of a named `[launch.presets]` entry tracked in `profile_launch_preset_metadata`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileLaunchPresetOrigin {
+    Bundled,
+    User,
+}
+
+impl ProfileLaunchPresetOrigin {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Bundled => "bundled",
+            Self::User => "user",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub(crate) struct ProfileRow {
