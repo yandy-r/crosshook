@@ -312,11 +312,14 @@ pub fn profile_export_toml(name: String, data: GameProfile) -> Result<String, St
 pub fn profile_set_favorite(
     name: String,
     favorite: bool,
+    app: AppHandle,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
     metadata_store
         .set_profile_favorite(&name, favorite)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    emit_profiles_changed(&app, "favorite-updated");
+    Ok(())
 }
 
 #[tauri::command]
