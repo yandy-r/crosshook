@@ -9,12 +9,12 @@ use args::{
     ProfileCommand, SteamArgs, SteamCommand,
 };
 use clap::Parser;
+use crosshook_core::export::diagnostics::DiagnosticBundleOptions;
 use crosshook_core::launch::request::LaunchOptimizationsRequest;
 use crosshook_core::launch::{
     self, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig, ValidationSeverity,
     METHOD_STEAM_APPLAUNCH,
 };
-use crosshook_core::export::diagnostics::DiagnosticBundleOptions;
 use crosshook_core::profile::{GameProfile, ProfileStore};
 use crosshook_core::settings::SettingsStore;
 use tokio::fs::{self, OpenOptions};
@@ -149,8 +149,8 @@ fn handle_diagnostics_command(
     match args.command {
         DiagnosticsCommand::Export(command) => {
             let profile_store = profile_store(global.config.clone());
-            let settings_store = SettingsStore::try_new()
-                .map_err(|error| format!("settings store: {error}"))?;
+            let settings_store =
+                SettingsStore::try_new().map_err(|error| format!("settings store: {error}"))?;
 
             let options = DiagnosticBundleOptions {
                 redact_paths: command.redact_paths,

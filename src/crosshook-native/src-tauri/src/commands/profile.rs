@@ -106,9 +106,13 @@ pub fn profile_save(
     store.save(&name, &data).map_err(map_error)?;
 
     let profile_path = store.base_path.join(format!("{name}.toml"));
-    if let Err(e) =
-        metadata_store.observe_profile_write(&name, &data, &profile_path, SyncSource::AppWrite, None)
-    {
+    if let Err(e) = metadata_store.observe_profile_write(
+        &name,
+        &data,
+        &profile_path,
+        SyncSource::AppWrite,
+        None,
+    ) {
         tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save failed");
     }
 
@@ -187,10 +191,7 @@ pub fn profile_duplicate(
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<DuplicateProfileResult, String> {
-    let source_profile_id = metadata_store
-        .lookup_profile_id(&name)
-        .ok()
-        .flatten();
+    let source_profile_id = metadata_store.lookup_profile_id(&name).ok().flatten();
 
     let result = store.duplicate(&name).map_err(map_error)?;
 
@@ -301,14 +302,18 @@ pub fn profile_set_favorite(
     favorite: bool,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
-    metadata_store.set_profile_favorite(&name, favorite).map_err(|e| e.to_string())
+    metadata_store
+        .set_profile_favorite(&name, favorite)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn profile_list_favorites(
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<Vec<String>, String> {
-    metadata_store.list_favorite_profiles().map_err(|e| e.to_string())
+    metadata_store
+        .list_favorite_profiles()
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

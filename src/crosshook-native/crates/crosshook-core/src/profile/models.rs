@@ -456,7 +456,10 @@ mod tests {
         assert_eq!(storage.steam.proton_path, "");
         assert_eq!(storage.runtime.prefix_path, "");
         assert_eq!(storage.runtime.proton_path, "");
-        assert_eq!(storage.local_override.game.executable_path, "/games/test.exe");
+        assert_eq!(
+            storage.local_override.game.executable_path,
+            "/games/test.exe"
+        );
         assert_eq!(storage.local_override.trainer.path, "/trainers/test.exe");
         assert_eq!(
             storage.local_override.steam.compatdata_path,
@@ -467,7 +470,10 @@ mod tests {
             "/steam/proton/proton"
         );
         assert_eq!(storage.local_override.runtime.prefix_path, "/prefix/123");
-        assert_eq!(storage.local_override.runtime.proton_path, "/runtime/proton");
+        assert_eq!(
+            storage.local_override.runtime.proton_path,
+            "/runtime/proton"
+        );
     }
 
     #[test]

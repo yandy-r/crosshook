@@ -112,8 +112,7 @@ pub fn apply_proton_migration(
                 .ok()
                 .flatten();
             if let Some(ref pid) = profile_id {
-                let health_report =
-                    check_profile_health(&request.profile_name, &updated_profile);
+                let health_report = check_profile_health(&request.profile_name, &updated_profile);
                 let status_str = match health_report.status {
                     HealthStatus::Healthy => "healthy",
                     HealthStatus::Stale => "stale",

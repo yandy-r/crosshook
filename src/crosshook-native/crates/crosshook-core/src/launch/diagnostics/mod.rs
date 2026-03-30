@@ -16,10 +16,8 @@ pub use models::{
 
 pub fn analyze(exit_status: Option<ExitStatus>, log_tail: &str, method: &str) -> DiagnosticReport {
     let exit_info = exit_codes::analyze_exit_status(exit_status, method);
-    let pattern_matches = filter_pattern_matches(
-        patterns::scan_log_patterns(log_tail, method),
-        &exit_info,
-    );
+    let pattern_matches =
+        filter_pattern_matches(patterns::scan_log_patterns(log_tail, method), &exit_info);
     let suggestions = build_suggestions(&exit_info, &pattern_matches, method);
     let severity = overall_severity(exit_info.severity, &pattern_matches);
     let summary = build_summary(&exit_info, &pattern_matches, method);

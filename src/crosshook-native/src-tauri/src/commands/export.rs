@@ -1,3 +1,4 @@
+use crosshook_core::export::launcher::sanitize_launcher_slug;
 use crosshook_core::export::{
     check_launcher_exists_for_request as check_launcher_exists_for_request_core,
     check_launcher_for_profile as check_launcher_for_profile_core,
@@ -6,9 +7,8 @@ use crosshook_core::export::{
     LauncherDeleteResult, LauncherInfo, LauncherRenameResult, SteamExternalLauncherExportRequest,
     SteamExternalLauncherExportResult,
 };
-use crosshook_core::export::launcher::sanitize_launcher_slug;
 use crosshook_core::metadata::MetadataStore;
-use crosshook_core::profile::{GameProfile, ProfileStore, resolve_launch_method};
+use crosshook_core::profile::{resolve_launch_method, GameProfile, ProfileStore};
 use std::collections::HashMap;
 use tauri::State;
 
@@ -85,18 +85,21 @@ fn stale_flags_by_profile_slug(
             continue;
         }
 
-        let launcher_info =
-            match check_launcher_for_profile_core(&profile, target_home_path, steam_client_install_path) {
-                Ok(info) => info,
-                Err(error) => {
-                    tracing::warn!(
-                        %error,
-                        profile_name,
-                        "failed to compute launcher stale status for profile"
-                    );
-                    continue;
-                }
-            };
+        let launcher_info = match check_launcher_for_profile_core(
+            &profile,
+            target_home_path,
+            steam_client_install_path,
+        ) {
+            Ok(info) => info,
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    profile_name,
+                    "failed to compute launcher stale status for profile"
+                );
+                continue;
+            }
+        };
 
         if launcher_info.launcher_slug.is_empty() {
             continue;
@@ -135,7 +138,10 @@ fn find_profile_name_for_launcher_slug(
             Ok(request) => request,
             Err(_) => continue,
         };
-        let launcher_info = match check_launcher_exists_for_request_core(&request.launcher_name, &request) {
+        let launcher_info = match check_launcher_exists_for_request_core(
+            &request.launcher_name,
+            &request,
+        ) {
             Ok(info) => info,
             Err(error) => {
                 tracing::warn!(%error, profile_name, "failed to compute launcher slug while matching profile");
@@ -308,7 +314,8 @@ pub fn list_launchers(
     steam_client_install_path: String,
     store: State<'_, ProfileStore>,
 ) -> Vec<LauncherInfo> {
-    let mut launchers = crosshook_core::export::list_launchers(&target_home_path, &steam_client_install_path);
+    let mut launchers =
+        crosshook_core::export::list_launchers(&target_home_path, &steam_client_install_path);
     let stale_by_slug =
         stale_flags_by_profile_slug(&store, &target_home_path, &steam_client_install_path);
     apply_stale_flags(&mut launchers, &stale_by_slug);
@@ -346,7 +353,9 @@ pub fn reexport_launcher_by_slug(
     )?
     .ok_or_else(|| format!("No profile found for launcher slug '{launcher_slug}'"))?;
 
-    let profile = store.load(&profile_name).map_err(|error| error.to_string())?;
+    let profile = store
+        .load(&profile_name)
+        .map_err(|error| error.to_string())?;
     let request = build_export_request_for_profile(
         &profile,
         Some(&profile_name),
@@ -430,8 +439,7 @@ mod tests {
                 State<'_, ProfileStore>,
                 State<'_, MetadataStore>,
             ) -> Result<SteamExternalLauncherExportResult, String>;
-        let _ = list_launchers
-            as fn(String, String, State<'_, ProfileStore>) -> Vec<LauncherInfo>;
+        let _ = list_launchers as fn(String, String, State<'_, ProfileStore>) -> Vec<LauncherInfo>;
         let _ = preview_launcher_script
             as fn(SteamExternalLauncherExportRequest) -> Result<String, String>;
         let _ = preview_launcher_desktop
@@ -452,10 +460,8 @@ mod tests {
                 ..Default::default()
             },
         ];
-        let stale_by_slug = HashMap::from([
-            ("alpha".to_string(), true),
-            ("beta".to_string(), false),
-        ]);
+        let stale_by_slug =
+            HashMap::from([("alpha".to_string(), true), ("beta".to_string(), false)]);
 
         apply_stale_flags(&mut launchers, &stale_by_slug);
 

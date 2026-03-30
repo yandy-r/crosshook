@@ -5,7 +5,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::launch::request::{METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
-use crate::profile::models::{GameProfile, resolve_launch_method};
+use crate::profile::models::{resolve_launch_method, GameProfile};
 use crate::profile::toml_store::ProfileStore;
 
 /// Profile-level health roll-up.
@@ -101,18 +101,16 @@ fn check_file_path(
                 true,
             ))
         }
-        Err(err) if err.kind() == ErrorKind::PermissionDenied => {
-            Some((
-                HealthIssue {
-                    field: field.to_string(),
-                    path: path.to_string(),
-                    message: format!("Path is not accessible (permission denied): {path}"),
-                    remediation: "Check file permissions (e.g. chmod a+r).".to_string(),
-                    severity: severity_on_broken,
-                },
-                false,
-            ))
-        }
+        Err(err) if err.kind() == ErrorKind::PermissionDenied => Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: path.to_string(),
+                message: format!("Path is not accessible (permission denied): {path}"),
+                remediation: "Check file permissions (e.g. chmod a+r).".to_string(),
+                severity: severity_on_broken,
+            },
+            false,
+        )),
         Err(err) => {
             // Other I/O errors are treated as broken
             Some((
@@ -418,9 +416,10 @@ pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthR
     ) {
         issues.push(issue);
     }
-    if let Some(issue) =
-        check_optional_path("runtime.working_directory", &effective_profile.runtime.working_directory)
-    {
+    if let Some(issue) = check_optional_path(
+        "runtime.working_directory",
+        &effective_profile.runtime.working_directory,
+    ) {
         issues.push(issue);
     }
 
@@ -533,8 +532,8 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::profile::{
-        GameProfile, GameSection, InjectionSection, LaunchSection, LauncherSection,
-        RuntimeSection, SteamSection, TrainerSection,
+        GameProfile, GameSection, InjectionSection, LaunchSection, LauncherSection, RuntimeSection,
+        SteamSection, TrainerSection,
     };
 
     /// Create a real executable file at `path`.
@@ -618,7 +617,11 @@ mod tests {
     fn missing_game_exe_reports_stale() {
         let tmp = tempdir().expect("tempdir");
         let mut profile = healthy_steam_profile(tmp.path());
-        profile.game.executable_path = tmp.path().join("nonexistent.exe").to_string_lossy().to_string();
+        profile.game.executable_path = tmp
+            .path()
+            .join("nonexistent.exe")
+            .to_string_lossy()
+            .to_string();
 
         let report = check_profile_health("stale-game", &profile);
 
@@ -627,7 +630,10 @@ mod tests {
             "expected Stale, got {:?}",
             report.status
         );
-        assert!(report.issues.iter().any(|i| i.field == "game.executable_path"));
+        assert!(report
+            .issues
+            .iter()
+            .any(|i| i.field == "game.executable_path"));
     }
 
     #[test]
@@ -646,7 +652,10 @@ mod tests {
             "expected Broken, got {:?}",
             report.status
         );
-        assert!(report.issues.iter().any(|i| i.field == "game.executable_path"));
+        assert!(report
+            .issues
+            .iter()
+            .any(|i| i.field == "game.executable_path"));
     }
 
     #[test]
@@ -660,7 +669,10 @@ mod tests {
             "expected Broken for empty profile, got {:?}",
             report.status
         );
-        assert!(report.issues.iter().any(|i| i.field == "game.executable_path"));
+        assert!(report
+            .issues
+            .iter()
+            .any(|i| i.field == "game.executable_path"));
     }
 
     #[test]

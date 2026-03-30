@@ -34,7 +34,9 @@ pub fn upsert_health_snapshot(
     Ok(())
 }
 
-pub fn load_health_snapshots(conn: &Connection) -> Result<Vec<HealthSnapshotRow>, MetadataStoreError> {
+pub fn load_health_snapshots(
+    conn: &Connection,
+) -> Result<Vec<HealthSnapshotRow>, MetadataStoreError> {
     let mut stmt = conn
         .prepare(
             "SELECT hs.profile_id, p.current_filename, hs.status, hs.issue_count, hs.checked_at

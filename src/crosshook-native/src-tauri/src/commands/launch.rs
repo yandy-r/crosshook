@@ -5,13 +5,12 @@ use std::time::Duration;
 use crosshook_core::launch::{
     analyze, build_launch_preview,
     build_steam_launch_options_command as build_steam_launch_options_command_core,
-    should_surface_report,
     script_runner::{
         build_helper_command, build_native_game_command, build_proton_game_command,
         build_proton_trainer_command, build_trainer_command,
     },
-    validate, DiagnosticReport, LaunchPreview, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE,
-    METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    should_surface_report, validate, DiagnosticReport, LaunchPreview, LaunchRequest,
+    LaunchValidationIssue, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::MetadataStore;
 use serde::Serialize;
@@ -84,7 +83,14 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
     )
     .await;
 
-    spawn_log_stream(app, log_path.clone(), child, method, metadata_store, operation_id);
+    spawn_log_stream(
+        app,
+        log_path.clone(),
+        child,
+        method,
+        metadata_store,
+        operation_id,
+    );
 
     Ok(LaunchResult {
         succeeded: true,
@@ -134,7 +140,14 @@ pub async fn launch_trainer(
     )
     .await;
 
-    spawn_log_stream(app, log_path.clone(), child, method, metadata_store, operation_id);
+    spawn_log_stream(
+        app,
+        log_path.clone(),
+        child,
+        method,
+        metadata_store,
+        operation_id,
+    );
 
     Ok(LaunchResult {
         succeeded: true,
@@ -171,19 +184,18 @@ async fn record_launch_start(
     let ms_clone = metadata_store.clone();
     let pn = profile_name.map(str::to_owned);
     let lp = log_path.to_string();
-    let operation_id: String =
-        tauri::async_runtime::spawn_blocking(move || {
-            ms_clone.record_launch_started(pn.as_deref(), method, Some(&lp))
-        })
-        .await
-        .unwrap_or_else(|e| {
-            tracing::warn!("metadata spawn_blocking join failed: {e}");
-            Ok(String::new())
-        })
-        .unwrap_or_else(|e| {
-            tracing::warn!(%e, "record_launch_started failed");
-            String::new()
-        });
+    let operation_id: String = tauri::async_runtime::spawn_blocking(move || {
+        ms_clone.record_launch_started(pn.as_deref(), method, Some(&lp))
+    })
+    .await
+    .unwrap_or_else(|e| {
+        tracing::warn!("metadata spawn_blocking join failed: {e}");
+        Ok(String::new())
+    })
+    .unwrap_or_else(|e| {
+        tracing::warn!(%e, "record_launch_started failed");
+        String::new()
+    });
 
     if operation_id.is_empty() {
         None
