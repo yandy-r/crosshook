@@ -341,6 +341,7 @@ function normalizeProfileForEdit(profile: GameProfile): GameProfile {
       optimizations: {
         enabled_option_ids: enabledOptionIds,
       },
+      custom_env_vars: { ...(profile.launch.custom_env_vars ?? {}) },
     },
   };
 }
@@ -421,6 +422,7 @@ function createEmptyProfile(): GameProfile {
       },
       presets: {},
       active_preset: '',
+      custom_env_vars: {},
     },
   };
 }

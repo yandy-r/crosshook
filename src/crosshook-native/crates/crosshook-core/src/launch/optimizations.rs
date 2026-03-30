@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::ffi::OsString;
 use std::fs;
@@ -350,9 +350,12 @@ pub fn resolve_launch_directives(
 
 /// Builds a single-line Steam per-game “Launch Options” string: `KEY=val ... wrappers %command%`.
 ///
-/// Uses the same option-ID → env/wrapper mapping as `proton_run` launches.
+/// Uses the same option-ID → env/wrapper mapping as `proton_run` launches, then appends
+/// `custom_env_vars` as `KEY=value` tokens so profile custom values override optimization keys
+/// when Steam evaluates the prefix (later assignments win).
 pub fn build_steam_launch_options_command(
     enabled_option_ids: &[String],
+    custom_env_vars: &BTreeMap<String, String>,
 ) -> Result<String, ValidationError> {
     let directives = resolve_launch_directives_for_method(enabled_option_ids, METHOD_PROTON_RUN)?;
     let mut parts: Vec<String> = directives
@@ -360,6 +363,9 @@ pub fn build_steam_launch_options_command(
         .iter()
         .map(|(key, value)| format!("{key}={value}"))
         .collect();
+    for (key, value) in custom_env_vars {
+        parts.push(format!("{key}={value}"));
+    }
     parts.extend(directives.wrappers);
     parts.push("%command%".to_string());
     Ok(parts.join(" "))
@@ -440,6 +446,7 @@ mod tests {
             launch_trainer_only: false,
             launch_game_only: false,
             profile_name: None,
+            ..Default::default()
         }
     }
 
@@ -543,7 +550,8 @@ mod tests {
 
     #[test]
     fn steam_launch_options_empty_is_percent_command_percent() {
-        let command = build_steam_launch_options_command(&[]).expect("empty steam command");
+        let command =
+            build_steam_launch_options_command(&[], &BTreeMap::new()).expect("empty steam command");
         assert_eq!(command, "%command%");
     }
 
@@ -563,11 +571,29 @@ mod tests {
             "show_mangohud_overlay".to_string(),
             "use_game_performance".to_string(),
         ];
-        let command = build_steam_launch_options_command(&ids).expect("steam command");
+        let command = build_steam_launch_options_command(&ids, &BTreeMap::new()).expect("steam command");
 
         assert_eq!(
             command,
             "PROTON_NO_STEAMINPUT=1 PROTON_ENABLE_HDR=1 mangohud game-performance %command%"
+        );
+    }
+
+    #[test]
+    fn steam_launch_options_inserts_custom_env_after_optimization_before_wrappers() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let mangohud_path = temp_dir.path().join("mangohud");
+        write_executable_file(&mangohud_path);
+        let _command_search_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
+
+        let ids = vec!["enable_dxvk_async".to_string(), "show_mangohud_overlay".to_string()];
+        let custom = BTreeMap::from([("DXVK_ASYNC".to_string(), "0".to_string())]);
+        let command = build_steam_launch_options_command(&ids, &custom).expect("steam command");
+
+        assert_eq!(
+            command,
+            "DXVK_ASYNC=1 DXVK_ASYNC=0 mangohud %command%"
         );
     }
 
@@ -577,8 +603,11 @@ mod tests {
         let _command_search_path =
             crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
 
-        let error = build_steam_launch_options_command(&["show_mangohud_overlay".to_string()])
-            .expect_err("missing mangohud should fail");
+        let error = build_steam_launch_options_command(
+            &["show_mangohud_overlay".to_string()],
+            &BTreeMap::new(),
+        )
+        .expect_err("missing mangohud should fail");
 
         assert_eq!(
             error,

@@ -31,6 +31,7 @@ export interface LaunchRequest {
   launch_trainer_only: boolean;
   launch_game_only: boolean;
   profile_name?: string;
+  custom_env_vars: Record<string, string>;
 }
 
 export type LaunchValidationSeverity = 'fatal' | 'warning' | 'info';
@@ -70,7 +71,12 @@ export interface LaunchResult {
 
 // --- Preview / Dry Run Types ---
 
-export type EnvVarSource = 'proton_runtime' | 'launch_optimization' | 'host' | 'steam_proton';
+export type EnvVarSource =
+  | 'proton_runtime'
+  | 'launch_optimization'
+  | 'host'
+  | 'steam_proton'
+  | 'profile_custom';
 
 export interface PreviewEnvVar {
   key: string;

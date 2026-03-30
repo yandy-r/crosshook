@@ -88,6 +88,8 @@ function sourceLabel(source: EnvVarSource): string {
       return 'Host';
     case 'steam_proton':
       return 'Steam Proton';
+    case 'profile_custom':
+      return 'Profile custom';
   }
 }
 

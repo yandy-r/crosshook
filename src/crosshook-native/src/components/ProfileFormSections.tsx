@@ -2,6 +2,7 @@ import { useId, useMemo, useState, type ChangeEvent, type ReactNode } from 'reac
 import { invoke } from '@tauri-apps/api/core';
 
 import AutoPopulate from './AutoPopulate';
+import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import { ThemedSelect } from './ui/ThemedSelect';
 import { chooseDirectory, chooseFile } from '../utils/dialog';
 import type { GameProfile, LaunchMethod } from '../types';
@@ -534,6 +535,13 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
           Choose the runner explicitly so CrossHook saves the correct launch method and only shows the relevant fields.
         </p>
       </div>
+
+      <CustomEnvironmentVariablesSection
+        profileName={profileName}
+        customEnvVars={profile.launch.custom_env_vars}
+        onUpdateProfile={onUpdateProfile}
+        idPrefix={profileNamesListId}
+      />
 
       {supportsTrainerLaunch ? (
         <div className="crosshook-install-section">

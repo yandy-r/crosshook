@@ -5,10 +5,16 @@ import { copyToClipboard } from '../utils/clipboard';
 
 export interface SteamLaunchOptionsPanelProps {
   enabledOptionIds: readonly LaunchOptimizationId[];
+  /** Profile `launch.custom_env_vars` — merged into the Steam launch options prefix after optimizations. */
+  customEnvVars?: Readonly<Record<string, string>>;
   className?: string;
 }
 
-export function SteamLaunchOptionsPanel({ enabledOptionIds, className }: SteamLaunchOptionsPanelProps) {
+export function SteamLaunchOptionsPanel({
+  enabledOptionIds,
+  customEnvVars = {},
+  className,
+}: SteamLaunchOptionsPanelProps) {
   const titleId = useId();
   const [command, setCommand] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +31,8 @@ export function SteamLaunchOptionsPanel({ enabledOptionIds, className }: SteamLa
     void (async () => {
       try {
         const line = await invoke<string>('build_steam_launch_options_command', {
-          enabledOptionIds: ids,
+          enabled_option_ids: ids,
+          custom_env_vars: { ...customEnvVars },
         });
         if (!cancelled) {
           setCommand(line);
@@ -46,7 +53,7 @@ export function SteamLaunchOptionsPanel({ enabledOptionIds, className }: SteamLa
     return () => {
       cancelled = true;
     };
-  }, [enabledOptionIds]);
+  }, [enabledOptionIds, customEnvVars]);
 
   async function handleCopy() {
     if (!command.trim()) {

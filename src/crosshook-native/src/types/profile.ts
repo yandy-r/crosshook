@@ -64,6 +64,7 @@ export interface GameProfile {
     presets?: Record<string, LaunchOptimizations>;
     /** When set and present in `presets`, optimizations are kept in sync with that entry. */
     active_preset?: string;
+    custom_env_vars: Record<string, string>;
   };
   local_override?: {
     game: {
