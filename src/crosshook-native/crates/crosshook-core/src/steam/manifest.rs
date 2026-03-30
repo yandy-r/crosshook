@@ -4,6 +4,14 @@ use std::path::{Path, PathBuf};
 use super::models::{SteamAutoPopulateFieldState, SteamGameMatch, SteamLibrary};
 use super::vdf::parse_vdf;
 
+#[derive(Debug, Clone)]
+pub struct ManifestData {
+    pub build_id: String,
+    pub install_dir: String,
+    pub state_flags: Option<u32>,
+    pub last_updated: Option<u64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SteamGameMatchSelection {
     pub state: SteamAutoPopulateFieldState,
@@ -105,6 +113,53 @@ pub fn compatdata_path_for_match(match_: &SteamGameMatch) -> PathBuf {
         .join("steamapps")
         .join("compatdata")
         .join(&match_.app_id)
+}
+
+pub fn parse_manifest_full(manifest_path: &Path) -> Result<ManifestData, String> {
+    let content = fs::read_to_string(manifest_path)
+        .map_err(|error| format!("unable to read manifest: {error}"))?;
+    let manifest_root = parse_vdf(&content).map_err(|error| error.to_string())?;
+    let app_state_node = manifest_root
+        .get_child("AppState")
+        .unwrap_or(&manifest_root);
+
+    let build_id = app_state_node
+        .get_child("buildid")
+        .and_then(|node| node.value.as_ref())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default();
+
+    // Security A1: validate build_id is numeric-only to prevent garbage from corrupted manifests
+    if !build_id.is_empty() && !build_id.chars().all(|c| c.is_ascii_digit()) {
+        return Err(format!(
+            "invalid build_id '{build_id}': must contain only digits"
+        ));
+    }
+
+    let install_dir = app_state_node
+        .get_child("installdir")
+        .and_then(|node| node.value.as_ref())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default();
+
+    let state_flags = app_state_node
+        .get_child("stateflags")
+        .and_then(|node| node.value.as_ref())
+        .and_then(|value| value.trim().parse::<u32>().ok());
+
+    let last_updated = app_state_node
+        .get_child("lastupdated")
+        .and_then(|node| node.value.as_ref())
+        .and_then(|value| value.trim().parse::<u64>().ok());
+
+    Ok(ManifestData {
+        build_id,
+        install_dir,
+        state_flags,
+        last_updated,
+    })
 }
 
 fn parse_manifest(manifest_path: &Path) -> Result<(String, String), String> {
@@ -217,7 +272,7 @@ fn dedupe_matches(matches: Vec<SteamGameMatch>) -> Vec<SteamGameMatch> {
 
 #[cfg(test)]
 mod tests {
-    use super::{compatdata_path_for_match, find_game_match};
+    use super::{compatdata_path_for_match, find_game_match, parse_manifest_full};
     use crate::steam::models::{SteamAutoPopulateFieldState, SteamLibrary};
     use std::fs;
     use std::path::PathBuf;
@@ -343,5 +398,100 @@ mod tests {
         assert!(diagnostics
             .iter()
             .any(|entry| entry.contains("No Steam app manifest matched")));
+    }
+
+    #[test]
+    fn parse_manifest_full_extracts_all_fields() {
+        let temp = tempdir().expect("tmp");
+        let path = temp.path().join("appmanifest_12345.acf");
+        fs::write(
+            &path,
+            r#"
+            "AppState"
+            {
+              "appid" "12345"
+              "installdir" "MyGame"
+              "buildid" "9876543"
+              "StateFlags" "4"
+              "LastUpdated" "1700000000"
+            }
+            "#,
+        )
+        .expect("write");
+
+        let data = parse_manifest_full(&path).expect("parse");
+        assert_eq!(data.build_id, "9876543");
+        assert_eq!(data.install_dir, "MyGame");
+        assert_eq!(data.state_flags, Some(4));
+        assert_eq!(data.last_updated, Some(1700000000));
+    }
+
+    #[test]
+    fn parse_manifest_full_missing_optional_fields_return_defaults() {
+        let temp = tempdir().expect("tmp");
+        let path = temp.path().join("appmanifest_99999.acf");
+        fs::write(
+            &path,
+            r#"
+            "AppState"
+            {
+              "appid" "99999"
+              "installdir" "AnotherGame"
+              "buildid" "1111111"
+            }
+            "#,
+        )
+        .expect("write");
+
+        let data = parse_manifest_full(&path).expect("parse");
+        assert_eq!(data.build_id, "1111111");
+        assert_eq!(data.install_dir, "AnotherGame");
+        assert_eq!(data.state_flags, None);
+        assert_eq!(data.last_updated, None);
+    }
+
+    #[test]
+    fn parse_manifest_full_rejects_non_numeric_build_id() {
+        let temp = tempdir().expect("tmp");
+        let path = temp.path().join("appmanifest_corrupt.acf");
+        fs::write(
+            &path,
+            r#"
+            "AppState"
+            {
+              "appid" "11111"
+              "installdir" "CorruptGame"
+              "buildid" "abc123"
+            }
+            "#,
+        )
+        .expect("write");
+
+        let result = parse_manifest_full(&path);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("invalid build_id"));
+    }
+
+    #[test]
+    fn parse_manifest_full_empty_build_id_allowed() {
+        let temp = tempdir().expect("tmp");
+        let path = temp.path().join("appmanifest_55555.acf");
+        fs::write(
+            &path,
+            r#"
+            "AppState"
+            {
+              "appid" "55555"
+              "installdir" "NoVerGame"
+            }
+            "#,
+        )
+        .expect("write");
+
+        let data = parse_manifest_full(&path).expect("parse");
+        assert_eq!(data.build_id, "");
+        assert_eq!(data.install_dir, "NoVerGame");
+        assert_eq!(data.state_flags, None);
+        assert_eq!(data.last_updated, None);
     }
 }

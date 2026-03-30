@@ -8,13 +8,16 @@ mod launcher_sync;
 mod migrations;
 mod models;
 pub mod profile_sync;
+mod version_store;
 
 pub use health_store::HealthSnapshotRow;
 pub use models::{
     CacheEntryStatus, CollectionRow, CommunityProfileRow, CommunityTapRow, DriftState,
     FailureTrendRow, LaunchOutcome, MetadataStoreError, SyncReport, SyncSource,
-    MAX_CACHE_PAYLOAD_BYTES, MAX_DIAGNOSTIC_JSON_BYTES,
+    VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
+    MAX_DIAGNOSTIC_JSON_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
+pub use version_store::{compute_correlation_status, hash_trainer_file};
 
 use crate::community::taps::CommunityTapSyncResult;
 use crate::launch::diagnostics::models::DiagnosticReport;
@@ -814,6 +817,60 @@ impl MetadataStore {
     ) -> Result<Option<HealthSnapshotRow>, MetadataStoreError> {
         self.with_conn("look up a health snapshot", |conn| {
             health_store::lookup_health_snapshot(conn, profile_id)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Version snapshots
+    // -------------------------------------------------------------------------
+
+    pub fn upsert_version_snapshot(
+        &self,
+        profile_id: &str,
+        steam_app_id: &str,
+        steam_build_id: Option<&str>,
+        trainer_version: Option<&str>,
+        trainer_file_hash: Option<&str>,
+        human_game_ver: Option<&str>,
+        status: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("upsert a version snapshot", |conn| {
+            version_store::upsert_version_snapshot(
+                conn,
+                profile_id,
+                steam_app_id,
+                steam_build_id,
+                trainer_version,
+                trainer_file_hash,
+                human_game_ver,
+                status,
+            )
+        })
+    }
+
+    pub fn lookup_latest_version_snapshot(
+        &self,
+        profile_id: &str,
+    ) -> Result<Option<VersionSnapshotRow>, MetadataStoreError> {
+        self.with_conn("look up the latest version snapshot", |conn| {
+            version_store::lookup_latest_version_snapshot(conn, profile_id)
+        })
+    }
+
+    pub fn load_version_snapshots_for_profiles(
+        &self,
+    ) -> Result<Vec<VersionSnapshotRow>, MetadataStoreError> {
+        self.with_conn("load version snapshots for profiles", |conn| {
+            version_store::load_version_snapshots_for_profiles(conn)
+        })
+    }
+
+    pub fn acknowledge_version_change(
+        &self,
+        profile_id: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("acknowledge a version change", |conn| {
+            version_store::acknowledge_version_change(conn, profile_id)
         })
     }
 }
@@ -2185,5 +2242,408 @@ mod tests {
             .query_total_launches_for_profile("target-profile")
             .unwrap();
         assert_eq!(total_launches, 2);
+    }
+
+    #[test]
+    fn test_migration_8_to_9_version_snapshots_table_exists() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let profile = sample_profile();
+        let path = std::path::Path::new("/profiles/test-game.toml");
+
+        // Seed a profile row so the FK constraint is satisfied.
+        store
+            .observe_profile_write("test-game", &profile, path, SyncSource::AppWrite, None)
+            .unwrap();
+
+        let conn = connection(&store);
+
+        // Retrieve the profile_id for the seeded row.
+        let profile_id: String = conn
+            .query_row(
+                "SELECT profile_id FROM profiles WHERE current_filename = ?1",
+                params!["test-game"],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        // INSERT roundtrip: verify the table and its columns exist.
+        conn.execute(
+            "INSERT INTO version_snapshots
+                (profile_id, steam_app_id, steam_build_id, trainer_version,
+                 trainer_file_hash, human_game_ver, status, checked_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                profile_id,
+                "1245620",
+                "12345678",
+                "v1.0.0",
+                "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+                "1.0",
+                "untracked",
+                "2026-01-01T00:00:00+00:00",
+            ],
+        )
+        .unwrap();
+
+        let (row_profile_id, steam_app_id, steam_build_id, status): (
+            String,
+            String,
+            Option<String>,
+            String,
+        ) = conn
+            .query_row(
+                "SELECT profile_id, steam_app_id, steam_build_id, status
+                 FROM version_snapshots
+                 WHERE profile_id = ?1",
+                params![profile_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+
+        assert_eq!(row_profile_id, profile_id);
+        assert_eq!(steam_app_id, "1245620");
+        assert_eq!(steam_build_id.as_deref(), Some("12345678"));
+        assert_eq!(status, "untracked");
+    }
+
+    // -------------------------------------------------------------------------
+    // Version store tests
+    // -------------------------------------------------------------------------
+
+    fn insert_test_profile_row(conn: &Connection, profile_id: &str) {
+        conn.execute(
+            "INSERT INTO profiles (profile_id, current_filename, current_path, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                profile_id,
+                format!("{profile_id}_file"),
+                format!("/path/{profile_id}.toml"),
+                "2024-01-01T00:00:00+00:00",
+                "2024-01-01T00:00:00+00:00",
+            ],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_version_snapshot_upsert_and_lookup_lifecycle() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        {
+            let conn = connection(&store);
+            insert_test_profile_row(&conn, "lifecycle-profile");
+        }
+
+        store
+            .upsert_version_snapshot(
+                "lifecycle-profile",
+                "99999",
+                Some("build-abc"),
+                Some("v1.2.3"),
+                Some("deadbeef01234567deadbeef01234567deadbeef01234567deadbeef01234567"),
+                Some("1.2.3"),
+                "matched",
+            )
+            .unwrap();
+
+        let snapshot = store
+            .lookup_latest_version_snapshot("lifecycle-profile")
+            .unwrap()
+            .expect("snapshot should be present after upsert");
+
+        assert_eq!(snapshot.profile_id, "lifecycle-profile");
+        assert_eq!(snapshot.steam_app_id, "99999");
+        assert_eq!(snapshot.steam_build_id.as_deref(), Some("build-abc"));
+        assert_eq!(snapshot.trainer_version.as_deref(), Some("v1.2.3"));
+        assert_eq!(snapshot.status, "matched");
+        assert!(!snapshot.checked_at.is_empty());
+    }
+
+    #[test]
+    fn test_version_snapshot_lookup_returns_latest() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        {
+            let conn = connection(&store);
+            insert_test_profile_row(&conn, "latest-profile");
+        }
+
+        // Insert two snapshots with distinct checked_at values via raw SQL
+        // so we can control ordering.
+        {
+            let conn = connection(&store);
+            conn.execute(
+                "INSERT INTO version_snapshots
+                 (profile_id, steam_app_id, steam_build_id, status, checked_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    "latest-profile",
+                    "11111",
+                    "build-old",
+                    "untracked",
+                    "2024-01-01T00:00:00+00:00",
+                ],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO version_snapshots
+                 (profile_id, steam_app_id, steam_build_id, status, checked_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![
+                    "latest-profile",
+                    "11111",
+                    "build-new",
+                    "matched",
+                    "2024-06-01T00:00:00+00:00",
+                ],
+            )
+            .unwrap();
+        }
+
+        let snapshot = store
+            .lookup_latest_version_snapshot("latest-profile")
+            .unwrap()
+            .expect("snapshot should be present");
+
+        assert_eq!(snapshot.steam_build_id.as_deref(), Some("build-new"));
+        assert_eq!(snapshot.status, "matched");
+    }
+
+    #[test]
+    fn test_version_snapshot_pruning_at_max_limit() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        {
+            let conn = connection(&store);
+            insert_test_profile_row(&conn, "prune-profile");
+        }
+
+        // Insert MAX+1 rows — the prune step must keep exactly MAX.
+        for i in 0..=MAX_VERSION_SNAPSHOTS_PER_PROFILE {
+            store
+                .upsert_version_snapshot(
+                    "prune-profile",
+                    "55555",
+                    Some(&format!("build-{i:04}")),
+                    None,
+                    None,
+                    None,
+                    "untracked",
+                )
+                .unwrap();
+        }
+
+        let conn = connection(&store);
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM version_snapshots WHERE profile_id = 'prune-profile'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(
+            count,
+            MAX_VERSION_SNAPSHOTS_PER_PROFILE as i64,
+            "row count must be exactly MAX after pruning"
+        );
+    }
+
+    #[test]
+    fn test_acknowledge_version_change_sets_matched() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        {
+            let conn = connection(&store);
+            insert_test_profile_row(&conn, "ack-profile");
+        }
+
+        store
+            .upsert_version_snapshot("ack-profile", "77777", None, None, None, None, "game_updated")
+            .unwrap();
+
+        // Confirm initial status is game_updated.
+        let before = store
+            .lookup_latest_version_snapshot("ack-profile")
+            .unwrap()
+            .unwrap();
+        assert_eq!(before.status, "game_updated");
+
+        store.acknowledge_version_change("ack-profile").unwrap();
+
+        let after = store
+            .lookup_latest_version_snapshot("ack-profile")
+            .unwrap()
+            .unwrap();
+        assert_eq!(after.status, "matched");
+    }
+
+    #[test]
+    fn test_load_version_snapshots_for_profiles_returns_latest_per_profile() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        {
+            let conn = connection(&store);
+            insert_test_profile_row(&conn, "bulk-profile-a");
+            insert_test_profile_row(&conn, "bulk-profile-b");
+        }
+
+        // Profile A: two snapshots — the second (game_updated) should win.
+        {
+            let conn = connection(&store);
+            conn.execute(
+                "INSERT INTO version_snapshots (profile_id, steam_app_id, status, checked_at)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    "bulk-profile-a",
+                    "10001",
+                    "untracked",
+                    "2024-01-01T00:00:00+00:00",
+                ],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO version_snapshots (profile_id, steam_app_id, status, checked_at)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    "bulk-profile-a",
+                    "10001",
+                    "game_updated",
+                    "2024-06-01T00:00:00+00:00",
+                ],
+            )
+            .unwrap();
+        }
+
+        // Profile B: one snapshot.
+        {
+            let conn = connection(&store);
+            conn.execute(
+                "INSERT INTO version_snapshots (profile_id, steam_app_id, status, checked_at)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    "bulk-profile-b",
+                    "20002",
+                    "matched",
+                    "2024-03-01T00:00:00+00:00",
+                ],
+            )
+            .unwrap();
+        }
+
+        let snapshots = store.load_version_snapshots_for_profiles().unwrap();
+
+        assert_eq!(snapshots.len(), 2, "should return one row per profile");
+
+        let snap_a = snapshots
+            .iter()
+            .find(|s| s.profile_id == "bulk-profile-a")
+            .expect("profile-a snapshot must be present");
+        let snap_b = snapshots
+            .iter()
+            .find(|s| s.profile_id == "bulk-profile-b")
+            .expect("profile-b snapshot must be present");
+
+        // MAX(id) picks the last-inserted row for profile-a, which is game_updated.
+        assert_eq!(snap_a.status, "game_updated");
+        assert_eq!(snap_b.status, "matched");
+    }
+
+    #[test]
+    fn test_compute_correlation_status_update_in_progress() {
+        // state_flags != Some(4) → UpdateInProgress regardless of other inputs.
+        assert!(matches!(
+            compute_correlation_status("build1", Some("build1"), None, None, None),
+            VersionCorrelationStatus::UpdateInProgress
+        ));
+        assert!(matches!(
+            compute_correlation_status("build1", Some("build1"), None, None, Some(0)),
+            VersionCorrelationStatus::UpdateInProgress
+        ));
+        assert!(matches!(
+            compute_correlation_status("build1", Some("build1"), None, None, Some(6)),
+            VersionCorrelationStatus::UpdateInProgress
+        ));
+    }
+
+    #[test]
+    fn test_compute_correlation_status_untracked() {
+        // No snapshot → Untracked (when state_flags is stable).
+        assert!(matches!(
+            compute_correlation_status("build1", None, None, None, Some(4)),
+            VersionCorrelationStatus::Untracked
+        ));
+    }
+
+    #[test]
+    fn test_compute_correlation_status_matched() {
+        assert!(matches!(
+            compute_correlation_status(
+                "build1",
+                Some("build1"),
+                Some("hash-a"),
+                Some("hash-a"),
+                Some(4)
+            ),
+            VersionCorrelationStatus::Matched
+        ));
+        // Both trainer hashes None → also matched.
+        assert!(matches!(
+            compute_correlation_status("build1", Some("build1"), None, None, Some(4)),
+            VersionCorrelationStatus::Matched
+        ));
+    }
+
+    #[test]
+    fn test_compute_correlation_status_game_updated() {
+        assert!(matches!(
+            compute_correlation_status(
+                "build-new",
+                Some("build-old"),
+                Some("hash-a"),
+                Some("hash-a"),
+                Some(4)
+            ),
+            VersionCorrelationStatus::GameUpdated
+        ));
+    }
+
+    #[test]
+    fn test_compute_correlation_status_trainer_changed() {
+        assert!(matches!(
+            compute_correlation_status(
+                "build1",
+                Some("build1"),
+                Some("hash-new"),
+                Some("hash-old"),
+                Some(4)
+            ),
+            VersionCorrelationStatus::TrainerChanged
+        ));
+    }
+
+    #[test]
+    fn test_compute_correlation_status_both_changed() {
+        assert!(matches!(
+            compute_correlation_status(
+                "build-new",
+                Some("build-old"),
+                Some("hash-new"),
+                Some("hash-old"),
+                Some(4)
+            ),
+            VersionCorrelationStatus::BothChanged
+        ));
+    }
+
+    #[test]
+    fn test_version_store_disabled_store_noop() {
+        let store = MetadataStore::disabled();
+
+        assert!(store
+            .upsert_version_snapshot(
+                "any-profile", "12345", None, None, None, None, "untracked"
+            )
+            .is_ok());
+        let snapshot = store.lookup_latest_version_snapshot("any-profile").unwrap();
+        assert!(snapshot.is_none());
+        let snapshots = store.load_version_snapshots_for_profiles().unwrap();
+        assert!(snapshots.is_empty());
+        assert!(store.acknowledge_version_change("any-profile").is_ok());
     }
 }
