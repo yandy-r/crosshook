@@ -81,6 +81,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 9 {
+        migrate_8_to_9(conn)?;
+        conn.pragma_update(None, "user_version", 9_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "update metadata schema version",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -331,6 +340,34 @@ fn migrate_7_to_8(conn: &Connection) -> Result<(), MetadataStoreError> {
                 source,
             })?;
     }
+
+    Ok(())
+}
+
+fn migrate_8_to_9(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS version_snapshots (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id          TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            steam_app_id        TEXT NOT NULL DEFAULT '',
+            steam_build_id      TEXT,
+            trainer_version     TEXT,
+            trainer_file_hash   TEXT,
+            human_game_ver      TEXT,
+            status              TEXT NOT NULL DEFAULT 'untracked',
+            checked_at          TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_version_snapshots_profile_checked
+            ON version_snapshots(profile_id, checked_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_version_snapshots_steam_app_id
+            ON version_snapshots(steam_app_id);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 8 to 9",
+        source,
+    })?;
 
     Ok(())
 }
