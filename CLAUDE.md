@@ -220,6 +220,8 @@ PRs auto-populate from `.github/pull_request_template.md`. The template includes
 - Type of Change checkboxes
 - Build verification checklist (native build scripts)
 - Conditional checks for launch/, profile/, steam/, and UI component changes
+- All pull requests must be properly labeled with the appropriate labels.
+- All pull requests must be properly linked to the appropriate issue.
 
 CLI completion note:
 
