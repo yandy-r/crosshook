@@ -5,6 +5,7 @@ use std::time::Duration;
 use crosshook_core::launch::{
     analyze, build_launch_preview,
     build_steam_launch_options_command as build_steam_launch_options_command_core,
+    diagnostics::FailureMode,
     script_runner::{
         build_helper_command, build_native_game_command, build_proton_game_command,
         build_proton_trainer_command, build_trainer_command,
@@ -12,7 +13,10 @@ use crosshook_core::launch::{
     should_surface_report, validate, DiagnosticReport, LaunchPreview, LaunchRequest,
     LaunchValidationIssue, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
-use crosshook_core::metadata::MetadataStore;
+use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file, MetadataStore};
+use crosshook_core::steam::discover_steam_root_candidates;
+use crosshook_core::steam::libraries::discover_steam_libraries;
+use crosshook_core::steam::manifest::parse_manifest_full;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
@@ -83,6 +87,15 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
     )
     .await;
 
+    // Extract before spawn_log_stream — request is moved into the closure
+    let snap_steam_app_id = request.steam.app_id.clone();
+    let snap_trainer_host_path = {
+        let p = request.trainer_host_path.trim().to_string();
+        if p.is_empty() { None } else { Some(p) }
+    };
+    let snap_profile_name = request.profile_name.clone();
+    let snap_steam_client_path = request.steam.steam_client_install_path.clone();
+
     spawn_log_stream(
         app,
         log_path.clone(),
@@ -90,6 +103,10 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
         method,
         metadata_store,
         operation_id,
+        snap_steam_app_id,
+        snap_trainer_host_path,
+        snap_profile_name,
+        snap_steam_client_path,
     );
 
     Ok(LaunchResult {
@@ -140,6 +157,15 @@ pub async fn launch_trainer(
     )
     .await;
 
+    // Extract before spawn_log_stream — request is moved into the closure
+    let snap_steam_app_id = request.steam.app_id.clone();
+    let snap_trainer_host_path = {
+        let p = request.trainer_host_path.trim().to_string();
+        if p.is_empty() { None } else { Some(p) }
+    };
+    let snap_profile_name = request.profile_name.clone();
+    let snap_steam_client_path = request.steam.steam_client_install_path.clone();
+
     spawn_log_stream(
         app,
         log_path.clone(),
@@ -147,6 +173,10 @@ pub async fn launch_trainer(
         method,
         metadata_store,
         operation_id,
+        snap_steam_app_id,
+        snap_trainer_host_path,
+        snap_profile_name,
+        snap_steam_client_path,
     );
 
     Ok(LaunchResult {
@@ -163,9 +193,25 @@ fn spawn_log_stream(
     method: &'static str,
     metadata_store: MetadataStore,
     operation_id: Option<String>,
+    steam_app_id: String,
+    trainer_host_path: Option<String>,
+    profile_name: Option<String>,
+    steam_client_path: String,
 ) {
     let handle = tauri::async_runtime::spawn(async move {
-        stream_log_lines(app, log_path, child, method, metadata_store, operation_id).await;
+        stream_log_lines(
+            app,
+            log_path,
+            child,
+            method,
+            metadata_store,
+            operation_id,
+            steam_app_id,
+            trainer_host_path,
+            profile_name,
+            steam_client_path,
+        )
+        .await;
     });
 
     tauri::async_runtime::spawn(async move {
@@ -211,6 +257,10 @@ async fn stream_log_lines(
     method: &'static str,
     metadata_store: MetadataStore,
     operation_id: Option<String>,
+    steam_app_id: String,
+    trainer_host_path: Option<String>,
+    profile_name: Option<String>,
+    steam_client_path: String,
 ) {
     let mut last_len = 0usize;
     let mut exit_status: Option<std::process::ExitStatus> = None;
@@ -293,6 +343,85 @@ async fn stream_log_lines(
         .await;
         if let Err(e) = result {
             tracing::warn!(%e, operation_id = %op_id, "record_launch_finished join failed");
+        }
+    }
+
+    // Version snapshot — record on clean exit only (A8: must never block launch)
+    if report.exit_info.failure_mode == FailureMode::CleanExit {
+        if let Some(ref pname) = profile_name {
+            let ms = metadata_store.clone();
+            let pname_c = pname.clone();
+            let app_id_c = steam_app_id.clone();
+            let trainer_path_c = trainer_host_path.clone();
+            let steam_install_c = steam_client_path.clone();
+            let result = tauri::async_runtime::spawn_blocking(move || {
+                let profile_id = match ms.lookup_profile_id(&pname_c) {
+                    Ok(Some(id)) => id,
+                    Ok(None) => {
+                        tracing::warn!(profile_name = %pname_c, "version snapshot skipped: profile not in metadata");
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::warn!(%e, "version snapshot skipped: lookup_profile_id failed");
+                        return;
+                    }
+                };
+
+                let manifest_data = if !app_id_c.trim().is_empty() {
+                    let mut diag = Vec::new();
+                    let roots = discover_steam_root_candidates(&steam_install_c, &mut diag);
+                    let libraries = discover_steam_libraries(&roots, &mut diag);
+                    libraries.iter().find_map(|lib| {
+                        let p = lib.steamapps_path.join(format!("appmanifest_{}.acf", app_id_c.trim()));
+                        if p.is_file() { parse_manifest_full(&p).ok() } else { None }
+                    })
+                } else {
+                    None
+                };
+
+                let build_id = manifest_data.as_ref().map(|d| d.build_id.clone());
+                let current_build_id = build_id.as_deref().unwrap_or("");
+                let state_flags = manifest_data.as_ref().and_then(|d| d.state_flags);
+
+                let trainer_file_hash = trainer_path_c
+                    .as_deref()
+                    .and_then(|p| hash_trainer_file(std::path::Path::new(p)));
+
+                let prior_snapshot = match ms.lookup_latest_version_snapshot(&profile_id) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::warn!(%e, "version snapshot: prior lookup failed, continuing");
+                        None
+                    }
+                };
+
+                let snapshot_build_id = prior_snapshot.as_ref().and_then(|s| s.steam_build_id.as_deref());
+                let snapshot_trainer_hash = prior_snapshot.as_ref().and_then(|s| s.trainer_file_hash.as_deref());
+
+                let status = compute_correlation_status(
+                    current_build_id,
+                    snapshot_build_id,
+                    trainer_file_hash.as_deref(),
+                    snapshot_trainer_hash,
+                    state_flags,
+                );
+
+                if let Err(e) = ms.upsert_version_snapshot(
+                    &profile_id,
+                    app_id_c.trim(),
+                    if current_build_id.is_empty() { None } else { Some(current_build_id) },
+                    None,
+                    trainer_file_hash.as_deref(),
+                    None,
+                    status.as_str(),
+                ) {
+                    tracing::warn!(%e, "version snapshot upsert failed");
+                }
+            })
+            .await;
+            if let Err(e) = result {
+                tracing::warn!(%e, "version snapshot spawn_blocking join failed");
+            }
         }
     }
 

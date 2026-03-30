@@ -100,6 +100,14 @@ pub fn run() {
                     });
                 }
 
+                {
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        sleep(Duration::from_millis(2000)).await;
+                        startup::run_version_scan(app_handle).await;
+                    });
+                }
+
                 Ok(())
             }
         })
@@ -175,6 +183,10 @@ pub fn run() {
             commands::migration::check_proton_migrations,
             commands::migration::apply_proton_migration,
             commands::migration::apply_batch_migration,
+            commands::version::check_version_status,
+            commands::version::get_version_snapshot,
+            commands::version::set_trainer_version,
+            commands::version::acknowledge_version_change,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");
