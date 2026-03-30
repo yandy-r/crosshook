@@ -1,6 +1,9 @@
-use crosshook_core::metadata::{MetadataStore, SyncSource};
+use crosshook_core::metadata::{
+    BundledOptimizationPresetRow, MetadataStore, ProfileLaunchPresetOrigin, SyncSource,
+};
 use crosshook_core::profile::{
-    DuplicateProfileResult, GameProfile, ProfileStore, ProfileStoreError,
+    bundled_optimization_preset_toml_key, DuplicateProfileResult, GameProfile, ProfileStore,
+    ProfileStoreError,
 };
 use crosshook_core::settings::SettingsStore;
 use serde::{Deserialize, Serialize};
@@ -86,6 +89,56 @@ fn emit_profiles_changed(app: &AppHandle, reason: &str) {
     }
 }
 
+fn observe_profile_write_launch_change(
+    name: &str,
+    store: &ProfileStore,
+    metadata_store: &MetadataStore,
+    updated: &GameProfile,
+) {
+    let profile_path = store.base_path.join(format!("{name}.toml"));
+    if let Err(e) = metadata_store.observe_profile_write(
+        name,
+        updated,
+        &profile_path,
+        SyncSource::AppWrite,
+        None,
+    ) {
+        tracing::warn!(
+            %e,
+            profile_name = %name,
+            "metadata sync after launch optimization / preset change failed"
+        );
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BundledOptimizationPresetDto {
+    pub preset_id: String,
+    pub display_name: String,
+    pub vendor: String,
+    pub mode: String,
+    pub enabled_option_ids: Vec<String>,
+    pub catalog_version: i64,
+}
+
+fn bundled_row_to_dto(row: BundledOptimizationPresetRow) -> Result<BundledOptimizationPresetDto, String> {
+    let enabled_option_ids: Vec<String> =
+        serde_json::from_str(&row.option_ids_json).map_err(|e| {
+            format!(
+                "corrupt bundled preset {} option list: {e}",
+                row.preset_id
+            )
+        })?;
+    Ok(BundledOptimizationPresetDto {
+        preset_id: row.preset_id,
+        display_name: row.display_name,
+        vendor: row.vendor,
+        mode: row.mode,
+        enabled_option_ids,
+        catalog_version: row.catalog_version,
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LaunchOptimizationsPayload {
     #[serde(
@@ -161,6 +214,132 @@ pub fn profile_save_launch_optimizations(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn profile_list_bundled_optimization_presets(
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<Vec<BundledOptimizationPresetDto>, String> {
+    if !metadata_store.is_available() {
+        return Ok(Vec::new());
+    }
+    let rows = metadata_store
+        .list_bundled_optimization_presets()
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        out.push(bundled_row_to_dto(row)?);
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn profile_apply_bundled_optimization_preset(
+    name: String,
+    preset_id: String,
+    app: AppHandle,
+    store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<GameProfile, String> {
+    if !metadata_store.is_available() {
+        return Err("metadata store is unavailable — cannot apply bundled presets".to_string());
+    }
+
+    let profile_name = name.trim();
+    if profile_name.is_empty() {
+        return Err("profile name is required".to_string());
+    }
+
+    let pid = preset_id.trim();
+    if pid.is_empty() {
+        return Err("preset_id is required".to_string());
+    }
+
+    let row = metadata_store
+        .get_bundled_optimization_preset(pid)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("unknown bundled preset: {pid}"))?;
+
+    let enabled_option_ids: Vec<String> =
+        serde_json::from_str(&row.option_ids_json).map_err(|e| e.to_string())?;
+
+    let toml_key = bundled_optimization_preset_toml_key(&row.preset_id);
+    store
+        .materialize_launch_optimization_preset(
+            profile_name,
+            &toml_key,
+            enabled_option_ids,
+            true,
+        )
+        .map_err(map_error)?;
+
+    let updated = store.load(profile_name).map_err(map_error)?;
+    observe_profile_write_launch_change(profile_name, &store, &metadata_store, &updated);
+
+    if let Ok(Some(profile_id)) = metadata_store.lookup_profile_id(profile_name) {
+        if let Err(e) = metadata_store.upsert_profile_launch_preset_metadata(
+            &profile_id,
+            &toml_key,
+            ProfileLaunchPresetOrigin::Bundled,
+            Some(row.preset_id.as_str()),
+        ) {
+            tracing::warn!(
+                %e,
+                profile_name = %profile_name,
+                "failed to upsert bundled preset metadata row"
+            );
+        }
+    }
+
+    emit_profiles_changed(&app, "bundled-optimization-preset");
+    Ok(updated)
+}
+
+#[tauri::command]
+pub fn profile_save_manual_optimization_preset(
+    name: String,
+    preset_name: String,
+    enabled_option_ids: Vec<String>,
+    app: AppHandle,
+    store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<GameProfile, String> {
+    let profile_name = name.trim();
+    if profile_name.is_empty() {
+        return Err("profile name is required".to_string());
+    }
+
+    let key = preset_name.trim();
+    if key.is_empty() {
+        return Err("preset name must not be empty".to_string());
+    }
+
+    store
+        .save_manual_launch_optimization_preset(profile_name, key, enabled_option_ids)
+        .map_err(map_error)?;
+
+    let updated = store.load(profile_name).map_err(map_error)?;
+    observe_profile_write_launch_change(profile_name, &store, &metadata_store, &updated);
+
+    if metadata_store.is_available() {
+        if let Ok(Some(profile_id)) = metadata_store.lookup_profile_id(profile_name) {
+            if let Err(e) = metadata_store.upsert_profile_launch_preset_metadata(
+                &profile_id,
+                key,
+                ProfileLaunchPresetOrigin::User,
+                None,
+            ) {
+                tracing::warn!(
+                    %e,
+                    profile_name = %profile_name,
+                    "failed to upsert user preset metadata row"
+                );
+            }
+        }
+    }
+
+    emit_profiles_changed(&app, "manual-optimization-preset");
+    Ok(updated)
 }
 
 #[tauri::command]

@@ -119,6 +119,12 @@ export function LaunchPage() {
               onSelectOptimizationPreset={(name) => {
                 void profileState.switchLaunchOptimizationPreset(name);
               }}
+              bundledOptimizationPresets={profileState.bundledOptimizationPresets}
+              onApplyBundledPreset={(presetId) => {
+                void profileState.applyBundledOptimizationPreset(presetId);
+              }}
+              optimizationPresetActionBusy={profileState.optimizationPresetActionBusy}
+              onSaveManualPreset={profileState.saveManualOptimizationPreset}
             />
           </CollapsibleSection>
         ) : null}

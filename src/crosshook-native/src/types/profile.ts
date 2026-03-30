@@ -16,6 +16,16 @@ export interface ProfileData {
 }
 
 export type LaunchMethod = '' | 'steam_applaunch' | 'proton_run' | 'native';
+
+/** IPC DTO from `profile_list_bundled_optimization_presets`. */
+export interface BundledOptimizationPreset {
+  preset_id: string;
+  display_name: string;
+  vendor: string;
+  mode: string;
+  enabled_option_ids: string[];
+  catalog_version: number;
+}
 export type TrainerLoadingMode = 'source_directory' | 'copy_to_prefix';
 
 export interface GameProfile {

@@ -557,7 +557,11 @@ mod tests {
         assert_eq!(imported.manifest.profile, shareable);
 
         let imported_store = ProfileStore::with_base_path(imported_profiles_dir);
-        assert_eq!(imported_store.load("elden-ring").unwrap(), shareable);
+        let mut loaded = imported_store.load("elden-ring").unwrap();
+        // Import may hydrate steam.proton_path from a local Steam install when app_id is set;
+        // compare the portable shape expected from the exported manifest.
+        loaded.steam.proton_path.clear();
+        assert_eq!(loaded, shareable);
     }
 
     #[test]
