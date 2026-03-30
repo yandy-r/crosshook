@@ -66,9 +66,9 @@ fn row_to_snapshot_info(row: VersionSnapshotRow) -> VersionSnapshotInfo {
 
 /// Scan known Steam libraries for `appmanifest_{app_id}.acf` and return the first
 /// path found, or `None` if the game is not installed in any discovered library.
-fn locate_manifest_for_app(app_id: &str) -> Option<PathBuf> {
+fn locate_manifest_for_app(app_id: &str, steam_client_path: &str) -> Option<PathBuf> {
     let mut diagnostics = Vec::new();
-    let steam_roots = discover_steam_root_candidates("", &mut diagnostics);
+    let steam_roots = discover_steam_root_candidates(steam_client_path, &mut diagnostics);
     let libraries = discover_steam_libraries(&steam_roots, &mut diagnostics);
 
     for entry in &diagnostics {
@@ -86,6 +86,16 @@ fn locate_manifest_for_app(app_id: &str) -> Option<PathBuf> {
     None
 }
 
+/// Derive the Steam client install path from a profile's compatdata path.
+fn steam_client_install_path_from_profile(profile: &crosshook_core::profile::GameProfile) -> String {
+    const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
+    let compatdata_path = profile.steam.compatdata_path.trim().replace('\\', "/");
+    compatdata_path
+        .split_once(STEAM_COMPATDATA_MARKER)
+        .map(|(steam_root, _)| steam_root.to_string())
+        .unwrap_or_default()
+}
+
 /// Check the current version correlation status for a named profile.
 ///
 /// Reads the Steam appmanifest for the profile's App ID to get the live build ID
@@ -99,9 +109,10 @@ pub fn check_version_status(
 ) -> Result<VersionCheckResult, String> {
     let profile = profile_store.load(&name).map_err(map_error)?;
     let app_id = profile.steam.app_id.trim().to_string();
+    let steam_client_path = steam_client_install_path_from_profile(&profile);
 
     let (current_build_id_raw, state_flags): (String, Option<u32>) = if !app_id.is_empty() {
-        locate_manifest_for_app(&app_id)
+        locate_manifest_for_app(&app_id, &steam_client_path)
             .and_then(|path| parse_manifest_full(&path).ok())
             .map(|data| (data.build_id, data.state_flags))
             .unwrap_or_default()
