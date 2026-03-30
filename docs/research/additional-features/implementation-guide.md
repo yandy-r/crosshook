@@ -116,7 +116,7 @@ _Goal: CrossHook understands version relationships -- the gap no other tool fill
 | :---: | ------------------------------------------- | :----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 |  13   | **#41** -- Trainer/game version correlation |  Done  | Highest cross-perspective support (7/8). Detect game updates via Steam manifest changes, warn about trainer compatibility.                                    |
 |  14   | **#46** -- Configuration history / rollback |  Done  | Builds on version awareness. Track which configs worked, enable diff and rollback.                                                                            |
-|  15   | **#37** -- Trainer onboarding guidance      |        | With version tracking (#41), health dashboard (#38), and diagnostics (#36) in place, the onboarding flow can guide users through a complete, validated setup. |
+|  15   | **#37** -- Trainer onboarding guidance      |  Done  | With version tracking (#41), health dashboard (#38), and diagnostics (#36) in place, the onboarding flow can guide users through a complete, validated setup. |
 
 **Dependencies**: #41 depends on Steam manifest parsing (exists). #46 builds on #41's version awareness. #37 benefits from #38, #36, and #41 being complete.
 **Estimated effort**: 2-3 weeks total.
