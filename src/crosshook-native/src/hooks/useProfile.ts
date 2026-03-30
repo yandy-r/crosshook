@@ -4,6 +4,9 @@ import { listen } from '@tauri-apps/api/event';
 import type {
   AppSettingsData,
   BundledOptimizationPreset,
+  ConfigDiffResult,
+  ConfigRevisionSummary,
+  ConfigRollbackResult,
   DuplicateProfileResult,
   GameProfile,
   LauncherInfo,
@@ -40,6 +43,10 @@ export interface UseProfileResult {
   profileExists: boolean;
   pendingDelete: PendingDelete | null;
   launchOptimizationsStatus: LaunchOptimizationsStatus;
+  /** True while any config-history IPC call is in flight. */
+  historyLoading: boolean;
+  /** Error message from the most recent config-history operation; null when none. */
+  historyError: string | null;
   setProfileName: (name: string) => void;
   selectProfile: (name: string) => Promise<void>;
   hydrateProfile: (name: string, profile: GameProfile) => void;
@@ -70,10 +77,24 @@ export interface UseProfileResult {
   cancelDelete: () => void;
   refreshProfiles: () => Promise<void>;
   toggleFavorite: (name: string, favorite: boolean) => Promise<void>;
+  /** Returns the revision history for the named profile, newest-first. */
+  fetchConfigHistory: (profileName: string, limit?: number) => Promise<ConfigRevisionSummary[]>;
+  /** Returns a unified diff between a stored revision and the current profile state (or a second revision). */
+  fetchConfigDiff: (profileName: string, revisionId: number, rightRevisionId?: number) => Promise<ConfigDiffResult>;
+  /** Restores a stored revision, refreshes profile and health state on success. */
+  rollbackConfig: (profileName: string, revisionId: number) => Promise<ConfigRollbackResult>;
+  /** Marks a stored revision as the last known-good config for the profile. */
+  markKnownGood: (profileName: string, revisionId: number) => Promise<void>;
 }
 
 export interface UseProfileOptions {
   autoSelectFirstProfile?: boolean;
+  /**
+   * Optional callback invoked after a successful rollback so the caller can
+   * trigger a health revalidation without coupling the profile and health hooks.
+   * Called with the profile name that was restored.
+   */
+  onAfterRollback?: (profileName: string) => void;
 }
 
 export interface RenameProfileResult {
@@ -417,6 +438,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [duplicating, setDuplicating] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [launchOptimizationsStatus, setLaunchOptimizationsStatus] = useState<LaunchOptimizationsStatus>(
     buildLaunchOptimizationsStatus('proton_run', false)
@@ -431,6 +454,9 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   profileRef.current = profile;
   const selectedProfileRef = useRef(selectedProfile);
   selectedProfileRef.current = selectedProfile;
+
+  const onAfterRollbackRef = useRef(options.onAfterRollback);
+  onAfterRollbackRef.current = options.onAfterRollback;
 
   /** Serializes launch-optimization disk IPC so autosave / flush / preset saves cannot clobber each other. */
   const launchProfileWriteChainRef = useRef<Promise<unknown>>(Promise.resolve());
@@ -485,7 +511,10 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   }, [loadFavorites]);
 
   const loadProfile = useCallback(
-    async (name: string, loadOptions?: { loadErrorContext?: string }) => {
+    async (
+      name: string,
+      loadOptions?: { loadErrorContext?: string; throwOnFailure?: boolean }
+    ) => {
       const trimmed = name.trim();
       if (!trimmed) {
         setSelectedProfile('');
@@ -519,7 +548,11 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         }
       } catch (err) {
         const msg = formatLoadError(err);
-        setError(loadOptions?.loadErrorContext ? `${loadOptions.loadErrorContext}: ${msg}` : msg);
+        const fullMsg = loadOptions?.loadErrorContext ? `${loadOptions.loadErrorContext}: ${msg}` : msg;
+        setError(fullMsg);
+        if (loadOptions?.throwOnFailure) {
+          throw fullMsg;
+        }
       } finally {
         setLoading(false);
       }
@@ -1119,6 +1152,90 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     setPendingDelete(null);
   }, []);
 
+  const fetchConfigHistory = useCallback(
+    async (name: string, limit?: number): Promise<ConfigRevisionSummary[]> => {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        return await invoke<ConfigRevisionSummary[]>('profile_config_history', {
+          name,
+          ...(limit !== undefined ? { limit } : {}),
+        });
+      } catch (err) {
+        const message = formatInvokeError(err);
+        setHistoryError(message);
+        throw message;
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    []
+  );
+
+  const fetchConfigDiff = useCallback(
+    async (name: string, revisionId: number, rightRevisionId?: number): Promise<ConfigDiffResult> => {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        return await invoke<ConfigDiffResult>('profile_config_diff', {
+          name,
+          revisionId,
+          ...(rightRevisionId !== undefined ? { rightRevisionId } : {}),
+        });
+      } catch (err) {
+        const message = formatInvokeError(err);
+        setHistoryError(message);
+        throw message;
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    []
+  );
+
+  const rollbackConfig = useCallback(
+    async (name: string, revisionId: number): Promise<ConfigRollbackResult> => {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        const result = await invoke<ConfigRollbackResult>('profile_config_rollback', {
+          name,
+          revisionId,
+        });
+        await loadProfile(name, {
+          loadErrorContext: 'Rollback applied, but reloading the profile failed',
+          throwOnFailure: true,
+        });
+        onAfterRollbackRef.current?.(name);
+        return result;
+      } catch (err) {
+        const message = formatInvokeError(err);
+        setHistoryError(message);
+        throw message;
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [loadProfile]
+  );
+
+  const markKnownGood = useCallback(
+    async (name: string, revisionId: number): Promise<void> => {
+      setHistoryLoading(true);
+      setHistoryError(null);
+      try {
+        await invoke('profile_mark_known_good', { name, revisionId });
+      } catch (err) {
+        const message = formatInvokeError(err);
+        setHistoryError(message);
+        throw message;
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     void refreshProfiles().catch((err: unknown) => {
       setError(err instanceof Error ? err.message : String(err));
@@ -1257,6 +1374,8 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     profileExists,
     pendingDelete,
     launchOptimizationsStatus,
+    historyLoading,
+    historyError,
     setProfileName,
     selectProfile,
     hydrateProfile,
@@ -1276,5 +1395,9 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     cancelDelete,
     refreshProfiles,
     toggleFavorite,
+    fetchConfigHistory,
+    fetchConfigDiff,
+    rollbackConfig,
+    markKnownGood,
   };
 }

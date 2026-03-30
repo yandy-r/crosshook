@@ -299,14 +299,23 @@ fn nullable_text(value: &str) -> Option<String> {
     }
 }
 
-fn compute_content_hash(profile: &GameProfile) -> Option<String> {
-    let serialized = toml::to_string_pretty(profile).ok()?;
-    let digest = Sha256::digest(serialized.as_bytes());
+/// Compute a hex-encoded SHA-256 digest of arbitrary byte content.
+///
+/// Used by profile sync and config revision capture to produce deterministic
+/// content hashes. Exposed publicly so the Tauri command layer can reuse it
+/// instead of duplicating the hashing logic.
+pub fn sha256_hex(data: &[u8]) -> String {
+    let digest = Sha256::digest(data);
     let mut hex = String::with_capacity(digest.len() * 2);
     for byte in digest {
         let _ = write!(hex, "{byte:02x}");
     }
-    Some(hex)
+    hex
+}
+
+fn compute_content_hash(profile: &GameProfile) -> Option<String> {
+    let serialized = toml::to_string_pretty(profile).ok()?;
+    Some(sha256_hex(serialized.as_bytes()))
 }
 
 #[cfg(test)]

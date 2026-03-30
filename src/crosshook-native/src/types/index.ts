@@ -1,4 +1,5 @@
 export * from './profile';
+export * from './profile-history';
 export * from './profile-review';
 export * from './diagnostics';
 export * from './launch';
