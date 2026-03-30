@@ -282,3 +282,55 @@ pub struct FailureTrendRow {
     pub failures: i64,
     pub failure_modes: Option<String>,
 }
+
+/// Maximum number of version snapshot rows retained per profile.
+/// Older rows beyond this limit are pruned after each insert.
+pub const MAX_VERSION_SNAPSHOTS_PER_PROFILE: usize = 20;
+
+/// Maps to a row in the `version_snapshots` multi-row history table.
+#[derive(Debug, Clone)]
+pub struct VersionSnapshotRow {
+    pub id: i64,
+    pub profile_id: String,
+    pub steam_app_id: String,
+    pub steam_build_id: Option<String>,
+    pub trainer_version: Option<String>,
+    pub trainer_file_hash: Option<String>,
+    pub human_game_ver: Option<String>,
+    pub status: String,
+    pub checked_at: String,
+}
+
+/// Version correlation status between a game build and its trainer binary.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VersionCorrelationStatus {
+    /// No baseline snapshot recorded yet.
+    Untracked,
+    /// Game build ID and trainer hash match the last recorded snapshot.
+    Matched,
+    /// Game build ID changed since last snapshot; trainer hash unchanged.
+    GameUpdated,
+    /// Trainer binary hash changed since last snapshot; game build unchanged.
+    TrainerChanged,
+    /// Both game build ID and trainer hash changed since last snapshot.
+    BothChanged,
+    /// Status cannot be determined (e.g., missing manifest or hash).
+    Unknown,
+    /// Steam is currently updating the game (`StateFlags != 4`).
+    UpdateInProgress,
+}
+
+impl VersionCorrelationStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Untracked => "untracked",
+            Self::Matched => "matched",
+            Self::GameUpdated => "game_updated",
+            Self::TrainerChanged => "trainer_changed",
+            Self::BothChanged => "both_changed",
+            Self::Unknown => "unknown",
+            Self::UpdateInProgress => "update_in_progress",
+        }
+    }
+}
