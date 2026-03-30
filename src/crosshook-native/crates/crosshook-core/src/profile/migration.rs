@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::profile::models::resolve_launch_method;
 use crate::profile::toml_store::ProfileStore;
-use crate::steam::ProtonInstall;
 use crate::steam::proton::{discover_compat_tools, normalize_alias};
+use crate::steam::ProtonInstall;
 
 /// Which profile field contains the stale Proton path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -453,7 +453,9 @@ pub fn apply_single_migration(
     }
 
     // Atomic write: serialize storage form → .toml.tmp → rename to .toml.
-    let profile_path = store.base_path.join(format!("{}.toml", request.profile_name));
+    let profile_path = store
+        .base_path
+        .join(format!("{}.toml", request.profile_name));
     let tmp_path = profile_path.with_extension("toml.tmp");
 
     let toml_str = match toml::to_string_pretty(&profile.storage_profile()) {
@@ -610,8 +612,8 @@ mod tests {
     // --- find_best_replacement ---
 
     fn make_install(name: &str, path: &str, is_official: bool) -> ProtonInstall {
-        use std::collections::BTreeSet;
         use crate::steam::proton::normalize_alias;
+        use std::collections::BTreeSet;
 
         let mut normalized_aliases = BTreeSet::new();
         if let Some(n) = normalize_alias(name) {

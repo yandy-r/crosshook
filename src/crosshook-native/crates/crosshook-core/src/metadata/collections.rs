@@ -1,6 +1,6 @@
-use super::{db, MetadataStoreError};
 use super::models::CollectionRow;
 use super::profile_sync::lookup_profile_id;
+use super::{db, MetadataStoreError};
 use chrono::Utc;
 use rusqlite::{params, Connection};
 

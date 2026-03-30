@@ -5,7 +5,7 @@ use crosshook_core::profile::{
 use crosshook_core::settings::SettingsStore;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
 const STEAM_ROOT_SUFFIXES: [&str; 2] = ["/.local/share/Steam", "/.steam/root"];
@@ -76,6 +76,12 @@ fn save_launch_optimizations_for_profile(
         .map_err(map_error)
 }
 
+fn emit_profiles_changed(app: &AppHandle, reason: &str) {
+    if let Err(error) = app.emit("profiles-changed", reason.to_string()) {
+        tracing::warn!(%error, reason, "failed to emit profiles-changed event");
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LaunchOptimizationsPayload {
     #[serde(
@@ -100,18 +106,24 @@ pub fn profile_load(name: String, store: State<'_, ProfileStore>) -> Result<Game
 pub fn profile_save(
     name: String,
     data: GameProfile,
+    app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
     store.save(&name, &data).map_err(map_error)?;
 
     let profile_path = store.base_path.join(format!("{name}.toml"));
-    if let Err(e) =
-        metadata_store.observe_profile_write(&name, &data, &profile_path, SyncSource::AppWrite, None)
-    {
+    if let Err(e) = metadata_store.observe_profile_write(
+        &name,
+        &data,
+        &profile_path,
+        SyncSource::AppWrite,
+        None,
+    ) {
         tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save failed");
     }
 
+    emit_profiles_changed(&app, "saved");
     Ok(())
 }
 
@@ -147,6 +159,7 @@ pub fn profile_save_launch_optimizations(
 #[tauri::command]
 pub fn profile_delete(
     name: String,
+    app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
@@ -164,6 +177,7 @@ pub fn profile_delete(
         tracing::warn!(%e, profile_name = %name, "metadata sync after profile_delete failed");
     }
 
+    emit_profiles_changed(&app, "deleted");
     Ok(())
 }
 
@@ -187,10 +201,7 @@ pub fn profile_duplicate(
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<DuplicateProfileResult, String> {
-    let source_profile_id = metadata_store
-        .lookup_profile_id(&name)
-        .ok()
-        .flatten();
+    let source_profile_id = metadata_store.lookup_profile_id(&name).ok().flatten();
 
     let result = store.duplicate(&name).map_err(map_error)?;
 
@@ -268,6 +279,7 @@ pub fn profile_rename(
 #[tauri::command]
 pub fn profile_import_legacy(
     path: String,
+    app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<GameProfile, String> {
@@ -284,6 +296,7 @@ pub fn profile_import_legacy(
         tracing::warn!(%e, profile_name = %stem, "metadata sync after import_legacy failed");
     }
 
+    emit_profiles_changed(&app, "imported-legacy");
     Ok(profile)
 }
 
@@ -299,16 +312,23 @@ pub fn profile_export_toml(name: String, data: GameProfile) -> Result<String, St
 pub fn profile_set_favorite(
     name: String,
     favorite: bool,
+    app: AppHandle,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
-    metadata_store.set_profile_favorite(&name, favorite).map_err(|e| e.to_string())
+    metadata_store
+        .set_profile_favorite(&name, favorite)
+        .map_err(|e| e.to_string())?;
+    emit_profiles_changed(&app, "favorite-updated");
+    Ok(())
 }
 
 #[tauri::command]
 pub fn profile_list_favorites(
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<Vec<String>, String> {
-    metadata_store.list_favorite_profiles().map_err(|e| e.to_string())
+    metadata_store
+        .list_favorite_profiles()
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

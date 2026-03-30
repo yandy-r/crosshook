@@ -125,12 +125,11 @@ pub fn export_diagnostic_bundle(
     })?;
 
     let archive_path = output_dir.join(&archive_name);
-    let archive_file =
-        File::create(&archive_path).map_err(|source| DiagnosticBundleError::Io {
-            action: "create the archive file",
-            path: archive_path.clone(),
-            source,
-        })?;
+    let archive_file = File::create(&archive_path).map_err(|source| DiagnosticBundleError::Io {
+        action: "create the archive file",
+        path: archive_path.clone(),
+        source,
+    })?;
 
     let encoder = GzEncoder::new(archive_file, Compression::default());
     let mut tar = Builder::new(encoder);
@@ -146,14 +145,8 @@ pub fn export_diagnostic_bundle(
     let health_summary = collect_health_summary(profile_store);
     append_text(&mut tar, &prefix, "health-summary.json", &health_summary)?;
 
-    let (steam_diag_text, proton_installs_json, proton_install_count) =
-        collect_steam_diagnostics();
-    append_text(
-        &mut tar,
-        &prefix,
-        "steam-diagnostics.txt",
-        &steam_diag_text,
-    )?;
+    let (steam_diag_text, proton_installs_json, proton_install_count) = collect_steam_diagnostics();
+    append_text(&mut tar, &prefix, "steam-diagnostics.txt", &steam_diag_text)?;
     append_text(
         &mut tar,
         &prefix,
@@ -221,9 +214,7 @@ fn collect_system_info() -> String {
     lines.push(String::new());
 
     lines.push("=== OS Release ===".to_string());
-    lines.push(
-        read_file_lossy("/etc/os-release").unwrap_or_else(|| "(unavailable)".to_string()),
-    );
+    lines.push(read_file_lossy("/etc/os-release").unwrap_or_else(|| "(unavailable)".to_string()));
     lines.push(String::new());
 
     lines.push("=== CPU ===".to_string());
@@ -302,10 +293,7 @@ fn collect_system_info() -> String {
 fn collect_crosshook_info(settings_store: &SettingsStore, redact_paths: bool) -> String {
     let mut lines = Vec::new();
 
-    lines.push(format!(
-        "CrossHook version: {}",
-        env!("CARGO_PKG_VERSION")
-    ));
+    lines.push(format!("CrossHook version: {}", env!("CARGO_PKG_VERSION")));
     lines.push(format!(
         "Settings path: {}",
         settings_store.settings_path().display()
@@ -314,7 +302,10 @@ fn collect_crosshook_info(settings_store: &SettingsStore, redact_paths: bool) ->
 
     match settings_store.load() {
         Ok(data) => {
-            lines.push(format!("auto_load_last_profile: {}", data.auto_load_last_profile));
+            lines.push(format!(
+                "auto_load_last_profile: {}",
+                data.auto_load_last_profile
+            ));
             lines.push(format!("last_used_profile: {}", data.last_used_profile));
             lines.push(format!("community_taps: {}", data.community_taps.len()));
             for tap in &data.community_taps {
@@ -444,10 +435,7 @@ fn collect_launch_logs_from(dir: &Path) -> Vec<(String, Vec<u8>)> {
         .into_iter()
         .filter_map(|(path, _)| {
             let data = read_file_tail_bytes(&path, MAX_LOG_FILE_BYTES)?;
-            let filename = path
-                .file_name()
-                .and_then(|n| n.to_str())?
-                .to_string();
+            let filename = path.file_name().and_then(|n| n.to_str())?.to_string();
             Some((filename, data))
         })
         .collect()
@@ -456,8 +444,7 @@ fn collect_launch_logs_from(dir: &Path) -> Vec<(String, Vec<u8>)> {
 /// Runs Steam discovery and Proton enumeration.
 fn collect_steam_diagnostics() -> (String, String, usize) {
     let mut diagnostics = Vec::new();
-    let root_candidates =
-        steam::discover_steam_root_candidates("", &mut diagnostics);
+    let root_candidates = steam::discover_steam_root_candidates("", &mut diagnostics);
 
     let mut lines = Vec::new();
     lines.push("=== Steam Root Candidates ===".to_string());
@@ -480,8 +467,7 @@ fn collect_steam_diagnostics() -> (String, String, usize) {
     }
 
     let mut proton_diagnostics = Vec::new();
-    let proton_installs =
-        steam::discover_compat_tools(&root_candidates, &mut proton_diagnostics);
+    let proton_installs = steam::discover_compat_tools(&root_candidates, &mut proton_diagnostics);
     let proton_count = proton_installs.len();
 
     if !proton_diagnostics.is_empty() {
@@ -492,8 +478,8 @@ fn collect_steam_diagnostics() -> (String, String, usize) {
         }
     }
 
-    let proton_json = serde_json::to_string_pretty(&proton_installs)
-        .unwrap_or_else(|_| "[]".to_string());
+    let proton_json =
+        serde_json::to_string_pretty(&proton_installs).unwrap_or_else(|_| "[]".to_string());
 
     (lines.join("\n"), proton_json, proton_count)
 }
@@ -501,8 +487,7 @@ fn collect_steam_diagnostics() -> (String, String, usize) {
 /// Runs batch health check across all profiles and serializes the result.
 fn collect_health_summary(store: &ProfileStore) -> String {
     match batch_check_health(store) {
-        summary => serde_json::to_string_pretty(&summary)
-            .unwrap_or_else(|_| "{}".to_string()),
+        summary => serde_json::to_string_pretty(&summary).unwrap_or_else(|_| "{}".to_string()),
     }
 }
 
@@ -643,9 +628,7 @@ mod tests {
         fs::create_dir_all(&profiles_dir).unwrap();
         fs::write(
             profiles_dir.join("test.toml"),
-            format!(
-                "[game]\nname = \"Test\"\nexecutable_path = \"{home}/games/test.exe\"\n"
-            ),
+            format!("[game]\nname = \"Test\"\nexecutable_path = \"{home}/games/test.exe\"\n"),
         )
         .unwrap();
 
@@ -755,7 +738,10 @@ mod tests {
         assert!(Path::new(&result.archive_path).exists());
         assert!(result.archive_path.ends_with(".tar.gz"));
         assert_eq!(result.summary.profile_count, 1);
-        assert!(result.summary.crosshook_version.contains(env!("CARGO_PKG_VERSION")));
+        assert!(result
+            .summary
+            .crosshook_version
+            .contains(env!("CARGO_PKG_VERSION")));
 
         // Decompress and verify archive contents.
         let archive_file = File::open(&result.archive_path).unwrap();
@@ -772,11 +758,21 @@ mod tests {
 
         // Check that essential files are present.
         assert!(entry_paths.iter().any(|p| p.ends_with("system-info.txt")));
-        assert!(entry_paths.iter().any(|p| p.ends_with("crosshook-info.txt")));
-        assert!(entry_paths.iter().any(|p| p.ends_with("health-summary.json")));
-        assert!(entry_paths.iter().any(|p| p.ends_with("steam-diagnostics.txt")));
-        assert!(entry_paths.iter().any(|p| p.ends_with("proton-installs.json")));
+        assert!(entry_paths
+            .iter()
+            .any(|p| p.ends_with("crosshook-info.txt")));
+        assert!(entry_paths
+            .iter()
+            .any(|p| p.ends_with("health-summary.json")));
+        assert!(entry_paths
+            .iter()
+            .any(|p| p.ends_with("steam-diagnostics.txt")));
+        assert!(entry_paths
+            .iter()
+            .any(|p| p.ends_with("proton-installs.json")));
         assert!(entry_paths.iter().any(|p| p.ends_with("settings.toml")));
-        assert!(entry_paths.iter().any(|p| p.contains("profiles/test-game.toml")));
+        assert!(entry_paths
+            .iter()
+            .any(|p| p.contains("profiles/test-game.toml")));
     }
 }

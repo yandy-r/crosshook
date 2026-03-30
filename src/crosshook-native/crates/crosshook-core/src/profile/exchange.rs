@@ -3,11 +3,11 @@ use super::community_schema::{
     COMMUNITY_PROFILE_SCHEMA_VERSION,
 };
 use crate::profile::{GameProfile, ProfileStore, ProfileStoreError};
+use crate::steam::proton::resolve_proton_path;
 use crate::steam::{
     attempt_auto_populate, discover_steam_root_candidates, SteamAutoPopulateFieldState,
     SteamAutoPopulateRequest,
 };
-use crate::steam::proton::resolve_proton_path;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::error::Error;
@@ -85,6 +85,14 @@ pub struct CommunityImportResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommunityImportPreview {
+    pub profile_name: String,
+    pub source_path: PathBuf,
+    pub profile: GameProfile,
+    pub manifest: CommunityProfileManifest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommunityExportResult {
     pub profile_name: String,
     pub output_path: PathBuf,
@@ -95,6 +103,26 @@ pub fn import_community_profile(
     json_path: &Path,
     profiles_dir: &Path,
 ) -> Result<CommunityImportResult, CommunityExchangeError> {
+    let preview = preview_community_profile_import(json_path)?;
+    let profile_name = preview.profile_name.clone();
+    let profile = preview.profile.clone();
+    let manifest = preview.manifest.clone();
+
+    let store = ProfileStore::with_base_path(profiles_dir.to_path_buf());
+    store.save(&profile_name, &profile)?;
+
+    Ok(CommunityImportResult {
+        profile_name: profile_name.clone(),
+        source_path: json_path.to_path_buf(),
+        profile_path: profiles_dir.join(format!("{profile_name}.toml")),
+        profile,
+        manifest,
+    })
+}
+
+pub fn preview_community_profile_import(
+    json_path: &Path,
+) -> Result<CommunityImportPreview, CommunityExchangeError> {
     let content = fs::read_to_string(json_path).map_err(|error| CommunityExchangeError::Io {
         action: "read the community profile JSON".to_string(),
         path: json_path.to_path_buf(),
@@ -119,13 +147,9 @@ pub fn import_community_profile(
     let profile_name = derive_import_name(&manifest, json_path);
     let hydrated_profile = hydrate_imported_profile(&manifest.profile);
 
-    let store = ProfileStore::with_base_path(profiles_dir.to_path_buf());
-    store.save(&profile_name, &hydrated_profile)?;
-
-    Ok(CommunityImportResult {
-        profile_name: profile_name.clone(),
+    Ok(CommunityImportPreview {
+        profile_name,
         source_path: json_path.to_path_buf(),
-        profile_path: profiles_dir.join(format!("{profile_name}.toml")),
         profile: hydrated_profile,
         manifest,
     })
@@ -274,7 +298,8 @@ fn hydrate_imported_profile(profile: &GameProfile) -> GameProfile {
 
     hydrate_from_steam_app_id(&mut hydrated);
 
-    if hydrated.runtime.prefix_path.trim().is_empty() && !hydrated.steam.compatdata_path.trim().is_empty()
+    if hydrated.runtime.prefix_path.trim().is_empty()
+        && !hydrated.steam.compatdata_path.trim().is_empty()
     {
         hydrated.runtime.prefix_path = hydrated.steam.compatdata_path.clone();
     }
@@ -495,11 +520,17 @@ mod tests {
         let value: Value = serde_json::from_str(&json).unwrap();
         let prof = value.get("profile").and_then(Value::as_object).unwrap();
         let game = prof.get("game").and_then(Value::as_object).unwrap();
-        assert_eq!(game.get("executable_path").and_then(Value::as_str), Some(""));
+        assert_eq!(
+            game.get("executable_path").and_then(Value::as_str),
+            Some("")
+        );
         let trainer = prof.get("trainer").and_then(Value::as_object).unwrap();
         assert_eq!(trainer.get("path").and_then(Value::as_str), Some(""));
         let steam = prof.get("steam").and_then(Value::as_object).unwrap();
-        assert_eq!(steam.get("compatdata_path").and_then(Value::as_str), Some(""));
+        assert_eq!(
+            steam.get("compatdata_path").and_then(Value::as_str),
+            Some("")
+        );
         assert_eq!(steam.get("proton_path").and_then(Value::as_str), Some(""));
     }
 

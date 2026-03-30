@@ -11,19 +11,21 @@ pub use community_schema::{
     COMMUNITY_PROFILE_SCHEMA_VERSION,
 };
 pub use exchange::{
-    export_community_profile, import_community_profile, CommunityExchangeError,
-    CommunityExportResult, CommunityImportResult,
+    export_community_profile, import_community_profile, preview_community_profile_import,
+    CommunityExchangeError, CommunityExportResult, CommunityImportPreview, CommunityImportResult,
 };
 pub use legacy::{delete, list, load, save, validate_name};
 pub use models::{
-    GameProfile, GameSection, InjectionSection, LaunchOptimizationsSection, LaunchSection,
-    LauncherSection, LegacyProfileData, LocalOverrideGameSection, LocalOverrideRuntimeSection,
-    LocalOverrideSection, LocalOverrideSteamSection, LocalOverrideTrainerSection, RuntimeSection,
-    SteamSection, TrainerLoadingMode, TrainerSection, resolve_launch_method,
+    resolve_launch_method, GameProfile, GameSection, InjectionSection, LaunchOptimizationsSection,
+    LaunchSection, LauncherSection, LegacyProfileData, LocalOverrideGameSection,
+    LocalOverrideRuntimeSection, LocalOverrideSection, LocalOverrideSteamSection,
+    LocalOverrideTrainerSection, RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
 };
 pub use toml_store::{
-    DuplicateProfileResult, ProfileStore, ProfileStoreError, profile_to_shareable_toml,
+    profile_to_shareable_toml, DuplicateProfileResult, ProfileStore, ProfileStoreError,
 };
 pub mod health;
-pub use health::{HealthStatus, HealthIssueSeverity, HealthIssue, ProfileHealthReport, HealthCheckSummary};
+pub use health::{
+    HealthCheckSummary, HealthIssue, HealthIssueSeverity, HealthStatus, ProfileHealthReport,
+};
 pub mod migration;

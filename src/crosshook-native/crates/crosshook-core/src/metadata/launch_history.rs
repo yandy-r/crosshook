@@ -1,6 +1,6 @@
-use super::{db, MetadataStoreError};
 use super::models::{LaunchOutcome, MAX_DIAGNOSTIC_JSON_BYTES};
 use super::profile_sync::lookup_profile_id;
+use super::{db, MetadataStoreError};
 use crate::launch::diagnostics::models::{DiagnosticReport, FailureMode};
 use chrono::Utc;
 use rusqlite::{params, Connection};

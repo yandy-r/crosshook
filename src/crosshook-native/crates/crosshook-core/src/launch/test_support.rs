@@ -16,9 +16,8 @@ impl ScopedCommandSearchPath {
         let guard = path_lock()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let previous = crate::launch::optimizations::swap_test_command_search_path(Some(
-            value.to_path_buf(),
-        ));
+        let previous =
+            crate::launch::optimizations::swap_test_command_search_path(Some(value.to_path_buf()));
 
         Self {
             previous,

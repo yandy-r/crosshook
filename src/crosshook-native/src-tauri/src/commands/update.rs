@@ -3,8 +3,8 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use crosshook_core::update::{
-    update_game as update_game_core,
-    validate_update_request as validate_update_request_core, UpdateGameRequest, UpdateGameResult,
+    update_game as update_game_core, validate_update_request as validate_update_request_core,
+    UpdateGameRequest, UpdateGameResult,
 };
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -58,9 +58,7 @@ pub async fn update_game(
 }
 
 #[tauri::command]
-pub async fn cancel_update(
-    state: tauri::State<'_, UpdateProcessState>,
-) -> Result<(), String> {
+pub async fn cancel_update(state: tauri::State<'_, UpdateProcessState>) -> Result<(), String> {
     let pid = state.pid.lock().unwrap().take();
 
     if let Some(pid) = pid {

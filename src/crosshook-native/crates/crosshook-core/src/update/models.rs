@@ -57,15 +57,9 @@ pub enum UpdateGameValidationError {
 impl UpdateGameValidationError {
     pub fn message(&self) -> String {
         match self {
-            Self::UpdaterPathRequired => {
-                "The updater executable path is required.".to_string()
-            }
-            Self::UpdaterPathMissing => {
-                "The updater executable path does not exist.".to_string()
-            }
-            Self::UpdaterPathNotFile => {
-                "The updater executable path must be a file.".to_string()
-            }
+            Self::UpdaterPathRequired => "The updater executable path is required.".to_string(),
+            Self::UpdaterPathMissing => "The updater executable path does not exist.".to_string(),
+            Self::UpdaterPathNotFile => "The updater executable path must be a file.".to_string(),
             Self::UpdaterPathNotWindowsExecutable => {
                 "The updater executable path must point to a Windows .exe file.".to_string()
             }
@@ -76,9 +70,7 @@ impl UpdateGameValidationError {
             }
             Self::PrefixPathRequired => "A prefix path is required.".to_string(),
             Self::PrefixPathMissing => "The prefix path does not exist.".to_string(),
-            Self::PrefixPathNotDirectory => {
-                "The prefix path must be a directory.".to_string()
-            }
+            Self::PrefixPathNotDirectory => "The prefix path must be a directory.".to_string(),
         }
     }
 }

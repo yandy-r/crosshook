@@ -76,8 +76,10 @@ pub fn run() {
                         sleep(Duration::from_millis(500)).await;
                         let store = app_handle.state::<ProfileStore>();
                         let metadata_store = app_handle.state::<MetadataStore>();
-                        let summary =
-                            commands::health::build_enriched_health_summary(&store, &metadata_store);
+                        let summary = commands::health::build_enriched_health_summary(
+                            &store,
+                            &metadata_store,
+                        );
                         match app_handle.emit("profile-health-batch-complete", &summary) {
                             Ok(()) => {
                                 tracing::info!(
@@ -126,6 +128,7 @@ pub fn run() {
             commands::community::community_add_tap,
             commands::community::community_export_profile,
             commands::community::community_import_profile,
+            commands::community::community_prepare_import,
             commands::community::community_list_profiles,
             commands::community::community_sync,
             commands::install::install_default_prefix_path,
