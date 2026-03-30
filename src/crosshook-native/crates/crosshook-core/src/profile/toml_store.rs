@@ -18,6 +18,7 @@ pub enum ProfileStoreError {
     NotFound(PathBuf),
     AlreadyExists(String),
     InvalidLaunchOptimizationId(String),
+    LaunchPresetNotFound(String),
     Io(std::io::Error),
     TomlDe(toml::de::Error),
     TomlSer(toml::ser::Error),
@@ -33,6 +34,9 @@ impl fmt::Display for ProfileStoreError {
             }
             Self::InvalidLaunchOptimizationId(id) => {
                 write!(f, "unknown launch optimization id: {id}")
+            }
+            Self::LaunchPresetNotFound(name) => {
+                write!(f, "launch optimization preset not found: {name}")
             }
             Self::Io(error) => write!(f, "{error}"),
             Self::TomlDe(error) => write!(f, "{error}"),
@@ -107,6 +111,7 @@ impl ProfileStore {
         let profile: GameProfile = toml::from_str(&content)?;
         let mut effective = profile.effective_profile();
         effective.local_override = LocalOverrideSection::default();
+        effective.launch.normalize_preset_selection();
         Ok(effective)
     }
 
@@ -125,15 +130,48 @@ impl ProfileStore {
         &self,
         name: &str,
         enabled_option_ids: Vec<String>,
+        switch_active_preset: Option<String>,
     ) -> Result<(), ProfileStoreError> {
-        for id in &enabled_option_ids {
-            if !is_known_launch_optimization_id(id) {
-                return Err(ProfileStoreError::InvalidLaunchOptimizationId(id.clone()));
+        let mut profile = self.load(name)?;
+
+        if let Some(raw) = switch_active_preset {
+            let key = raw.trim();
+            if key.is_empty() {
+                return Err(ProfileStoreError::LaunchPresetNotFound(raw));
+            }
+
+            let section = profile
+                .launch
+                .presets
+                .get(key)
+                .ok_or_else(|| ProfileStoreError::LaunchPresetNotFound(key.to_string()))?
+                .clone();
+
+            for id in &section.enabled_option_ids {
+                if !is_known_launch_optimization_id(id) {
+                    return Err(ProfileStoreError::InvalidLaunchOptimizationId(id.clone()));
+                }
+            }
+
+            profile.launch.active_preset = key.to_string();
+            profile.launch.optimizations = section;
+        } else {
+            for id in &enabled_option_ids {
+                if !is_known_launch_optimization_id(id) {
+                    return Err(ProfileStoreError::InvalidLaunchOptimizationId(id.clone()));
+                }
+            }
+
+            profile.launch.optimizations = LaunchOptimizationsSection { enabled_option_ids };
+
+            let ap = profile.launch.active_preset.trim();
+            if !ap.is_empty() {
+                if let Some(slot) = profile.launch.presets.get_mut(ap) {
+                    slot.enabled_option_ids = profile.launch.optimizations.enabled_option_ids.clone();
+                }
             }
         }
 
-        let mut profile = self.load(name)?;
-        profile.launch.optimizations = LaunchOptimizationsSection { enabled_option_ids };
         self.save(name, &profile)
     }
 
@@ -591,7 +629,11 @@ method = "native"
             ],
         };
         store
-            .save_launch_optimizations("elden-ring", optimizations.enabled_option_ids.clone())
+            .save_launch_optimizations(
+                "elden-ring",
+                optimizations.enabled_option_ids.clone(),
+                None,
+            )
             .unwrap();
 
         let loaded = store.load("elden-ring").unwrap();
@@ -609,8 +651,11 @@ method = "native"
         let temp_dir = tempdir().unwrap();
         let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
 
-        let result =
-            store.save_launch_optimizations("missing-profile", vec!["use_gamemode".to_string()]);
+        let result = store.save_launch_optimizations(
+            "missing-profile",
+            vec!["use_gamemode".to_string()],
+            None,
+        );
 
         assert!(matches!(result, Err(ProfileStoreError::NotFound(_))));
     }
@@ -626,11 +671,182 @@ method = "native"
         let result = store.save_launch_optimizations(
             "elden-ring",
             vec!["not_a_real_launch_optimization".to_string()],
+            None,
         );
 
         assert!(matches!(
             result,
             Err(ProfileStoreError::InvalidLaunchOptimizationId(id)) if id == "not_a_real_launch_optimization"
+        ));
+    }
+
+    #[test]
+    fn load_normalizes_optimizations_from_active_preset() {
+        use std::collections::BTreeMap;
+
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        fs::create_dir_all(&store.base_path).unwrap();
+
+        let toml = r#"[game]
+name = "Test"
+executable_path = "/games/test.exe"
+
+[trainer]
+path = ""
+type = ""
+loading_mode = "source_directory"
+
+[injection]
+dll_paths = []
+inject_on_launch = [false, false]
+
+[steam]
+enabled = false
+app_id = ""
+compatdata_path = ""
+proton_path = ""
+
+[steam.launcher]
+icon_path = ""
+display_name = ""
+
+[runtime]
+prefix_path = ""
+proton_path = ""
+working_directory = ""
+
+[launch]
+method = "proton_run"
+active_preset = "performance"
+
+[launch.optimizations]
+enabled_option_ids = ["enable_hdr"]
+
+[launch.presets.performance]
+enabled_option_ids = ["use_gamemode", "disable_steam_input"]
+
+[launch.presets.quality]
+enabled_option_ids = ["enable_hdr"]
+"#;
+        fs::write(store.profile_path("preset-test").unwrap(), toml).unwrap();
+
+        let loaded = store.load("preset-test").unwrap();
+        assert_eq!(loaded.launch.active_preset, "performance");
+        assert_eq!(
+            loaded.launch.optimizations.enabled_option_ids,
+            vec!["use_gamemode".to_string(), "disable_steam_input".to_string()]
+        );
+        let mut expected = BTreeMap::new();
+        expected.insert(
+            "performance".to_string(),
+            LaunchOptimizationsSection {
+                enabled_option_ids: vec![
+                    "use_gamemode".to_string(),
+                    "disable_steam_input".to_string(),
+                ],
+            },
+        );
+        expected.insert(
+            "quality".to_string(),
+            LaunchOptimizationsSection {
+                enabled_option_ids: vec!["enable_hdr".to_string()],
+            },
+        );
+        assert_eq!(loaded.launch.presets, expected);
+    }
+
+    #[test]
+    fn save_launch_optimizations_updates_active_preset_entry() {
+        use std::collections::BTreeMap;
+
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let mut profile = sample_profile();
+
+        let mut presets = BTreeMap::new();
+        presets.insert(
+            "a".to_string(),
+            LaunchOptimizationsSection {
+                enabled_option_ids: vec!["use_gamemode".to_string()],
+            },
+        );
+        profile.launch.presets = presets;
+        profile.launch.active_preset = "a".to_string();
+        profile.launch.optimizations = profile.launch.presets["a"].clone();
+
+        store.save("p", &profile).unwrap();
+
+        store
+            .save_launch_optimizations(
+                "p",
+                vec!["use_ntsync".to_string(), "disable_esync".to_string()],
+                None,
+            )
+            .unwrap();
+
+        let loaded = store.load("p").unwrap();
+        assert_eq!(loaded.launch.active_preset, "a");
+        assert_eq!(
+            loaded.launch.optimizations.enabled_option_ids,
+            vec!["use_ntsync".to_string(), "disable_esync".to_string()]
+        );
+        assert_eq!(
+            loaded.launch.presets["a"].enabled_option_ids,
+            vec!["use_ntsync".to_string(), "disable_esync".to_string()]
+        );
+    }
+
+    #[test]
+    fn save_launch_optimizations_switch_active_preset() {
+        use std::collections::BTreeMap;
+
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        let mut profile = sample_profile();
+
+        let mut presets = BTreeMap::new();
+        presets.insert(
+            "a".to_string(),
+            LaunchOptimizationsSection {
+                enabled_option_ids: vec!["use_gamemode".to_string()],
+            },
+        );
+        presets.insert(
+            "b".to_string(),
+            LaunchOptimizationsSection {
+                enabled_option_ids: vec!["enable_hdr".to_string()],
+            },
+        );
+        profile.launch.presets = presets;
+        profile.launch.active_preset = "a".to_string();
+        profile.launch.optimizations = profile.launch.presets["a"].clone();
+
+        store.save("p", &profile).unwrap();
+
+        store
+            .save_launch_optimizations("p", vec![], Some("b".to_string()))
+            .unwrap();
+
+        let loaded = store.load("p").unwrap();
+        assert_eq!(loaded.launch.active_preset, "b");
+        assert_eq!(
+            loaded.launch.optimizations.enabled_option_ids,
+            vec!["enable_hdr".to_string()]
+        );
+    }
+
+    #[test]
+    fn save_launch_optimizations_rejects_missing_preset_name() {
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+        store.save("p", &sample_profile()).unwrap();
+
+        let result = store.save_launch_optimizations("p", vec![], Some("nope".to_string()));
+
+        assert!(matches!(
+            result,
+            Err(ProfileStoreError::LaunchPresetNotFound(name)) if name == "nope"
         ));
     }
 

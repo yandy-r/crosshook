@@ -65,6 +65,11 @@ export function LaunchPage() {
     [pinnedSet, profileState.toggleFavorite]
   );
 
+  const optimizationPresetNames = useMemo(
+    () => Object.keys(profile.launch.presets ?? {}).sort((a, b) => a.localeCompare(b)),
+    [profile.launch.presets]
+  );
+
   return (
     <>
       <PageBanner
@@ -109,6 +114,11 @@ export function LaunchPage() {
               enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
               onToggleOption={profileState.toggleLaunchOptimization}
               status={profileState.launchOptimizationsStatus}
+              optimizationPresetNames={optimizationPresetNames}
+              activeOptimizationPreset={profile.launch.active_preset ?? ''}
+              onSelectOptimizationPreset={(name) => {
+                void profileState.switchLaunchOptimizationPreset(name);
+              }}
             />
           </CollapsibleSection>
         ) : null}

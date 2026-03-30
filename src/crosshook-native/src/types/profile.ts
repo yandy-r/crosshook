@@ -50,6 +50,10 @@ export interface GameProfile {
   launch: {
     method: LaunchMethod;
     optimizations: LaunchOptimizations;
+    /** Named optimization bundles (`[launch.presets.<name>]` in profile TOML). */
+    presets?: Record<string, LaunchOptimizations>;
+    /** When set and present in `presets`, optimizations are kept in sync with that entry. */
+    active_preset?: string;
   };
   local_override?: {
     game: {

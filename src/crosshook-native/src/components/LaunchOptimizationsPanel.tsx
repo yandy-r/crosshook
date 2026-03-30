@@ -1,6 +1,7 @@
-import { useId, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import type { LaunchMethod } from '../types';
 import { CollapsibleSection } from './ui/CollapsibleSection';
+import { ThemedSelect } from './ui/ThemedSelect';
 import {
   LAUNCH_OPTIMIZATION_CATEGORIES,
   LAUNCH_OPTIMIZATION_CATEGORY_LABELS,
@@ -29,6 +30,10 @@ export interface LaunchOptimizationsPanelProps {
   onToggleOption: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
   status?: LaunchOptimizationsPanelStatus;
   className?: string;
+  /** Sorted preset names from `launch.presets` (empty hides the preset row). */
+  optimizationPresetNames?: readonly string[];
+  activeOptimizationPreset?: string;
+  onSelectOptimizationPreset?: (presetName: string) => void;
 }
 
 interface GroupedOptions {
@@ -329,12 +334,27 @@ export function LaunchOptimizationsPanel({
   onToggleOption,
   status,
   className,
+  optimizationPresetNames = [],
+  activeOptimizationPreset = '',
+  onSelectOptimizationPreset,
 }: LaunchOptimizationsPanelProps) {
   const titleId = useId();
+  const presetSelectId = useId();
   const tooltipIdPrefix = useId();
   const [tooltipId, setTooltipId] = useState<LaunchOptimizationId | null>(null);
 
   const isMethodSupported = method === 'proton_run' || method === 'steam_applaunch';
+  const hasNamedPresets = optimizationPresetNames.length > 0 && onSelectOptimizationPreset !== undefined;
+  const presetSelectValue = useMemo(() => {
+    if (!activeOptimizationPreset.trim()) {
+      return '';
+    }
+    return optimizationPresetNames.includes(activeOptimizationPreset) ? activeOptimizationPreset : '';
+  }, [activeOptimizationPreset, optimizationPresetNames]);
+  const presetOptions = useMemo(
+    () => optimizationPresetNames.map((name) => ({ value: name, label: name })),
+    [optimizationPresetNames]
+  );
   const seen = new Set<LaunchOptimizationId>();
   const selectedOptionIds = enabledOptionIds.filter((optionId) => {
     if (!LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId] || seen.has(optionId)) {
@@ -393,6 +413,25 @@ export function LaunchOptimizationsPanel({
         <p className="crosshook-launch-optimizations__status-copy">{resolvedStatus.label}</p>
         {resolvedStatus.detail ? <p className="crosshook-help-text">{resolvedStatus.detail}</p> : null}
       </div>
+
+      {hasNamedPresets && isMethodSupported ? (
+        <div className="crosshook-launch-optimizations__preset-row">
+          <label className="crosshook-launch-optimizations__preset-label" htmlFor={presetSelectId}>
+            Optimization preset
+          </label>
+          <ThemedSelect
+            id={presetSelectId}
+            value={presetSelectValue}
+            onValueChange={(value) => onSelectOptimizationPreset?.(value)}
+            options={presetOptions}
+            placeholder="Select a preset"
+          />
+          <p className="crosshook-help-text crosshook-launch-optimizations__preset-help">
+            Named presets are defined in the profile TOML under <code>[launch.presets.&lt;name&gt;]</code>. Edit
+            the file to add or change presets; this control only switches the active one.
+          </p>
+        </div>
+      ) : null}
 
       {!isMethodSupported ? (
         <div className="crosshook-warning-banner crosshook-launch-optimizations__method-warning">

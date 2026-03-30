@@ -72,7 +72,11 @@ fn save_launch_optimizations_for_profile(
     store: &ProfileStore,
 ) -> Result<(), String> {
     store
-        .save_launch_optimizations(name, optimizations.enabled_option_ids.clone())
+        .save_launch_optimizations(
+            name,
+            optimizations.enabled_option_ids.clone(),
+            optimizations.switch_active_preset.clone(),
+        )
         .map_err(map_error)
 }
 
@@ -90,6 +94,9 @@ pub struct LaunchOptimizationsPayload {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub enabled_option_ids: Vec<String>,
+    /// When set, selects that named preset from `launch.presets` and ignores `enabled_option_ids`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub switch_active_preset: Option<String>,
 }
 
 #[tauri::command]
@@ -450,6 +457,7 @@ mod tests {
                 "disable_steam_input".to_string(),
                 "use_gamemode".to_string(),
             ],
+            switch_active_preset: None,
         };
 
         save_launch_optimizations_for_profile("test-profile", &optimizations, &store)
@@ -477,6 +485,7 @@ mod tests {
             "missing-profile",
             &LaunchOptimizationsPayload {
                 enabled_option_ids: vec!["use_gamemode".to_string()],
+                switch_active_preset: None,
             },
             &store,
         )
