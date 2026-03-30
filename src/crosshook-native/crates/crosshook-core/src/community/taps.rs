@@ -51,6 +51,7 @@ pub struct CommunityTapSyncResult {
 pub enum CommunityTapError {
     EmptyTapUrl,
     InvalidTapUrl(String),
+    InvalidPinnedCommit(String),
     Io {
         action: &'static str,
         path: PathBuf,
@@ -69,6 +70,10 @@ impl fmt::Display for CommunityTapError {
         match self {
             Self::EmptyTapUrl => write!(f, "tap url cannot be empty"),
             Self::InvalidTapUrl(url) => write!(f, "invalid tap url: {url}"),
+            Self::InvalidPinnedCommit(commit) => write!(
+                f,
+                "invalid pinned commit (must be 7-64 hex characters): {commit}"
+            ),
             Self::Io {
                 action,
                 path,
@@ -271,6 +276,12 @@ impl CommunityTapStore {
                 stderr: "missing pinned commit".to_string(),
             })?;
 
+        if !is_valid_git_sha(pinned_commit) {
+            return Err(CommunityTapError::InvalidPinnedCommit(
+                pinned_commit.to_string(),
+            ));
+        }
+
         self.run_git(
             workspace,
             "checkout pinned commit",
@@ -392,6 +403,14 @@ impl CommunityTapSubscription {
             slug
         }
     }
+}
+
+/// Validates that a pinned commit string is a safe git SHA (hex-only, 7–64 characters).
+///
+/// This prevents flag-injection (e.g. `--force`, `-q`) and shell-injection strings
+/// from being passed to `git checkout` as a positional argument.
+fn is_valid_git_sha(commit: &str) -> bool {
+    (7..=64).contains(&commit.len()) && commit.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 fn git_command() -> Command {
@@ -569,6 +588,71 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(error, CommunityTapError::EmptyTapUrl));
+    }
+
+    #[test]
+    fn is_valid_git_sha_rejects_injection_attempts() {
+        assert!(!is_valid_git_sha("'; rm -rf /"));
+        assert!(!is_valid_git_sha("--force"));
+        assert!(!is_valid_git_sha("-q"));
+        assert!(!is_valid_git_sha("$(reboot)"));
+    }
+
+    #[test]
+    fn is_valid_git_sha_rejects_invalid_lengths() {
+        assert!(!is_valid_git_sha("")); // empty
+        assert!(!is_valid_git_sha("abc123")); // 6 chars — one short of minimum
+        assert!(!is_valid_git_sha(&"a".repeat(65))); // 65 chars — one over maximum
+    }
+
+    #[test]
+    fn is_valid_git_sha_accepts_valid_hashes() {
+        assert!(is_valid_git_sha("abc1234")); // 7-char short hash
+        assert!(is_valid_git_sha("deadbeef01234567890abcdef0123456789abcde")); // 40-char SHA1
+        assert!(is_valid_git_sha(&"a".repeat(64))); // 64-char SHA256
+    }
+
+    #[test]
+    fn rejects_injection_attempt_as_pinned_commit() {
+        let temp_dir = tempdir().unwrap();
+        let source_repo = temp_dir.path().join("source");
+        let store_root = temp_dir.path().join("store");
+        fs::create_dir_all(&source_repo).unwrap();
+        init_repo(&source_repo);
+
+        let manifest = CommunityProfileManifest::new(
+            CommunityProfileMetadata {
+                game_name: "Test".to_string(),
+                game_version: "1.0".to_string(),
+                trainer_name: "Trainer".to_string(),
+                trainer_version: "1".to_string(),
+                proton_version: "9".to_string(),
+                platform_tags: vec![],
+                compatibility_rating: CompatibilityRating::Unknown,
+                author: String::new(),
+                description: String::new(),
+            },
+            GameProfile::default(),
+        );
+        commit_file(
+            &source_repo,
+            "profiles/test/community-profile.json",
+            &serde_json::to_string_pretty(&manifest).unwrap(),
+            "add test profile",
+        );
+
+        let store = CommunityTapStore::with_base_path(store_root);
+        let subscription = CommunityTapSubscription {
+            url: source_repo.display().to_string(),
+            branch: Some("main".to_string()),
+            pinned_commit: Some("'; rm -rf /".to_string()),
+        };
+
+        let err = store.sync_tap(&subscription).unwrap_err();
+        assert!(
+            matches!(err, CommunityTapError::InvalidPinnedCommit(_)),
+            "expected InvalidPinnedCommit, got: {err}"
+        );
     }
 
     #[test]
