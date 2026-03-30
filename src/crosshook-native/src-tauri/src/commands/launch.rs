@@ -346,8 +346,9 @@ async fn stream_log_lines(
         }
     }
 
-    // Version snapshot — record on clean exit only (A8: must never block launch)
-    if report.exit_info.failure_mode == FailureMode::CleanExit {
+    // Version snapshot — record on clean exit or indeterminate (steam_applaunch helper
+    // exits before the game, so its exit code 0 is Indeterminate, not CleanExit).
+    if matches!(report.exit_info.failure_mode, FailureMode::CleanExit | FailureMode::Indeterminate) {
         if let Some(ref pname) = profile_name {
             let ms = metadata_store.clone();
             let pname_c = pname.clone();
