@@ -178,6 +178,9 @@ src/crosshook-native/
 - Use conventional commits for any user-facing change that should appear in the changelog, for example `feat(launcher): ...`, `fix(launch): ...`, `docs(quickstart): ...`, `build(release): ...`.
 - Do not use vague or generic titles such as `Update README.md`, `fix stuff`, `misc cleanup`, or `bump version` for code that may ship in a release.
 - Internal planning, research, task-tracking, release-prep churn, and other non-user-facing maintenance should use skipped forms such as `chore(release): ...`, `chore(...): ...`, or `docs(internal): ...` so they stay out of release notes.
+- All commits for files inside `./docs/plans` should have the `docs(internal): ...` prefix.
+- All commits for files inside `./docs/research` should have the `docs(internal): ...` prefix.
+- All commits for files inside `./docs/internal` should have the `docs(internal): ...` prefix.
 - If a change is important to users, write the commit title the way you want it to read in `CHANGELOG.md`.
 
 ## Important Notes
