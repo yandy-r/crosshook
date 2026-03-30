@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
+import ConfigHistoryPanel from '../ConfigHistoryPanel';
 import LauncherExport from '../LauncherExport';
 import ProfileActions from '../ProfileActions';
 import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
@@ -76,6 +77,10 @@ export function ProfilesPage() {
     updateProfile,
     launchMethod,
     steamClientInstallPath,
+    fetchConfigHistory,
+    fetchConfigDiff,
+    rollbackConfig,
+    markKnownGood,
   } = useProfileContext();
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
@@ -106,6 +111,7 @@ export function ProfilesPage() {
   const [exportingCommunity, setExportingCommunity] = useState(false);
   const [communityExportError, setCommunityExportError] = useState<string | null>(null);
   const [communityExportSuccess, setCommunityExportSuccess] = useState<string | null>(null);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
   const healthIssuesRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -139,6 +145,15 @@ export function ProfilesPage() {
   const canPreview = profileName.trim().length > 0 && !loading;
   const canExportCommunity =
     profileExists &&
+    !saving &&
+    !deleting &&
+    !loading &&
+    !duplicating &&
+    !renaming &&
+    !exportingCommunity;
+  const canViewHistory =
+    Boolean(selectedProfile.trim()) &&
+    profiles.includes(selectedProfile.trim()) &&
     !saving &&
     !deleting &&
     !loading &&
@@ -287,6 +302,10 @@ export function ProfilesPage() {
       void revalidateSingle(profileName.trim());
     }
   }, [saveProfile, profileName, revalidateSingle]);
+
+  const handleAfterRollback = useCallback((name: string) => {
+    void revalidateSingle(name);
+  }, [revalidateSingle]);
 
   const undoRename = useCallback(() => {
     if (!renameToast) {
@@ -590,6 +609,7 @@ export function ProfilesPage() {
             previewing={previewing}
             canExportCommunity={canExportCommunity}
             exportingCommunity={exportingCommunity}
+            canViewHistory={canViewHistory}
             onSave={handleSave}
             onDelete={() => confirmDelete(profileName)}
             onDuplicate={() => duplicateProfile(profileName)}
@@ -599,6 +619,7 @@ export function ProfilesPage() {
             }}
             onPreview={handlePreviewProfile}
             onExportCommunity={handleExportCommunityProfile}
+            onViewHistory={() => setShowHistoryPanel(true)}
           />
           {previewError ? (
             <p className="crosshook-danger" role="alert" style={{ marginTop: 12 }}>
@@ -824,6 +845,18 @@ export function ProfilesPage() {
           tomlContent={profilePreviewContent}
           profileName={profileName}
           onClose={handleCloseProfilePreview}
+        />
+      ) : null}
+
+      {showHistoryPanel && selectedProfile ? (
+        <ConfigHistoryPanel
+          profileName={selectedProfile}
+          onClose={() => setShowHistoryPanel(false)}
+          fetchConfigHistory={fetchConfigHistory}
+          fetchConfigDiff={fetchConfigDiff}
+          rollbackConfig={rollbackConfig}
+          markKnownGood={markKnownGood}
+          onAfterRollback={handleAfterRollback}
         />
       ) : null}
     </>
