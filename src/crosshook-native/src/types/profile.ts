@@ -16,6 +16,16 @@ export interface ProfileData {
 }
 
 export type LaunchMethod = '' | 'steam_applaunch' | 'proton_run' | 'native';
+
+/** IPC DTO from `profile_list_bundled_optimization_presets`. */
+export interface BundledOptimizationPreset {
+  preset_id: string;
+  display_name: string;
+  vendor: string;
+  mode: string;
+  enabled_option_ids: string[];
+  catalog_version: number;
+}
 export type TrainerLoadingMode = 'source_directory' | 'copy_to_prefix';
 
 export interface GameProfile {
@@ -50,6 +60,10 @@ export interface GameProfile {
   launch: {
     method: LaunchMethod;
     optimizations: LaunchOptimizations;
+    /** Named optimization bundles (`[launch.presets.<name>]` in profile TOML). */
+    presets?: Record<string, LaunchOptimizations>;
+    /** When set and present in `presets`, optimizations are kept in sync with that entry. */
+    active_preset?: string;
   };
   local_override?: {
     game: {

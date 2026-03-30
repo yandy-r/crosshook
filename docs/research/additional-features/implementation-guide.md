@@ -153,7 +153,7 @@ These features have no strict ordering. Prioritize based on community feedback.
 | #58   | Extended optimization catalog    |  Done  | Low     | #66 (data-driven catalog) |
 | #59   | Tap pinning                      |  Done  | Low     | #55 (community export)    |
 | #54   | Adaptive Deck Mode layout        |  Done  | Low     | #47 (pinned profiles)     |
-| #50   | Optimization presets             |        | Medium  | #58 (extended catalog)    |
+| #50   | Optimization presets             |  Done  | Medium  | #58 (extended catalog)    |
 | #57   | Custom env vars per profile      |        | Low-Med | #58 (extended catalog)    |
 | #51   | Gamescope wrapper                |        | Low-Med | #58 (extended catalog)    |
 | #65   | MangoHud per-profile config      |        | Low-Med | #51 (gamescope)           |

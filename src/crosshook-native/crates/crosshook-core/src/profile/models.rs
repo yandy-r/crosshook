@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -164,6 +165,29 @@ pub struct LaunchSection {
     pub method: String,
     #[serde(default, skip_serializing_if = "LaunchOptimizationsSection::is_empty")]
     pub optimizations: LaunchOptimizationsSection,
+    /// Named optimization bundles (`[launch.presets.<name>]` in TOML).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub presets: BTreeMap<String, LaunchOptimizationsSection>,
+    /// When set and present in `presets`, `optimizations` is kept in sync with that entry.
+    #[serde(rename = "active_preset", default, skip_serializing_if = "String::is_empty")]
+    pub active_preset: String,
+}
+
+impl LaunchSection {
+    /// After load: if `active_preset` names a known preset, copy it into `optimizations`;
+    /// otherwise clear `active_preset` so the legacy `optimizations` values remain authoritative.
+    pub fn normalize_preset_selection(&mut self) {
+        let key = self.active_preset.trim();
+        if key.is_empty() {
+            return;
+        }
+
+        if let Some(section) = self.presets.get(key) {
+            self.optimizations = section.clone();
+        } else {
+            self.active_preset.clear();
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -508,5 +532,55 @@ mod tests {
         let storage_once = profile.storage_profile();
         let storage_twice = storage_once.effective_profile().storage_profile();
         assert_eq!(storage_twice, storage_once);
+    }
+
+    #[test]
+    fn normalize_preset_selection_clears_unknown_active_preset() {
+        let mut launch = LaunchSection::default();
+        launch.active_preset = "missing".to_string();
+        launch.optimizations.enabled_option_ids = vec!["use_gamemode".to_string()];
+        launch.normalize_preset_selection();
+        assert!(launch.active_preset.is_empty());
+        assert_eq!(
+            launch.optimizations.enabled_option_ids,
+            vec!["use_gamemode".to_string()]
+        );
+    }
+
+    #[test]
+    fn launch_presets_toml_roundtrip() {
+        use std::collections::BTreeMap;
+
+        let mut launch = LaunchSection::default();
+        launch.method = "proton_run".to_string();
+        launch.optimizations.enabled_option_ids = vec!["use_gamemode".to_string()];
+        launch.active_preset = "quality".to_string();
+        let mut presets = BTreeMap::new();
+        presets.insert(
+            "performance".to_string(),
+            LaunchOptimizationsSection {
+                enabled_option_ids: vec!["disable_steam_input".to_string()],
+            },
+        );
+        presets.insert(
+            "quality".to_string(),
+            LaunchOptimizationsSection {
+                enabled_option_ids: vec!["enable_hdr".to_string()],
+            },
+        );
+        launch.presets = presets;
+
+        let profile = GameProfile {
+            launch,
+            ..GameProfile::default()
+        };
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+        assert_eq!(parsed.launch.presets.len(), 2);
+        assert_eq!(parsed.launch.active_preset, "quality");
+        assert_eq!(
+            parsed.launch.optimizations.enabled_option_ids,
+            vec!["use_gamemode".to_string()]
+        );
     }
 }

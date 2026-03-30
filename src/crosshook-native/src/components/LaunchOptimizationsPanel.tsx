@@ -1,6 +1,7 @@
-import { useId, useState } from 'react';
-import type { LaunchMethod } from '../types';
+import { useId, useMemo, useState } from 'react';
+import type { BundledOptimizationPreset, LaunchMethod } from '../types';
 import { CollapsibleSection } from './ui/CollapsibleSection';
+import { ThemedSelect } from './ui/ThemedSelect';
 import {
   LAUNCH_OPTIMIZATION_CATEGORIES,
   LAUNCH_OPTIMIZATION_CATEGORY_LABELS,
@@ -29,6 +30,17 @@ export interface LaunchOptimizationsPanelProps {
   onToggleOption: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
   status?: LaunchOptimizationsPanelStatus;
   className?: string;
+  /** Sorted preset names from `launch.presets` (empty hides the preset row). */
+  optimizationPresetNames?: readonly string[];
+  activeOptimizationPreset?: string;
+  onSelectOptimizationPreset?: (presetName: string) => void;
+  /** Bundled GPU presets from the app catalog (metadata DB). */
+  bundledOptimizationPresets?: readonly BundledOptimizationPreset[];
+  onApplyBundledPreset?: (presetId: string) => void;
+  /** Disables bundled / manual preset actions while IPC runs. */
+  optimizationPresetActionBusy?: boolean;
+  /** Saves current checkbox selection as a new named user preset. */
+  onSaveManualPreset?: (presetName: string) => Promise<void>;
 }
 
 interface GroupedOptions {
@@ -329,12 +341,37 @@ export function LaunchOptimizationsPanel({
   onToggleOption,
   status,
   className,
+  optimizationPresetNames = [],
+  activeOptimizationPreset = '',
+  onSelectOptimizationPreset,
+  bundledOptimizationPresets = [],
+  onApplyBundledPreset,
+  optimizationPresetActionBusy = false,
+  onSaveManualPreset,
 }: LaunchOptimizationsPanelProps) {
   const titleId = useId();
+  const presetSelectId = useId();
+  const manualPresetInputId = useId();
   const tooltipIdPrefix = useId();
   const [tooltipId, setTooltipId] = useState<LaunchOptimizationId | null>(null);
+  const [manualPresetName, setManualPresetName] = useState('');
+  const [manualSavePending, setManualSavePending] = useState(false);
 
   const isMethodSupported = method === 'proton_run' || method === 'steam_applaunch';
+  const hasNamedPresets = optimizationPresetNames.length > 0 && onSelectOptimizationPreset !== undefined;
+  const hasBundledPresets =
+    bundledOptimizationPresets.length > 0 && onApplyBundledPreset !== undefined;
+  const presetActionBusy = optimizationPresetActionBusy || manualSavePending;
+  const presetSelectValue = useMemo(() => {
+    if (!activeOptimizationPreset.trim()) {
+      return '';
+    }
+    return optimizationPresetNames.includes(activeOptimizationPreset) ? activeOptimizationPreset : '';
+  }, [activeOptimizationPreset, optimizationPresetNames]);
+  const presetOptions = useMemo(
+    () => optimizationPresetNames.map((name) => ({ value: name, label: name })),
+    [optimizationPresetNames]
+  );
   const seen = new Set<LaunchOptimizationId>();
   const selectedOptionIds = enabledOptionIds.filter((optionId) => {
     if (!LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId] || seen.has(optionId)) {
@@ -393,6 +430,86 @@ export function LaunchOptimizationsPanel({
         <p className="crosshook-launch-optimizations__status-copy">{resolvedStatus.label}</p>
         {resolvedStatus.detail ? <p className="crosshook-help-text">{resolvedStatus.detail}</p> : null}
       </div>
+
+      {hasBundledPresets && isMethodSupported ? (
+        <div className="crosshook-launch-optimizations__bundled-row">
+          <span className="crosshook-launch-optimizations__bundled-label">Bundled GPU presets</span>
+          <div className="crosshook-launch-optimizations__bundled-buttons">
+            {bundledOptimizationPresets.map((preset) => (
+              <button
+                key={preset.preset_id}
+                type="button"
+                className="crosshook-button crosshook-button--secondary"
+                disabled={presetActionBusy}
+                onClick={() => onApplyBundledPreset?.(preset.preset_id)}
+              >
+                {preset.display_name}
+              </button>
+            ))}
+          </div>
+          <p className="crosshook-help-text crosshook-launch-optimizations__preset-help">
+            Applies CrossHook&apos;s curated option set, saves it under{' '}
+            <code>[launch.presets.bundled/&lt;id&gt;]</code>, and sets it as the active preset.
+          </p>
+        </div>
+      ) : null}
+
+      {isMethodSupported && onSaveManualPreset !== undefined ? (
+        <div className="crosshook-launch-optimizations__manual-save">
+          <div className="crosshook-launch-optimizations__manual-save-field">
+            <label htmlFor={manualPresetInputId}>Save current toggles as preset</label>
+            <input
+              id={manualPresetInputId}
+              className="crosshook-launch-optimizations__manual-save-input"
+              type="text"
+              autoComplete="off"
+              placeholder="e.g. My DXVK tweaks"
+              value={manualPresetName}
+              disabled={presetActionBusy}
+              onChange={(event) => setManualPresetName(event.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--secondary"
+            disabled={presetActionBusy || !manualPresetName.trim()}
+            onClick={() => {
+              void (async () => {
+                setManualSavePending(true);
+                try {
+                  await onSaveManualPreset(manualPresetName.trim());
+                  setManualPresetName('');
+                } catch {
+                  /* status / error surfaced by profile hook */
+                } finally {
+                  setManualSavePending(false);
+                }
+              })();
+            }}
+          >
+            Save preset
+          </button>
+        </div>
+      ) : null}
+
+      {hasNamedPresets && isMethodSupported ? (
+        <div className="crosshook-launch-optimizations__preset-row">
+          <label className="crosshook-launch-optimizations__preset-label" htmlFor={presetSelectId}>
+            User Optimized Presets
+          </label>
+          <ThemedSelect
+            id={presetSelectId}
+            value={presetSelectValue}
+            onValueChange={(value) => onSelectOptimizationPreset?.(value)}
+            options={presetOptions}
+            placeholder="Select a preset"
+          />
+          <p className="crosshook-help-text crosshook-launch-optimizations__preset-help">
+            Switch the active named preset from your profile. Use bundled GPU presets or &quot;Save preset&quot;
+            above to add entries under <code>[launch.presets.&lt;name&gt;]</code> without editing TOML by hand.
+          </p>
+        </div>
+      ) : null}
 
       {!isMethodSupported ? (
         <div className="crosshook-warning-banner crosshook-launch-optimizations__method-warning">

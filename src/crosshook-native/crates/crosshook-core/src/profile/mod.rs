@@ -22,7 +22,8 @@ pub use models::{
     LocalOverrideTrainerSection, RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
 };
 pub use toml_store::{
-    profile_to_shareable_toml, DuplicateProfileResult, ProfileStore, ProfileStoreError,
+    bundled_optimization_preset_toml_key, profile_to_shareable_toml, DuplicateProfileResult,
+    ProfileStore, ProfileStoreError,
 };
 pub mod health;
 pub use health::{

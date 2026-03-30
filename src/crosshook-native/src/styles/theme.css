@@ -1163,6 +1163,90 @@ textarea {
   color: var(--crosshook-color-text);
 }
 
+.crosshook-launch-optimizations__preset-row {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(8, 13, 25, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.crosshook-launch-optimizations__preset-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-launch-optimizations__preset-help {
+  margin: 0;
+}
+
+.crosshook-launch-optimizations__preset-help code {
+  font-size: 0.88em;
+}
+
+.crosshook-launch-optimizations__bundled-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--crosshook-border-subtle, rgba(255, 255, 255, 0.08));
+  background: var(--crosshook-surface-raised, rgba(0, 0, 0, 0.2));
+}
+
+.crosshook-launch-optimizations__bundled-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-launch-optimizations__bundled-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.crosshook-launch-optimizations__manual-save {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.crosshook-launch-optimizations__manual-save-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  flex: 1 1 200px;
+}
+
+.crosshook-launch-optimizations__manual-save-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-launch-optimizations__manual-save-input {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--crosshook-border-subtle, rgba(255, 255, 255, 0.12));
+  background: var(--crosshook-surface-input, rgba(0, 0, 0, 0.35));
+  color: inherit;
+  font-size: 0.95rem;
+}
+
 .crosshook-launch-optimizations__method-warning {
   margin: 0;
 }

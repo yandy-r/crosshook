@@ -7,21 +7,24 @@ mod launch_history;
 mod launcher_sync;
 mod migrations;
 mod models;
+mod preset_store;
 pub mod profile_sync;
 mod version_store;
 
 pub use health_store::HealthSnapshotRow;
 pub use models::{
-    CacheEntryStatus, CollectionRow, CommunityProfileRow, CommunityTapRow, DriftState,
-    FailureTrendRow, LaunchOutcome, MetadataStoreError, SyncReport, SyncSource,
-    VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
-    MAX_DIAGNOSTIC_JSON_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
+    BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
+    CommunityTapRow, DriftState, FailureTrendRow, LaunchOutcome, MetadataStoreError,
+    ProfileLaunchPresetOrigin, SyncReport, SyncSource, VersionCorrelationStatus,
+    VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES, MAX_DIAGNOSTIC_JSON_BYTES,
+    MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
 pub use version_store::{compute_correlation_status, hash_trainer_file};
 
 use crate::community::taps::CommunityTapSyncResult;
 use crate::launch::diagnostics::models::DiagnosticReport;
 use crate::profile::{GameProfile, ProfileStore};
+use chrono::Utc;
 use directories::BaseDirs;
 use rusqlite::{params_from_iter, Connection, OptionalExtension};
 use std::path::Path;
@@ -871,6 +874,47 @@ impl MetadataStore {
     ) -> Result<(), MetadataStoreError> {
         self.with_conn_mut("acknowledge a version change", |conn| {
             version_store::acknowledge_version_change(conn, profile_id)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Bundled / user launch optimization presets (metadata)
+    // -------------------------------------------------------------------------
+
+    pub fn list_bundled_optimization_presets(
+        &self,
+    ) -> Result<Vec<BundledOptimizationPresetRow>, MetadataStoreError> {
+        self.with_conn("list bundled optimization presets", |conn| {
+            preset_store::list_bundled_optimization_presets(conn)
+        })
+    }
+
+    pub fn get_bundled_optimization_preset(
+        &self,
+        preset_id: &str,
+    ) -> Result<Option<BundledOptimizationPresetRow>, MetadataStoreError> {
+        self.with_conn("get bundled optimization preset", |conn| {
+            preset_store::get_bundled_optimization_preset(conn, preset_id)
+        })
+    }
+
+    pub fn upsert_profile_launch_preset_metadata(
+        &self,
+        profile_id: &str,
+        preset_name: &str,
+        origin: ProfileLaunchPresetOrigin,
+        source_bundled_preset_id: Option<&str>,
+    ) -> Result<(), MetadataStoreError> {
+        let now = Utc::now().to_rfc3339();
+        self.with_conn("upsert profile launch preset metadata", |conn| {
+            preset_store::upsert_profile_launch_preset_metadata(
+                conn,
+                profile_id,
+                preset_name,
+                origin,
+                source_bundled_preset_id,
+                &now,
+            )
         })
     }
 }
@@ -2242,6 +2286,18 @@ mod tests {
             .query_total_launches_for_profile("target-profile")
             .unwrap();
         assert_eq!(total_launches, 2);
+    }
+
+    #[test]
+    fn test_migration_9_to_10_seeds_bundled_gpu_presets() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let rows = store.list_bundled_optimization_presets().unwrap();
+        assert_eq!(rows.len(), 4);
+        let ids: Vec<_> = rows.iter().map(|r| r.preset_id.as_str()).collect();
+        assert!(ids.contains(&"nvidia_performance"));
+        assert!(ids.contains(&"nvidia_quality"));
+        assert!(ids.contains(&"amd_performance"));
+        assert!(ids.contains(&"amd_quality"));
     }
 
     #[test]
