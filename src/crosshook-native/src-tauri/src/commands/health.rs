@@ -1,7 +1,7 @@
-use crosshook_core::metadata::{DriftState, HealthSnapshotRow, MetadataStore};
+use crosshook_core::metadata::{DriftState, HealthSnapshotRow, MetadataStore, VersionSnapshotRow};
 use crosshook_core::profile::health::{
-    batch_check_health, check_profile_health, HealthCheckSummary, HealthIssue, HealthStatus,
-    ProfileHealthReport,
+    batch_check_health, check_profile_health, HealthCheckSummary, HealthIssue, HealthIssueSeverity,
+    HealthStatus, ProfileHealthReport,
 };
 use crosshook_core::profile::ProfileStore;
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,10 @@ pub struct ProfileHealthMetadata {
     pub launcher_drift_state: Option<DriftState>,
     pub is_community_import: bool,
     pub is_favorite: bool,
+    pub version_status: Option<String>,
+    pub snapshot_build_id: Option<String>,
+    pub current_build_id: Option<String>,
+    pub trainer_version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +69,10 @@ fn build_profile_metadata(
     launcher_drift_state: Option<DriftState>,
     profile_source: Option<&str>,
     is_favorite: bool,
+    version_status: Option<String>,
+    snapshot_build_id: Option<String>,
+    current_build_id: Option<String>,
+    trainer_version: Option<String>,
 ) -> ProfileHealthMetadata {
     ProfileHealthMetadata {
         profile_id,
@@ -74,6 +82,10 @@ fn build_profile_metadata(
         launcher_drift_state,
         is_community_import: profile_source == Some("import"),
         is_favorite,
+        version_status,
+        snapshot_build_id,
+        current_build_id,
+        trainer_version,
     }
 }
 
@@ -87,6 +99,7 @@ struct BatchMetadataPrefetch {
     profile_id_map: HashMap<String, String>,
     launcher_drift_map: HashMap<String, DriftState>,
     profile_source_map: HashMap<String, String>,
+    version_snapshot_map: HashMap<String, VersionSnapshotRow>,
 }
 
 fn prefetch_batch_metadata(
@@ -143,6 +156,13 @@ fn prefetch_batch_metadata(
         .filter_map(|(name, source)| source.map(|value| (name, value)))
         .collect();
 
+    let version_snapshot_map: HashMap<String, VersionSnapshotRow> = metadata_store
+        .load_version_snapshots_for_profiles()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|row| (row.profile_id.clone(), row))
+        .collect();
+
     BatchMetadataPrefetch {
         metadata_available,
         failure_trends,
@@ -152,6 +172,7 @@ fn prefetch_batch_metadata(
         profile_id_map,
         launcher_drift_map,
         profile_source_map,
+        version_snapshot_map,
     }
 }
 
@@ -181,6 +202,44 @@ fn enrich_profile(
         .get(&report.name)
         .map(String::as_str);
     let is_favorite = prefetch.favorite_profiles.contains(&report.name);
+
+    let version_snapshot = profile_id
+        .as_deref()
+        .and_then(|pid| prefetch.version_snapshot_map.get(pid));
+    let version_status = version_snapshot.map(|s| s.status.clone());
+    let snapshot_build_id = version_snapshot.and_then(|s| s.steam_build_id.clone());
+    let trainer_version = version_snapshot.and_then(|s| s.trainer_version.clone());
+
+    // Inject version mismatch as a Warning health issue (BR-6: Warning, not Error)
+    let mut report = report;
+    if let Some(ref status) = version_status {
+        if matches!(status.as_str(), "game_updated" | "trainer_changed" | "both_changed") {
+            let (message, remediation) = match status.as_str() {
+                "game_updated" => (
+                    "Game version has changed since last successful launch".to_string(),
+                    "Verify the trainer still works and acknowledge the version change".to_string(),
+                ),
+                "trainer_changed" => (
+                    "Trainer binary has changed since last successful launch".to_string(),
+                    "Verify the trainer still works and acknowledge the version change".to_string(),
+                ),
+                _ => (
+                    "Both game and trainer versions have changed since last successful launch"
+                        .to_string(),
+                    "Verify the trainer still works with the new game version and acknowledge the change"
+                        .to_string(),
+                ),
+            };
+            report.issues.push(HealthIssue {
+                field: "version".to_string(),
+                path: String::new(),
+                message,
+                remediation,
+                severity: HealthIssueSeverity::Warning,
+            });
+        }
+    }
+
     let metadata = if prefetch.metadata_available {
         Some(build_profile_metadata(
             failure_count_30d,
@@ -190,6 +249,10 @@ fn enrich_profile(
             launcher_drift_state,
             profile_source,
             is_favorite,
+            version_status,
+            snapshot_build_id,
+            None,
+            trainer_version,
         ))
     } else {
         None
@@ -365,6 +428,16 @@ pub fn get_profile_health(
     let profile_source = metadata_store.query_profile_source(&name).ok().flatten();
     let is_favorite = favorite_profiles.contains(&name);
 
+    let version_snapshot = profile_id.as_deref().and_then(|pid| {
+        metadata_store
+            .lookup_latest_version_snapshot(pid)
+            .ok()
+            .flatten()
+    });
+    let version_status = version_snapshot.as_ref().map(|s| s.status.clone());
+    let snapshot_build_id = version_snapshot.as_ref().and_then(|s| s.steam_build_id.clone());
+    let trainer_version = version_snapshot.as_ref().and_then(|s| s.trainer_version.clone());
+
     Ok(EnrichedProfileHealthReport {
         core: sanitize_report(report),
         metadata: Some(build_profile_metadata(
@@ -375,6 +448,10 @@ pub fn get_profile_health(
             launcher_drift_state,
             profile_source.as_deref(),
             is_favorite,
+            version_status,
+            snapshot_build_id,
+            None,
+            trainer_version,
         )),
     })
 }

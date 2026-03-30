@@ -8,3 +8,4 @@ export * from './update';
 export * from './settings';
 export * from './health';
 export * from './migration';
+export * from './version';
