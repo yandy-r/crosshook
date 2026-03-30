@@ -30,6 +30,7 @@ export interface LaunchRequest {
   optimizations: LaunchOptimizations;
   launch_trainer_only: boolean;
   launch_game_only: boolean;
+  profile_name?: string;
 }
 
 export type LaunchValidationSeverity = 'fatal' | 'warning' | 'info';

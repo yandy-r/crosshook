@@ -197,16 +197,24 @@ export function useProfileHealth() {
 
   useEffect(() => {
     let active = true;
-    const unlistenPromise = listen<string>("profiles-changed", () => {
-      if (!active) {
-        return;
-      }
+    const unlistenProfilesChanged = listen<string>("profiles-changed", () => {
+      if (!active) return;
+      void batchValidate();
+    });
+    const unlistenLaunchComplete = listen<unknown>("launch-complete", () => {
+      if (!active) return;
+      void batchValidate();
+    });
+    const unlistenVersionScan = listen<unknown>("version-scan-complete", () => {
+      if (!active) return;
       void batchValidate();
     });
 
     return () => {
       active = false;
-      void unlistenPromise.then((unlisten) => unlisten());
+      void unlistenProfilesChanged.then((unlisten) => unlisten());
+      void unlistenLaunchComplete.then((unlisten) => unlisten());
+      void unlistenVersionScan.then((unlisten) => unlisten());
     };
   }, [batchValidate]);
 
