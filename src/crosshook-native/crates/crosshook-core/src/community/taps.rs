@@ -261,16 +261,15 @@ impl CommunityTapStore {
         &self,
         workspace: &CommunityTapWorkspace,
     ) -> Result<(), CommunityTapError> {
-        let pinned_commit =
-            workspace
-                .subscription
-                .pinned_commit
-                .as_deref()
-                .ok_or_else(|| CommunityTapError::Git {
-                    action: "checkout pinned commit",
-                    command: "git checkout --detach <commit>".to_string(),
-                    stderr: "missing pinned commit".to_string(),
-                })?;
+        let pinned_commit = workspace
+            .subscription
+            .pinned_commit
+            .as_deref()
+            .ok_or_else(|| CommunityTapError::Git {
+                action: "checkout pinned commit",
+                command: "git checkout --detach <commit>".to_string(),
+                stderr: "missing pinned commit".to_string(),
+            })?;
 
         self.run_git(
             workspace,
@@ -638,7 +637,10 @@ mod tests {
         assert_eq!(second_sync.head_commit, pinned_commit);
         assert_eq!(second_sync.index.entries.len(), 1);
         assert_eq!(
-            second_sync.index.entries[0].manifest.metadata.trainer_version,
+            second_sync.index.entries[0]
+                .manifest
+                .metadata
+                .trainer_version,
             "1"
         );
     }

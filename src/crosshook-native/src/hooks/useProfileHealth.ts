@@ -195,6 +195,21 @@ export function useProfileHealth() {
     };
   }, [batchValidate]);
 
+  useEffect(() => {
+    let active = true;
+    const unlistenPromise = listen<string>("profiles-changed", () => {
+      if (!active) {
+        return;
+      }
+      void batchValidate();
+    });
+
+    return () => {
+      active = false;
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [batchValidate]);
+
   const healthByName = useMemo<Record<string, EnrichedProfileHealthReport>>(() => {
     if (!state.summary) {
       return {};

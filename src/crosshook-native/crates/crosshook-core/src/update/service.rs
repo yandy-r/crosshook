@@ -8,7 +8,9 @@ use crate::launch::runtime_helpers::{
     attach_log_stdio, new_direct_proton_command,
 };
 
-use super::models::{UpdateGameError, UpdateGameRequest, UpdateGameResult, UpdateGameValidationError};
+use super::models::{
+    UpdateGameError, UpdateGameRequest, UpdateGameResult, UpdateGameValidationError,
+};
 
 pub fn validate_update_request(
     request: &UpdateGameRequest,

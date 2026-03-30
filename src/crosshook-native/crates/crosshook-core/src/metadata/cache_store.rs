@@ -1,5 +1,5 @@
-use super::{db, MetadataStoreError};
 use super::models::MAX_CACHE_PAYLOAD_BYTES;
+use super::{db, MetadataStoreError};
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 

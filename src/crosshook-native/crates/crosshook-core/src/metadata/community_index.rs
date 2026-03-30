@@ -322,9 +322,7 @@ fn compatibility_rating_str(entry: &CommunityProfileIndexEntry) -> Option<String
     Some(rating.to_string())
 }
 
-fn map_community_profile_row(
-    row: &rusqlite::Row<'_>,
-) -> rusqlite::Result<CommunityProfileRow> {
+fn map_community_profile_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<CommunityProfileRow> {
     Ok(CommunityProfileRow {
         id: row.get(0)?,
         tap_id: row.get(1)?,

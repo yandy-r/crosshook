@@ -3,8 +3,8 @@ use crosshook_core::community::{
 };
 use crosshook_core::metadata::{MetadataStore, SyncSource};
 use crosshook_core::profile::{
-    export_community_profile, import_community_profile, CommunityExportResult, CommunityImportResult,
-    ProfileStore,
+    export_community_profile, import_community_profile, preview_community_profile_import,
+    CommunityExportResult, CommunityImportPreview, CommunityImportResult, ProfileStore,
 };
 use crosshook_core::settings::{AppSettingsData, SettingsStore};
 use tauri::State;
@@ -102,7 +102,8 @@ pub fn community_import_profile(
 ) -> Result<CommunityImportResult, String> {
     let import_path = std::path::Path::new(&path);
     validate_import_path_in_workspace(import_path, &settings_store, &tap_store)?;
-    let result = import_community_profile(import_path, &profile_store.base_path).map_err(map_error)?;
+    let result =
+        import_community_profile(import_path, &profile_store.base_path).map_err(map_error)?;
 
     if let Err(e) = metadata_store.observe_profile_write(
         &result.profile_name,
@@ -119,6 +120,63 @@ pub fn community_import_profile(
     }
 
     Ok(result)
+}
+
+#[tauri::command]
+pub fn community_prepare_import(
+    path: String,
+    settings_store: State<'_, SettingsStore>,
+    tap_store: State<'_, CommunityTapStore>,
+) -> Result<CommunityImportPreview, String> {
+    let import_path = std::path::Path::new(&path);
+    validate_import_path_for_prepare(import_path, &settings_store, &tap_store)?;
+    preview_community_profile_import(import_path).map_err(map_error)
+}
+
+fn validate_import_path_for_prepare(
+    path: &std::path::Path,
+    settings_store: &SettingsStore,
+    tap_store: &CommunityTapStore,
+) -> Result<(), String> {
+    let canonical = path.canonicalize().map_err(|error| {
+        format!(
+            "cannot resolve community profile path '{}': {error}",
+            path.display()
+        )
+    })?;
+
+    if !canonical.is_file() {
+        return Err(format!(
+            "community profile path '{}' is not a file",
+            path.display()
+        ));
+    }
+
+    let is_json = canonical
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+    if !is_json {
+        return Err(format!(
+            "community profile path '{}' must point to a .json file",
+            path.display()
+        ));
+    }
+
+    // Local filesystem imports selected from the file-picker are valid.
+    // When the path belongs to a known tap workspace, this also passes.
+    let taps = load_community_taps(settings_store)?;
+    let workspaces = current_workspaces(tap_store, &taps)?;
+    let _is_workspace_path = workspaces.iter().any(|workspace| {
+        workspace
+            .local_path
+            .canonicalize()
+            .map(|root| canonical.starts_with(&root))
+            .unwrap_or(false)
+    });
+
+    Ok(())
 }
 
 fn validate_import_path_in_workspace(
@@ -177,7 +235,9 @@ pub fn community_sync(
 pub fn community_list_indexed_profiles(
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<Vec<crosshook_core::metadata::CommunityProfileRow>, String> {
-    metadata_store.list_community_tap_profiles(None).map_err(map_error)
+    metadata_store
+        .list_community_tap_profiles(None)
+        .map_err(map_error)
 }
 
 #[cfg(test)]
@@ -197,11 +257,7 @@ mod tests {
                 State<'_, CommunityTapStore>,
             ) -> Result<CommunityProfileIndex, String>;
         let _ = community_export_profile
-            as fn(
-                String,
-                String,
-                State<'_, ProfileStore>,
-            ) -> Result<CommunityExportResult, String>;
+            as fn(String, String, State<'_, ProfileStore>) -> Result<CommunityExportResult, String>;
         let _ = community_import_profile
             as fn(
                 String,
@@ -210,6 +266,12 @@ mod tests {
                 State<'_, CommunityTapStore>,
                 State<'_, MetadataStore>,
             ) -> Result<CommunityImportResult, String>;
+        let _ = community_prepare_import
+            as fn(
+                String,
+                State<'_, SettingsStore>,
+                State<'_, CommunityTapStore>,
+            ) -> Result<CommunityImportPreview, String>;
         let _ = community_sync
             as fn(
                 State<'_, SettingsStore>,
@@ -219,7 +281,8 @@ mod tests {
         let _ = community_list_indexed_profiles
             as fn(
                 State<'_, MetadataStore>,
-            ) -> Result<Vec<crosshook_core::metadata::CommunityProfileRow>, String>;
+            )
+                -> Result<Vec<crosshook_core::metadata::CommunityProfileRow>, String>;
     }
 
     #[test]

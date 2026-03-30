@@ -12,8 +12,8 @@ pub mod profile_sync;
 pub use health_store::HealthSnapshotRow;
 pub use models::{
     CacheEntryStatus, CollectionRow, CommunityProfileRow, CommunityTapRow, DriftState,
-    FailureTrendRow, LaunchOutcome, MAX_CACHE_PAYLOAD_BYTES, MAX_DIAGNOSTIC_JSON_BYTES,
-    MetadataStoreError, SyncReport, SyncSource,
+    FailureTrendRow, LaunchOutcome, MetadataStoreError, SyncReport, SyncSource,
+    MAX_CACHE_PAYLOAD_BYTES, MAX_DIAGNOSTIC_JSON_BYTES,
 };
 
 use crate::community::taps::CommunityTapSyncResult;
@@ -32,7 +32,9 @@ pub struct MetadataStore {
 
 impl MetadataStore {
     fn in_clause_placeholders(count: usize) -> String {
-        std::iter::repeat_n("?", count).collect::<Vec<_>>().join(", ")
+        std::iter::repeat_n("?", count)
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     pub fn try_new() -> Result<Self, String> {
@@ -153,12 +155,12 @@ impl MetadataStore {
                  FROM profiles \
                  WHERE deleted_at IS NULL AND current_filename IN ({placeholders})"
             );
-            let mut stmt =
-                conn.prepare(&sql)
-                    .map_err(|source| MetadataStoreError::Database {
-                        action: "prepare query_profile_ids_for_names statement",
-                        source,
-                    })?;
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "prepare query_profile_ids_for_names statement",
+                    source,
+                })?;
             let rows = stmt
                 .query_map(params_from_iter(profile_names.iter()), |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
@@ -226,10 +228,7 @@ impl MetadataStore {
         })
     }
 
-    pub fn observe_launcher_deleted(
-        &self,
-        launcher_slug: &str,
-    ) -> Result<(), MetadataStoreError> {
+    pub fn observe_launcher_deleted(&self, launcher_slug: &str) -> Result<(), MetadataStoreError> {
         self.with_conn("observe a launcher deletion", |conn| {
             launcher_sync::observe_launcher_deleted(conn, launcher_slug)
         })
@@ -381,11 +380,10 @@ impl MetadataStore {
     // Phase 3: Cache
     // -------------------------------------------------------------------------
 
-    pub fn get_cache_entry(
-        &self,
-        cache_key: &str,
-    ) -> Result<Option<String>, MetadataStoreError> {
-        self.with_conn("get a cache entry", |conn| cache_store::get_cache_entry(conn, cache_key))
+    pub fn get_cache_entry(&self, cache_key: &str) -> Result<Option<String>, MetadataStoreError> {
+        self.with_conn("get a cache entry", |conn| {
+            cache_store::get_cache_entry(conn, cache_key)
+        })
     }
 
     pub fn put_cache_entry(
@@ -467,12 +465,12 @@ impl MetadataStore {
                    AND profile_name IN ({placeholders}) \
                  GROUP BY profile_name"
             );
-            let mut stmt =
-                conn.prepare(&sql)
-                    .map_err(|source| MetadataStoreError::Database {
-                        action: "prepare query_total_launches_for_profiles statement",
-                        source,
-                    })?;
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "prepare query_total_launches_for_profiles statement",
+                    source,
+                })?;
             let rows = stmt
                 .query_map(params_from_iter(profile_names.iter()), |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
@@ -627,10 +625,7 @@ impl MetadataStore {
 
     /// Returns the `source` field from the profiles table for a given profile name,
     /// or `None` if the profile is not found in the metadata store.
-    pub fn query_profile_source(
-        &self,
-        name: &str,
-    ) -> Result<Option<String>, MetadataStoreError> {
+    pub fn query_profile_source(&self, name: &str) -> Result<Option<String>, MetadataStoreError> {
         self.with_conn("query profile source", |conn| {
             conn.query_row(
                 "SELECT source FROM profiles WHERE current_filename = ?1 AND deleted_at IS NULL",
@@ -661,12 +656,12 @@ impl MetadataStore {
                  FROM profiles \
                  WHERE deleted_at IS NULL AND current_filename IN ({placeholders})"
             );
-            let mut stmt =
-                conn.prepare(&sql)
-                    .map_err(|source| MetadataStoreError::Database {
-                        action: "prepare query_profile_sources_for_names statement",
-                        source,
-                    })?;
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "prepare query_profile_sources_for_names statement",
+                    source,
+                })?;
             let rows = stmt
                 .query_map(params_from_iter(profile_names.iter()), |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
@@ -708,12 +703,12 @@ impl MetadataStore {
                  ) latest \
                    ON latest.profile_id = l.profile_id AND latest.max_updated_at = l.updated_at"
             );
-            let mut stmt =
-                conn.prepare(&sql)
-                    .map_err(|source| MetadataStoreError::Database {
-                        action: "prepare query_launcher_drift_for_profile_ids statement",
-                        source,
-                    })?;
+            let mut stmt = conn
+                .prepare(&sql)
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "prepare query_launcher_drift_for_profile_ids statement",
+                    source,
+                })?;
             let rows = stmt
                 .query_map(params_from_iter(profile_ids.iter()), |row| {
                     let profile_id = row.get::<_, String>(0)?;
@@ -831,14 +826,17 @@ mod tests {
         CommunityTapSubscription, CommunityTapSyncResult, CommunityTapSyncStatus,
         CommunityTapWorkspace,
     };
-    use crate::community::{CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating};
+    use crate::community::{
+        CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating,
+    };
     use crate::launch::diagnostics::models::{
         ActionableSuggestion, DiagnosticReport, ExitCodeInfo, FailureMode,
     };
     use crate::launch::request::ValidationSeverity;
     use crate::profile::{
-        GameProfile, GameSection, InjectionSection, LaunchSection, LauncherSection, ProfileStore,
-        RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection, LocalOverrideSection,
+        GameProfile, GameSection, InjectionSection, LaunchSection, LauncherSection,
+        LocalOverrideSection, ProfileStore, RuntimeSection, SteamSection, TrainerLoadingMode,
+        TrainerSection,
     };
     use rusqlite::params;
     use std::fs;
@@ -1290,9 +1288,7 @@ mod tests {
             small_json_len
         );
 
-        let op_id_small = store
-            .record_launch_started(None, "native", None)
-            .unwrap();
+        let op_id_small = store.record_launch_started(None, "native", None).unwrap();
         store
             .record_launch_finished(&op_id_small, Some(0), None, &small_report)
             .unwrap();
@@ -1356,9 +1352,7 @@ mod tests {
             large_json_len
         );
 
-        let op_id_large = store
-            .record_launch_started(None, "native", None)
-            .unwrap();
+        let op_id_large = store.record_launch_started(None, "native", None).unwrap();
         store
             .record_launch_finished(&op_id_large, Some(1), None, &large_report)
             .unwrap();
@@ -1395,9 +1389,7 @@ mod tests {
     fn test_sweep_abandoned_marks_old_operations() {
         let store = MetadataStore::open_in_memory().unwrap();
 
-        let operation_id = store
-            .record_launch_started(None, "native", None)
-            .unwrap();
+        let operation_id = store.record_launch_started(None, "native", None).unwrap();
 
         let swept = store.sweep_abandoned_operations().unwrap();
         assert_eq!(swept, 1);
@@ -1481,12 +1473,16 @@ mod tests {
             .is_ok());
         assert!(store.observe_launcher_deleted("slug").is_ok());
         assert!(store
-            .observe_launcher_renamed("old", "new", "New Name", "/path/new.sh", "/path/new.desktop")
+            .observe_launcher_renamed(
+                "old",
+                "new",
+                "New Name",
+                "/path/new.sh",
+                "/path/new.desktop"
+            )
             .is_ok());
 
-        let operation_id = store
-            .record_launch_started(None, "native", None)
-            .unwrap();
+        let operation_id = store.record_launch_started(None, "native", None).unwrap();
         assert!(operation_id.is_empty());
 
         assert!(store
@@ -1512,7 +1508,11 @@ mod tests {
         }
     }
 
-    fn sample_index_entry(tap_url: &str, relative_path: &str, game_name: &str) -> CommunityProfileIndexEntry {
+    fn sample_index_entry(
+        tap_url: &str,
+        relative_path: &str,
+        game_name: &str,
+    ) -> CommunityProfileIndexEntry {
         CommunityProfileIndexEntry {
             tap_url: tap_url.to_string(),
             tap_branch: None,
@@ -1536,7 +1536,11 @@ mod tests {
         }
     }
 
-    fn sample_sync_result(tap_url: &str, head_commit: &str, entries: Vec<CommunityProfileIndexEntry>) -> CommunityTapSyncResult {
+    fn sample_sync_result(
+        tap_url: &str,
+        head_commit: &str,
+        entries: Vec<CommunityProfileIndexEntry>,
+    ) -> CommunityTapSyncResult {
         CommunityTapSyncResult {
             workspace: sample_tap_workspace(tap_url),
             status: CommunityTapSyncStatus::Updated,
@@ -1599,7 +1603,11 @@ mod tests {
         let result = sample_sync_result(
             tap_url,
             "abc123",
-            vec![sample_index_entry(tap_url, "profiles/game-a/community-profile.json", "Game A")],
+            vec![sample_index_entry(
+                tap_url,
+                "profiles/game-a/community-profile.json",
+                "Game A",
+            )],
         );
 
         store.index_community_tap_result(&result).unwrap();
@@ -1627,7 +1635,10 @@ mod tests {
             .unwrap()
         };
 
-        assert_eq!(updated_at_first, updated_at_second, "updated_at must not change on watermark skip");
+        assert_eq!(
+            updated_at_first, updated_at_second,
+            "updated_at must not change on watermark skip"
+        );
         assert_eq!(profile_count, 1);
     }
 
@@ -1652,7 +1663,11 @@ mod tests {
         let result_v2 = sample_sync_result(
             tap_url,
             "commit-v2",
-            vec![sample_index_entry(tap_url, "profiles/game-a/community-profile.json", "Game A")],
+            vec![sample_index_entry(
+                tap_url,
+                "profiles/game-a/community-profile.json",
+                "Game A",
+            )],
         );
         store.index_community_tap_result(&result_v2).unwrap();
 
@@ -1666,7 +1681,10 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(profile_count, 1, "stale profiles should have been removed on re-index");
+        assert_eq!(
+            profile_count, 1,
+            "stale profiles should have been removed on re-index"
+        );
     }
 
     #[test]
@@ -1676,7 +1694,11 @@ mod tests {
         let result = sample_sync_result(
             tap_url,
             "commit-v1",
-            vec![sample_index_entry(tap_url, "profiles/game-a/community-profile.json", "Game A")],
+            vec![sample_index_entry(
+                tap_url,
+                "profiles/game-a/community-profile.json",
+                "Game A",
+            )],
         );
         store.index_community_tap_result(&result).unwrap();
 
@@ -1689,8 +1711,11 @@ mod tests {
             )
             .unwrap();
 
-        conn.execute("DELETE FROM community_taps WHERE tap_id = ?1", params![&tap_id])
-            .unwrap();
+        conn.execute(
+            "DELETE FROM community_taps WHERE tap_id = ?1",
+            params![&tap_id],
+        )
+        .unwrap();
 
         let orphan_count: i64 = conn
             .query_row(
@@ -1699,7 +1724,10 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(orphan_count, 0, "deleting a tap should cascade delete community profiles");
+        assert_eq!(
+            orphan_count, 0,
+            "deleting a tap should cascade delete community profiles"
+        );
     }
 
     #[test]
@@ -1729,9 +1757,7 @@ mod tests {
             )
             .unwrap();
 
-        let result = store
-            .get_cache_entry("my-cache-key")
-            .unwrap();
+        let result = store.get_cache_entry("my-cache-key").unwrap();
 
         assert_eq!(result.as_deref(), Some(r#"{"data":"hello"}"#));
     }
@@ -1741,10 +1767,20 @@ mod tests {
         let store = MetadataStore::open_in_memory().unwrap();
 
         store
-            .put_cache_entry("https://example.invalid/source", "dedup-key", "payload-v1", None)
+            .put_cache_entry(
+                "https://example.invalid/source",
+                "dedup-key",
+                "payload-v1",
+                None,
+            )
             .unwrap();
         store
-            .put_cache_entry("https://example.invalid/source", "dedup-key", "payload-v2", None)
+            .put_cache_entry(
+                "https://example.invalid/source",
+                "dedup-key",
+                "payload-v2",
+                None,
+            )
             .unwrap();
 
         let conn = connection(&store);
@@ -1784,8 +1820,14 @@ mod tests {
             )
             .unwrap();
 
-        assert!(payload_json.is_none(), "oversized payload should be stored as NULL");
-        assert_eq!(payload_size, original_size as i64, "payload_size should record the original size");
+        assert!(
+            payload_json.is_none(),
+            "oversized payload should be stored as NULL"
+        );
+        assert_eq!(
+            payload_size, original_size as i64,
+            "payload_size should record the original size"
+        );
     }
 
     #[test]
@@ -1820,11 +1862,9 @@ mod tests {
 
         let conn = connection(&store);
         let remaining: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM external_cache_entries",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT COUNT(*) FROM external_cache_entries", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(remaining, 1, "only the non-expired entry should remain");
     }
@@ -1833,9 +1873,7 @@ mod tests {
     fn test_cache_entry_disabled_store_noop() {
         let store = MetadataStore::disabled();
 
-        let result = store
-            .get_cache_entry("any-key")
-            .unwrap();
+        let result = store.get_cache_entry("any-key").unwrap();
         assert!(result.is_none());
     }
 
@@ -1912,7 +1950,10 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(member_count, 0, "collection_profiles rows should cascade-delete with the collection");
+        assert_eq!(
+            member_count, 0,
+            "collection_profiles rows should cascade-delete with the collection"
+        );
     }
 
     #[test]
@@ -1994,18 +2035,30 @@ mod tests {
 
         // Profile A: 3 launches
         for _ in 0..3 {
-            let op_id = store.record_launch_started(Some("profile-a"), "native", None).unwrap();
-            store.record_launch_finished(&op_id, Some(0), None, &report).unwrap();
+            let op_id = store
+                .record_launch_started(Some("profile-a"), "native", None)
+                .unwrap();
+            store
+                .record_launch_finished(&op_id, Some(0), None, &report)
+                .unwrap();
         }
 
         // Profile B: 1 launch
-        let op_id = store.record_launch_started(Some("profile-b"), "native", None).unwrap();
-        store.record_launch_finished(&op_id, Some(0), None, &report).unwrap();
+        let op_id = store
+            .record_launch_started(Some("profile-b"), "native", None)
+            .unwrap();
+        store
+            .record_launch_finished(&op_id, Some(0), None, &report)
+            .unwrap();
 
         // Profile C: 2 launches
         for _ in 0..2 {
-            let op_id = store.record_launch_started(Some("profile-c"), "native", None).unwrap();
-            store.record_launch_finished(&op_id, Some(0), None, &report).unwrap();
+            let op_id = store
+                .record_launch_started(Some("profile-c"), "native", None)
+                .unwrap();
+            store
+                .record_launch_finished(&op_id, Some(0), None, &report)
+                .unwrap();
         }
 
         let most_launched = store.query_most_launched(10).unwrap();
@@ -2026,8 +2079,12 @@ mod tests {
         let clean_report = clean_exit_report();
 
         // Profile with failures: 1 success + 2 failures
-        let op_ok = store.record_launch_started(Some("flaky-profile"), "native", None).unwrap();
-        store.record_launch_finished(&op_ok, Some(0), None, &clean_report).unwrap();
+        let op_ok = store
+            .record_launch_started(Some("flaky-profile"), "native", None)
+            .unwrap();
+        store
+            .record_launch_finished(&op_ok, Some(0), None, &clean_report)
+            .unwrap();
 
         let failure_report = DiagnosticReport {
             severity: ValidationSeverity::Warning,
@@ -2049,14 +2106,22 @@ mod tests {
         };
 
         for _ in 0..2 {
-            let op_fail = store.record_launch_started(Some("flaky-profile"), "native", None).unwrap();
-            store.record_launch_finished(&op_fail, Some(1), None, &failure_report).unwrap();
+            let op_fail = store
+                .record_launch_started(Some("flaky-profile"), "native", None)
+                .unwrap();
+            store
+                .record_launch_finished(&op_fail, Some(1), None, &failure_report)
+                .unwrap();
         }
 
         // Profile with no failures: 2 successes only
         for _ in 0..2 {
-            let op_id = store.record_launch_started(Some("clean-profile"), "native", None).unwrap();
-            store.record_launch_finished(&op_id, Some(0), None, &clean_report).unwrap();
+            let op_id = store
+                .record_launch_started(Some("clean-profile"), "native", None)
+                .unwrap();
+            store
+                .record_launch_finished(&op_id, Some(0), None, &clean_report)
+                .unwrap();
         }
 
         let trends = store.query_failure_trends(30).unwrap();

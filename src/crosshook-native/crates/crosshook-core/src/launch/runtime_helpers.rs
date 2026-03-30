@@ -19,10 +19,7 @@ pub fn new_direct_proton_command(proton_path: &str) -> Command {
     new_direct_proton_command_with_wrappers(proton_path, &[])
 }
 
-pub fn new_direct_proton_command_with_wrappers(
-    proton_path: &str,
-    wrappers: &[String],
-) -> Command {
+pub fn new_direct_proton_command_with_wrappers(proton_path: &str, wrappers: &[String]) -> Command {
     if wrappers.is_empty() {
         let mut command = Command::new(proton_path.trim());
         command.arg("run");

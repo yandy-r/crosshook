@@ -222,7 +222,14 @@ pub fn sync_profiles_from_store(
             }
         };
 
-        observe_profile_write(conn, &name, &profile, &path, SyncSource::InitialCensus, None)?;
+        observe_profile_write(
+            conn,
+            &name,
+            &profile,
+            &path,
+            SyncSource::InitialCensus,
+            None,
+        )?;
         if existed {
             report.updated += 1;
         } else {

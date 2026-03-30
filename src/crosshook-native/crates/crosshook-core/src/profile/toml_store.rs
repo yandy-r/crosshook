@@ -221,7 +221,10 @@ impl ProfileStore {
     /// - `ProfileStoreError::InvalidName` if `source_name` fails validation.
     /// - `ProfileStoreError::NotFound` if no profile file exists for `source_name`.
     /// - `ProfileStoreError::Io` or `ProfileStoreError::TomlSer` on filesystem/serialization failure.
-    pub fn duplicate(&self, source_name: &str) -> Result<DuplicateProfileResult, ProfileStoreError> {
+    pub fn duplicate(
+        &self,
+        source_name: &str,
+    ) -> Result<DuplicateProfileResult, ProfileStoreError> {
         validate_name(source_name)?;
         let profile = self.load(source_name)?;
         let existing_names = self.list()?;
@@ -286,7 +289,10 @@ impl ProfileStore {
 ///
 /// The returned string is valid TOML — comment headers use `#` syntax and are
 /// ignored by TOML parsers, so the output can be saved directly as a `.toml` profile.
-pub fn profile_to_shareable_toml(name: &str, profile: &GameProfile) -> Result<String, toml::ser::Error> {
+pub fn profile_to_shareable_toml(
+    name: &str,
+    profile: &GameProfile,
+) -> Result<String, toml::ser::Error> {
     let toml_body = toml::to_string_pretty(profile)?;
     Ok(format!(
         "# CrossHook Profile: {name}\n\
@@ -345,7 +351,11 @@ fn strip_copy_suffix(name: &str) -> &str {
     if let Some(before_paren) = trimmed.strip_suffix(')') {
         if let Some(pos) = before_paren.rfind('(') {
             let inside = before_paren[pos + 1..].trim();
-            if inside == "Copy" || inside.strip_prefix("Copy ").is_some_and(|n| n.parse::<u32>().is_ok()) {
+            if inside == "Copy"
+                || inside
+                    .strip_prefix("Copy ")
+                    .is_some_and(|n| n.parse::<u32>().is_ok())
+            {
                 return trimmed[..pos].trim_end();
             }
         }
@@ -630,7 +640,10 @@ method = "native"
         assert_eq!(strip_copy_suffix("Name (Copy 3)"), "Name");
         assert_eq!(strip_copy_suffix("Name"), "Name");
         assert_eq!(strip_copy_suffix("Copy"), "Copy");
-        assert_eq!(strip_copy_suffix("Game (Special Edition)"), "Game (Special Edition)");
+        assert_eq!(
+            strip_copy_suffix("Game (Special Edition)"),
+            "Game (Special Edition)"
+        );
         assert_eq!(strip_copy_suffix("Name (Copy 0)"), "Name");
         assert_eq!(strip_copy_suffix("Name (Copy 99)"), "Name");
     }

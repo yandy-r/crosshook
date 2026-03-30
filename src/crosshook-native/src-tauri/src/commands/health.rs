@@ -176,7 +176,10 @@ fn enrich_profile(
     let launcher_drift_state = profile_id
         .as_deref()
         .and_then(|pid| prefetch.launcher_drift_map.get(pid).copied());
-    let profile_source = prefetch.profile_source_map.get(&report.name).map(String::as_str);
+    let profile_source = prefetch
+        .profile_source_map
+        .get(&report.name)
+        .map(String::as_str);
     let is_favorite = prefetch.favorite_profiles.contains(&report.name);
     let metadata = if prefetch.metadata_available {
         Some(build_profile_metadata(
@@ -203,7 +206,11 @@ pub(crate) fn build_enriched_health_summary(
     metadata_store: &MetadataStore,
 ) -> EnrichedHealthSummary {
     let summary = batch_check_health(store);
-    let profile_names: Vec<String> = summary.profiles.iter().map(|report| report.name.clone()).collect();
+    let profile_names: Vec<String> = summary
+        .profiles
+        .iter()
+        .map(|report| report.name.clone())
+        .collect();
     let prefetch = prefetch_batch_metadata(metadata_store, &profile_names);
 
     let HealthCheckSummary {
@@ -304,7 +311,10 @@ pub fn get_cached_health_snapshots(
         .load_health_snapshots()
         .map_err(|e| e.to_string())?;
 
-    Ok(snapshots.into_iter().map(CachedHealthSnapshot::from).collect())
+    Ok(snapshots
+        .into_iter()
+        .map(CachedHealthSnapshot::from)
+        .collect())
 }
 
 /// Returns the health check result for a single named profile, enriched with

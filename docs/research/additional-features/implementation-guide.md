@@ -96,7 +96,7 @@ _Goal: Profiles are robust, portable, and easy to manage._
 |   9   | **#47** -- Pinned profiles / favorites |  Done  | Small `AppSettingsData` extension. High UX value on Steam Deck.                                                                           |
 |  10   | **#48** -- Proton migration tool       |  Done  | Detect stale Proton paths, suggest replacements from discovery. Natural extension of #38 health dashboard.                                |
 |  11   | **#42** -- Profile override layers     |  Done  | The biggest single improvement for community profile adoption. Split portable base from local paths.                                      |
-|  12   | **#45** -- Import wizard               |        | Depends on #42 (override layers) to properly separate portable and local concerns during import. Orchestrates auto-populate + validation. |
+|  12   | **#45** -- Import wizard               |  Done  | Depends on #42 (override layers) to properly separate portable and local concerns during import. Orchestrates auto-populate + validation. |
 
 **Dependencies**: #42 should precede #45. Quick wins (#56, #55, #64) have no dependencies.
 **Estimated effort**: 2-3 weeks total.

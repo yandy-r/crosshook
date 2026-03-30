@@ -154,15 +154,9 @@ impl LaunchPreview {
         // [preview]
         lines.push("[preview]".to_string());
         lines.push(format!("generated_at = \"{}\"", self.generated_at));
-        lines.push(format!(
-            "method = \"{}\"",
-            self.resolved_method.as_str()
-        ));
+        lines.push(format!("method = \"{}\"", self.resolved_method.as_str()));
         lines.push(format!("game = \"{}\"", self.game_executable));
-        lines.push(format!(
-            "game_name = \"{}\"",
-            self.game_executable_name
-        ));
+        lines.push(format!("game_name = \"{}\"", self.game_executable_name));
         if !self.working_directory.is_empty() {
             lines.push(format!(
                 "working_directory = \"{}\"",
@@ -173,16 +167,10 @@ impl LaunchPreview {
 
         // [validation]
         lines.push("[validation]".to_string());
-        lines.push(format!(
-            "passed = {}",
-            self.validation.issues.is_empty()
-        ));
+        lines.push(format!("passed = {}", self.validation.issues.is_empty()));
         lines.push(format!("issue_count = {}", self.validation.issues.len()));
         for issue in &self.validation.issues {
-            lines.push(format!(
-                "  [{:?}] {}",
-                issue.severity, issue.message
-            ));
+            lines.push(format!("  [{:?}] {}", issue.severity, issue.message));
         }
         lines.push(String::new());
 
@@ -211,14 +199,8 @@ impl LaunchPreview {
                 "proton_executable = \"{}\"",
                 setup.proton_executable
             ));
-            lines.push(format!(
-                "wine_prefix_path = \"{}\"",
-                setup.wine_prefix_path
-            ));
-            lines.push(format!(
-                "compat_data_path = \"{}\"",
-                setup.compat_data_path
-            ));
+            lines.push(format!("wine_prefix_path = \"{}\"", setup.wine_prefix_path));
+            lines.push(format!("compat_data_path = \"{}\"", setup.compat_data_path));
             lines.push(format!(
                 "steam_client_install_path = \"{}\"",
                 setup.steam_client_install_path
@@ -304,7 +286,11 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                         None
                     }
                 };
-            (Some(env), Some(directives.wrappers.clone()), effective_command)
+            (
+                Some(env),
+                Some(directives.wrappers.clone()),
+                effective_command,
+            )
         }
         None => (None, None, None),
     };
@@ -393,19 +379,25 @@ fn collect_runtime_proton_environment(request: &LaunchRequest, env: &mut Vec<Pre
 
     env.push(PreviewEnvVar {
         key: "WINEPREFIX".to_string(),
-        value: resolved_paths.wine_prefix_path.to_string_lossy().into_owned(),
+        value: resolved_paths
+            .wine_prefix_path
+            .to_string_lossy()
+            .into_owned(),
         source: EnvVarSource::ProtonRuntime,
     });
 
     env.push(PreviewEnvVar {
         key: "STEAM_COMPAT_DATA_PATH".to_string(),
-        value: resolved_paths.compat_data_path.to_string_lossy().into_owned(),
+        value: resolved_paths
+            .compat_data_path
+            .to_string_lossy()
+            .into_owned(),
         source: EnvVarSource::ProtonRuntime,
     });
 
-    if let Some(steam_client_path) = resolve_steam_client_install_path(
-        request.steam.steam_client_install_path.trim(),
-    ) {
+    if let Some(steam_client_path) =
+        resolve_steam_client_install_path(request.steam.steam_client_install_path.trim())
+    {
         env.push(PreviewEnvVar {
             key: "STEAM_COMPAT_CLIENT_INSTALL_PATH".to_string(),
             value: steam_client_path,
@@ -443,10 +435,7 @@ fn collect_steam_proton_environment(request: &LaunchRequest, env: &mut Vec<Previ
 }
 
 /// Maps resolved launch directive environment pairs to preview env vars.
-fn collect_optimization_environment(
-    directives: &LaunchDirectives,
-    env: &mut Vec<PreviewEnvVar>,
-) {
+fn collect_optimization_environment(directives: &LaunchDirectives, env: &mut Vec<PreviewEnvVar>) {
     for (key, value) in &directives.env {
         env.push(PreviewEnvVar {
             key: key.clone(),
@@ -485,16 +474,22 @@ fn build_effective_command_string(
 fn build_proton_setup(request: &LaunchRequest, method: &str) -> Option<ProtonSetup> {
     match method {
         METHOD_PROTON_RUN => {
-            let resolved_paths = resolve_proton_paths(Path::new(request.runtime.prefix_path.trim()));
+            let resolved_paths =
+                resolve_proton_paths(Path::new(request.runtime.prefix_path.trim()));
 
-            let steam_client = resolve_steam_client_install_path(
-                request.steam.steam_client_install_path.trim(),
-            )
-            .unwrap_or_default();
+            let steam_client =
+                resolve_steam_client_install_path(request.steam.steam_client_install_path.trim())
+                    .unwrap_or_default();
 
             Some(ProtonSetup {
-                wine_prefix_path: resolved_paths.wine_prefix_path.to_string_lossy().into_owned(),
-                compat_data_path: resolved_paths.compat_data_path.to_string_lossy().into_owned(),
+                wine_prefix_path: resolved_paths
+                    .wine_prefix_path
+                    .to_string_lossy()
+                    .into_owned(),
+                compat_data_path: resolved_paths
+                    .compat_data_path
+                    .to_string_lossy()
+                    .into_owned(),
                 steam_client_install_path: steam_client,
                 proton_executable: request.runtime.proton_path.trim().to_string(),
             })
@@ -607,12 +602,12 @@ mod tests {
     use std::path::Path;
 
     use super::*;
-    use serde_json::json;
     use crate::launch::request::{
         LaunchOptimizationsRequest, RuntimeLaunchConfig, SteamLaunchConfig, METHOD_NATIVE,
         METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
     };
     use crate::profile::TrainerLoadingMode;
+    use serde_json::json;
 
     // -- Fixture helpers (mirrors request.rs test factories) --
 
@@ -852,10 +847,7 @@ mod tests {
             preview.steam_launch_options.is_some(),
             "expected steam_launch_options for steam_applaunch"
         );
-        assert_eq!(
-            preview.steam_launch_options.as_deref(),
-            Some("%command%")
-        );
+        assert_eq!(preview.steam_launch_options.as_deref(), Some("%command%"));
     }
 
     #[test]
