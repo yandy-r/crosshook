@@ -4,6 +4,7 @@ pub mod install;
 pub mod launch;
 pub mod logging;
 pub mod metadata;
+pub mod onboarding;
 pub mod profile;
 pub mod settings;
 pub mod steam;

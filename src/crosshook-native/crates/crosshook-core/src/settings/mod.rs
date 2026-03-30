@@ -22,6 +22,7 @@ pub struct AppSettingsData {
     pub auto_load_last_profile: bool,
     pub last_used_profile: String,
     pub community_taps: Vec<CommunityTapSubscription>,
+    pub onboarding_completed: bool,
 }
 
 #[derive(Debug)]
@@ -135,12 +136,30 @@ mod tests {
                 branch: Some("main".to_string()),
                 pinned_commit: Some("deadbeef".to_string()),
             }],
+            onboarding_completed: true,
         };
 
         store.save(&settings).unwrap();
 
         assert_eq!(store.load().unwrap(), settings);
         assert!(store.settings_path().exists());
+    }
+
+    #[test]
+    fn onboarding_completed_defaults_to_false_when_absent() {
+        let temp_dir = tempdir().unwrap();
+        let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+        fs::create_dir_all(&store.base_path).unwrap();
+        // TOML that deliberately omits onboarding_completed
+        fs::write(
+            store.settings_path(),
+            "auto_load_last_profile = true\nlast_used_profile = \"elden-ring\"\n",
+        )
+        .unwrap();
+
+        let settings = store.load().unwrap();
+        assert!(!settings.onboarding_completed);
     }
 
     #[test]
@@ -163,6 +182,7 @@ mod tests {
                 auto_load_last_profile: false,
                 last_used_profile: "elden-ring".to_string(),
                 community_taps: Vec::new(),
+                onboarding_completed: false,
             }
         );
     }
