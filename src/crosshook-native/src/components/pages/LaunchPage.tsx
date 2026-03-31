@@ -118,6 +118,7 @@ export function LaunchPage() {
               }}
               optimizationPresetActionBusy={profileState.optimizationPresetActionBusy}
               onSaveManualPreset={profileState.saveManualOptimizationPreset}
+              catalog={profileState.catalog}
             />
           </CollapsibleSection>
         ) : null}
