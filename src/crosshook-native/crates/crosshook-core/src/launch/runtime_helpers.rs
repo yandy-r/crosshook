@@ -6,6 +6,8 @@ use std::process::Stdio;
 
 use tokio::process::Command;
 
+use crate::profile::{GamescopeConfig, GamescopeFilter};
+
 /// Default `PATH` used when the host environment does not set `PATH` (matches `apply_host_environment`).
 pub const DEFAULT_HOST_PATH: &str = "/usr/bin:/bin";
 const DEFAULT_SHELL: &str = "/bin/bash";
@@ -30,6 +32,85 @@ pub fn new_direct_proton_command_with_wrappers(proton_path: &str, wrappers: &[St
 
     let mut command = Command::new(wrappers[0].trim());
     for wrapper in wrappers.iter().skip(1) {
+        command.arg(wrapper.trim());
+    }
+    command.arg(proton_path.trim());
+    command.arg("run");
+    command.env_clear();
+    command
+}
+
+pub fn build_gamescope_args(config: &GamescopeConfig) -> Vec<String> {
+    let mut args: Vec<String> = Vec::new();
+
+    if let Some(w) = config.internal_width {
+        args.push("-w".to_string());
+        args.push(w.to_string());
+    }
+    if let Some(h) = config.internal_height {
+        args.push("-h".to_string());
+        args.push(h.to_string());
+    }
+    if let Some(w) = config.output_width {
+        args.push("-W".to_string());
+        args.push(w.to_string());
+    }
+    if let Some(h) = config.output_height {
+        args.push("-H".to_string());
+        args.push(h.to_string());
+    }
+    if let Some(r) = config.frame_rate_limit {
+        args.push("-r".to_string());
+        args.push(r.to_string());
+    }
+    if let Some(sharpness) = config.fsr_sharpness {
+        args.push("--fsr-sharpness".to_string());
+        args.push(sharpness.to_string());
+    }
+    if let Some(filter) = &config.upscale_filter {
+        let filter_str = match filter {
+            GamescopeFilter::Fsr => "fsr",
+            GamescopeFilter::Nis => "nis",
+            GamescopeFilter::Linear => "linear",
+            GamescopeFilter::Nearest => "nearest",
+            GamescopeFilter::Pixel => "pixel",
+        };
+        args.push("--filter".to_string());
+        args.push(filter_str.to_string());
+    }
+    if config.fullscreen {
+        args.push("-f".to_string());
+    }
+    if config.borderless {
+        args.push("-b".to_string());
+    }
+    if config.grab_cursor {
+        args.push("--grab".to_string());
+    }
+    if config.force_grab_cursor {
+        args.push("--force-grab-cursor".to_string());
+    }
+    if config.hdr_enabled {
+        args.push("--hdr-enabled".to_string());
+    }
+    for extra in &config.extra_args {
+        args.push(extra.clone());
+    }
+
+    args
+}
+
+pub fn new_proton_command_with_gamescope(
+    proton_path: &str,
+    wrappers: &[String],
+    gamescope_args: &[String],
+) -> Command {
+    let mut command = Command::new("gamescope");
+    for arg in gamescope_args {
+        command.arg(arg.trim());
+    }
+    command.arg("--");
+    for wrapper in wrappers {
         command.arg(wrapper.trim());
     }
     command.arg(proton_path.trim());
@@ -219,4 +300,68 @@ pub(crate) fn env_value(key: &str, default: &str) -> String {
 
 fn set_env(command: &mut Command, key: &str, value: impl AsRef<str>) {
     command.env(key, value.as_ref());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::GamescopeFilter;
+
+    #[test]
+    fn build_gamescope_args_default_returns_empty() {
+        let config = GamescopeConfig::default();
+        let args = build_gamescope_args(&config);
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn build_gamescope_args_resolution_and_fps() {
+        let config = GamescopeConfig {
+            internal_width: Some(1280),
+            internal_height: Some(800),
+            output_width: Some(1920),
+            output_height: Some(1080),
+            frame_rate_limit: Some(60),
+            ..Default::default()
+        };
+        let args = build_gamescope_args(&config);
+        assert_eq!(
+            args,
+            vec!["-w", "1280", "-h", "800", "-W", "1920", "-H", "1080", "-r", "60"]
+        );
+    }
+
+    #[test]
+    fn build_gamescope_args_all_flags() {
+        let config = GamescopeConfig {
+            fullscreen: true,
+            borderless: true,
+            grab_cursor: true,
+            force_grab_cursor: true,
+            hdr_enabled: true,
+            fsr_sharpness: Some(5),
+            upscale_filter: Some(GamescopeFilter::Fsr),
+            ..Default::default()
+        };
+        let args = build_gamescope_args(&config);
+        assert!(args.contains(&"--fsr-sharpness".to_string()));
+        assert!(args.contains(&"5".to_string()));
+        assert!(args.contains(&"--filter".to_string()));
+        assert!(args.contains(&"fsr".to_string()));
+        assert!(args.contains(&"-f".to_string()));
+        assert!(args.contains(&"-b".to_string()));
+        assert!(args.contains(&"--grab".to_string()));
+        assert!(args.contains(&"--force-grab-cursor".to_string()));
+        assert!(args.contains(&"--hdr-enabled".to_string()));
+    }
+
+    #[test]
+    fn build_gamescope_args_extra_args_passthrough() {
+        let config = GamescopeConfig {
+            extra_args: vec!["--expose-wayland".to_string(), "--rt".to_string()],
+            ..Default::default()
+        };
+        let args = build_gamescope_args(&config);
+        assert_eq!(args, vec!["--expose-wayland", "--rt"]);
+    }
 }

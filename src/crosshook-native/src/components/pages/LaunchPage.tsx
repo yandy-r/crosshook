@@ -1,5 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
+import GamescopeConfigPanel from '../GamescopeConfigPanel';
 import LaunchOptimizationsPanel from '../LaunchOptimizationsPanel';
 import LaunchPanel from '../LaunchPanel';
 import { PinnedProfilesStrip } from '../PinnedProfilesStrip';
@@ -8,6 +10,7 @@ import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useProfileContext } from '../../context/ProfileContext';
 import { PageBanner, LaunchArt } from '../layout/PageBanner';
+import { DEFAULT_GAMESCOPE_CONFIG } from '../../types/profile';
 import { buildProfileLaunchRequest } from '../../utils/launch';
 
 export function LaunchPage() {
@@ -21,6 +24,14 @@ export function LaunchPage() {
     selectedName,
   );
   const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
+  const [isInsideGamescopeSession, setIsInsideGamescopeSession] = useState(false);
+  useEffect(() => {
+    invoke<boolean>('check_gamescope_session')
+      .then(setIsInsideGamescopeSession)
+      .catch(() => {});
+  }, []);
+
+  const showsGamescopePanel = profileState.launchMethod === 'proton_run';
   const showsOptimizationPanels =
     profileState.launchMethod === 'proton_run' || profileState.launchMethod === 'steam_applaunch';
   const showsSteamLaunchOptions = profileState.launchMethod === 'steam_applaunch';
@@ -72,6 +83,21 @@ export function LaunchPage() {
               onToggleFavorite={profileState.toggleFavorite}
             />
           </section>
+        ) : null}
+
+        {showsGamescopePanel ? (
+          <CollapsibleSection title="Gamescope" className="crosshook-panel" defaultOpen={false}>
+            <GamescopeConfigPanel
+              config={profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG}
+              onChange={(gamescope) => {
+                profileState.updateProfile((current) => ({
+                  ...current,
+                  launch: { ...current.launch, gamescope },
+                }));
+              }}
+              isInsideGamescopeSession={isInsideGamescopeSession}
+            />
+          </CollapsibleSection>
         ) : null}
 
         {showsOptimizationPanels ? (

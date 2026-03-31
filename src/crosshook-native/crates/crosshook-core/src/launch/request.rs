@@ -6,12 +6,19 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::optimizations::{resolve_launch_directives, resolve_launch_directives_for_method};
-use crate::profile::TrainerLoadingMode;
+use super::optimizations::{
+    is_command_available, resolve_launch_directives, resolve_launch_directives_for_method,
+};
+use crate::profile::{GamescopeConfig, TrainerLoadingMode};
 
 pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
 pub const METHOD_PROTON_RUN: &str = "proton_run";
 pub const METHOD_NATIVE: &str = "native";
+
+/// Returns `true` if the current process is running inside a gamescope compositor session.
+pub fn is_inside_gamescope_session() -> bool {
+    std::env::var("GAMESCOPE_WAYLAND_DISPLAY").is_ok()
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LaunchRequest {
@@ -39,6 +46,8 @@ pub struct LaunchRequest {
     pub profile_name: Option<String>,
     #[serde(rename = "custom_env_vars", default, skip_serializing_if = "BTreeMap::is_empty")]
     pub custom_env_vars: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
+    pub gamescope: GamescopeConfig,
 }
 
 pub type SteamLaunchRequest = LaunchRequest;
@@ -211,6 +220,18 @@ pub enum ValidationError {
     CustomEnvVarValueContainsNul,
     /// Custom env must not override runtime-reserved keys.
     CustomEnvVarReservedKey(String),
+    /// The `gamescope` binary is not installed or not found on PATH.
+    GamescopeBinaryMissing,
+    /// Gamescope is only supported for `proton_run` launches.
+    GamescopeNotSupportedForMethod(String),
+    /// Running inside an existing gamescope session without `allow_nested`.
+    GamescopeNestedSession,
+    /// Only one of width/height was set for a resolution pair.
+    GamescopeResolutionPairIncomplete { pair: String },
+    /// FSR sharpness value is outside the valid range (0–20).
+    GamescopeFsrSharpnessOutOfRange(u8),
+    /// Fullscreen and borderless are mutually exclusive in gamescope.
+    GamescopeFullscreenBorderlessConflict,
 }
 
 impl ValidationError {
@@ -322,6 +343,24 @@ impl ValidationError {
                 format!(
                     "The environment variable '{key}' is reserved and cannot be set via custom env vars."
                 )
+            }
+            Self::GamescopeBinaryMissing => {
+                "gamescope is not installed or not found on PATH.".to_string()
+            }
+            Self::GamescopeNotSupportedForMethod(method) => {
+                format!("Gamescope is only supported for proton_run launches, not '{method}'.")
+            }
+            Self::GamescopeNestedSession => {
+                "Running inside an existing gamescope session. Gamescope will be auto-skipped unless allow_nested is enabled.".to_string()
+            }
+            Self::GamescopeResolutionPairIncomplete { pair } => {
+                format!("Both width and height must be set for {pair} resolution.")
+            }
+            Self::GamescopeFsrSharpnessOutOfRange(v) => {
+                format!("FSR sharpness {v} is out of range (0–20).")
+            }
+            Self::GamescopeFullscreenBorderlessConflict => {
+                "Fullscreen and borderless cannot both be enabled in gamescope.".to_string()
             }
         }
     }
@@ -475,11 +514,32 @@ impl ValidationError {
                 "Remove this key from custom env vars; CrossHook sets WINEPREFIX and Steam compat paths from your profile at launch."
                     .to_string()
             }
+            Self::GamescopeBinaryMissing => {
+                "Install gamescope from your distribution's package manager.".to_string()
+            }
+            Self::GamescopeNotSupportedForMethod(_) => {
+                "Switch the launch method to proton_run to use gamescope.".to_string()
+            }
+            Self::GamescopeNestedSession => {
+                "Enable 'Allow nested' in the gamescope configuration to override.".to_string()
+            }
+            Self::GamescopeResolutionPairIncomplete { .. } => {
+                "Set both dimensions or leave both empty for auto-detection.".to_string()
+            }
+            Self::GamescopeFsrSharpnessOutOfRange(_) => {
+                "Set FSR sharpness to a value between 0 (sharpest) and 20 (softest).".to_string()
+            }
+            Self::GamescopeFullscreenBorderlessConflict => {
+                "Choose either fullscreen or borderless, not both.".to_string()
+            }
         }
     }
 
     pub fn severity(&self) -> ValidationSeverity {
-        ValidationSeverity::Fatal
+        match self {
+            Self::GamescopeNestedSession => ValidationSeverity::Warning,
+            _ => ValidationSeverity::Fatal,
+        }
     }
 }
 
@@ -539,6 +599,54 @@ fn collect_custom_env_issues(request: &LaunchRequest, issues: &mut Vec<LaunchVal
     }
 }
 
+fn collect_gamescope_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidationIssue>) {
+    let method = request.resolved_method();
+    if method != METHOD_PROTON_RUN {
+        issues.push(
+            ValidationError::GamescopeNotSupportedForMethod(method.to_string()).issue(),
+        );
+        return;
+    }
+
+    if !is_command_available("gamescope") {
+        issues.push(ValidationError::GamescopeBinaryMissing.issue());
+    }
+
+    let cfg = &request.gamescope;
+
+    if cfg.internal_width.is_some() != cfg.internal_height.is_some() {
+        issues.push(
+            ValidationError::GamescopeResolutionPairIncomplete {
+                pair: "internal".into(),
+            }
+            .issue(),
+        );
+    }
+
+    if cfg.output_width.is_some() != cfg.output_height.is_some() {
+        issues.push(
+            ValidationError::GamescopeResolutionPairIncomplete {
+                pair: "output".into(),
+            }
+            .issue(),
+        );
+    }
+
+    if let Some(v) = cfg.fsr_sharpness {
+        if v > 20 {
+            issues.push(ValidationError::GamescopeFsrSharpnessOutOfRange(v).issue());
+        }
+    }
+
+    if cfg.fullscreen && cfg.borderless {
+        issues.push(ValidationError::GamescopeFullscreenBorderlessConflict.issue());
+    }
+
+    if is_inside_gamescope_session() && !cfg.allow_nested {
+        issues.push(ValidationError::GamescopeNestedSession.issue());
+    }
+}
+
 pub fn validate_all(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
     let method_trimmed = request.method.trim();
     if !method_trimmed.is_empty()
@@ -556,6 +664,9 @@ pub fn validate_all(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
         METHOD_PROTON_RUN => collect_proton_issues(request, &mut issues),
         METHOD_NATIVE => collect_native_issues(request, &mut issues),
         other => issues.push(ValidationError::UnsupportedMethod(other.to_string()).issue()),
+    }
+    if request.gamescope.enabled {
+        collect_gamescope_issues(request, &mut issues);
     }
     issues
 }

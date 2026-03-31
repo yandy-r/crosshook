@@ -1,6 +1,6 @@
 import type { DiagnosticReport } from './diagnostics';
 import type { LaunchOptimizations } from './launch-optimizations';
-import type { LaunchMethod, TrainerLoadingMode } from './profile';
+import type { GamescopeConfig, LaunchMethod, TrainerLoadingMode } from './profile';
 
 export enum LaunchPhase {
   Idle = "Idle",
@@ -32,6 +32,7 @@ export interface LaunchRequest {
   launch_game_only: boolean;
   profile_name?: string;
   custom_env_vars: Record<string, string>;
+  gamescope: GamescopeConfig;
 }
 
 export type LaunchValidationSeverity = 'fatal' | 'warning' | 'info';

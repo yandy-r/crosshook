@@ -16,10 +16,11 @@ pub use exchange::{
 };
 pub use legacy::{delete, list, load, save, validate_name};
 pub use models::{
-    resolve_launch_method, GameProfile, GameSection, InjectionSection, LaunchOptimizationsSection,
-    LaunchSection, LauncherSection, LegacyProfileData, LocalOverrideGameSection,
-    LocalOverrideRuntimeSection, LocalOverrideSection, LocalOverrideSteamSection,
-    LocalOverrideTrainerSection, RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
+    resolve_launch_method, GameProfile, GameSection, GamescopeConfig, GamescopeFilter,
+    InjectionSection, LaunchOptimizationsSection, LaunchSection, LauncherSection, LegacyProfileData,
+    LocalOverrideGameSection, LocalOverrideRuntimeSection, LocalOverrideSection,
+    LocalOverrideSteamSection, LocalOverrideTrainerSection, RuntimeSection, SteamSection,
+    TrainerLoadingMode, TrainerSection,
 };
 pub use toml_store::{
     bundled_optimization_preset_toml_key, profile_to_shareable_toml, DuplicateProfileResult,
