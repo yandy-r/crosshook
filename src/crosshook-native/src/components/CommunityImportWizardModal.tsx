@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useMemo, useState } from 'react';
 import type { CommunityImportPreview } from '../hooks/useCommunityProfiles';
 import { isLaunchValidationIssue, type LaunchPreview, type LaunchRequest, type LaunchValidationIssue } from '../types';
-import { DEFAULT_GAMESCOPE_CONFIG } from '../types/profile';
+import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
 import type { GameProfile, LaunchMethod } from '../types/profile';
 import ProfileReviewModal from './ProfileReviewModal';
 
@@ -127,6 +127,7 @@ function buildLaunchRequest(profile: GameProfile, steamClientInstallPath: string
     launch_trainer_only: false,
     custom_env_vars: { ...profile.launch.custom_env_vars },
     gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
+    mangohud: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
   };
 }
 

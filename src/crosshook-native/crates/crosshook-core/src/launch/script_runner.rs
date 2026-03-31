@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use directories::BaseDirs;
 use tokio::process::Command;
 
 use super::{
@@ -54,6 +55,75 @@ fn should_skip_gamescope(config: &GamescopeConfig) -> bool {
     !config.allow_nested && std::env::var("GAMESCOPE_WAYLAND_DISPLAY").is_ok()
 }
 
+/// Injects `MANGOHUD_CONFIGFILE` (and optionally `MANGOHUD_CONFIG=read_cfg`) into a command when
+/// the profile has MangoHud config enabled.
+///
+/// Skips injection if the user has already set `MANGOHUD_CONFIGFILE` in `custom_env_vars` so that
+/// explicit user overrides are respected.
+///
+/// When both gamescope and a mangohud wrapper are active, also sets `MANGOHUD_CONFIG=read_cfg`
+/// for older gamescope compatibility.
+fn apply_mangohud_config_env(
+    command: &mut Command,
+    request: &LaunchRequest,
+    gamescope_active: bool,
+    wrappers_had_mangohud: bool,
+) {
+    if !request.mangohud.enabled {
+        return;
+    }
+
+    let user_overrode_configfile = request.custom_env_vars.contains_key("MANGOHUD_CONFIGFILE");
+
+    // Inject MANGOHUD_CONFIGFILE only when the user hasn't explicitly set it.
+    if !user_overrode_configfile {
+        let profile_name = match request.profile_name.as_deref().filter(|n| !n.is_empty()) {
+            Some(n) => n,
+            None => {
+                tracing::warn!(
+                    "mangohud config enabled but profile_name is missing in LaunchRequest; \
+                     skipping MANGOHUD_CONFIGFILE injection"
+                );
+                // Still fall through to set read_cfg below if gamescope is active.
+                if gamescope_active && wrappers_had_mangohud {
+                    command.env("MANGOHUD_CONFIG", "read_cfg");
+                }
+                return;
+            }
+        };
+
+        let base_path = match BaseDirs::new() {
+            Some(dirs) => dirs.config_dir().join("crosshook").join("profiles"),
+            None => {
+                tracing::warn!(
+                    "mangohud config enabled but home directory could not be resolved; \
+                     skipping MANGOHUD_CONFIGFILE injection"
+                );
+                if gamescope_active && wrappers_had_mangohud {
+                    command.env("MANGOHUD_CONFIG", "read_cfg");
+                }
+                return;
+            }
+        };
+
+        let conf_path = crate::profile::mangohud::mangohud_conf_path(&base_path, profile_name);
+
+        if conf_path.is_file() {
+            command.env("MANGOHUD_CONFIGFILE", &conf_path);
+        } else {
+            tracing::warn!(
+                "mangohud config file not found at {}; skipping MANGOHUD_CONFIGFILE injection",
+                conf_path.display()
+            );
+        }
+    }
+
+    // Always set read_cfg for gamescope compatibility, regardless of who supplied MANGOHUD_CONFIGFILE.
+    if gamescope_active && wrappers_had_mangohud {
+        command.env("MANGOHUD_CONFIG", "read_cfg");
+    }
+}
+
 pub fn build_helper_command(
     request: &LaunchRequest,
     script_path: &Path,
@@ -85,7 +155,10 @@ pub fn build_proton_game_command(
     log_path: &Path,
 ) -> std::io::Result<Command> {
     let directives = resolve_launch_directives(request).map_err(validation_error_to_io_error)?;
-    let mut command = if request.gamescope.enabled && !should_skip_gamescope(&request.gamescope) {
+    let gamescope_active =
+        request.gamescope.enabled && !should_skip_gamescope(&request.gamescope);
+    let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
+    let mut command = if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
             prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
         new_proton_command_with_gamescope(
@@ -111,6 +184,7 @@ pub fn build_proton_game_command(
         &directives.env,
         &request.custom_env_vars,
     );
+    apply_mangohud_config_env(&mut command, request, gamescope_active, wrappers_had_mangohud);
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -133,7 +207,10 @@ pub fn build_proton_trainer_command(
         )?,
     };
 
-    let mut command = if request.gamescope.enabled && !should_skip_gamescope(&request.gamescope) {
+    let gamescope_active =
+        request.gamescope.enabled && !should_skip_gamescope(&request.gamescope);
+    let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
+    let mut command = if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
             prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
         new_proton_command_with_gamescope(
@@ -159,6 +236,7 @@ pub fn build_proton_trainer_command(
         &directives.env,
         &request.custom_env_vars,
     );
+    apply_mangohud_config_env(&mut command, request, gamescope_active, wrappers_had_mangohud);
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),

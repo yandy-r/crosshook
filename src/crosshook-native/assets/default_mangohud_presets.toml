@@ -1,0 +1,36 @@
+catalog_version = 1
+
+[[preset]]
+id = "minimal"
+label = "Minimal"
+description = "Simple FPS counter with no additional stats"
+fps_limit = 0
+gpu_stats = false
+cpu_stats = false
+ram = false
+frametime = false
+battery = false
+watt = false
+
+[[preset]]
+id = "performance"
+label = "Performance"
+description = "Detailed GPU, CPU, RAM, and frametime metrics for benchmarking"
+gpu_stats = true
+cpu_stats = true
+ram = true
+frametime = true
+battery = false
+watt = false
+
+[[preset]]
+id = "battery"
+label = "Battery (Steam Deck)"
+description = "Battery, wattage, and GPU stats for Steam Deck portable mode"
+gpu_stats = true
+cpu_stats = false
+ram = false
+frametime = false
+battery = true
+watt = true
+position = "bottom-left"

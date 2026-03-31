@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 import GamescopeConfigPanel from '../GamescopeConfigPanel';
+import MangoHudConfigPanel from '../MangoHudConfigPanel';
 import LaunchOptimizationsPanel from '../LaunchOptimizationsPanel';
 import LaunchPanel from '../LaunchPanel';
 import { PinnedProfilesStrip } from '../PinnedProfilesStrip';
@@ -10,7 +11,7 @@ import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useProfileContext } from '../../context/ProfileContext';
 import { PageBanner, LaunchArt } from '../layout/PageBanner';
-import { DEFAULT_GAMESCOPE_CONFIG } from '../../types/profile';
+import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
 import { buildProfileLaunchRequest } from '../../utils/launch';
 
 export function LaunchPage() {
@@ -32,6 +33,8 @@ export function LaunchPage() {
   }, []);
 
   const showsGamescopePanel = profileState.launchMethod === 'proton_run';
+  const showsMangoHudPanel =
+    profileState.launchMethod === 'proton_run' || profileState.launchMethod === 'steam_applaunch';
   const showsOptimizationPanels =
     profileState.launchMethod === 'proton_run' || profileState.launchMethod === 'steam_applaunch';
   const showsSteamLaunchOptions = profileState.launchMethod === 'steam_applaunch';
@@ -96,6 +99,22 @@ export function LaunchPage() {
                 }));
               }}
               isInsideGamescopeSession={isInsideGamescopeSession}
+            />
+          </CollapsibleSection>
+        ) : null}
+
+        {showsMangoHudPanel ? (
+          <CollapsibleSection title="MangoHud Overlay Config" className="crosshook-panel" defaultOpen={false}>
+            <MangoHudConfigPanel
+              config={profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG}
+              onChange={(mangohud) => {
+                profileState.updateProfile((current) => ({
+                  ...current,
+                  launch: { ...current.launch, mangohud },
+                }));
+              }}
+              showMangoHudOverlayEnabled={profile.launch.optimizations.enabled_option_ids.includes('show_mangohud_overlay')}
+              launchMethod={profileState.launchMethod}
             />
           </CollapsibleSection>
         ) : null}
