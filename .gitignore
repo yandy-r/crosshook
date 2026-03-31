@@ -31,7 +31,6 @@ tasks/todo.md
 .vscode/
 
 # Internal Planning Docs
-docs/plans/
 docs/internal/
 docs/**/tmp*
 docs/**/.cache/
