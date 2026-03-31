@@ -8,11 +8,12 @@ use super::optimizations::{
     resolve_launch_directives_for_method, LaunchDirectives,
 };
 use super::request::{
-    validate_all, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE, METHOD_PROTON_RUN,
-    METHOD_STEAM_APPLAUNCH,
+    is_inside_gamescope_session, validate_all, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE,
+    METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use super::runtime_helpers::{
-    env_value, resolve_proton_paths, resolve_steam_client_install_path, DEFAULT_HOST_PATH,
+    build_gamescope_args, env_value, resolve_proton_paths, resolve_steam_client_install_path,
+    DEFAULT_HOST_PATH,
 };
 use crate::profile::TrainerLoadingMode;
 
@@ -147,6 +148,9 @@ pub struct LaunchPreview {
 
     /// Pre-rendered display text for clipboard copy.
     pub display_text: String,
+
+    /// Whether gamescope will be active for this launch.
+    pub gamescope_active: bool,
 }
 
 impl LaunchPreview {
@@ -258,6 +262,9 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     let resolved_method = ResolvedLaunchMethod::from_request(request);
     let validation_issues = validate_all(request);
 
+    let gamescope_active = request.gamescope.enabled
+        && (request.gamescope.allow_nested || !is_inside_gamescope_session());
+
     // Resolve launch directives (wrappers + optimization env).
     // `steam_applaunch` uses the same optimization catalog as `proton_run` for Steam Launch Options,
     // without going through `resolve_launch_directives` (which is proton_run-only on the request).
@@ -297,7 +304,12 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                 }
             }
             let effective_command =
-                match build_effective_command_string(request, resolved_method, directives) {
+                match build_effective_command_string(
+                    request,
+                    resolved_method,
+                    directives,
+                    gamescope_active,
+                ) {
                     Ok(command) => Some(command),
                     Err(error) => {
                         append_preview_error(&mut directives_error, error);
@@ -362,6 +374,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
         trainer,
         generated_at,
         display_text: String::new(),
+        gamescope_active,
     };
 
     preview.display_text = preview.to_display_toml();
@@ -493,13 +506,39 @@ fn build_effective_command_string(
     request: &LaunchRequest,
     method: ResolvedLaunchMethod,
     directives: &LaunchDirectives,
+    gamescope_active: bool,
 ) -> Result<String, String> {
     match method {
         ResolvedLaunchMethod::ProtonRun => {
             let mut parts: Vec<String> = Vec::new();
-            for wrapper in &directives.wrappers {
-                parts.push(wrapper.clone());
+
+            if gamescope_active {
+                // Apply MangoHud → mangoapp swap: if wrappers contain "mangohud", remove it and
+                // add "--mangoapp" to the gamescope args instead.
+                let mut gamescope_args = build_gamescope_args(&request.gamescope);
+                let wrappers_without_mangohud: Vec<String> = directives
+                    .wrappers
+                    .iter()
+                    .filter(|w| *w != "mangohud")
+                    .cloned()
+                    .collect();
+                let had_mangohud = wrappers_without_mangohud.len() != directives.wrappers.len();
+                if had_mangohud {
+                    gamescope_args.push("--mangoapp".to_string());
+                }
+
+                parts.push("gamescope".to_string());
+                parts.extend(gamescope_args);
+                parts.push("--".to_string());
+                for wrapper in &wrappers_without_mangohud {
+                    parts.push(wrapper.clone());
+                }
+            } else {
+                for wrapper in &directives.wrappers {
+                    parts.push(wrapper.clone());
+                }
             }
+
             parts.push(request.runtime.proton_path.trim().to_string());
             parts.push("run".to_string());
             parts.push(request.game_path.trim().to_string());

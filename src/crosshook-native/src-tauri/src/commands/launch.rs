@@ -53,6 +53,11 @@ pub fn build_steam_launch_options_command(
 }
 
 #[tauri::command]
+pub fn check_gamescope_session() -> bool {
+    crosshook_core::launch::is_inside_gamescope_session()
+}
+
+#[tauri::command]
 pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<LaunchResult, String> {
     let mut request = request;
     request.launch_game_only = true;

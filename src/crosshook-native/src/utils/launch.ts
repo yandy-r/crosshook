@@ -1,4 +1,5 @@
-import type { GameProfile, LaunchMethod, LaunchRequest } from '../types';
+import type { GameProfile, GamescopeConfig, LaunchMethod, LaunchRequest } from '../types';
+import { DEFAULT_GAMESCOPE_CONFIG } from '../types/profile';
 
 export type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
 
@@ -44,6 +45,7 @@ export function buildProfileLaunchRequest(
     launch_game_only: false,
     profile_name: profileName || undefined,
     custom_env_vars: { ...profile.launch.custom_env_vars },
+    gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
   };
 }
 
