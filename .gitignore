@@ -29,3 +29,7 @@ tasks/todo.md
 
 # VSCode
 .vscode/
+
+# Internal Planning Docs
+docs/plans/
+docs/internal/
