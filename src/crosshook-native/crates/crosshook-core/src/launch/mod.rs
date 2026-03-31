@@ -3,6 +3,7 @@
 pub mod catalog;
 pub mod diagnostics;
 pub mod env;
+pub mod mangohud_presets;
 pub mod optimizations;
 pub mod preview;
 pub mod request;

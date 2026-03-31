@@ -1,4 +1,5 @@
 use crosshook_core::launch::catalog::{global_catalog, OptimizationEntry};
+use crosshook_core::launch::mangohud_presets::{global_mangohud_presets, MangoHudPreset};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
@@ -15,4 +16,11 @@ pub fn get_optimization_catalog() -> OptimizationCatalogPayload {
         catalog_version: catalog.catalog_version,
         entries: catalog.entries.clone(),
     }
+}
+
+/// Returns the list of built-in MangoHud display presets.
+#[tauri::command]
+pub fn get_mangohud_presets() -> Vec<MangoHudPreset> {
+    let catalog = global_mangohud_presets();
+    catalog.preset.clone()
 }

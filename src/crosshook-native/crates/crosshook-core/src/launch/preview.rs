@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use directories::BaseDirs;
 use serde::Serialize;
 
 use super::env::WINE_ENV_VARS_TO_CLEAR;
@@ -288,6 +289,8 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     // Environment and command depend on successful directive resolution.
     let (environment, wrappers, effective_command) = match &directives {
         Some(directives) => {
+            let wrappers_had_mangohud =
+                directives.wrappers.iter().any(|w| w.trim() == "mangohud");
             let mut env = Vec::new();
             collect_host_environment(&mut env);
             match resolved_method {
@@ -303,6 +306,12 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                     merge_custom_preview_env_only(request, &mut env);
                 }
             }
+            inject_mangohud_config_preview_env(
+                &mut env,
+                request,
+                gamescope_active,
+                wrappers_had_mangohud,
+            );
             let effective_command =
                 match build_effective_command_string(
                     request,
@@ -498,6 +507,75 @@ fn upsert_preview_env(env: &mut Vec<PreviewEnvVar>, key: &str, value: &str, sour
             value: value.to_string(),
             source,
         });
+    }
+}
+
+/// Inserts a preview env var only if the key is not already present.
+fn insert_preview_env_if_absent(
+    env: &mut Vec<PreviewEnvVar>,
+    key: &str,
+    value: &str,
+    source: EnvVarSource,
+) {
+    if !env.iter().any(|e| e.key == key) {
+        env.push(PreviewEnvVar {
+            key: key.to_string(),
+            value: value.to_string(),
+            source,
+        });
+    }
+}
+
+/// Injects `MANGOHUD_CONFIGFILE` (and optionally `MANGOHUD_CONFIG=read_cfg`) into the preview
+/// environment vars when the profile has MangoHud config enabled.
+///
+/// Respects user-supplied `MANGOHUD_CONFIGFILE` in `custom_env_vars` by skipping injection when
+/// the key is already present.  The preview path does not check whether the config file exists on
+/// disk — it shows what *would* be set.
+fn inject_mangohud_config_preview_env(
+    env: &mut Vec<PreviewEnvVar>,
+    request: &LaunchRequest,
+    gamescope_active: bool,
+    wrappers_had_mangohud: bool,
+) {
+    if !request.mangohud.enabled {
+        return;
+    }
+
+    let user_overrode_configfile = request.custom_env_vars.contains_key("MANGOHUD_CONFIGFILE");
+
+    // Inject MANGOHUD_CONFIGFILE only when the user hasn't explicitly set it.
+    if !user_overrode_configfile {
+        let profile_name = match request.profile_name.as_deref().filter(|n| !n.is_empty()) {
+            Some(n) => n,
+            None => {
+                // Still fall through to set read_cfg below if gamescope is active.
+                if gamescope_active && wrappers_had_mangohud {
+                    insert_preview_env_if_absent(env, "MANGOHUD_CONFIG", "read_cfg", EnvVarSource::ProfileCustom);
+                }
+                return;
+            }
+        };
+
+        let base_path = match BaseDirs::new() {
+            Some(dirs) => dirs.config_dir().join("crosshook").join("profiles"),
+            None => {
+                if gamescope_active && wrappers_had_mangohud {
+                    insert_preview_env_if_absent(env, "MANGOHUD_CONFIG", "read_cfg", EnvVarSource::ProfileCustom);
+                }
+                return;
+            }
+        };
+
+        let conf_path = crate::profile::mangohud::mangohud_conf_path(&base_path, profile_name);
+        let conf_path_str = conf_path.to_string_lossy().into_owned();
+
+        insert_preview_env_if_absent(env, "MANGOHUD_CONFIGFILE", &conf_path_str, EnvVarSource::ProfileCustom);
+    }
+
+    // Always set read_cfg for gamescope compatibility, regardless of who supplied MANGOHUD_CONFIGFILE.
+    if gamescope_active && wrappers_had_mangohud {
+        insert_preview_env_if_absent(env, "MANGOHUD_CONFIG", "read_cfg", EnvVarSource::ProfileCustom);
     }
 }
 

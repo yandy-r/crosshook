@@ -1,5 +1,5 @@
 import type { GameProfile, GamescopeConfig, LaunchMethod, LaunchRequest } from '../types';
-import { DEFAULT_GAMESCOPE_CONFIG } from '../types/profile';
+import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
 
 export type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
 
@@ -46,6 +46,7 @@ export function buildProfileLaunchRequest(
     profile_name: profileName || undefined,
     custom_env_vars: { ...profile.launch.custom_env_vars },
     gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
+    mangohud: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
   };
 }
 

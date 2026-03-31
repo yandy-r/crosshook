@@ -1,4 +1,5 @@
 use super::models::{LaunchOptimizationsSection, LocalOverrideSection};
+use super::mangohud;
 use crate::launch::is_known_launch_optimization_id;
 use crate::profile::{legacy, GameProfile};
 use directories::BaseDirs;
@@ -147,6 +148,15 @@ impl ProfileStore {
         fs::create_dir_all(&self.base_path)?;
         let storage_profile = profile.storage_profile();
         fs::write(path, toml::to_string_pretty(&storage_profile)?)?;
+
+        if let Err(err) = mangohud::write_mangohud_conf(&self.base_path, name, &profile.launch.mangohud) {
+            tracing::warn!(
+                profile = name,
+                error = %err,
+                "failed to write MangoHud companion config; profile save succeeded"
+            );
+        }
+
         Ok(())
     }
 
@@ -298,6 +308,19 @@ impl ProfileStore {
         }
 
         fs::remove_file(path)?;
+
+        let mangohud_path = mangohud::mangohud_conf_path(&self.base_path, name);
+        if mangohud_path.exists() {
+            if let Err(err) = fs::remove_file(&mangohud_path) {
+                tracing::warn!(
+                    profile = name,
+                    path = %mangohud_path.display(),
+                    error = %err,
+                    "failed to remove MangoHud companion config"
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -318,6 +341,37 @@ impl ProfileStore {
             return Err(ProfileStoreError::AlreadyExists(new_name.to_string()));
         }
         fs::rename(&old_path, &new_path)?;
+
+        let old_mangohud = mangohud::mangohud_conf_path(&self.base_path, old_name);
+        if old_mangohud.exists() {
+            let new_mangohud = mangohud::mangohud_conf_path(&self.base_path, new_name);
+            if let Err(err) = fs::rename(&old_mangohud, &new_mangohud) {
+                tracing::warn!(
+                    old_profile = old_name,
+                    new_profile = new_name,
+                    error = %err,
+                    "failed to rename MangoHud companion config; attempting copy fallback"
+                );
+                if let Err(copy_err) = fs::copy(&old_mangohud, &new_mangohud) {
+                    tracing::warn!(
+                        old_profile = old_name,
+                        new_profile = new_name,
+                        error = %copy_err,
+                        "failed to copy MangoHud companion config during rename fallback"
+                    );
+                } else {
+                    if let Err(remove_err) = fs::remove_file(&old_mangohud) {
+                        tracing::warn!(
+                            old_profile = old_name,
+                            new_profile = new_name,
+                            error = %remove_err,
+                            "failed to remove old MangoHud companion config after copy fallback"
+                        );
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 

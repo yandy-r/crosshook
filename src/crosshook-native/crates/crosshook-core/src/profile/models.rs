@@ -145,6 +145,45 @@ impl GamescopeConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MangoHudPosition {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    TopCenter,
+    BottomCenter,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct MangoHudConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fps_limit: Option<u32>,
+    #[serde(default)]
+    pub gpu_stats: bool,
+    #[serde(default)]
+    pub cpu_stats: bool,
+    #[serde(default)]
+    pub ram: bool,
+    #[serde(default)]
+    pub frametime: bool,
+    #[serde(default)]
+    pub battery: bool,
+    #[serde(default)]
+    pub watt: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<MangoHudPosition>,
+}
+
+impl MangoHudConfig {
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct GameSection {
     #[serde(default)]
@@ -253,6 +292,9 @@ pub struct LaunchSection {
     /// Per-profile gamescope compositor wrapper configuration.
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
     pub gamescope: GamescopeConfig,
+    /// Per-profile MangoHud overlay configuration.
+    #[serde(default, skip_serializing_if = "MangoHudConfig::is_default")]
+    pub mangohud: MangoHudConfig,
 }
 
 impl LaunchSection {
@@ -715,5 +757,34 @@ type = "fling"
         let s = toml::to_string_pretty(&p).expect("serialize");
         let back: GameProfile = toml::from_str(&s).expect("deserialize");
         assert_eq!(back.trainer.trainer_type, "aurora");
+    }
+
+    #[test]
+    fn mangohud_config_default_omitted_from_profile_toml() {
+        let profile = sample_profile();
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(
+            !serialized.contains("[launch.mangohud]"),
+            "default MangoHudConfig should be omitted from TOML output: {serialized}"
+        );
+    }
+
+    #[test]
+    fn mangohud_config_roundtrip() {
+        let mut profile = sample_profile();
+        profile.launch.mangohud = MangoHudConfig {
+            enabled: true,
+            fps_limit: Some(144),
+            gpu_stats: true,
+            cpu_stats: true,
+            ram: false,
+            frametime: true,
+            battery: false,
+            watt: false,
+            position: Some(MangoHudPosition::TopRight),
+        };
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+        assert_eq!(parsed.launch.mangohud, profile.launch.mangohud);
     }
 }
