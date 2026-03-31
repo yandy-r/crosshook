@@ -21,6 +21,7 @@ Normative guidelines for AI agents in this repository. For stack overview, direc
 - **Internal docs commits**: Commits that change files under `./docs/plans`, `./docs/research`, or `./docs/internal` **must** use a `docs(internal): …` prefix. Other non-user-facing churn: prefer `chore(…): …` or `docs(internal): …` so it stays out of release notes.
 - **MCP**: When an MCP server fits the task (GitHub, docs, browser, etc.), **prefer it**. **Read** each tool’s schema/descriptor before calling. If MCP is missing or unsuitable, use `gh`, repo scripts, or other local tools—**do not** block on MCP.
 - **Research and planning**: Feature research and plans **must** be: **feature-complete** (no deferred work), **testable**, **maintainable**, **documented**, **data-driven**, **modular**, and **reusable**.
+- **Large features**: Must be split into smaller, manageable phases and tasks, with clear dependencies and a clear order of execution.
 
 ## SHOULD (implementation)
 
