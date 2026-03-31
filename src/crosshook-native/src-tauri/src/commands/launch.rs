@@ -12,14 +12,17 @@ use crosshook_core::launch::{
         build_proton_trainer_command, build_trainer_command,
     },
     should_surface_report, validate, DiagnosticReport, LaunchPreview, LaunchRequest,
-    LaunchValidationIssue, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    LaunchValidationIssue, ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN,
+    METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file, MetadataStore};
+use crosshook_core::offline::readiness::MIN_OFFLINE_READINESS_SCORE;
+use crosshook_core::profile::ProfileStore;
 use crosshook_core::steam::discover_steam_root_candidates;
 use crosshook_core::steam::libraries::discover_steam_libraries;
 use crosshook_core::steam::manifest::parse_manifest_full;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 use super::shared::{create_log_path, sanitize_display_path};
@@ -29,6 +32,8 @@ pub struct LaunchResult {
     pub succeeded: bool,
     pub message: String,
     pub helper_log_path: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<LaunchValidationIssue>,
 }
 
 #[tauri::command]
@@ -57,12 +62,73 @@ pub fn check_gamescope_session() -> bool {
     crosshook_core::launch::is_inside_gamescope_session()
 }
 
+/// Non-blocking offline readiness advisory when the profile has a trainer configured.
+async fn collect_offline_launch_warnings(
+    profile_name: Option<String>,
+    profile_store: ProfileStore,
+    metadata_store: MetadataStore,
+) -> Vec<LaunchValidationIssue> {
+    let Some(name) = profile_name.filter(|n| !n.trim().is_empty()) else {
+        return Vec::new();
+    };
+    if !metadata_store.is_available() {
+        return Vec::new();
+    }
+    let ps = profile_store;
+    let ms = metadata_store;
+    tauri::async_runtime::spawn_blocking(move || {
+        let profile = match ps.load(&name) {
+            Ok(p) => p,
+            Err(_) => return Vec::new(),
+        };
+        if profile
+            .effective_profile()
+            .trainer
+            .path
+            .trim()
+            .is_empty()
+        {
+            return Vec::new();
+        }
+        let profile_id = match ms.lookup_profile_id(&name) {
+            Ok(Some(id)) => id,
+            Ok(None) | Err(_) => return Vec::new(),
+        };
+        let report = match ms.check_offline_readiness_for_profile(&name, &profile_id, &profile) {
+            Ok(r) => r,
+            Err(_) => return Vec::new(),
+        };
+        if report.score >= MIN_OFFLINE_READINESS_SCORE {
+            return Vec::new();
+        }
+        vec![ValidationError::OfflineReadinessInsufficient {
+            score: report.score,
+            reasons: report.blocking_reasons.clone(),
+        }
+        .issue()]
+    })
+    .await
+    .unwrap_or_default()
+}
+
 #[tauri::command]
-pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<LaunchResult, String> {
+pub async fn launch_game(
+    app: AppHandle,
+    request: LaunchRequest,
+    profile_store: State<'_, ProfileStore>,
+) -> Result<LaunchResult, String> {
     let mut request = request;
     request.launch_game_only = true;
     request.launch_trainer_only = false;
     validate(&request).map_err(|error| error.to_string())?;
+    let profile_store = profile_store.inner().clone();
+    let metadata_store = app.state::<MetadataStore>().inner().clone();
+    let warnings = collect_offline_launch_warnings(
+        request.profile_name.clone(),
+        profile_store,
+        metadata_store.clone(),
+    )
+    .await;
     let method: &'static str = match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
         METHOD_PROTON_RUN => METHOD_PROTON_RUN,
@@ -86,7 +152,6 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
         .spawn()
         .map_err(|error| format!("failed to launch helper: {error}"))?;
 
-    let metadata_store = app.state::<MetadataStore>().inner().clone();
     let sanitized_log_path = sanitize_display_path(&log_path.to_string_lossy());
     let operation_id = record_launch_start(
         &metadata_store,
@@ -122,6 +187,7 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
         succeeded: true,
         message: "Game launch started.".to_string(),
         helper_log_path: log_path.to_string_lossy().into_owned(),
+        warnings,
     })
 }
 
@@ -129,11 +195,20 @@ pub async fn launch_game(app: AppHandle, request: LaunchRequest) -> Result<Launc
 pub async fn launch_trainer(
     app: AppHandle,
     request: LaunchRequest,
+    profile_store: State<'_, ProfileStore>,
 ) -> Result<LaunchResult, String> {
     let mut request = request;
     request.launch_trainer_only = true;
     request.launch_game_only = false;
     validate(&request).map_err(|error| error.to_string())?;
+    let profile_store = profile_store.inner().clone();
+    let metadata_store = app.state::<MetadataStore>().inner().clone();
+    let warnings = collect_offline_launch_warnings(
+        request.profile_name.clone(),
+        profile_store,
+        metadata_store.clone(),
+    )
+    .await;
     let method: &'static str = match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
         METHOD_PROTON_RUN => METHOD_PROTON_RUN,
@@ -156,7 +231,6 @@ pub async fn launch_trainer(
         .spawn()
         .map_err(|error| format!("failed to launch trainer helper: {error}"))?;
 
-    let metadata_store = app.state::<MetadataStore>().inner().clone();
     let sanitized_log_path = sanitize_display_path(&log_path.to_string_lossy());
     let operation_id = record_launch_start(
         &metadata_store,
@@ -192,6 +266,7 @@ pub async fn launch_trainer(
         succeeded: true,
         message: "Trainer launch started.".to_string(),
         helper_log_path: log_path.to_string_lossy().into_owned(),
+        warnings,
     })
 }
 

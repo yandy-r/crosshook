@@ -1,3 +1,4 @@
+import type { OfflineReadinessBrief } from './offline';
 import type { VersionCorrelationStatus } from './version';
 
 export type HealthStatus = 'healthy' | 'stale' | 'broken';
@@ -44,6 +45,7 @@ export interface ProfileHealthMetadata {
 
 export interface EnrichedProfileHealthReport extends ProfileHealthReport {
   metadata: ProfileHealthMetadata | null;
+  offline_readiness?: OfflineReadinessBrief | null;
 }
 
 export interface EnrichedHealthSummary {

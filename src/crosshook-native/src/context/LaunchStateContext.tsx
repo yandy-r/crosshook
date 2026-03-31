@@ -28,6 +28,7 @@ export function LaunchStateProvider({ children }: { children: ReactNode }) {
 
   const launchState = useLaunchState({
     profileId,
+    profileName: selectedName,
     method: profileState.launchMethod,
     request,
   });

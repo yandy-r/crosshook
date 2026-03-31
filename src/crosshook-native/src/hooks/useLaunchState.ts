@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 
 import type {
   DiagnosticReport,
@@ -9,9 +9,11 @@ import type {
   LaunchRequest,
   LaunchResult,
   LaunchValidationIssue,
+  OfflineReadinessReport,
 } from "../types";
 import { LaunchPhase } from "../types";
 import { isDiagnosticReport, isLaunchValidationIssue } from "../types";
+import { MIN_OFFLINE_READINESS_SCORE } from "../constants/offline";
 
 type LaunchState = {
   phase: LaunchPhase;
@@ -32,6 +34,8 @@ type LaunchAction =
 
 interface UseLaunchStateArgs {
   profileId: string;
+  /** Selected profile name for `check_offline_readiness` / metadata (may differ from draft `profileId`). */
+  profileName: string;
   method: Exclude<LaunchMethod, "">;
   request: LaunchRequest | null;
 }
@@ -136,10 +140,15 @@ async function validateLaunchRequest(
 
 export function useLaunchState({
   profileId,
+  profileName,
   method,
   request,
 }: UseLaunchStateArgs) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [offlineReadiness, setOfflineReadiness] = useState<OfflineReadinessReport | null>(null);
+  const [offlineReadinessLoading, setOfflineReadinessLoading] = useState(false);
+  const [offlineReadinessError, setOfflineReadinessError] = useState<string | null>(null);
+  const [launchPathWarnings, setLaunchPathWarnings] = useState<LaunchValidationIssue[]>([]);
   const activeHelperLogPathRef = useRef<string | null>(null);
   const hasLaunchRequest = request !== null;
   const isTwoStepLaunch = method !== "native";
@@ -147,7 +156,44 @@ export function useLaunchState({
   useEffect(() => {
     activeHelperLogPathRef.current = null;
     dispatch({ type: "reset" });
-  }, [method, profileId]);
+    setOfflineReadiness(null);
+    setOfflineReadinessError(null);
+    setLaunchPathWarnings([]);
+  }, [method, profileId, profileName]);
+
+  useEffect(() => {
+    if (!profileName.trim() || !request?.trainer_host_path?.trim() || method === "native") {
+      setOfflineReadiness(null);
+      setOfflineReadinessError(null);
+      setOfflineReadinessLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setOfflineReadinessLoading(true);
+    setOfflineReadinessError(null);
+    void invoke<OfflineReadinessReport>("check_offline_readiness", { name: profileName })
+      .then((report) => {
+        if (!cancelled) {
+          setOfflineReadiness(report);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setOfflineReadiness(null);
+          setOfflineReadinessError(normalizeRuntimeError(err));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOfflineReadinessLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profileName, method, request?.trainer_host_path, profileId]);
 
   useEffect(() => {
     activeHelperLogPathRef.current = state.helperLogPath;
@@ -193,6 +239,7 @@ export function useLaunchState({
     const launchRequest = buildLaunchRequest(request, LaunchPhase.GameLaunching);
     activeHelperLogPathRef.current = null;
     dispatch({ type: "game-start" });
+    setLaunchPathWarnings([]);
 
     try {
       const validationIssue = await validateLaunchRequest(launchRequest);
@@ -211,6 +258,7 @@ export function useLaunchState({
       const result = await invoke<LaunchResult>("launch_game", {
         request: launchRequest,
       });
+      setLaunchPathWarnings(result.warnings ?? []);
       activeHelperLogPathRef.current = result.helper_log_path;
       dispatch({
         type: "game-success",
@@ -237,8 +285,39 @@ export function useLaunchState({
     const launchRequest = buildLaunchRequest(request, LaunchPhase.TrainerLaunching);
     activeHelperLogPathRef.current = null;
     dispatch({ type: "trainer-start" });
+    setLaunchPathWarnings([]);
 
     try {
+      if (profileName.trim()) {
+        setOfflineReadinessLoading(true);
+        try {
+          const report = await invoke<OfflineReadinessReport>("check_offline_readiness", {
+            name: profileName,
+          });
+          setOfflineReadiness(report);
+          setOfflineReadinessError(null);
+          if (report.blocking_reasons.length > 0) {
+            dispatch({
+              type: "failure",
+              feedback: {
+                kind: "validation",
+                issue: {
+                  message: `Offline readiness blocked: ${report.blocking_reasons.join(', ')}`,
+                  help: 'Resolve blocking reasons before launching.',
+                  severity: 'fatal',
+                },
+              },
+              fallbackPhase: LaunchPhase.WaitingForTrainer,
+            });
+            return;
+          }
+        } catch (err) {
+          setOfflineReadinessError(normalizeRuntimeError(err));
+        } finally {
+          setOfflineReadinessLoading(false);
+        }
+      }
+
       const validationIssue = await validateLaunchRequest(launchRequest);
       if (validationIssue) {
         dispatch({
@@ -255,6 +334,7 @@ export function useLaunchState({
       const result = await invoke<LaunchResult>("launch_trainer", {
         request: launchRequest,
       });
+      setLaunchPathWarnings(result.warnings ?? []);
       activeHelperLogPathRef.current = result.helper_log_path;
       dispatch({
         type: "trainer-success",
@@ -274,6 +354,9 @@ export function useLaunchState({
 
   function reset() {
     dispatch({ type: "reset" });
+    setOfflineReadiness(null);
+    setOfflineReadinessError(null);
+    setLaunchPathWarnings([]);
   }
 
   const statusText = (() => {
@@ -351,6 +434,10 @@ export function useLaunchState({
     state.phase === LaunchPhase.WaitingForTrainer &&
     !isBusy;
 
+  const offlineWarning =
+    offlineReadiness !== null &&
+    (offlineReadiness.score < MIN_OFFLINE_READINESS_SCORE || (offlineReadiness.blocking_reasons?.length ?? 0) > 0);
+
   return {
     actionLabel,
     canLaunchGame,
@@ -361,6 +448,11 @@ export function useLaunchState({
     isBusy,
     launchGame,
     launchTrainer,
+    launchPathWarnings,
+    offlineReadiness,
+    offlineReadinessError,
+    offlineReadinessLoading,
+    offlineWarning,
     phase: state.phase,
     reset,
     statusText,

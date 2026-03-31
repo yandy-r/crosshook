@@ -4,6 +4,7 @@ mod startup;
 
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::launch::{initialize_catalog, load_catalog};
+use crosshook_core::offline::{initialize_trainer_type_catalog, load_trainer_type_catalog};
 use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
@@ -40,6 +41,9 @@ pub fn run() {
     // Merge order: embedded default → user override (~/.config/crosshook/optimization_catalog.toml).
     let catalog = load_catalog(Some(&settings_store.base_path), &[]);
     initialize_catalog(catalog);
+
+    let trainer_type_catalog = load_trainer_type_catalog(Some(&settings_store.base_path), &[]);
+    initialize_trainer_type_catalog(trainer_type_catalog);
 
     tauri::Builder::default()
         .setup({
@@ -144,6 +148,21 @@ pub fn run() {
                                 );
                             }
                         }
+                        #[derive(serde::Serialize)]
+                        struct OfflineReadinessScanComplete {
+                            total_profiles: usize,
+                        }
+                        if let Err(error) = app_handle.emit(
+                            "offline-readiness-scan-complete",
+                            &OfflineReadinessScanComplete {
+                                total_profiles: summary.total_count,
+                            },
+                        ) {
+                            tracing::warn!(
+                                %error,
+                                "failed to emit offline-readiness-scan-complete event"
+                            );
+                        }
                     });
                 }
 
@@ -234,6 +253,7 @@ pub fn run() {
             commands::health::batch_validate_profiles,
             commands::health::get_profile_health,
             commands::health::get_cached_health_snapshots,
+            commands::health::get_cached_offline_readiness_snapshots,
             commands::diagnostics::export_diagnostics,
             commands::migration::check_proton_migrations,
             commands::migration::apply_proton_migration,
@@ -246,6 +266,11 @@ pub fn run() {
             commands::onboarding::dismiss_onboarding,
             commands::onboarding::get_trainer_guidance,
             commands::catalog::get_optimization_catalog,
+            commands::offline::check_offline_readiness,
+            commands::offline::batch_offline_readiness,
+            commands::offline::verify_trainer_hash,
+            commands::offline::check_network_status,
+            commands::offline::get_trainer_type_catalog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

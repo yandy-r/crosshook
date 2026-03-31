@@ -161,7 +161,7 @@ function clampIndex(index: number, length: number): number {
   return index;
 }
 
-function isSteamDeckRuntime(): boolean {
+export function isSteamDeckRuntime(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }

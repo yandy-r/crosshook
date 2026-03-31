@@ -50,9 +50,13 @@ export interface CommunityTapWorkspace {
 
 export interface CommunityTapSyncResult {
   workspace: CommunityTapWorkspace;
-  status: 'cloned' | 'updated';
+  status: 'cloned' | 'updated' | 'cached_fallback';
   head_commit: string;
   index: CommunityProfileIndex;
+  /** True when git fetch failed but a local clone was used for the index. */
+  from_cache?: boolean;
+  /** ISO timestamp of last successful network sync for this tap, if known. */
+  last_sync_at?: string | null;
 }
 
 export interface CommunityImportResult {
@@ -84,6 +88,8 @@ export interface UseCommunityProfilesResult {
   taps: CommunityTapSubscription[];
   index: CommunityProfileIndex;
   lastSyncedCommits: Record<string, string>;
+  /** Results from the most recent successful `community_sync` (for offline/cache UI). */
+  lastTapSyncResults: CommunityTapSyncResult[];
   importedProfileNames: Set<string>;
   loading: boolean;
   syncing: boolean;
@@ -201,6 +207,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     diagnostics: [],
   });
   const [lastSyncedCommits, setLastSyncedCommits] = useState<Record<string, string>>({});
+  const [lastTapSyncResults, setLastTapSyncResults] = useState<CommunityTapSyncResult[]>([]);
   const [importedProfileNames, setImportedProfileNames] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -245,6 +252,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
 
     try {
       const results = await invoke<CommunityTapSyncResult[]>('community_sync');
+      setLastTapSyncResults(results);
       setLastSyncedCommits((previous) => {
         const next = { ...previous };
         for (const result of results) {
@@ -291,6 +299,11 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
       const deduped = dedupeTaps(nextTaps);
       await saveSettingsTaps(deduped);
       setTaps(deduped);
+      setLastTapSyncResults((prev) =>
+        prev.filter(
+          (r) => tapIdentityKey(normalizeTap(r.workspace.subscription)) !== tapIdentityKey(normalized),
+        ),
+      );
       await refreshProfiles();
     },
     [refreshProfiles, saveSettingsTaps, taps]
@@ -445,6 +458,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     taps,
     index,
     lastSyncedCommits,
+    lastTapSyncResults,
     importedProfileNames,
     loading,
     syncing,

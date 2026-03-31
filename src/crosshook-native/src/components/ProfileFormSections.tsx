@@ -1,11 +1,17 @@
-import { useId, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 import AutoPopulate from './AutoPopulate';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import { ThemedSelect } from './ui/ThemedSelect';
 import { chooseDirectory, chooseFile } from '../utils/dialog';
+import { OfflineTrainerInfoModal, type TrainerInfoModalKey } from './OfflineTrainerInfoModal';
+
+function isSupportedTrainerInfoModal(value: string | undefined | null): value is TrainerInfoModalKey {
+  return value === 'aurora_offline_setup' || value === 'wemod_offline_info';
+}
 import type { GameProfile, LaunchMethod } from '../types';
+import { useTrainerTypeCatalog } from '../hooks/useTrainerTypeCatalog';
 import { deriveSteamClientInstallPath } from '../utils/steam';
 
 export interface ProtonInstallOption {
@@ -415,6 +421,15 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   } = props;
   const profileSelector = 'profileSelector' in props ? props.profileSelector : undefined;
   const profileNamesListId = useId();
+  const { catalog: trainerTypeCatalog, error: trainerTypeCatalogError, selectOptions: trainerTypeSelectOptions } = useTrainerTypeCatalog();
+  const [trainerInfoModal, setTrainerInfoModal] = useState<TrainerInfoModalKey | null>(null);
+
+  const currentTrainerTypeId = profile.trainer.trainer_type?.trim() || 'unknown';
+  const selectedTrainerTypeEntry = useMemo(
+    () => trainerTypeCatalog.find((e) => e.id === currentTrainerTypeId),
+    [trainerTypeCatalog, currentTrainerTypeId],
+  );
+
   const showProfileSelector = profileSelector !== undefined;
   const profiles = profileSelector?.profiles;
   const selectedProfile = profileSelector?.selectedProfile;
@@ -431,6 +446,11 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
 
   return (
     <div className="crosshook-profile-shell">
+      <OfflineTrainerInfoModal
+        open={trainerInfoModal !== null}
+        modalKey={trainerInfoModal}
+        onClose={() => setTrainerInfoModal(null)}
+      />
       {reviewModeNote}
 
       <div className="crosshook-install-section-title">Profile Identity</div>
@@ -572,6 +592,52 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                   }
                 }}
               />
+
+              <div className="crosshook-field">
+                <label className="crosshook-label" htmlFor={`${profileNamesListId}-trainer-type`}>
+                  Trainer type (offline scoring)
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                  <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                    <ThemedSelect
+                      id={`${profileNamesListId}-trainer-type`}
+                      value={currentTrainerTypeId}
+                      onValueChange={(value) =>
+                        onUpdateProfile((current) => ({
+                          ...current,
+                          trainer: { ...current.trainer, trainer_type: value },
+                        }))
+                      }
+                      options={trainerTypeSelectOptions}
+                    />
+                  </div>
+                  {selectedTrainerTypeEntry &&
+                  isSupportedTrainerInfoModal(selectedTrainerTypeEntry.info_modal) ? (
+                    <button
+                      type="button"
+                      className="crosshook-button crosshook-button--secondary"
+                      onClick={() => {
+                        const k = selectedTrainerTypeEntry.info_modal;
+                        if (isSupportedTrainerInfoModal(k)) {
+                          setTrainerInfoModal(k);
+                        }
+                      }}
+                    >
+                      Offline help
+                    </button>
+                  ) : null}
+                </div>
+                {trainerTypeCatalogError ? (
+                  <p className="crosshook-help-text" role="status">
+                    {trainerTypeCatalogError} Showing &quot;Unknown&quot; only until the catalog loads.
+                  </p>
+                ) : (
+                  <p className="crosshook-help-text">
+                    Used for offline readiness scoring. Separate from the display &quot;type&quot; label in exported
+                    metadata.
+                  </p>
+                )}
+              </div>
 
               <div className="crosshook-field">
                 <label className="crosshook-label" htmlFor={`${profileNamesListId}-trainer-loading-mode`}>

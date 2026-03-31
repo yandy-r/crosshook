@@ -10,14 +10,17 @@ import ProfilePreviewModal from '../ProfilePreviewModal';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { HealthBadge } from '../HealthBadge';
+import { OfflineStatusBadge } from '../OfflineStatusBadge';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
+import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
 import { PageBanner, ProfilesArt } from '../layout/PageBanner';
 import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
 import { chooseSaveFile } from '../../utils/dialog';
 import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
+import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
 
 function suggestedCommunityExportFilename(profileName: string): string {
   const base = profileName
@@ -128,6 +131,8 @@ export function ProfilesPage() {
     cachedSnapshots,
     trendByName,
   } = useProfileHealthContext();
+  const offlineReadiness = useOfflineReadiness();
+  const { labels: trainerTypeLabels } = useTrainerTypeCatalog();
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -200,6 +205,7 @@ export function ProfilesPage() {
       active = false;
     };
   }, [effectiveSteamClientInstallPath]);
+
 
   useEffect(() => {
     if (pendingRename !== null) {
@@ -473,6 +479,19 @@ export function ProfilesPage() {
     );
   };
 
+  const trainerTypeDisplayName = useMemo(() => {
+    const id = profile.trainer.trainer_type?.trim() || 'unknown';
+    return trainerTypeLabels[id] ?? id;
+  }, [profile.trainer.trainer_type, trainerTypeLabels]);
+
+  const renderOfflineStatusBadge = () => {
+    if (!selectedProfile) {
+      return null;
+    }
+    const report = offlineReadiness.reportForProfile(selectedProfile);
+    return <OfflineStatusBadge report={report ?? undefined} />;
+  };
+
   const renderProfileHealthBadge = () => {
     if (!selectedProfile) {
       return null;
@@ -604,8 +623,14 @@ export function ProfilesPage() {
             title="Advanced"
             defaultOpen={false}
           meta={
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {renderProfileHealthBadge()}
+              {renderOfflineStatusBadge()}
+              {launchMethod !== 'native' && profile.trainer.path.trim().length > 0 ? (
+                <span className="crosshook-status-chip" title="Trainer type catalog id for offline scoring">
+                  Trainer type: {trainerTypeDisplayName}
+                </span>
+              ) : null}
               {renderVersionStatusBadge()}
               <button
                 type="button"

@@ -5,9 +5,13 @@ import { HealthDashboardArt, PageBanner } from '../layout/PageBanner';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import type { TrendDirection } from '../../hooks/useProfileHealth';
 import { HealthBadge } from '../HealthBadge';
+import { OfflineReadinessPanel } from '../OfflineReadinessPanel';
+import { OfflineStatusBadge } from '../OfflineStatusBadge';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { formatRelativeTime } from '../../utils/format';
 import { useProfileContext } from '../../context/ProfileContext';
+import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
+import type { OfflineReadinessReport } from '../../types';
 import type { EnrichedProfileHealthReport, HealthIssue, HealthStatus } from '../../types/health';
 import type { VersionCorrelationStatus } from '../../types/version';
 import { useProtonMigration } from '../../hooks/useProtonMigration';
@@ -53,7 +57,16 @@ function categorizeIssue(issue: HealthIssue): IssueCategory {
   return 'other';
 }
 
-type SortField = 'name' | 'status' | 'issues' | 'last_success' | 'launch_method' | 'failures' | 'favorite' | 'version_status';
+type SortField =
+  | 'name'
+  | 'status'
+  | 'issues'
+  | 'last_success'
+  | 'launch_method'
+  | 'failures'
+  | 'favorite'
+  | 'version_status'
+  | 'offline_score';
 type SortDirection = 'asc' | 'desc';
 type StatusFilter = 'all' | HealthStatus;
 
@@ -91,6 +104,52 @@ function getVersionStatusLabel(status: VersionCorrelationStatus | null | undefin
 }
 
 type CardTrend = 'up' | 'down' | null;
+
+function mergeOfflineReadinessForRow(
+  report: EnrichedProfileHealthReport,
+  hookReport: OfflineReadinessReport | undefined,
+): OfflineReadinessReport | undefined {
+  const brief = report.offline_readiness;
+  const offlineIssues = report.issues.filter((i) => i.field.startsWith('offline_readiness.'));
+  const checks = offlineIssues.map((i) => ({
+    ...i,
+    field: i.field.replace(/^offline_readiness\./, ''),
+  }));
+  if (brief) {
+    return {
+      profile_name: brief.profile_name,
+      score: brief.score,
+      readiness_state: brief.readiness_state,
+      trainer_type: brief.trainer_type,
+      blocking_reasons: [...brief.blocking_reasons],
+      checked_at: brief.checked_at,
+      checks,
+    };
+  }
+  if (hookReport) {
+    return hookReport;
+  }
+  if (checks.length > 0) {
+    return {
+      profile_name: report.name,
+      score: 0,
+      readiness_state: 'unknown',
+      trainer_type: 'unknown',
+      blocking_reasons: [],
+      checked_at: report.checked_at,
+      checks,
+    };
+  }
+  return undefined;
+}
+
+function offlineSortScore(report: EnrichedProfileHealthReport, hookReport: OfflineReadinessReport | undefined): number {
+  const merged = mergeOfflineReadinessForRow(report, hookReport);
+  if (merged && merged.score !== undefined && !Number.isNaN(merged.score)) {
+    return merged.score;
+  }
+  return -1;
+}
 
 function TrendArrow({ trend, improving }: { trend: CardTrend; improving: boolean }) {
   if (trend === null) return null;
@@ -390,10 +449,15 @@ function LauncherDriftPanel({ profiles }: { profiles: EnrichedProfileHealthRepor
 }
 
 function IssueBreakdownPanel({ profiles }: { profiles: EnrichedProfileHealthReport[] }) {
-  const categoryCounts = useMemo(() => {
+  const { categoryCounts, totalRawIssues } = useMemo(() => {
     const counts = new Map<IssueCategory, number>();
+    let totalRaw = 0;
     for (const report of profiles) {
+      totalRaw += report.issues.length;
       for (const issue of report.issues) {
+        if (issue.severity === 'info') {
+          continue;
+        }
         const cat = categorizeIssue(issue);
         counts.set(cat, (counts.get(cat) ?? 0) + 1);
       }
@@ -403,15 +467,23 @@ function IssueBreakdownPanel({ profiles }: { profiles: EnrichedProfileHealthRepo
       result.push({ category, label: CATEGORY_LABELS[category], count });
     }
     result.sort((a, b) => b.count - a.count);
-    return result;
+    return {
+      categoryCounts: result,
+      totalRawIssues: totalRaw,
+    };
   }, [profiles]);
 
   const maxCount = categoryCounts.length > 0 ? categoryCounts[0].count : 1;
 
   return (
     <CollapsibleSection title="Issue Breakdown" defaultOpen>
-      {categoryCounts.length === 0 ? (
+      {categoryCounts.length === 0 && totalRawIssues === 0 ? (
         <p className="crosshook-muted">No issues found across all profiles.</p>
+      ) : categoryCounts.length === 0 && totalRawIssues > 0 ? (
+        <p className="crosshook-muted">
+          No actionable issues in this summary. Informational checks (including offline readiness notes) are
+          excluded here — expand a profile row to see full details.
+        </p>
       ) : (
         <ul className="crosshook-health-dashboard-breakdown-list">
           {categoryCounts.map(({ category, label, count }) => (
@@ -436,10 +508,12 @@ function IssueBreakdownPanel({ profiles }: { profiles: EnrichedProfileHealthRepo
 
 function IssueDetailRow({
   report,
+  offlineReadinessReport,
   onRevalidate,
   onFixNavigate,
 }: {
   report: EnrichedProfileHealthReport;
+  offlineReadinessReport: OfflineReadinessReport | undefined;
   onRevalidate: (name: string) => void;
   onFixNavigate: (name: string) => void | Promise<void>;
 }) {
@@ -479,8 +553,16 @@ function IssueDetailRow({
   const meta = report.metadata;
   return (
     <tr className="crosshook-health-dashboard-expanded-row">
-      <td colSpan={10}>
+      <td colSpan={11}>
         <div className="crosshook-health-dashboard-expanded-content">
+          {offlineReadinessReport ? (
+            <div className="crosshook-panel" style={{ marginBottom: 12 }}>
+              <h3 className="crosshook-heading-section" style={{ margin: '0 0 8px', fontSize: '1rem' }}>
+                Offline readiness
+              </h3>
+              <OfflineReadinessPanel report={offlineReadinessReport} />
+            </div>
+          ) : null}
           <div className="crosshook-health-dashboard-expanded-meta">
             <span><strong>Launch Method:</strong> {report.launch_method}</span>
             {meta?.last_success && (
@@ -715,6 +797,8 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
     scanMigrations,
   } = useProtonMigration();
 
+  const offlineReadiness = useOfflineReadiness();
+
   const [sortField, setSortField] = useState<SortField>('status');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -833,6 +917,15 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
           cmp = aRank - bRank;
           break;
         }
+        case 'offline_score': {
+          cmp =
+            offlineSortScore(a, offlineReadiness.reportForProfile(a.name)) -
+            offlineSortScore(b, offlineReadiness.reportForProfile(b.name));
+          if (cmp === 0) {
+            cmp = a.name.localeCompare(b.name);
+          }
+          break;
+        }
         default:
           cmp = 0;
       }
@@ -841,7 +934,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
     });
 
     return result;
-  }, [allProfiles, sortField, sortDirection, statusFilter, deferredSearch]);
+  }, [allProfiles, sortField, sortDirection, statusFilter, deferredSearch, offlineReadiness]);
 
   const hasUnknownSentinel = (summary?.profiles ?? []).some((r) => r.name === '<unknown>');
 
@@ -1086,12 +1179,15 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   <th role="columnheader" scope="col">Failures</th>
                   <th role="columnheader" scope="col">&#9733;</th>
                   <th role="columnheader" scope="col">Version</th>
+                  <th role="columnheader" scope="col">Offline</th>
                   <th role="columnheader" scope="col">Source</th>
                   <th role="columnheader" scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {cachedSnapshotList.map((snap) => (
+                {cachedSnapshotList.map((snap) => {
+                  const offCached = offlineReadiness.reportForProfile(snap.profile_name);
+                  return (
                   <tr
                     key={snap.profile_name}
                     tabIndex={0}
@@ -1109,7 +1205,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                     }}
                     style={snap.status !== 'healthy' ? { cursor: 'pointer' } : undefined}
                   >
-                    <td>
+                    <td className="crosshook-health-dashboard-td--status">
                       <HealthBadge status={snap.status} />
                     </td>
                     <td>{snap.profile_name}</td>
@@ -1119,10 +1215,14 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                     <td>&#8212;</td>
                     <td></td>
                     <td></td>
+                    <td className="crosshook-health-dashboard-td--offline">
+                      {offCached ? <OfflineStatusBadge report={offCached} compact /> : <span className="crosshook-muted">—</span>}
+                    </td>
                     <td></td>
                     <td></td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -1164,6 +1264,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   {renderSortHeader('failures', 'Failures')}
                   {renderSortHeader('favorite', '★')}
                   {renderSortHeader('version_status', 'Version')}
+                  {renderSortHeader('offline_score', 'Offline')}
                   <th role="columnheader" scope="col" className="crosshook-health-dashboard-th">Source</th>
                   <th role="columnheader" scope="col" className="crosshook-health-dashboard-th crosshook-health-dashboard-th--actions">Actions</th>
                 </tr>
@@ -1174,6 +1275,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   const rowTrend = trendByName[report.name];
                   const rowStaleInfo = staleInfoByName[report.name];
                   const activeTrend: TrendDirection = (rowTrend === 'unchanged' || rowTrend === undefined) ? null : rowTrend ?? null;
+                  const offlineReport = mergeOfflineReadinessForRow(report, offlineReadiness.reportForProfile(report.name));
                   return (
                     <Fragment key={report.name}>
                       <tr
@@ -1217,9 +1319,16 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                             {getVersionStatusLabel(report.metadata?.version_status)}
                           </span>
                         </td>
+                        <td className="crosshook-health-dashboard-td--offline">
+                          {offlineReport ? (
+                            <OfflineStatusBadge report={offlineReport} compact />
+                          ) : (
+                            <span className="crosshook-muted">—</span>
+                          )}
+                        </td>
                         <td className="crosshook-health-dashboard-td--source">
                           {report.metadata?.is_community_import ? (
-                            <span className="crosshook-status-chip">Community</span>
+                            <span className="crosshook-status-chip crosshook-health-dashboard-source-chip">Community</span>
                           ) : null}
                         </td>
                         <td className="crosshook-health-dashboard-td--actions" onClick={(e) => e.stopPropagation()}>
@@ -1238,6 +1347,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                       {isExpanded && (
                         <IssueDetailRow
                           report={report}
+                          offlineReadinessReport={offlineReport}
                           onRevalidate={(name) => void revalidateSingle(name)}
                           onFixNavigate={handleFixNavigation}
                         />

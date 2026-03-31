@@ -68,6 +68,8 @@ export interface LaunchResult {
   succeeded: boolean;
   message: string;
   helper_log_path: string;
+  /** Advisory launch warnings (e.g. low offline readiness); launch still proceeds. */
+  warnings?: LaunchValidationIssue[];
 }
 
 // --- Preview / Dry Run Types ---

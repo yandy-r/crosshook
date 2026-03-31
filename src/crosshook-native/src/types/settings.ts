@@ -8,6 +8,8 @@ export interface AppSettingsData {
   auto_load_last_profile: boolean;
   last_used_profile: string;
   community_taps: CommunityTapSubscription[];
+  onboarding_completed?: boolean;
+  offline_mode?: boolean;
 }
 
 export interface RecentFilesData {
