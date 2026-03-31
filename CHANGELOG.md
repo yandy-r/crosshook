@@ -3,6 +3,56 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+## [v0.2.5] - 2026-03-31
+
+
+### Bug Fixes
+
+- **community:** Add A6 bounds for version fields and pinned commit hex validation ([`586d280`](https://github.com/yandy-r/crosshook/commit/586d28064003826d4f0b8379d2e190403f370d7f))
+
+- **version:** Correct steam_applaunch version tracking and launch outcome classification ([`fc968d7`](https://github.com/yandy-r/crosshook/commit/fc968d7cf92e9c6ed18652339ec804849937bf5c))
+
+- **version:** Address PR review findings for version correlation ([`714c3a0`](https://github.com/yandy-r/crosshook/commit/714c3a0c4c99d752558d3ddc997bb7fa30350596))
+
+- **branchlet:** Update terminal command from 'zed .' to 'cursor .' in .branchlet.json ([`b80a3d9`](https://github.com/yandy-r/crosshook/commit/b80a3d9c02a0d1959cd7c9d81fa790dba00342b9))
+
+- **branchlet:** Update terminal command in .branchlet.json to use GUI editor ([`fde3d0a`](https://github.com/yandy-r/crosshook/commit/fde3d0a6a78aac3d2dc2479554620917e9340551))
+
+
+### Documentation
+
+- Refresh documentation for v0.2.4 feature set ([`c0e787d`](https://github.com/yandy-r/crosshook/commit/c0e787dc78ba6afb2e338ee3d898acee06d28aaa))
+
+- **ref:** Add feature specification and research documents for CLI command wiring ([`d0c084b`](https://github.com/yandy-r/crosshook/commit/d0c084b96d937025f5435c18ee0fea8d9fa4a7a9))
+
+
+### Features
+
+- **ui:** Add pinned profiles for quick launch on Profiles and Launch pages ([#113](https://github.com/yandy-r/crosshook/issues/113)) ([`7091937`](https://github.com/yandy-r/crosshook/commit/7091937c97a9d1323557bf10042fbb29251e51e2))
+
+- **profile:** Add portable/local override layers ([#114](https://github.com/yandy-r/crosshook/issues/114)) ([`2ae0ea0`](https://github.com/yandy-r/crosshook/commit/2ae0ea0c6fe6eead39ad402daf469eb02c1cb67e))
+
+- **profile:** Add Proton version migration tool for stale path detection and replacement ([#115](https://github.com/yandy-r/crosshook/issues/115)) ([`834fd76`](https://github.com/yandy-r/crosshook/commit/834fd76b1e3185538c5d070aa79b193ab61eda9f))
+
+- **community:** Add guided import wizard and live profile sync ([#116](https://github.com/yandy-r/crosshook/issues/116)) ([`d93f8cd`](https://github.com/yandy-r/crosshook/commit/d93f8cddb1941528bae9bff05cb0b4da93273c64))
+
+- **metadata:** Add version snapshots schema, store, and steam manifest extension ([`45e9782`](https://github.com/yandy-r/crosshook/commit/45e9782d9e45aecd1c066cf06e8cf06c59631bae))
+
+- **launch:** Named optimization presets per profile ([#121](https://github.com/yandy-r/crosshook/issues/121)) ([`6855dc9`](https://github.com/yandy-r/crosshook/commit/6855dc9c580fdea70e56a4d9924d59e592a32193))
+
+- **version:** Integrate version tracking into launch, startup, and health pipelines ([`7c58196`](https://github.com/yandy-r/crosshook/commit/7c58196303b5134b79a515ef58b9ecf8da607fdb))
+
+- **version:** Add Phase 3 UX — version dashboard, warnings, and launch state persistence ([`0f07f42`](https://github.com/yandy-r/crosshook/commit/0f07f42c5aae23b4ca82aa06085d7c62396199a9))
+
+- **profiles:** Configuration history with diff and rollback ([#124](https://github.com/yandy-r/crosshook/issues/124)) ([`79d3509`](https://github.com/yandy-r/crosshook/commit/79d3509ff5efb975d8d7148c6a0d124e79643d32))
+
+- **onboarding:** Add trainer onboarding wizard with guided profile creation ([#125](https://github.com/yandy-r/crosshook/issues/125)) ([`71c5215`](https://github.com/yandy-r/crosshook/commit/71c52151b21186d2594e9313dcfb7066041f44da))
+
+- **profiles:** Support custom env vars across launch flows ([#126](https://github.com/yandy-r/crosshook/issues/126)) ([`2850e19`](https://github.com/yandy-r/crosshook/commit/2850e19814477a6ba66ef8ba39376684241b5d69))
+
+- **cli:** Wire all placeholder commands to crosshook-core and extend launch support ([#127](https://github.com/yandy-r/crosshook/issues/127)) ([`14e2305`](https://github.com/yandy-r/crosshook/commit/14e2305389891b47c8186df606a09df7f8227221))
+
+
 ## [v0.2.4] - 2026-03-29
 
 
