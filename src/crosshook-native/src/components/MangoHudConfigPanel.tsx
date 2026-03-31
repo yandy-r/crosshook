@@ -21,6 +21,22 @@ const POSITION_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'bottom-right', label: 'Bottom Right' },
 ];
 
+const VALID_MANGOHUD_POSITIONS: readonly MangoHudPosition[] = [
+  'top-left',
+  'top-center',
+  'top-right',
+  'bottom-left',
+  'bottom-center',
+  'bottom-right',
+];
+
+function parseMangoHudPosition(value: string | undefined): MangoHudPosition | undefined {
+  if (!value) return undefined;
+  return VALID_MANGOHUD_POSITIONS.includes(value as MangoHudPosition)
+    ? (value as MangoHudPosition)
+    : undefined;
+}
+
 function parseOptionalInt(value: string): number | undefined {
   if (value === '') return undefined;
   const parsed = parseInt(value, 10);
@@ -37,7 +53,7 @@ function detectActivePreset(config: MangoHudConfig, presets: MangoHudPreset[]): 
       config.frametime === preset.frametime &&
       config.battery === preset.battery &&
       config.watt === preset.watt &&
-      (config.position ?? undefined) === (preset.position ?? undefined)
+      parseMangoHudPosition(config.position) === parseMangoHudPosition(preset.position)
     ) {
       return preset.id;
     }
@@ -73,7 +89,7 @@ export function MangoHudConfigPanel({
       frametime: preset.frametime,
       battery: preset.battery,
       watt: preset.watt,
-      position: preset.position as MangoHudPosition | undefined,
+      position: parseMangoHudPosition(preset.position),
     });
   }
 
@@ -163,9 +179,7 @@ export function MangoHudConfigPanel({
               <ThemedSelect
                 id={`${id}-position`}
                 value={config.position ?? ''}
-                onValueChange={(value) =>
-                  patch({ position: value === '' ? undefined : (value as MangoHudPosition) })
-                }
+                onValueChange={(value) => patch({ position: parseMangoHudPosition(value) })}
                 options={[{ value: '', label: 'Default' }, ...POSITION_OPTIONS]}
                 placeholder="Default"
               />

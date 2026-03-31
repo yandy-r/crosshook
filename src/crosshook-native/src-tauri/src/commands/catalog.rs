@@ -20,7 +20,7 @@ pub fn get_optimization_catalog() -> OptimizationCatalogPayload {
 
 /// Returns the list of built-in MangoHud display presets.
 #[tauri::command]
-pub fn get_mangohud_presets() -> Result<Vec<MangoHudPreset>, String> {
+pub fn get_mangohud_presets() -> Vec<MangoHudPreset> {
     let catalog = global_mangohud_presets();
-    Ok(catalog.preset.clone())
+    catalog.preset.clone()
 }

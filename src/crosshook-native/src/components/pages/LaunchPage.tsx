@@ -12,6 +12,7 @@ import { ThemedSelect } from '../ui/ThemedSelect';
 import { useProfileContext } from '../../context/ProfileContext';
 import { PageBanner, LaunchArt } from '../layout/PageBanner';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
+import { LAUNCH_OPTIMIZATION_APPLICABLE_METHODS } from '../../types/launch-optimizations';
 import { buildProfileLaunchRequest } from '../../utils/launch';
 
 export function LaunchPage() {
@@ -33,10 +34,11 @@ export function LaunchPage() {
   }, []);
 
   const showsGamescopePanel = profileState.launchMethod === 'proton_run';
-  const showsMangoHudPanel =
-    profileState.launchMethod === 'proton_run' || profileState.launchMethod === 'steam_applaunch';
-  const showsOptimizationPanels =
-    profileState.launchMethod === 'proton_run' || profileState.launchMethod === 'steam_applaunch';
+  const launchMethodSupportsOptimizations = LAUNCH_OPTIMIZATION_APPLICABLE_METHODS.includes(
+    profileState.launchMethod as (typeof LAUNCH_OPTIMIZATION_APPLICABLE_METHODS)[number]
+  );
+  const showsMangoHudPanel = launchMethodSupportsOptimizations;
+  const showsOptimizationPanels = launchMethodSupportsOptimizations;
   const showsSteamLaunchOptions = profileState.launchMethod === 'steam_applaunch';
   const pinnedSet = useMemo(() => new Set(profileState.favoriteProfiles), [profileState.favoriteProfiles]);
   const handleTogglePin = useCallback(

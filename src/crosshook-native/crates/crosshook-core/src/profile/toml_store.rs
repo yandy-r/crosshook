@@ -360,7 +360,14 @@ impl ProfileStore {
                         "failed to copy MangoHud companion config during rename fallback"
                     );
                 } else {
-                    let _ = fs::remove_file(&old_mangohud);
+                    if let Err(remove_err) = fs::remove_file(&old_mangohud) {
+                        tracing::warn!(
+                            old_profile = old_name,
+                            new_profile = new_name,
+                            error = %remove_err,
+                            "failed to remove old MangoHud companion config after copy fallback"
+                        );
+                    }
                 }
             }
         }

@@ -117,13 +117,13 @@ mod tests {
     }
 
     #[test]
-    fn minimal_preset_has_no_stats() {
+    fn minimal_preset_has_frametime_only() {
         let (catalog, _) = parse_mangohud_presets(DEFAULT_MANGOHUD_PRESETS_TOML);
         let minimal = catalog.preset.iter().find(|p| p.id == "minimal").unwrap();
         assert!(!minimal.gpu_stats);
         assert!(!minimal.cpu_stats);
         assert!(!minimal.ram);
-        assert!(!minimal.frametime);
+        assert!(minimal.frametime);
         assert!(!minimal.battery);
         assert!(!minimal.watt);
     }

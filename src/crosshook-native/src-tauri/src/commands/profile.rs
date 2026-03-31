@@ -314,6 +314,13 @@ pub fn profile_save_mangohud_config(
     ) {
         tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save_mangohud_config failed");
     }
+    capture_config_revision(
+        &name,
+        &profile,
+        ConfigRevisionSource::ManualSave,
+        None,
+        &metadata_store,
+    );
     Ok(())
 }
 

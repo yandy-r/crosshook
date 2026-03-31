@@ -3,12 +3,12 @@ catalog_version = 1
 [[preset]]
 id = "minimal"
 label = "Minimal"
-description = "Simple FPS counter with no additional stats"
+description = "Minimal frametime overlay"
 fps_limit = 0
 gpu_stats = false
 cpu_stats = false
 ram = false
-frametime = false
+frametime = true
 battery = false
 watt = false
 
