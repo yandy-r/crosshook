@@ -747,6 +747,7 @@ fn launch_request_from_profile(
         launch_game_only: true,
         profile_name: Some(profile_name.to_string()),
         custom_env_vars: profile.launch.custom_env_vars.clone(),
+        gamescope: profile.launch.gamescope.clone(),
     })
 }
 

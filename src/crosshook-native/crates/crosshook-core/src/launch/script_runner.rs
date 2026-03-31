@@ -9,11 +9,12 @@ use super::{
     runtime_helpers::{
         apply_custom_env_vars, apply_host_environment, apply_optimization_and_custom_environment,
         apply_runtime_proton_environment, apply_working_directory, attach_log_stdio,
-        new_direct_proton_command_with_wrappers, resolve_wine_prefix_path,
+        build_gamescope_args, new_direct_proton_command_with_wrappers,
+        new_proton_command_with_gamescope, resolve_wine_prefix_path,
     },
     LaunchRequest, ValidationError,
 };
-use crate::profile::TrainerLoadingMode;
+use crate::profile::{GamescopeConfig, TrainerLoadingMode};
 
 const BASH_EXECUTABLE: &str = "/bin/bash";
 const DEFAULT_GAME_STARTUP_DELAY_SECONDS: &str = "30";
@@ -33,6 +34,25 @@ const SUPPORT_DIRECTORIES: [&str; 9] = [
 ];
 const SHARED_DEPENDENCY_EXTENSIONS: [&str; 7] =
     ["dll", "json", "config", "ini", "pak", "dat", "bin"];
+
+fn prepare_gamescope_launch(
+    config: &GamescopeConfig,
+    wrappers: &[String],
+) -> (Vec<String>, Vec<String>) {
+    let mut gamescope_args = build_gamescope_args(config);
+    let has_mangohud = wrappers.iter().any(|w| w.trim() == "mangohud");
+    let filtered_wrappers: Vec<String> = if has_mangohud {
+        gamescope_args.push("--mangoapp".into());
+        wrappers.iter().filter(|w| w.trim() != "mangohud").cloned().collect()
+    } else {
+        wrappers.to_vec()
+    };
+    (gamescope_args, filtered_wrappers)
+}
+
+fn should_skip_gamescope(config: &GamescopeConfig) -> bool {
+    !config.allow_nested && std::env::var("GAMESCOPE_WAYLAND_DISPLAY").is_ok()
+}
 
 pub fn build_helper_command(
     request: &LaunchRequest,
@@ -65,10 +85,20 @@ pub fn build_proton_game_command(
     log_path: &Path,
 ) -> std::io::Result<Command> {
     let directives = resolve_launch_directives(request).map_err(validation_error_to_io_error)?;
-    let mut command = new_direct_proton_command_with_wrappers(
-        request.runtime.proton_path.trim(),
-        &directives.wrappers,
-    );
+    let mut command = if request.gamescope.enabled && !should_skip_gamescope(&request.gamescope) {
+        let (gamescope_args, filtered_wrappers) =
+            prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
+        new_proton_command_with_gamescope(
+            request.runtime.proton_path.trim(),
+            &filtered_wrappers,
+            &gamescope_args,
+        )
+    } else {
+        new_direct_proton_command_with_wrappers(
+            request.runtime.proton_path.trim(),
+            &directives.wrappers,
+        )
+    };
     command.arg(request.game_path.trim());
     apply_host_environment(&mut command);
     apply_runtime_proton_environment(
@@ -103,10 +133,20 @@ pub fn build_proton_trainer_command(
         )?,
     };
 
-    let mut command = new_direct_proton_command_with_wrappers(
-        request.runtime.proton_path.trim(),
-        &directives.wrappers,
-    );
+    let mut command = if request.gamescope.enabled && !should_skip_gamescope(&request.gamescope) {
+        let (gamescope_args, filtered_wrappers) =
+            prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
+        new_proton_command_with_gamescope(
+            request.runtime.proton_path.trim(),
+            &filtered_wrappers,
+            &gamescope_args,
+        )
+    } else {
+        new_direct_proton_command_with_wrappers(
+            request.runtime.proton_path.trim(),
+            &directives.wrappers,
+        )
+    };
     command.arg(trainer_launch_path);
     apply_host_environment(&mut command);
     apply_runtime_proton_environment(

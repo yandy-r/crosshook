@@ -17,6 +17,37 @@ export interface ProfileData {
 
 export type LaunchMethod = '' | 'steam_applaunch' | 'proton_run' | 'native';
 
+export type GamescopeFilter = 'fsr' | 'nis' | 'linear' | 'nearest' | 'pixel';
+
+export interface GamescopeConfig {
+  enabled: boolean;
+  internal_width?: number;
+  internal_height?: number;
+  output_width?: number;
+  output_height?: number;
+  frame_rate_limit?: number;
+  fsr_sharpness?: number;
+  upscale_filter?: GamescopeFilter;
+  fullscreen: boolean;
+  borderless: boolean;
+  grab_cursor: boolean;
+  force_grab_cursor: boolean;
+  hdr_enabled: boolean;
+  allow_nested: boolean;
+  extra_args: string[];
+}
+
+export const DEFAULT_GAMESCOPE_CONFIG: GamescopeConfig = {
+  enabled: false,
+  fullscreen: false,
+  borderless: false,
+  grab_cursor: false,
+  force_grab_cursor: false,
+  hdr_enabled: false,
+  allow_nested: false,
+  extra_args: [],
+};
+
 /** IPC DTO from `profile_list_bundled_optimization_presets`. */
 export interface BundledOptimizationPreset {
   preset_id: string;
@@ -65,6 +96,7 @@ export interface GameProfile {
     /** When set and present in `presets`, optimizations are kept in sync with that entry. */
     active_preset?: string;
     custom_env_vars: Record<string, string>;
+    gamescope?: GamescopeConfig;
   };
   local_override?: {
     game: {

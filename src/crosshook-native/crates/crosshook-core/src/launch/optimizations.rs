@@ -415,7 +415,7 @@ pub fn build_steam_launch_options_command(
     Ok(parts.join(" "))
 }
 
-fn is_command_available(binary: &str) -> bool {
+pub(crate) fn is_command_available(binary: &str) -> bool {
     #[cfg(test)]
     {
         let guard = test_command_search_path()
