@@ -1,0 +1,401 @@
+catalog_version = 1
+
+[[optimization]]
+id = "disable_steam_input"
+applies_to_method = "proton_run"
+env = [["PROTON_NO_STEAMINPUT", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Disable Steam Input"
+description = "Let Proton handle controller input directly."
+help_text = "Useful when Steam Input causes double mapping, bad glyphs, or gyro conflicts. Keep it off if the game depends on Steam remapping layers."
+category = "input"
+target_gpu_vendor = ""
+advanced = false
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "prefer_sdl_input"
+applies_to_method = "proton_run"
+env = [["PROTON_PREFER_SDL", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Prefer SDL controller handling"
+description = "Bias Proton toward SDL-style controller handling."
+help_text = "Helps when controller detection is inconsistent and SDL mappings behave better than the default path. Leave it off if the game already plays nicely with the current input stack."
+category = "input"
+target_gpu_vendor = ""
+advanced = false
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "hide_window_decorations"
+applies_to_method = "proton_run"
+env = [["PROTON_NO_WM_DECORATION", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Hide window decorations"
+description = "Request a cleaner, borderless-style Proton window."
+help_text = "Helpful for games that misbehave with desktop title bars, resize handles, or other window chrome. It is a presentation tweak, not a performance boost."
+category = "display"
+target_gpu_vendor = ""
+advanced = false
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "show_mangohud_overlay"
+applies_to_method = "proton_run"
+env = []
+wrappers = ["mangohud"]
+conflicts_with = []
+required_binary = "mangohud"
+label = "Show MangoHud overlay"
+description = "Overlay frame-time and performance stats during launch."
+help_text = "Launches the game through MangoHud so performance and frame pacing data stays visible. Requires MangoHud to be installed and can interact with other preload-heavy launch paths."
+category = "performance"
+target_gpu_vendor = ""
+advanced = false
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "use_gamemode"
+applies_to_method = "proton_run"
+env = []
+wrappers = ["gamemoderun"]
+conflicts_with = ["use_game_performance"]
+required_binary = "gamemoderun"
+label = "Use GameMode"
+description = "Request GameMode performance adjustments for the session."
+help_text = "Launches through gamemoderun when the GameMode service is available. Prefer this over distro-specific performance wrappers when you want a portable wrapper."
+category = "performance"
+target_gpu_vendor = ""
+advanced = false
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "use_game_performance"
+applies_to_method = "proton_run"
+env = []
+wrappers = ["game-performance"]
+conflicts_with = ["use_gamemode"]
+required_binary = "game-performance"
+label = "Use CachyOS performance wrapper"
+description = "Launch through CachyOS game-performance when available."
+help_text = "Uses the distro-specific game-performance wrapper to switch the system into a performance profile while the game runs. Only meaningful on systems that provide the wrapper."
+category = "performance"
+target_gpu_vendor = ""
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_hdr"
+applies_to_method = "proton_run"
+env = [["PROTON_ENABLE_HDR", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Enable HDR"
+description = "Turn on Proton HDR support for the launch."
+help_text = "Only helps when the display path, compositor, and game can all present HDR correctly. Treat it as an advanced compatibility toggle, not a default boost."
+category = "graphics"
+target_gpu_vendor = ""
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_wayland_driver"
+applies_to_method = "proton_run"
+env = [["PROTON_ENABLE_WAYLAND", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Use native Wayland support"
+description = "Prefer Proton's Wayland path when the stack supports it."
+help_text = "Experimental on some setups and can affect overlays or input handling. Use it only when you know the game and runtime behave correctly under Wayland."
+category = "compatibility"
+target_gpu_vendor = ""
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "use_ntsync"
+applies_to_method = "proton_run"
+env = [["PROTON_USE_NTSYNC", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Use NTSync"
+description = "Enable NTSync support for Proton when the kernel allows it."
+help_text = "Works only on kernels and Proton builds that support NTSync. Keep it in the advanced bucket because it is still environment-dependent."
+category = "compatibility"
+target_gpu_vendor = ""
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "disable_esync"
+applies_to_method = "proton_run"
+env = [["PROTON_NO_ESYNC", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Disable esync"
+description = "Turn off Proton esync for compatibility troubleshooting."
+help_text = "Useful for games that crash, hang, or become unstable with esync enabled. Leave this off unless you are debugging a known esync-specific issue."
+category = "compatibility"
+target_gpu_vendor = ""
+advanced = true
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "disable_fsync"
+applies_to_method = "proton_run"
+env = [["PROTON_NO_FSYNC", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Disable fsync"
+description = "Turn off Proton fsync for compatibility troubleshooting."
+help_text = "Useful when fsync causes launch failures or instability on specific kernels or Proton builds. Keep disabled unless troubleshooting a known fsync issue."
+category = "compatibility"
+target_gpu_vendor = ""
+advanced = true
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_nvapi"
+applies_to_method = "proton_run"
+env = [["PROTON_ENABLE_NVAPI", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Enable NVAPI support"
+description = "Expose NVIDIA NVAPI paths used by some games and features."
+help_text = "Primarily relevant for NVIDIA hardware and DLSS-related integration paths. Keep this off on non-NVIDIA systems."
+category = "graphics"
+target_gpu_vendor = "nvidia"
+advanced = true
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "force_large_address_aware"
+applies_to_method = "proton_run"
+env = [["PROTON_FORCE_LARGE_ADDRESS_AWARE", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Force Large Address Aware"
+description = "Enable larger virtual address space for some 32-bit games."
+help_text = "Can help memory-limited 32-bit titles avoid out-of-memory failures. Use this as a targeted compatibility fix, not a default toggle."
+category = "compatibility"
+target_gpu_vendor = ""
+advanced = true
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_proton_log"
+applies_to_method = "proton_run"
+env = [["PROTON_LOG", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Enable Proton logging"
+description = "Write Proton diagnostic logs during launch and runtime."
+help_text = "Helpful for collecting debugging evidence when diagnosing crashes or startup issues. Disable during normal play to avoid noisy log output."
+category = "compatibility"
+target_gpu_vendor = ""
+advanced = true
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_local_shader_cache"
+applies_to_method = "proton_run"
+env = [["PROTON_LOCAL_SHADER_CACHE", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Isolate shader cache per game"
+description = "Keep shader cache data separated for the current profile."
+help_text = "Reduces cross-game shader cache interference at the cost of more storage per profile. Useful when one game's cache should not affect another's runtime behavior."
+category = "graphics"
+target_gpu_vendor = ""
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_dxvk_async"
+applies_to_method = "proton_run"
+env = [["DXVK_ASYNC", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Enable DXVK async"
+description = "Use async shader compilation when DXVK supports it."
+help_text = "Can reduce shader-compilation stutter for some titles, but behavior depends on DXVK and game compatibility. Treat it as an advanced graphics toggle."
+category = "graphics"
+target_gpu_vendor = ""
+advanced = true
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "cap_dxvk_frame_rate"
+applies_to_method = "proton_run"
+env = [["DXVK_FRAME_RATE", "60"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Cap DXVK frame rate (60 FPS)"
+description = "Apply a fixed DXVK frame-rate cap for steadier pacing."
+help_text = "Uses a fixed 60 FPS cap via DXVK_FRAME_RATE to help thermals and battery life. This is a preset cap, not a configurable value."
+category = "performance"
+target_gpu_vendor = ""
+advanced = true
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_vkd3d_dxr"
+applies_to_method = "proton_run"
+env = [["VKD3D_CONFIG", "dxr"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Enable VKD3D DXR"
+description = "Request VKD3D ray-tracing path with VKD3D_CONFIG=dxr."
+help_text = "Only useful for DX12 titles and stacks that support the DXR path correctly. Use while testing ray tracing behavior, not as a default optimization."
+category = "graphics"
+target_gpu_vendor = ""
+advanced = true
+community = false
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_fsr4_upgrade"
+applies_to_method = "proton_run"
+env = [["PROTON_FSR4_UPGRADE", "1"]]
+wrappers = []
+conflicts_with = ["enable_fsr4_rdna3_upgrade"]
+required_binary = ""
+label = "Auto-upgrade FSR4"
+description = "Use the community FSR4 upgrade path when available."
+help_text = "Community-documented and potentially useful on compatible titles, but not universal Proton behavior. Treat it as an advanced graphics tweak."
+category = "graphics"
+target_gpu_vendor = "amd"
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_fsr4_rdna3_upgrade"
+applies_to_method = "proton_run"
+env = [["PROTON_FSR4_RDNA3_UPGRADE", "1"]]
+wrappers = []
+conflicts_with = ["enable_fsr4_upgrade"]
+required_binary = ""
+label = "Use RDNA3-optimized FSR4"
+description = "Select the RDNA3-specific FSR4 upgrade path."
+help_text = "Only relevant for RDNA3 hardware and should not be treated as a general graphics fix. Keep it grouped with the other advanced graphics options."
+category = "graphics"
+target_gpu_vendor = "amd"
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_xess_upgrade"
+applies_to_method = "proton_run"
+env = [["PROTON_XESS_UPGRADE", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Auto-upgrade XeSS"
+description = "Use the community XeSS upgrade path when available."
+help_text = "Vendor-specific and dependent on the game's upscaler path. It is useful for some Intel or mixed-vendor setups, but it is not a default optimization."
+category = "graphics"
+target_gpu_vendor = ""
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_dlss_upgrade"
+applies_to_method = "proton_run"
+env = [["PROTON_DLSS_UPGRADE", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Auto-upgrade DLSS"
+description = "Use the community DLSS upgrade path when available."
+help_text = "Best treated as an NVIDIA-specific compatibility tool, not a general performance boost. The game still has to support the upscaler path."
+category = "graphics"
+target_gpu_vendor = "nvidia"
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "show_dlss_indicator"
+applies_to_method = "proton_run"
+env = [["PROTON_DLSS_INDICATOR", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Show DLSS indicator"
+description = "Display the DLSS indicator used by some community Proton builds."
+help_text = "Useful for confirming that the DLSS-related upgrade path is active in supported games. It is primarily diagnostic and cosmetic."
+category = "graphics"
+target_gpu_vendor = "nvidia"
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "enable_nvidia_libs"
+applies_to_method = "proton_run"
+env = [["PROTON_NVIDIA_LIBS", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Enable NVIDIA game libraries"
+description = "Make the NVIDIA game-library helpers available when needed."
+help_text = "Only meaningful on NVIDIA systems and Proton variants that support the flag. Keep it in the advanced graphics group because it is hardware-specific."
+category = "graphics"
+target_gpu_vendor = "nvidia"
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]
+
+[[optimization]]
+id = "steamdeck_compat_mode"
+applies_to_method = "proton_run"
+env = [["SteamDeck", "1"]]
+wrappers = []
+conflicts_with = []
+required_binary = ""
+label = "Use Steam Deck compatibility mode"
+description = "Apply the community Steam Deck compatibility signal."
+help_text = "A narrow compatibility workaround for titles that benefit from deck-style behavior. It can change how a game behaves, so keep it clearly labeled as advanced."
+category = "compatibility"
+target_gpu_vendor = ""
+advanced = true
+community = true
+applicable_methods = ["proton_run", "steam_applaunch"]

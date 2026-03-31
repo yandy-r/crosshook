@@ -1,5 +1,6 @@
 //! Launch orchestration primitives.
 
+pub mod catalog;
 pub mod diagnostics;
 pub mod env;
 pub mod optimizations;
@@ -11,8 +12,11 @@ pub mod script_runner;
 pub(crate) mod test_support;
 
 pub use diagnostics::{analyze, should_surface_report, DiagnosticReport};
+pub use catalog::{
+    global_catalog, initialize_catalog, load_catalog, OptimizationCatalog, OptimizationEntry,
+};
 pub use env::{
-    LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
+    BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
     WINE_ENV_VARS_TO_CLEAR,
 };
 pub use optimizations::{

@@ -108,6 +108,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 12 {
+        migrate_11_to_12(conn)?;
+        conn.pragma_update(None, "user_version", 12_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 12",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -525,4 +534,59 @@ fn migrate_2_to_3(conn: &Connection) -> Result<(), MetadataStoreError> {
     })?;
 
     Ok(())
+}
+
+fn migrate_11_to_12(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS optimization_catalog (
+            sort_order              INTEGER NOT NULL,
+            id                      TEXT PRIMARY KEY,
+            applies_to_method       TEXT NOT NULL DEFAULT 'proton_run',
+            env_json                TEXT NOT NULL DEFAULT '[]',
+            wrappers_json           TEXT NOT NULL DEFAULT '[]',
+            conflicts_with_json     TEXT NOT NULL DEFAULT '[]',
+            required_binary         TEXT NOT NULL DEFAULT '',
+            label                   TEXT NOT NULL DEFAULT '',
+            description             TEXT NOT NULL DEFAULT '',
+            help_text               TEXT NOT NULL DEFAULT '',
+            category                TEXT NOT NULL DEFAULT '',
+            target_gpu_vendor       TEXT NOT NULL DEFAULT '',
+            advanced                INTEGER NOT NULL DEFAULT 0,
+            community               INTEGER NOT NULL DEFAULT 0,
+            applicable_methods_json TEXT NOT NULL DEFAULT '[]',
+            source                  TEXT NOT NULL DEFAULT 'default',
+            catalog_version         INTEGER NOT NULL DEFAULT 1,
+            updated_at              TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_optimization_catalog_sort_order
+            ON optimization_catalog(sort_order ASC);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 11 to 12",
+        source,
+    })?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::metadata::db;
+
+    #[test]
+    fn migration_11_to_12_creates_optimization_catalog_table() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        // Verify the table exists by querying it
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM optimization_catalog", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(count, 0);
+    }
 }

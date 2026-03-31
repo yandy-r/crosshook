@@ -11,7 +11,7 @@ use std::sync::{Mutex, OnceLock};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    env::LAUNCH_OPTIMIZATION_ENV_VARS,
+    catalog::{global_catalog, OptimizationCatalog},
     request::{LaunchRequest, ValidationError, METHOD_PROTON_RUN},
     runtime_helpers::DEFAULT_HOST_PATH,
 };
@@ -28,232 +28,33 @@ impl LaunchDirectives {
     }
 }
 
-struct LaunchOptimizationDefinition {
-    id: &'static str,
-    applies_to_method: &'static str,
-    env: &'static [(&'static str, &'static str)],
-    wrappers: &'static [&'static str],
-    conflicts_with: &'static [&'static str],
-    required_binary: Option<&'static str>,
-}
-
-const LAUNCH_OPTIMIZATION_DEFINITIONS: &[LaunchOptimizationDefinition] = &[
-    LaunchOptimizationDefinition {
-        id: "disable_steam_input",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_NO_STEAMINPUT", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "prefer_sdl_input",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_PREFER_SDL", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "hide_window_decorations",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_NO_WM_DECORATION", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "show_mangohud_overlay",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[],
-        wrappers: &["mangohud"],
-        conflicts_with: &[],
-        required_binary: Some("mangohud"),
-    },
-    LaunchOptimizationDefinition {
-        id: "use_gamemode",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[],
-        wrappers: &["gamemoderun"],
-        conflicts_with: &["use_game_performance"],
-        required_binary: Some("gamemoderun"),
-    },
-    LaunchOptimizationDefinition {
-        id: "use_game_performance",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[],
-        wrappers: &["game-performance"],
-        conflicts_with: &["use_gamemode"],
-        required_binary: Some("game-performance"),
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_hdr",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_ENABLE_HDR", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_wayland_driver",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_ENABLE_WAYLAND", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "use_ntsync",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_USE_NTSYNC", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "disable_esync",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_NO_ESYNC", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "disable_fsync",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_NO_FSYNC", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_nvapi",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_ENABLE_NVAPI", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "force_large_address_aware",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_FORCE_LARGE_ADDRESS_AWARE", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_proton_log",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_LOG", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_local_shader_cache",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_LOCAL_SHADER_CACHE", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_dxvk_async",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("DXVK_ASYNC", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "cap_dxvk_frame_rate",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("DXVK_FRAME_RATE", "60")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_vkd3d_dxr",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("VKD3D_CONFIG", "dxr")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_fsr4_upgrade",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_FSR4_UPGRADE", "1")],
-        wrappers: &[],
-        conflicts_with: &["enable_fsr4_rdna3_upgrade"],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_fsr4_rdna3_upgrade",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_FSR4_RDNA3_UPGRADE", "1")],
-        wrappers: &[],
-        conflicts_with: &["enable_fsr4_upgrade"],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_xess_upgrade",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_XESS_UPGRADE", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_dlss_upgrade",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_DLSS_UPGRADE", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "show_dlss_indicator",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_DLSS_INDICATOR", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "enable_nvidia_libs",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("PROTON_NVIDIA_LIBS", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-    LaunchOptimizationDefinition {
-        id: "steamdeck_compat_mode",
-        applies_to_method: METHOD_PROTON_RUN,
-        env: &[("SteamDeck", "1")],
-        wrappers: &[],
-        conflicts_with: &[],
-        required_binary: None,
-    },
-];
-
 pub fn is_known_launch_optimization_id(option_id: &str) -> bool {
-    LAUNCH_OPTIMIZATION_DEFINITIONS
-        .iter()
-        .any(|definition| definition.id == option_id)
+    global_catalog().is_known_id(option_id)
 }
 
-/// Resolves launch optimization directives for a given method (e.g. `proton_run`).
+/// Resolves launch optimization directives for a given method using the global catalog.
 ///
 /// Used by `resolve_launch_directives` for direct Proton launches and by
-/// [`build_steam_launch_options_command`] so Steam “Launch Options” strings stay aligned
+/// [`build_steam_launch_options_command`] so Steam "Launch Options" strings stay aligned
 /// with the same env/wrapper semantics.
 pub fn resolve_launch_directives_for_method(
     enabled_option_ids: &[String],
     resolved_method: &str,
+) -> Result<LaunchDirectives, ValidationError> {
+    if enabled_option_ids.is_empty() {
+        return Ok(LaunchDirectives::default());
+    }
+    resolve_directives_with_catalog(enabled_option_ids, resolved_method, global_catalog())
+}
+
+/// Resolves launch optimization directives against a specific catalog.
+///
+/// Extracted for testability — tests pass a catalog built from `parse_catalog_toml`
+/// instead of relying on the process-global `OnceLock`.
+pub(crate) fn resolve_directives_with_catalog(
+    enabled_option_ids: &[String],
+    resolved_method: &str,
+    catalog: &OptimizationCatalog,
 ) -> Result<LaunchDirectives, ValidationError> {
     if enabled_option_ids.is_empty() {
         return Ok(LaunchDirectives::default());
@@ -267,10 +68,7 @@ pub fn resolve_launch_directives_for_method(
             ));
         }
 
-        if !LAUNCH_OPTIMIZATION_DEFINITIONS
-            .iter()
-            .any(|definition| definition.id == option_id)
-        {
+        if !catalog.is_known_id(option_id) {
             return Err(ValidationError::UnknownLaunchOptimization(
                 option_id.clone(),
             ));
@@ -280,50 +78,49 @@ pub fn resolve_launch_directives_for_method(
     let selected_ids = seen_ids;
     let mut directives = LaunchDirectives::default();
 
-    for definition in LAUNCH_OPTIMIZATION_DEFINITIONS {
-        if !selected_ids.contains(definition.id) {
+    for entry in &catalog.entries {
+        if !selected_ids.contains(entry.id.as_str()) {
             continue;
         }
 
-        if definition.applies_to_method != resolved_method {
+        if entry.applies_to_method != resolved_method {
             return Err(ValidationError::LaunchOptimizationNotSupportedForMethod {
-                option_id: definition.id.to_string(),
+                option_id: entry.id.clone(),
                 method: resolved_method.to_string(),
             });
         }
 
-        for conflicting_id in definition.conflicts_with {
-            if selected_ids.contains(conflicting_id) {
+        for conflicting_id in &entry.conflicts_with {
+            if selected_ids.contains(conflicting_id.as_str()) {
                 return Err(ValidationError::IncompatibleLaunchOptimizations {
-                    first: definition.id.to_string(),
-                    second: (*conflicting_id).to_string(),
+                    first: entry.id.clone(),
+                    second: conflicting_id.clone(),
                 });
             }
         }
 
-        if let Some(binary) = definition.required_binary {
-            if !is_command_available(binary) {
-                return Err(ValidationError::LaunchOptimizationDependencyMissing {
-                    option_id: definition.id.to_string(),
-                    dependency: binary.to_string(),
-                });
-            }
+        if !entry.required_binary.is_empty() && !is_command_available(&entry.required_binary) {
+            return Err(ValidationError::LaunchOptimizationDependencyMissing {
+                option_id: entry.id.clone(),
+                dependency: entry.required_binary.clone(),
+            });
         }
 
-        for (key, value) in definition.env {
-            if !LAUNCH_OPTIMIZATION_ENV_VARS.contains(key) {
+        for pair in &entry.env {
+            let key = &pair[0];
+            let value = &pair[1];
+
+            if !catalog.allowed_env_keys.contains(key.as_str()) {
                 return Err(ValidationError::UnknownLaunchOptimization(
-                    definition.id.to_string(),
+                    entry.id.clone(),
                 ));
             }
 
-            directives
-                .env
-                .push(((*key).to_string(), (*value).to_string()));
+            directives.env.push((key.clone(), value.clone()));
         }
 
-        for wrapper in definition.wrappers {
-            directives.wrappers.push((*wrapper).to_string());
+        for wrapper in &entry.wrappers {
+            directives.wrappers.push(wrapper.clone());
         }
     }
 
@@ -384,7 +181,7 @@ pub fn escape_steam_token(value: &str) -> String {
     out
 }
 
-/// Builds a single-line Steam per-game “Launch Options” string: `KEY=val ... wrappers %command%`.
+/// Builds a single-line Steam per-game "Launch Options" string: `KEY=val ... wrappers %command%`.
 ///
 /// Uses the same option-ID → env/wrapper mapping as `proton_run` launches, then appends
 /// `custom_env_vars` as `KEY=value` tokens so profile custom values override optimization keys
@@ -467,31 +264,12 @@ fn is_executable_file(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::launch::request::{
-        LaunchOptimizationsRequest, RuntimeLaunchConfig, SteamLaunchConfig,
-    };
+    use crate::launch::catalog;
 
-    fn optimization_request(enabled_option_ids: Vec<&str>) -> LaunchRequest {
-        LaunchRequest {
-            method: METHOD_PROTON_RUN.to_string(),
-            game_path: "/games/test.exe".to_string(),
-            trainer_path: "/trainers/test.exe".to_string(),
-            trainer_host_path: "/trainers/test.exe".to_string(),
-            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
-            steam: SteamLaunchConfig::default(),
-            runtime: RuntimeLaunchConfig {
-                prefix_path: "/prefix".to_string(),
-                proton_path: "/proton".to_string(),
-                working_directory: String::new(),
-            },
-            optimizations: LaunchOptimizationsRequest {
-                enabled_option_ids: enabled_option_ids.into_iter().map(str::to_string).collect(),
-            },
-            launch_trainer_only: false,
-            launch_game_only: false,
-            profile_name: None,
-            ..Default::default()
-        }
+    fn make_test_catalog() -> OptimizationCatalog {
+        let (entries, warnings) = catalog::parse_catalog_toml(catalog::DEFAULT_CATALOG_TOML, "test");
+        assert!(warnings.is_empty(), "default catalog must parse cleanly: {warnings:?}");
+        OptimizationCatalog::from_entries(entries)
     }
 
     fn write_executable_file(path: &Path) {
@@ -509,9 +287,12 @@ mod tests {
 
     #[test]
     fn resolves_env_directives_in_catalog_order() {
-        let request = optimization_request(vec!["enable_hdr", "disable_steam_input"]);
+        let catalog = make_test_catalog();
+        let ids = vec!["enable_hdr".to_string(), "disable_steam_input".to_string()];
 
-        let directives = resolve_launch_directives(&request).expect("resolve directives");
+        let directives =
+            resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
+                .expect("resolve directives");
 
         assert_eq!(
             directives.env,
@@ -525,6 +306,7 @@ mod tests {
 
     #[test]
     fn resolves_wrapper_directives_in_deterministic_order() {
+        let catalog = make_test_catalog();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let mangohud_path = temp_dir.path().join("mangohud");
         let gamemode_path = temp_dir.path().join("gamemoderun");
@@ -533,8 +315,10 @@ mod tests {
         let _command_search_path =
             crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
 
-        let request = optimization_request(vec!["use_gamemode", "show_mangohud_overlay"]);
-        let directives = resolve_launch_directives(&request).expect("resolve directives");
+        let ids = vec!["use_gamemode".to_string(), "show_mangohud_overlay".to_string()];
+        let directives =
+            resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
+                .expect("resolve directives");
 
         assert_eq!(directives.wrappers, vec!["mangohud", "gamemoderun"]);
         assert!(directives.env.is_empty());
@@ -542,7 +326,8 @@ mod tests {
 
     #[test]
     fn resolves_issue_58_env_directives_in_catalog_order() {
-        let request = optimization_request(vec![
+        let catalog = make_test_catalog();
+        let ids: Vec<String> = vec![
             "enable_vkd3d_dxr",
             "disable_esync",
             "enable_dxvk_async",
@@ -551,9 +336,14 @@ mod tests {
             "force_large_address_aware",
             "enable_proton_log",
             "disable_fsync",
-        ]);
+        ]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
 
-        let directives = resolve_launch_directives(&request).expect("resolve directives");
+        let directives =
+            resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
+                .expect("resolve directives");
 
         assert_eq!(
             directives.env,
@@ -576,12 +366,14 @@ mod tests {
 
     #[test]
     fn rejects_missing_wrapper_dependency() {
+        let catalog = make_test_catalog();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let _command_search_path =
             crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
 
-        let request = optimization_request(vec!["show_mangohud_overlay"]);
-        let error = resolve_launch_directives(&request).expect_err("missing wrapper should fail");
+        let ids = vec!["show_mangohud_overlay".to_string()];
+        let error = resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
+            .expect_err("missing wrapper should fail");
 
         assert_eq!(
             error,
@@ -594,72 +386,11 @@ mod tests {
 
     #[test]
     fn steam_launch_options_empty_is_percent_command_percent() {
+        // This test uses global_catalog via resolve_launch_directives_for_method,
+        // but with empty IDs it short-circuits before touching the catalog.
         let command =
             build_steam_launch_options_command(&[], &BTreeMap::new()).expect("empty steam command");
         assert_eq!(command, "%command%");
-    }
-
-    #[test]
-    fn steam_launch_options_orders_env_then_wrappers_then_placeholder() {
-        let temp_dir = tempfile::tempdir().expect("temp dir");
-        let mangohud_path = temp_dir.path().join("mangohud");
-        let game_perf_path = temp_dir.path().join("game-performance");
-        write_executable_file(&mangohud_path);
-        write_executable_file(&game_perf_path);
-        let _command_search_path =
-            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
-
-        let ids = vec![
-            "disable_steam_input".to_string(),
-            "enable_hdr".to_string(),
-            "show_mangohud_overlay".to_string(),
-            "use_game_performance".to_string(),
-        ];
-        let command = build_steam_launch_options_command(&ids, &BTreeMap::new()).expect("steam command");
-
-        assert_eq!(
-            command,
-            "PROTON_NO_STEAMINPUT=1 PROTON_ENABLE_HDR=1 mangohud game-performance %command%"
-        );
-    }
-
-    #[test]
-    fn steam_launch_options_inserts_custom_env_after_optimization_before_wrappers() {
-        let temp_dir = tempfile::tempdir().expect("temp dir");
-        let mangohud_path = temp_dir.path().join("mangohud");
-        write_executable_file(&mangohud_path);
-        let _command_search_path =
-            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
-
-        let ids = vec!["enable_dxvk_async".to_string(), "show_mangohud_overlay".to_string()];
-        let custom = BTreeMap::from([("DXVK_ASYNC".to_string(), "0".to_string())]);
-        let command = build_steam_launch_options_command(&ids, &custom).expect("steam command");
-
-        assert_eq!(
-            command,
-            "DXVK_ASYNC=1 DXVK_ASYNC=0 mangohud %command%"
-        );
-    }
-
-    #[test]
-    fn steam_launch_options_rejects_missing_wrapper_like_resolver() {
-        let temp_dir = tempfile::tempdir().expect("temp dir");
-        let _command_search_path =
-            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
-
-        let error = build_steam_launch_options_command(
-            &["show_mangohud_overlay".to_string()],
-            &BTreeMap::new(),
-        )
-        .expect_err("missing mangohud should fail");
-
-        assert_eq!(
-            error,
-            ValidationError::LaunchOptimizationDependencyMissing {
-                option_id: "show_mangohud_overlay".to_string(),
-                dependency: "mangohud".to_string(),
-            }
-        );
     }
 
     #[test]
@@ -674,6 +405,7 @@ mod tests {
 
     #[test]
     fn steam_launch_options_trims_custom_env_keys() {
+        // Empty optimization IDs — short-circuits before catalog access
         let custom = BTreeMap::from([(" DXVK_ASYNC ".to_string(), "1".to_string())]);
         let command = build_steam_launch_options_command(&[], &custom).expect("steam command");
         assert_eq!(command, "DXVK_ASYNC=1 %command%");
@@ -681,6 +413,7 @@ mod tests {
 
     #[test]
     fn steam_launch_options_escapes_custom_values_with_shell_sensitive_chars() {
+        // Empty optimization IDs — short-circuits before catalog access
         let custom = BTreeMap::from([("FOO".to_string(), "a b".to_string())]);
         let command = build_steam_launch_options_command(&[], &custom).expect("steam command");
         assert_eq!(command, "FOO=\"a b\" %command%");

@@ -7,14 +7,12 @@ import {
   LAUNCH_OPTIMIZATION_CATEGORY_LABELS,
   findLaunchOptimizationConflicts,
   getConflictingLaunchOptimizationIds,
-  LAUNCH_OPTIMIZATION_OPTIONS,
-  LAUNCH_OPTIMIZATION_OPTIONS_BY_ID,
   type LaunchOptimizationCategory,
   type LaunchOptimizationConflict,
   type LaunchOptimizationId,
-  type LaunchOptimizationLaunchMethod,
-  type LaunchOptimizationOption,
 } from '../types/launch-optimizations';
+import type { OptimizationCatalogPayload, OptimizationEntry } from '../utils/optimization-catalog';
+import { buildOptionsById, buildConflictMatrix } from '../utils/optimization-catalog';
 
 type LaunchOptimizationsPanelStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
 
@@ -41,11 +39,13 @@ export interface LaunchOptimizationsPanelProps {
   optimizationPresetActionBusy?: boolean;
   /** Saves current checkbox selection as a new named user preset. */
   onSaveManualPreset?: (presetName: string) => Promise<void>;
+  /** Runtime optimization catalog from the backend. Null while loading. */
+  catalog: OptimizationCatalogPayload | null;
 }
 
 interface GroupedOptions {
   category: LaunchOptimizationCategory;
-  options: LaunchOptimizationOption[];
+  options: OptimizationEntry[];
 }
 
 const DEFAULT_STATUS: Record<LaunchMethod, LaunchOptimizationsPanelStatus> = {
@@ -79,21 +79,25 @@ function formatCountLabel(count: number, singular: string, plural: string): stri
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function groupOptions(options: readonly LaunchOptimizationOption[]): GroupedOptions[] {
+function groupOptions(options: readonly OptimizationEntry[]): GroupedOptions[] {
   return LAUNCH_OPTIMIZATION_CATEGORIES.map((category) => ({
     category,
     options: options.filter((option) => option.category === category),
   })).filter((group) => group.options.length > 0);
 }
 
-function getConflictLabels(option: LaunchOptimizationOption): string[] {
-  return (option.conflictsWith ?? [])
-    .map((conflictId) => LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflictId])
+function getConflictLabels(
+  option: OptimizationEntry,
+  optionsById: Record<string, OptimizationEntry>,
+  conflictMatrix: Record<string, readonly string[]>
+): string[] {
+  return (conflictMatrix[option.id] ?? [])
+    .map((conflictId) => optionsById[conflictId])
     .map((conflictOption) => conflictOption?.label)
     .filter((label): label is string => Boolean(label));
 }
 
-function getMainCaveat(option: LaunchOptimizationOption, conflictLabels: string[]): string {
+function getMainCaveat(option: OptimizationEntry, conflictLabels: string[]): string {
   if (conflictLabels.length > 0) {
     return `Do not combine this with ${conflictLabels.join(', ')}.`;
   }
@@ -121,16 +125,16 @@ function getStatusToneClass(tone: LaunchOptimizationsPanelStatusTone): string {
   return `crosshook-launch-optimizations__status-chip--${tone}`;
 }
 
-function formatConflictSummary(conflict: LaunchOptimizationConflict): string {
-  return `${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflict.optionId].label} conflicts with ${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflict.conflictsWith].label}.`;
+function formatConflictSummary(conflict: LaunchOptimizationConflict, optionsById: Record<string, OptimizationEntry>): string {
+  return `${optionsById[conflict.optionId]?.label ?? conflict.optionId} conflicts with ${optionsById[conflict.conflictsWith]?.label ?? conflict.conflictsWith}.`;
 }
 
-function getGpuVendorLabel(option: LaunchOptimizationOption): string | null {
-  if (option.targetGpuVendor === 'nvidia') {
+function getGpuVendorLabel(option: OptimizationEntry): string | null {
+  if (option.target_gpu_vendor === 'nvidia') {
     return 'NVIDIA';
   }
 
-  if (option.targetGpuVendor === 'amd') {
+  if (option.target_gpu_vendor === 'amd') {
     return 'AMD';
   }
 
@@ -148,6 +152,8 @@ function OptionGroup(props: {
   tooltipId: LaunchOptimizationId | null;
   setTooltipId: (optionId: LaunchOptimizationId | null) => void;
   sectionTone: 'default' | 'advanced';
+  optionsById: Record<string, OptimizationEntry>;
+  conflictMatrix: Record<string, readonly string[]>;
 }) {
   const {
     group,
@@ -160,6 +166,8 @@ function OptionGroup(props: {
     tooltipId,
     setTooltipId,
     sectionTone,
+    optionsById,
+    conflictMatrix,
   } = props;
   const groupOptionIds = group.options.map((option) => option.id);
   const groupConflicts = selectedConflicts.filter((conflict) => {
@@ -174,7 +182,7 @@ function OptionGroup(props: {
       <legend className="crosshook-launch-optimizations__group-title">{LAUNCH_OPTIMIZATION_CATEGORY_LABELS[group.category]}</legend>
       {groupConflicts.length > 0 ? (
         <div className="crosshook-warning-banner crosshook-launch-optimizations__group-warning">
-          {groupConflicts.map(formatConflictSummary).join(' ')}
+          {groupConflicts.map((conflict) => formatConflictSummary(conflict, optionsById)).join(' ')}
         </div>
       ) : null}
       <div className="crosshook-launch-optimizations__option-list">
@@ -183,19 +191,20 @@ function OptionGroup(props: {
           const isTooltipOpen = tooltipId === option.id;
           const conflictingIds = getConflictingLaunchOptimizationIds(
             option.id,
-            [...enabledIds].filter((enabledOptionId) => enabledOptionId !== option.id)
+            [...enabledIds].filter((enabledOptionId) => enabledOptionId !== option.id),
+            conflictMatrix
           );
           const blockedByLabels = conflictingIds.map(
-            (conflictingId) => LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflictingId].label
+            (conflictingId) => optionsById[conflictingId]?.label ?? conflictingId
           );
           const isBlockedByConflict = !isEnabled && blockedByLabels.length > 0;
           const isSupported =
             isMethodSupported &&
-            option.applicableMethods.includes(method as LaunchOptimizationLaunchMethod) &&
+            option.applicable_methods.includes(method) &&
             !isBlockedByConflict;
           const checkboxId = `${tooltipIdPrefix}-${option.id}`;
           const tooltipIdValue = `${tooltipIdPrefix}-${option.id}-tooltip`;
-          const conflictLabels = getConflictLabels(option);
+          const conflictLabels = getConflictLabels(option, optionsById, conflictMatrix);
 
           return (
             <div
@@ -242,9 +251,9 @@ function OptionGroup(props: {
                         className={joinClasses(
                           'crosshook-launch-optimizations__option-pill',
                           'crosshook-launch-optimizations__option-pill--vendor',
-                          option.targetGpuVendor === 'nvidia' &&
+                          option.target_gpu_vendor === 'nvidia' &&
                             'crosshook-launch-optimizations__option-pill--vendor-nvidia',
-                          option.targetGpuVendor === 'amd' &&
+                          option.target_gpu_vendor === 'amd' &&
                             'crosshook-launch-optimizations__option-pill--vendor-amd'
                         )}
                       >
@@ -309,7 +318,7 @@ function OptionGroup(props: {
                   <p className="crosshook-launch-optimizations__tooltip-kicker">What it does</p>
                   <p className="crosshook-launch-optimizations__tooltip-copy">{option.description}</p>
                   <p className="crosshook-launch-optimizations__tooltip-kicker">When it helps</p>
-                  <p className="crosshook-launch-optimizations__tooltip-copy">{option.helpText}</p>
+                  <p className="crosshook-launch-optimizations__tooltip-copy">{option.help_text}</p>
                   <p className="crosshook-launch-optimizations__tooltip-kicker">Main caveat</p>
                   <p className="crosshook-launch-optimizations__tooltip-copy">
                     {getMainCaveat(option, conflictLabels)}
@@ -348,6 +357,7 @@ export function LaunchOptimizationsPanel({
   onApplyBundledPreset,
   optimizationPresetActionBusy = false,
   onSaveManualPreset,
+  catalog,
 }: LaunchOptimizationsPanelProps) {
   const titleId = useId();
   const presetSelectId = useId();
@@ -357,24 +367,34 @@ export function LaunchOptimizationsPanel({
   const [manualPresetName, setManualPresetName] = useState('');
   const [manualSavePending, setManualSavePending] = useState(false);
 
+  const optionsById = useMemo(
+    () => (catalog ? buildOptionsById(catalog.entries) : {}),
+    [catalog]
+  );
+  const conflictMatrix = useMemo(
+    () => (catalog ? buildConflictMatrix(catalog.entries) : {}),
+    [catalog]
+  );
+
+  if (!catalog) {
+    return <div className="crosshook-optimization-panel">Loading optimizations...</div>;
+  }
+
   const isMethodSupported = method === 'proton_run' || method === 'steam_applaunch';
   const hasNamedPresets = optimizationPresetNames.length > 0 && onSelectOptimizationPreset !== undefined;
   const hasBundledPresets =
     bundledOptimizationPresets.length > 0 && onApplyBundledPreset !== undefined;
   const presetActionBusy = optimizationPresetActionBusy || manualSavePending;
-  const presetSelectValue = useMemo(() => {
+  const presetSelectValue = (() => {
     if (!activeOptimizationPreset.trim()) {
       return '';
     }
     return optimizationPresetNames.includes(activeOptimizationPreset) ? activeOptimizationPreset : '';
-  }, [activeOptimizationPreset, optimizationPresetNames]);
-  const presetOptions = useMemo(
-    () => optimizationPresetNames.map((name) => ({ value: name, label: name })),
-    [optimizationPresetNames]
-  );
+  })();
+  const presetOptions = optimizationPresetNames.map((name) => ({ value: name, label: name }));
   const seen = new Set<LaunchOptimizationId>();
   const selectedOptionIds = enabledOptionIds.filter((optionId) => {
-    if (!LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId] || seen.has(optionId)) {
+    if (!optionsById[optionId] || seen.has(optionId)) {
       return false;
     }
 
@@ -382,10 +402,10 @@ export function LaunchOptimizationsPanel({
     return true;
   });
   const enabledIdSet = new Set(selectedOptionIds);
-  const selectedOptions = selectedOptionIds.map((optionId) => LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId]);
-  const selectedConflicts = findLaunchOptimizationConflicts(selectedOptionIds);
-  const commonOptions = LAUNCH_OPTIMIZATION_OPTIONS.filter((option) => !option.advanced);
-  const advancedOptions = LAUNCH_OPTIMIZATION_OPTIONS.filter((option) => option.advanced);
+  const selectedOptions = selectedOptionIds.map((optionId) => optionsById[optionId]);
+  const selectedConflicts = findLaunchOptimizationConflicts(selectedOptionIds, conflictMatrix);
+  const commonOptions = catalog.entries.filter((option) => !option.advanced);
+  const advancedOptions = catalog.entries.filter((option) => option.advanced);
   const commonGroups = groupOptions(commonOptions);
   const advancedGroups = groupOptions(advancedOptions);
   const enabledCommonCount = selectedOptions.filter((option) => !option.advanced).length;
@@ -538,6 +558,8 @@ export function LaunchOptimizationsPanel({
                 tooltipId={tooltipId}
                 setTooltipId={setTooltipId}
                 sectionTone="default"
+                optionsById={optionsById}
+                conflictMatrix={conflictMatrix}
               />
             ))}
           </div>
@@ -570,6 +592,8 @@ export function LaunchOptimizationsPanel({
                 tooltipId={tooltipId}
                 setTooltipId={setTooltipId}
                 sectionTone="advanced"
+                optionsById={optionsById}
+                conflictMatrix={conflictMatrix}
               />
             ))}
           </div>

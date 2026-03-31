@@ -163,7 +163,7 @@ These features have no strict ordering. Prioritize based on community feedback.
 | #61   | Prefix health monitoring         |        | Medium  | #38 (health dashboard)    |
 | #62   | Network isolation                |        | Low     | #63 (hash verification)   |
 | #63   | Trainer hash verification        |        | Low     | #62 (network isolation)   |
-| #66   | Data-driven optimization catalog |        | Medium  | #58 (extended catalog)    |
+| #66   | Data-driven optimization catalog |  Done  | Medium  | #58 (extended catalog)    |
 
 **Natural groupings for PRs**:
 

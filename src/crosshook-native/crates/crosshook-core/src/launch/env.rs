@@ -45,7 +45,11 @@ pub const REQUIRED_PROTON_VARS: &[&str] = &[
     "WINEPREFIX",
 ];
 
-pub const LAUNCH_OPTIMIZATION_ENV_VARS: &[&str] = &[
+/// Builtin set of env vars used by the default optimization catalog.
+///
+/// The runtime allowlist is `global_catalog().allowed_env_keys` — this constant
+/// is kept as a compile-time reference for env-clearing code and test isolation.
+pub const BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS: &[&str] = &[
     "PROTON_NO_STEAMINPUT",
     "PROTON_PREFER_SDL",
     "PROTON_NO_WM_DECORATION",
@@ -80,7 +84,7 @@ pub const PASSTHROUGH_DISPLAY_VARS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::{
-        LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
+        BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
         WINE_ENV_VARS_TO_CLEAR,
     };
 
@@ -107,14 +111,14 @@ mod tests {
 
     #[test]
     fn launch_optimization_vars_match_expected_list() {
-        assert_eq!(LAUNCH_OPTIMIZATION_ENV_VARS.len(), 22);
-        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_NO_STEAMINPUT"));
-        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_NO_ESYNC"));
-        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_FORCE_LARGE_ADDRESS_AWARE"));
-        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"DXVK_ASYNC"));
-        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"VKD3D_CONFIG"));
-        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_ENABLE_HDR"));
-        assert!(LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"SteamDeck"));
+        assert_eq!(BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS.len(), 22);
+        assert!(BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_NO_STEAMINPUT"));
+        assert!(BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_NO_ESYNC"));
+        assert!(BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_FORCE_LARGE_ADDRESS_AWARE"));
+        assert!(BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"DXVK_ASYNC"));
+        assert!(BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"VKD3D_CONFIG"));
+        assert!(BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"PROTON_ENABLE_HDR"));
+        assert!(BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS.contains(&"SteamDeck"));
     }
 
     #[test]
