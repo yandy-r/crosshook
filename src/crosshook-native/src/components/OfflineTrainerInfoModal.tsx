@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type KeyboardEvent } from 'react';
 
 import { isSteamDeckRuntime } from '../hooks/useGamepadNav';
 
@@ -11,21 +11,53 @@ type OfflineTrainerInfoModalProps = {
   modalKey: TrainerInfoModalKey | null;
 };
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+  '[contenteditable="true"]',
+].join(', ');
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+    (el) =>
+      !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0,
+  );
+}
+
 export function OfflineTrainerInfoModal({ open, onClose, modalKey }: OfflineTrainerInfoModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!open) {
       return;
     }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
+
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+    const frame = window.requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = getFocusableElements(panel);
+      if (focusable.length > 0) {
+        focusable[0].focus({ preventScroll: true });
       }
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      const restoreTarget = previouslyFocusedRef.current;
+      if (restoreTarget && restoreTarget.isConnected) {
+        restoreTarget.focus({ preventScroll: true });
+      }
+      previouslyFocusedRef.current = null;
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || !modalKey) {
     return null;
@@ -37,6 +69,44 @@ export function OfflineTrainerInfoModal({ open, onClose, modalKey }: OfflineTrai
     modalKey === 'aurora_offline_setup'
       ? 'Aurora offline keys'
       : 'WeMod offline use';
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      event.preventDefault();
+      onClose();
+      return;
+    }
+
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const focusable = getFocusableElements(panel);
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+
+    const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
+    const lastIndex = focusable.length - 1;
+
+    if (event.shiftKey) {
+      if (currentIndex <= 0) {
+        event.preventDefault();
+        focusable[lastIndex].focus({ preventScroll: true });
+      }
+      return;
+    }
+
+    if (currentIndex === -1 || currentIndex === lastIndex) {
+      event.preventDefault();
+      focusable[0].focus({ preventScroll: true });
+    }
+  }
 
   const node = (
     <div className="crosshook-modal" role="presentation">
@@ -56,6 +126,7 @@ export function OfflineTrainerInfoModal({ open, onClose, modalKey }: OfflineTrai
         aria-modal="true"
         aria-labelledby="crosshook-offline-trainer-info-title"
         data-crosshook-focus-root="modal"
+        onKeyDown={handleKeyDown}
       >
         <header className="crosshook-modal__header">
           <div className="crosshook-modal__heading-block">

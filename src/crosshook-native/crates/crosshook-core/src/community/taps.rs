@@ -37,6 +37,7 @@ pub struct CommunityTapWorkspace {
 pub enum CommunityTapSyncStatus {
     Cloned,
     Updated,
+    CachedFallback,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -206,7 +207,7 @@ impl CommunityTapStore {
                 Err(err) => {
                     if workspace.local_path.exists() {
                         from_cache = true;
-                        CommunityTapSyncStatus::Updated
+                        CommunityTapSyncStatus::CachedFallback
                     } else {
                         return Err(err);
                     }

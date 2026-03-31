@@ -180,13 +180,21 @@ pub fn load_trainer_type_catalog(
 
 static GLOBAL_TRAINER_TYPE_CATALOG: OnceLock<TrainerTypeCatalog> = OnceLock::new();
 
-pub fn initialize_trainer_type_catalog(catalog: TrainerTypeCatalog) {
-    let _ = GLOBAL_TRAINER_TYPE_CATALOG.set(catalog);
+pub fn initialize_trainer_type_catalog(catalog: TrainerTypeCatalog) -> bool {
+    let ok = GLOBAL_TRAINER_TYPE_CATALOG.set(catalog).is_ok();
+    if !ok {
+        tracing::warn!("trainer type catalog was already initialized; ignoring duplicate set");
+    }
+    ok
 }
 
 pub fn global_trainer_type_catalog() -> &'static TrainerTypeCatalog {
     GLOBAL_TRAINER_TYPE_CATALOG.get_or_init(|| {
-        let (entries, _) = parse_trainer_type_catalog_toml(DEFAULT_TRAINER_TYPE_CATALOG_TOML, "fallback default");
+        let (entries, warnings) =
+            parse_trainer_type_catalog_toml(DEFAULT_TRAINER_TYPE_CATALOG_TOML, "fallback default");
+        for w in &warnings {
+            tracing::warn!(warning = %w, "fallback trainer type catalog parse warning");
+        }
         TrainerTypeCatalog::from_entries(entries)
     })
 }

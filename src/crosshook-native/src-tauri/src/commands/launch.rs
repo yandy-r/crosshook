@@ -16,6 +16,7 @@ use crosshook_core::launch::{
     METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file, MetadataStore};
+use crosshook_core::offline::readiness::MIN_OFFLINE_READINESS_SCORE;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::steam::discover_steam_root_candidates;
 use crosshook_core::steam::libraries::discover_steam_libraries;
@@ -97,7 +98,7 @@ async fn collect_offline_launch_warnings(
             Ok(r) => r,
             Err(_) => return Vec::new(),
         };
-        if report.score >= 60 {
+        if report.score >= MIN_OFFLINE_READINESS_SCORE {
             return Vec::new();
         }
         vec![ValidationError::OfflineReadinessInsufficient {

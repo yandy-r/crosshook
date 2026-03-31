@@ -20,7 +20,7 @@ import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
 import { chooseSaveFile } from '../../utils/dialog';
 import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
-import type { TrainerTypeEntry } from '../../types';
+import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
 
 function suggestedCommunityExportFilename(profileName: string): string {
   const base = profileName
@@ -132,7 +132,7 @@ export function ProfilesPage() {
     trendByName,
   } = useProfileHealthContext();
   const offlineReadiness = useOfflineReadiness();
-  const [trainerTypeLabels, setTrainerTypeLabels] = useState<Record<string, string>>({});
+  const { labels: trainerTypeLabels } = useTrainerTypeCatalog();
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
@@ -206,28 +206,6 @@ export function ProfilesPage() {
     };
   }, [effectiveSteamClientInstallPath]);
 
-  useEffect(() => {
-    let active = true;
-    void invoke<TrainerTypeEntry[]>('get_trainer_type_catalog')
-      .then((rows) => {
-        if (!active) {
-          return;
-        }
-        const next: Record<string, string> = {};
-        for (const r of rows) {
-          next[r.id] = r.display_name;
-        }
-        setTrainerTypeLabels(next);
-      })
-      .catch(() => {
-        if (active) {
-          setTrainerTypeLabels({ unknown: 'Unknown' });
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (pendingRename !== null) {

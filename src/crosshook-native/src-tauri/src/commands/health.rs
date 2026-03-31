@@ -397,38 +397,46 @@ pub(crate) fn build_enriched_health_summary(
     store: &ProfileStore,
     metadata_store: &MetadataStore,
 ) -> EnrichedHealthSummary {
-    use std::collections::HashMap;
-
     let mut offline_map: HashMap<String, OfflineReadinessReport> = HashMap::new();
+    let mut cached_prefetch: Option<BatchMetadataPrefetch> = None;
 
     let summary = if metadata_store.is_available() {
         match store.list() {
             Ok(names) => {
                 let prefetch_offline = prefetch_batch_metadata(metadata_store, store, &names);
-                match metadata_store.with_sqlite_conn("batch profile health with offline", |conn| {
-                    Ok(batch_check_health_with_enrich(store, |name, profile, report| {
-                        if let Some(pid) = prefetch_offline.profile_id_map.get(name) {
-                            if let Ok(Some(off)) =
-                                crosshook_core::offline::enrich_health_report_with_offline(
-                                    conn,
-                                    name,
-                                    pid.as_str(),
-                                    profile,
-                                    report,
-                                )
-                            {
-                                offline_map.insert(name.to_string(), off.clone());
-                            }
-                        }
-                    }))
-                }) {
-                    Ok(s) => s,
+                let result =
+                    metadata_store.with_sqlite_conn("batch profile health with offline", |conn| {
+                        Ok(batch_check_health_with_enrich(
+                            store,
+                            |name, profile, report| {
+                                if let Some(pid) = prefetch_offline.profile_id_map.get(name) {
+                                    if let Ok(Some(off)) =
+                                        crosshook_core::offline::enrich_health_report_with_offline(
+                                            conn,
+                                            name,
+                                            pid.as_str(),
+                                            profile,
+                                            report,
+                                        )
+                                    {
+                                        offline_map.insert(name.to_string(), off.clone());
+                                    }
+                                }
+                            },
+                        ))
+                    });
+                match result {
+                    Ok(s) => {
+                        cached_prefetch = Some(prefetch_offline);
+                        s
+                    }
                     Err(e) => {
                         tracing::warn!(
                             %e,
                             "batch profile health with offline failed; falling back"
                         );
                         offline_map.clear();
+                        cached_prefetch = Some(prefetch_offline);
                         batch_check_health(store)
                     }
                 }
@@ -439,12 +447,14 @@ pub(crate) fn build_enriched_health_summary(
         batch_check_health(store)
     };
 
-    let profile_names: Vec<String> = summary
-        .profiles
-        .iter()
-        .map(|report| report.name.clone())
-        .collect();
-    let prefetch = prefetch_batch_metadata(metadata_store, store, &profile_names);
+    let prefetch = cached_prefetch.unwrap_or_else(|| {
+        let profile_names: Vec<String> = summary
+            .profiles
+            .iter()
+            .map(|report| report.name.clone())
+            .collect();
+        prefetch_batch_metadata(metadata_store, store, &profile_names)
+    });
 
     let HealthCheckSummary {
         profiles: raw_profiles,

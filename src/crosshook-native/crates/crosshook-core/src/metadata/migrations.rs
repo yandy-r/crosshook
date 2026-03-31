@@ -584,13 +584,6 @@ fn migrate_12_to_13(conn: &Connection) -> Result<(), MetadataStoreError> {
             clone_size_bytes    INTEGER
         );
 
-        INSERT OR IGNORE INTO trainer_hash_cache
-            (cache_id, profile_id, file_path, sha256_hash, verified_at, created_at, updated_at)
-        SELECT lower(hex(randomblob(16))), profile_id, '', trainer_file_hash, checked_at,
-               datetime('now'), datetime('now')
-        FROM version_snapshots
-        WHERE trainer_file_hash IS NOT NULL
-          AND id IN (SELECT MAX(id) FROM version_snapshots GROUP BY profile_id);
         ",
     )
     .map_err(|source| MetadataStoreError::Database {

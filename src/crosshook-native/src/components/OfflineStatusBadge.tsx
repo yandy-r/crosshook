@@ -25,7 +25,7 @@ function badgeStyle(
   }
   const s = score ?? null;
   const st = readinessState ?? '';
-  if (s === null || s === undefined || st === 'unconfigured' || Number.isNaN(s)) {
+  if (s === null || Number.isNaN(s) || st === 'unconfigured') {
     return {
       label: compact ? '?' : 'Unknown',
       classSuffix: 'unknown',
@@ -64,27 +64,22 @@ export function OfflineStatusBadge({
   const readinessState = report?.readiness_state ?? rsProp ?? null;
   const { label, classSuffix, aria } = badgeStyle(score, readinessState, loading, compact);
 
-  const border =
-    classSuffix === 'ready'
-      ? 'var(--offline-ready)'
-      : classSuffix === 'partial'
-        ? 'var(--offline-partial)'
-        : classSuffix === 'not-ready'
-          ? 'var(--offline-not-ready)'
-          : classSuffix === 'unknown'
-            ? 'var(--offline-unknown)'
-            : 'var(--crosshook-color-border)';
+  const BORDER_COLORS: Record<string, string> = {
+    ready: 'var(--crosshook-offline-ready)',
+    partial: 'var(--crosshook-offline-partial)',
+    'not-ready': 'var(--crosshook-offline-not-ready)',
+    unknown: 'var(--crosshook-offline-unknown)',
+  };
 
-  const background =
-    classSuffix === 'ready'
-      ? 'color-mix(in srgb, var(--offline-ready) 22%, transparent)'
-      : classSuffix === 'partial'
-        ? 'color-mix(in srgb, var(--offline-partial) 22%, transparent)'
-        : classSuffix === 'not-ready'
-          ? 'color-mix(in srgb, var(--offline-not-ready) 22%, transparent)'
-          : classSuffix === 'unknown'
-            ? 'color-mix(in srgb, var(--offline-unknown) 18%, transparent)'
-            : 'var(--crosshook-color-surface-strong)';
+  const BG_COLORS: Record<string, string> = {
+    ready: 'color-mix(in srgb, var(--crosshook-offline-ready) 22%, transparent)',
+    partial: 'color-mix(in srgb, var(--crosshook-offline-partial) 22%, transparent)',
+    'not-ready': 'color-mix(in srgb, var(--crosshook-offline-not-ready) 22%, transparent)',
+    unknown: 'color-mix(in srgb, var(--crosshook-offline-unknown) 18%, transparent)',
+  };
+
+  const border = BORDER_COLORS[classSuffix] ?? 'var(--crosshook-color-border)';
+  const background = BG_COLORS[classSuffix] ?? 'var(--crosshook-color-surface-strong)';
 
   return (
     <span

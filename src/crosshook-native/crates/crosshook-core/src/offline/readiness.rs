@@ -13,6 +13,9 @@ use crate::profile::{resolve_launch_method, GameProfile};
 use super::hash::verify_and_cache_trainer_hash;
 use super::trainer_type::global_trainer_type_catalog;
 
+/// Minimum offline readiness score required to launch without warnings.
+pub const MIN_OFFLINE_READINESS_SCORE: u8 = 60;
+
 /// Integer flags for `offline_readiness_snapshots` (not serialized over IPC).
 #[derive(Debug, Clone, Default)]
 pub struct OfflineReadinessPersistHints {
@@ -190,7 +193,7 @@ pub fn compute_offline_readiness(
 
     let readiness_state = if !trainer_present {
         "unconfigured".to_string()
-    } else if !blocking_reasons.is_empty() && final_score < 50 {
+    } else if !blocking_reasons.is_empty() {
         "blocked".to_string()
     } else if final_score >= 80 {
         "ready".to_string()
@@ -241,35 +244,47 @@ pub fn check_offline_preflight(
     let game_path = effective.game.executable_path.trim();
     let game_present = !game_path.is_empty() && Path::new(game_path).is_file();
 
-    let proton_path = match resolved_method {
+    let (_proton_path, proton_available) = match resolved_method {
         METHOD_PROTON_RUN => {
-            let runtime_proton = effective.runtime.proton_path.trim();
-            if !runtime_proton.is_empty() {
-                runtime_proton
-            } else {
-                // Backward-compatible fallback for older profiles that only stored steam.proton_path.
-                effective.steam.proton_path.trim()
-            }
+            let p = {
+                let runtime_proton = effective.runtime.proton_path.trim();
+                if !runtime_proton.is_empty() {
+                    runtime_proton
+                } else {
+                    // Backward-compatible fallback for older profiles that only stored steam.proton_path.
+                    effective.steam.proton_path.trim()
+                }
+            };
+            (p, !p.is_empty() && Path::new(p).exists())
         }
-        METHOD_STEAM_APPLAUNCH => effective.steam.proton_path.trim(),
-        _ => effective.runtime.proton_path.trim(),
+        METHOD_STEAM_APPLAUNCH => {
+            let p = effective.steam.proton_path.trim();
+            (p, !p.is_empty() && Path::new(p).exists())
+        }
+        // Non-compat methods don't use Proton; mark as satisfied.
+        _ => ("", true),
     };
-    let proton_available = !proton_path.is_empty() && Path::new(proton_path).exists();
 
-    let prefix_path = match resolved_method {
+    let (_prefix_path, prefix_exists) = match resolved_method {
         METHOD_PROTON_RUN => {
-            let runtime_prefix = effective.runtime.prefix_path.trim();
-            if !runtime_prefix.is_empty() {
-                runtime_prefix
-            } else {
-                // Fallback to compatdata root if runtime.prefix_path has not been hydrated.
-                effective.steam.compatdata_path.trim()
-            }
+            let p = {
+                let runtime_prefix = effective.runtime.prefix_path.trim();
+                if !runtime_prefix.is_empty() {
+                    runtime_prefix
+                } else {
+                    // Fallback to compatdata root if runtime.prefix_path has not been hydrated.
+                    effective.steam.compatdata_path.trim()
+                }
+            };
+            (p, !p.is_empty() && Path::new(p).is_dir())
         }
-        METHOD_STEAM_APPLAUNCH => effective.steam.compatdata_path.trim(),
-        _ => effective.runtime.prefix_path.trim(),
+        METHOD_STEAM_APPLAUNCH => {
+            let p = effective.steam.compatdata_path.trim();
+            (p, !p.is_empty() && Path::new(p).is_dir())
+        }
+        // Non-compat methods don't use Wine prefix; mark as satisfied.
+        _ => ("", true),
     };
-    let prefix_exists = !prefix_path.is_empty() && Path::new(prefix_path).is_dir();
 
     let mut report = compute_offline_readiness(
         profile_name,
@@ -301,10 +316,6 @@ pub fn enrich_health_report_with_offline(
     profile: &GameProfile,
     report: &mut ProfileHealthReport,
 ) -> Result<Option<OfflineReadinessReport>, MetadataStoreError> {
-    let effective = profile.effective_profile();
-    if effective.trainer.path.trim().is_empty() {
-        return Ok(None);
-    }
     let off = check_offline_preflight(profile_name, profile_id, profile, conn)?;
     persist_offline_readiness_from_report(conn, profile_id, &off)?;
     for c in &off.checks {

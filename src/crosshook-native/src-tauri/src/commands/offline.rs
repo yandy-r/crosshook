@@ -52,16 +52,26 @@ pub async fn batch_offline_readiness(
                     continue;
                 }
             };
-            let Some(pid) = metadata_store
-                .lookup_profile_id(&name)
-                .map_err(|e| e.to_string())?
-            else {
-                tracing::warn!(profile = %name, "skip profile without profile_id");
-                continue;
+            let pid = match metadata_store.lookup_profile_id(&name) {
+                Ok(Some(id)) => id,
+                Ok(None) => {
+                    tracing::warn!(profile = %name, "skip profile without profile_id");
+                    continue;
+                }
+                Err(e) => {
+                    tracing::warn!(profile = %name, error = %e, "skip profile in batch_offline_readiness (lookup failed)");
+                    continue;
+                }
             };
-            let report = metadata_store
+            let report = match metadata_store
                 .check_offline_readiness_for_profile(&name, &pid, &profile)
-                .map_err(|e| e.to_string())?;
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::warn!(profile = %name, error = %e, "skip profile in batch_offline_readiness (readiness check failed)");
+                    continue;
+                }
+            };
             out.push(report);
         }
         Ok(out)

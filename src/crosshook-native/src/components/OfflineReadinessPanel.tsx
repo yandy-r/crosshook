@@ -40,7 +40,7 @@ export function OfflineReadinessPanel({ report, error, loading }: OfflineReadine
         </p>
       ) : null}
       {loading && !report ? (
-        <p className="crosshook-launch-panel__feedback-help">Loading offline readiness…</p>
+        <p className="crosshook-launch-panel__feedback-help" role="status">Loading offline readiness…</p>
       ) : null}
       {report && report.blocking_reasons.length > 0 ? (
         <div className="crosshook-offline-readiness-panel__blocking">

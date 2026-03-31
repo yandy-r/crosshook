@@ -50,7 +50,7 @@ export interface CommunityTapWorkspace {
 
 export interface CommunityTapSyncResult {
   workspace: CommunityTapWorkspace;
-  status: 'cloned' | 'updated';
+  status: 'cloned' | 'updated' | 'cached_fallback';
   head_commit: string;
   index: CommunityProfileIndex;
   /** True when git fetch failed but a local clone was used for the index. */
@@ -275,10 +275,6 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
       const normalized = normalizeTap(tap);
 
       try {
-        const online = await invoke<boolean>('check_network_status');
-        if (!online) {
-          throw new Error('Network required to add a community tap. Connect to the internet and try again.');
-        }
         const response = await invoke<CommunityTapSubscription[]>('community_add_tap', {
           tap: normalized,
         });
@@ -303,6 +299,11 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
       const deduped = dedupeTaps(nextTaps);
       await saveSettingsTaps(deduped);
       setTaps(deduped);
+      setLastTapSyncResults((prev) =>
+        prev.filter(
+          (r) => tapIdentityKey(normalizeTap(r.workspace.subscription)) !== tapIdentityKey(normalized),
+        ),
+      );
       await refreshProfiles();
     },
     [refreshProfiles, saveSettingsTaps, taps]

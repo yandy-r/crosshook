@@ -6,7 +6,12 @@ import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesS
 import { ThemedSelect } from './ui/ThemedSelect';
 import { chooseDirectory, chooseFile } from '../utils/dialog';
 import { OfflineTrainerInfoModal, type TrainerInfoModalKey } from './OfflineTrainerInfoModal';
-import type { GameProfile, LaunchMethod, TrainerTypeEntry } from '../types';
+
+function isSupportedTrainerInfoModal(value: string | undefined | null): value is TrainerInfoModalKey {
+  return value === 'aurora_offline_setup' || value === 'wemod_offline_info';
+}
+import type { GameProfile, LaunchMethod } from '../types';
+import { useTrainerTypeCatalog } from '../hooks/useTrainerTypeCatalog';
 import { deriveSteamClientInstallPath } from '../utils/steam';
 
 export interface ProtonInstallOption {
@@ -416,36 +421,8 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   } = props;
   const profileSelector = 'profileSelector' in props ? props.profileSelector : undefined;
   const profileNamesListId = useId();
-  const [trainerTypeCatalog, setTrainerTypeCatalog] = useState<TrainerTypeEntry[]>([]);
-  const [trainerTypeCatalogError, setTrainerTypeCatalogError] = useState<string | null>(null);
+  const { catalog: trainerTypeCatalog, error: trainerTypeCatalogError, selectOptions: trainerTypeSelectOptions } = useTrainerTypeCatalog();
   const [trainerInfoModal, setTrainerInfoModal] = useState<TrainerInfoModalKey | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void invoke<TrainerTypeEntry[]>('get_trainer_type_catalog')
-      .then((rows) => {
-        if (!cancelled) {
-          setTrainerTypeCatalog(rows);
-          setTrainerTypeCatalogError(null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setTrainerTypeCatalog([]);
-          setTrainerTypeCatalogError('Could not load trainer type catalog.');
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const trainerTypeSelectOptions = useMemo(() => {
-    if (trainerTypeCatalog.length === 0) {
-      return [{ value: 'unknown', label: 'Unknown' }];
-    }
-    return trainerTypeCatalog.map((e) => ({ value: e.id, label: e.display_name }));
-  }, [trainerTypeCatalog]);
 
   const currentTrainerTypeId = profile.trainer.trainer_type?.trim() || 'unknown';
   const selectedTrainerTypeEntry = useMemo(
@@ -634,13 +611,14 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                       options={trainerTypeSelectOptions}
                     />
                   </div>
-                  {selectedTrainerTypeEntry?.info_modal ? (
+                  {selectedTrainerTypeEntry &&
+                  isSupportedTrainerInfoModal(selectedTrainerTypeEntry.info_modal) ? (
                     <button
                       type="button"
                       className="crosshook-button crosshook-button--secondary"
                       onClick={() => {
                         const k = selectedTrainerTypeEntry.info_modal;
-                        if (k === 'aurora_offline_setup' || k === 'wemod_offline_info') {
+                        if (isSupportedTrainerInfoModal(k)) {
                           setTrainerInfoModal(k);
                         }
                       }}

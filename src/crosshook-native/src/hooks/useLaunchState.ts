@@ -13,6 +13,7 @@ import type {
 } from "../types";
 import { LaunchPhase } from "../types";
 import { isDiagnosticReport, isLaunchValidationIssue } from "../types";
+import { MIN_OFFLINE_READINESS_SCORE } from "../constants/offline";
 
 type LaunchState = {
   phase: LaunchPhase;
@@ -295,6 +296,21 @@ export function useLaunchState({
           });
           setOfflineReadiness(report);
           setOfflineReadinessError(null);
+          if (report.blocking_reasons.length > 0) {
+            dispatch({
+              type: "failure",
+              feedback: {
+                kind: "validation",
+                issue: {
+                  message: `Offline readiness blocked: ${report.blocking_reasons.join(', ')}`,
+                  help: 'Resolve blocking reasons before launching.',
+                  severity: 'fatal',
+                },
+              },
+              fallbackPhase: LaunchPhase.WaitingForTrainer,
+            });
+            return;
+          }
         } catch (err) {
           setOfflineReadinessError(normalizeRuntimeError(err));
         } finally {
@@ -420,7 +436,7 @@ export function useLaunchState({
 
   const offlineWarning =
     offlineReadiness !== null &&
-    (offlineReadiness.score < 60 || (offlineReadiness.blocking_reasons?.length ?? 0) > 0);
+    (offlineReadiness.score < MIN_OFFLINE_READINESS_SCORE || (offlineReadiness.blocking_reasons?.length ?? 0) > 0);
 
   return {
     actionLabel,

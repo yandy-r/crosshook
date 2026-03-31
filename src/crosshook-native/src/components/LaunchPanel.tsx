@@ -678,7 +678,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
   } = useLaunchStateContext();
 
   const hasOfflineConcern =
-    offlineWarning || launchPathWarnings.length > 0;
+    Boolean(offlineReadinessError) || offlineWarning || launchPathWarnings.length > 0;
   const [offlineSectionOpen, setOfflineSectionOpen] = useState(false);
 
   useEffect(() => {
@@ -944,7 +944,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
         ) : null}
       </div>
 
-      {method !== 'native' && request?.trainer_host_path?.trim() ? (
+      {method !== 'native' ? (
         <CollapsibleSection
           title="Offline readiness"
           className="crosshook-panel crosshook-launch-panel__offline"

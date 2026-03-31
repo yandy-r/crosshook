@@ -55,6 +55,11 @@ function matchesQuery(entry: CommunityProfileIndexEntry, query: string): boolean
   return haystack.includes(normalized);
 }
 
+/** Stable React key / row id for a tap subscription (same repo URL can appear on multiple branches or pins). */
+function tapSubscriptionStableKey(sub: CommunityTapSubscription): string {
+  return `${sub.url}::${sub.branch ?? ''}::${sub.pinned_commit ?? ''}`;
+}
+
 function sortProfiles(entries: CommunityProfileIndexEntry[]): CommunityProfileIndexEntry[] {
   return [...entries].sort((left, right) => {
     const rank = (value: CommunityCompatibilityRating) => ratingOrder.indexOf(value as CommunityCompatibilityRating);
@@ -186,13 +191,20 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
   const cachedTapNotices = useMemo(() => {
     return lastTapSyncResults
       .filter((r: CommunityTapSyncResult) => r.from_cache)
-      .map((r: CommunityTapSyncResult) => ({
-        url: r.workspace.subscription.url,
-        lastSync:
-          r.last_sync_at && !Number.isNaN(Date.parse(r.last_sync_at))
-            ? new Date(r.last_sync_at).toLocaleString()
-            : null,
-      }));
+      .map((r: CommunityTapSyncResult) => {
+        const sub = r.workspace.subscription;
+        const tapKey = tapSubscriptionStableKey(sub);
+        const branchPart = sub.branch ? ` — ${sub.branch}` : ' — default branch';
+        const pinPart = sub.pinned_commit ? ` — pinned ${sub.pinned_commit.slice(0, 12)}` : '';
+        return {
+          tapKey,
+          labelPrefix: `${sub.url}${branchPart}${pinPart}`,
+          lastSync:
+            r.last_sync_at && !Number.isNaN(Date.parse(r.last_sync_at))
+              ? new Date(r.last_sync_at).toLocaleString()
+              : null,
+        };
+      });
   }, [lastTapSyncResults]);
 
   const visibleEntries = useMemo(() => {
@@ -266,8 +278,8 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
             </p>
             <ul className="crosshook-community-browser__cache-banner-list">
               {cachedTapNotices.map((row) => (
-                <li key={row.url}>
-                  <strong>{row.url}</strong>
+                <li key={row.tapKey}>
+                  <strong>{row.labelPrefix}</strong>
                   {row.lastSync ? ` — last synced: ${row.lastSync}` : ' — last synced: unknown'}
                 </li>
               ))}
@@ -352,7 +364,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
           <div className="crosshook-community-browser__tap-list">
             {taps.map((tap) => (
               <TapChip
-                key={`${tap.url}::${tap.branch ?? ''}::${tap.pinned_commit ?? ''}`}
+                key={tapSubscriptionStableKey(tap)}
                 tap={tap}
                 headCommit={getTapHeadCommit(tap)}
                 busy={loading || syncing}

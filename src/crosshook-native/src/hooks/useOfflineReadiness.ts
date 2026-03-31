@@ -1,10 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import type { CachedOfflineReadinessSnapshot, OfflineReadinessReport, OfflineReadinessScanCompletePayload } from '../types';
 
-type HookStatus = 'idle' | 'loading' | 'loaded' | 'error';
+type HookStatus = 'idle' | 'loading' | 'loaded' | 'error' | 'single-complete';
 
 type OfflineReadinessState = {
   status: HookStatus;
@@ -40,7 +40,7 @@ function reducer(state: OfflineReadinessState, action: OfflineReadinessAction): 
         idx === -1
           ? [...state.reports, action.report]
           : state.reports.map((r, i) => (i === idx ? action.report : r));
-      return { ...state, reports: next };
+      return { ...state, status: 'single-complete', reports: next, error: null };
     }
     case 'error':
       return { ...state, status: 'error', error: action.message };
@@ -74,6 +74,8 @@ export function useOfflineReadiness() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [cachedByProfileName, setCachedByProfileName] = useState<Record<string, CachedOfflineReadinessSnapshot>>({});
   const startupEventReceivedRef = useRef(false);
+  /** True after a live `batch_offline_readiness` run completed successfully; blocks stale cache hydration. */
+  const liveBatchCompletedRef = useRef(false);
 
   const batchCheck = useCallback(async (signal?: AbortSignal) => {
     if (signal?.aborted) {
@@ -85,6 +87,7 @@ export function useOfflineReadiness() {
       if (signal?.aborted) {
         return;
       }
+      liveBatchCompletedRef.current = true;
       dispatch({ type: 'batch-complete', reports });
     } catch (error) {
       if (signal?.aborted) {
@@ -132,7 +135,7 @@ export function useOfflineReadiness() {
         }
         setCachedByProfileName(byName);
         const synthetic = rows.map(snapshotToReport);
-        if (synthetic.length > 0) {
+        if (synthetic.length > 0 && !liveBatchCompletedRef.current) {
           dispatch({ type: 'batch-complete', reports: synthetic });
         }
       } catch {
@@ -170,13 +173,16 @@ export function useOfflineReadiness() {
     [cachedByProfileName, state.reports]
   );
 
-  return {
-    status: state.status,
-    reports: state.reports,
-    error: state.error,
-    cachedByProfileName,
-    batchCheck,
-    checkSingle,
-    reportForProfile,
-  };
+  return useMemo(
+    () => ({
+      status: state.status,
+      reports: state.reports,
+      error: state.error,
+      cachedByProfileName,
+      batchCheck,
+      checkSingle,
+      reportForProfile,
+    }),
+    [state.status, state.reports, state.error, cachedByProfileName, batchCheck, checkSingle, reportForProfile],
+  );
 }
