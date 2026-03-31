@@ -99,13 +99,16 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
   const { profileName, customEnvVars, onUpdateProfile, idPrefix } = props;
   const [rows, setRows] = useState<CustomEnvVarRow[]>(() => recordToCustomEnvRows(customEnvVars));
   const customEnvVarsSignature = useMemo(
-    () => customEnvRecordSignature(customEnvVars),
-    [customEnvVars],
+    () => JSON.stringify([profileName, customEnvRecordSignature(customEnvVars)]),
+    [profileName, customEnvVars],
   );
 
   useEffect(() => {
     setRows((currentRows) => {
-      const currentSignature = customEnvRecordSignature(customEnvRowsToRecord(currentRows));
+      const currentSignature = JSON.stringify([
+        profileName,
+        customEnvRecordSignature(customEnvRowsToRecord(currentRows)),
+      ]);
       if (currentSignature === customEnvVarsSignature) {
         return currentRows;
       }
@@ -138,7 +141,7 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
         <p className="crosshook-help-text">No custom variables configured for this profile.</p>
       ) : null}
 
-      <div style={{ display: 'grid', gap: 12 }}>
+      <div className="crosshook-custom-env-rows">
         {rows.map((row) => {
           const rowErr = customEnvRowError(row, duplicateIds);
           const rowErrorId = `${idPrefix}-custom-env-err-${row.id}`;
@@ -152,15 +155,8 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
             [valueInvalid ? rowErrorId : '', precedenceId].filter(Boolean).join(' ') || undefined;
 
           return (
-            <div key={row.id} style={{ display: 'grid', gap: 8 }}>
-              <div
-                style={{
-                  display: 'grid',
-                  gap: 10,
-                  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) auto',
-                  alignItems: 'end',
-                }}
-              >
+            <div key={row.id} className="crosshook-custom-env-row">
+              <div className="crosshook-custom-env-fields">
                 <div className="crosshook-field">
                   <label className="crosshook-label" htmlFor={keyInputId}>
                     Key
@@ -168,7 +164,6 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
                   <input
                     id={keyInputId}
                     className="crosshook-input"
-                    style={{ width: '100%' }}
                     value={row.key}
                     placeholder="DXVK_HUD"
                     aria-invalid={keyInvalid}
@@ -186,7 +181,6 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
                   <input
                     id={valueInputId}
                     className="crosshook-input"
-                    style={{ width: '100%' }}
                     value={row.value}
                     placeholder="1"
                     aria-invalid={valueInvalid}
@@ -220,8 +214,7 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
 
       <button
         type="button"
-        className="crosshook-button crosshook-button--secondary"
-        style={{ marginTop: 12 }}
+        className="crosshook-button crosshook-button--secondary crosshook-custom-env-add"
         onClick={() => applyRows([...rows, { id: crypto.randomUUID(), key: '', value: '' }])}
       >
         Add variable

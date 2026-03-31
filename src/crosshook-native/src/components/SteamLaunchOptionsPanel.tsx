@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
 import { copyToClipboard } from '../utils/clipboard';
@@ -12,7 +12,7 @@ export interface SteamLaunchOptionsPanelProps {
 
 export function SteamLaunchOptionsPanel({
   enabledOptionIds,
-  customEnvVars = {},
+  customEnvVars,
   className,
 }: SteamLaunchOptionsPanelProps) {
   const titleId = useId();
@@ -20,6 +20,14 @@ export function SteamLaunchOptionsPanel({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copyLabel, setCopyLabel] = useState('Copy');
+
+  const serializedCustomEnv = JSON.stringify(customEnvVars ?? null);
+  const stableCustomEnv = useMemo<Readonly<Record<string, string>>>(() => {
+    if (customEnvVars == null) {
+      return {};
+    }
+    return { ...customEnvVars };
+  }, [serializedCustomEnv]);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +40,7 @@ export function SteamLaunchOptionsPanel({
       try {
         const line = await invoke<string>('build_steam_launch_options_command', {
           enabledOptionIds: ids,
-          customEnvVars: { ...customEnvVars },
+          customEnvVars: { ...stableCustomEnv },
         });
         if (!cancelled) {
           setCommand(line);
@@ -53,7 +61,7 @@ export function SteamLaunchOptionsPanel({
     return () => {
       cancelled = true;
     };
-  }, [enabledOptionIds, customEnvVars]);
+  }, [enabledOptionIds, serializedCustomEnv, stableCustomEnv]);
 
   async function handleCopy() {
     if (!command.trim()) {

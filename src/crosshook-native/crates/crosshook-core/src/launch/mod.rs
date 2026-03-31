@@ -16,8 +16,8 @@ pub use env::{
     WINE_ENV_VARS_TO_CLEAR,
 };
 pub use optimizations::{
-    build_steam_launch_options_command, is_known_launch_optimization_id, resolve_launch_directives,
-    resolve_launch_directives_for_method, LaunchDirectives,
+    build_steam_launch_options_command, escape_steam_token, is_known_launch_optimization_id,
+    resolve_launch_directives, resolve_launch_directives_for_method, LaunchDirectives,
 };
 pub use preview::{build_launch_preview, LaunchPreview};
 pub use request::{

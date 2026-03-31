@@ -1619,6 +1619,31 @@ textarea {
   text-transform: uppercase;
 }
 
+.crosshook-custom-env-rows {
+  display: grid;
+  gap: var(--crosshook-custom-env-rows-gap);
+}
+
+.crosshook-custom-env-row {
+  display: grid;
+  gap: var(--crosshook-custom-env-row-gap);
+}
+
+.crosshook-custom-env-fields {
+  display: grid;
+  gap: var(--crosshook-custom-env-fields-gap);
+  grid-template-columns: var(--crosshook-custom-env-fields-columns);
+  align-items: end;
+}
+
+.crosshook-custom-env-fields .crosshook-input {
+  width: 100%;
+}
+
+.crosshook-custom-env-add {
+  margin-top: var(--crosshook-custom-env-add-margin-top);
+}
+
 .crosshook-install-grid {
   display: grid;
   gap: 14px;

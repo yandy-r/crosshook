@@ -348,6 +348,42 @@ pub fn resolve_launch_directives(
     resolve_launch_directives_for_method(enabled_option_ids, resolved_method)
 }
 
+/// Escapes a Steam launch-options env **value** (the portion after `KEY=`) so a space-separated
+/// prefix line stays a single token per assignment when Steam/shell parses it.
+///
+/// Safe bare values are emitted unchanged. Values containing whitespace or shell-sensitive
+/// characters are wrapped in double quotes with minimal backslash escapes inside the quotes.
+pub fn escape_steam_token(value: &str) -> String {
+    let needs_quotes = value.is_empty()
+        || value.chars().any(|ch| {
+            ch.is_whitespace()
+                || matches!(
+                    ch,
+                    '$' | ';' | '"' | '\'' | '\\' | '`' | '\n' | '\r' | '|' | '&' | '<' | '>'
+                )
+        });
+
+    if !needs_quotes {
+        return value.to_string();
+    }
+
+    let mut out = String::with_capacity(value.len().saturating_add(2));
+    out.push('"');
+    for ch in value.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '$' => out.push_str("\\$"),
+            '`' => out.push_str("\\`"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            _ => out.push(ch),
+        }
+    }
+    out.push('"');
+    out
+}
+
 /// Builds a single-line Steam per-game “Launch Options” string: `KEY=val ... wrappers %command%`.
 ///
 /// Uses the same option-ID → env/wrapper mapping as `proton_run` launches, then appends
@@ -361,10 +397,18 @@ pub fn build_steam_launch_options_command(
     let mut parts: Vec<String> = directives
         .env
         .iter()
-        .map(|(key, value)| format!("{key}={value}"))
+        .map(|(key, value)| format!("{}={}", key, escape_steam_token(value)))
         .collect();
     for (key, value) in custom_env_vars {
-        parts.push(format!("{key}={value}"));
+        let trimmed_key = key.trim();
+        if trimmed_key.is_empty() {
+            continue;
+        }
+        parts.push(format!(
+            "{}={}",
+            trimmed_key,
+            escape_steam_token(value.as_str())
+        ));
     }
     parts.extend(directives.wrappers);
     parts.push("%command%".to_string());
@@ -616,5 +660,29 @@ mod tests {
                 dependency: "mangohud".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn escape_steam_token_quotes_values_with_whitespace_and_metacharacters() {
+        assert_eq!(escape_steam_token("1"), "1");
+        assert_eq!(escape_steam_token("a b"), "\"a b\"");
+        assert_eq!(escape_steam_token("a$b"), "\"a\\$b\"");
+        assert_eq!(escape_steam_token("say \"hi\""), "\"say \\\"hi\\\"\"");
+        assert_eq!(escape_steam_token("x\ny"), "\"x\\ny\"");
+        assert_eq!(escape_steam_token(""), "\"\"");
+    }
+
+    #[test]
+    fn steam_launch_options_trims_custom_env_keys() {
+        let custom = BTreeMap::from([(" DXVK_ASYNC ".to_string(), "1".to_string())]);
+        let command = build_steam_launch_options_command(&[], &custom).expect("steam command");
+        assert_eq!(command, "DXVK_ASYNC=1 %command%");
+    }
+
+    #[test]
+    fn steam_launch_options_escapes_custom_values_with_shell_sensitive_chars() {
+        let custom = BTreeMap::from([("FOO".to_string(), "a b".to_string())]);
+        let command = build_steam_launch_options_command(&[], &custom).expect("steam command");
+        assert_eq!(command, "FOO=\"a b\" %command%");
     }
 }

@@ -6,7 +6,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::optimizations::resolve_launch_directives;
+use super::optimizations::{resolve_launch_directives, resolve_launch_directives_for_method};
 use crate::profile::TrainerLoadingMode;
 
 pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
@@ -498,7 +498,8 @@ const RESERVED_CUSTOM_ENV_KEYS: &[&str] = &[
     "STEAM_COMPAT_CLIENT_INSTALL_PATH",
 ];
 
-fn validate_custom_env_entry(key: &str, value: &str) -> Result<(), ValidationError> {
+/// Validates one custom env entry and returns the canonical **trimmed** key for emission paths.
+fn validate_custom_env_entry(key: &str, value: &str) -> Result<String, ValidationError> {
     let trimmed_key = key.trim();
     if trimmed_key.is_empty() {
         return Err(ValidationError::CustomEnvVarKeyEmpty);
@@ -520,7 +521,7 @@ fn validate_custom_env_entry(key: &str, value: &str) -> Result<(), ValidationErr
             trimmed_key.to_string(),
         ));
     }
-    Ok(())
+    Ok(trimmed_key.to_string())
 }
 
 fn validate_custom_env(request: &LaunchRequest) -> Result<(), ValidationError> {
@@ -601,6 +602,13 @@ fn validate_steam_applaunch(request: &LaunchRequest) -> Result<(), ValidationErr
         return Err(ValidationError::SteamClientInstallPathRequired);
     }
 
+    // Align with `build_steam_launch_options_command`: steam_applaunch uses the same optimization
+    // IDs as `proton_run` for the Launch Options prefix (unknown IDs, conflicts, PATH deps).
+    resolve_launch_directives_for_method(
+        &request.optimizations.enabled_option_ids,
+        METHOD_PROTON_RUN,
+    )?;
+
     Ok(())
 }
 
@@ -675,6 +683,13 @@ fn collect_steam_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidati
 
     if request.steam.steam_client_install_path.trim().is_empty() {
         issues.push(ValidationError::SteamClientInstallPathRequired.issue());
+    }
+
+    if let Err(e) = resolve_launch_directives_for_method(
+        &request.optimizations.enabled_option_ids,
+        METHOD_PROTON_RUN,
+    ) {
+        issues.push(e.issue());
     }
 }
 
@@ -968,6 +983,33 @@ mod tests {
     fn validates_steam_applaunch_request() {
         let (_temp_dir, request) = steam_request();
         assert_eq!(validate(&request), Ok(()));
+    }
+
+    #[test]
+    fn steam_applaunch_rejects_unknown_launch_optimization() {
+        let (_temp_dir, mut request) = steam_request();
+        request.optimizations.enabled_option_ids = vec!["unknown_toggle".to_string()];
+
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::UnknownLaunchOptimization(
+                "unknown_toggle".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn steam_applaunch_validate_all_collects_launch_optimization_issue() {
+        let (_temp_dir, mut request) = steam_request();
+        request.optimizations.enabled_option_ids = vec!["unknown_toggle".to_string()];
+
+        let issues = validate_all(&request);
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.message.contains("unknown_toggle")),
+            "expected optimization issue in: {issues:?}"
+        );
     }
 
     #[test]
