@@ -155,7 +155,7 @@ These features have no strict ordering. Prioritize based on community feedback.
 | #54   | Adaptive Deck Mode layout        |  Done  | Low     | #47 (pinned profiles)     |
 | #50   | Optimization presets             |  Done  | Medium  | #58 (extended catalog)    |
 | #57   | Custom env vars per profile      |  Done  | Low-Med | #58 (extended catalog)    |
-| #51   | Gamescope wrapper                |        | Low-Med | #58 (extended catalog)    |
+| #51   | Gamescope wrapper                |  Done  | Low-Med | #58 (extended catalog)    |
 | #65   | MangoHud per-profile config      |        | Low-Med | #51 (gamescope)           |
 | #53   | ProtonDB lookup                  |        | Medium  | #41 (version correlation) |
 | #52   | Game metadata / cover art        |        | Medium  | #53 (ProtonDB)            |
