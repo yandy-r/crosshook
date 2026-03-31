@@ -6,6 +6,7 @@ import {
   type CommunityCompatibilityRating,
   type CommunityProfileIndexEntry,
   type CommunityTapSubscription,
+  type CommunityTapSyncResult,
   type UseCommunityProfilesResult,
   useCommunityProfiles,
 } from '../hooks/useCommunityProfiles';
@@ -52,6 +53,11 @@ function matchesQuery(entry: CommunityProfileIndexEntry, query: string): boolean
     .toLowerCase();
 
   return haystack.includes(normalized);
+}
+
+/** Stable React key / row id for a tap subscription (same repo URL can appear on multiple branches or pins). */
+function tapSubscriptionStableKey(sub: CommunityTapSubscription): string {
+  return `${sub.url}::${sub.branch ?? ''}::${sub.pinned_commit ?? ''}`;
 }
 
 function sortProfiles(entries: CommunityProfileIndexEntry[]): CommunityProfileIndexEntry[] {
@@ -176,10 +182,30 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
     pinTapToCurrentVersion,
     unpinTap,
     getTapHeadCommit,
+    lastTapSyncResults,
     prepareCommunityImport,
     saveImportedProfile,
     setError,
   } = state ?? internalState;
+
+  const cachedTapNotices = useMemo(() => {
+    return lastTapSyncResults
+      .filter((r: CommunityTapSyncResult) => r.from_cache)
+      .map((r: CommunityTapSyncResult) => {
+        const sub = r.workspace.subscription;
+        const tapKey = tapSubscriptionStableKey(sub);
+        const branchPart = sub.branch ? ` — ${sub.branch}` : ' — default branch';
+        const pinPart = sub.pinned_commit ? ` — pinned ${sub.pinned_commit.slice(0, 12)}` : '';
+        return {
+          tapKey,
+          labelPrefix: `${sub.url}${branchPart}${pinPart}`,
+          lastSync:
+            r.last_sync_at && !Number.isNaN(Date.parse(r.last_sync_at))
+              ? new Date(r.last_sync_at).toLocaleString()
+              : null,
+        };
+      });
+  }, [lastTapSyncResults]);
 
   const visibleEntries = useMemo(() => {
     const filtered = index.entries.filter((entry) => {
@@ -242,6 +268,25 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
           local CrossHook library.
         </p>
       </header>
+
+      {cachedTapNotices.length > 0 ? (
+        <div className="crosshook-community-browser__cache-banner" role="status" aria-live="polite">
+          <span className="crosshook-status-chip crosshook-community-browser__cache-chip">Cached data</span>
+          <div>
+            <p className="crosshook-community-browser__helper" style={{ margin: 0 }}>
+              Showing cached tap profiles (git fetch failed; local clone in use). Last successful sync:
+            </p>
+            <ul className="crosshook-community-browser__cache-banner-list">
+              {cachedTapNotices.map((row) => (
+                <li key={row.tapKey}>
+                  <strong>{row.labelPrefix}</strong>
+                  {row.lastSync ? ` — last synced: ${row.lastSync}` : ' — last synced: unknown'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
 
       <CollapsibleSection title="Tap Management" className="crosshook-panel crosshook-community-browser__panel">
         <div className="crosshook-community-browser__footer">
@@ -319,7 +364,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
           <div className="crosshook-community-browser__tap-list">
             {taps.map((tap) => (
               <TapChip
-                key={`${tap.url}::${tap.branch ?? ''}::${tap.pinned_commit ?? ''}`}
+                key={tapSubscriptionStableKey(tap)}
                 tap={tap}
                 headCommit={getTapHeadCommit(tap)}
                 busy={loading || syncing}

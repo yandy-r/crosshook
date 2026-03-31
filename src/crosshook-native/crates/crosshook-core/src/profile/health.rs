@@ -443,17 +443,17 @@ pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthR
     }
 }
 
-/// Runs `check_profile_health` for every profile in the store and returns a summary.
-///
-/// Errors loading individual profiles are captured as `Broken` entries and do not abort
-/// the batch — this function never propagates `ProfileStoreError` from the per-profile loop.
-pub fn batch_check_health(store: &ProfileStore) -> HealthCheckSummary {
+/// Like [`batch_check_health`], but invokes `enrich` after each successful `check_profile_health`
+/// so callers can attach SQLite-backed checks (e.g. offline readiness) using one `Connection`.
+pub fn batch_check_health_with_enrich<F>(store: &ProfileStore, mut enrich: F) -> HealthCheckSummary
+where
+    F: FnMut(&str, &GameProfile, &mut ProfileHealthReport),
+{
     let now = Utc::now().to_rfc3339();
 
     let names = match store.list() {
         Ok(names) => names,
         Err(err) => {
-            // Cannot enumerate profiles at all — return an empty summary with one sentinel
             return HealthCheckSummary {
                 profiles: vec![ProfileHealthReport {
                     name: "<unknown>".to_string(),
@@ -482,7 +482,11 @@ pub fn batch_check_health(store: &ProfileStore) -> HealthCheckSummary {
 
     for name in &names {
         let report = match store.load(name) {
-            Ok(profile) => check_profile_health(name, &profile),
+            Ok(profile) => {
+                let mut report = check_profile_health(name, &profile);
+                enrich(name, &profile, &mut report);
+                report
+            }
             Err(err) => ProfileHealthReport {
                 name: name.clone(),
                 status: HealthStatus::Broken,
@@ -522,6 +526,14 @@ pub fn batch_check_health(store: &ProfileStore) -> HealthCheckSummary {
         total_count,
         validated_at: now,
     }
+}
+
+/// Runs `check_profile_health` for every profile in the store and returns a summary.
+///
+/// Errors loading individual profiles are captured as `Broken` entries and do not abort
+/// the batch — this function never propagates `ProfileStoreError` from the per-profile loop.
+pub fn batch_check_health(store: &ProfileStore) -> HealthCheckSummary {
+    batch_check_health_with_enrich(store, |_, _, _| {})
 }
 
 #[cfg(test)]
@@ -572,6 +584,7 @@ mod tests {
                 path: trainer.to_string_lossy().to_string(),
                 kind: "fling".to_string(),
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+                trainer_type: "unknown".to_string(),
             },
             injection: InjectionSection {
                 dll_paths: vec![dll.to_string_lossy().to_string()],

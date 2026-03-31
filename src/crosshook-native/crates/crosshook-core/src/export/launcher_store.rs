@@ -955,6 +955,7 @@ mod tests {
                 path: "/mnt/trainers/test.exe".to_string(),
                 kind: String::new(),
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+                trainer_type: "unknown".to_string(),
             },
             steam: SteamSection {
                 app_id: "12345".to_string(),
@@ -1007,6 +1008,7 @@ mod tests {
                 path: "/mnt/trainers/test.exe".to_string(),
                 kind: String::new(),
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+                trainer_type: "unknown".to_string(),
             },
             steam: SteamSection {
                 app_id: "12345".to_string(),
@@ -1051,6 +1053,7 @@ mod tests {
                 path: "/mnt/trainers/legacy.exe".to_string(),
                 kind: String::new(),
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+                trainer_type: "unknown".to_string(),
             },
             steam: SteamSection {
                 enabled: true,

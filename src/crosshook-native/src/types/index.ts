@@ -11,3 +11,4 @@ export * from './health';
 export * from './migration';
 export * from './version';
 export * from './onboarding';
+export * from './offline';

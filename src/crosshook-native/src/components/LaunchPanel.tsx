@@ -19,6 +19,8 @@ import type {
   LaunchValidationSeverity,
   PreviewEnvVar,
 } from '../types';
+import { OfflineReadinessPanel } from './OfflineReadinessPanel';
+import { OfflineStatusBadge } from './OfflineStatusBadge';
 import { LaunchPhase } from '../types';
 import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { usePreviewState } from '../hooks/usePreviewState';
@@ -664,11 +666,26 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
     hintText,
     isBusy,
     launchGame,
+    launchPathWarnings,
     launchTrainer,
+    offlineReadiness,
+    offlineReadinessError,
+    offlineReadinessLoading,
+    offlineWarning,
     phase,
     reset,
     statusText,
   } = useLaunchStateContext();
+
+  const hasOfflineConcern =
+    Boolean(offlineReadinessError) || offlineWarning || launchPathWarnings.length > 0;
+  const [offlineSectionOpen, setOfflineSectionOpen] = useState(false);
+
+  useEffect(() => {
+    if (hasOfflineConcern) {
+      setOfflineSectionOpen(true);
+    }
+  }, [hasOfflineConcern]);
 
   const { loading, preview, error: previewError, requestPreview, clearPreview } = usePreviewState();
   const { healthByName, revalidateSingle } = useProfileHealthContext();
@@ -926,6 +943,55 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
           </div>
         ) : null}
       </div>
+
+      {method !== 'native' ? (
+        <CollapsibleSection
+          title="Offline readiness"
+          className="crosshook-panel crosshook-launch-panel__offline"
+          open={offlineSectionOpen}
+          onToggle={setOfflineSectionOpen}
+          meta={
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <OfflineStatusBadge
+                report={offlineReadiness}
+                loading={offlineReadinessLoading && !offlineReadiness}
+              />
+              {!offlineReadinessLoading && offlineReadiness ? (
+                <span className="crosshook-muted" style={{ fontSize: '0.85rem' }}>
+                  {offlineReadiness.readiness_state.replace(/_/g, ' ')}
+                </span>
+              ) : null}
+            </span>
+          }
+        >
+          <OfflineReadinessPanel
+            report={offlineReadiness}
+            error={offlineReadinessError}
+            loading={offlineReadinessLoading}
+          />
+          {launchPathWarnings.length > 0 ? (
+            <ul className="crosshook-launch-panel__feedback-list" aria-label="Launch path warnings">
+              {sortIssuesBySeverity(launchPathWarnings).map((issue, index) => (
+                <li
+                  key={`launch-warn-${issue.message}-${index}`}
+                  className="crosshook-launch-panel__feedback-item"
+                >
+                  <div className="crosshook-launch-panel__feedback-header">
+                    <span
+                      className="crosshook-launch-panel__feedback-badge"
+                      data-severity={issue.severity}
+                    >
+                      {issue.severity}
+                    </span>
+                    <p className="crosshook-launch-panel__feedback-title">{issue.message}</p>
+                  </div>
+                  <p className="crosshook-launch-panel__feedback-help">{issue.help}</p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </CollapsibleSection>
+      ) : null}
 
       <div className="crosshook-launch-panel__actions">
         <button

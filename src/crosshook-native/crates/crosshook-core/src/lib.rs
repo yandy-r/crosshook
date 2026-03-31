@@ -6,6 +6,7 @@ pub mod logging;
 pub mod metadata;
 pub mod onboarding;
 pub mod profile;
+pub mod offline;
 pub mod settings;
 pub mod steam;
 pub mod update;

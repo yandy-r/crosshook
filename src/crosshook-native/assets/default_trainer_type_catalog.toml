@@ -1,0 +1,51 @@
+catalog_version = 1
+
+[[trainer_type]]
+id = "standalone"
+display_name = "Standalone / FLiNG-style"
+offline_capability = "full"
+requires_network = false
+detection_hints = []
+score_cap = 100
+
+[[trainer_type]]
+id = "cheat_engine"
+display_name = "Cheat Engine"
+offline_capability = "full"
+requires_network = false
+detection_hints = ["cheat engine"]
+score_cap = 100
+
+[[trainer_type]]
+id = "aurora"
+display_name = "Aurora"
+offline_capability = "conditional_key"
+requires_network = false
+detection_hints = ["aurora"]
+score_cap = 90
+info_modal = "aurora_offline_setup"
+
+[[trainer_type]]
+id = "wemod"
+display_name = "WeMod"
+offline_capability = "conditional_session"
+requires_network = true
+detection_hints = ["wemod"]
+score_cap = 90
+info_modal = "wemod_offline_info"
+
+[[trainer_type]]
+id = "plitch"
+display_name = "PLITCH"
+offline_capability = "conditional_key"
+requires_network = false
+detection_hints = ["plitch"]
+score_cap = 80
+
+[[trainer_type]]
+id = "unknown"
+display_name = "Unknown"
+offline_capability = "unknown"
+requires_network = false
+detection_hints = []
+score_cap = 90

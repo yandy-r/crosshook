@@ -232,6 +232,11 @@ pub enum ValidationError {
     GamescopeFsrSharpnessOutOfRange(u8),
     /// Fullscreen and borderless are mutually exclusive in gamescope.
     GamescopeFullscreenBorderlessConflict,
+    /// Offline readiness score is below the advisory threshold; launch still proceeds.
+    OfflineReadinessInsufficient {
+        score: u8,
+        reasons: Vec<String>,
+    },
 }
 
 impl ValidationError {
@@ -361,6 +366,16 @@ impl ValidationError {
             }
             Self::GamescopeFullscreenBorderlessConflict => {
                 "Fullscreen and borderless cannot both be enabled in gamescope.".to_string()
+            }
+            Self::OfflineReadinessInsufficient { score, reasons } => {
+                let detail = if reasons.is_empty() {
+                    String::new()
+                } else {
+                    format!(" {}", reasons.join("; "))
+                };
+                format!(
+                    "Offline readiness score is {score}/100 (below 60).{detail}"
+                )
             }
         }
     }
@@ -532,12 +547,18 @@ impl ValidationError {
             Self::GamescopeFullscreenBorderlessConflict => {
                 "Choose either fullscreen or borderless, not both.".to_string()
             }
+            Self::OfflineReadinessInsufficient { .. } => {
+                "Review trainer files, game paths, and Proton prefix in the profile. This warning is informational; you can still launch."
+                    .to_string()
+            }
         }
     }
 
     pub fn severity(&self) -> ValidationSeverity {
         match self {
-            Self::GamescopeNestedSession => ValidationSeverity::Warning,
+            Self::GamescopeNestedSession | Self::OfflineReadinessInsufficient { .. } => {
+                ValidationSeverity::Warning
+            }
             _ => ValidationSeverity::Fatal,
         }
     }
@@ -1441,5 +1462,17 @@ mod tests {
         ]);
         let issues = validate_all(&request);
         assert_eq!(issues.len(), 2);
+    }
+
+    #[test]
+    fn offline_readiness_insufficient_is_warning_severity() {
+        let err = ValidationError::OfflineReadinessInsufficient {
+            score: 40,
+            reasons: vec!["missing hash".to_string()],
+        };
+        assert_eq!(err.severity(), ValidationSeverity::Warning);
+        let issue = err.issue();
+        assert_eq!(issue.severity, ValidationSeverity::Warning);
+        assert!(issue.message.contains("40"));
     }
 }
