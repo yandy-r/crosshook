@@ -5,9 +5,14 @@
 [![License](https://img.shields.io/github/license/yandy-r/crosshook?style=for-the-badge&color=green)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Steam%20Deck-blue?style=for-the-badge&logo=linux)](https://github.com/yandy-r/crosshook)
 
-CrossHook is a native Linux trainer launcher for Steam and Proton games. It runs directly on your Linux desktop or Steam Deck -- no WINE needed for CrossHook itself -- and orchestrates trainers, mods, and patches that run under the game's own Proton/WINE prefix.
+CrossHook is a native Linux trainer launcher for Steam and Proton games. It runs directly on your
+Linux desktop or Steam Deck -- no WINE needed for CrossHook itself -- and orchestrates trainers,
+mods, and patches that run under the game's own Proton/WINE prefix.
 
-CrossHook also includes an `Install Game` flow inside the Profile panel. It installs Windows games through direct `proton run`, defaults new prefixes under `~/.local/share/crosshook/prefixes/<slug>`, and then returns you to the normal profile editor so you can review the generated profile before saving it.
+CrossHook also includes an `Install Game` flow inside the Profile panel. It installs Windows games
+through direct `proton run`, defaults new prefixes under `~/.local/share/crosshook/prefixes/<slug>`,
+and then returns you to the normal profile editor so you can review the generated profile before
+saving it.
 
 ## Contents
 
@@ -18,6 +23,7 @@ CrossHook also includes an `Install Game` flow inside the Profile panel. It inst
 - [Docs](#docs)
 - [Build](#build)
 - [Release Notes](#release-notes)
+- [Contributing](#contributing)
 
 ## Download
 
@@ -29,7 +35,8 @@ chmod +x CrossHook_*.AppImage
 ./CrossHook_*.AppImage
 ```
 
-No installation required. The AppImage is a single portable file that runs on any modern Linux distribution.
+No installation required. The AppImage is a single portable file that runs on any modern Linux
+distribution.
 
 ## Quick Start
 
@@ -41,7 +48,8 @@ No installation required. The AppImage is a single portable file that runs on an
 
 For the full setup walkthrough, see the [Quickstart guide](docs/getting-started/quickstart.md).
 
-For Steam/Proton-specific workflow details, see the [Steam / Proton trainer workflow](docs/features/steam-proton-trainer-launch.doc.md).
+For Steam/Proton-specific workflow details, see the
+[Steam / Proton trainer workflow](docs/features/steam-proton-trainer-launch.doc.md).
 
 ## Launch Modes
 
@@ -49,62 +57,94 @@ CrossHook supports three launch modes depending on how your game and trainer nee
 
 ### Steam App Launch
 
-Launches the game through Steam using `steam -applaunch <appid>`, then runs the trainer against the same Proton prefix. By default the trainer is launched from its original directory so stateful bundles like Aurora keep one shared install, and profiles can opt into `Copy into prefix` when needed for compatibility. Use this when Steam must own the game launch (DRM, cloud saves, overlay).
+Launches the game through Steam using `steam -applaunch <appid>`, then runs the trainer against the
+same Proton prefix. By default the trainer is launched from its original directory so stateful
+bundles like Aurora keep one shared install, and profiles can opt into `Copy into prefix` when
+needed for compatibility. Use this when Steam must own the game launch (DRM, cloud saves, overlay).
 
 ### Proton Run
 
-Runs the trainer directly using `proton run <trainer.exe>` against the game's compatdata prefix. Useful when you want to launch a trainer standalone without going through Steam, or when the game is already running.
+Runs the trainer directly using `proton run <trainer.exe>` against the game's compatdata prefix.
+Useful when you want to launch a trainer standalone without going through Steam, or when the game is
+already running.
 
-Profiles can choose whether the trainer runs from its current directory or is copied into the target prefix before launch. Exported standalone trainer launchers follow the same setting.
+Profiles can choose whether the trainer runs from its current directory or is copied into the target
+prefix before launch. Exported standalone trainer launchers follow the same setting.
 
-The same direct Proton path is used by the `Install Game` workflow in the Profile panel. That flow writes the prefix under `~/.local/share/crosshook/prefixes/<slug>` and hands you back a normal `GameProfile` for review and save.
+The same direct Proton path is used by the `Install Game` workflow in the Profile panel. That flow
+writes the prefix under `~/.local/share/crosshook/prefixes/<slug>` and hands you back a normal
+`GameProfile` for review and save.
 
-Profiles that use `proton_run` also show a `Launch Optimizations` panel in the right column. It uses a curated v1 option catalog, shows an info tooltip on every visible option, and autosaves checkbox changes only after the profile already exists on disk.
+Profiles that use `proton_run` also show a `Launch Optimizations` panel in the right column. It uses
+a curated v1 option catalog, shows an info tooltip on every visible option, and autosaves checkbox
+changes only after the profile already exists on disk.
 
 ### Native
 
-For trainers or tools that run natively on Linux without WINE/Proton. CrossHook launches them as regular Linux processes alongside the game.
+For trainers or tools that run natively on Linux without WINE/Proton. CrossHook launches them as
+regular Linux processes alongside the game.
 
 ## Features
 
 ### Profiles and Launch
 
-- **Steam Library Auto-Populate** -- Discovers installed Steam games, their App IDs, Proton versions, and compatdata paths automatically.
-- **Profile Management** -- Save and load launch configurations per game. Switch between trainer setups instantly.
-- **Profile Rename with Overwrite Protection** -- Rename profiles with launcher cascade and collision prevention.
+- **Steam Library Auto-Populate** -- Discovers installed Steam games, their App IDs, Proton
+  versions, and compatdata paths automatically.
+- **Profile Management** -- Save and load launch configurations per game. Switch between trainer
+  setups instantly.
+- **Profile Rename with Overwrite Protection** -- Rename profiles with launcher cascade and
+  collision prevention.
 - **Profile Duplication** -- Clone profiles with unique name generation.
-- **Pinned Profiles** -- Pin favorite profiles for quick launch access on the Profiles and Launch pages.
-- **Install Game Workflow** -- Install a Windows game from the Profile panel, review the generated profile, and save it explicitly after install.
-- **Update Game Panel** -- Apply patches to Proton prefixes for game updates directly from the profile.
-- **Dry Run / Preview Launch Mode** -- Preview the exact commands CrossHook will execute before actually launching.
-- **Post-Launch Failure Diagnostics** -- Enhanced launch state management with helper log path tracking and failure analysis.
+- **Pinned Profiles** -- Pin favorite profiles for quick launch access on the Profiles and Launch
+  pages.
+- **Install Game Workflow** -- Install a Windows game from the Profile panel, review the generated
+  profile, and save it explicitly after install.
+- **Update Game Panel** -- Apply patches to Proton prefixes for game updates directly from the
+  profile.
+- **Dry Run / Preview Launch Mode** -- Preview the exact commands CrossHook will execute before
+  actually launching.
+- **Post-Launch Failure Diagnostics** -- Enhanced launch state management with helper log path
+  tracking and failure analysis.
 
 ### Launch Configuration
 
-- **Launch Optimizations** -- Adjust curated `proton_run` tweaks with readable labels, per-option info tooltips, and autosave for already-saved profiles.
-- **Extended Launch Optimization Catalog** -- Expanded curated optimization toggles with vendor-specific (AMD, NVIDIA, Intel) options.
-- **Proton Selector** -- Choose which Proton version to use for each trainer, with auto-detection of installed versions.
-- **Compatibility Viewer** -- View game/trainer compatibility information and known working configurations.
+- **Launch Optimizations** -- Adjust curated `proton_run` tweaks with readable labels, per-option
+  info tooltips, and autosave for already-saved profiles.
+- **Extended Launch Optimization Catalog** -- Expanded curated optimization toggles with
+  vendor-specific (AMD, NVIDIA, Intel) options.
+- **Proton Selector** -- Choose which Proton version to use for each trainer, with auto-detection of
+  installed versions.
+- **Compatibility Viewer** -- View game/trainer compatibility information and known working
+  configurations.
 
 ### Launcher Export and Community
 
-- **Launcher Export** -- Generate standalone shell scripts and `.desktop` entries from any profile for one-click launching without opening CrossHook.
-- **Stale Launcher Detection** -- Detect when exported launchers are out of sync with the current profile state.
-- **Community Profile Sharing** -- Browse, import, and export launch profiles with other users via Git-based taps.
+- **Launcher Export** -- Generate standalone shell scripts and `.desktop` entries from any profile
+  for one-click launching without opening CrossHook.
+- **Stale Launcher Detection** -- Detect when exported launchers are out of sync with the current
+  profile state.
+- **Community Profile Sharing** -- Browse, import, and export launch profiles with other users via
+  Git-based taps.
 - **Community Profile Export** -- Export shareable profiles from the GUI directly to community taps.
-- **Tap Commit Pinning** -- Pin community taps to specific commits with pin/unpin UI for reproducible installs.
+- **Tap Commit Pinning** -- Pin community taps to specific commits with pin/unpin UI for
+  reproducible installs.
 
 ### Diagnostics and Health
 
-- **Health Dashboard** -- Profile diagnostics page showing health scores, staleness detection, trend analysis, and sortable metadata columns for all profiles.
-- **Diagnostic Bundle Export** -- Export a diagnostic bundle of system and app state for troubleshooting.
-- **SQLite Metadata Layer** -- Persistent metadata tracking for stable profile identity, operational history (launches, launchers), community catalog, collections, cache, and usage insights.
+- **Health Dashboard** -- Profile diagnostics page showing health scores, staleness detection, trend
+  analysis, and sortable metadata columns for all profiles.
+- **Diagnostic Bundle Export** -- Export a diagnostic bundle of system and app state for
+  troubleshooting.
+- **SQLite Metadata Layer** -- Persistent metadata tracking for stable profile identity, operational
+  history (launches, launchers), community catalog, collections, cache, and usage insights.
 
 ### UI and Platform
 
-- **Adaptive Deck Layout** -- Responsive layout that adapts to Steam Deck Gaming Mode for comfortable big-picture use.
+- **Adaptive Deck Layout** -- Responsive layout that adapts to Steam Deck Gaming Mode for
+  comfortable big-picture use.
 - **Gamepad Navigation** -- Full controller and touchscreen support for Steam Deck Gaming Mode.
-- **Console Log Viewer** -- See exactly what commands CrossHook executes, with real-time process output for debugging.
+- **Console Log Viewer** -- See exactly what commands CrossHook executes, with real-time process
+  output for debugging.
 - **Dark Theme** -- Native dark UI that fits in on Steam Deck and Linux desktops.
 
 ## Docs
@@ -115,7 +155,8 @@ For trainers or tools that run natively on Linux without WINE/Proton. CrossHook 
 
 ## Build
 
-CrossHook is built with [Tauri v2](https://v2.tauri.app/) (Rust backend + React/TypeScript frontend). Building from source requires Rust, Node.js, and system libraries for WebKitGTK.
+CrossHook is built with [Tauri v2](https://v2.tauri.app/) (Rust backend + React/TypeScript
+frontend). Building from source requires Rust, Node.js, and system libraries for WebKitGTK.
 
 ### Prerequisites
 
@@ -126,7 +167,8 @@ Install build dependencies automatically using the included script:
 ./scripts/install-native-build-deps.sh
 ```
 
-Or install manually. You need: `cargo`, `npm`, `patchelf`, and development libraries for GTK3, libsoup3, WebKitGTK 4.1, and OpenSSL.
+Or install manually. You need: `cargo`, `npm`, `patchelf`, and development libraries for GTK3,
+libsoup3, WebKitGTK 4.1, and OpenSSL.
 
 ### Build the AppImage
 
@@ -154,15 +196,27 @@ This starts the Tauri dev server with hot-reload for the React frontend and Rust
 
 ### CI
 
-The [release](.github/workflows/release.yml) GitHub Actions workflow builds and uploads the AppImage to a GitHub Release on every version tag push (`v*`).
+The [release](.github/workflows/release.yml) GitHub Actions workflow builds and uploads the AppImage
+to a GitHub Release on every version tag push (`v*`).
 
 ## Release Notes
 
 - Releases publish a single **AppImage** artifact for x86_64 Linux.
 - The AppImage is self-contained and portable -- no system-level installation needed.
-- User state (profiles, settings) is stored in `~/.config/crosshook/` or the XDG config directory, separate from the application binary.
-- Install prefixes default under `~/.local/share/crosshook/prefixes/<slug>` and are only saved into a profile after review in the Profile panel.
+- User state (profiles, settings) is stored in `~/.config/crosshook/` or the XDG config directory,
+  separate from the application binary.
+- Install prefixes default under `~/.local/share/crosshook/prefixes/<slug>` and are only saved into
+  a profile after review in the Profile panel.
 - macOS support is planned for a future release.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style,
+commit conventions, and the pull request process.
+
+For bugs and feature requests, use the
+[issue templates](https://github.com/yandy-r/crosshook/issues/new/choose). Questions belong in
+[Discussions](https://github.com/yandy-r/crosshook/discussions).
 
 ## License
 
