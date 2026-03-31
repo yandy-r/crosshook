@@ -259,12 +259,26 @@ pub fn community_sync(
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<Vec<CommunityTapSyncResult>, String> {
     let taps = load_community_taps(&settings_store)?;
-    let results = tap_store.sync_many(&taps).map_err(map_error)?;
+    let mut results = tap_store.sync_many(&taps).map_err(map_error)?;
 
     for result in &results {
         if let Err(e) = metadata_store.index_community_tap_result(result) {
             tracing::warn!(%e, tap_url = %result.workspace.subscription.url,
                 "community tap index sync failed");
+        }
+        if let Err(e) = metadata_store.upsert_community_tap_offline_from_sync_result(result) {
+            tracing::warn!(%e, tap_url = %result.workspace.subscription.url,
+                "community tap offline state upsert failed");
+        }
+    }
+
+    for result in &mut results {
+        let tap_url = result.workspace.subscription.url.as_str();
+        let tap_branch = result.workspace.subscription.branch.as_deref().unwrap_or("");
+        if let Ok(Some(tap_id)) = metadata_store.lookup_community_tap_id(tap_url, tap_branch) {
+            if let Ok(Some(row)) = metadata_store.lookup_community_tap_offline_state_row(&tap_id) {
+                result.last_sync_at = row.last_sync_at.clone();
+            }
         }
     }
 

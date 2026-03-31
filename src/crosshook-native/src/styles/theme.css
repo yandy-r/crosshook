@@ -484,6 +484,57 @@ textarea {
   gap: 8px;
 }
 
+.crosshook-community-browser__cache-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 120, 120, 0.35);
+  background: rgba(120, 120, 120, 0.08);
+}
+
+.crosshook-community-browser__cache-banner .crosshook-community-browser__cache-chip {
+  opacity: 0.95;
+}
+
+.crosshook-community-browser__cache-banner-list {
+  margin: 6px 0 0 1.1em;
+  padding: 0;
+  font-size: 0.9rem;
+  color: var(--crosshook-color-text-muted, #888);
+}
+
+.crosshook-offline-readiness-panel__row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.crosshook-offline-readiness-panel__icon {
+  font-weight: 700;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
+.crosshook-offline-badge__spinner {
+  display: inline-block;
+  animation: crosshook-offline-spin 0.9s linear infinite;
+}
+
+.crosshook-offline-badge--compact .crosshook-muted {
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+@keyframes crosshook-offline-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .crosshook-community-browser__panel {
   display: grid;
   gap: 12px;
@@ -3215,7 +3266,7 @@ textarea {
 }
 
 .crosshook-health-dashboard-td--status {
-  width: 100px;
+  width: 92px;
 }
 
 .crosshook-health-dashboard-td--issues {
@@ -3244,6 +3295,34 @@ textarea {
 
 .crosshook-health-dashboard-td--source {
   font-size: 0.85rem;
+}
+
+/* Compact row chips in health table (Status / Version / Offline / Source) */
+.crosshook-health-dashboard-table .crosshook-health-dashboard-td--status .crosshook-status-chip,
+.crosshook-health-dashboard-table .crosshook-health-dashboard-version-badge,
+.crosshook-health-dashboard-table .crosshook-health-dashboard-td--offline .crosshook-offline-badge,
+.crosshook-health-dashboard-table .crosshook-health-dashboard-source-chip {
+  min-height: 1.45rem;
+  padding: 0 7px;
+  gap: 3px;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
+.crosshook-health-dashboard-td--version {
+  width: 92px;
+}
+
+.crosshook-health-dashboard-td--offline {
+  width: 88px;
+}
+
+/* Issue Breakdown count pill — smaller than global status-chip */
+.crosshook-health-dashboard-breakdown-badge.crosshook-status-chip {
+  min-height: 1.35rem;
+  padding: 0 8px;
+  gap: 4px;
+  font-size: 0.72rem;
 }
 
 .crosshook-health-dashboard-stale-hint {

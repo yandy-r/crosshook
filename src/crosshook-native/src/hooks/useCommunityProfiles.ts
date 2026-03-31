@@ -53,6 +53,10 @@ export interface CommunityTapSyncResult {
   status: 'cloned' | 'updated';
   head_commit: string;
   index: CommunityProfileIndex;
+  /** True when git fetch failed but a local clone was used for the index. */
+  from_cache?: boolean;
+  /** ISO timestamp of last successful network sync for this tap, if known. */
+  last_sync_at?: string | null;
 }
 
 export interface CommunityImportResult {
@@ -84,6 +88,8 @@ export interface UseCommunityProfilesResult {
   taps: CommunityTapSubscription[];
   index: CommunityProfileIndex;
   lastSyncedCommits: Record<string, string>;
+  /** Results from the most recent successful `community_sync` (for offline/cache UI). */
+  lastTapSyncResults: CommunityTapSyncResult[];
   importedProfileNames: Set<string>;
   loading: boolean;
   syncing: boolean;
@@ -201,6 +207,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     diagnostics: [],
   });
   const [lastSyncedCommits, setLastSyncedCommits] = useState<Record<string, string>>({});
+  const [lastTapSyncResults, setLastTapSyncResults] = useState<CommunityTapSyncResult[]>([]);
   const [importedProfileNames, setImportedProfileNames] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -245,6 +252,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
 
     try {
       const results = await invoke<CommunityTapSyncResult[]>('community_sync');
+      setLastTapSyncResults(results);
       setLastSyncedCommits((previous) => {
         const next = { ...previous };
         for (const result of results) {
@@ -267,6 +275,10 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
       const normalized = normalizeTap(tap);
 
       try {
+        const online = await invoke<boolean>('check_network_status');
+        if (!online) {
+          throw new Error('Network required to add a community tap. Connect to the internet and try again.');
+        }
         const response = await invoke<CommunityTapSubscription[]>('community_add_tap', {
           tap: normalized,
         });
@@ -445,6 +457,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     taps,
     index,
     lastSyncedCommits,
+    lastTapSyncResults,
     importedProfileNames,
     loading,
     syncing,

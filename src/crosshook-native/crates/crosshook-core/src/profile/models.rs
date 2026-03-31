@@ -153,7 +153,15 @@ pub struct GameSection {
     pub executable_path: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+fn default_trainer_type() -> String {
+    "unknown".to_string()
+}
+
+fn is_default_trainer_type(s: &String) -> bool {
+    s == "unknown"
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TrainerSection {
     #[serde(default)]
     pub path: String,
@@ -161,6 +169,22 @@ pub struct TrainerSection {
     pub kind: String,
     #[serde(rename = "loading_mode", default)]
     pub loading_mode: TrainerLoadingMode,
+    #[serde(
+        default = "default_trainer_type",
+        skip_serializing_if = "is_default_trainer_type"
+    )]
+    pub trainer_type: String,
+}
+
+impl Default for TrainerSection {
+    fn default() -> Self {
+        Self {
+            path: String::new(),
+            kind: String::new(),
+            loading_mode: TrainerLoadingMode::default(),
+            trainer_type: default_trainer_type(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -393,6 +417,7 @@ impl From<LegacyProfileData> for GameProfile {
                 path: value.trainer_path,
                 kind: String::default(),
                 loading_mode: TrainerLoadingMode::default(),
+                trainer_type: default_trainer_type(),
             },
             injection: InjectionSection {
                 dll_paths: vec![value.dll1_path, value.dll2_path],
@@ -667,5 +692,28 @@ mod tests {
         assert!(serialized.contains("custom_env_vars"));
         let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
         assert_eq!(parsed.launch.custom_env_vars, profile.launch.custom_env_vars);
+    }
+
+    #[test]
+    fn profile_toml_without_trainer_type_deserializes_unknown() {
+        let toml = r#"
+[game]
+executable_path = "/games/x.exe"
+
+[trainer]
+path = "/t/y.exe"
+type = "fling"
+"#;
+        let p: GameProfile = toml::from_str(toml).expect("deserialize");
+        assert_eq!(p.trainer.trainer_type, "unknown");
+    }
+
+    #[test]
+    fn profile_trainer_type_roundtrip_toml() {
+        let mut p = sample_profile();
+        p.trainer.trainer_type = "aurora".to_string();
+        let s = toml::to_string_pretty(&p).expect("serialize");
+        let back: GameProfile = toml::from_str(&s).expect("deserialize");
+        assert_eq!(back.trainer.trainer_type, "aurora");
     }
 }

@@ -135,7 +135,7 @@ _Goal: CrossHook is usable headlessly, scriptable, and automatable._
 | Order | Issue                                       | Status | Rationale                                                                                               |
 | :---: | ------------------------------------------- | :----: | ------------------------------------------------------------------------------------------------------- |
 |  16   | **#43** -- CLI completion                   |  Done  | Pure wiring to `crosshook-core`. Unlocks scripted usage, automation, Steam Deck console mode.           |
-|  17   | **#44** -- Offline-first trainer management |        | With CLI complete, ensure all workflows function without network. Critical for Steam Deck portable use. |
+|  17   | **#44** -- Offline-first trainer management |  Done  | With CLI complete, ensure all workflows function without network. Critical for Steam Deck portable use. |
 
 **Dependencies**: #43 is standalone wiring work. #44 is a cross-cutting concern that should be validated after CLI exists.
 **Estimated effort**: 1-2 weeks total.
@@ -245,7 +245,7 @@ Phase 6 (Polish) ── pick based on demand ───────────�
 | Phase 2: Diagnostics   |   3    |  Done   |    1-2 weeks    |  ~3 weeks  |
 | Phase 3: Profiles      |   7    |  Done   |    2-3 weeks    |  ~6 weeks  |
 | Phase 4: Version Intel |   3    |  Done   |    2-3 weeks    |  ~9 weeks  |
-| Phase 5: CLI           |   2    |         |    1-2 weeks    | ~11 weeks  |
+| Phase 5: CLI           |   2    |  Done   |    1-2 weeks    | ~11 weeks  |
 | Phase 6: Polish        |   17   | Partial |  Pick & choose  |  Ongoing   |
 | Phase 7: Future        |   11   |         |  Not scheduled  |  Backlog   |
 

@@ -117,6 +117,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 13 {
+        migrate_12_to_13(conn)?;
+        conn.pragma_update(None, "user_version", 13_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 13",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -536,6 +545,62 @@ fn migrate_2_to_3(conn: &Connection) -> Result<(), MetadataStoreError> {
     Ok(())
 }
 
+fn migrate_12_to_13(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS trainer_hash_cache (
+            cache_id            TEXT PRIMARY KEY,
+            profile_id          TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            file_path           TEXT NOT NULL,
+            file_size           INTEGER,
+            file_modified_at    TEXT,
+            sha256_hash         TEXT NOT NULL,
+            verified_at         TEXT NOT NULL,
+            created_at          TEXT NOT NULL,
+            updated_at          TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_trainer_hash_cache_profile_path
+            ON trainer_hash_cache(profile_id, file_path);
+
+        CREATE TABLE IF NOT EXISTS offline_readiness_snapshots (
+            profile_id              TEXT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            readiness_state         TEXT NOT NULL DEFAULT 'unconfigured',
+            readiness_score         INTEGER NOT NULL,
+            trainer_type            TEXT NOT NULL DEFAULT 'unknown',
+            trainer_present           INTEGER NOT NULL DEFAULT 0,
+            trainer_hash_valid        INTEGER NOT NULL DEFAULT 0,
+            trainer_activated         INTEGER NOT NULL DEFAULT 0,
+            proton_available          INTEGER NOT NULL DEFAULT 0,
+            community_tap_cached      INTEGER NOT NULL DEFAULT 0,
+            network_required          INTEGER NOT NULL DEFAULT 0,
+            blocking_reasons          TEXT,
+            checked_at                TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS community_tap_offline_state (
+            tap_id              TEXT PRIMARY KEY REFERENCES community_taps(tap_id) ON DELETE CASCADE,
+            has_local_clone     INTEGER NOT NULL DEFAULT 0,
+            last_sync_at        TEXT,
+            clone_size_bytes    INTEGER
+        );
+
+        INSERT OR IGNORE INTO trainer_hash_cache
+            (cache_id, profile_id, file_path, sha256_hash, verified_at, created_at, updated_at)
+        SELECT lower(hex(randomblob(16))), profile_id, '', trainer_file_hash, checked_at,
+               datetime('now'), datetime('now')
+        FROM version_snapshots
+        WHERE trainer_file_hash IS NOT NULL
+          AND id IN (SELECT MAX(id) FROM version_snapshots GROUP BY profile_id);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 12 to 13",
+        source,
+    })?;
+
+    Ok(())
+}
+
 fn migrate_11_to_12(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(
         "
@@ -588,5 +653,25 @@ mod tests {
             })
             .unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn migration_12_to_13_creates_offline_tables() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+        for table in [
+            "trainer_hash_cache",
+            "offline_readiness_snapshots",
+            "community_tap_offline_state",
+        ] {
+            let n: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+                    [table],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(n, 1, "missing table {table}");
+        }
     }
 }

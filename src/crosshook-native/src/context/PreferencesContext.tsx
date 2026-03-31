@@ -27,6 +27,8 @@ const EMPTY_SETTINGS: AppSettingsData = {
   auto_load_last_profile: false,
   last_used_profile: '',
   community_taps: [],
+  onboarding_completed: false,
+  offline_mode: false,
 };
 
 const EMPTY_RECENT_FILES: RecentFilesData = {

@@ -443,6 +443,91 @@ pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthR
     }
 }
 
+/// Like [`batch_check_health`], but invokes `enrich` after each successful `check_profile_health`
+/// so callers can attach SQLite-backed checks (e.g. offline readiness) using one `Connection`.
+pub fn batch_check_health_with_enrich<F>(store: &ProfileStore, mut enrich: F) -> HealthCheckSummary
+where
+    F: FnMut(&str, &GameProfile, &mut ProfileHealthReport),
+{
+    let now = Utc::now().to_rfc3339();
+
+    let names = match store.list() {
+        Ok(names) => names,
+        Err(err) => {
+            return HealthCheckSummary {
+                profiles: vec![ProfileHealthReport {
+                    name: "<unknown>".to_string(),
+                    status: HealthStatus::Broken,
+                    launch_method: String::new(),
+                    issues: vec![HealthIssue {
+                        field: String::new(),
+                        path: String::new(),
+                        message: format!("Could not list profiles: {err}"),
+                        remediation: "Check filesystem permissions for the profiles directory."
+                            .to_string(),
+                        severity: HealthIssueSeverity::Error,
+                    }],
+                    checked_at: now.clone(),
+                }],
+                healthy_count: 0,
+                stale_count: 0,
+                broken_count: 1,
+                total_count: 1,
+                validated_at: now,
+            };
+        }
+    };
+
+    let mut profiles: Vec<ProfileHealthReport> = Vec::with_capacity(names.len());
+
+    for name in &names {
+        let report = match store.load(name) {
+            Ok(profile) => {
+                let mut report = check_profile_health(name, &profile);
+                enrich(name, &profile, &mut report);
+                report
+            }
+            Err(err) => ProfileHealthReport {
+                name: name.clone(),
+                status: HealthStatus::Broken,
+                launch_method: String::new(),
+                issues: vec![HealthIssue {
+                    field: String::new(),
+                    path: String::new(),
+                    message: format!("Profile could not be loaded: {err}"),
+                    remediation: "The profile TOML may be malformed. Delete and re-create the profile, or edit the file manually.".to_string(),
+                    severity: HealthIssueSeverity::Error,
+                }],
+                checked_at: Utc::now().to_rfc3339(),
+            },
+        };
+        profiles.push(report);
+    }
+
+    let healthy_count = profiles
+        .iter()
+        .filter(|r| matches!(r.status, HealthStatus::Healthy))
+        .count();
+    let stale_count = profiles
+        .iter()
+        .filter(|r| matches!(r.status, HealthStatus::Stale))
+        .count();
+    let broken_count = profiles
+        .iter()
+        .filter(|r| matches!(r.status, HealthStatus::Broken))
+        .count();
+    let total_count = profiles.len();
+
+    HealthCheckSummary {
+        profiles,
+        healthy_count,
+        stale_count,
+        broken_count,
+        total_count,
+        validated_at: now,
+    }
+}
+
 /// Runs `check_profile_health` for every profile in the store and returns a summary.
 ///
 /// Errors loading individual profiles are captured as `Broken` entries and do not abort
@@ -572,6 +657,7 @@ mod tests {
                 path: trainer.to_string_lossy().to_string(),
                 kind: "fling".to_string(),
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+                trainer_type: "unknown".to_string(),
             },
             injection: InjectionSection {
                 dll_paths: vec![dll.to_string_lossy().to_string()],

@@ -104,6 +104,7 @@ impl InstallGameRequest {
                 path: self.trainer_path.trim().to_string(),
                 kind: String::new(),
                 loading_mode: TrainerLoadingMode::SourceDirectory,
+                trainer_type: "unknown".to_string(),
             },
             injection: Default::default(),
             steam: SteamSection::default(),

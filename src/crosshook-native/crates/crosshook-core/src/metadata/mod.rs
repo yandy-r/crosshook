@@ -8,12 +8,16 @@ mod launch_history;
 mod launcher_sync;
 mod migrations;
 mod models;
+pub(crate) mod offline_store;
 mod optimization_catalog_store;
 mod preset_store;
 pub mod profile_sync;
 mod version_store;
 
 pub use health_store::HealthSnapshotRow;
+pub use offline_store::{
+    CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow,
+};
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
     CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
@@ -30,7 +34,7 @@ use crate::launch::diagnostics::models::DiagnosticReport;
 use crate::profile::{GameProfile, ProfileStore};
 use chrono::Utc;
 use directories::BaseDirs;
-use rusqlite::{params_from_iter, Connection, OptionalExtension};
+use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -122,6 +126,30 @@ impl MetadataStore {
             MetadataStoreError::Corrupt(format!("metadata store mutex poisoned while {action}"))
         })?;
         f(&mut guard)
+    }
+
+    /// Runs `f` with a shared SQLite `Connection` lock. Unlike [`Self::with_conn`], the return
+    /// type does not need [`Default`] (used for batch health + offline on one connection).
+    pub fn with_sqlite_conn<R, F>(&self, action: &'static str, f: F) -> Result<R, MetadataStoreError>
+    where
+        F: FnOnce(&rusqlite::Connection) -> Result<R, MetadataStoreError>,
+    {
+        if !self.available {
+            return Err(MetadataStoreError::Corrupt(
+                "metadata store unavailable".to_string(),
+            ));
+        }
+        let Some(conn) = &self.conn else {
+            return Err(MetadataStoreError::Corrupt(
+                "metadata store connection missing".to_string(),
+            ));
+        };
+        let guard = conn.lock().map_err(|_| {
+            MetadataStoreError::Corrupt(format!(
+                "metadata store mutex poisoned while {action}"
+            ))
+        })?;
+        f(&guard)
     }
 
     pub fn observe_profile_write(
@@ -304,6 +332,54 @@ impl MetadataStore {
         self.with_conn_mut("index a community tap", |conn| {
             community_index::index_community_tap_result(conn, result)
         })
+    }
+
+    pub fn lookup_community_tap_id(
+        &self,
+        tap_url: &str,
+        tap_branch: &str,
+    ) -> Result<Option<String>, MetadataStoreError> {
+        self.with_conn("look up community tap id", |conn| {
+            let mut stmt = conn
+                .prepare("SELECT tap_id FROM community_taps WHERE tap_url = ?1 AND tap_branch = ?2")
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "prepare community tap id lookup",
+                    source,
+                })?;
+            stmt.query_row(params![tap_url, tap_branch], |row| row.get(0))
+                .optional()
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "look up community tap id",
+                    source,
+                })
+        })
+    }
+
+    /// Persists tap offline metadata after a successful sync (including cache-only sync).
+    /// No-op when the tap has not been indexed yet (no `community_taps` row).
+    pub fn upsert_community_tap_offline_from_sync_result(
+        &self,
+        result: &CommunityTapSyncResult,
+    ) -> Result<(), MetadataStoreError> {
+        let tap_url = &result.workspace.subscription.url;
+        let tap_branch = result.workspace.subscription.branch.as_deref().unwrap_or("");
+        let Some(tap_id) = self.lookup_community_tap_id(tap_url, tap_branch)? else {
+            return Ok(());
+        };
+        let now = Utc::now().to_rfc3339();
+        let size = crate::community::taps::directory_size_bytes(&result.workspace.local_path);
+        let last_sync_at = if result.from_cache {
+            self.lookup_community_tap_offline_state_row(&tap_id)?
+                .and_then(|r| r.last_sync_at)
+        } else {
+            Some(now)
+        };
+        self.upsert_community_tap_offline_state_row(
+            &tap_id,
+            1,
+            last_sync_at.as_deref(),
+            Some(size as i64),
+        )
     }
 
     pub fn list_community_tap_profiles(
@@ -828,6 +904,160 @@ impl MetadataStore {
     }
 
     // -------------------------------------------------------------------------
+    // Offline trainer cache and readiness persistence
+    // -------------------------------------------------------------------------
+
+    pub fn check_offline_readiness_for_profile(
+        &self,
+        profile_name: &str,
+        profile_id: &str,
+        profile: &GameProfile,
+    ) -> Result<crate::offline::OfflineReadinessReport, MetadataStoreError> {
+        if !self.available {
+            return Err(MetadataStoreError::Corrupt(
+                "metadata store unavailable".to_string(),
+            ));
+        }
+        let Some(conn) = &self.conn else {
+            return Err(MetadataStoreError::Corrupt(
+                "metadata store connection missing".to_string(),
+            ));
+        };
+        let guard = conn.lock().map_err(|_| {
+            MetadataStoreError::Corrupt(
+                "metadata store mutex poisoned while check offline readiness".to_string(),
+            )
+        })?;
+        crate::offline::check_offline_preflight(profile_name, profile_id, profile, &guard)
+    }
+
+    pub fn upsert_trainer_hash_cache_row(
+        &self,
+        cache_id: &str,
+        profile_id: &str,
+        file_path: &str,
+        file_size: Option<i64>,
+        file_modified_at: Option<&str>,
+        sha256_hash: &str,
+        verified_at: &str,
+        created_at: &str,
+        updated_at: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("upsert trainer hash cache", |conn| {
+            offline_store::upsert_trainer_hash_cache(
+                conn,
+                cache_id,
+                profile_id,
+                file_path,
+                file_size,
+                file_modified_at,
+                sha256_hash,
+                verified_at,
+                created_at,
+                updated_at,
+            )
+        })
+    }
+
+    pub fn lookup_trainer_hash_cache_row(
+        &self,
+        profile_id: &str,
+        file_path: &str,
+    ) -> Result<Option<TrainerHashCacheRow>, MetadataStoreError> {
+        self.with_conn("lookup trainer hash cache", |conn| {
+            offline_store::lookup_trainer_hash_cache(conn, profile_id, file_path)
+        })
+    }
+
+    pub fn verify_trainer_hash_for_profile_path(
+        &self,
+        profile_id: &str,
+        trainer_path: &Path,
+    ) -> Result<Option<crate::offline::HashVerifyResult>, MetadataStoreError> {
+        if !self.available {
+            return Ok(None);
+        }
+        let Some(conn) = &self.conn else {
+            return Ok(None);
+        };
+        let guard = conn.lock().map_err(|_| {
+            MetadataStoreError::Corrupt(
+                "metadata store mutex poisoned while verify trainer hash".to_string(),
+            )
+        })?;
+        crate::offline::verify_and_cache_trainer_hash(&guard, profile_id, trainer_path)
+    }
+
+    pub fn upsert_offline_readiness_snapshot_row(
+        &self,
+        profile_id: &str,
+        readiness_state: &str,
+        readiness_score: i64,
+        trainer_type: &str,
+        trainer_present: i64,
+        trainer_hash_valid: i64,
+        trainer_activated: i64,
+        proton_available: i64,
+        community_tap_cached: i64,
+        network_required: i64,
+        blocking_reasons: Option<&str>,
+        checked_at: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("upsert offline readiness snapshot", |conn| {
+            offline_store::upsert_offline_readiness_snapshot(
+                conn,
+                profile_id,
+                readiness_state,
+                readiness_score,
+                trainer_type,
+                trainer_present,
+                trainer_hash_valid,
+                trainer_activated,
+                proton_available,
+                community_tap_cached,
+                network_required,
+                blocking_reasons,
+                checked_at,
+            )
+        })
+    }
+
+    pub fn load_offline_readiness_snapshot_rows(
+        &self,
+    ) -> Result<Vec<OfflineReadinessRow>, MetadataStoreError> {
+        self.with_conn("load offline readiness snapshots", |conn| {
+            offline_store::load_offline_readiness_snapshots(conn)
+        })
+    }
+
+    pub fn upsert_community_tap_offline_state_row(
+        &self,
+        tap_id: &str,
+        has_local_clone: i64,
+        last_sync_at: Option<&str>,
+        clone_size_bytes: Option<i64>,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("upsert community tap offline state", |conn| {
+            offline_store::upsert_community_tap_offline_state(
+                conn,
+                tap_id,
+                has_local_clone,
+                last_sync_at,
+                clone_size_bytes,
+            )
+        })
+    }
+
+    pub fn lookup_community_tap_offline_state_row(
+        &self,
+        tap_id: &str,
+    ) -> Result<Option<CommunityTapOfflineRow>, MetadataStoreError> {
+        self.with_conn("lookup community tap offline state", |conn| {
+            offline_store::lookup_community_tap_offline_state(conn, tap_id)
+        })
+    }
+
+    // -------------------------------------------------------------------------
     // Version snapshots
     // -------------------------------------------------------------------------
 
@@ -1044,6 +1274,7 @@ mod tests {
                 path: "/trainers/elden-ring.exe".to_string(),
                 kind: "fling".to_string(),
                 loading_mode: TrainerLoadingMode::SourceDirectory,
+                trainer_type: "unknown".to_string(),
             },
             injection: InjectionSection {
                 dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],
@@ -1739,6 +1970,8 @@ mod tests {
                 entries,
                 diagnostics: vec![],
             },
+            from_cache: false,
+            last_sync_at: None,
         }
     }
 
@@ -2468,6 +2701,31 @@ mod tests {
             ],
         )
         .unwrap();
+    }
+
+    #[test]
+    fn verify_trainer_hash_second_hit_uses_cache() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        {
+            let conn = connection(&store);
+            insert_test_profile_row(&conn, "profile-1");
+        }
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("trainer.exe");
+        fs::write(&path, b"fake-trainer-bytes").unwrap();
+
+        let first = store
+            .verify_trainer_hash_for_profile_path("profile-1", &path)
+            .unwrap()
+            .expect("hash");
+        assert!(!first.from_cache);
+
+        let second = store
+            .verify_trainer_hash_for_profile_path("profile-1", &path)
+            .unwrap()
+            .expect("hash");
+        assert!(second.from_cache);
+        assert_eq!(first.hash, second.hash);
     }
 
     #[test]

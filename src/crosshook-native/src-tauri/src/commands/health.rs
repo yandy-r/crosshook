@@ -1,7 +1,8 @@
-use crosshook_core::metadata::{DriftState, HealthSnapshotRow, MetadataStore, VersionSnapshotRow};
+use crosshook_core::metadata::{DriftState, HealthSnapshotRow, MetadataStore, OfflineReadinessRow, VersionSnapshotRow};
+use crosshook_core::offline::OfflineReadinessReport;
 use crosshook_core::profile::health::{
-    batch_check_health, check_profile_health, HealthCheckSummary, HealthIssue, HealthIssueSeverity,
-    HealthStatus, ProfileHealthReport,
+    batch_check_health, batch_check_health_with_enrich, check_profile_health, HealthCheckSummary,
+    HealthIssue, HealthIssueSeverity, HealthStatus, ProfileHealthReport,
 };
 use crosshook_core::profile::{GameProfile, ProfileStore};
 use crosshook_core::steam::manifest::parse_manifest_full;
@@ -31,10 +32,35 @@ pub struct ProfileHealthMetadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfflineReadinessBrief {
+    pub profile_name: String,
+    pub score: u8,
+    pub readiness_state: String,
+    pub trainer_type: String,
+    pub blocking_reasons: Vec<String>,
+    pub checked_at: String,
+}
+
+impl From<&OfflineReadinessReport> for OfflineReadinessBrief {
+    fn from(r: &OfflineReadinessReport) -> Self {
+        Self {
+            profile_name: r.profile_name.clone(),
+            score: r.score,
+            readiness_state: r.readiness_state.clone(),
+            trainer_type: r.trainer_type.clone(),
+            blocking_reasons: r.blocking_reasons.clone(),
+            checked_at: r.checked_at.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnrichedProfileHealthReport {
     #[serde(flatten)]
     pub core: ProfileHealthReport,
     pub metadata: Option<ProfileHealthMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offline_readiness: Option<OfflineReadinessBrief>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -363,6 +389,7 @@ fn enrich_profile(
     EnrichedProfileHealthReport {
         core: sanitize_report(report),
         metadata,
+        offline_readiness: None,
     }
 }
 
@@ -370,7 +397,48 @@ pub(crate) fn build_enriched_health_summary(
     store: &ProfileStore,
     metadata_store: &MetadataStore,
 ) -> EnrichedHealthSummary {
-    let summary = batch_check_health(store);
+    use std::collections::HashMap;
+
+    let mut offline_map: HashMap<String, OfflineReadinessReport> = HashMap::new();
+
+    let summary = if metadata_store.is_available() {
+        match store.list() {
+            Ok(names) => {
+                let prefetch_offline = prefetch_batch_metadata(metadata_store, store, &names);
+                match metadata_store.with_sqlite_conn("batch profile health with offline", |conn| {
+                    Ok(batch_check_health_with_enrich(store, |name, profile, report| {
+                        if let Some(pid) = prefetch_offline.profile_id_map.get(name) {
+                            if let Ok(Some(off)) =
+                                crosshook_core::offline::enrich_health_report_with_offline(
+                                    conn,
+                                    name,
+                                    pid.as_str(),
+                                    profile,
+                                    report,
+                                )
+                            {
+                                offline_map.insert(name.to_string(), off.clone());
+                            }
+                        }
+                    }))
+                }) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::warn!(
+                            %e,
+                            "batch profile health with offline failed; falling back"
+                        );
+                        offline_map.clear();
+                        batch_check_health(store)
+                    }
+                }
+            }
+            Err(_) => batch_check_health(store),
+        }
+    } else {
+        batch_check_health(store)
+    };
+
     let profile_names: Vec<String> = summary
         .profiles
         .iter()
@@ -389,7 +457,13 @@ pub(crate) fn build_enriched_health_summary(
 
     let enriched_profiles: Vec<EnrichedProfileHealthReport> = raw_profiles
         .into_iter()
-        .map(|report| enrich_profile(report, &prefetch))
+        .map(|report| {
+            let mut row = enrich_profile(report, &prefetch);
+            if let Some(off) = offline_map.get(&row.core.name) {
+                row.offline_readiness = Some(OfflineReadinessBrief::from(off));
+            }
+            row
+        })
         .collect();
 
     // Persist health snapshots (fail-soft)
@@ -482,6 +556,53 @@ pub fn get_cached_health_snapshots(
         .collect())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CachedOfflineReadinessSnapshot {
+    pub profile_id: String,
+    pub profile_name: String,
+    pub readiness_state: String,
+    pub readiness_score: i64,
+    pub trainer_type: String,
+    pub trainer_present: i64,
+    pub trainer_hash_valid: i64,
+    pub trainer_activated: i64,
+    pub proton_available: i64,
+    pub community_tap_cached: i64,
+    pub network_required: i64,
+    pub blocking_reasons: Option<String>,
+    pub checked_at: String,
+}
+
+impl From<OfflineReadinessRow> for CachedOfflineReadinessSnapshot {
+    fn from(row: OfflineReadinessRow) -> Self {
+        CachedOfflineReadinessSnapshot {
+            profile_id: row.profile_id,
+            profile_name: row.profile_name,
+            readiness_state: row.readiness_state,
+            readiness_score: row.readiness_score,
+            trainer_type: row.trainer_type,
+            trainer_present: row.trainer_present,
+            trainer_hash_valid: row.trainer_hash_valid,
+            trainer_activated: row.trainer_activated,
+            proton_available: row.proton_available,
+            community_tap_cached: row.community_tap_cached,
+            network_required: row.network_required,
+            blocking_reasons: row.blocking_reasons,
+            checked_at: row.checked_at,
+        }
+    }
+}
+
+#[tauri::command]
+pub fn get_cached_offline_readiness_snapshots(
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<Vec<CachedOfflineReadinessSnapshot>, String> {
+    let rows = metadata_store
+        .load_offline_readiness_snapshot_rows()
+        .map_err(|e| e.to_string())?;
+    Ok(rows.into_iter().map(CachedOfflineReadinessSnapshot::from).collect())
+}
+
 /// Returns the health check result for a single named profile, enriched with
 /// MetadataStore data where available.
 ///
@@ -494,12 +615,28 @@ pub fn get_profile_health(
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<EnrichedProfileHealthReport, String> {
     let profile = store.load(&name).map_err(|e| e.to_string())?;
-    let report = check_profile_health(&name, &profile);
+    let mut report = check_profile_health(&name, &profile);
     if !metadata_store.is_available() {
         return Ok(EnrichedProfileHealthReport {
             core: sanitize_report(report),
             metadata: None,
+            offline_readiness: None,
         });
+    }
+
+    let mut offline_readiness: Option<OfflineReadinessBrief> = None;
+    if let Some(pid) = metadata_store.lookup_profile_id(&name).ok().flatten() {
+        if let Ok(Some(off)) = metadata_store.with_sqlite_conn("get_profile_health offline", |conn| {
+            crosshook_core::offline::enrich_health_report_with_offline(
+                conn,
+                &name,
+                &pid,
+                &profile,
+                &mut report,
+            )
+        }) {
+            offline_readiness = Some(OfflineReadinessBrief::from(&off));
+        }
     }
 
     let (failure_count_30d, _successes) = metadata_store
@@ -556,5 +693,6 @@ pub fn get_profile_health(
             current_build_id,
             trainer_version,
         )),
+        offline_readiness,
     })
 }

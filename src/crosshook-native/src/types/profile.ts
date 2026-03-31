@@ -67,6 +67,8 @@ export interface GameProfile {
   trainer: {
     path: string;
     type: string;
+    /** Catalog id (`standalone`, `aurora`, …); omitted in TOML when `unknown`. */
+    trainer_type?: string;
     loading_mode: TrainerLoadingMode;
   };
   injection: {

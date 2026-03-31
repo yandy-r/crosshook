@@ -45,6 +45,12 @@ pub struct CommunityTapSyncResult {
     pub status: CommunityTapSyncStatus,
     pub head_commit: String,
     pub index: CommunityProfileIndex,
+    /// True when git fetch failed but an existing local clone was used to build the index.
+    #[serde(default)]
+    pub from_cache: bool,
+    /// Last successful network sync (`community_tap_offline_state.last_sync_at`), if known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_sync_at: Option<String>,
 }
 
 #[derive(Debug)]
@@ -163,6 +169,14 @@ impl CommunityTapStore {
         Ok(results)
     }
 
+    /// Returns true when the tap's resolved workspace directory already exists on disk.
+    pub fn is_tap_available_offline(&self, subscription: &CommunityTapSubscription) -> bool {
+        match self.resolve_workspace(subscription) {
+            Ok(workspace) => workspace.local_path.exists(),
+            Err(_) => false,
+        }
+    }
+
     pub fn index_workspaces(
         &self,
         workspaces: &[CommunityTapWorkspace],
@@ -180,13 +194,24 @@ impl CommunityTapStore {
             source,
         })?;
 
+        let mut from_cache = false;
         let status = if workspace.local_path.exists() {
-            if workspace.subscription.pinned_commit.is_some() {
-                self.fetch_and_checkout_pinned(workspace)?;
+            let fetch_result = if workspace.subscription.pinned_commit.is_some() {
+                self.fetch_and_checkout_pinned(workspace)
             } else {
-                self.fetch_and_reset(workspace)?;
+                self.fetch_and_reset(workspace)
+            };
+            match fetch_result {
+                Ok(()) => CommunityTapSyncStatus::Updated,
+                Err(err) => {
+                    if workspace.local_path.exists() {
+                        from_cache = true;
+                        CommunityTapSyncStatus::Updated
+                    } else {
+                        return Err(err);
+                    }
+                }
             }
-            CommunityTapSyncStatus::Updated
         } else {
             self.clone_tap(workspace)?;
             if workspace.subscription.pinned_commit.is_some() {
@@ -203,6 +228,8 @@ impl CommunityTapStore {
             status,
             head_commit,
             index,
+            from_cache,
+            last_sync_at: None,
         })
     }
 
@@ -465,12 +492,44 @@ fn validate_tap_url(url: &str) -> Result<(), CommunityTapError> {
     }
 }
 
+fn git_security_env_pairs() -> [(&'static str, &'static str); 5] {
+    [
+        ("GIT_HTTP_LOW_SPEED_LIMIT", GIT_HTTP_LOW_SPEED_LIMIT),
+        ("GIT_HTTP_LOW_SPEED_TIME", GIT_HTTP_LOW_SPEED_TIME),
+        ("GIT_CONFIG_NOSYSTEM", "1"),
+        ("GIT_CONFIG_GLOBAL", "/dev/null"),
+        ("GIT_TERMINAL_PROMPT", "0"),
+    ]
+}
+
 fn git_command() -> Command {
     let mut command = Command::new("git");
+    for (key, value) in git_security_env_pairs() {
+        command.env(key, value);
+    }
     command
-        .env("GIT_HTTP_LOW_SPEED_LIMIT", GIT_HTTP_LOW_SPEED_LIMIT)
-        .env("GIT_HTTP_LOW_SPEED_TIME", GIT_HTTP_LOW_SPEED_TIME);
-    command
+}
+
+/// Best-effort total size of files under `path` (recursive).
+pub fn directory_size_bytes(path: &Path) -> u64 {
+    fn walk(dir: &Path) -> std::io::Result<u64> {
+        let mut sum = 0u64;
+        let Ok(read_dir) = fs::read_dir(dir) else {
+            return Ok(0);
+        };
+        for entry in read_dir.flatten() {
+            let Ok(meta) = entry.metadata() else {
+                continue;
+            };
+            if meta.is_dir() {
+                sum += walk(&entry.path()).unwrap_or(0);
+            } else {
+                sum += meta.len();
+            }
+        }
+        Ok(sum)
+    }
+    walk(path).unwrap_or(0)
 }
 
 fn slugify(value: &str) -> String {
@@ -660,6 +719,29 @@ mod tests {
         assert!(!is_valid_git_sha("")); // empty
         assert!(!is_valid_git_sha("abc123")); // 6 chars — one short of minimum
         assert!(!is_valid_git_sha(&"a".repeat(65))); // 65 chars — one over maximum
+    }
+
+    #[test]
+    fn git_security_env_pairs_include_config_isolation() {
+        let keys: Vec<_> = git_security_env_pairs()
+            .iter()
+            .map(|(k, _)| *k)
+            .collect();
+        assert!(keys.contains(&"GIT_CONFIG_NOSYSTEM"));
+        assert!(keys.contains(&"GIT_CONFIG_GLOBAL"));
+        assert!(keys.contains(&"GIT_TERMINAL_PROMPT"));
+    }
+
+    #[test]
+    fn is_tap_available_offline_false_when_workspace_missing() {
+        let temp_dir = tempdir().unwrap();
+        let store = CommunityTapStore::with_base_path(temp_dir.path().to_path_buf());
+        let subscription = CommunityTapSubscription {
+            url: "https://example.invalid/tap.git".to_string(),
+            branch: None,
+            pinned_commit: None,
+        };
+        assert!(!store.is_tap_available_offline(&subscription));
     }
 
     #[test]
