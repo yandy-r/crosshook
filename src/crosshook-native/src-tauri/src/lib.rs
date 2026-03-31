@@ -3,6 +3,7 @@ mod paths;
 mod startup;
 
 use crosshook_core::community::CommunityTapStore;
+use crosshook_core::launch::{initialize_catalog, load_catalog};
 use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
@@ -35,6 +36,11 @@ pub fn run() {
     });
     let metadata_for_startup = metadata_store.clone();
 
+    // Initialize the optimization catalog before any command handler runs.
+    // Merge order: embedded default → user override (~/.config/crosshook/optimization_catalog.toml).
+    let catalog = load_catalog(Some(&settings_store.base_path), &[]);
+    initialize_catalog(catalog);
+
     tauri::Builder::default()
         .setup({
             let profile_store = profile_store.clone();
@@ -54,6 +60,16 @@ pub fn run() {
                     startup::run_metadata_reconciliation(&metadata_for_startup, &profile_store)
                 {
                     tracing::warn!(%error, "startup metadata reconciliation failed");
+                }
+
+                {
+                    let catalog = crosshook_core::launch::global_catalog();
+                    if let Err(error) = metadata_for_startup.persist_optimization_catalog(
+                        &catalog.entries,
+                        catalog.catalog_version,
+                    ) {
+                        tracing::warn!(%error, "failed to persist optimization catalog to metadata db");
+                    }
                 }
 
                 if let Some(profile_name) = auto_load_profile_name {
@@ -229,6 +245,7 @@ pub fn run() {
             commands::onboarding::check_readiness,
             commands::onboarding::dismiss_onboarding,
             commands::onboarding::get_trainer_guidance,
+            commands::catalog::get_optimization_catalog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

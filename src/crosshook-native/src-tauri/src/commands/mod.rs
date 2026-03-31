@@ -1,3 +1,4 @@
+pub mod catalog;
 pub mod collections;
 pub mod community;
 pub mod diagnostics;

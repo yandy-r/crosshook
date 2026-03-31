@@ -13,12 +13,18 @@ import type {
   RecentFilesData,
 } from '../types';
 import {
-  LAUNCH_OPTIMIZATION_OPTIONS_BY_ID,
   getConflictingLaunchOptimizationIds,
   type LaunchOptimizationId,
   type LaunchOptimizations,
 } from '../types/launch-optimizations';
 import { resolveLaunchMethod, type ResolvedLaunchMethod } from '../utils/launch';
+import { useLaunchOptimizationCatalog } from './useLaunchOptimizationCatalog';
+import {
+  buildOptionsById,
+  buildConflictMatrix,
+  type OptimizationCatalogPayload,
+  type OptimizationEntry,
+} from '../utils/optimization-catalog';
 
 export interface PendingDelete {
   name: string;
@@ -85,6 +91,10 @@ export interface UseProfileResult {
   rollbackConfig: (profileName: string, revisionId: number) => Promise<ConfigRollbackResult>;
   /** Marks a stored revision as the last known-good config for the profile. */
   markKnownGood: (profileName: string, revisionId: number) => Promise<void>;
+  /** The runtime optimization catalog from the backend, or null while loading. */
+  catalog: OptimizationCatalogPayload | null;
+  /** True while the optimization catalog is being fetched from the backend. */
+  catalogLoading: boolean;
 }
 
 export interface UseProfileOptions {
@@ -164,17 +174,20 @@ function deriveLauncherDisplayName(profile: GameProfile): string {
 }
 
 function normalizeLaunchOptimizationIds(
-  ids: readonly string[] | undefined
+  ids: readonly string[] | undefined,
+  optionsById: Record<string, OptimizationEntry>,
 ): LaunchOptimizationId[] {
   if (ids === undefined) {
     return [];
   }
 
+  const catalogLoaded = Object.keys(optionsById).length > 0;
   const normalized: LaunchOptimizationId[] = [];
   const seenIds = new Set<LaunchOptimizationId>();
 
   for (const optionId of ids) {
-    if (!(optionId in LAUNCH_OPTIMIZATION_OPTIONS_BY_ID)) {
+    // When catalog is not yet loaded, pass IDs through without filtering (lenient mode).
+    if (catalogLoaded && !(optionId in optionsById)) {
       continue;
     }
 
@@ -197,22 +210,24 @@ type ApplyLaunchOptimizationToggleResult =
 function applyLaunchOptimizationToggle(
   current: GameProfile,
   optionId: LaunchOptimizationId,
-  nextEnabled: boolean
+  nextEnabled: boolean,
+  optionsById: Record<string, OptimizationEntry>,
+  conflictMatrix: Readonly<Record<string, readonly string[]>>,
 ): ApplyLaunchOptimizationToggleResult {
   const currentIds = current.launch.optimizations.enabled_option_ids;
   const conflictingIds = nextEnabled
-    ? getConflictingLaunchOptimizationIds(optionId, currentIds)
+    ? getConflictingLaunchOptimizationIds(optionId, currentIds, conflictMatrix)
     : [];
 
   if (conflictingIds.length > 0) {
     const conflictLabels = conflictingIds.map(
-      (conflictingId) => LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[conflictingId].label
+      (conflictingId) => optionsById[conflictingId]?.label ?? conflictingId
     );
     return { ok: false, conflictLabels };
   }
 
   const nextIds = nextEnabled
-    ? normalizeLaunchOptimizationIds([...currentIds, optionId])
+    ? normalizeLaunchOptimizationIds([...currentIds, optionId], optionsById)
     : currentIds.filter((currentOptionId) => currentOptionId !== optionId);
 
   const activeKey = (current.launch.active_preset ?? '').trim();
@@ -277,7 +292,10 @@ function buildLaunchOptimizationsStatus(
   };
 }
 
-function normalizeLaunchPresetsSection(profile: GameProfile): {
+function normalizeLaunchPresetsSection(
+  profile: GameProfile,
+  optionsById: Record<string, OptimizationEntry>,
+): {
   presets: Record<string, LaunchOptimizations>;
   active_preset: string;
 } {
@@ -290,7 +308,7 @@ function normalizeLaunchPresetsSection(profile: GameProfile): {
         continue;
       }
       presets[name] = {
-        enabled_option_ids: normalizeLaunchOptimizationIds(value?.enabled_option_ids),
+        enabled_option_ids: normalizeLaunchOptimizationIds(value?.enabled_option_ids, optionsById),
       };
     }
   }
@@ -298,16 +316,20 @@ function normalizeLaunchPresetsSection(profile: GameProfile): {
   return { presets, active_preset };
 }
 
-function normalizeProfileForEdit(profile: GameProfile): GameProfile {
+function normalizeProfileForEdit(
+  profile: GameProfile,
+  optionsById: Record<string, OptimizationEntry>,
+): GameProfile {
   const method = resolveLaunchMethod(profile);
   const runtime = profile.runtime ?? {
     prefix_path: '',
     proton_path: '',
     working_directory: '',
   };
-  const { presets, active_preset } = normalizeLaunchPresetsSection(profile);
+  const { presets, active_preset } = normalizeLaunchPresetsSection(profile, optionsById);
   let enabledOptionIds = normalizeLaunchOptimizationIds(
-    profile.launch.optimizations?.enabled_option_ids
+    profile.launch.optimizations?.enabled_option_ids,
+    optionsById,
   );
   if (active_preset && presets[active_preset]) {
     enabledOptionIds = presets[active_preset].enabled_option_ids;
@@ -346,8 +368,11 @@ function normalizeProfileForEdit(profile: GameProfile): GameProfile {
   };
 }
 
-function normalizeProfileForSave(profile: GameProfile): GameProfile {
-  const normalized = normalizeProfileForEdit(profile);
+function normalizeProfileForSave(
+  profile: GameProfile,
+  optionsById: Record<string, OptimizationEntry>,
+): GameProfile {
+  const normalized = normalizeProfileForEdit(profile, optionsById);
 
   return {
     ...normalized,
@@ -460,6 +485,16 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const onAfterRollbackRef = useRef(options.onAfterRollback);
   onAfterRollbackRef.current = options.onAfterRollback;
 
+  const { catalog, loading: catalogLoading } = useLaunchOptimizationCatalog();
+  const optionsById = useMemo(
+    () => (catalog ? buildOptionsById(catalog.entries) : {}),
+    [catalog]
+  );
+  const conflictMatrix = useMemo(
+    () => (catalog ? buildConflictMatrix(catalog.entries) : {}),
+    [catalog]
+  );
+
   /** Serializes launch-optimization disk IPC so autosave / flush / preset saves cannot clobber each other. */
   const launchProfileWriteChainRef = useRef<Promise<unknown>>(Promise.resolve());
   const enqueueLaunchProfileWrite = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
@@ -535,7 +570,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
       try {
         const loaded = await invoke<GameProfile>('profile_load', { name: trimmed });
-        const normalized = normalizeProfileForEdit(loaded);
+        const normalized = normalizeProfileForEdit(loaded, optionsById);
         setSelectedProfile(trimmed);
         setProfileName(trimmed);
         setProfile(normalized);
@@ -559,7 +594,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         setLoading(false);
       }
     },
-    [syncProfileMetadata]
+    [optionsById, syncProfileMetadata]
   );
 
   const refreshProfiles = useCallback(async () => {
@@ -629,7 +664,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         return;
       }
 
-      const normalizedProfile = normalizeProfileForEdit(nextProfile);
+      const normalizedProfile = normalizeProfileForEdit(nextProfile, optionsById);
 
       setSelectedProfile(profiles.includes(trimmedName) ? trimmedName : '');
       setProfileName(trimmedName);
@@ -639,7 +674,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setDirty(true);
       setError(null);
     },
-    [profiles]
+    [optionsById, profiles]
   );
 
   const updateProfile = useCallback((updater: (current: GameProfile) => GameProfile) => {
@@ -699,12 +734,12 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   const toggleLaunchOptimization = useCallback(
     (optionId: LaunchOptimizationId, nextEnabled: boolean) => {
-      const result = applyLaunchOptimizationToggle(profileRef.current, optionId, nextEnabled);
+      const result = applyLaunchOptimizationToggle(profileRef.current, optionId, nextEnabled, optionsById, conflictMatrix);
       if (!result.ok) {
         setLaunchOptimizationsStatus({
           tone: 'warning',
           label: 'Conflicting option blocked',
-          detail: `Disable ${result.conflictLabels.join(' or ')} before enabling ${LAUNCH_OPTIMIZATION_OPTIONS_BY_ID[optionId].label}.`,
+          detail: `Disable ${result.conflictLabels.join(' or ')} before enabling ${optionsById[optionId]?.label ?? optionId}.`,
         });
         return;
       }
@@ -712,7 +747,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setProfile(result.profile);
       setDirty((currentDirty) => currentDirty || !hasExistingSavedProfile);
     },
-    [hasExistingSavedProfile]
+    [conflictMatrix, hasExistingSavedProfile, optionsById]
   );
 
   const switchLaunchOptimizationPreset = useCallback(
@@ -772,7 +807,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       // currently ignores enabled_option_ids when switch_active_preset is set, but the payload
       // should still match the target preset. We reuse this snapshot after IPC instead of
       // profileRef.current, which may not reflect disk if state moves elsewhere.
-      const targetPresetIds = normalizeLaunchOptimizationIds(targetSection.enabled_option_ids);
+      const targetPresetIds = normalizeLaunchOptimizationIds(targetSection.enabled_option_ids, optionsById);
 
       setError(null);
       pendingLaunchPresetRef.current = key;
@@ -835,6 +870,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       enqueueLaunchProfileWrite,
       flushPendingLaunchOptimizationsSave,
       hasExistingSavedProfile,
+      optionsById,
       profileName,
     ]
   );
@@ -877,7 +913,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
             presetId: pid,
           })
         );
-        const normalized = normalizeProfileForEdit(updated);
+        const normalized = normalizeProfileForEdit(updated, optionsById);
         setProfile(normalized);
         lastSavedLaunchOptimizationIdsRef.current = normalized.launch.optimizations.enabled_option_ids;
         setLaunchOptimizationsStatus({
@@ -901,6 +937,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       enqueueLaunchProfileWrite,
       flushPendingLaunchOptimizationsSave,
       hasExistingSavedProfile,
+      optionsById,
       profileName,
     ]
   );
@@ -951,7 +988,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       }
 
       launchOptimizationsAutosaveTimerRef.current = null;
-      const ids = normalizeLaunchOptimizationIds(profileRef.current.launch.optimizations.enabled_option_ids);
+      const ids = normalizeLaunchOptimizationIds(profileRef.current.launch.optimizations.enabled_option_ids, optionsById);
       setOptimizationPresetActionBusy(true);
       setError(null);
 
@@ -963,7 +1000,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
             enabledOptionIds: ids,
           })
         );
-        const normalized = normalizeProfileForEdit(updated);
+        const normalized = normalizeProfileForEdit(updated, optionsById);
         setProfile(normalized);
         lastSavedLaunchOptimizationIdsRef.current = normalized.launch.optimizations.enabled_option_ids;
         setLaunchOptimizationsStatus({
@@ -988,6 +1025,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       enqueueLaunchProfileWrite,
       flushPendingLaunchOptimizationsSave,
       hasExistingSavedProfile,
+      optionsById,
       profileName,
     ]
   );
@@ -1011,7 +1049,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setError(null);
 
       try {
-        const normalizedProfile = normalizeProfileForSave(draftProfile);
+        const normalizedProfile = normalizeProfileForSave(draftProfile, optionsById);
         await invoke('profile_save', { name: trimmedName, data: normalizedProfile });
         lastSavedLaunchOptimizationIdsRef.current =
           normalizedProfile.launch.optimizations.enabled_option_ids;
@@ -1027,7 +1065,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         setSaving(false);
       }
     },
-    [loadProfile, refreshProfiles, syncProfileMetadata]
+    [loadProfile, optionsById, refreshProfiles, syncProfileMetadata]
   );
 
   const saveProfile = useCallback(async () => {
@@ -1401,5 +1439,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     fetchConfigDiff,
     rollbackConfig,
     markKnownGood,
+    catalog,
+    catalogLoading,
   };
 }

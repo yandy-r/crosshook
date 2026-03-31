@@ -8,6 +8,7 @@ mod launch_history;
 mod launcher_sync;
 mod migrations;
 mod models;
+mod optimization_catalog_store;
 mod preset_store;
 pub mod profile_sync;
 mod version_store;
@@ -989,6 +990,20 @@ impl MetadataStore {
                 source_bundled_preset_id,
                 &now,
             )
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Optimization catalog persistence
+    // -------------------------------------------------------------------------
+
+    pub fn persist_optimization_catalog(
+        &self,
+        entries: &[crate::launch::catalog::OptimizationEntry],
+        catalog_version: u32,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("persist optimization catalog", |conn| {
+            optimization_catalog_store::persist_optimization_catalog(conn, entries, catalog_version)
         })
     }
 }
