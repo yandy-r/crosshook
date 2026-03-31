@@ -27,6 +27,13 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
    13. [Pinned Profiles](#pinned-profiles)
    14. [Health Dashboard](#health-dashboard)
    15. [Diagnostic Export](#diagnostic-export)
+   16. [Using the CLI](#using-the-cli)
+       1. [Check system status](#check-system-status)
+       2. [Manage profiles](#manage-profiles)
+       3. [Steam discovery](#steam-discovery)
+       4. [Launch a game](#launch-a-game)
+       5. [Generate shell completions](#generate-shell-completions)
+       6. [Export diagnostics](#export-diagnostics)
    16. [Troubleshooting](#troubleshooting)
    17. [Related Guides](#related-guides)
 
@@ -242,6 +249,67 @@ Access the Health Dashboard from the main navigation tabs.
 ## Diagnostic Export
 
 If you run into issues, CrossHook can generate a diagnostic bundle containing system information, application state, and relevant logs. Use this when reporting bugs or troubleshooting launch problems. The export is available from the Settings panel.
+
+## Using the CLI
+
+CrossHook includes a standalone CLI binary (`crosshook`) for headless operation, scripting, and automation. All commands support `--json` for machine-readable output and `--verbose` for diagnostic detail.
+
+### Check system status
+
+```bash
+crosshook status
+crosshook status --json
+```
+
+### Manage profiles
+
+```bash
+# List all saved profiles
+crosshook profile list
+
+# Import a legacy .profile file
+crosshook profile import --legacy-path ~/.config/crosshook-old/elden-ring.profile
+
+# Export a profile as a portable community JSON file
+crosshook profile export --profile elden-ring
+crosshook profile export --profile elden-ring --output /tmp/elden-ring.json
+```
+
+### Steam discovery
+
+```bash
+# Scan for Steam installations, libraries, and Proton versions
+crosshook steam discover
+
+# Auto-populate Steam metadata from a game executable
+crosshook steam auto-populate --game-path /mnt/games/SteamLibrary/steamapps/common/ELDEN\ RING/Game/eldenring.exe
+```
+
+### Launch a game
+
+```bash
+# Launch using a saved profile
+crosshook launch --profile elden-ring
+
+# Preview what would be launched without executing
+crosshook launch --profile elden-ring --dry-run
+crosshook launch --profile elden-ring --dry-run --json
+```
+
+### Generate shell completions
+
+```bash
+# Generate completions for your shell (bash, zsh, fish, powershell)
+crosshook completions zsh > ~/.zfunc/_crosshook
+crosshook completions bash > /etc/bash_completion.d/crosshook
+```
+
+### Export diagnostics
+
+```bash
+crosshook diagnostics export
+crosshook diagnostics export --redact-paths --output /tmp/diag
+```
 
 ## Troubleshooting
 

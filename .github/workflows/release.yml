@@ -102,10 +102,24 @@ jobs:
           DIST_DIR: ${{ github.workspace }}/dist
         run: ./scripts/build-native.sh
 
+      - name: Build CLI binary
+        env:
+          CARGO_TARGET_DIR: src/crosshook-native/target
+        run: cargo build --manifest-path src/crosshook-native/Cargo.toml --release -p crosshook-cli
+
+      - name: Package CLI binary
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          tar -czf "dist/crosshook_${version}_linux_amd64.tar.gz" \
+            -C src/crosshook-native/target/release crosshook
+
       - name: Select release AppImage asset
         run: |
           set -euo pipefail
           echo "RELEASE_APPIMAGE=dist/CrossHook_${GITHUB_REF_NAME#v}_amd64.AppImage" >> "$GITHUB_ENV"
+          echo "RELEASE_CLI=dist/crosshook_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz" >> "$GITHUB_ENV"
 
       - name: Generate release body from changelog
         run: ./scripts/render-release-notes.sh "${GITHUB_REF_NAME}" > release-body.md
@@ -119,7 +133,9 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body_path: release-body.md
-          files: ${{ env.RELEASE_APPIMAGE }}
+          files: |
+            ${{ env.RELEASE_APPIMAGE }}
+            ${{ env.RELEASE_CLI }}
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
