@@ -33,3 +33,7 @@ tasks/todo.md
 # Internal Planning Docs
 docs/plans/
 docs/internal/
+docs/**/tmp*
+docs/**/.cache/
+docs/**/.DS_Store
+docs/**/Thumbs.db
