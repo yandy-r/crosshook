@@ -67,6 +67,7 @@ function normalizeProfile(profile: GameProfile): GameProfile {
       optimizations: {
         enabled_option_ids: profile.launch?.optimizations?.enabled_option_ids ?? [],
       },
+      custom_env_vars: { ...(profile.launch?.custom_env_vars ?? {}) },
     },
     local_override: profile.local_override ?? {
       game: { executable_path: '' },
@@ -119,10 +120,11 @@ function buildLaunchRequest(profile: GameProfile, steamClientInstallPath: string
       working_directory: profile.runtime.working_directory,
     },
     optimizations: {
-      enabled_option_ids: method === 'proton_run' ? profile.launch.optimizations.enabled_option_ids : [],
+      enabled_option_ids: [...profile.launch.optimizations.enabled_option_ids],
     },
     launch_game_only: false,
     launch_trainer_only: false,
+    custom_env_vars: { ...profile.launch.custom_env_vars },
   };
 }
 

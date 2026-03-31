@@ -16,6 +16,7 @@ import { InstallField } from './ui/InstallField';
 import { ThemedSelect } from './ui/ThemedSelect';
 import { ProtonPathField } from './ui/ProtonPathField';
 import AutoPopulate from './AutoPopulate';
+import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useProfileContext } from '../context/ProfileContext';
 import { usePreferencesContext } from '../context/PreferencesContext';
@@ -430,6 +431,13 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                   ]}
                 />
               </div>
+
+              <CustomEnvironmentVariablesSection
+                profileName={profileName}
+                customEnvVars={profile.launch.custom_env_vars}
+                onUpdateProfile={updateProfile}
+                idPrefix="onboarding-wizard"
+              />
             </section>
           )}
 

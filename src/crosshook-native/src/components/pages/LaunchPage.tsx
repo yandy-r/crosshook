@@ -100,6 +100,7 @@ export function LaunchPage() {
           <CollapsibleSection title="Steam Launch Options" className="crosshook-panel">
             <SteamLaunchOptionsPanel
               enabledOptionIds={profile.launch.optimizations.enabled_option_ids}
+              customEnvVars={profile.launch.custom_env_vars}
             />
           </CollapsibleSection>
         ) : null}

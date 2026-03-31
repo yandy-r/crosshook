@@ -230,6 +230,7 @@ fn steam_launch_request_from_profile(
         launch_trainer_only: false,
         launch_game_only: true,
         profile_name: None,
+        custom_env_vars: profile.launch.custom_env_vars.clone(),
     })
 }
 

@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
@@ -41,9 +42,31 @@ pub fn apply_launch_optimization_environment(
     command: &mut Command,
     env_pairs: &[(String, String)],
 ) {
+    apply_env_pairs(command, env_pairs);
+}
+
+/// Applies `KEY=value` pairs to the command environment (last write wins per key).
+pub fn apply_env_pairs(command: &mut Command, env_pairs: &[(String, String)]) {
     for (key, value) in env_pairs {
         set_env(command, key, value);
     }
+}
+
+/// Applies profile `custom_env_vars` after optimizations so custom values win on duplicate keys.
+pub fn apply_custom_env_vars(command: &mut Command, custom: &BTreeMap<String, String>) {
+    for (key, value) in custom {
+        set_env(command, key, value);
+    }
+}
+
+/// Applies launch optimization env, then custom env (custom overrides on key conflict).
+pub fn apply_optimization_and_custom_environment(
+    command: &mut Command,
+    optimization_env: &[(String, String)],
+    custom_env_vars: &BTreeMap<String, String>,
+) {
+    apply_launch_optimization_environment(command, optimization_env);
+    apply_custom_env_vars(command, custom_env_vars);
 }
 
 pub fn apply_host_environment(command: &mut Command) {

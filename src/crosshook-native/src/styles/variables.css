@@ -62,6 +62,11 @@
   --crosshook-console-drawer-handle-height: 40px;
   --crosshook-resize-handle-thickness: 14px;
   --crosshook-grid-gap: 20px;
+  --crosshook-custom-env-rows-gap: 12px;
+  --crosshook-custom-env-row-gap: 8px;
+  --crosshook-custom-env-fields-gap: 10px;
+  --crosshook-custom-env-fields-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  --crosshook-custom-env-add-margin-top: 12px;
   --crosshook-page-padding: 32px;
   --crosshook-transition-fast: 140ms;
   --crosshook-transition-standard: 220ms;

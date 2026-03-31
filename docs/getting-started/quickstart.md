@@ -6,28 +6,36 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
 
 ## Table of Contents
 
-- [Supported environments](#supported-environments)
-- [What you need](#what-you-need)
-- [Install CrossHook](#install-crosshook)
-- [First launch](#first-launch)
-- [Create a profile](#create-a-profile)
-- [Launch a game with a trainer](#launch-a-game-with-a-trainer)
-- [Launch modes](#launch-modes)
-- [External launcher export](#external-launcher-export)
-- [Community profiles](#community-profiles)
-- [Pinned profiles](#pinned-profiles)
-- [Health dashboard](#health-dashboard)
-- [Diagnostic export](#diagnostic-export)
-- [Dry run / preview mode](#dry-run--preview-mode)
-- [Troubleshooting](#troubleshooting)
-- [Related guides](#related-guides)
+1. [CrossHook Quickstart](#crosshook-quickstart)
+   1. [Table of Contents](#table-of-contents)
+   2. [Supported Environments](#supported-environments)
+   3. [What You Need](#what-you-need)
+   4. [Install CrossHook](#install-crosshook)
+      1. [Linux Desktop](#linux-desktop)
+      2. [Steam Deck](#steam-deck)
+   5. [First Launch](#first-launch)
+   6. [Create a Profile](#create-a-profile)
+   7. [Custom environment variables](#custom-environment-variables)
+   8. [Launch a Game with a Trainer](#launch-a-game-with-a-trainer)
+   9. [Dry Run / Preview Mode](#dry-run--preview-mode)
+   10. [Launch Modes](#launch-modes)
+       1. [Steam App Launch (`steam_applaunch`)](#steam-app-launch-steam_applaunch)
+       2. [Proton Run (`proton_run`)](#proton-run-proton_run)
+       3. [Native (`native`)](#native-native)
+   11. [External Launcher Export](#external-launcher-export)
+   12. [Community Profiles](#community-profiles)
+   13. [Pinned Profiles](#pinned-profiles)
+   14. [Health Dashboard](#health-dashboard)
+   15. [Diagnostic Export](#diagnostic-export)
+   16. [Troubleshooting](#troubleshooting)
+   17. [Related Guides](#related-guides)
 
 ## Supported Environments
 
-| Environment | How CrossHook runs | Best use case |
-| --- | --- | --- |
-| Linux Desktop | Run the AppImage directly | Desktop Linux users with Steam/Proton games |
-| Steam Deck | Run the AppImage in Desktop Mode | SteamOS users running trainers alongside Steam games |
+| Environment   | How CrossHook runs               | Best use case                                        |
+| ------------- | -------------------------------- | ---------------------------------------------------- |
+| Linux Desktop | Run the AppImage directly        | Desktop Linux users with Steam/Proton games          |
+| Steam Deck    | Run the AppImage in Desktop Mode | SteamOS users running trainers alongside Steam games |
 
 ## What You Need
 
@@ -43,13 +51,17 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
 
 1. Download the latest AppImage from the [GitHub Releases page](https://github.com/yandy-r/crosshook/releases).
 2. Make the AppImage executable:
+
    ```bash
    chmod +x CrossHook-*.AppImage
    ```
+
 3. Run it:
+
    ```bash
    ./CrossHook-*.AppImage
    ```
+
 4. Optionally, move the AppImage to a permanent location such as `~/Applications/` and add it to your application launcher.
 
 ### Steam Deck
@@ -57,10 +69,13 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
 1. Switch to Desktop Mode.
 2. Download the latest AppImage from the GitHub Releases page using the built-in browser.
 3. Open a terminal (Konsole) and make the AppImage executable:
+
    ```bash
    chmod +x ~/Downloads/CrossHook-*.AppImage
    ```
+
 4. Run the AppImage directly from Desktop Mode:
+
    ```bash
    ~/Downloads/CrossHook-*.AppImage
    ```
@@ -112,6 +127,23 @@ method = "steam_applaunch"
 
 When a profile uses `proton_run`, the Profile editor also shows a `Launch Optimizations` panel in the right column. The panel is limited to `proton_run` profiles, and each visible option has an info tooltip that explains what it does, when it helps, and the main caveat. Existing saved profiles autosave only the optimization section, while new unsaved profiles show `Save profile first to enable autosave` until you save them once.
 
+## Custom environment variables
+
+In the Profile editor and in the **Profile Setup Wizard** (New Profile / Edit in Wizard on the Profiles page), **Custom Environment Variables** lets you add arbitrary `KEY=value` pairs that CrossHook applies when building launches.
+
+**Precedence**
+
+- For **Steam App Launch** and **Proton Run**, effective environment is built as: base/method and optimization-derived variables first, then your custom map. If the same key appears in both **Launch Optimizations** and **Custom Environment Variables**, the **custom** value wins.
+- For **Native** launches, CrossHook starts from the host environment and applies your custom map on top (there are no launch optimizations in that mode).
+
+**Steam App Launch:** CrossHook does not write into Steam. Custom variables are included in the **Steam launch options** copy/paste line (after optimization env assignments, before wrappers), consistent with [Dry run / preview mode](#dry-run--preview-mode).
+
+**Reserved keys:** You cannot override runtime-managed variables through custom env. CrossHook rejects `WINEPREFIX`, `STEAM_COMPAT_DATA_PATH`, and `STEAM_COMPAT_CLIENT_INSTALL_PATH` so prefix and Steam paths stay under CrossHook’s control.
+
+**Syntax rules:** Keys must be non-empty, must not contain `=`, and neither keys nor values may contain NUL bytes. Duplicate keys are avoided by the editor shape; invalid entries are surfaced in validation.
+
+**Troubleshooting:** If a variable does not appear to take effect, use dry run and check the environment list — entries sourced from the profile show as **Profile custom**. For Steam games, confirm you pasted an updated launch options line after changing custom vars. For more Steam-specific detail, see the [Steam / Proton feature guide](../features/steam-proton-trainer-launch.doc.md#custom-environment-variables).
+
 ## Launch a Game with a Trainer
 
 CrossHook uses a two-step launch flow for Steam/Proton games:
@@ -125,7 +157,7 @@ The console view in CrossHook streams the runner output in real-time so you can 
 
 ## Dry Run / Preview Mode
 
-Before launching, you can preview exactly what commands CrossHook will execute. Use the dry run option to see the full command line, environment variables, and launch sequence without starting any processes. This is useful for debugging launch configurations or verifying that paths are correct.
+Before launching, you can preview exactly what commands CrossHook will execute. Use the dry run option to see the full command line, environment variables, and launch sequence without starting any processes. This is useful for debugging launch configurations or verifying that paths are correct. The environment list is merged the same way as a real launch (including [custom environment variables](#custom-environment-variables)), and shows which values come from **Profile custom** versus optimizations.
 
 ## Launch Modes
 
