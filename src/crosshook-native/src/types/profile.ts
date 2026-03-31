@@ -48,6 +48,30 @@ export const DEFAULT_GAMESCOPE_CONFIG: GamescopeConfig = {
   extra_args: [],
 };
 
+export type MangoHudPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center';
+
+export interface MangoHudConfig {
+  enabled: boolean;
+  fps_limit?: number;
+  gpu_stats: boolean;
+  cpu_stats: boolean;
+  ram: boolean;
+  frametime: boolean;
+  battery: boolean;
+  watt: boolean;
+  position?: MangoHudPosition;
+}
+
+export const DEFAULT_MANGOHUD_CONFIG: MangoHudConfig = {
+  enabled: false,
+  gpu_stats: false,
+  cpu_stats: false,
+  ram: false,
+  frametime: false,
+  battery: false,
+  watt: false,
+};
+
 /** IPC DTO from `profile_list_bundled_optimization_presets`. */
 export interface BundledOptimizationPreset {
   preset_id: string;
@@ -99,6 +123,7 @@ export interface GameProfile {
     active_preset?: string;
     custom_env_vars: Record<string, string>;
     gamescope?: GamescopeConfig;
+    mangohud?: MangoHudConfig;
   };
   local_override?: {
     game: {

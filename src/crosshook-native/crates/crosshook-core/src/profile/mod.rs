@@ -19,13 +19,14 @@ pub use models::{
     resolve_launch_method, GameProfile, GameSection, GamescopeConfig, GamescopeFilter,
     InjectionSection, LaunchOptimizationsSection, LaunchSection, LauncherSection, LegacyProfileData,
     LocalOverrideGameSection, LocalOverrideRuntimeSection, LocalOverrideSection,
-    LocalOverrideSteamSection, LocalOverrideTrainerSection, RuntimeSection, SteamSection,
-    TrainerLoadingMode, TrainerSection,
+    LocalOverrideSteamSection, LocalOverrideTrainerSection, MangoHudConfig, MangoHudPosition,
+    RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
 };
 pub use toml_store::{
     bundled_optimization_preset_toml_key, profile_to_shareable_toml, DuplicateProfileResult,
     ProfileStore, ProfileStoreError,
 };
+pub mod mangohud;
 pub mod health;
 pub use health::{
     HealthCheckSummary, HealthIssue, HealthIssueSeverity, HealthStatus, ProfileHealthReport,

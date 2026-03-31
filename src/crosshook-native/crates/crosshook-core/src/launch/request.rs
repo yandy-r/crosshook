@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use super::optimizations::{
     is_command_available, resolve_launch_directives, resolve_launch_directives_for_method,
 };
-use crate::profile::{GamescopeConfig, TrainerLoadingMode};
+use crate::profile::{GamescopeConfig, MangoHudConfig, TrainerLoadingMode};
 
 pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
 pub const METHOD_PROTON_RUN: &str = "proton_run";
@@ -48,6 +48,8 @@ pub struct LaunchRequest {
     pub custom_env_vars: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
     pub gamescope: GamescopeConfig,
+    #[serde(default, skip_serializing_if = "MangoHudConfig::is_default")]
+    pub mangohud: MangoHudConfig,
 }
 
 pub type SteamLaunchRequest = LaunchRequest;
