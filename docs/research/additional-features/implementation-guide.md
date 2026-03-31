@@ -134,7 +134,7 @@ _Goal: CrossHook is usable headlessly, scriptable, and automatable._
 
 | Order | Issue                                       | Status | Rationale                                                                                               |
 | :---: | ------------------------------------------- | :----: | ------------------------------------------------------------------------------------------------------- |
-|  16   | **#43** -- CLI completion                   |        | Pure wiring to `crosshook-core`. Unlocks scripted usage, automation, Steam Deck console mode.           |
+|  16   | **#43** -- CLI completion                   |  Done  | Pure wiring to `crosshook-core`. Unlocks scripted usage, automation, Steam Deck console mode.           |
 |  17   | **#44** -- Offline-first trainer management |        | With CLI complete, ensure all workflows function without network. Critical for Steam Deck portable use. |
 
 **Dependencies**: #43 is standalone wiring work. #44 is a cross-cutting concern that should be validated after CLI exists.
