@@ -197,6 +197,19 @@ src/crosshook-native/
 - Before calling an MCP tool, read its schema or descriptor so parameters, auth, and side effects match what you intend.
 - If a server is not enabled, not authenticated, or a better path exists (for example this repo’s `gh` / script conventions in **GitHub Workflow**), use that path and do not treat MCP absence as a blocker.
 
+### Research & Plan Requirements
+
+When researching or planning for a project feature, the following requirements must be met:
+
+- Must be feature complete
+- No defferred work
+- Must be testable
+- Must be maintainable
+- Must be documented
+- Must follow data driven design principles
+- Must be modular
+- Must be reusable
+
 ## GitHub Workflow
 
 ### Issue Templates
