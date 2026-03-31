@@ -4,7 +4,8 @@ use serde::Serialize;
 
 use super::env::WINE_ENV_VARS_TO_CLEAR;
 use super::optimizations::{
-    build_steam_launch_options_command, resolve_launch_directives, LaunchDirectives,
+    build_steam_launch_options_command, resolve_launch_directives,
+    resolve_launch_directives_for_method, LaunchDirectives,
 };
 use super::request::{
     validate_all, LaunchRequest, LaunchValidationIssue, METHOD_NATIVE, METHOD_PROTON_RUN,
@@ -27,6 +28,8 @@ pub enum EnvVarSource {
     Host,
     /// Steam-specific Proton vars for steam_applaunch
     SteamProton,
+    /// Profile `launch.custom_env_vars` (wins over launch optimizations on key conflict)
+    ProfileCustom,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -256,11 +259,23 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     let validation_issues = validate_all(request);
 
     // Resolve launch directives (wrappers + optimization env).
+    // `steam_applaunch` uses the same optimization catalog as `proton_run` for Steam Launch Options,
+    // without going through `resolve_launch_directives` (which is proton_run-only on the request).
     // This can fail independently of validation (e.g., missing wrapper binary).
-    // On failure, capture the error and continue with partial results.
-    let (directives, mut directives_error) = match resolve_launch_directives(request) {
-        Ok(d) => (Some(d), None),
-        Err(e) => (None, Some(e.to_string())),
+    let (directives, mut directives_error) = match request.resolved_method() {
+        METHOD_STEAM_APPLAUNCH => {
+            match resolve_launch_directives_for_method(
+                &request.optimizations.enabled_option_ids,
+                METHOD_PROTON_RUN,
+            ) {
+                Ok(d) => (Some(d), None),
+                Err(e) => (None, Some(e.to_string())),
+            }
+        }
+        _ => match resolve_launch_directives(request) {
+            Ok(d) => (Some(d), None),
+            Err(e) => (None, Some(e.to_string())),
+        },
     };
 
     // Environment and command depend on successful directive resolution.
@@ -271,12 +286,15 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
             match resolved_method {
                 ResolvedLaunchMethod::SteamApplaunch => {
                     collect_steam_proton_environment(request, &mut env);
+                    merge_optimization_and_custom_preview_env(request, directives, &mut env);
                 }
                 ResolvedLaunchMethod::ProtonRun => {
                     collect_runtime_proton_environment(request, &mut env);
-                    collect_optimization_environment(directives, &mut env);
+                    merge_optimization_and_custom_preview_env(request, directives, &mut env);
                 }
-                ResolvedLaunchMethod::Native => {}
+                ResolvedLaunchMethod::Native => {
+                    merge_custom_preview_env_only(request, &mut env);
+                }
             }
             let effective_command =
                 match build_effective_command_string(request, resolved_method, directives) {
@@ -295,9 +313,13 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
         None => (None, None, None),
     };
 
-    // Steam launch options (for copy/paste)
+    // Steam launch options (for copy/paste); may still be computed when directive resolution failed
+    // so errors surface consistently with the standalone Steam options panel.
     let steam_launch_options = if resolved_method == ResolvedLaunchMethod::SteamApplaunch {
-        match build_steam_launch_options_command(&request.optimizations.enabled_option_ids) {
+        match build_steam_launch_options_command(
+            &request.optimizations.enabled_option_ids,
+            &request.custom_env_vars,
+        ) {
             Ok(command) => Some(command),
             Err(error) => {
                 append_preview_error(&mut directives_error, error.to_string());
@@ -434,13 +456,34 @@ fn collect_steam_proton_environment(request: &LaunchRequest, env: &mut Vec<Previ
     });
 }
 
-/// Maps resolved launch directive environment pairs to preview env vars.
-fn collect_optimization_environment(directives: &LaunchDirectives, env: &mut Vec<PreviewEnvVar>) {
+fn merge_optimization_and_custom_preview_env(
+    request: &LaunchRequest,
+    directives: &LaunchDirectives,
+    env: &mut Vec<PreviewEnvVar>,
+) {
     for (key, value) in &directives.env {
+        upsert_preview_env(env, key, value, EnvVarSource::LaunchOptimization);
+    }
+    for (key, value) in &request.custom_env_vars {
+        upsert_preview_env(env, key, value, EnvVarSource::ProfileCustom);
+    }
+}
+
+fn merge_custom_preview_env_only(request: &LaunchRequest, env: &mut Vec<PreviewEnvVar>) {
+    for (key, value) in &request.custom_env_vars {
+        upsert_preview_env(env, key, value, EnvVarSource::ProfileCustom);
+    }
+}
+
+fn upsert_preview_env(env: &mut Vec<PreviewEnvVar>, key: &str, value: &str, source: EnvVarSource) {
+    if let Some(existing) = env.iter_mut().find(|e| e.key == key) {
+        existing.value = value.to_string();
+        existing.source = source;
+    } else {
         env.push(PreviewEnvVar {
-            key: key.clone(),
-            value: value.clone(),
-            source: EnvVarSource::LaunchOptimization,
+            key: key.to_string(),
+            value: value.to_string(),
+            source,
         });
     }
 }
@@ -462,10 +505,11 @@ fn build_effective_command_string(
             parts.push(request.game_path.trim().to_string());
             Ok(parts.join(" "))
         }
-        ResolvedLaunchMethod::SteamApplaunch => {
-            build_steam_launch_options_command(&request.optimizations.enabled_option_ids)
-                .map_err(|error| error.to_string())
-        }
+        ResolvedLaunchMethod::SteamApplaunch => build_steam_launch_options_command(
+            &request.optimizations.enabled_option_ids,
+            &request.custom_env_vars,
+        )
+        .map_err(|error| error.to_string()),
         ResolvedLaunchMethod::Native => Ok(request.game_path.trim().to_string()),
     }
 }
@@ -684,6 +728,7 @@ mod tests {
                 launch_trainer_only: false,
                 launch_game_only: false,
                 profile_name: None,
+                ..Default::default()
             },
         )
     }
@@ -969,5 +1014,68 @@ mod tests {
             "expected directives_error to mention the missing wrapper, got {:?}",
             preview.directives_error
         );
+    }
+
+    #[test]
+    fn preview_proton_dxvk_custom_matches_runtime_command_env() {
+        use std::collections::BTreeMap;
+
+        let (_td, mut request) = proton_request();
+        request.optimizations.enabled_option_ids = vec!["enable_dxvk_async".to_string()];
+        request.custom_env_vars = BTreeMap::from([("DXVK_ASYNC".to_string(), "0".to_string())]);
+
+        let preview = build_launch_preview(&request).expect("preview");
+        let log_path = _td.path().join("parity.log");
+        let command =
+            crate::launch::script_runner::build_proton_game_command(&request, &log_path)
+                .expect("command");
+
+        let dxvk = preview
+            .environment
+            .as_ref()
+            .expect("environment")
+            .iter()
+            .find(|v| v.key == "DXVK_ASYNC")
+            .expect("DXVK_ASYNC in preview");
+        assert_eq!(dxvk.value, "0");
+        assert_eq!(dxvk.source, EnvVarSource::ProfileCustom);
+
+        let cmd_val = command
+            .as_std()
+            .get_envs()
+            .find_map(|(k, v)| {
+                (k == std::ffi::OsStr::new("DXVK_ASYNC"))
+                    .then(|| v.map(|x| x.to_string_lossy().into_owned()))
+            })
+            .flatten();
+        assert_eq!(cmd_val.as_deref(), Some("0"));
+    }
+
+    #[test]
+    fn preview_steam_launch_options_string_matches_core_builder_with_custom_merge() {
+        use std::collections::BTreeMap;
+
+        let (_td, mut request) = steam_request();
+        request.optimizations.enabled_option_ids = vec!["enable_dxvk_async".to_string()];
+        request.custom_env_vars = BTreeMap::from([("DXVK_ASYNC".to_string(), "0".to_string())]);
+
+        let preview = build_launch_preview(&request).expect("preview");
+        let expected = build_steam_launch_options_command(
+            &request.optimizations.enabled_option_ids,
+            &request.custom_env_vars,
+        )
+        .expect("steam line");
+
+        assert_eq!(preview.steam_launch_options.as_deref(), Some(expected.as_str()));
+
+        let dxvk = preview
+            .environment
+            .as_ref()
+            .expect("environment")
+            .iter()
+            .find(|v| v.key == "DXVK_ASYNC")
+            .expect("DXVK_ASYNC");
+        assert_eq!(dxvk.value, "0");
+        assert_eq!(dxvk.source, EnvVarSource::ProfileCustom);
     }
 }

@@ -38,12 +38,12 @@ export function buildProfileLaunchRequest(
       working_directory: profile.runtime.working_directory,
     },
     optimizations: {
-      enabled_option_ids:
-        launchMethod === 'proton_run' ? profile.launch.optimizations.enabled_option_ids : [],
+      enabled_option_ids: [...profile.launch.optimizations.enabled_option_ids],
     },
     launch_trainer_only: false,
     launch_game_only: false,
     profile_name: profileName || undefined,
+    custom_env_vars: { ...profile.launch.custom_env_vars },
   };
 }
 

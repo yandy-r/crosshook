@@ -1,19 +1,33 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
 import { copyToClipboard } from '../utils/clipboard';
 
 export interface SteamLaunchOptionsPanelProps {
   enabledOptionIds: readonly LaunchOptimizationId[];
+  /** Profile `launch.custom_env_vars` — merged into the Steam launch options prefix after optimizations. */
+  customEnvVars?: Readonly<Record<string, string>>;
   className?: string;
 }
 
-export function SteamLaunchOptionsPanel({ enabledOptionIds, className }: SteamLaunchOptionsPanelProps) {
+export function SteamLaunchOptionsPanel({
+  enabledOptionIds,
+  customEnvVars,
+  className,
+}: SteamLaunchOptionsPanelProps) {
   const titleId = useId();
   const [command, setCommand] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copyLabel, setCopyLabel] = useState('Copy');
+
+  const serializedCustomEnv = JSON.stringify(customEnvVars ?? null);
+  const stableCustomEnv = useMemo<Readonly<Record<string, string>>>(() => {
+    if (customEnvVars == null) {
+      return {};
+    }
+    return { ...customEnvVars };
+  }, [serializedCustomEnv]);
 
   useEffect(() => {
     let cancelled = false;
@@ -26,6 +40,7 @@ export function SteamLaunchOptionsPanel({ enabledOptionIds, className }: SteamLa
       try {
         const line = await invoke<string>('build_steam_launch_options_command', {
           enabledOptionIds: ids,
+          customEnvVars: { ...stableCustomEnv },
         });
         if (!cancelled) {
           setCommand(line);
@@ -46,7 +61,7 @@ export function SteamLaunchOptionsPanel({ enabledOptionIds, className }: SteamLa
     return () => {
       cancelled = true;
     };
-  }, [enabledOptionIds]);
+  }, [enabledOptionIds, serializedCustomEnv, stableCustomEnv]);
 
   async function handleCopy() {
     if (!command.trim()) {

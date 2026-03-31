@@ -171,6 +171,9 @@ pub struct LaunchSection {
     /// When set and present in `presets`, `optimizations` is kept in sync with that entry.
     #[serde(rename = "active_preset", default, skip_serializing_if = "String::is_empty")]
     pub active_preset: String,
+    /// User-defined environment variables applied at launch (merged after optimizations).
+    #[serde(rename = "custom_env_vars", default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub custom_env_vars: BTreeMap<String, String>,
 }
 
 impl LaunchSection {
@@ -582,5 +585,32 @@ mod tests {
             parsed.launch.optimizations.enabled_option_ids,
             vec!["use_gamemode".to_string()]
         );
+    }
+
+    #[test]
+    fn custom_env_vars_empty_omitted_from_toml_and_roundtrips() {
+        let profile = sample_profile();
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(
+            !serialized.contains("custom_env_vars"),
+            "expected empty map skipped: {serialized}"
+        );
+        let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+        assert!(parsed.launch.custom_env_vars.is_empty());
+    }
+
+    #[test]
+    fn custom_env_vars_nonempty_toml_roundtrip() {
+        use std::collections::BTreeMap;
+
+        let mut profile = sample_profile();
+        profile.launch.custom_env_vars = BTreeMap::from([
+            ("DXVK_ASYNC".to_string(), "1".to_string()),
+            ("MANGOHUD".to_string(), "1".to_string()),
+        ]);
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(serialized.contains("custom_env_vars"));
+        let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+        assert_eq!(parsed.launch.custom_env_vars, profile.launch.custom_env_vars);
     }
 }

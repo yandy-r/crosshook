@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 use std::fs;
@@ -5,7 +6,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use super::optimizations::resolve_launch_directives;
+use super::optimizations::{resolve_launch_directives, resolve_launch_directives_for_method};
 use crate::profile::TrainerLoadingMode;
 
 pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
@@ -36,6 +37,8 @@ pub struct LaunchRequest {
     pub launch_game_only: bool,
     #[serde(default)]
     pub profile_name: Option<String>,
+    #[serde(rename = "custom_env_vars", default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub custom_env_vars: BTreeMap<String, String>,
 }
 
 pub type SteamLaunchRequest = LaunchRequest;
@@ -198,6 +201,16 @@ pub enum ValidationError {
     NativeWindowsExecutableNotSupported,
     NativeTrainerLaunchUnsupported,
     UnsupportedMethod(String),
+    /// Custom env key is empty or only whitespace.
+    CustomEnvVarKeyEmpty,
+    /// Custom env key contains `=`, which is invalid for environment variable names.
+    CustomEnvVarKeyContainsEquals,
+    /// Custom env key contains a NUL byte.
+    CustomEnvVarKeyContainsNul,
+    /// Custom env value contains a NUL byte.
+    CustomEnvVarValueContainsNul,
+    /// Custom env must not override runtime-reserved keys.
+    CustomEnvVarReservedKey(String),
 }
 
 impl ValidationError {
@@ -291,6 +304,23 @@ impl ValidationError {
             Self::UnsupportedMethod(method) => {
                 format!(
                     "Unsupported launch method '{method}'. Use steam_applaunch, proton_run, or native."
+                )
+            }
+            Self::CustomEnvVarKeyEmpty => {
+                "A custom environment variable key cannot be empty.".to_string()
+            }
+            Self::CustomEnvVarKeyContainsEquals => {
+                "Custom environment variable keys cannot contain '='.".to_string()
+            }
+            Self::CustomEnvVarKeyContainsNul => {
+                "Custom environment variable keys cannot contain NUL bytes.".to_string()
+            }
+            Self::CustomEnvVarValueContainsNul => {
+                "Custom environment variable values cannot contain NUL bytes.".to_string()
+            }
+            Self::CustomEnvVarReservedKey(key) => {
+                format!(
+                    "The environment variable '{key}' is reserved and cannot be set via custom env vars."
                 )
             }
         }
@@ -425,6 +455,26 @@ impl ValidationError {
                 "Change the profile launch method to 'steam_applaunch', 'proton_run', or 'native'."
                     .to_string()
             }
+            Self::CustomEnvVarKeyEmpty => {
+                "Remove the empty entry or enter a valid variable name in Profile custom environment variables."
+                    .to_string()
+            }
+            Self::CustomEnvVarKeyContainsEquals => {
+                "Edit the key so it is a single token without '='; use separate keys for each assignment."
+                    .to_string()
+            }
+            Self::CustomEnvVarKeyContainsNul => {
+                "Remove NUL characters from the key; paste plain text only."
+                    .to_string()
+            }
+            Self::CustomEnvVarValueContainsNul => {
+                "Remove NUL characters from the value; paste plain text only."
+                    .to_string()
+            }
+            Self::CustomEnvVarReservedKey(_) => {
+                "Remove this key from custom env vars; CrossHook sets WINEPREFIX and Steam compat paths from your profile at launch."
+                    .to_string()
+            }
         }
     }
 
@@ -441,6 +491,54 @@ impl fmt::Display for ValidationError {
 
 impl Error for ValidationError {}
 
+/// Keys the user may not override via `custom_env_vars` (runtime-managed).
+const RESERVED_CUSTOM_ENV_KEYS: &[&str] = &[
+    "WINEPREFIX",
+    "STEAM_COMPAT_DATA_PATH",
+    "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+];
+
+/// Validates one custom env entry and returns the canonical **trimmed** key for emission paths.
+fn validate_custom_env_entry(key: &str, value: &str) -> Result<String, ValidationError> {
+    let trimmed_key = key.trim();
+    if trimmed_key.is_empty() {
+        return Err(ValidationError::CustomEnvVarKeyEmpty);
+    }
+    if key.contains('=') {
+        return Err(ValidationError::CustomEnvVarKeyContainsEquals);
+    }
+    if key.contains('\0') {
+        return Err(ValidationError::CustomEnvVarKeyContainsNul);
+    }
+    if value.contains('\0') {
+        return Err(ValidationError::CustomEnvVarValueContainsNul);
+    }
+    if RESERVED_CUSTOM_ENV_KEYS
+        .iter()
+        .any(|reserved| *reserved == trimmed_key)
+    {
+        return Err(ValidationError::CustomEnvVarReservedKey(
+            trimmed_key.to_string(),
+        ));
+    }
+    Ok(trimmed_key.to_string())
+}
+
+fn validate_custom_env(request: &LaunchRequest) -> Result<(), ValidationError> {
+    for (key, value) in &request.custom_env_vars {
+        validate_custom_env_entry(key, value)?;
+    }
+    Ok(())
+}
+
+fn collect_custom_env_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidationIssue>) {
+    for (key, value) in &request.custom_env_vars {
+        if let Err(err) = validate_custom_env_entry(key, value) {
+            issues.push(err.issue());
+        }
+    }
+}
+
 pub fn validate_all(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
     let method_trimmed = request.method.trim();
     if !method_trimmed.is_empty()
@@ -452,6 +550,7 @@ pub fn validate_all(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
     }
 
     let mut issues = Vec::new();
+    collect_custom_env_issues(request, &mut issues);
     match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => collect_steam_issues(request, &mut issues),
         METHOD_PROTON_RUN => collect_proton_issues(request, &mut issues),
@@ -466,6 +565,8 @@ pub fn validate(request: &LaunchRequest) -> Result<(), ValidationError> {
         "" | METHOD_STEAM_APPLAUNCH | METHOD_PROTON_RUN | METHOD_NATIVE => {}
         value => return Err(ValidationError::UnsupportedMethod(value.to_string())),
     }
+
+    validate_custom_env(request)?;
 
     match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => validate_steam_applaunch(request),
@@ -501,7 +602,12 @@ fn validate_steam_applaunch(request: &LaunchRequest) -> Result<(), ValidationErr
         return Err(ValidationError::SteamClientInstallPathRequired);
     }
 
-    reject_launch_optimizations_for_method(request, METHOD_STEAM_APPLAUNCH)?;
+    // Align with `build_steam_launch_options_command`: steam_applaunch uses the same optimization
+    // IDs as `proton_run` for the Launch Options prefix (unknown IDs, conflicts, PATH deps).
+    resolve_launch_directives_for_method(
+        &request.optimizations.enabled_option_ids,
+        METHOD_PROTON_RUN,
+    )?;
 
     Ok(())
 }
@@ -579,7 +685,10 @@ fn collect_steam_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidati
         issues.push(ValidationError::SteamClientInstallPathRequired.issue());
     }
 
-    if let Err(e) = reject_launch_optimizations_for_method(request, METHOD_STEAM_APPLAUNCH) {
+    if let Err(e) = resolve_launch_directives_for_method(
+        &request.optimizations.enabled_option_ids,
+        METHOD_PROTON_RUN,
+    ) {
         issues.push(e.issue());
     }
 }
@@ -764,6 +873,8 @@ fn looks_like_windows_executable(path: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
 
     struct RequestFixture {
@@ -840,6 +951,7 @@ mod tests {
                 launch_trainer_only: false,
                 launch_game_only: false,
                 profile_name: None,
+                ..Default::default()
             },
         )
     }
@@ -871,6 +983,33 @@ mod tests {
     fn validates_steam_applaunch_request() {
         let (_temp_dir, request) = steam_request();
         assert_eq!(validate(&request), Ok(()));
+    }
+
+    #[test]
+    fn steam_applaunch_rejects_unknown_launch_optimization() {
+        let (_temp_dir, mut request) = steam_request();
+        request.optimizations.enabled_option_ids = vec!["unknown_toggle".to_string()];
+
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::UnknownLaunchOptimization(
+                "unknown_toggle".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn steam_applaunch_validate_all_collects_launch_optimization_issue() {
+        let (_temp_dir, mut request) = steam_request();
+        request.optimizations.enabled_option_ids = vec!["unknown_toggle".to_string()];
+
+        let issues = validate_all(&request);
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.message.contains("unknown_toggle")),
+            "expected optimization issue in: {issues:?}"
+        );
     }
 
     #[test]
@@ -1116,5 +1255,80 @@ mod tests {
             messages.iter().any(|m| m.contains("unknown_toggle")),
             "expected directive error issue in: {messages:?}"
         );
+    }
+
+    #[test]
+    fn proton_run_validates_with_custom_env_vars() {
+        let (_temp_dir, mut request) = proton_request();
+        request
+            .custom_env_vars
+            .insert("DXVK_ASYNC".to_string(), "1".to_string());
+        assert_eq!(validate(&request), Ok(()));
+        assert!(validate_all(&request).is_empty());
+    }
+
+    #[test]
+    fn validate_rejects_reserved_custom_env_key() {
+        let (_temp_dir, mut request) = proton_request();
+        request
+            .custom_env_vars
+            .insert("WINEPREFIX".to_string(), "/tmp/evil".to_string());
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::CustomEnvVarReservedKey("WINEPREFIX".to_string()))
+        );
+    }
+
+    #[test]
+    fn validate_rejects_custom_env_key_with_equals() {
+        let (_temp_dir, mut request) = proton_request();
+        request
+            .custom_env_vars
+            .insert("A=B".to_string(), "1".to_string());
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::CustomEnvVarKeyContainsEquals)
+        );
+    }
+
+    #[test]
+    fn validate_rejects_whitespace_only_custom_env_key() {
+        let (_temp_dir, mut request) = proton_request();
+        request
+            .custom_env_vars
+            .insert("   ".to_string(), "1".to_string());
+        assert_eq!(validate(&request), Err(ValidationError::CustomEnvVarKeyEmpty));
+    }
+
+    #[test]
+    fn validate_rejects_nul_in_custom_env_key_and_value() {
+        let (_temp_dir, mut request) = proton_request();
+        request
+            .custom_env_vars
+            .insert("A\0B".to_string(), "1".to_string());
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::CustomEnvVarKeyContainsNul)
+        );
+
+        let (_temp_dir, mut request) = proton_request();
+        request
+            .custom_env_vars
+            .insert("FOO".to_string(), "bar\0baz".to_string());
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::CustomEnvVarValueContainsNul)
+        );
+    }
+
+    #[test]
+    fn validate_all_collects_multiple_custom_env_issues() {
+        let (_temp_dir, mut request) = steam_request();
+        request.custom_env_vars = BTreeMap::from([
+            ("WINEPREFIX".to_string(), "1".to_string()),
+            ("BAD=KEY".to_string(), "1".to_string()),
+        ]);
+        let issues = validate_all(&request);
+        assert_eq!(issues.len(), 2);
     }
 }

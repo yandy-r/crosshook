@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -40,12 +41,15 @@ pub fn preview_launch(request: LaunchRequest) -> Result<LaunchPreview, String> {
     build_launch_preview(&request).map_err(|error| error.to_string())
 }
 
-/// Builds a Steam per-game “Launch Options” line from the same optimization IDs as `proton_run`.
+/// Builds a Steam per-game “Launch Options” line from the same optimization IDs as `proton_run`,
+/// plus profile custom env vars (custom wins on duplicate keys in the prefix).
 #[tauri::command]
 pub fn build_steam_launch_options_command(
     enabled_option_ids: Vec<String>,
+    custom_env_vars: BTreeMap<String, String>,
 ) -> Result<String, String> {
-    build_steam_launch_options_command_core(&enabled_option_ids).map_err(|error| error.to_string())
+    build_steam_launch_options_command_core(&enabled_option_ids, &custom_env_vars)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

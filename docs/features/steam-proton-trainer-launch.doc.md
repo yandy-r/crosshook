@@ -10,6 +10,7 @@ This guide covers the three launch methods, auto-discovery, launcher export, and
 
 - [Overview](#overview)
 - [Launch methods](#launch-methods)
+- [Custom environment variables](#custom-environment-variables)
 - [Auto-populate and Steam discovery](#auto-populate-and-steam-discovery)
 - [Workflow in CrossHook](#workflow-in-crosshook)
 - [Launcher export](#launcher-export)
@@ -48,7 +49,7 @@ This is the primary mode for Steam-managed games. The workflow has two phases:
 1. **Game launch**: CrossHook runs `steam -applaunch <appid>` to start the game. Steam initializes DRM, the Steam overlay, and the correct Proton runtime.
 2. **Trainer launch**: Once the game process is detected, CrossHook launches the trainer through Proton with a clean environment. By default, it runs the trainer from its original host directory so stateful bundles such as Aurora keep one shared install. When needed, you can switch the profile to `Copy into prefix`, which stages the trainer into `pfx/drive_c/CrossHook/StagedTrainers/` before launch.
 
-**Steam Launch Options (optional):** For the same curated toggles as direct Proton launches, use the **Steam launch options** panel in the main view. CrossHook does not write into Steam; copy the generated single line into the game’s **Properties → General → Launch Options** in the Steam client. The line uses the same env vars and wrapper order as `proton_run` (for example `PROTON_*=1` assignments, then `mangohud` / `gamemoderun` / `game-performance` when enabled) and always ends with `%command%`.
+**Steam Launch Options (optional):** For the same curated toggles as direct Proton launches, use the **Steam launch options** panel in the main view. CrossHook does not write into Steam; copy the generated single line into the game’s **Properties → General → Launch Options** in the Steam client. The line uses the same env vars and wrapper order as `proton_run` (for example `PROTON_*=1` assignments, then `mangohud` / `gamemoderun` / `game-performance` when enabled) and always ends with `%command%`. If the profile defines **custom environment variables**, their `KEY=value` tokens are merged on the same line after optimization env assignments and before wrappers, so a custom value wins when a key overlaps an optimization.
 
 Required profile fields:
 
@@ -105,6 +106,12 @@ The **Launch Optimizations** panel appears in the right column for `proton_run` 
 - Saved profiles autosave this section after a short debounce; new profiles show a save-first warning until they are written once.
 - Advanced and community-documented entries stay visually separated. Wrapper-based toggles require the matching binaries on `PATH`; the Steam line generator surfaces a clear error if a dependency is missing.
 
+## Custom environment variables
+
+Per-profile custom env vars are edited in the Profile panel alongside launch settings. They apply after **Launch Optimizations** on the same key, so user-defined values override optimization-derived ones. For **`steam_applaunch`**, they appear in the generated Steam Launch Options string (not applied automatically to `steam -applaunch` — you must paste/update the line in Steam). **`proton_run`** applies them directly to CrossHook-built `proton run` commands.
+
+CrossHook blocks custom overrides for `WINEPREFIX`, `STEAM_COMPAT_DATA_PATH`, and `STEAM_COMPAT_CLIENT_INSTALL_PATH`. For precedence, syntax, and preview behavior, see the [quickstart § Custom environment variables](../getting-started/quickstart.md#custom-environment-variables).
+
 ## Dry Run / Preview Mode
 
 CrossHook supports a dry run mode that shows exactly what commands, environment variables, and launch sequence will be used -- without starting any processes. This is useful for:
@@ -113,7 +120,7 @@ CrossHook supports a dry run mode that shows exactly what commands, environment 
 - Debugging launch configurations that fail silently.
 - Sharing your launch configuration with others for troubleshooting.
 
-The dry run output includes the full `proton run` command line, all exported environment variables, and the trainer staging steps (if applicable).
+The dry run output includes the full `proton run` command line, all exported environment variables (including merged **Profile custom** entries), and the trainer staging steps (if applicable).
 
 ## Auto-Populate and Steam Discovery
 
@@ -223,11 +230,11 @@ CrossHook tracks the state of exported launcher files and provides tools for del
 
 After you export a launcher, CrossHook monitors the generated files and reports one of four statuses:
 
-| Status           | Meaning                                                                                                  |
-| ---------------- | -------------------------------------------------------------------------------------------------------- |
-| **Exported**     | Both the `.sh` script and `.desktop` entry exist and match the current profile                           |
-| **Not Exported** | Neither file exists yet -- the profile has not been exported                                             |
-| **Partial**      | Only one of the two files exists (the other was deleted externally or failed to write)                   |
+| Status           | Meaning                                                                                                                          |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Exported**     | Both the `.sh` script and `.desktop` entry exist and match the current profile                                                   |
+| **Not Exported** | Neither file exists yet -- the profile has not been exported                                                                     |
+| **Partial**      | Only one of the two files exists (the other was deleted externally or failed to write)                                           |
 | **Stale**        | The files exist but their content no longer matches the current profile (e.g., the display name or trainer loading mode changed) |
 
 The status badge appears in the Launcher Export panel. When a launcher is stale, CrossHook displays a notification with a **Re-export Launcher** button so you can regenerate the files with the updated profile data.

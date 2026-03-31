@@ -7,7 +7,7 @@ use tokio::process::Command;
 use super::{
     resolve_launch_directives,
     runtime_helpers::{
-        apply_host_environment, apply_launch_optimization_environment,
+        apply_custom_env_vars, apply_host_environment, apply_optimization_and_custom_environment,
         apply_runtime_proton_environment, apply_working_directory, attach_log_stdio,
         new_direct_proton_command_with_wrappers, resolve_wine_prefix_path,
     },
@@ -42,6 +42,7 @@ pub fn build_helper_command(
     let mut command = build_base_command(script_path);
     apply_host_environment(&mut command);
     apply_steam_proton_environment(&mut command, request);
+    apply_custom_env_vars(&mut command, &request.custom_env_vars);
     command.args(helper_arguments(request, log_path));
     command
 }
@@ -54,6 +55,7 @@ pub fn build_trainer_command(
     let mut command = build_base_command(script_path);
     apply_host_environment(&mut command);
     apply_steam_proton_environment(&mut command, request);
+    apply_custom_env_vars(&mut command, &request.custom_env_vars);
     command.args(trainer_arguments(request, log_path));
     command
 }
@@ -74,7 +76,11 @@ pub fn build_proton_game_command(
         request.runtime.prefix_path.trim(),
         request.steam.steam_client_install_path.trim(),
     );
-    apply_launch_optimization_environment(&mut command, &directives.env);
+    apply_optimization_and_custom_environment(
+        &mut command,
+        &directives.env,
+        &request.custom_env_vars,
+    );
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -108,7 +114,11 @@ pub fn build_proton_trainer_command(
         request.runtime.prefix_path.trim(),
         request.steam.steam_client_install_path.trim(),
     );
-    apply_launch_optimization_environment(&mut command, &directives.env);
+    apply_optimization_and_custom_environment(
+        &mut command,
+        &directives.env,
+        &request.custom_env_vars,
+    );
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -125,6 +135,7 @@ pub fn build_native_game_command(
     let mut command = Command::new(request.game_path.trim());
     command.env_clear();
     apply_host_environment(&mut command);
+    apply_custom_env_vars(&mut command, &request.custom_env_vars);
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -340,6 +351,8 @@ fn validation_error_to_io_error(error: ValidationError) -> std::io::Error {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
 
     fn write_executable_file(path: &Path) {
@@ -373,6 +386,7 @@ mod tests {
             launch_trainer_only: false,
             launch_game_only: true,
             profile_name: None,
+            ..Default::default()
         }
     }
 
@@ -436,6 +450,7 @@ mod tests {
             launch_trainer_only: false,
             launch_game_only: true,
             profile_name: None,
+            ..Default::default()
         };
 
         let command = build_proton_game_command(&request, &log_path).expect("game command");
@@ -474,6 +489,85 @@ mod tests {
         assert_eq!(
             command_env_value(&command, "WINEPREFIX"),
             Some(prefix_path.to_string_lossy().into_owned())
+        );
+    }
+
+    #[test]
+    fn proton_game_custom_env_overrides_duplicate_optimization_key() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let prefix_path = temp_dir.path().join("prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let game_path = temp_dir.path().join("game.exe");
+        let log_path = temp_dir.path().join("game.log");
+        let steam_client_path = temp_dir.path().join("steam-client");
+        let workspace_dir = prefix_path.join("workspace");
+
+        fs::create_dir_all(&prefix_path).expect("prefix dir");
+        fs::create_dir_all(&workspace_dir).expect("workspace dir");
+        fs::create_dir_all(&steam_client_path).expect("steam client dir");
+        write_executable_file(&proton_path);
+        fs::write(&game_path, b"game").expect("game exe");
+
+        let _command_search_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: game_path.to_string_lossy().into_owned(),
+            trainer_path: String::new(),
+            trainer_host_path: String::new(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            steam: crate::launch::SteamLaunchConfig {
+                app_id: String::new(),
+                compatdata_path: String::new(),
+                proton_path: String::new(),
+                steam_client_install_path: steam_client_path.to_string_lossy().into_owned(),
+            },
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: workspace_dir.to_string_lossy().into_owned(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest {
+                enabled_option_ids: vec!["enable_dxvk_async".to_string()],
+            },
+            custom_env_vars: BTreeMap::from([("DXVK_ASYNC".to_string(), "0".to_string())]),
+            launch_trainer_only: false,
+            launch_game_only: true,
+            profile_name: None,
+            ..Default::default()
+        };
+
+        let command = build_proton_game_command(&request, &log_path).expect("game command");
+        assert_eq!(command_env_value(&command, "DXVK_ASYNC"), Some("0".to_string()));
+    }
+
+    #[test]
+    fn native_game_command_applies_custom_env_vars() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let game_path = temp_dir.path().join("run.sh");
+        write_executable_file(&game_path);
+        let log_path = temp_dir.path().join("native.log");
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_NATIVE.to_string(),
+            game_path: game_path.to_string_lossy().into_owned(),
+            trainer_path: String::new(),
+            trainer_host_path: String::new(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            steam: crate::launch::SteamLaunchConfig::default(),
+            runtime: crate::launch::RuntimeLaunchConfig::default(),
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+            custom_env_vars: BTreeMap::from([("NATIVE_TEST_VAR".to_string(), "hello".to_string())]),
+            launch_trainer_only: false,
+            launch_game_only: true,
+            profile_name: None,
+            ..Default::default()
+        };
+
+        let command = build_native_game_command(&request, &log_path).expect("native command");
+        assert_eq!(
+            command_env_value(&command, "NATIVE_TEST_VAR"),
+            Some("hello".to_string())
         );
     }
 
@@ -533,6 +627,7 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            ..Default::default()
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
@@ -661,6 +756,7 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            ..Default::default()
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
@@ -719,6 +815,7 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            ..Default::default()
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
@@ -782,6 +879,7 @@ mod tests {
             launch_trainer_only: false,
             launch_game_only: true,
             profile_name: None,
+            ..Default::default()
         };
 
         let command = build_proton_game_command(&request, &log_path).expect("game command");
@@ -844,6 +942,7 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            ..Default::default()
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
