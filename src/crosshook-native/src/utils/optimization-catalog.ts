@@ -51,13 +51,37 @@ export function buildOptionsById(
   return map;
 }
 
-/** Build a conflict matrix: for each entry id, the list of ids it conflicts with. */
+/** Build a conflict matrix: for each entry id, the list of ids it conflicts with.
+ *
+ * Declared `conflicts_with` edges are normalized to be bidirectional so the UI
+ * and toggle logic stay consistent when the catalog lists a conflict on only one side.
+ */
 export function buildConflictMatrix(
   entries: readonly OptimizationEntry[]
 ): Record<string, readonly string[]> {
-  const matrix: Record<string, readonly string[]> = {};
+  const knownIds = new Set(entries.map((e) => e.id));
+  const mutable: Record<string, Set<string>> = {};
+  for (const id of knownIds) {
+    mutable[id] = new Set();
+  }
+
   for (const entry of entries) {
-    matrix[entry.id] = entry.conflicts_with;
+    const from = entry.id;
+    for (const to of entry.conflicts_with ?? []) {
+      if (to === from) {
+        continue;
+      }
+      mutable[from]?.add(to);
+      if (knownIds.has(to)) {
+        mutable[to]?.add(from);
+      }
+    }
+  }
+
+  const matrix: Record<string, readonly string[]> = {};
+  for (const id of knownIds) {
+    const list = Array.from(mutable[id] ?? []).sort();
+    matrix[id] = Object.freeze(list);
   }
   return matrix;
 }

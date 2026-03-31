@@ -86,8 +86,12 @@ function groupOptions(options: readonly OptimizationEntry[]): GroupedOptions[] {
   })).filter((group) => group.options.length > 0);
 }
 
-function getConflictLabels(option: OptimizationEntry, optionsById: Record<string, OptimizationEntry>): string[] {
-  return (option.conflicts_with ?? [])
+function getConflictLabels(
+  option: OptimizationEntry,
+  optionsById: Record<string, OptimizationEntry>,
+  conflictMatrix: Record<string, readonly string[]>
+): string[] {
+  return (conflictMatrix[option.id] ?? [])
     .map((conflictId) => optionsById[conflictId])
     .map((conflictOption) => conflictOption?.label)
     .filter((label): label is string => Boolean(label));
@@ -200,7 +204,7 @@ function OptionGroup(props: {
             !isBlockedByConflict;
           const checkboxId = `${tooltipIdPrefix}-${option.id}`;
           const tooltipIdValue = `${tooltipIdPrefix}-${option.id}-tooltip`;
-          const conflictLabels = getConflictLabels(option, optionsById);
+          const conflictLabels = getConflictLabels(option, optionsById, conflictMatrix);
 
           return (
             <div
