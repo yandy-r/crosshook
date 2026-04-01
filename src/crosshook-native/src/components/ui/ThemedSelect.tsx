@@ -30,6 +30,7 @@ interface ThemedSelectProps {
   placeholder?: string;
   id?: string;
   className?: string;
+  ariaLabelledby?: string;
 }
 
 function SelectItemNode({
@@ -85,6 +86,7 @@ export function ThemedSelect({
   placeholder = 'Select\u2026',
   id,
   className,
+  ariaLabelledby,
 }: ThemedSelectProps) {
   const allOptions = groups && groups.length > 0 ? groups.flatMap((g) => g.options) : (options ?? []);
   const radixValue = toRadix(value);
@@ -92,7 +94,11 @@ export function ThemedSelect({
 
   return (
     <Select.Root value={hasValue ? radixValue : undefined} onValueChange={(v) => onValueChange(fromRadix(v))}>
-      <Select.Trigger id={id} className={`crosshook-themed-select__trigger ${className ?? ''}`.trim()}>
+      <Select.Trigger
+        id={id}
+        aria-labelledby={ariaLabelledby}
+        className={`crosshook-themed-select__trigger ${className ?? ''}`.trim()}
+      >
         <Select.Value placeholder={placeholder} />
         <Select.Icon className="crosshook-themed-select__icon">
           <ChevronIcon />

@@ -16,7 +16,7 @@ pub struct SettingsStore {
     pub base_path: PathBuf,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 #[serde(default)]
 pub struct AppSettingsData {
     pub auto_load_last_profile: bool,
@@ -24,6 +24,27 @@ pub struct AppSettingsData {
     pub community_taps: Vec<CommunityTapSubscription>,
     pub onboarding_completed: bool,
     pub offline_mode: bool,
+    pub steamgriddb_api_key: Option<String>,
+}
+
+impl fmt::Debug for AppSettingsData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AppSettingsData")
+            .field("auto_load_last_profile", &self.auto_load_last_profile)
+            .field("last_used_profile", &self.last_used_profile)
+            .field("community_taps", &self.community_taps)
+            .field("onboarding_completed", &self.onboarding_completed)
+            .field("offline_mode", &self.offline_mode)
+            .field(
+                "steamgriddb_api_key",
+                &self
+                    .steamgriddb_api_key
+                    .as_ref()
+                    .map(|_| "<redacted>")
+                    .unwrap_or("<none>"),
+            )
+            .finish()
+    }
 }
 
 #[derive(Debug)]
@@ -139,6 +160,7 @@ mod tests {
             }],
             onboarding_completed: true,
             offline_mode: false,
+            steamgriddb_api_key: None,
         };
 
         store.save(&settings).unwrap();
@@ -202,6 +224,7 @@ mod tests {
                 community_taps: Vec::new(),
                 onboarding_completed: false,
                 offline_mode: false,
+                steamgriddb_api_key: None,
             },
         );
     }

@@ -128,10 +128,25 @@ textarea {
     color var(--crosshook-transition-standard) ease;
 }
 
-.crosshook-subtab--active {
+.crosshook-subtab--active,
+.crosshook-subtab[data-state='active'] {
   border-color: rgba(0, 120, 212, 0.45);
   background: linear-gradient(135deg, var(--crosshook-color-accent) 0%, var(--crosshook-color-accent-strong) 100%);
   color: #fff;
+}
+
+.crosshook-subtab-content {
+  outline: none;
+}
+
+.crosshook-subtab-content__inner {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.crosshook-subtab-content__inner--wide-gap {
+  gap: 16px;
 }
 
 .crosshook-panel,
@@ -899,7 +914,8 @@ textarea {
 }
 
 .crosshook-community-rating-badge,
-.crosshook-compatibility-badge {
+.crosshook-compatibility-badge,
+.crosshook-offline-badge {
   min-height: 32px;
   display: inline-flex;
   align-items: center;
@@ -2434,9 +2450,21 @@ textarea {
   flex-wrap: wrap;
 }
 
+.crosshook-launch-panel__action-block {
+  display: grid;
+  gap: 6px;
+  min-width: min(100%, 280px);
+}
+
 .crosshook-launch-panel__action {
   min-height: var(--crosshook-launch-panel-action-min-height);
   padding: 0 var(--crosshook-launch-panel-action-padding-inline);
+}
+
+.crosshook-launch-panel__action-guidance {
+  color: #9fb1c8;
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
 .crosshook-launch-panel__action:disabled {
@@ -4069,4 +4097,216 @@ textarea {
   border: 1px solid rgba(40, 199, 111, 0.25);
   color: var(--crosshook-color-success);
   font-size: 0.875rem;
+}
+
+/* ── Cover Art ── */
+
+.crosshook-profile-cover-art {
+  aspect-ratio: var(--crosshook-profile-cover-art-aspect);
+  border-radius: var(--crosshook-radius-md);
+  overflow: hidden;
+  object-fit: cover;
+  width: 100%;
+}
+
+.crosshook-profile-cover-art--hidden {
+  display: none;
+}
+
+/* ── Skeleton Loading (shimmer) ── */
+
+@keyframes crosshook-skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.crosshook-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--crosshook-skeleton-color-from) 25%,
+    var(--crosshook-skeleton-color-to) 50%,
+    var(--crosshook-skeleton-color-from) 75%
+  );
+  background-size: 200% 100%;
+  animation: crosshook-skeleton-shimmer var(--crosshook-skeleton-duration) ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-skeleton {
+    animation: none;
+  }
+}
+
+/* ── Game Metadata Bar ── */
+
+.crosshook-game-metadata-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.crosshook-game-metadata-bar__genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.crosshook-game-metadata-bar__genre {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  line-height: 1.6;
+}
+
+.crosshook-game-metadata-bar__genre--stale {
+  color: rgba(255, 255, 255, 0.3);
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Profile Hero Banner ── */
+
+.crosshook-profile-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--crosshook-radius-md) var(--crosshook-radius-md) 0 0;
+  min-height: 120px;
+}
+
+.crosshook-profile-hero__art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  filter: brightness(0.45) saturate(1.2);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.crosshook-profile-hero__gradient {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(18, 23, 42, 0.4) 40%,
+    rgba(18, 23, 42, 0.85) 75%,
+    var(--crosshook-color-surface) 100%
+  );
+}
+
+.crosshook-profile-hero__content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 32px var(--crosshook-panel-padding) 0;
+  min-height: 120px;
+}
+
+.crosshook-profile-hero__skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Game-themed tab row ── */
+
+.crosshook-subtab-row--themed {
+  --_tab-game-r: var(--crosshook-game-color-r, 0);
+  --_tab-game-g: var(--crosshook-game-color-g, 120);
+  --_tab-game-b: var(--crosshook-game-color-b, 212);
+
+  position: relative;
+  z-index: 2;
+  margin-top: 0;
+  border-top: 1px solid rgba(var(--_tab-game-r), var(--_tab-game-g), var(--_tab-game-b), 0.2);
+  background: linear-gradient(
+    180deg,
+    rgba(var(--_tab-game-r), var(--_tab-game-g), var(--_tab-game-b), 0.12) 0%,
+    rgba(var(--_tab-game-r), var(--_tab-game-g), var(--_tab-game-b), 0.03) 100%
+  );
+}
+
+.crosshook-subtab-row--themed .crosshook-subtab--active,
+.crosshook-subtab-row--themed .crosshook-subtab[data-state='active'] {
+  border-color: rgba(var(--_tab-game-r), var(--_tab-game-g), var(--_tab-game-b), 0.6);
+  background: linear-gradient(
+    135deg,
+    rgba(var(--_tab-game-r), var(--_tab-game-g), var(--_tab-game-b), 0.75) 0%,
+    rgba(var(--_tab-game-r), var(--_tab-game-g), var(--_tab-game-b), 0.45) 100%
+  );
+  color: #fff;
+}
+
+/* ── Controller mode overrides ── */
+
+[data-crosshook-controller-mode='true'] .crosshook-profile-cover-art {
+  aspect-ratio: 460 / 215;
+  min-height: 180px;
+}
+
+[data-crosshook-controller-mode='true'] .crosshook-profile-hero {
+  min-height: 160px;
+}
+
+/* ── Profile Status Bar ── */
+
+.crosshook-profile-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--crosshook-panel-padding);
+}
+
+/* Normalize all chips inside the status bar to a uniform compact height */
+.crosshook-profile-status-bar .crosshook-status-chip,
+.crosshook-profile-status-bar .crosshook-compatibility-badge,
+.crosshook-profile-status-bar .crosshook-offline-badge {
+  min-height: 32px;
+  height: 32px;
+  font-size: 0.82rem;
+}
+
+/* Muted chip — for secondary info like stale notes */
+.crosshook-status-chip--muted {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--crosshook-color-text-muted);
+}
+
+/* Refresh / action button pinned right */
+.crosshook-profile-status-bar__action {
+  margin-left: auto;
+}
+
+/* ── Version Badge (consistent pill via status-chip base) ── */
+
+.crosshook-version-badge--warning {
+  background: rgba(217, 119, 6, 0.15);
+  border-color: rgba(217, 119, 6, 0.3);
+  color: #d97706;
+}
+
+.crosshook-version-badge--info {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
 }

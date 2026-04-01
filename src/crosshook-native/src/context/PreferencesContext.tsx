@@ -15,6 +15,7 @@ export interface PreferencesContextValue {
   defaultSteamClientInstallPath: string;
   refreshPreferences: () => Promise<void>;
   handleAutoLoadChange: (enabled: boolean) => Promise<void>;
+  handleSteamGridDbApiKeyChange: (key: string) => Promise<void>;
   clearRecentFiles: () => Promise<void>;
 }
 
@@ -29,6 +30,7 @@ const EMPTY_SETTINGS: AppSettingsData = {
   community_taps: [],
   onboarding_completed: false,
   offline_mode: false,
+  steamgriddb_api_key: null,
 };
 
 const EMPTY_RECENT_FILES: RecentFilesData = {
@@ -124,6 +126,25 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
     [activeProfileName, settings]
   );
 
+  const handleSteamGridDbApiKeyChange = useCallback(
+    async (key: string) => {
+      const nextSettings = {
+        ...settings,
+        steamgriddb_api_key: key.trim().length > 0 ? key.trim() : null,
+      } satisfies AppSettingsData;
+
+      try {
+        await invoke('settings_save', { data: nextSettings });
+        setSettings(nextSettings);
+        setSettingsError(null);
+      } catch (error) {
+        setSettingsError(formatError(error));
+        throw error;
+      }
+    },
+    [settings]
+  );
+
   const clearRecentFiles = useCallback(async () => {
     const nextRecentFiles = {
       game_paths: [],
@@ -149,12 +170,14 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
       defaultSteamClientInstallPath,
       refreshPreferences,
       handleAutoLoadChange,
+      handleSteamGridDbApiKeyChange,
       clearRecentFiles,
     }),
     [
       clearRecentFiles,
       defaultSteamClientInstallPath,
       handleAutoLoadChange,
+      handleSteamGridDbApiKeyChange,
       recentFiles,
       refreshPreferences,
       settings,

@@ -83,6 +83,11 @@
   --crosshook-protondb-accent-bg-14: rgba(0, 120, 212, 0.14);
   --crosshook-protondb-panel-gap: 16px;
   --crosshook-protondb-panel-margin-top: 18px;
+
+  --crosshook-profile-cover-art-aspect: 460 / 215;
+  --crosshook-skeleton-duration: 1.8s;
+  --crosshook-skeleton-color-from: var(--crosshook-color-surface);
+  --crosshook-skeleton-color-to: var(--crosshook-color-bg-elevated);
 }
 
 :root[data-crosshook-controller-mode='true'] {

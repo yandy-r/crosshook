@@ -1,6 +1,7 @@
 import type { ChangeEvent } from 'react';
 
-import { formatProtonInstallLabel, type ProtonInstallOption } from '../ProfileFormSections';
+import { formatProtonInstallLabel } from '../../utils/proton';
+import type { ProtonInstallOption } from '../ProfileFormSections';
 import { ThemedSelect } from './ThemedSelect';
 import { chooseFile } from '../../utils/dialog';
 
