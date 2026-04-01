@@ -196,11 +196,8 @@ async fn fetch_summary(
         .map_err(ProtonDbError::Network)
 }
 
-async fn fetch_recommendations(
-    client: &reqwest::Client,
-    app_id: &str,
-) -> Result<Vec<super::models::ProtonDbRecommendationGroup>, ProtonDbError> {
-    let counts = client
+async fn fetch_counts_json(client: &reqwest::Client) -> Result<ProtonDbCountsResponse, ProtonDbError> {
+    client
         .get(COUNTS_URL)
         .send()
         .await
@@ -209,7 +206,14 @@ async fn fetch_recommendations(
         .map_err(ProtonDbError::Network)?
         .json::<ProtonDbCountsResponse>()
         .await
-        .map_err(ProtonDbError::Network)?;
+        .map_err(ProtonDbError::Network)
+}
+
+async fn fetch_recommendations(
+    client: &reqwest::Client,
+    app_id: &str,
+) -> Result<Vec<super::models::ProtonDbRecommendationGroup>, ProtonDbError> {
+    let mut counts = fetch_counts_json(client).await?;
 
     if counts.timestamp <= 0 {
         return Err(ProtonDbError::InvalidTimestamp(counts.timestamp));
@@ -219,19 +223,42 @@ async fn fetch_recommendations(
         .parse::<i64>()
         .map_err(|_| ProtonDbError::InvalidAppId(app_id.to_string()))?;
 
-    let report_feed_id = report_feed_id(
-        app_id_i64,
-        counts.reports,
-        counts.timestamp,
-        PAGE_SELECTOR_FIRST,
+    let mut report_feed_url = format!(
+        "{REPORTS_URL_BASE}/all-devices/app/{}.json",
+        report_feed_id(
+            app_id_i64,
+            counts.reports,
+            counts.timestamp,
+            PAGE_SELECTOR_FIRST,
+        )
     );
-    let report_feed_url = format!("{REPORTS_URL_BASE}/all-devices/app/{report_feed_id}.json");
 
-    let response = client
+    let mut response = client
         .get(&report_feed_url)
         .send()
         .await
         .map_err(ProtonDbError::Network)?;
+
+    if response.status() == StatusCode::NOT_FOUND {
+        counts = fetch_counts_json(client).await?;
+        if counts.timestamp <= 0 {
+            return Err(ProtonDbError::InvalidTimestamp(counts.timestamp));
+        }
+        report_feed_url = format!(
+            "{REPORTS_URL_BASE}/all-devices/app/{}.json",
+            report_feed_id(
+                app_id_i64,
+                counts.reports,
+                counts.timestamp,
+                PAGE_SELECTOR_FIRST,
+            )
+        );
+        response = client
+            .get(&report_feed_url)
+            .send()
+            .await
+            .map_err(ProtonDbError::Network)?;
+    }
 
     if response.status() == StatusCode::NOT_FOUND {
         return Err(ProtonDbError::HashResolutionFailed);
@@ -360,6 +387,10 @@ fn cached_result_from_row(
     }
 
     let mut result = serde_json::from_str::<ProtonDbLookupResult>(&row.payload_json).ok()?;
+    if result.snapshot.is_none() {
+        return None;
+    }
+
     result.app_id = app_id.to_string();
     result.state = if is_stale {
         ProtonDbLookupState::Stale

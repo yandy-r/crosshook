@@ -38,7 +38,7 @@ function formatTierLabel(tier: ProtonDbTier): string {
 
 function tierClassName(tier: ProtonDbTier): string {
   const normalized = tier.toLowerCase();
-  if (['platinum', 'gold', 'silver', 'bronze', 'borked'].includes(normalized)) {
+  if (['platinum', 'gold', 'silver', 'bronze', 'borked', 'native'].includes(normalized)) {
     return normalized;
   }
   return 'unknown';
@@ -129,6 +129,16 @@ export function ProtonDbLookupCard({
   }
 
   function renderBanner() {
+    if (!lookup.appId) {
+      return (
+        <div className="crosshook-protondb-card__banner crosshook-protondb-card__banner--neutral">
+          <p className="crosshook-protondb-card__banner-copy crosshook-protondb-card__banner-copy--muted">
+            Add a Steam App ID to this profile to enable ProtonDB compatibility guidance.
+          </p>
+        </div>
+      );
+    }
+
     if (
       versionContext?.version_status === 'game_updated' ||
       versionContext?.version_status === 'both_changed'
@@ -149,16 +159,6 @@ export function ProtonDbLookupCard({
           <p className="crosshook-protondb-card__banner-copy">
             Steam is currently updating this game. ProtonDB guidance may not match the in-progress
             build yet.
-          </p>
-        </div>
-      );
-    }
-
-    if (!lookup.appId) {
-      return (
-        <div className="crosshook-protondb-card__banner crosshook-protondb-card__banner--neutral">
-          <p className="crosshook-protondb-card__banner-copy crosshook-protondb-card__banner-copy--muted">
-            Add a Steam App ID to this profile to enable ProtonDB compatibility guidance.
           </p>
         </div>
       );
@@ -268,11 +268,15 @@ export function ProtonDbLookupCard({
         {launchOptions.length > 0 ? (
           <div className="crosshook-protondb-card__recommendation-list">
             {launchOptions.map((launchOption, index) => {
+              const text = launchOption.text?.trim() ?? '';
+              if (!text) {
+                return null;
+              }
               const copyKey = `${group.group_id}:launch:${index}`;
               return (
                 <div key={copyKey} className="crosshook-protondb-card__recommendation-item">
                   <p className="crosshook-protondb-card__recommendation-label">
-                    <code>{launchOption.text}</code>
+                    <code>{text}</code>
                   </p>
                   <p className="crosshook-protondb-card__recommendation-note">
                     {launchOption.source_label}
@@ -286,7 +290,7 @@ export function ProtonDbLookupCard({
                     <button
                       type="button"
                       className="crosshook-button crosshook-button--secondary"
-                      onClick={() => void handleCopy(copyKey, launchOption.text)}
+                      onClick={() => void handleCopy(copyKey, text)}
                     >
                       {copyLabels[copyKey] ?? 'Copy Launch Options'}
                     </button>

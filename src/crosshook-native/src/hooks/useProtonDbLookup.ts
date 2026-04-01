@@ -118,11 +118,16 @@ export function useProtonDbLookup(appId: string): UseProtonDbLookupResult {
         }
 
         setLookup(normalizeLookupResult(result));
-      } catch {
+      } catch (err) {
         if (requestId !== requestIdRef.current) {
           return;
         }
 
+        console.error('ProtonDB lookup failed', {
+          requestId,
+          normalizedAppId,
+          error: err,
+        });
         setLookup(unavailableLookup(normalizedAppId));
       } finally {
         if (requestId === requestIdRef.current) {
