@@ -54,25 +54,17 @@ export function LaunchPage() {
           profileId={profileId}
           method={profileState.launchMethod}
           request={launchRequest}
-          beforeActions={
-            <section style={{ marginTop: 16 }}>
-              <span
-                id="active-profile-label"
-                className="crosshook-heading-eyebrow"
-                style={{ marginBottom: 8, display: 'block' }}
-              >
-                Active Profile
-              </span>
-              <ThemedSelect
-                value={profileState.selectedProfile}
-                onValueChange={(name) => void profileState.selectProfile(name)}
-                placeholder="Select a profile"
-                pinnedValues={pinnedSet}
-                onTogglePin={handleTogglePin}
-                ariaLabelledby="active-profile-label"
-                options={profileState.profiles.map((name) => ({ value: name, label: name }))}
-              />
-            </section>
+          profileSelectSlot={
+            <ThemedSelect
+              id="launch-profile-selector"
+              value={profileState.selectedProfile}
+              onValueChange={(name) => void profileState.selectProfile(name)}
+              placeholder="Select a profile"
+              pinnedValues={pinnedSet}
+              onTogglePin={handleTogglePin}
+              ariaLabelledby="launch-active-profile-label"
+              options={profileState.profiles.map((name) => ({ value: name, label: name }))}
+            />
           }
           tabsSlot={
             <LaunchSubTabs
