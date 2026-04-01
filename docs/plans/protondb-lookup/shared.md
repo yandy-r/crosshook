@@ -59,12 +59,13 @@ CrossHook already has the key pieces needed for a backend-owned ProtonDB integra
 - ProtonDB tier labels are exact-tier-first in UI; legacy compatibility grouping is derived/internal only.
 - Recommendation-apply conflicts use explicit per-key overwrite confirmation.
 - Cache persistence is normalized DTO-only in `external_cache_entries` (no raw report payload cache rows).
+- The canonical ProtonDB lookup cache key is `protondb:{steam_app_id}`; adjacent issue `#52` work must reuse that ownership boundary instead of creating duplicate ProtonDB fetch/cache paths.
 
 ## Cross-Issue Boundary
 
 - Issue `#53` owns ProtonDB lookup, normalization, advisory rendering, and apply/copy safety behavior.
 - Issue `#41` integration is included as version-correlation context inside ProtonDB panel state.
-- Issue `#52` may reuse Steam App ID and cache provenance contracts from `#53`, but must not duplicate ProtonDB fetch/cache logic.
+- Issue `#52` may reuse Steam App ID and cache provenance contracts from `#53`, but must not duplicate ProtonDB fetch/cache logic or store ProtonDB lookups under a competing namespace.
 
 ## Security Considerations
 
