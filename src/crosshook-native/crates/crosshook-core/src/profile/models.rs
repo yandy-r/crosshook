@@ -190,6 +190,8 @@ pub struct GameSection {
     pub name: String,
     #[serde(rename = "executable_path", default)]
     pub executable_path: String,
+    #[serde(rename = "custom_cover_art_path", default, skip_serializing_if = "String::is_empty")]
+    pub custom_cover_art_path: String,
 }
 
 fn default_trainer_type() -> String {
@@ -347,11 +349,13 @@ impl LocalOverrideSection {
 pub struct LocalOverrideGameSection {
     #[serde(rename = "executable_path", default)]
     pub executable_path: String,
+    #[serde(rename = "custom_cover_art_path", default)]
+    pub custom_cover_art_path: String,
 }
 
 impl LocalOverrideGameSection {
     pub fn is_empty(&self) -> bool {
-        self.executable_path.trim().is_empty()
+        self.executable_path.trim().is_empty() && self.custom_cover_art_path.trim().is_empty()
     }
 }
 
@@ -404,6 +408,9 @@ impl GameProfile {
         if !self.local_override.game.executable_path.trim().is_empty() {
             merged.game.executable_path = self.local_override.game.executable_path.clone();
         }
+        if !self.local_override.game.custom_cover_art_path.trim().is_empty() {
+            merged.game.custom_cover_art_path = self.local_override.game.custom_cover_art_path.clone();
+        }
         if !self.local_override.trainer.path.trim().is_empty() {
             merged.trainer.path = self.local_override.trainer.path.clone();
         }
@@ -430,6 +437,7 @@ impl GameProfile {
         let mut storage = effective.clone();
 
         storage.local_override.game.executable_path = effective.game.executable_path.clone();
+        storage.local_override.game.custom_cover_art_path = effective.game.custom_cover_art_path.clone();
         storage.local_override.trainer.path = effective.trainer.path.clone();
         storage.local_override.steam.compatdata_path = effective.steam.compatdata_path.clone();
         storage.local_override.steam.proton_path = effective.steam.proton_path.clone();
@@ -437,6 +445,7 @@ impl GameProfile {
         storage.local_override.runtime.proton_path = effective.runtime.proton_path.clone();
 
         storage.game.executable_path.clear();
+        storage.game.custom_cover_art_path.clear();
         storage.trainer.path.clear();
         storage.steam.compatdata_path.clear();
         storage.steam.proton_path.clear();
@@ -462,6 +471,7 @@ impl From<LegacyProfileData> for GameProfile {
             game: GameSection {
                 name: String::default(),
                 executable_path: value.game_path,
+                custom_cover_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: value.trainer_path,
@@ -536,6 +546,7 @@ mod tests {
             game: GameSection {
                 name: "Test Game".to_string(),
                 executable_path: "/games/test.exe".to_string(),
+                custom_cover_art_path: String::new(),
             },
             trainer: TrainerSection::default(),
             injection: InjectionSection::default(),

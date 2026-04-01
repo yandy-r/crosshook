@@ -10,7 +10,10 @@ export interface UseGameCoverArtResult {
   loading: boolean;
 }
 
-export function useGameCoverArt(steamAppId: string | undefined): UseGameCoverArtResult {
+export function useGameCoverArt(
+  steamAppId: string | undefined,
+  customCoverArtPath?: string,
+): UseGameCoverArtResult {
   const normalizedAppId = useMemo(
     () => normalizeAppId(steamAppId ?? ''),
     [steamAppId]
@@ -18,6 +21,11 @@ export function useGameCoverArt(steamAppId: string | undefined): UseGameCoverArt
   const [coverArtUrl, setCoverArtUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const requestIdRef = useRef(0);
+
+  const customUrl = useMemo(
+    () => (customCoverArtPath?.trim() ? convertFileSrc(customCoverArtPath.trim()) : null),
+    [customCoverArtPath]
+  );
 
   const fetchCoverArt = useCallback(async () => {
     if (!normalizedAppId) {
@@ -60,6 +68,13 @@ export function useGameCoverArt(steamAppId: string | undefined): UseGameCoverArt
   }, [normalizedAppId]);
 
   useEffect(() => {
+    if (customUrl) {
+      requestIdRef.current += 1;
+      setCoverArtUrl(null);
+      setLoading(false);
+      return;
+    }
+
     if (!normalizedAppId) {
       requestIdRef.current += 1;
       setCoverArtUrl(null);
@@ -69,7 +84,7 @@ export function useGameCoverArt(steamAppId: string | undefined): UseGameCoverArt
 
     setCoverArtUrl(null);
     void fetchCoverArt();
-  }, [normalizedAppId, fetchCoverArt]);
+  }, [normalizedAppId, fetchCoverArt, customUrl]);
 
-  return { coverArtUrl, loading };
+  return { coverArtUrl: customUrl ?? coverArtUrl, loading: customUrl ? false : loading };
 }

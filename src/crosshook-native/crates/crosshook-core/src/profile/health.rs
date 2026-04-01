@@ -579,6 +579,7 @@ mod tests {
             game: GameSection {
                 name: "Test Game".to_string(),
                 executable_path: game_exe.to_string_lossy().to_string(),
+                custom_cover_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: trainer.to_string_lossy().to_string(),
@@ -804,6 +805,7 @@ mod tests {
             game: GameSection {
                 name: "Proton Game".to_string(),
                 executable_path: game_exe.to_string_lossy().to_string(),
+                custom_cover_art_path: String::new(),
             },
             trainer: TrainerSection::default(),
             injection: InjectionSection::default(),

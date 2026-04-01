@@ -388,6 +388,43 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 <LauncherMetadataFields profile={profile} onUpdateProfile={updateProfile} />
               </div>
 
+              <div className="crosshook-install-section-title">Media</div>
+              <div className="crosshook-install-grid">
+                <InstallField
+                  label="Custom Cover Art"
+                  value={profile.game.custom_cover_art_path ?? ''}
+                  onChange={(value) =>
+                    updateProfile((current) => ({
+                      ...current,
+                      game: { ...current.game, custom_cover_art_path: value },
+                    }))
+                  }
+                  placeholder="/path/to/cover.png"
+                  browseLabel="Browse"
+                  browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]}
+                  helpText="Optional. Overrides Steam art. Optimal: 460×215 px (2:1 landscape)."
+                />
+
+                {launchMethod !== 'native' ? (
+                  <InstallField
+                    label="Launcher Icon"
+                    value={profile.steam.launcher.icon_path}
+                    onChange={(value) =>
+                      updateProfile((current) => ({
+                        ...current,
+                        steam: {
+                          ...current.steam,
+                          launcher: { ...current.steam.launcher, icon_path: value },
+                        },
+                      }))
+                    }
+                    placeholder="/path/to/icon.png"
+                    browseLabel="Browse"
+                    browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }]}
+                  />
+                ) : null}
+              </div>
+
               <div className="crosshook-install-section-title">Runner Method</div>
               <div className="crosshook-field">
                 <label className="crosshook-label">Runner Method</label>

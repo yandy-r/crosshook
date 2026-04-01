@@ -93,6 +93,7 @@ export interface GameProfile {
   game: {
     name: string;
     executable_path: string;
+    custom_cover_art_path?: string;
   };
   trainer: {
     path: string;
@@ -134,6 +135,7 @@ export interface GameProfile {
   local_override?: {
     game: {
       executable_path: string;
+      custom_cover_art_path?: string;
     };
     trainer: {
       path: string;

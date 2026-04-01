@@ -3,7 +3,6 @@ import { useEffect, useId, useMemo, useState, type ChangeEvent, type ReactNode }
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import ProtonDbLookupCard from './ProtonDbLookupCard';
 import { ThemedSelect } from './ui/ThemedSelect';
-import { chooseFile } from '../utils/dialog';
 import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
 import { GameSection } from './profile-sections/GameSection';
 import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
@@ -221,54 +220,21 @@ export function LauncherMetadataFields(props: {
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
 }) {
   return (
-    <>
-      <FieldRow
-        label="Launcher Name"
-        value={props.profile.steam.launcher.display_name}
-        onChange={(value) =>
-          props.onUpdateProfile((current) => ({
-            ...current,
-            steam: {
-              ...current.steam,
-              launcher: { ...current.steam.launcher, display_name: value },
-            },
-          }))
-        }
-        placeholder="God of War Ragnarok"
-        helperText={launcherNameHelperText}
-      />
-
-      <FieldRow
-        label="Launcher Icon"
-        value={props.profile.steam.launcher.icon_path}
-        onChange={(value) =>
-          props.onUpdateProfile((current) => ({
-            ...current,
-            steam: {
-              ...current.steam,
-              launcher: { ...current.steam.launcher, icon_path: value },
-            },
-          }))
-        }
-        placeholder="/path/to/icon.png"
-        browseLabel="Browse"
-        onBrowse={async () => {
-          const path = await chooseFile('Select Launcher Icon', [
-            { name: 'Images', extensions: ['png', 'jpg', 'jpeg'] },
-          ]);
-
-          if (path) {
-            props.onUpdateProfile((current) => ({
-              ...current,
-              steam: {
-                ...current.steam,
-                launcher: { ...current.steam.launcher, icon_path: path },
-              },
-            }));
-          }
-        }}
-      />
-    </>
+    <FieldRow
+      label="Launcher Name"
+      value={props.profile.steam.launcher.display_name}
+      onChange={(value) =>
+        props.onUpdateProfile((current) => ({
+          ...current,
+          steam: {
+            ...current.steam,
+            launcher: { ...current.steam.launcher, display_name: value },
+          },
+        }))
+      }
+      placeholder="God of War Ragnarok"
+      helperText={launcherNameHelperText}
+    />
   );
 }
 
