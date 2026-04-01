@@ -26,6 +26,39 @@ For every issue scoped from this guide, explicitly document storage ownership be
   - degraded/failure fallback behavior
   - what users can view and edit directly
 
+#### SQLite Metadata DB — current state (schema v13, live)
+
+The SQLite metadata DB is **live in production** at `~/.local/share/crosshook/metadata.db` (WAL mode, `0600` permissions). Access via `MetadataStore::try_new()` in `crosshook-core`. New schema migrations go in `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`.
+
+**Existing tables and their relevance to upcoming Phase 6 / P2 features:**
+
+| Table                                                             | Since | Relevant to                                                                                                                                              |
+| ----------------------------------------------------------------- | :---: | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `profiles`                                                        |  v1   | All features; source of truth for profile identity                                                                                                       |
+| `launch_operations`                                               |  v3   | #36 (diagnostics), #49 (bundle export) — already captures launch history and `diagnostic_json`                                                           |
+| `community_taps` / `community_profiles`                           |  v4   | #59 (tap pinning) — `pinned_commit` field added to tap subscription                                                                                      |
+| `external_cache_entries`                                          |  v4   | **#53 (ProtonDB lookup)** — reuse this table for ProtonDB API responses (cache key `protondb:report:v1:{app_id}`); mirrors the pattern documented in #52 |
+| `health_snapshots`                                                |  v6   | #38 (health dashboard), #61 (prefix health)                                                                                                              |
+| `version_snapshots`                                               |  v9   | #41 (version correlation), #63 (hash verification) — `trainer_file_hash` column already exists                                                           |
+| `bundled_optimization_presets` / `profile_launch_preset_metadata` |  v10  | #50 (optimization presets) — infrastructure already present                                                                                              |
+| `config_revisions`                                                |  v11  | #46 (config history/rollback) — TOML snapshots with SHA-256 already being stored                                                                         |
+| `optimization_catalog`                                            |  v12  | #66 (data-driven catalog) — table exists; populate/extend here                                                                                           |
+| `trainer_hash_cache`                                              |  v13  | #63 (trainer hash verification) — SHA-256 per trainer per profile already tracked                                                                        |
+| `offline_readiness_snapshots` / `community_tap_offline_state`     |  v13  | #44 (offline-first) — readiness state already captured                                                                                                   |
+
+**Features that can leverage existing tables without a new migration:**
+
+- #53 ProtonDB lookup → `external_cache_entries` (same generic HTTP cache pattern as #52)
+- #63 Trainer hash verification → `trainer_hash_cache` (already at v13)
+- #46 Config history → `config_revisions` (already at v11)
+- #44 Offline-first → `offline_readiness_snapshots` + `community_tap_offline_state` (already at v13)
+
+**Features that will require a new migration (next schema bump):**
+
+- #52 Game metadata / cover art → new `game_image_cache` table (filesystem blobs + DB metadata row); `external_cache_entries` for metadata JSON only
+- #61 Prefix health monitoring → likely new columns or table for prefix size snapshots and scan timestamps
+- Any other feature that persists net-new structured data not covered by an existing table
+
 ---
 
 ## Quick Wins
@@ -219,12 +252,12 @@ Issue #52's original text says "cache images locally alongside profile TOML file
 
 **Datum classification:**
 
-| Datum | Layer | Reasoning |
-| --- | --- | --- |
-| Steam Store metadata JSON (name, description, genres, tags) | SQLite `external_cache_entries` | Payload ~3-15 KiB; fits 512 KiB cap; TTL-based expiry; cache key `steam:appdetails:v1:{app_id}` |
-| Cover art / hero image binaries | Filesystem `~/.local/share/crosshook/cache/images/`, tracked by new `game_image_cache` table | Images 80 KB-2 MB exceed `MAX_CACHE_PAYLOAD_BYTES`; blobs in SQLite cause WAL pressure; filesystem + DB metadata is the correct split |
-| SteamGridDB API key | `settings.toml` (`AppSettingsData.steamgriddb_api_key`) | User-editable preference |
-| Image fetch/display state | Runtime-only (in-memory) | Ephemeral UI state |
+| Datum                                                       | Layer                                                                                        | Reasoning                                                                                                                             |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Steam Store metadata JSON (name, description, genres, tags) | SQLite `external_cache_entries`                                                              | Payload ~3-15 KiB; fits 512 KiB cap; TTL-based expiry; cache key `steam:appdetails:v1:{app_id}`                                       |
+| Cover art / hero image binaries                             | Filesystem `~/.local/share/crosshook/cache/images/`, tracked by new `game_image_cache` table | Images 80 KB-2 MB exceed `MAX_CACHE_PAYLOAD_BYTES`; blobs in SQLite cause WAL pressure; filesystem + DB metadata is the correct split |
+| SteamGridDB API key                                         | `settings.toml` (`AppSettingsData.steamgriddb_api_key`)                                      | User-editable preference                                                                                                              |
+| Image fetch/display state                                   | Runtime-only (in-memory)                                                                     | Ephemeral UI state                                                                                                                    |
 
 **Implementation requires:**
 
@@ -249,11 +282,11 @@ When planning `#62` (network isolation for trainers via `unshare --net`), the co
 
 **Datum classification:**
 
-| Datum | Layer | Reasoning |
-| --- | --- | --- |
-| Per-profile "Isolate trainer network" toggle | Profile TOML (`network_isolation` field) | User-editable per-profile preference; belongs alongside other launch wrapper toggles in the profile config |
-| Isolation active state at launch time | Runtime-only (in-memory) | Ephemeral; the `unshare --net` wrapper is prepended to the command at launch and not persisted beyond the process |
-| Network isolation outcome per launch | SQLite `launch_operations.diagnostic_json` (existing column) | Launch diagnostics already capture the wrapper chain; no new column or migration needed |
+| Datum                                        | Layer                                                        | Reasoning                                                                                                         |
+| -------------------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Per-profile "Isolate trainer network" toggle | Profile TOML (`network_isolation` field)                     | User-editable per-profile preference; belongs alongside other launch wrapper toggles in the profile config        |
+| Isolation active state at launch time        | Runtime-only (in-memory)                                     | Ephemeral; the `unshare --net` wrapper is prepended to the command at launch and not persisted beyond the process |
+| Network isolation outcome per launch         | SQLite `launch_operations.diagnostic_json` (existing column) | Launch diagnostics already capture the wrapper chain; no new column or migration needed                           |
 
 **Persistence/usability summary:**
 

@@ -33,6 +33,19 @@ The safest high-confidence implementation is to build the feature around the sta
 - **Issue `#52` track**: metadata/cover-art integration reuses `#53` Steam App ID and cache provenance contracts without duplicating lookup logic.
 - **Preset track**: repeated safe recommendation acceptance flows into reviewable preset candidates with explicit rollback guidance.
 
+### Issue `#52` Boundary Guidance
+
+- Reuse the canonical profile-owned `steam.app_id` and the `protondb:{steam_app_id}` lookup provenance from `#53`.
+- Do not duplicate ProtonDB fetch, report aggregation, or normalized-cache persistence in `#52`.
+- If `#52` needs sibling metadata caches, use distinct namespaces and leave the ProtonDB lookup row owned by `#53`.
+
+### Preset Promotion Guidance
+
+- Eligible candidates are env-var-only recommendation groups with repeated explicit acceptance and no unresolved overwrite conflicts.
+- Promotion remains reviewable and opt-in; issue `#53` does not auto-seed bundled presets or mutate unrelated profiles.
+- Candidate tracking belongs in the planning/review ledger until a later preset-specific task turns an approved candidate into a shipped preset.
+- Roll back a candidate immediately when refreshed ProtonDB data no longer supports it, or when version-correlation indicates the game build moved and the prior guidance may be stale.
+
 ### Risk Mitigations
 
 - Build summary lookup so it still succeeds when richer report scraping is unavailable.

@@ -356,6 +356,8 @@ Files to Modify
 
 Specify where preset candidates are tracked, how updates are reviewed, and how candidate rollback behaves when new data or version-correlation context invalidates prior guidance.
 
+Execution note: preset candidates are tracked in the ProtonDB planning/review ledger first, keyed by `steam.app_id` plus the normalized env-var set. They are reviewed explicitly before any later preset task writes them into a reusable preset catalog. Rollback happens when refreshed ProtonDB guidance drops the recommendation or when version-correlation marks the current game build as changed, at which point the candidate is removed from the promotion queue until reconfirmed.
+
 ### Phase 7: Docs and Verification
 
 #### Task 7.1: Update user-facing docs for ProtonDB lookup behavior Depends on [6.2]

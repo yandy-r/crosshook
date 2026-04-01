@@ -52,3 +52,4 @@ The core user value is reducing context switching during profile editing: if a p
 - **Panel eligibility**: the panel appears for any profile with a meaningful non-empty Steam App ID, not only `steam_applaunch` / `proton_run`.
 - **Issue boundary**: issue `#53` is scoped to editor/runtime advisory guidance; TOML/community-profile import extensions are out of scope for this plan and are tracked separately.
 - **Conflict handling**: recommendation apply actions require explicit per-key overwrite confirmation when `launch.custom_env_vars` keys collide.
+- **Issue `#52` reuse**: future metadata/cover-art work reuses the same `steam.app_id` identifier and `protondb:{steam_app_id}` provenance contract, but does not ship a second ProtonDB client or cache.

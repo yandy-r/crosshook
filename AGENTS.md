@@ -1,6 +1,6 @@
 # CrossHook — Agent rules
 
-Normative guidelines for AI agents in this repository. For stack overview, directory map, and pattern detail, see [`AGENTS.md`](AGENTS.md) (and [`.cursorrules`](.cursorrules) if present).
+Normative guidelines for AI agents in this repository. Stack overview, directory map, and pattern detail are in the sections below. Cross-reference [`.cursorrules`](.cursorrules) for cursor-specific tooling (kept in sync with this file).
 
 ## Precedence
 
@@ -61,3 +61,99 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ```
 
 Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`.
+
+---
+
+## Stack Overview
+
+| Layer | Technology | Notes |
+| --- | --- | --- |
+| Desktop shell | **Tauri v2** | Rust backend + WebView frontend; packaged as AppImage |
+| Core business logic | **Rust** (`crosshook-core` crate) | All launch orchestration, profile management, community taps, metadata persistence, settings |
+| IPC layer | **Tauri commands** (`src-tauri`) | Thin wrappers over `crosshook-core`; `snake_case` command names; Serde on all boundary types |
+| Frontend | **React 18 + TypeScript** (strict) | Vite dev server; `invoke()` wrapped in custom hooks; BEM-like `crosshook-*` CSS classes |
+| Persistence — settings | **TOML** (`settings.toml`) | User-editable preferences; deserialized via `AppSettingsData` |
+| Persistence — metadata | **SQLite** via `rusqlite` | WAL mode, `0600` permissions; schema migrations in `crosshook-core`; see SQLite section below |
+| CLI | `crosshook-cli` crate | Thin wrapper over `crosshook-core`; no business logic |
+
+---
+
+## Directory Map
+
+```
+src/crosshook-native/              # Primary source root
+├── src-tauri/
+│   └── src/
+│       ├── commands/              # Tauri IPC command handlers (one file per domain)
+│       │   ├── launch.rs
+│       │   ├── profile.rs
+│       │   ├── community.rs
+│       │   ├── settings.rs
+│       │   └── ...
+│       └── lib.rs                 # Tauri app setup; registers all commands
+├── crates/
+│   └── crosshook-core/
+│       └── src/
+│           ├── launch/            # Launch orchestration, directives, validation
+│           ├── profile/           # Profile load/save, override layers, export
+│           ├── metadata/          # MetadataStore, migrations, schema versioning
+│           ├── steam/             # Steam manifest parsing, app discovery
+│           ├── community/         # Tap management, community profile fetch/merge
+│           ├── settings/          # AppSettingsData TOML serde
+│           ├── offline/           # Offline readiness snapshots, cache management
+│           ├── export/            # Launcher store, stale detection
+│           ├── onboarding/        # Guided first-run flows
+│           ├── install/           # Installation helpers
+│           └── update/            # Self-update logic
+└── src/                           # React/TypeScript frontend
+    ├── hooks/                     # Custom React hooks wrapping invoke()
+    ├── components/                # PascalCase React components
+    ├── styles/                    # variables.css (CSS custom properties), theme.css
+    └── types/                     # TypeScript interface definitions
+```
+
+---
+
+## SQLite Metadata DB
+
+**Location**: `~/.local/share/crosshook/metadata.db`
+**Mode**: WAL (write-ahead logging)
+**Permissions**: `0600` (owner read/write only)
+**Current schema version**: 13
+**Access**: `MetadataStore::try_new()` in `crosshook-core`
+**Migrations**: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`
+
+### Table inventory
+
+| Table | Since schema | Purpose |
+| --- | :---: | --- |
+| `profiles` | v1 | Core profile records |
+| `profile_name_history` | v1 | Rename audit trail |
+| `launchers` | v3 | Known launcher executables |
+| `launch_operations` | v3 | Per-launch history and diagnostics |
+| `community_taps` | v4 | Subscribed community tap sources |
+| `community_profiles` | v4 | Fetched community profile snapshots |
+| `external_cache_entries` | v4 | Generic HTTP response cache (512 KiB payload cap per entry) |
+| `collections` | v4 | Named profile collections |
+| `collection_profiles` | v4 | Collection ↔ profile membership |
+| `health_snapshots` | v6 | Periodic profile health check results |
+| `version_snapshots` | v9 | Game/trainer version correlation records; includes `trainer_file_hash` |
+| `bundled_optimization_presets` | v10 | Built-in optimization preset definitions |
+| `profile_launch_preset_metadata` | v10 | Per-profile preset activation state |
+| `config_revisions` | v11 | TOML snapshots with SHA-256 for config history/rollback |
+| `optimization_catalog` | v12 | Data-driven optimization catalog entries |
+| `trainer_hash_cache` | v13 | SHA-256 hash per trainer per profile |
+| `offline_readiness_snapshots` | v13 | Offline readiness state snapshots |
+| `community_tap_offline_state` | v13 | Per-tap offline availability state |
+
+### Persistence design classification
+
+When implementing features, classify every new datum before writing code:
+
+| Kind of data | Layer | Examples |
+| --- | --- | --- |
+| User-editable preferences | `settings.toml` (`AppSettingsData`) | Toggle switches, API keys, default paths |
+| Operational / history / cache metadata | SQLite `MetadataStore` | Launch logs, health snapshots, HTTP cache, version hashes |
+| Ephemeral runtime state | In-memory only | Active launch handle, transient UI loading flags |
+
+Do **not** cache binary blobs (images, archives) in `external_cache_entries` — payloads over 512 KiB store `NULL payload_json` silently. Use the filesystem with a tracking table for large binaries.
