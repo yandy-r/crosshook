@@ -115,11 +115,14 @@ jobs:
           tar -czf "dist/crosshook_${version}_linux_amd64.tar.gz" \
             -C src/crosshook-native/target/release crosshook
 
-      - name: Select release AppImage asset
+      - name: Select release assets
+        id: release_assets
         run: |
           set -euo pipefail
-          echo "RELEASE_APPIMAGE=dist/CrossHook_${GITHUB_REF_NAME#v}_amd64.AppImage" >> "$GITHUB_ENV"
-          echo "RELEASE_CLI=dist/crosshook_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz" >> "$GITHUB_ENV"
+          appimage_path="dist/CrossHook_${GITHUB_REF_NAME#v}_amd64.AppImage"
+          cli_path="dist/crosshook_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz"
+          echo "release_appimage=${appimage_path}" >> "$GITHUB_OUTPUT"
+          echo "release_cli=${cli_path}" >> "$GITHUB_OUTPUT"
 
       - name: Generate release body from changelog
         run: ./scripts/render-release-notes.sh "${GITHUB_REF_NAME}" > release-body.md
@@ -134,8 +137,8 @@ jobs:
           name: ${{ github.ref_name }}
           body_path: release-body.md
           files: |
-            ${{ env.RELEASE_APPIMAGE }}
-            ${{ env.RELEASE_CLI }}
+            ${{ steps.release_assets.outputs.release_appimage }}
+            ${{ steps.release_assets.outputs.release_cli }}
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
