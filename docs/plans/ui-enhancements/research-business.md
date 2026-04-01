@@ -4,6 +4,8 @@
 
 The Profiles page is the central configuration hub for CrossHook, but its current layout buries the entire profile editor (identity, game, runner, trainer, environment variables) inside a single collapsed `Advanced` section. The result is that first-time and returning users must expand a non-obvious section to do any actual profile editing. Health status, status badges, and the Refresh button are all pinned to the collapsed header, creating an information hierarchy that rewards power users but confuses newcomers. Separating logically distinct concerns into discrete visual containers (mirroring the existing Profile/Launcher Export split), promoting the editor out of `Advanced`, and grouping form sections by user mental model will dramatically reduce perceived clutter without hiding functionality.
 
+The second pass of this analysis integrates GitHub issue #52 (game metadata and cover art via Steam Store API and SteamGridDB). Issue #52 adds a visual enrichment layer: profile cards and the community browser gain game cover art when `steam_app_id` is available. This enrichment is strictly additive — no profile functionality is blocked if art is unavailable, uncached, or unconfigured. The cover art infrastructure (filesystem image cache + `game_image_cache` SQLite table) follows the same pattern established by ProtonDB lookup (#53), reusing `external_cache_entries` for metadata JSON and introducing a new `game_image_cache` table for filesystem-backed image binaries.
+
 ---
 
 ## User Stories
@@ -27,6 +29,19 @@ The Profiles page is the central configuration hub for CrossHook, but its curren
 
 - As a user whose profile has health issues, I want the health status and issue list to be surfaced without having to expand a collapsed section.
 - As a user who just made changes and saved, I want confirmation that the save succeeded without hunting for status indicators.
+
+**User browsing game metadata and cover art (Issue #52)**
+
+- As a user with Steam App IDs in my profiles, I want to see game cover art on profile cards so I can visually identify games at a glance — especially useful on Steam Deck.
+- As a user with many profiles, I want cover art to load in the background without blocking me from editing or launching profiles.
+- As a user offline or away from a network, I want previously fetched cover art to still display from the local cache.
+- As a user who prefers custom artwork, I want to configure a SteamGridDB API key in settings so that higher-quality or community-created art appears instead of the default Steam capsule.
+- As a user who has not entered a Steam App ID, I expect the profile card to degrade gracefully to a text-only display — no broken image placeholders.
+
+**User configuring SteamGridDB (Issue #52)**
+
+- As a user, I want to enter a SteamGridDB API key in Settings so that custom artwork is used when available, without requiring it for basic functionality.
+- As a user, I want to understand that the SteamGridDB key is optional — its absence degrades art quality but does not disable any profile features.
 
 ---
 
@@ -202,6 +217,67 @@ Status that tells users whether their profile is ready to launch.
 
 ---
 
+## Business Rules: Cover Art and Game Metadata (Issue #52)
+
+These rules govern the addition of game cover art and Steam Store metadata to profile cards and the community browser.
+
+### Rule 1: Cover art is always an enhancement, never a dependency
+
+Profile functionality (load, save, edit, launch, health check) must work identically regardless of whether cover art is available, cached, or configured. A missing SteamGridDB API key, a failed Steam API request, or an empty cache must not produce any error state in the profile editor or launcher. Cover art is visual decoration — its absence is always a valid state.
+
+### Rule 2: Fallback chain is fixed and non-configurable
+
+When a Steam App ID is available, the art resolution order is:
+
+1. SteamGridDB (requires API key in `settings.toml`; skipped if key is absent)
+2. Steam Store capsule image (`https://cdn.akamai.steamstatic.com/steam/apps/{app_id}/header.jpg`)
+3. Placeholder graphic (no Steam App ID present, or all fetches failed)
+4. Text-only card (final fallback when placeholder asset is unavailable)
+
+No step in this chain may block the profile card from rendering. Each step must fail silently and fall through to the next.
+
+### Rule 3: Image caching is mandatory for offline access
+
+Fetched images must be persisted to the filesystem at `~/.local/share/crosshook/cache/images/{steam_app_id}/` with metadata tracked in the `game_image_cache` SQLite table (path, checksum, source URL, app ID, expiry, preferred source). In-memory image state is ephemeral and must not be the only persistence layer. Images cached on disk survive offline periods until a new fetch succeeds or the user manually clears the cache by deleting the filesystem directory.
+
+### Rule 4: Metadata JSON uses `external_cache_entries`, not filesystem
+
+Steam Store API responses (name, description, genres, release date, tags) are bounded JSON payloads (~3–15 KiB) that fit within `MAX_CACHE_PAYLOAD_BYTES` (512 KiB). These must be cached in `external_cache_entries` using the key `steam:appdetails:v1:{app_id}` with TTL-based expiry. Image binaries (80 KB–2 MB) exceed this cap and must never be stored in `external_cache_entries` — the `NULL payload_json` fallback for oversized entries would silently break offline art access.
+
+### Rule 5: SteamGridDB API key is a user preference, not a secret
+
+The SteamGridDB API key is a user-facing optional setting stored in `settings.toml` as `AppSettingsData.steamgriddb_api_key`. It is not a system secret, not an environment variable, and not stored in the SQLite metadata DB. Users can view and edit it directly by opening `settings.toml`. The Settings page UI should surface this field as a plaintext or masked text input. The field's absence defaults to the Steam-only fallback — no prompting, no warnings.
+
+### Rule 6: Metadata fetch does not block profile operations
+
+Image fetch and metadata lookup must happen asynchronously after profile load. No profile save, load, rename, or launch operation may await or depend on image fetch completion. The fetch should be triggered lazily when a profile card is rendered with a non-empty `steam_app_id`.
+
+### Rule 7: `steam_app_id` remains the single lookup key across all metadata features
+
+Both ProtonDB lookup (#53) and game metadata/cover art (#52) resolve from the same `steam.app_id` field already present in `GameProfile.steam.app_id` for `steam_applaunch` profiles and optionally in `GameProfile.runtime.app_id` (or equivalent) for `proton_run` profiles. Issue #52 must not introduce a duplicate Steam App ID field or a competing lookup mechanism. The canonical identifier is `steam.app_id` as defined in `crosshook-core`.
+
+### Rule 8: Image cache must have an eviction policy
+
+The image cache at `~/.local/share/crosshook/cache/images/` will grow with profile count and must not be allowed to grow without bound. A user with 50 profiles and multiple art sources (Steam header + SteamGridDB grid) could accumulate 100–400 MB of cached images. This is a material concern on Steam Deck with limited eMMC storage.
+
+The `game_image_cache` table must support eviction. The minimum viable eviction policy is TTL-based expiry (entries older than a configurable threshold, e.g., 30 days since last access, are eligible for deletion on next startup or on explicit cache-clear). A stricter policy adds a max total cache size cap (e.g., 200 MB) with LRU eviction when the cap is exceeded. The eviction policy must be enforced by a Rust-side maintenance task — not left to the user to manage manually via the filesystem.
+
+**Minimum requirement**: TTL-based expiry enforced on startup or on cache miss. Images are re-fetched lazily after expiry.
+**Recommended addition**: Total cache size cap with LRU eviction, surfaced as a configurable value in settings.
+
+### Rule 9: SteamGridDB integration is separable from the Steam Store capsule path
+
+The Steam Store capsule image path (no API key, same pattern as ProtonDB, landscape art via `https://cdn.akamai.steamstatic.com/steam/apps/{app_id}/header.jpg`) delivers the core library grid visual without any external API key management. SteamGridDB adds higher-quality and portrait-format art but introduces a second external API dependency, user API key management, and additional maintenance surface.
+
+These two paths are independently shippable:
+
+- **Phase 1 (recommended scope)**: `game_image_cache` infrastructure + Steam Store capsule images + library grid UI. No SteamGridDB. No API key. Steam Deck storage impact bounded (landscape-only, single image per game).
+- **Phase 2 (separate issue)**: SteamGridDB integration — `AppSettingsData.steamgriddb_api_key`, SteamGridDB P-type portrait art, image type selection in the fetch command. Ships only after Phase 1 is stable.
+
+The fallback chain in Phase 1 simplifies to: Steam Store capsule → placeholder → text-only. The `game_image_cache` table design must accommodate Phase 2 without migration churn (the `preferred_source` column covers this).
+
+---
+
 ## Workflows
 
 ### Primary Workflow: First-time profile creation
@@ -248,6 +324,134 @@ Status that tells users whether their profile is ready to launch.
 
 **Current pain point**: ProtonDB lookup is buried after multiple form sections and requires significant scroll to reach on dense profiles.
 
+### Workflow: Browse profiles in library grid (Issue #52 — new)
+
+1. User opens Profiles page — default view is the library grid (browse mode).
+2. Profile cards fill the grid; each card shows cover art (or a text-only placeholder) with game title overlaid via gradient, and three actions: Launch, Heart, Edit.
+3. Cards with `steam_app_id` display cover art asynchronously as it loads from cache or fetches. Cards without an App ID display text-only immediately.
+4. User clicks Launch on a card — the game launches via the existing launch flow without entering edit mode.
+5. User clicks Heart on a card — `profile_set_favorite` toggles the favorite state; the card updates the heart icon.
+6. User clicks Edit on a card — the page switches to edit mode, the profile is selected in the editor, and the restructured editor panels appear.
+7. User clicks the list toggle in the toolbar — view switches to a compact single-column list with one row per profile; same actions available.
+8. User goes offline — previously cached art continues to display; new profiles without cached art fall through to text-only cards.
+
+**Design requirement**: Cover art load must not shift layout. Cards with art and cards without art must have the same dimensions so the grid does not reflow when images load. All card action buttons must meet `--crosshook-touch-target-min: 44px` for controller mode.
+
+### Workflow: Configure SteamGridDB API key (Issue #52 — new)
+
+1. User opens Settings page.
+2. User locates the "SteamGridDB API key" field.
+3. User enters their API key (obtained from steamgriddb.com).
+4. User saves settings.
+5. Next time a profile card is rendered, SteamGridDB art is attempted first.
+6. If the key is invalid or the API returns an error, the fallback chain proceeds to Steam API art — no error is surfaced to the user in the profile card.
+
+**Edge case**: If the user clears the API key, future image fetches skip SteamGridDB and fall back to Steam API art. Previously cached SteamGridDB images remain valid until their TTL expires.
+
+### Workflow: Offline art access (Issue #52 — new)
+
+1. User launches CrossHook with no network connection.
+2. Profile cards with previously cached art display the cached image from `~/.local/share/crosshook/cache/images/`.
+3. Profile cards for which no art has been cached display text-only.
+4. No error state, no loading spinner — the card renders immediately in whatever state the cache provides.
+
+---
+
+## Persistence and Datum Classification (Issue #52)
+
+Every datum introduced by #52 must be explicitly classified per the CrossHook persistence architecture.
+
+| Datum                                                       | Persistence Layer                                                                                        | Reasoning                                                                              |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `steam_app_id`                                              | TOML profile (existing field `[steam] app_id`)                                                           | Already in profile; no change required                                                 |
+| Steam Store metadata JSON (name, description, genres, tags) | SQLite `external_cache_entries` (key: `steam:appdetails:v1:{app_id}`)                                    | Payload ~3–15 KiB; fits 512 KiB cap; TTL-based expiry; mirrors ProtonDB pattern        |
+| Cover art / hero image binaries                             | Filesystem `~/.local/share/crosshook/cache/images/{steam_app_id}/` + new `game_image_cache` SQLite table | Images 80 KB–2 MB exceed `MAX_CACHE_PAYLOAD_BYTES`; blobs in SQLite cause WAL pressure |
+| SteamGridDB API key                                         | `settings.toml` (`AppSettingsData.steamgriddb_api_key`)                                                  | User-editable preference; not a secret                                                 |
+| Image fetch / display state                                 | Runtime-only (in-memory)                                                                                 | Ephemeral UI state; no persistence required                                            |
+
+### Persistence / Usability Summary
+
+- **Migration / backward compatibility**: The new `game_image_cache` table is additive. Users without it (upgrading) have no cover art but retain all profile functionality. The migration must be non-destructive and safe to run on existing installations at schema v14+.
+- **Offline behavior**: Metadata JSON available as stale fallback in `external_cache_entries`. Filesystem images survive offline indefinitely until a new fetch succeeds. Profile cards show cached art offline; cards without cached art degrade to text-only with no error indicator.
+- **Degraded fallback**: Steam API unavailable → text-only card, no blocked profile operation. SteamGridDB unavailable or unconfigured → fall back to Steam API art. No art available → placeholder or text-only.
+- **User visibility / editability**: SteamGridDB API key is visible and editable in `settings.toml` and via the Settings page. Cached images are visible at `~/.local/share/crosshook/cache/images/` and manually deletable to force re-fetch. Users have no UI to invalidate individual cache entries — that is a power-user operation via the filesystem.
+
+---
+
+## Figma Concept Mapping
+
+The Figma concept for this feature is a **library grid system**: a browsable grid of game cover art cards where users can launch, favorite, and edit profiles directly from the card — without opening the full profile editor. The existing CrossHook dark glassmorphism theme, BEM `crosshook-*` CSS classes, CSS variable system, and controller mode support remain unchanged; the Figma concept adds a new card-grid surface inside the existing design system.
+
+### Figma Concept: Core Pattern
+
+The library grid is a **dual-mode layout** for the Profiles page:
+
+- **Browse mode** — a responsive grid of game cards, each showing cover art as the primary visual, with game title, health badge, and three inline actions (Launch, Heart/favorite, Edit)
+- **Edit mode** — the existing profile editor panels (the first-pass restructure), reached by clicking Edit on a card or directly from the profile selector
+
+The grid/list view toggle switches between the card grid and a compact list row per profile. Both views coexist within the Profiles page — no new route or separate page required.
+
+### Infrastructure Assessment
+
+| Figma Element                        | CrossHook Infrastructure                                                                                                                    | Verdict                                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Cover art as primary visual on cards | `game_image_cache` table + filesystem cache + `external_cache_entries` for metadata JSON                                                    | In scope — this is the #52 infrastructure core                                                                   |
+| Gradient overlay with game title     | CSS `linear-gradient` over `<img>` + absolute-positioned text using existing `--crosshook-*` color tokens                                   | In scope — pure CSS, no new dependencies                                                                         |
+| Heart (favorite) action on card      | `profile_set_favorite` / `profile_list_favorites` Tauri commands exist; `onToggleFavorite` prop pattern exists in `PinnedProfilesStrip.tsx` | In scope — wire to existing IPC                                                                                  |
+| Launch action on card                | `useLaunchState` hook and `LaunchStateContext` exist; `invoke('launch_profile', ...)` can be triggered from a card button                   | In scope — reuse existing launch entry point                                                                     |
+| Edit action on card                  | Clicking Edit selects the profile and switches to edit mode within the same page; no new route needed                                       | In scope — `selectProfile(name)` already exists in `useProfile`                                                  |
+| Grid/list view toggle                | `--crosshook-community-profile-grid-min: 280px` CSS token already exists for community browser grid; same pattern applies here              | In scope — CSS grid with `auto-fill / minmax` using existing token                                               |
+| Sub-tab navigation within editor     | `crosshook-subtab-row` / `crosshook-subtab` CSS classes defined in `theme.css`; `@radix-ui/react-tabs` installed                            | In scope — part of first-pass restructure                                                                        |
+| Portrait aspect ratio (3:4)          | Steam capsule images are 460×215 (landscape); only SteamGridDB P-type grids are portrait 342×482                                            | Nuance: default to landscape (Steam header); SteamGridDB P-type art delivers portrait when API key is configured |
+
+### Patterns Out of Scope
+
+| Figma Element                                                           | Constraint                                                                                                                                                                  |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Playtime stats on card                                                  | `launch_operations` has `started_at` / `finished_at` columns but no aggregated playtime query is exposed via IPC; computing per-profile totals requires a new backend query | Defer — infrastructure exists but the IPC surface is missing |
+| Stat grid per card (last played, total launches displayed on card face) | Same constraint — no summary query IPC path                                                                                                                                 | Defer — add once `launch_operations` aggregation is exposed  |
+
+### Design System Alignment
+
+The Figma grid pattern integrates into the existing CrossHook design system without changes to the theme:
+
+- **Grid layout**: CSS `grid` with `grid-template-columns: repeat(auto-fill, minmax(var(--crosshook-community-profile-grid-min), 1fr))` — the same token already used by the community browser. A profile-specific token (e.g., `--crosshook-profile-grid-min`) can shadow it if a different minimum width is needed.
+- **Card surface**: `crosshook-panel` / `crosshook-card` glassmorphism classes already provide dark background, border, and `border-radius`. Cover art sits inside the card as a full-bleed image with `object-fit: cover` and a fixed `aspect-ratio`.
+- **Gradient overlay**: `linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%)` over the image — uses no new tokens; the dark base colors are already in the theme.
+- **Card action buttons**: positioned absolutely at the bottom or as a visible action row below the art; styled with `crosshook-btn` classes that already exist. The Heart icon toggles the `is_favorite` state via `profile_set_favorite`.
+- **Controller mode**: `--crosshook-community-profile-grid-min` already increases to `340px` in controller mode (`variables.css:99`); cards become larger, touch targets meet the `--crosshook-touch-target-min: 44px` requirement automatically.
+- **List view**: a single-column `<table>` or `<ul>` with one row per profile — no new CSS primitives; reuses existing `crosshook-panel` row styling.
+
+### Dual-Mode Page Architecture
+
+The library grid requires a browse/edit mode split within the Profiles page:
+
+```
+ProfilesPage
+  ├── ProfileLibraryToolbar        ← grid/list toggle, search/filter
+  ├── [browse mode]
+  │     └── ProfileLibraryGrid    ← auto-fill card grid
+  │           └── ProfileGameCard ← cover art + gradient + Launch/Heart/Edit
+  └── [edit mode]
+        ├── ProfileSelectorBar    ← always visible (first-pass restructure)
+        ├── Panel: Core           ← (first-pass restructure panels)
+        ├── Panel: Runtime
+        ├── Panel: Environment
+        ├── Panel: Trainer
+        ├── Panel: Diagnostics
+        └── ProfileActions
+```
+
+Mode state is local to `ProfilesPage` — a `viewMode: 'browse' | 'edit'` flag toggled by the toolbar or by clicking a card's Edit action. No new context or route is required. The profile editor panels (edit mode) are identical to the first-pass restructure output.
+
+### New User Stories (Library Grid)
+
+- As a user with multiple profiles, I want to see all my games as a visual grid with cover art so I can identify and launch them at a glance — especially useful with a gamepad on Steam Deck.
+- As a user, I want to launch a game directly from its cover art card without navigating into the full profile editor.
+- As a user, I want to favorite or unfavorite a profile from the card without opening the editor.
+- As a user, I want to switch between a grid view (for visual browsing) and a list view (for seeing more profiles at once) using a toggle.
+- As a user without cover art (no Steam App ID, or art not yet cached), I want the card to display the game name clearly — no broken image state.
+
 ---
 
 ## Domain Model
@@ -278,9 +482,15 @@ Three mutually-exclusive runners — `steam_applaunch`, `proton_run`, `native` �
 
 Profile health is computed asynchronously by `ProfileHealthContext`. A health badge (broken/stale/ok) appears in the Advanced section meta. Health Issues is a nested collapsible that lists per-field validation issues. This is diagnostic information — it does not block saving but informs the user whether the profile will launch.
 
+### Cover art and metadata (Issue #52)
+
+The `game_image_cache` table and `external_cache_entries` table are the two persistence layers for #52. The profile entity itself does not store any reference to cached image paths — the image cache is keyed by `steam_app_id` and resolved at render time. The profile remains pure TOML with no runtime cache pointers embedded in it.
+
 ---
 
 ## Success Criteria
+
+### First-pass (layout restructure)
 
 1. A user with no prior CrossHook experience can create a working profile without expanding a collapsible section.
 2. A user editing an existing profile can see the profile form without any extra interaction (no expand needed).
@@ -289,16 +499,32 @@ Profile health is computed asynchronously by `ProfileHealthContext`. A health ba
 5. The page retains all existing functionality — nothing is removed, only reorganized.
 6. The new layout is consistent with existing CrossHook design patterns (panel/collapsible composition, `crosshook-*` CSS classes, CSS variable theming).
 
+### Second-pass additions (Issue #52 — library grid and cover art)
+
+7. The Profiles page opens in a library grid view: a responsive grid of game cards with cover art as the primary visual, game title overlay, and Launch/Heart/Edit actions per card.
+8. Profile cards display game cover art when a Steam App ID is set and art has been fetched and cached — the first render may be text-only while art loads, but no broken image state is shown.
+9. Cover art display does not block, delay, or alter any profile operation (save, load, rename, launch, health check).
+10. Images are cached locally at `~/.local/share/crosshook/cache/images/` and display correctly on subsequent opens without re-fetching.
+11. Profiles without a Steam App ID render text-only cards with no layout shift compared to cards with art.
+12. A user who adds a SteamGridDB API key in Settings sees SteamGridDB art on their next profile card render (assuming the cache TTL has expired or no cached art exists).
+13. A user who removes or leaves the SteamGridDB API key empty sees Steam capsule art (or text-only) — no error message, no broken state.
+14. A user can switch between grid view and list view using a toolbar toggle; both views show the same profiles with the same action affordances.
+15. Clicking Launch on a card launches the game; clicking Heart toggles the favorite; clicking Edit navigates to the profile editor — all without navigating to a different page.
+
 ---
 
 ## Open Questions
 
-1. **Should the Wizard be a top-level CTA or a secondary option?** The wizard is currently the dominant UI element. Promoting the direct-edit form may reduce wizard discoverability for new users.
-2. **Where does "Profile Identity" (profile name + selector) live?** Currently split between the always-visible "Active Profile" selector and the "Profile Name" field inside Advanced. Should these merge into one always-visible identity card?
-3. **Should Health Issues be promoted to a dedicated panel?** Currently nested inside Advanced. A dedicated card beneath the Profile panel (similar to Launcher Export) would eliminate multi-step expand-to-diagnose.
+1. **Should the Wizard be a top-level CTA or a secondary option?** With browse mode as the default, new users land on the card grid first. Where should the "New Profile" / wizard entry point live in browse mode?
+2. **Where does "Profile Identity" (profile name + selector) live in edit mode?** Currently split between the always-visible "Active Profile" selector and the "Profile Name" field inside Advanced. Should these merge into one always-visible identity card in the restructured editor?
+3. **Should Health Issues be promoted to a dedicated panel in edit mode?** Currently nested inside Advanced. A dedicated card beneath the Profile panel (similar to Launcher Export) would eliminate multi-step expand-to-diagnose.
 4. **Should environment variables be collapsed by default?** They are rarely edited per-session but can grow large. An opt-in expand with a count badge ("3 env vars set") would reduce visual weight.
-5. **Sub-tabs vs. section containers**: Sub-tabs within the Profiles page (e.g., "Setup | Environment | Health") would reduce scroll but increase navigation complexity and may break the wizard's sequential flow mental model.
+5. **Sub-tabs vs. section containers**: Sub-tabs within the edit-mode editor panels (e.g., "Setup | Environment | Health") would reduce scroll but increase navigation complexity and may break the wizard's sequential flow mental model.
 6. **Form completeness indicator**: Should a progress or readiness indicator (e.g., 3/5 required fields filled) appear inline on the panel header to guide first-time setup?
+7. **Cover art aspect ratio**: Steam capsule images are 460×215 (landscape); SteamGridDB portrait grids are 342×482. Which aspect ratio should library grid cards use? Landscape works without SteamGridDB; portrait requires SteamGridDB P-type art and explicit image type selection in the fetch command.
+8. **Library grid default vs. edit mode default**: Should new users land on the grid, or on the editor with an empty state? Users with zero profiles have nothing to browse — the grid is empty. Consider showing the wizard / new-profile CTA when `profiles.length === 0`.
+9. **Cache invalidation UI**: Should users have a "Refresh cover art" button per card (or per profile in the editor), or is manual cache deletion via the filesystem sufficient for the first iteration?
+10. **`steam_app_id` availability for `proton_run` profiles**: The `proton_run` runner method has an optional `steam.app_id` field. Art should display for `proton_run` profiles when the optional App ID is populated — this must be tested since it is not the primary runner path.
 
 ---
 
@@ -346,6 +572,14 @@ It must never be inside a tab panel that becomes hidden.
 ### 6. The `reviewMode` prop controls launcher metadata visibility
 
 `showLauncherMetadata = supportsTrainerLaunch && !reviewMode`. In `reviewMode`, Launcher Name and Launcher Icon fields are hidden. This is intentional — launcher metadata is not relevant during the install-flow review. Any refactor that splits launcher metadata into its own panel must preserve this conditional: launcher metadata panels should not render during `reviewMode`.
+
+### 7. Cover art must not introduce layout shift (Issue #52)
+
+Profile card dimensions must be fixed and consistent regardless of whether cover art is available. Images must be loaded with `object-fit: cover` and a fixed `aspect-ratio` (or fixed `width`/`height`). The `<img>` element must have explicit `width` and `height` attributes or CSS containment to prevent layout reflow as images load. This is a Core Web Vitals constraint applied to a desktop app context: unpredictable layout shift degrades perceived polish on Steam Deck where screen real estate is limited.
+
+### 8. `game_image_cache` table requires a new migration
+
+The `game_image_cache` table does not exist in the current schema (v13). A new migration must be written in `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`. The migration is additive: it creates the table and does not modify any existing table. The current schema version must increment to v14 or the next available version. Existing installations with no `game_image_cache` table fall back to text-only cards — this is the correct degraded state.
 
 ---
 
@@ -432,6 +666,10 @@ From security research (`docs/plans/ui-enhancements/research-security.md`):
 
 All path fields (`game.executable_path`, `trainer.path`, `steam.compatdata_path`, `steam.proton_path`, `runtime.prefix_path`, `runtime.proton_path`, `runtime.working_directory`, `steam.launcher.icon_path`) are free-form strings with no client-side path validation. This is correct for a launcher. Validation is backend-only. The Browse button pattern (Tauri dialog APIs, not string execution) is the correct UX affordance and must be preserved wherever path fields land in the restructured layout.
 
+### SteamGridDB API key handling (Issue #52)
+
+The SteamGridDB API key stored in `settings.toml` is not a system credential but a user-chosen access token. It must be transmitted only to `api.steamgriddb.com` over HTTPS. It must not be logged, exposed via IPC in cleartext beyond what is required to pass it to the fetch function, or included in community profile exports. The Settings page UI should use a masked input or `type="password"` field as a usability courtesy (not a security control — the value is plaintext in TOML). The Tauri command that reads settings for the frontend must not return the raw API key in the general settings payload if it can be avoided; the backend should make image fetch calls directly rather than passing the key to the frontend.
+
 ---
 
 ## Technical Design Constraints
@@ -458,3 +696,15 @@ Both are defined inside `ProfileFormSections.tsx` and not exported. If launcher 
 ### LaunchPage multi-panel pattern is the existing precedent for the restructure
 
 `LaunchPage` already demonstrates the target architecture: discrete `CollapsibleSection className="crosshook-panel"` blocks for Gamescope, MangoHud, LaunchOptimizations, and SteamLaunchOptions, each receiving `profile` props and an `onUpdateProfile`-equivalent callback. `ProfilesPage` should adopt the same pattern, replacing the monolithic Advanced section with equivalent discrete panels.
+
+### Cover art fetch is a backend Tauri command, not a frontend fetch (Issue #52)
+
+Image fetching for `game_image_cache` must happen in a `#[tauri::command]` Rust handler that:
+
+1. Checks the `game_image_cache` table for a valid cached entry
+2. Falls through the fallback chain (SteamGridDB → Steam API → nil)
+3. Writes downloaded bytes to the filesystem at the canonical path
+4. Inserts or updates the `game_image_cache` row
+5. Returns a filesystem path (or `None`) to the frontend
+
+The frontend renders the image using Tauri's asset protocol (e.g., `convertFileSrc`) to load the local file. It never makes direct HTTP requests for images, and the SteamGridDB API key never crosses the IPC boundary to the frontend.
