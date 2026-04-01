@@ -1,19 +1,18 @@
 ## Ideas
 
-### UI Enhancements
+### UI Enhancements (Lancy Page)
 
-one thing that has become clear is the advanced section of the Profiles page is
-extremely cluttered. Most features are hiding behind a collapsed by default
-section. This is because of the clutter.
+I recently did a pretty large overhaul of the Profile page in PR 134
 
-I need ideas on how to clean the UI up. One I was thinking is making the same
-separate per section as how the "Profile" container is separated from the "Launcher
-Export" container. There's a clear boundary, so it looks cleaner. This won't solve
-the area being cluttered, but at least it will look aesthetically more pleasing.
+- tabbed interface
+- cover art
+- other ui enhancements
 
-Do you have any other ideas? Also maybe bring out some important sections from the
-"Advanced" that should be visible by default?
+I want to do the same to the Launch page.
 
-Another idea is instead of having everything bundled and cluttered on a
-single page. Is having the main pages on the sidebar; then each page has
-sub-tabs for their relevant sections? Something like this:
+- Tabbed interface
+- Should re-use the cover art for acttive profile
+- All sections should be a tab in a single interface
+- The tabs should be inserted between teh "Active Profile" dropdown and the action buttons (Launche Game/Trainer, Preview, Reset).
+- If you can think of a better location let me know, the point is to have on cohesive, well design tabbed interface that's easier to navigate than a bunch of collapsed sections in a single page.
+- Maintain styling consistency so make sure all containers/tabs across pages have consistent styling
