@@ -24,6 +24,7 @@ src/crosshook-native/target/
 tasks/todo.md
 
 # Codex
+.codex
 .codex-tmp/
 .claude/settings.local.json
 
@@ -36,3 +37,7 @@ docs/**/tmp*
 docs/**/.cache/
 docs/**/.DS_Store
 docs/**/Thumbs.db
+
+# Misc
+.playwright/
+.playwright-mcp/
