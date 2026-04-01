@@ -252,6 +252,8 @@ Highest-value, lowest-complexity security measure: `unshare --net` prevents trai
 | No `profile_duplicate` command                                              | Low    | Requires load + save-under-new-name                         |
 | `ProfileData` type: orphaned TypeScript type                                | Low    | Legacy bridge type, never used                              |
 
+Note: this table captures the initial 2026-03-26 archaeology snapshot. For current planning, settings expansion work (issue `#60`) should evaluate storage boundaries explicitly (`settings.toml` preferences vs SQLite metadata vs runtime-only state) instead of assuming TOML-only persistence.
+
 ---
 
 ## Part 3: Strategic Insights
@@ -330,6 +332,16 @@ The launcher export (.sh/.desktop) is under-appreciated as a differentiator. Con
 ---
 
 ## Research Methodology
+
+### Planning Criteria Addendum (Post-SQLite Metadata Layer)
+
+Future feature scoring and prioritization should treat persistence/usability fit as a first-class criterion:
+
+- Does the proposal place data in the correct layer (`settings.toml` preferences vs SQLite metadata vs runtime-only state)?
+- Are migration/backward compatibility expectations explicit?
+- Does offline behavior remain clear and testable?
+- Is degraded/failure behavior defined when persistence is unavailable?
+- Is user visibility/editability of persisted data explicit?
 
 ### Phase 1: 8 Asymmetric Research Personas
 

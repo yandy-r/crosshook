@@ -21,6 +21,7 @@ Normative guidelines for AI agents in this repository. For stack overview, direc
 - **Internal docs commits**: Commits that change files under `./docs/plans`, `./docs/research`, or `./docs/internal` **must** use a `docs(internal): …` prefix. Other non-user-facing churn: prefer `chore(…): …` or `docs(internal): …` so it stays out of release notes.
 - **MCP**: When an MCP server fits the task (GitHub, docs, browser, etc.), **prefer it**. **Read** each tool’s schema/descriptor before calling. If MCP is missing or unsuitable, use `gh`, repo scripts, or other local tools—**do not** block on MCP.
 - **Research and planning**: Feature research and plans **must** be: **feature-complete** (no deferred work), **testable**, **maintainable**, **documented**, **data-driven**, **modular**, and **reusable**.
+- **Persistence planning**: Every feature plan/research artifact must classify new or changed data as one of: user-editable preferences (TOML settings), operational/history/cache metadata (SQLite metadata DB), or ephemeral runtime state (memory only). Plans must include a short persistence/usability section covering migration/backward compatibility, offline behavior, degraded fallback behavior, and user visibility/editability expectations.
 - **Large features**: Must be split into smaller, manageable phases and tasks, with clear dependencies and a clear order of execution.
 
 ## SHOULD (implementation)
@@ -33,6 +34,11 @@ Normative guidelines for AI agents in this repository. For stack overview, direc
 ## Research and planning quality bar
 
 Feature research and plans **must** be: **feature-complete** (no deferred work), **testable**, **maintainable**, **documented**, **data-driven**, **modular**, and **reusable**.
+
+For storage changes, plans must also:
+
+- Explicitly classify each datum as TOML settings, SQLite metadata, or runtime-only state.
+- Include a persistence/usability section that addresses migration/backward compatibility, offline expectations, degraded/failure fallback, and what users can view or edit.
 
 ## Labels (use only these families)
 
