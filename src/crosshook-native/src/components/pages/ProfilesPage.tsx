@@ -616,80 +616,58 @@ export function ProfilesPage() {
       ) : null}
 
       <div style={{ display: 'grid', gap: 24 }}>
-        <div className="crosshook-panel" style={{ display: 'grid', gap: 0 }}>
-          {/* Wizard area */}
+        <div className="crosshook-panel" style={{ padding: 'var(--crosshook-card-padding)' }}>
+          <header className="crosshook-settings-header" style={{ marginBottom: 14 }}>
+            <div className="crosshook-heading-eyebrow">Profiles</div>
+          </header>
           <div
             style={{
-              padding: 'var(--crosshook-card-padding)',
-              borderBottom: '1px solid var(--crosshook-color-border, rgba(255,255,255,0.08))',
-              background: 'var(--crosshook-color-accent-soft)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              flexWrap: 'wrap',
             }}
           >
-            <div className="crosshook-heading-eyebrow" style={{ marginBottom: 4 }}>
-              Guided Setup
-            </div>
-            <h2 style={{ margin: '4px 0 8px', fontSize: '1.1em', fontWeight: 600 }}>Profile Setup Wizard</h2>
-            <p className="crosshook-help-text" style={{ marginBottom: 16 }}>
-              {profiles.length === 0
-                ? 'Set up your first game + trainer combo in minutes with step-by-step guidance.'
-                : 'Use the guided wizard to create another profile with automatic readiness checks.'}
-            </p>
-            {profiles.length === 0 ? (
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="crosshook-button"
-                  style={{
-                    height: 'var(--crosshook-touch-target-min)',
-                    minHeight: 'var(--crosshook-touch-target-min)',
-                    padding: '0 14px',
-                    fontSize: '0.95rem',
-                  }}
-                  onClick={() => {
-                    setWizardMode('create');
-                    setShowWizard(true);
-                  }}
-                >
-                  New Profile
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Profile selector — always visible */}
-          {profiles.length > 0 && (
-            <div
-              style={{
-                padding: '12px var(--crosshook-card-padding)',
-                borderBottom: '1px solid var(--crosshook-color-border, rgba(255,255,255,0.08))',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
+            <label
+              className="crosshook-label"
+              htmlFor="profile-selector-top"
+              style={{ margin: 0, whiteSpace: 'nowrap' }}
             >
-              <label
-                className="crosshook-label"
-                htmlFor="profile-selector-top"
-                style={{ margin: 0, whiteSpace: 'nowrap' }}
+              Active Profile
+            </label>
+            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+              <ThemedSelect
+                id="profile-selector-top"
+                value={selectedProfile}
+                onValueChange={(val) => void selectProfile(val)}
+                placeholder="Create New"
+                options={[
+                  { value: '', label: 'Create New' },
+                  ...profiles.map((name) => ({ value: name, label: name })),
+                ]}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="crosshook-button"
+                style={{
+                  height: 'var(--crosshook-touch-target-min)',
+                  minHeight: 'var(--crosshook-touch-target-min)',
+                  padding: '0 14px',
+                  fontSize: '0.95rem',
+                }}
+                onClick={() => {
+                  setWizardMode('create');
+                  setShowWizard(true);
+                }}
               >
-                Active Profile
-              </label>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <ThemedSelect
-                  id="profile-selector-top"
-                  value={selectedProfile}
-                  onValueChange={(val) => void selectProfile(val)}
-                  placeholder="Create New"
-                  options={[
-                    { value: '', label: 'Create New' },
-                    ...profiles.map((name) => ({ value: name, label: name })),
-                  ]}
-                />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                New Profile
+              </button>
+              {hasSelectedProfile ? (
                 <button
                   type="button"
-                  className="crosshook-button"
+                  className="crosshook-button crosshook-button--secondary"
                   style={{
                     height: 'var(--crosshook-touch-target-min)',
                     minHeight: 'var(--crosshook-touch-target-min)',
@@ -697,34 +675,15 @@ export function ProfilesPage() {
                     fontSize: '0.95rem',
                   }}
                   onClick={() => {
-                    setWizardMode('create');
+                    setWizardMode('edit');
                     setShowWizard(true);
                   }}
                 >
-                  New Profile
+                  Edit in Wizard
                 </button>
-                {hasSelectedProfile ? (
-                  <button
-                    type="button"
-                    className="crosshook-button crosshook-button--secondary"
-                    style={{
-                      height: 'var(--crosshook-touch-target-min)',
-                      minHeight: 'var(--crosshook-touch-target-min)',
-                      padding: '0 14px',
-                      fontSize: '0.95rem',
-                    }}
-                    onClick={() => {
-                      setWizardMode('edit');
-                      setShowWizard(true);
-                    }}
-                  >
-                    Edit in Wizard
-                  </button>
-                ) : null}
-              </div>
+              ) : null}
             </div>
-          )}
-
+          </div>
         </div>
 
         {/* Profile status bar — health, offline, version badges + refresh */}
@@ -760,7 +719,9 @@ export function ProfilesPage() {
               }}
             >
               {summary !== null && summary.stale_count + summary.broken_count > 0
-                ? (healthLoading ? 'Checking...' : 'Re-check')
+                ? healthLoading
+                  ? 'Checking...'
+                  : 'Re-check'
                 : 'Refresh'}
             </button>
           </div>
@@ -795,9 +756,7 @@ export function ProfilesPage() {
             onCancelProtonDbOverwrite={() => setPendingProtonDbOverwrite(null)}
             onUpdateProtonDbResolution={(key, resolution) =>
               setPendingProtonDbOverwrite((current) =>
-                current == null
-                  ? current
-                  : { ...current, resolutions: { ...current.resolutions, [key]: resolution } }
+                current == null ? current : { ...current, resolutions: { ...current.resolutions, [key]: resolution } }
               )
             }
             steamClientInstallPath={effectiveSteamClientInstallPath}
@@ -923,7 +882,6 @@ export function ProfilesPage() {
             </p>
           ) : null}
         </div>
-
       </div>
 
       {pendingDelete ? (

@@ -287,6 +287,15 @@ textarea {
   font-size: 1.5rem;
 }
 
+/* In-panel heading stack: use below .crosshook-heading-eyebrow; softer than page banner title */
+.crosshook-heading-title.crosshook-heading-title--card {
+  color: var(--crosshook-color-text-muted);
+  font-size: clamp(1.12rem, 1.25vw, 1.32rem);
+  font-weight: 600;
+  line-height: 1.28;
+  letter-spacing: 0.02em;
+}
+
 .crosshook-heading-copy {
   margin: 0;
   color: var(--crosshook-color-text-muted);
