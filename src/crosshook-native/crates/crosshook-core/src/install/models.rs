@@ -99,6 +99,7 @@ impl InstallGameRequest {
             game: GameSection {
                 name: self.resolved_display_name().to_string(),
                 executable_path: String::new(),
+                custom_cover_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: self.trainer_path.trim().to_string(),

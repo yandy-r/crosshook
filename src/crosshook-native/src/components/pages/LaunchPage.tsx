@@ -89,6 +89,7 @@ export function LaunchPage() {
             <LaunchSubTabs
               launchMethod={profileState.launchMethod}
               steamAppId={profile.steam.app_id}
+              customCoverArtPath={profile.game.custom_cover_art_path}
               gamescopeConfig={profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG}
               onGamescopeChange={(gamescope) => {
                 profileState.updateProfile((current) => ({

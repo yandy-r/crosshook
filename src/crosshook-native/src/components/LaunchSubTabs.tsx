@@ -33,6 +33,8 @@ export interface LaunchSubTabsProps {
   launchMethod: LaunchMethod;
   /** Steam App ID from the active profile, used to load cover art and game metadata. */
   steamAppId: string | undefined;
+  /** Custom cover art path from the profile, overrides Steam art when set. */
+  customCoverArtPath?: string;
 
   // Gamescope panel
   gamescopeConfig: GamescopeConfig;
@@ -64,6 +66,7 @@ export interface LaunchSubTabsProps {
 export function LaunchSubTabs({
   launchMethod,
   steamAppId,
+  customCoverArtPath,
   gamescopeConfig,
   onGamescopeChange,
   isInsideGamescopeSession,
@@ -134,7 +137,7 @@ export function LaunchSubTabs({
     }
   }, [hasOfflineConcern]);
 
-  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(steamAppId);
+  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(steamAppId, customCoverArtPath);
   const dominantColor = useImageDominantColor(coverArtUrl);
 
   const gameColorStyle: CSSProperties | undefined = dominantColor
