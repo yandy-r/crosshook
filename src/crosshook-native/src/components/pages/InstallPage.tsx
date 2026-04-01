@@ -362,7 +362,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
   }
 
   return (
-    <>
+    <div className="crosshook-page-scroll-shell">
       <PageBanner
         eyebrow="Setup"
         title="Install game"
@@ -488,7 +488,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
           </div>
         </ProfileReviewModal>
       ) : null}
-    </>
+    </div>
   );
 }
 

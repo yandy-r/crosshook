@@ -1,7 +1,7 @@
-import { useId, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
 import type { BundledOptimizationPreset, LaunchMethod } from '../types';
-import { CollapsibleSection } from './ui/CollapsibleSection';
-import { ThemedSelect } from './ui/ThemedSelect';
+import { ThemedSelect, type SelectOptionGroup } from './ui/ThemedSelect';
 import {
   LAUNCH_OPTIMIZATION_CATEGORIES,
   LAUNCH_OPTIMIZATION_CATEGORY_LABELS,
@@ -74,6 +74,13 @@ const DEFAULT_STATUS: Record<LaunchMethod, LaunchOptimizationsPanelStatus> = {
 
 function joinClasses(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(' ');
+}
+
+const BUNDLED_PRESET_KEY_PREFIX = 'bundled/';
+
+/** TOML key under `[launch.presets]` for a catalog GPU preset; matches crosshook-core `bundled_optimization_preset_toml_key`. */
+function bundledOptimizationTomlKey(presetId: string): string {
+  return `${BUNDLED_PRESET_KEY_PREFIX}${presetId.trim()}`;
 }
 
 function formatCountLabel(count: number, singular: string, plural: string): string {
@@ -370,25 +377,99 @@ export function LaunchOptimizationsPanel({
   const [tooltipId, setTooltipId] = useState<LaunchOptimizationId | null>(null);
   const [manualPresetName, setManualPresetName] = useState('');
   const [manualSavePending, setManualSavePending] = useState(false);
+  const [optimizationSection, setOptimizationSection] = useState<'recommended' | 'advanced'>('recommended');
+
+  const isMethodSupported = method === 'proton_run' || method === 'steam_applaunch';
 
   const optionsById = useMemo(() => (catalog ? buildOptionsById(catalog.entries) : {}), [catalog]);
   const conflictMatrix = useMemo(() => (catalog ? buildConflictMatrix(catalog.entries) : {}), [catalog]);
+
+  const savedPresetNameOptions = useMemo(
+    () =>
+      optimizationPresetNames
+        .filter((n) => !n.startsWith(BUNDLED_PRESET_KEY_PREFIX))
+        .map((n) => ({ value: n, label: n })),
+    [optimizationPresetNames]
+  );
+
+  const savedPresetOptionsWithOrphan = useMemo(() => {
+    const active = activeOptimizationPreset.trim();
+    const catalogBundledKeys = new Set(
+      bundledOptimizationPresets.map((p) => bundledOptimizationTomlKey(p.preset_id))
+    );
+    const opts = [...savedPresetNameOptions];
+    if (
+      active &&
+      optimizationPresetNames.includes(active) &&
+      !catalogBundledKeys.has(active) &&
+      !opts.some((o) => o.value === active)
+    ) {
+      opts.push({ value: active, label: active });
+    }
+    return opts;
+  }, [
+    savedPresetNameOptions,
+    activeOptimizationPreset,
+    optimizationPresetNames,
+    bundledOptimizationPresets,
+  ]);
+
+  const optimizationPresetGroups = useMemo((): SelectOptionGroup[] => {
+    const groups: SelectOptionGroup[] = [];
+    if (bundledOptimizationPresets.length > 0 && onApplyBundledPreset) {
+      groups.push({
+        label: 'Built-in',
+        options: bundledOptimizationPresets.map((p) => ({
+          value: bundledOptimizationTomlKey(p.preset_id),
+          label: p.display_name,
+          badge: 'Built-in',
+        })),
+      });
+    }
+    if (savedPresetOptionsWithOrphan.length > 0 && onSelectOptimizationPreset) {
+      groups.push({ label: 'Saved', options: savedPresetOptionsWithOrphan });
+    }
+    return groups;
+  }, [
+    bundledOptimizationPresets,
+    onApplyBundledPreset,
+    onSelectOptimizationPreset,
+    savedPresetOptionsWithOrphan,
+  ]);
+
+  const presetSelectValue = useMemo(() => {
+    const active = activeOptimizationPreset.trim();
+    if (!active) {
+      return '';
+    }
+    const catalogKeys = new Set(bundledOptimizationPresets.map((p) => bundledOptimizationTomlKey(p.preset_id)));
+    const inSaved = savedPresetOptionsWithOrphan.some((o) => o.value === active);
+    if (catalogKeys.has(active) || inSaved) {
+      return active;
+    }
+    return '';
+  }, [activeOptimizationPreset, bundledOptimizationPresets, savedPresetOptionsWithOrphan]);
+
+  const handleOptimizationPresetChange = useCallback(
+    (value: string) => {
+      if (value.startsWith(BUNDLED_PRESET_KEY_PREFIX)) {
+        const presetId = value.slice(BUNDLED_PRESET_KEY_PREFIX.length);
+        const isCatalogBundled = bundledOptimizationPresets.some((p) => p.preset_id === presetId);
+        if (isCatalogBundled && onApplyBundledPreset) {
+          void onApplyBundledPreset(presetId);
+          return;
+        }
+      }
+      void onSelectOptimizationPreset?.(value);
+    },
+    [bundledOptimizationPresets, onApplyBundledPreset, onSelectOptimizationPreset]
+  );
 
   if (!catalog) {
     return <div className="crosshook-optimization-panel">Loading optimizations...</div>;
   }
 
-  const isMethodSupported = method === 'proton_run' || method === 'steam_applaunch';
-  const hasNamedPresets = optimizationPresetNames.length > 0 && onSelectOptimizationPreset !== undefined;
-  const hasBundledPresets = bundledOptimizationPresets.length > 0 && onApplyBundledPreset !== undefined;
   const presetActionBusy = optimizationPresetActionBusy || manualSavePending;
-  const presetSelectValue = (() => {
-    if (!activeOptimizationPreset.trim()) {
-      return '';
-    }
-    return optimizationPresetNames.includes(activeOptimizationPreset) ? activeOptimizationPreset : '';
-  })();
-  const presetOptions = optimizationPresetNames.map((name) => ({ value: name, label: name }));
   const seen = new Set<LaunchOptimizationId>();
   const selectedOptionIds = enabledOptionIds.filter((optionId) => {
     if (!optionsById[optionId] || seen.has(optionId)) {
@@ -410,7 +491,9 @@ export function LaunchOptimizationsPanel({
   const defaultStatus = DEFAULT_STATUS[method] ?? DEFAULT_STATUS[''];
   const resolvedStatus = status ?? defaultStatus;
   const rootClassName = joinClasses('crosshook-panel', 'crosshook-launch-optimizations', className);
-  const advancedOpen = enabledAdvancedCount > 0;
+  const showManualPresetSave = isMethodSupported && onSaveManualPreset !== undefined;
+  const showOptimizedPresetSelect = isMethodSupported && optimizationPresetGroups.length > 0;
+  const showPresetToolbar = showManualPresetSave || showOptimizedPresetSelect;
 
   return (
     <section className={rootClassName} aria-labelledby={titleId} data-method={method}>
@@ -437,94 +520,79 @@ export function LaunchOptimizationsPanel({
               'crosshook-launch-optimizations__status-chip',
               getStatusToneClass(resolvedStatus.tone)
             )}
+            aria-live="polite"
+            aria-atomic="true"
           >
             {resolvedStatus.label}
           </span>
         </div>
       </div>
 
-      <div className="crosshook-launch-optimizations__status" aria-live="polite">
-        <p className="crosshook-launch-optimizations__status-copy">{resolvedStatus.label}</p>
-        {resolvedStatus.detail ? <p className="crosshook-help-text">{resolvedStatus.detail}</p> : null}
-      </div>
-
-      {hasBundledPresets && isMethodSupported ? (
-        <div className="crosshook-launch-optimizations__bundled-row">
-          <span className="crosshook-launch-optimizations__bundled-label">Bundled GPU presets</span>
-          <div className="crosshook-launch-optimizations__bundled-buttons">
-            {bundledOptimizationPresets.map((preset) => (
-              <button
-                key={preset.preset_id}
-                type="button"
-                className="crosshook-button crosshook-button--secondary"
-                disabled={presetActionBusy}
-                onClick={() => onApplyBundledPreset?.(preset.preset_id)}
-              >
-                {preset.display_name}
-              </button>
-            ))}
+      {showPresetToolbar ? (
+        <div className="crosshook-launch-optimizations__preset-toolbar">
+          <div className="crosshook-launch-optimizations__preset-toolbar-row">
+            {showManualPresetSave ? (
+              <>
+                <div className="crosshook-launch-optimizations__manual-save-field">
+                  <label htmlFor={manualPresetInputId}>Save current toggles as preset</label>
+                  <input
+                    id={manualPresetInputId}
+                    className="crosshook-launch-optimizations__manual-save-input"
+                    type="text"
+                    autoComplete="off"
+                    placeholder="e.g. My DXVK tweaks"
+                    value={manualPresetName}
+                    disabled={presetActionBusy}
+                    onChange={(event) => setManualPresetName(event.target.value)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--secondary crosshook-launch-optimizations__preset-save-btn"
+                  disabled={presetActionBusy || !manualPresetName.trim()}
+                  onClick={() => {
+                    const save = onSaveManualPreset;
+                    if (!save) {
+                      return;
+                    }
+                    void (async () => {
+                      setManualSavePending(true);
+                      try {
+                        await save(manualPresetName.trim());
+                        setManualPresetName('');
+                      } catch {
+                        /* status / error surfaced by profile hook */
+                      } finally {
+                        setManualSavePending(false);
+                      }
+                    })();
+                  }}
+                >
+                  Save preset
+                </button>
+              </>
+            ) : null}
+            {showOptimizedPresetSelect ? (
+              <div className="crosshook-launch-optimizations__preset-select-cluster">
+                <label className="crosshook-launch-optimizations__preset-label" htmlFor={presetSelectId}>
+                  Optimized Presets
+                </label>
+                <ThemedSelect
+                  id={presetSelectId}
+                  value={presetSelectValue}
+                  onValueChange={handleOptimizationPresetChange}
+                  groups={optimizationPresetGroups}
+                  placeholder="Select a preset"
+                />
+              </div>
+            ) : null}
           </div>
-          <p className="crosshook-help-text crosshook-launch-optimizations__preset-help">
-            Applies CrossHook&apos;s curated option set, saves it under <code>[launch.presets.bundled/&lt;id&gt;]</code>
-            , and sets it as the active preset.
-          </p>
-        </div>
-      ) : null}
-
-      {isMethodSupported && onSaveManualPreset !== undefined ? (
-        <div className="crosshook-launch-optimizations__manual-save">
-          <div className="crosshook-launch-optimizations__manual-save-field">
-            <label htmlFor={manualPresetInputId}>Save current toggles as preset</label>
-            <input
-              id={manualPresetInputId}
-              className="crosshook-launch-optimizations__manual-save-input"
-              type="text"
-              autoComplete="off"
-              placeholder="e.g. My DXVK tweaks"
-              value={manualPresetName}
-              disabled={presetActionBusy}
-              onChange={(event) => setManualPresetName(event.target.value)}
-            />
-          </div>
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--secondary"
-            disabled={presetActionBusy || !manualPresetName.trim()}
-            onClick={() => {
-              void (async () => {
-                setManualSavePending(true);
-                try {
-                  await onSaveManualPreset(manualPresetName.trim());
-                  setManualPresetName('');
-                } catch {
-                  /* status / error surfaced by profile hook */
-                } finally {
-                  setManualSavePending(false);
-                }
-              })();
-            }}
-          >
-            Save preset
-          </button>
-        </div>
-      ) : null}
-
-      {hasNamedPresets && isMethodSupported ? (
-        <div className="crosshook-launch-optimizations__preset-row">
-          <label className="crosshook-launch-optimizations__preset-label" htmlFor={presetSelectId}>
-            User Optimized Presets
-          </label>
-          <ThemedSelect
-            id={presetSelectId}
-            value={presetSelectValue}
-            onValueChange={(value) => onSelectOptimizationPreset?.(value)}
-            options={presetOptions}
-            placeholder="Select a preset"
-          />
-          <p className="crosshook-help-text crosshook-launch-optimizations__preset-help">
-            Switch the active named preset from your profile. Use bundled GPU presets or &quot;Save preset&quot; above
-            to add entries under <code>[launch.presets.&lt;name&gt;]</code> without editing TOML by hand.
-          </p>
+          {showOptimizedPresetSelect ? (
+            <p className="crosshook-help-text crosshook-launch-optimizations__preset-help">
+              Built-in entries apply CrossHook&apos;s curated GPU sets under <code>[launch.presets.bundled/&lt;id&gt;]</code>.
+              Saved names are profile presets; use &quot;Save preset&quot; to add more without editing TOML.
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -536,65 +604,91 @@ export function LaunchOptimizationsPanel({
       ) : null}
 
       <div className="crosshook-launch-optimizations__sections">
-        <div className="crosshook-launch-optimizations__section">
-          <div className="crosshook-launch-optimizations__section-title">Recommended</div>
-          <div className="crosshook-launch-optimizations__section-copy">
-            Common launch fixes for controller handling, overlays, and windowing.
-          </div>
-          <div className="crosshook-launch-optimizations__group-list">
-            {commonGroups.map((group) => (
-              <OptionGroup
-                key={group.category}
-                group={group}
-                enabledIds={enabledIdSet}
-                selectedConflicts={selectedConflicts}
-                isMethodSupported={isMethodSupported}
-                method={method}
-                onToggleOption={onToggleOption}
-                tooltipIdPrefix={tooltipIdPrefix}
-                tooltipId={tooltipId}
-                setTooltipId={setTooltipId}
-                sectionTone="default"
-                optionsById={optionsById}
-                conflictMatrix={conflictMatrix}
-              />
-            ))}
-          </div>
-        </div>
-
-        <CollapsibleSection
-          title="Advanced"
-          open={advancedOpen}
-          className="crosshook-launch-optimizations__advanced"
-          meta={
-            <span className="crosshook-launch-optimizations__advanced-summary-meta">
-              {formatCountLabel(advancedOptions.length, 'option', 'options')}
-            </span>
-          }
+        <Tabs.Root
+          value={optimizationSection}
+          onValueChange={(value) => setOptimizationSection(value as 'recommended' | 'advanced')}
+          className="crosshook-launch-optimizations__section-tabs"
         >
-          <p className="crosshook-help-text crosshook-launch-optimizations__advanced-copy">
-            Experimental or hardware-specific toggles that are useful when the common fixes are not enough.
-          </p>
-          <div className="crosshook-launch-optimizations__group-list">
-            {advancedGroups.map((group) => (
-              <OptionGroup
-                key={group.category}
-                group={group}
-                enabledIds={enabledIdSet}
-                selectedConflicts={selectedConflicts}
-                isMethodSupported={isMethodSupported}
-                method={method}
-                onToggleOption={onToggleOption}
-                tooltipIdPrefix={tooltipIdPrefix}
-                tooltipId={tooltipId}
-                setTooltipId={setTooltipId}
-                sectionTone="advanced"
-                optionsById={optionsById}
-                conflictMatrix={conflictMatrix}
-              />
-            ))}
+          <Tabs.List
+            className="crosshook-launch-optimizations__section-tab-list"
+            aria-label="Optimization detail level"
+          >
+            <Tabs.Trigger value="recommended" className="crosshook-launch-optimizations__section-tab-trigger">
+              Recommended
+            </Tabs.Trigger>
+            <Tabs.Trigger value="advanced" className="crosshook-launch-optimizations__section-tab-trigger">
+              <span className="crosshook-launch-optimizations__section-tab-trigger-inner">
+                <span>Advanced</span>
+                <span className="crosshook-launch-optimizations__section-tab-meta">
+                  {formatCountLabel(advancedOptions.length, 'option', 'options')}
+                  {enabledAdvancedCount > 0 ? (
+                    <span className="crosshook-launch-optimizations__section-tab-meta-badge">
+                      {enabledAdvancedCount} on
+                    </span>
+                  ) : null}
+                </span>
+              </span>
+            </Tabs.Trigger>
+          </Tabs.List>
+
+          <div className="crosshook-launch-optimizations__section-tab-panels">
+            <Tabs.Content value="recommended" className="crosshook-launch-optimizations__section-tab-panel">
+              <p className="crosshook-launch-optimizations__section-copy">
+                Common launch fixes for controller handling, overlays, and windowing.
+              </p>
+              <div className="crosshook-launch-optimizations__group-list">
+                {commonGroups.map((group) => (
+                  <OptionGroup
+                    key={group.category}
+                    group={group}
+                    enabledIds={enabledIdSet}
+                    selectedConflicts={selectedConflicts}
+                    isMethodSupported={isMethodSupported}
+                    method={method}
+                    onToggleOption={onToggleOption}
+                    tooltipIdPrefix={tooltipIdPrefix}
+                    tooltipId={tooltipId}
+                    setTooltipId={setTooltipId}
+                    sectionTone="default"
+                    optionsById={optionsById}
+                    conflictMatrix={conflictMatrix}
+                  />
+                ))}
+              </div>
+            </Tabs.Content>
+
+            <Tabs.Content
+              value="advanced"
+              className={joinClasses(
+                'crosshook-launch-optimizations__section-tab-panel',
+                'crosshook-launch-optimizations__section-tab-panel--advanced'
+              )}
+            >
+              <p className="crosshook-help-text crosshook-launch-optimizations__advanced-copy">
+                Experimental or hardware-specific toggles that are useful when the common fixes are not enough.
+              </p>
+              <div className="crosshook-launch-optimizations__group-list">
+                {advancedGroups.map((group) => (
+                  <OptionGroup
+                    key={group.category}
+                    group={group}
+                    enabledIds={enabledIdSet}
+                    selectedConflicts={selectedConflicts}
+                    isMethodSupported={isMethodSupported}
+                    method={method}
+                    onToggleOption={onToggleOption}
+                    tooltipIdPrefix={tooltipIdPrefix}
+                    tooltipId={tooltipId}
+                    setTooltipId={setTooltipId}
+                    sectionTone="advanced"
+                    optionsById={optionsById}
+                    conflictMatrix={conflictMatrix}
+                  />
+                ))}
+              </div>
+            </Tabs.Content>
           </div>
-        </CollapsibleSection>
+        </Tabs.Root>
       </div>
     </section>
   );

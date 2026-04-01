@@ -41,7 +41,7 @@ export function LaunchPage() {
   );
 
   return (
-    <>
+    <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--launch">
       <PageBanner
         eyebrow="Launch"
         title="Launch controls"
@@ -49,7 +49,7 @@ export function LaunchPage() {
         illustration={<LaunchArt />}
       />
 
-      <div style={{ display: 'grid', gap: 24 }}>
+      <div className="crosshook-launch-page__grid">
         <LaunchPanel
           profileId={profileId}
           method={profileState.launchMethod}
@@ -117,7 +117,7 @@ export function LaunchPage() {
           }
         />
       </div>
-    </>
+    </div>
   );
 }
 

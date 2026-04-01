@@ -67,6 +67,8 @@
   --crosshook-sidebar-width-collapsed: 56px;
   --crosshook-console-drawer-height: 280px;
   --crosshook-console-drawer-handle-height: 40px;
+  /* Breathing room between route scroll content and the horizontal resize / collapsed console strip */
+  --crosshook-content-console-gap: 12px;
   --crosshook-resize-handle-thickness: 14px;
   --crosshook-grid-gap: 20px;
   --crosshook-custom-env-rows-gap: 12px;

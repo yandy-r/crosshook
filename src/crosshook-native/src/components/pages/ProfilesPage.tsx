@@ -591,7 +591,7 @@ export function ProfilesPage() {
   };
 
   return (
-    <>
+    <div className="crosshook-page-scroll-shell">
       <PageBanner
         eyebrow="Profiles"
         title="Profile editor"
@@ -1076,7 +1076,7 @@ export function ProfilesPage() {
           onDismiss={() => setShowWizard(false)}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 
