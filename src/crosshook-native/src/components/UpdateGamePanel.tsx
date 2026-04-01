@@ -112,7 +112,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
               </div>
             ) : null}
             <div className="crosshook-heading-eyebrow">Update Game</div>
-            <h3 id="update-game-heading" className="crosshook-heading-title" style={{ fontSize: '1.5rem' }}>
+            <h3 id="update-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
               {heroTitle}
             </h3>
             <p className="crosshook-heading-copy">{heroCopy}</p>
@@ -121,7 +121,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
       ) : (
         <div className="crosshook-install-intro">
           <div className="crosshook-heading-eyebrow">Update Game</div>
-          <h3 id="update-game-heading" className="crosshook-heading-title" style={{ fontSize: '1.5rem' }}>
+          <h3 id="update-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
             {heroTitle}
           </h3>
           <p className="crosshook-heading-copy">{heroCopy}</p>

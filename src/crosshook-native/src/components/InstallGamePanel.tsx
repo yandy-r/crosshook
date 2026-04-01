@@ -1,13 +1,12 @@
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import { invoke } from '@tauri-apps/api/core';
 
-import type { ProtonInstallOption } from './ProfileFormSections';
 import { InstallField } from './ui/InstallField';
 import { ProtonPathField } from './ui/ProtonPathField';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
 import { useInstallGame } from '../hooks/useInstallGame';
+import { useProtonInstalls } from '../hooks/useProtonInstalls';
 import type { GameProfile } from '../types/profile';
 import type {
   InstallGameExecutableCandidate,
@@ -25,6 +24,10 @@ const INSTALL_FLOW_TAB_LABELS: Record<InstallFlowTabId, string> = {
   runtime: 'Runtime',
   review: 'Review',
 };
+
+function isInstallFlowTabId(value: string): value is InstallFlowTabId {
+  return Object.prototype.hasOwnProperty.call(INSTALL_FLOW_TAB_LABELS, value);
+}
 
 export interface InstallGamePanelProps {
   onOpenProfileReview: (payload: InstallProfileReviewPayload) => void | Promise<boolean>;
@@ -147,9 +150,8 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
   const reviewableInstallResult = result?.succeeded === true && reviewProfile !== null ? result : null;
   const canReviewGeneratedProfile = reviewableInstallResult !== null && reviewProfile !== null;
   const lastAutoOpenReviewKeyRef = useRef<string | null>(null);
-  const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
-  const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
   const [activeInstallTab, setActiveInstallTab] = useState<InstallFlowTabId>('identity');
+  const { installs: protonInstalls, error: protonInstallsError } = useProtonInstalls();
 
   const installFlowTabs = (['identity', 'media', 'runtime', 'review'] as const).map((id) => ({
     id,
@@ -166,7 +168,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
         ...reviewProfile,
         game: {
           ...reviewProfile.game,
-          custom_cover_art_path: request.custom_cover_art_path.trim(),
+          custom_cover_art_path: reviewProfile.game.custom_cover_art_path,
         },
         steam: request.launcher_icon_path.trim()
           ? {
@@ -189,7 +191,6 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
       candidateOptions,
       logPath,
       onOpenProfileReview,
-      request.custom_cover_art_path,
       request.launcher_icon_path,
       request.profile_name,
       reviewProfile,
@@ -217,43 +218,6 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
     openReviewPayload('install-complete');
   }, [openReviewPayload, reviewableInstallResult, reviewProfile]);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadProtonInstalls() {
-      try {
-        const installs = await invoke<ProtonInstallOption[]>('list_proton_installs');
-        const sortedInstalls = [...installs].sort((left, right) => {
-          if (left.is_official !== right.is_official) {
-            return left.is_official ? -1 : 1;
-          }
-
-          return left.name.localeCompare(right.name) || left.path.localeCompare(right.path);
-        });
-
-        if (!active) {
-          return;
-        }
-
-        setProtonInstalls(sortedInstalls);
-        setProtonInstallsError(null);
-      } catch (loadError) {
-        if (!active) {
-          return;
-        }
-
-        setProtonInstalls([]);
-        setProtonInstallsError(loadError instanceof Error ? loadError.message : String(loadError));
-      }
-    }
-
-    void loadProtonInstalls();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
   return (
     <section className="crosshook-install-shell" aria-labelledby="install-game-heading">
       {hasCoverHero ? (
@@ -273,7 +237,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
           )}
           <div className="crosshook-profile-hero__content">
             <div className="crosshook-heading-eyebrow">Install Game</div>
-            <h3 id="install-game-heading" className="crosshook-heading-title" style={{ fontSize: '1.5rem' }}>
+            <h3 id="install-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
               Guided install shell
             </h3>
             <p className="crosshook-heading-copy">
@@ -285,7 +249,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
       ) : (
         <div className="crosshook-install-intro">
           <div className="crosshook-heading-eyebrow">Install Game</div>
-          <h3 id="install-game-heading" className="crosshook-heading-title" style={{ fontSize: '1.5rem' }}>
+          <h3 id="install-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
             Guided install shell
           </h3>
           <p className="crosshook-heading-copy">
@@ -299,7 +263,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
         className="crosshook-install-flow-tabs"
         style={gameColorStyle}
         value={activeInstallTab}
-        onValueChange={(value) => setActiveInstallTab(value as InstallFlowTabId)}
+        onValueChange={(value) => setActiveInstallTab(isInstallFlowTabId(value) ? value : 'identity')}
       >
         <Tabs.List
           className={`crosshook-subtab-row${dominantColor ? ' crosshook-subtab-row--themed' : ''}`}
