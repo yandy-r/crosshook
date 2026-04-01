@@ -1,5 +1,5 @@
-use super::models::{LaunchOptimizationsSection, LocalOverrideSection};
 use super::mangohud;
+use super::models::{LaunchOptimizationsSection, LocalOverrideSection};
 use crate::launch::is_known_launch_optimization_id;
 use crate::profile::{legacy, GameProfile};
 use directories::BaseDirs;
@@ -70,7 +70,9 @@ fn validate_manual_launch_preset_name(raw: &str) -> Result<String, ProfileStoreE
         ));
     }
     if name.starts_with("bundled/") {
-        return Err(ProfileStoreError::ReservedLaunchPresetName(name.to_string()));
+        return Err(ProfileStoreError::ReservedLaunchPresetName(
+            name.to_string(),
+        ));
     }
     Ok(name.to_string())
 }
@@ -149,7 +151,9 @@ impl ProfileStore {
         let storage_profile = profile.storage_profile();
         fs::write(path, toml::to_string_pretty(&storage_profile)?)?;
 
-        if let Err(err) = mangohud::write_mangohud_conf(&self.base_path, name, &profile.launch.mangohud) {
+        if let Err(err) =
+            mangohud::write_mangohud_conf(&self.base_path, name, &profile.launch.mangohud)
+        {
             tracing::warn!(
                 profile = name,
                 error = %err,
@@ -212,7 +216,8 @@ impl ProfileStore {
             let ap = profile.launch.active_preset.trim();
             if !ap.is_empty() {
                 if let Some(slot) = profile.launch.presets.get_mut(ap) {
-                    slot.enabled_option_ids = profile.launch.optimizations.enabled_option_ids.clone();
+                    slot.enabled_option_ids =
+                        profile.launch.optimizations.enabled_option_ids.clone();
                 }
             }
         }
@@ -231,7 +236,9 @@ impl ProfileStore {
     ) -> Result<(), ProfileStoreError> {
         let key = preset_key.trim();
         if key.is_empty() {
-            return Err(ProfileStoreError::LaunchPresetNotFound(preset_key.to_string()));
+            return Err(ProfileStoreError::LaunchPresetNotFound(
+                preset_key.to_string(),
+            ));
         }
 
         let enabled_option_ids: Vec<String> = enabled_option_ids
@@ -249,12 +256,12 @@ impl ProfileStore {
         }
 
         let mut profile = self.load(profile_name)?;
-        profile
-            .launch
-            .presets
-            .insert(key.to_string(), LaunchOptimizationsSection {
+        profile.launch.presets.insert(
+            key.to_string(),
+            LaunchOptimizationsSection {
                 enabled_option_ids: enabled_option_ids.clone(),
-            });
+            },
+        );
 
         if set_as_active {
             profile.launch.active_preset = key.to_string();
@@ -272,12 +279,7 @@ impl ProfileStore {
         enabled_option_ids: Vec<String>,
     ) -> Result<(), ProfileStoreError> {
         let name = validate_manual_launch_preset_name(preset_display_name)?;
-        self.materialize_launch_optimization_preset(
-            profile_name,
-            &name,
-            enabled_option_ids,
-            true,
-        )
+        self.materialize_launch_optimization_preset(profile_name, &name, enabled_option_ids, true)
     }
 
     pub fn list(&self) -> Result<Vec<String>, ProfileStoreError> {
@@ -779,11 +781,7 @@ method = "native"
             ],
         };
         store
-            .save_launch_optimizations(
-                "elden-ring",
-                optimizations.enabled_option_ids.clone(),
-                None,
-            )
+            .save_launch_optimizations("elden-ring", optimizations.enabled_option_ids.clone(), None)
             .unwrap();
 
         let loaded = store.load("elden-ring").unwrap();
@@ -885,7 +883,10 @@ enabled_option_ids = ["enable_hdr"]
         assert_eq!(loaded.launch.active_preset, "performance");
         assert_eq!(
             loaded.launch.optimizations.enabled_option_ids,
-            vec!["use_gamemode".to_string(), "disable_steam_input".to_string()]
+            vec![
+                "use_gamemode".to_string(),
+                "disable_steam_input".to_string()
+            ]
         );
         let mut expected = BTreeMap::new();
         expected.insert(
@@ -954,10 +955,7 @@ enabled_option_ids = ["enable_hdr"]
         let profile = sample_profile();
         store.save("p", &profile).unwrap();
 
-        let ids = vec![
-            "use_gamemode".to_string(),
-            "enable_nvapi".to_string(),
-        ];
+        let ids = vec!["use_gamemode".to_string(), "enable_nvapi".to_string()];
         store
             .materialize_launch_optimization_preset(
                 "p",

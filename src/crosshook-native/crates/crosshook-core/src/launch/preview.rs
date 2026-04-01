@@ -289,8 +289,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     // Environment and command depend on successful directive resolution.
     let (environment, wrappers, effective_command) = match &directives {
         Some(directives) => {
-            let wrappers_had_mangohud =
-                directives.wrappers.iter().any(|w| w.trim() == "mangohud");
+            let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
             let mut env = Vec::new();
             collect_host_environment(&mut env);
             match resolved_method {
@@ -312,19 +311,18 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                 gamescope_active,
                 wrappers_had_mangohud,
             );
-            let effective_command =
-                match build_effective_command_string(
-                    request,
-                    resolved_method,
-                    directives,
-                    gamescope_active,
-                ) {
-                    Ok(command) => Some(command),
-                    Err(error) => {
-                        append_preview_error(&mut directives_error, error);
-                        None
-                    }
-                };
+            let effective_command = match build_effective_command_string(
+                request,
+                resolved_method,
+                directives,
+                gamescope_active,
+            ) {
+                Ok(command) => Some(command),
+                Err(error) => {
+                    append_preview_error(&mut directives_error, error);
+                    None
+                }
+            };
             (
                 Some(env),
                 Some(directives.wrappers.clone()),
@@ -551,7 +549,12 @@ fn inject_mangohud_config_preview_env(
             None => {
                 // Still fall through to set read_cfg below if gamescope is active.
                 if gamescope_active && wrappers_had_mangohud {
-                    insert_preview_env_if_absent(env, "MANGOHUD_CONFIG", "read_cfg", EnvVarSource::ProfileCustom);
+                    insert_preview_env_if_absent(
+                        env,
+                        "MANGOHUD_CONFIG",
+                        "read_cfg",
+                        EnvVarSource::ProfileCustom,
+                    );
                 }
                 return;
             }
@@ -561,7 +564,12 @@ fn inject_mangohud_config_preview_env(
             Some(dirs) => dirs.config_dir().join("crosshook").join("profiles"),
             None => {
                 if gamescope_active && wrappers_had_mangohud {
-                    insert_preview_env_if_absent(env, "MANGOHUD_CONFIG", "read_cfg", EnvVarSource::ProfileCustom);
+                    insert_preview_env_if_absent(
+                        env,
+                        "MANGOHUD_CONFIG",
+                        "read_cfg",
+                        EnvVarSource::ProfileCustom,
+                    );
                 }
                 return;
             }
@@ -570,12 +578,22 @@ fn inject_mangohud_config_preview_env(
         let conf_path = crate::profile::mangohud::mangohud_conf_path(&base_path, profile_name);
         let conf_path_str = conf_path.to_string_lossy().into_owned();
 
-        insert_preview_env_if_absent(env, "MANGOHUD_CONFIGFILE", &conf_path_str, EnvVarSource::ProfileCustom);
+        insert_preview_env_if_absent(
+            env,
+            "MANGOHUD_CONFIGFILE",
+            &conf_path_str,
+            EnvVarSource::ProfileCustom,
+        );
     }
 
     // Always set read_cfg for gamescope compatibility, regardless of who supplied MANGOHUD_CONFIGFILE.
     if gamescope_active && wrappers_had_mangohud {
-        insert_preview_env_if_absent(env, "MANGOHUD_CONFIG", "read_cfg", EnvVarSource::ProfileCustom);
+        insert_preview_env_if_absent(
+            env,
+            "MANGOHUD_CONFIG",
+            "read_cfg",
+            EnvVarSource::ProfileCustom,
+        );
     }
 }
 
@@ -1143,9 +1161,8 @@ mod tests {
 
         let preview = build_launch_preview(&request).expect("preview");
         let log_path = _td.path().join("parity.log");
-        let command =
-            crate::launch::script_runner::build_proton_game_command(&request, &log_path)
-                .expect("command");
+        let command = crate::launch::script_runner::build_proton_game_command(&request, &log_path)
+            .expect("command");
 
         let dxvk = preview
             .environment
@@ -1183,7 +1200,10 @@ mod tests {
         )
         .expect("steam line");
 
-        assert_eq!(preview.steam_launch_options.as_deref(), Some(expected.as_str()));
+        assert_eq!(
+            preview.steam_launch_options.as_deref(),
+            Some(expected.as_str())
+        );
 
         let dxvk = preview
             .environment

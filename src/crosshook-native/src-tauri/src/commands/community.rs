@@ -131,9 +131,17 @@ pub fn community_import_profile(
                     &profile_id,
                     result.profile.steam.app_id.trim(),
                     None,
-                    if trainer_version.is_empty() { None } else { Some(trainer_version) },
+                    if trainer_version.is_empty() {
+                        None
+                    } else {
+                        Some(trainer_version)
+                    },
                     None,
-                    if game_version.is_empty() { None } else { Some(game_version) },
+                    if game_version.is_empty() {
+                        None
+                    } else {
+                        Some(game_version)
+                    },
                     "untracked",
                 ) {
                     tracing::warn!(
@@ -274,7 +282,12 @@ pub fn community_sync(
 
     for result in &mut results {
         let tap_url = result.workspace.subscription.url.as_str();
-        let tap_branch = result.workspace.subscription.branch.as_deref().unwrap_or("");
+        let tap_branch = result
+            .workspace
+            .subscription
+            .branch
+            .as_deref()
+            .unwrap_or("");
         if let Ok(Some(tap_id)) = metadata_store.lookup_community_tap_id(tap_url, tap_branch) {
             if let Ok(Some(row)) = metadata_store.lookup_community_tap_offline_state_row(&tap_id) {
                 result.last_sync_at = row.last_sync_at.clone();

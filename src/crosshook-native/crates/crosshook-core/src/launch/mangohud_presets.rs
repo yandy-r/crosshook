@@ -156,10 +156,7 @@ mod tests {
     fn all_presets_have_non_empty_id_and_label() {
         let (catalog, _) = parse_mangohud_presets(DEFAULT_MANGOHUD_PRESETS_TOML);
         for preset in &catalog.preset {
-            assert!(
-                !preset.id.is_empty(),
-                "preset has empty id: {preset:?}"
-            );
+            assert!(!preset.id.is_empty(), "preset has empty id: {preset:?}");
             assert!(
                 !preset.label.is_empty(),
                 "preset '{}' has empty label",

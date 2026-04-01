@@ -15,9 +15,6 @@ pub mod profile_sync;
 mod version_store;
 
 pub use health_store::HealthSnapshotRow;
-pub use offline_store::{
-    CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow,
-};
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
     CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
@@ -26,6 +23,7 @@ pub use models::{
     MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT,
     MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
+pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow};
 pub use profile_sync::sha256_hex;
 pub use version_store::{compute_correlation_status, hash_trainer_file};
 
@@ -130,7 +128,11 @@ impl MetadataStore {
 
     /// Runs `f` with a shared SQLite `Connection` lock. Unlike [`Self::with_conn`], the return
     /// type does not need [`Default`] (used for batch health + offline on one connection).
-    pub fn with_sqlite_conn<R, F>(&self, action: &'static str, f: F) -> Result<R, MetadataStoreError>
+    pub fn with_sqlite_conn<R, F>(
+        &self,
+        action: &'static str,
+        f: F,
+    ) -> Result<R, MetadataStoreError>
     where
         F: FnOnce(&rusqlite::Connection) -> Result<R, MetadataStoreError>,
     {
@@ -145,9 +147,7 @@ impl MetadataStore {
             ));
         };
         let guard = conn.lock().map_err(|_| {
-            MetadataStoreError::Corrupt(format!(
-                "metadata store mutex poisoned while {action}"
-            ))
+            MetadataStoreError::Corrupt(format!("metadata store mutex poisoned while {action}"))
         })?;
         f(&guard)
     }
@@ -362,7 +362,12 @@ impl MetadataStore {
         result: &CommunityTapSyncResult,
     ) -> Result<(), MetadataStoreError> {
         let tap_url = &result.workspace.subscription.url;
-        let tap_branch = result.workspace.subscription.branch.as_deref().unwrap_or("");
+        let tap_branch = result
+            .workspace
+            .subscription
+            .branch
+            .as_deref()
+            .unwrap_or("");
         let Some(tap_id) = self.lookup_community_tap_id(tap_url, tap_branch)? else {
             return Ok(());
         };
@@ -1102,10 +1107,7 @@ impl MetadataStore {
         })
     }
 
-    pub fn acknowledge_version_change(
-        &self,
-        profile_id: &str,
-    ) -> Result<(), MetadataStoreError> {
+    pub fn acknowledge_version_change(&self, profile_id: &str) -> Result<(), MetadataStoreError> {
         self.with_conn_mut("acknowledge a version change", |conn| {
             version_store::acknowledge_version_change(conn, profile_id)
         })
@@ -2843,8 +2845,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            count,
-            MAX_VERSION_SNAPSHOTS_PER_PROFILE as i64,
+            count, MAX_VERSION_SNAPSHOTS_PER_PROFILE as i64,
             "row count must be exactly MAX after pruning"
         );
     }
@@ -2858,7 +2859,15 @@ mod tests {
         }
 
         store
-            .upsert_version_snapshot("ack-profile", "77777", None, None, None, None, "game_updated")
+            .upsert_version_snapshot(
+                "ack-profile",
+                "77777",
+                None,
+                None,
+                None,
+                None,
+                "game_updated",
+            )
             .unwrap();
 
         // Confirm initial status is game_updated.
@@ -3040,9 +3049,7 @@ mod tests {
         let store = MetadataStore::disabled();
 
         assert!(store
-            .upsert_version_snapshot(
-                "any-profile", "12345", None, None, None, None, "untracked"
-            )
+            .upsert_version_snapshot("any-profile", "12345", None, None, None, None, "untracked")
             .is_ok());
         let snapshot = store.lookup_latest_version_snapshot("any-profile").unwrap();
         assert!(snapshot.is_none());

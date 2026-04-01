@@ -9,10 +9,5 @@ pub async fn protondb_lookup(
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<ProtonDbLookupResult, String> {
     let metadata_store = metadata_store.inner().clone();
-    Ok(lookup_protondb(
-        &metadata_store,
-        &app_id,
-        force_refresh.unwrap_or(false),
-    )
-    .await)
+    Ok(lookup_protondb(&metadata_store, &app_id, force_refresh.unwrap_or(false)).await)
 }

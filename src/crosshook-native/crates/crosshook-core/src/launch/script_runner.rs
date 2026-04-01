@@ -44,7 +44,11 @@ fn prepare_gamescope_launch(
     let has_mangohud = wrappers.iter().any(|w| w.trim() == "mangohud");
     let filtered_wrappers: Vec<String> = if has_mangohud {
         gamescope_args.push("--mangoapp".into());
-        wrappers.iter().filter(|w| w.trim() != "mangohud").cloned().collect()
+        wrappers
+            .iter()
+            .filter(|w| w.trim() != "mangohud")
+            .cloned()
+            .collect()
     } else {
         wrappers.to_vec()
     };
@@ -155,8 +159,7 @@ pub fn build_proton_game_command(
     log_path: &Path,
 ) -> std::io::Result<Command> {
     let directives = resolve_launch_directives(request).map_err(validation_error_to_io_error)?;
-    let gamescope_active =
-        request.gamescope.enabled && !should_skip_gamescope(&request.gamescope);
+    let gamescope_active = request.gamescope.enabled && !should_skip_gamescope(&request.gamescope);
     let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
     let mut command = if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
@@ -184,7 +187,12 @@ pub fn build_proton_game_command(
         &directives.env,
         &request.custom_env_vars,
     );
-    apply_mangohud_config_env(&mut command, request, gamescope_active, wrappers_had_mangohud);
+    apply_mangohud_config_env(
+        &mut command,
+        request,
+        gamescope_active,
+        wrappers_had_mangohud,
+    );
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -207,8 +215,7 @@ pub fn build_proton_trainer_command(
         )?,
     };
 
-    let gamescope_active =
-        request.gamescope.enabled && !should_skip_gamescope(&request.gamescope);
+    let gamescope_active = request.gamescope.enabled && !should_skip_gamescope(&request.gamescope);
     let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
     let mut command = if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
@@ -236,7 +243,12 @@ pub fn build_proton_trainer_command(
         &directives.env,
         &request.custom_env_vars,
     );
-    apply_mangohud_config_env(&mut command, request, gamescope_active, wrappers_had_mangohud);
+    apply_mangohud_config_env(
+        &mut command,
+        request,
+        gamescope_active,
+        wrappers_had_mangohud,
+    );
     apply_working_directory(
         &mut command,
         request.runtime.working_directory.trim(),
@@ -656,7 +668,10 @@ mod tests {
         };
 
         let command = build_proton_game_command(&request, &log_path).expect("game command");
-        assert_eq!(command_env_value(&command, "DXVK_ASYNC"), Some("0".to_string()));
+        assert_eq!(
+            command_env_value(&command, "DXVK_ASYNC"),
+            Some("0".to_string())
+        );
     }
 
     #[test]
@@ -1109,7 +1124,13 @@ mod tests {
 
         copy_dir_all(&source_dir, &destination_dir).expect("copy_dir_all");
 
-        assert!(destination_dir.join("real.dll").exists(), "regular file should be copied");
-        assert!(!destination_dir.join("link.dll").exists(), "symlink should be skipped");
+        assert!(
+            destination_dir.join("real.dll").exists(),
+            "regular file should be copied"
+        );
+        assert!(
+            !destination_dir.join("link.dll").exists(),
+            "symlink should be skipped"
+        );
     }
 }

@@ -35,7 +35,10 @@ pub fn check_system_readiness() -> ReadinessCheckResult {
 
 /// Core evaluation logic — separated so tests can supply explicit Proton tool lists
 /// to avoid depending on system-level compat tool directories.
-fn evaluate_checks(steam_roots: &[PathBuf], proton_tools: &[ProtonInstall]) -> ReadinessCheckResult {
+fn evaluate_checks(
+    steam_roots: &[PathBuf],
+    proton_tools: &[ProtonInstall],
+) -> ReadinessCheckResult {
     let mut checks: Vec<HealthIssue> = Vec::new();
 
     // Check 1: Steam installed

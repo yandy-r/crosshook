@@ -284,10 +284,18 @@ pub struct LaunchSection {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub presets: BTreeMap<String, LaunchOptimizationsSection>,
     /// When set and present in `presets`, `optimizations` is kept in sync with that entry.
-    #[serde(rename = "active_preset", default, skip_serializing_if = "String::is_empty")]
+    #[serde(
+        rename = "active_preset",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
     pub active_preset: String,
     /// User-defined environment variables applied at launch (merged after optimizations).
-    #[serde(rename = "custom_env_vars", default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(
+        rename = "custom_env_vars",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
     pub custom_env_vars: BTreeMap<String, String>,
     /// Per-profile gamescope compositor wrapper configuration.
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
@@ -733,7 +741,10 @@ mod tests {
         let serialized = toml::to_string_pretty(&profile).expect("serialize");
         assert!(serialized.contains("custom_env_vars"));
         let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
-        assert_eq!(parsed.launch.custom_env_vars, profile.launch.custom_env_vars);
+        assert_eq!(
+            parsed.launch.custom_env_vars,
+            profile.launch.custom_env_vars
+        );
     }
 
     #[test]

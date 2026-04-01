@@ -85,7 +85,10 @@ fn end_to_end_save_revision_rollback_lineage() {
         .expect("insert revision 2 must succeed")
         .expect("revision 2 must not be deduped (different hash)");
 
-    assert!(rev2_id > rev1_id, "revision ids must increase monotonically");
+    assert!(
+        rev2_id > rev1_id,
+        "revision ids must increase monotonically"
+    );
 
     // ── list: newest first, both present ─────────────────────────────────────
     let list = store
@@ -129,9 +132,9 @@ fn end_to_end_save_revision_rollback_lineage() {
             &profile_id,
             "elden-ring",
             ConfigRevisionSource::RollbackApply,
-            &hash_v1,           // same content as rev1 (intentional restore)
+            &hash_v1, // same content as rev1 (intentional restore)
             &toml_v1,
-            Some(rev1_id),      // lineage pointer back to the revision being restored
+            Some(rev1_id), // lineage pointer back to the revision being restored
         )
         .expect("insert rollback revision must succeed")
         .expect("rollback revision must be inserted (latest hash is v2, not v1)");
@@ -232,7 +235,7 @@ fn rename_continuity_via_profile_id() {
     let rev_c = store
         .insert_config_revision(
             &profile_id,
-            "hollow-knight-v2",          // profile_name_at_write reflects new name
+            "hollow-knight-v2", // profile_name_at_write reflects new name
             ConfigRevisionSource::ManualSave,
             "hash-after-rename-c",
             &toml_c,
@@ -310,10 +313,7 @@ fn disabled_store_history_operations_return_safe_defaults() {
     let get_result = store
         .get_config_revision("some-profile", 99)
         .expect("disabled store get_config_revision must not return Err");
-    assert!(
-        get_result.is_none(),
-        "disabled store get must return None"
-    );
+    assert!(get_result.is_none(), "disabled store get must return None");
 
     // set_known_good → Ok(()): no-op, no error
     store

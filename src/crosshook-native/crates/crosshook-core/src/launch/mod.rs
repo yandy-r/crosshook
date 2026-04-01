@@ -12,10 +12,10 @@ pub mod script_runner;
 #[cfg(test)]
 pub(crate) mod test_support;
 
-pub use diagnostics::{analyze, should_surface_report, DiagnosticReport};
 pub use catalog::{
     global_catalog, initialize_catalog, load_catalog, OptimizationCatalog, OptimizationEntry,
 };
+pub use diagnostics::{analyze, should_surface_report, DiagnosticReport};
 pub use env::{
     BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS, PASSTHROUGH_DISPLAY_VARS, REQUIRED_PROTON_VARS,
     WINE_ENV_VARS_TO_CLEAR,

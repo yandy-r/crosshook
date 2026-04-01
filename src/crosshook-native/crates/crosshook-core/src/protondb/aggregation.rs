@@ -157,8 +157,13 @@ pub(crate) fn normalize_report_feed(
     }
 
     let mut launch_entries = launch_groups.into_iter().collect::<Vec<_>>();
-    launch_entries.sort_by(|left, right| right.1.count.cmp(&left.1.count).then(left.0.cmp(&right.0)));
-    for (index, (launch, aggregate)) in launch_entries.into_iter().take(MAX_LAUNCH_GROUPS).enumerate() {
+    launch_entries
+        .sort_by(|left, right| right.1.count.cmp(&left.1.count).then(left.0.cmp(&right.0)));
+    for (index, (launch, aggregate)) in launch_entries
+        .into_iter()
+        .take(MAX_LAUNCH_GROUPS)
+        .enumerate()
+    {
         groups.push(ProtonDbRecommendationGroup {
             group_id: format!("copy-only-launch-{}", index + 1),
             title: "Copy-only launch string".to_string(),
@@ -271,7 +276,9 @@ fn safe_env_var_suggestions(raw_launch: &str, source_label: &str) -> Vec<ProtonD
         if !is_safe_env_key(normalized_key) || !is_safe_env_value(value) {
             continue;
         }
-        if RESERVED_ENV_KEYS.contains(&normalized_key) || normalized_key.starts_with("STEAM_COMPAT_") {
+        if RESERVED_ENV_KEYS.contains(&normalized_key)
+            || normalized_key.starts_with("STEAM_COMPAT_")
+        {
             continue;
         }
         env_map.insert(

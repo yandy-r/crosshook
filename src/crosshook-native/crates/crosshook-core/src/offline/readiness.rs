@@ -92,7 +92,8 @@ pub fn compute_offline_readiness(
             checks.push(HealthIssue {
                 field: "trainer_hash_valid".to_string(),
                 path: String::new(),
-                message: "Trainer hash could not be verified (file unreadable or empty).".to_string(),
+                message: "Trainer hash could not be verified (file unreadable or empty)."
+                    .to_string(),
                 remediation: "Ensure the trainer file is readable.".to_string(),
                 severity: HealthIssueSeverity::Warning,
             });
@@ -231,8 +232,7 @@ pub fn check_offline_preflight(
     let score_cap = entry.and_then(|e| e.score_cap);
 
     let trainer_path = effective.trainer.path.trim();
-    let trainer_present = !trainer_path.is_empty()
-        && Path::new(trainer_path).is_file();
+    let trainer_present = !trainer_path.is_empty() && Path::new(trainer_path).is_file();
 
     let trainer_hash_valid = if trainer_present {
         let path = Path::new(trainer_path);
@@ -430,17 +430,8 @@ mod tests {
 
     #[test]
     fn compute_all_pass_uncapped_is_100() {
-        let r = compute_offline_readiness(
-            "p",
-            "standalone",
-            true,
-            true,
-            true,
-            true,
-            true,
-            false,
-            None,
-        );
+        let r =
+            compute_offline_readiness("p", "standalone", true, true, true, true, true, false, None);
         assert_eq!(r.score, 100);
         assert_eq!(r.readiness_state, "ready");
     }

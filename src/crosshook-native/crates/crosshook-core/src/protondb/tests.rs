@@ -6,8 +6,7 @@ use super::aggregation::{
     ProtonDbReportResponses,
 };
 use super::models::{
-    cache_key_for_app_id, ProtonDbLookupResult, ProtonDbLookupState, ProtonDbSnapshot,
-    ProtonDbTier,
+    cache_key_for_app_id, ProtonDbLookupResult, ProtonDbLookupState, ProtonDbSnapshot, ProtonDbTier,
 };
 use crate::metadata::MetadataStore;
 
@@ -19,12 +18,11 @@ fn runtime() -> tokio::runtime::Runtime {
 }
 
 fn lookup_result(app_id: &str) -> ProtonDbLookupResult {
-    runtime()
-        .block_on(super::lookup_protondb(
-            &MetadataStore::disabled(),
-            app_id,
-            false,
-        ))
+    runtime().block_on(super::lookup_protondb(
+        &MetadataStore::disabled(),
+        app_id,
+        false,
+    ))
 }
 
 fn feed(reports: Vec<ProtonDbReportEntry>) -> ProtonDbReportFeedResponse {
@@ -66,8 +64,7 @@ fn stale_cache_is_returned_when_live_lookup_fails() {
         )
         .expect("seed expired cache entry");
 
-    let result = runtime()
-        .block_on(super::lookup_protondb(&store, app_id, false));
+    let result = runtime().block_on(super::lookup_protondb(&store, app_id, false));
 
     let cache = result.cache.as_ref().expect("cache metadata");
     let snapshot = result.snapshot.as_ref().expect("cached snapshot");

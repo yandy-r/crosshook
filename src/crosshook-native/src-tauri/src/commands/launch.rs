@@ -81,13 +81,7 @@ async fn collect_offline_launch_warnings(
             Ok(p) => p,
             Err(_) => return Vec::new(),
         };
-        if profile
-            .effective_profile()
-            .trainer
-            .path
-            .trim()
-            .is_empty()
-        {
+        if profile.effective_profile().trainer.path.trim().is_empty() {
             return Vec::new();
         }
         let profile_id = match ms.lookup_profile_id(&name) {
@@ -165,7 +159,11 @@ pub async fn launch_game(
     let snap_steam_app_id = request.steam.app_id.clone();
     let snap_trainer_host_path = {
         let p = request.trainer_host_path.trim().to_string();
-        if p.is_empty() { None } else { Some(p) }
+        if p.is_empty() {
+            None
+        } else {
+            Some(p)
+        }
     };
     let snap_profile_name = request.profile_name.clone();
     let snap_steam_client_path = request.steam.steam_client_install_path.clone();
@@ -244,7 +242,11 @@ pub async fn launch_trainer(
     let snap_steam_app_id = request.steam.app_id.clone();
     let snap_trainer_host_path = {
         let p = request.trainer_host_path.trim().to_string();
-        if p.is_empty() { None } else { Some(p) }
+        if p.is_empty() {
+            None
+        } else {
+            Some(p)
+        }
     };
     let snap_profile_name = request.profile_name.clone();
     let snap_steam_client_path = request.steam.steam_client_install_path.clone();
@@ -432,7 +434,10 @@ async fn stream_log_lines(
 
     // Version snapshot — record on clean exit or indeterminate (steam_applaunch helper
     // exits before the game, so its exit code 0 is Indeterminate, not CleanExit).
-    if matches!(report.exit_info.failure_mode, FailureMode::CleanExit | FailureMode::Indeterminate) {
+    if matches!(
+        report.exit_info.failure_mode,
+        FailureMode::CleanExit | FailureMode::Indeterminate
+    ) {
         if let Some(ref pname) = profile_name {
             let ms = metadata_store.clone();
             let pname_c = pname.clone();

@@ -209,10 +209,7 @@ mod tests {
     fn mangohud_conf_path_uses_expected_filename() {
         let base = Path::new("/home/user/.config/crosshook/profiles");
         let path = mangohud_conf_path(base, "MyGame");
-        assert_eq!(
-            path,
-            base.join("MyGame.mangohud.conf")
-        );
+        assert_eq!(path, base.join("MyGame.mangohud.conf"));
     }
 
     #[test]

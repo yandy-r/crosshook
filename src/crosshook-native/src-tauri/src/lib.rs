@@ -4,9 +4,9 @@ mod startup;
 
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::launch::{initialize_catalog, load_catalog};
-use crosshook_core::offline::{initialize_trainer_type_catalog, load_trainer_type_catalog};
 use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
+use crosshook_core::offline::{initialize_trainer_type_catalog, load_trainer_type_catalog};
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{RecentFilesStore, SettingsStore};
 pub use paths::resolve_script_path;
