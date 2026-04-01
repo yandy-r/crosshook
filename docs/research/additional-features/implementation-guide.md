@@ -12,6 +12,20 @@ This document provides a recommended implementation order, dependency map, and q
 
 > Invest in depth over breadth. Every feature should make trainer orchestration more reliable, diagnosable, or shareable -- not expand CrossHook into a general-purpose launcher.
 
+### Storage Design Checkpoint (Mandatory)
+
+For every issue scoped from this guide, explicitly document storage ownership before implementation:
+
+- Classify each new/changed datum as one of:
+  - user-editable preferences (`settings.toml`)
+  - operational/history/cache metadata (SQLite metadata DB)
+  - ephemeral runtime-only state (in-memory)
+- Add a short "persistence and usability" note in the issue/plan covering:
+  - migration/backward compatibility expectations
+  - offline behavior expectations
+  - degraded/failure fallback behavior
+  - what users can view and edit directly
+
 ---
 
 ## Quick Wins
@@ -174,6 +188,16 @@ These features have no strict ordering. Prioritize based on community feedback.
 - **Community improvements bundle**: #59 + #55 (if not done earlier)
 - **Settings & maintenance bundle**: #60 + #61
 
+### Issue #60 Storage Boundary Note
+
+When planning `#60`, do not assume every new setting belongs in TOML. Evaluate each field against the storage checkpoint:
+
+- user-editable preference -> `settings.toml`
+- operational/history/cache metadata -> SQLite metadata DB
+- runtime-only values -> in-memory state only
+
+Acceptance criteria for `#60` planning should include explicit persistence rationale plus migration, offline, degraded-mode, and visibility/editability behavior.
+
 ---
 
 ### Phase 7: Future (P3 Features)
@@ -261,5 +285,7 @@ Before starting any feature, verify it does not fall into a warned pattern:
 - [ ] Does it respect user **privacy** (no telemetry, no accounts, no tracking)?
 - [ ] Would a **solo maintainer** be able to keep this working for 3 years?
 - [ ] Is this the **simplest** solution, or am I over-engineering?
+- [ ] Is the storage boundary explicit (TOML vs SQLite metadata vs runtime state), with a clear reason?
+- [ ] Have persistence/usability expectations been written (migration, offline, degraded mode, visibility/editability)?
 
 If any answer raises doubt, reconsider or scope down before implementing.
