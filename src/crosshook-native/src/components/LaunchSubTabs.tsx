@@ -154,8 +154,12 @@ export function LaunchSubTabs({
   if (isNative) return null;
 
   return (
-    <div className="crosshook-panel" style={{ padding: 'var(--crosshook-card-padding)' }}>
+    <div
+      className="crosshook-panel crosshook-launch-subtabs"
+      style={{ padding: 'var(--crosshook-card-padding)' }}
+    >
       <Tabs.Root
+        className="crosshook-subtabs-root"
         value={activeTab}
         onValueChange={(val) => {
           // When the user manually changes the tab after an auto-switch, don't
@@ -296,10 +300,10 @@ export function LaunchSubTabs({
           <Tabs.Content
             value="optimizations"
             forceMount
-            className="crosshook-subtab-content"
+            className="crosshook-subtab-content crosshook-subtab-content--fill"
             style={{ display: activeTab === 'optimizations' ? undefined : 'none' }}
           >
-            <div className="crosshook-subtab-content__inner">
+            <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--scroll">
               <LaunchOptimizationsPanel
                 method={launchMethod}
                 enabledOptionIds={enabledOptionIds}

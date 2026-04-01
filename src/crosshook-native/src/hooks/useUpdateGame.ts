@@ -7,6 +7,12 @@ import type { UpdateGameRequest, UpdateGameResult, UpdateGameStage, UpdateGameVa
 import { UPDATE_GAME_VALIDATION_MESSAGES, UPDATE_GAME_VALIDATION_FIELD } from '../types';
 import type { UpdateGameValidationError } from '../types/update';
 
+/** Steam / custom art used to show cover hero after a profile is loaded for update. */
+export interface UpdateGameProfileCoverSource {
+  steamAppId: string | undefined;
+  customCoverArtPath: string;
+}
+
 export interface UseUpdateGameResult {
   request: UpdateGameRequest;
   validation: UpdateGameValidationState;
@@ -17,6 +23,8 @@ export interface UseUpdateGameResult {
   profilesError: string | null;
   isLoadingProfiles: boolean;
   selectedProfile: string;
+  /** Set when `populateFromProfile` succeeds; drives cover art on the Update panel. */
+  profileCoverSource: UpdateGameProfileCoverSource | null;
   updateField: <Key extends keyof UpdateGameRequest>(key: Key, value: string) => void;
   statusText: string;
   hintText: string;
@@ -90,6 +98,7 @@ export function useUpdateGame(): UseUpdateGameResult {
   const [profilesError, setProfilesError] = useState<string | null>(null);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState('');
+  const [profileCoverSource, setProfileCoverSource] = useState<UpdateGameProfileCoverSource | null>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
 
   function cleanupListener() {
@@ -144,6 +153,11 @@ export function useUpdateGame(): UseUpdateGameResult {
         prefix_path: profile.runtime.prefix_path,
       }));
       setSelectedProfile(name);
+      const rawAppId = profile.steam.app_id?.trim() ?? '';
+      setProfileCoverSource({
+        steamAppId: rawAppId.length > 0 ? rawAppId : undefined,
+        customCoverArtPath: profile.game.custom_cover_art_path?.trim() ?? '',
+      });
       setValidation(createEmptyValidationState());
     } catch (invokeError) {
       const message = normalizeErrorMessage(invokeError);
@@ -268,6 +282,7 @@ export function useUpdateGame(): UseUpdateGameResult {
     setError(null);
     setProfilesError(null);
     setSelectedProfile('');
+    setProfileCoverSource(null);
   }, [stage, cancelUpdate]);
 
   useEffect(() => {
@@ -335,6 +350,7 @@ export function useUpdateGame(): UseUpdateGameResult {
     profilesError,
     isLoadingProfiles,
     selectedProfile,
+    profileCoverSource,
     updateField,
     statusText,
     hintText,

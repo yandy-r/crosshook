@@ -11,6 +11,8 @@ export interface InstallGameRequest {
   prefix_path: string;
   installed_game_executable_path: string;
   launcher_icon_path: string;
+  /** Sent to core as `custom_cover_art_path`; optional image path on the generated profile. */
+  custom_cover_art_path: string;
 }
 
 export interface InstallGameResult {
@@ -54,7 +56,9 @@ export type InstallGameValidationError =
   | 'PrefixPathMissing'
   | 'PrefixPathNotDirectory'
   | 'InstalledGameExecutablePathMissing'
-  | 'InstalledGameExecutablePathNotFile';
+  | 'InstalledGameExecutablePathNotFile'
+  | 'CustomCoverArtPathMissing'
+  | 'CustomCoverArtPathNotFile';
 
 /** Keep in sync with `InstallGameValidationError::message()` in crosshook-core `install/models.rs`. */
 export const INSTALL_GAME_VALIDATION_MESSAGES: Record<InstallGameValidationError, string> = {
@@ -74,6 +78,8 @@ export const INSTALL_GAME_VALIDATION_MESSAGES: Record<InstallGameValidationError
   PrefixPathNotDirectory: 'The prefix path must be a directory.',
   InstalledGameExecutablePathMissing: 'The final game executable path does not exist.',
   InstalledGameExecutablePathNotFile: 'The final game executable path must be a file.',
+  CustomCoverArtPathMissing: 'The custom cover art path does not exist.',
+  CustomCoverArtPathNotFile: 'The custom cover art path must be a file.',
 };
 
 export const INSTALL_GAME_VALIDATION_FIELD: Record<InstallGameValidationError, keyof InstallGameRequest | null> = {
@@ -93,6 +99,8 @@ export const INSTALL_GAME_VALIDATION_FIELD: Record<InstallGameValidationError, k
   PrefixPathNotDirectory: 'prefix_path',
   InstalledGameExecutablePathMissing: 'installed_game_executable_path',
   InstalledGameExecutablePathNotFile: 'installed_game_executable_path',
+  CustomCoverArtPathMissing: 'custom_cover_art_path',
+  CustomCoverArtPathNotFile: 'custom_cover_art_path',
 };
 
 export type InstallGameStage =

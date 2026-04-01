@@ -1102,7 +1102,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
   }
 
   return (
-    <>
+    <div className="crosshook-page-scroll-shell">
       <PageBanner
         eyebrow="Dashboards"
         title="Profile Health"
@@ -1449,7 +1449,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
           />
         )}
       </div>
-    </>
+    </div>
   );
 }
 

@@ -1,5 +1,20 @@
 # Task Plan
 
+## 2026-04-01 - verify install/update review comments
+
+- [x] Confirm each cited review comment is still valid in current code.
+- [x] Patch only the findings that still require changes across the install/update panels.
+- [x] Run focused frontend verification and record the outcome.
+
+### Review
+
+- Verified all five cited frontend review comments against the current code before editing; each finding was still present locally.
+- Preserved the completed install review snapshot by building the patched review profile from `reviewProfile.game.custom_cover_art_path` instead of mutable form state, so reopening review does not silently diverge from the validated install result.
+- Extracted Proton install discovery into a shared `useProtonInstalls` hook with sorted results, normalized errors, effect cancellation, and a reload entry point; both `InstallGamePanel` and `InstallPage` now consume the hook instead of inline `invoke('list_proton_installs')` effects.
+- Guarded the install-flow tab value at runtime before assigning `activeInstallTab`, removed the redundant manual active-class toggling on the install/update top-level Radix tab triggers, and moved the install/update heading size into the shared `crosshook-heading-title--install` CSS modifier.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
 ## 2026-04-01 - verified review findings implementation
 
 - [x] Patch backend game-image cache/download behavior, metadata helpers, and redacted settings debug output.

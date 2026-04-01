@@ -10,7 +10,7 @@ export function CommunityPage() {
   });
 
   return (
-    <>
+    <div className="crosshook-page-scroll-shell">
       <PageBanner
         eyebrow="Community"
         title="Browse shared profiles"
@@ -18,7 +18,7 @@ export function CommunityPage() {
         illustration={<CommunityArt />}
       />
       <CommunityBrowser profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY} state={communityState} />
-    </>
+    </div>
   );
 }
 
