@@ -87,7 +87,6 @@ export function LaunchPage() {
           }
           tabsSlot={
             <LaunchSubTabs
-              method={profileState.launchMethod}
               launchMethod={profileState.launchMethod}
               steamAppId={profile.steam.app_id}
               gamescopeConfig={profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG}

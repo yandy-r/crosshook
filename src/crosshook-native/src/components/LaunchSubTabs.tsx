@@ -29,9 +29,7 @@ const TAB_LABELS: Record<LaunchSubTabId, string> = {
 };
 
 export interface LaunchSubTabsProps {
-  /** The active launch method string (e.g. 'proton_run', 'steam_applaunch', 'native'). */
-  method: string;
-  /** The typed LaunchMethod value — used for panel props that require the enum type. */
+  /** Active launch method (proton_run, steam_applaunch, native, etc.). */
   launchMethod: LaunchMethod;
   /** Steam App ID from the active profile, used to load cover art and game metadata. */
   steamAppId: string | undefined;
@@ -64,7 +62,6 @@ export interface LaunchSubTabsProps {
 }
 
 export function LaunchSubTabs({
-  method,
   launchMethod,
   steamAppId,
   gamescopeConfig,
@@ -86,22 +83,25 @@ export function LaunchSubTabs({
   catalog,
   customEnvVars,
 }: LaunchSubTabsProps) {
-  const isNative = method === 'native';
+  const isNative = launchMethod === 'native';
 
-  const launchMethodSupportsOptimizations = !isNative && LAUNCH_OPTIMIZATION_APPLICABLE_METHODS.includes(
-    method as (typeof LAUNCH_OPTIMIZATION_APPLICABLE_METHODS)[number]
-  );
+  const launchMethodSupportsOptimizations =
+    !isNative &&
+    LAUNCH_OPTIMIZATION_APPLICABLE_METHODS.includes(
+      launchMethod as (typeof LAUNCH_OPTIMIZATION_APPLICABLE_METHODS)[number]
+    );
 
-  const showsGamescopeTab = method === 'proton_run';
+  const showsGamescopeTab = launchMethod === 'proton_run';
   const showsMangoHudTab = launchMethodSupportsOptimizations;
   const showsOptimizationsTab = launchMethodSupportsOptimizations;
-  const showsSteamOptionsTab = method === 'steam_applaunch';
+  const showsSteamOptionsTab = launchMethod === 'steam_applaunch';
 
   const tabs: LaunchSubTabId[] = isNative
     ? []
     : [
         ...(showsOptimizationsTab ? ['optimizations' as const] : []),
         ...(showsMangoHudTab ? ['mangohud' as const] : []),
+        ...(showsGamescopeTab ? ['gamescope' as const] : []),
         ...(showsSteamOptionsTab ? ['steam-options' as const] : []),
         'offline',
       ];
@@ -282,7 +282,7 @@ export function LaunchSubTabs({
                 config={mangoHudConfig}
                 onChange={onMangoHudChange}
                 showMangoHudOverlayEnabled={showMangoHudOverlayEnabled}
-                launchMethod={method}
+                launchMethod={launchMethod}
               />
             </div>
           </Tabs.Content>
