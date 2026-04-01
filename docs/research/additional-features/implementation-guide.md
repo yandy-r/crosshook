@@ -2,7 +2,7 @@
 
 **Tracking issue**: #78
 **Research source**: docs/research/additional-features/deep-research-report.md
-**Last updated**: 2026-03-29
+**Last updated**: 2026-03-31
 
 This document provides a recommended implementation order, dependency map, and quick-win guide for the features identified in the deep research analysis. Use it alongside the GitHub issues to plan sprints.
 
@@ -197,6 +197,51 @@ When planning `#60`, do not assume every new setting belongs in TOML. Evaluate e
 - runtime-only values -> in-memory state only
 
 Acceptance criteria for `#60` planning should include explicit persistence rationale plus migration, offline, degraded-mode, and visibility/editability behavior.
+
+### Issue #61 Storage Boundary Note
+
+When planning `#61` (prefix health, disk usage, orphan prefixes, staged-trainer cleanup), do not treat all surfaced data as profile TOML or as throwaway UI state. Evaluate each datum against the storage checkpoint:
+
+- **User-editable preferences** (thresholds, default warning level, whether to show prefix size in profile vs settings) → `settings.toml` where appropriate.
+- **Operational / history / cache metadata** (last measured prefix sizes, last scan timestamps, orphan-detection snapshots, cleanup action audit trail, cached free-space checks tied to launch safety) → SQLite metadata DB via existing `MetadataStore` patterns, unless a field is inherently ephemeral.
+- **Runtime-only** (in-progress directory walks, live `statvfs` reads during a single session, transient UI loading state) → in-memory only.
+
+Acceptance criteria for `#61` planning and implementation should include:
+
+- Explicit **migration / backward compatibility** for any new metadata rows or keys (including safe behavior on first run and after DB upgrade).
+- **Offline / no-network** behavior: prefix and disk features must remain meaningful without remote services (this feature is inherently local filesystem).
+- **Degraded behavior** when the metadata DB cannot be opened or written: still allow launch and profile editing where safe; surface a clear, non-blocking warning instead of failing the whole app.
+- **User visibility and editability**: what the user can change directly vs what is derived or historical; destructive cleanup actions must be explicit, confirmable, and attributable in the UI.
+
+### Issue #52 Storage Boundary Note
+
+Issue #52's original text says "cache images locally alongside profile TOML files." That wording predates the SQLite metadata DB. Apply the storage checkpoint before implementing:
+
+**Datum classification:**
+
+| Datum | Layer | Reasoning |
+| --- | --- | --- |
+| Steam Store metadata JSON (name, description, genres, tags) | SQLite `external_cache_entries` | Payload ~3-15 KiB; fits 512 KiB cap; TTL-based expiry; cache key `steam:appdetails:v1:{app_id}` |
+| Cover art / hero image binaries | Filesystem `~/.local/share/crosshook/cache/images/`, tracked by new `game_image_cache` table | Images 80 KB-2 MB exceed `MAX_CACHE_PAYLOAD_BYTES`; blobs in SQLite cause WAL pressure; filesystem + DB metadata is the correct split |
+| SteamGridDB API key | `settings.toml` (`AppSettingsData.steamgriddb_api_key`) | User-editable preference |
+| Image fetch/display state | Runtime-only (in-memory) | Ephemeral UI state |
+
+**Implementation requires:**
+
+- New migration (next version): `game_image_cache` table tracking filesystem-stored images (path, checksum, source URL, app ID, expiry, preferred source)
+- Reuse `external_cache_entries` for metadata JSON — no schema change needed; mirrors ProtonDB (#53) pattern exactly
+- Filesystem image cache at `~/.local/share/crosshook/cache/images/` with `0o700` directory permissions (matches `db.rs` pattern)
+
+**Do NOT** store image binaries in `external_cache_entries` — payloads exceeding `MAX_CACHE_PAYLOAD_BYTES` (512 KiB) silently store `NULL payload_json`, which would break offline art access without any error signal to the caller.
+
+**Persistence/usability summary:**
+
+- **Migration/backward compatibility**: The new migration is additive. Users without it have no cover art but all existing functionality is unaffected.
+- **Offline behavior**: Metadata JSON available as stale fallback in `external_cache_entries`. Filesystem images survive offline with no expiry until a new fetch succeeds. Profile cards show cached cover art offline; without cache, cards degrade to text-only.
+- **Degraded fallback**: Steam API unavailable -> text-only card, no blocked profile load/launch. SteamGridDB unavailable or unconfigured -> fall back to Steam API art. No art at all -> placeholder or no image region.
+- **User visibility/editability**: SteamGridDB API key visible/editable in `settings.toml`. Cached images visible in `~/.local/share/crosshook/cache/images/` and deletable to force re-fetch. Metadata JSON in `external_cache_entries` is an implementation detail.
+
+Acceptance criteria for `#52` planning must include explicit persistence rationale plus migration, offline, degraded-mode, and visibility/editability behavior.
 
 ---
 
