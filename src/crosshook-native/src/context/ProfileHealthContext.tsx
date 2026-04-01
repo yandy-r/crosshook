@@ -14,11 +14,7 @@ const ProfileHealthContext = createContext<ProfileHealthContextValue | null>(nul
 
 export function ProfileHealthProvider({ children }: { children: ReactNode }) {
   const health = useProfileHealth();
-  return (
-    <ProfileHealthContext.Provider value={health}>
-      {children}
-    </ProfileHealthContext.Provider>
-  );
+  return <ProfileHealthContext.Provider value={health}>{children}</ProfileHealthContext.Provider>;
 }
 
 export function useProfileHealthContext(): ProfileHealthContextValue {

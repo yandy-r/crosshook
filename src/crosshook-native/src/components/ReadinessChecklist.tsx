@@ -48,7 +48,9 @@ function CheckCard({ check }: CheckCardProps) {
   const label = getSeverityLabel(check.severity);
 
   return (
-    <div className={`crosshook-auto-populate__field-card crosshook-auto-populate__field-card--${variant} crosshook-readiness-checklist__card`}>
+    <div
+      className={`crosshook-auto-populate__field-card crosshook-auto-populate__field-card--${variant} crosshook-readiness-checklist__card`}
+    >
       <div className="crosshook-readiness-checklist__card-header">
         <span
           className={`crosshook-readiness-checklist__icon crosshook-auto-populate__field-state--${variant}`}
@@ -61,9 +63,7 @@ function CheckCard({ check }: CheckCardProps) {
           {label}
         </span>
       </div>
-      {check.remediation ? (
-        <div className="crosshook-readiness-checklist__remediation">{check.remediation}</div>
-      ) : null}
+      {check.remediation ? <div className="crosshook-readiness-checklist__remediation">{check.remediation}</div> : null}
     </div>
   );
 }

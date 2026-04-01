@@ -51,9 +51,7 @@ function sortProtonInstalls(installs: ProtonInstallOption[]): ProtonInstallOptio
 }
 
 export function ProfilesPage() {
-  const {
-    defaultSteamClientInstallPath,
-  } = usePreferencesContext();
+  const { defaultSteamClientInstallPath } = usePreferencesContext();
   const {
     deleting,
     dirty,
@@ -136,30 +134,20 @@ export function ProfilesPage() {
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
-    [defaultSteamClientInstallPath, steamClientInstallPath],
+    [defaultSteamClientInstallPath, steamClientInstallPath]
   );
   const targetHomePath = useMemo(
     () => deriveTargetHomePath(effectiveSteamClientInstallPath),
-    [effectiveSteamClientInstallPath],
+    [effectiveSteamClientInstallPath]
   );
   const canSave =
-    profileName.trim().length > 0 &&
-    profile.game.executable_path.trim().length > 0 &&
-    !saving &&
-    !deleting &&
-    !loading;
+    profileName.trim().length > 0 && profile.game.executable_path.trim().length > 0 && !saving && !deleting && !loading;
   const canDelete = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
   const canDuplicate = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
   const canRename = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
   const canPreview = profileName.trim().length > 0 && !loading;
   const canExportCommunity =
-    profileExists &&
-    !saving &&
-    !deleting &&
-    !loading &&
-    !duplicating &&
-    !renaming &&
-    !exportingCommunity;
+    profileExists && !saving && !deleting && !loading && !duplicating && !renaming && !exportingCommunity;
   const canViewHistory =
     Boolean(selectedProfile.trim()) &&
     profiles.includes(selectedProfile.trim()) &&
@@ -178,9 +166,7 @@ export function ProfilesPage() {
       try {
         const installs = await invoke<ProtonInstallOption[]>('list_proton_installs', {
           steamClientInstallPath:
-            effectiveSteamClientInstallPath.trim().length > 0
-              ? effectiveSteamClientInstallPath
-              : undefined,
+            effectiveSteamClientInstallPath.trim().length > 0 ? effectiveSteamClientInstallPath : undefined,
         });
 
         if (!active) {
@@ -205,7 +191,6 @@ export function ProfilesPage() {
       active = false;
     };
   }, [effectiveSteamClientInstallPath]);
-
 
   useEffect(() => {
     if (pendingRename !== null) {
@@ -313,9 +298,12 @@ export function ProfilesPage() {
     }
   }, [saveProfile, profileName, revalidateSingle]);
 
-  const handleAfterRollback = useCallback((name: string) => {
-    void revalidateSingle(name);
-  }, [revalidateSingle]);
+  const handleAfterRollback = useCallback(
+    (name: string) => {
+      void revalidateSingle(name);
+    },
+    [revalidateSingle]
+  );
 
   const undoRename = useCallback(() => {
     if (!renameToast) {
@@ -335,19 +323,22 @@ export function ProfilesPage() {
     });
   }, [dismissRenameToast, renameProfile, renameToast]);
 
-  const handleRenameConfirm = useCallback((oldName: string, newName: string) => {
-    setPendingRename(null);
-    void renameProfile(oldName, newName).then(({ ok, hadLauncher }) => {
-      if (!ok) {
-        return;
-      }
+  const handleRenameConfirm = useCallback(
+    (oldName: string, newName: string) => {
+      setPendingRename(null);
+      void renameProfile(oldName, newName).then(({ ok, hadLauncher }) => {
+        if (!ok) {
+          return;
+        }
 
-      showRenameToast(oldName, newName);
-      if (hadLauncher) {
-        setPendingLauncherReExport(true);
-      }
-    });
-  }, [renameProfile, showRenameToast]);
+        showRenameToast(oldName, newName);
+        if (hadLauncher) {
+          setPendingLauncherReExport(true);
+        }
+      });
+    },
+    [renameProfile, showRenameToast]
+  );
 
   const handleExportCommunityProfile = useCallback(async () => {
     const nameOnDisk = selectedProfile.trim();
@@ -458,9 +449,7 @@ export function ProfilesPage() {
       <span
         className="crosshook-version-badge"
         title={
-          isWarning
-            ? 'Version mismatch detected since last successful launch'
-            : 'Steam is currently updating this game'
+          isWarning ? 'Version mismatch detected since last successful launch' : 'Steam is currently updating this game'
         }
         style={{
           display: 'inline-flex',
@@ -503,18 +492,26 @@ export function ProfilesPage() {
 
     const badgeStatus = selectedReport ? selectedReport.status : selectedCachedSnapshot!.status;
     const issueCount = selectedReport?.issues.length ?? selectedCachedSnapshot?.issue_count ?? 0;
-    const issueTooltip = issueCount > 0
-      ? selectedReport
-        ? `${issueCount} issue${issueCount !== 1 ? 's' : ''}: ${selectedReport.issues.slice(0, 3).map((i) => i.field + ' \u2014 ' + i.message).join('; ')}${issueCount > 3 ? ` (+${issueCount - 3} more)` : ''}`
-        : `${issueCount} issue${issueCount !== 1 ? 's' : ''} in cached snapshot`
-      : null;
+    const issueTooltip =
+      issueCount > 0
+        ? selectedReport
+          ? `${issueCount} issue${issueCount !== 1 ? 's' : ''}: ${selectedReport.issues
+              .slice(0, 3)
+              .map((i) => i.field + ' \u2014 ' + i.message)
+              .join('; ')}${issueCount > 3 ? ` (+${issueCount - 3} more)` : ''}`
+          : `${issueCount} issue${issueCount !== 1 ? 's' : ''} in cached snapshot`
+        : null;
 
     return (
       <HealthBadge
         status={badgeStatus}
         trend={selectedTrend}
         tooltip={issueTooltip}
-        onClick={selectedReport && issueCount > 0 ? () => healthIssuesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : undefined}
+        onClick={
+          selectedReport && issueCount > 0
+            ? () => healthIssuesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            : undefined
+        }
       />
     );
   };
@@ -529,11 +526,7 @@ export function ProfilesPage() {
       />
 
       {summary !== null && !healthLoading && summary.broken_count > 0 && !healthBannerDismissed ? (
-        <div
-          className="crosshook-rename-toast"
-          role="status"
-          aria-live="polite"
-        >
+        <div className="crosshook-rename-toast" role="status" aria-live="polite">
           <span>
             {summary.broken_count} profile{summary.broken_count !== 1 ? 's' : ''} have issues that may prevent launching
           </span>
@@ -558,7 +551,9 @@ export function ProfilesPage() {
               background: 'var(--crosshook-color-accent-soft)',
             }}
           >
-            <div className="crosshook-heading-eyebrow" style={{ marginBottom: 4 }}>Guided Setup</div>
+            <div className="crosshook-heading-eyebrow" style={{ marginBottom: 4 }}>
+              Guided Setup
+            </div>
             <h2 style={{ margin: '4px 0 8px', fontSize: '1.1em', fontWeight: 600 }}>Profile Setup Wizard</h2>
             <p className="crosshook-help-text" style={{ marginBottom: 16 }}>
               {profiles.length === 0
@@ -569,7 +564,10 @@ export function ProfilesPage() {
               <button
                 type="button"
                 className="crosshook-button"
-                onClick={() => { setWizardMode('create'); setShowWizard(true); }}
+                onClick={() => {
+                  setWizardMode('create');
+                  setShowWizard(true);
+                }}
               >
                 New Profile
               </button>
@@ -577,7 +575,10 @@ export function ProfilesPage() {
                 <button
                   type="button"
                   className="crosshook-button crosshook-button--secondary"
-                  onClick={() => { setWizardMode('edit'); setShowWizard(true); }}
+                  onClick={() => {
+                    setWizardMode('edit');
+                    setShowWizard(true);
+                  }}
                 >
                   Edit in Wizard
                 </button>
@@ -622,136 +623,150 @@ export function ProfilesPage() {
           <CollapsibleSection
             title="Advanced"
             defaultOpen={false}
-          meta={
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {renderProfileHealthBadge()}
-              {renderOfflineStatusBadge()}
-              {launchMethod !== 'native' && profile.trainer.path.trim().length > 0 ? (
-                <span className="crosshook-status-chip" title="Trainer type catalog id for offline scoring">
-                  Trainer type: {trainerTypeDisplayName}
-                </span>
-              ) : null}
-              {renderVersionStatusBadge()}
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--secondary"
-                onClick={(event) => {
-                  event.preventDefault();
-                  void refreshProfiles();
-                }}
-              >
-                Refresh
-              </button>
-            </span>
-          }
-        >
-          <p className="crosshook-help-text">Edit the current profile, then save it before launching or exporting.</p>
-
-          {summary !== null && (summary.stale_count + summary.broken_count) > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <span className="crosshook-status-chip">
-                {summary.stale_count + summary.broken_count} of {summary.total_count} profile{summary.total_count !== 1 ? 's' : ''} have issues
-              </span>
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--secondary"
-                disabled={healthLoading}
-                onClick={() => void batchValidate()}
-              >
-                {healthLoading ? 'Checking...' : 'Re-check All'}
-              </button>
-            </div>
-          ) : null}
-          {!selectedReport && selectedStaleInfo?.isStale ? (
-            <p
-              className="crosshook-health-stale-note"
-              role="note"
-              style={{ color: 'var(--crosshook-color-text-muted)', fontSize: '0.85em', margin: '0 0 8px' }}
-            >
-              Last checked {selectedStaleInfo.daysAgo} days ago &mdash; consider re-checking
-            </p>
-          ) : null}
-
-          <ProfileFormSections
-            profileName={profileName}
-            profile={profile}
-            launchMethod={launchMethod}
-            protonInstalls={protonInstalls}
-            protonInstallsError={protonInstallsError}
-            profileExists={profileExists}
-            trainerVersion={selectedTrainerVersion}
-            versionStatus={selectedVersionStatus}
-            onVersionSet={() => { if (selectedProfile) void revalidateSingle(selectedProfile); }}
-            onProfileNameChange={setProfileName}
-            onUpdateProfile={updateProfile}
-          />
-
-          {(() => {
-            const report = selectedReport;
-            if (!report || (report.status !== 'broken' && report.status !== 'stale') || report.issues.length === 0) {
-              return null;
-            }
-
-            const metadata = report.metadata ?? null;
-
-            const driftMessage: Record<string, string> = {
-              missing: 'Exported launcher not found — re-export recommended',
-              moved: 'Exported launcher has moved — re-export recommended',
-              stale: 'Exported launcher may be outdated — re-export recommended',
-            };
-            const driftWarning =
-              metadata !== null && metadata.launcher_drift_state !== null
-                ? driftMessage[metadata.launcher_drift_state] ?? null
-                : null;
-
-            return (
-              <div ref={healthIssuesRef}>
-              <CollapsibleSection title="Health Issues" className="crosshook-panel">
-                {metadata !== null ? (
-                  <div style={{ marginBottom: 10, display: 'grid', gap: 4 }}>
-                    {metadata.last_success !== null ? (
-                      <p className="crosshook-help-text" style={{ margin: 0 }}>
-                        Last worked: {formatRelativeTime(metadata.last_success)}
-                      </p>
-                    ) : null}
-                    {metadata.total_launches > 0 ? (
-                      <p className="crosshook-help-text" style={{ margin: 0 }}>
-                        Launched {metadata.total_launches} time{metadata.total_launches !== 1 ? 's' : ''}{' '}
-                        &bull; {metadata.failure_count_30d} failure{metadata.failure_count_30d !== 1 ? 's' : ''} in last 30 days
-                      </p>
-                    ) : null}
-                    {driftWarning !== null ? (
-                      <p className="crosshook-danger" style={{ margin: 0 }} role="alert">
-                        {driftWarning}
-                      </p>
-                    ) : null}
-                    {metadata.is_community_import && (report.status === 'broken' || report.status === 'stale') ? (
-                      <p className="crosshook-help-text" style={{ margin: 0 }}>
-                        This profile was imported from a community tap — paths may need adjustment for your system.
-                      </p>
-                    ) : null}
-                  </div>
+            meta={
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {renderProfileHealthBadge()}
+                {renderOfflineStatusBadge()}
+                {launchMethod !== 'native' && profile.trainer.path.trim().length > 0 ? (
+                  <span className="crosshook-status-chip" title="Trainer type catalog id for offline scoring">
+                    Trainer type: {trainerTypeDisplayName}
+                  </span>
                 ) : null}
-                <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
-                  {report.issues.map((issue, index) => (
-                    <li key={index} style={{ borderLeft: '3px solid var(--crosshook-danger, #ef4444)', paddingLeft: 10 }}>
-                      <strong>{issue.field}</strong>
-                      {issue.path ? <span className="crosshook-muted"> — {issue.path}</span> : null}
-                      <p style={{ margin: '2px 0' }}>{issue.message}</p>
-                      {issue.remediation ? (
-                        <p className="crosshook-help-text" style={{ margin: '2px 0' }}>{issue.remediation}</p>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </CollapsibleSection>
+                {renderVersionStatusBadge()}
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--secondary"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void refreshProfiles();
+                  }}
+                >
+                  Refresh
+                </button>
+              </span>
+            }
+          >
+            <p className="crosshook-help-text">Edit the current profile, then save it before launching or exporting.</p>
+
+            {summary !== null && summary.stale_count + summary.broken_count > 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <span className="crosshook-status-chip">
+                  {summary.stale_count + summary.broken_count} of {summary.total_count} profile
+                  {summary.total_count !== 1 ? 's' : ''} have issues
+                </span>
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--secondary"
+                  disabled={healthLoading}
+                  onClick={() => void batchValidate()}
+                >
+                  {healthLoading ? 'Checking...' : 'Re-check All'}
+                </button>
               </div>
-            );
-          })()}
+            ) : null}
+            {!selectedReport && selectedStaleInfo?.isStale ? (
+              <p
+                className="crosshook-health-stale-note"
+                role="note"
+                style={{ color: 'var(--crosshook-color-text-muted)', fontSize: '0.85em', margin: '0 0 8px' }}
+              >
+                Last checked {selectedStaleInfo.daysAgo} days ago &mdash; consider re-checking
+              </p>
+            ) : null}
+
+            <ProfileFormSections
+              profileName={profileName}
+              profile={profile}
+              launchMethod={launchMethod}
+              protonInstalls={protonInstalls}
+              protonInstallsError={protonInstallsError}
+              profileExists={profileExists}
+              trainerVersion={selectedTrainerVersion}
+              versionStatus={selectedVersionStatus}
+              onVersionSet={() => {
+                if (selectedProfile) void revalidateSingle(selectedProfile);
+              }}
+              onProfileNameChange={setProfileName}
+              onUpdateProfile={updateProfile}
+            />
+
+            {(() => {
+              const report = selectedReport;
+              if (!report || (report.status !== 'broken' && report.status !== 'stale') || report.issues.length === 0) {
+                return null;
+              }
+
+              const metadata = report.metadata ?? null;
+
+              const driftMessage: Record<string, string> = {
+                missing: 'Exported launcher not found — re-export recommended',
+                moved: 'Exported launcher has moved — re-export recommended',
+                stale: 'Exported launcher may be outdated — re-export recommended',
+              };
+              const driftWarning =
+                metadata !== null && metadata.launcher_drift_state !== null
+                  ? (driftMessage[metadata.launcher_drift_state] ?? null)
+                  : null;
+
+              return (
+                <div ref={healthIssuesRef}>
+                  <CollapsibleSection title="Health Issues" className="crosshook-panel">
+                    {metadata !== null ? (
+                      <div style={{ marginBottom: 10, display: 'grid', gap: 4 }}>
+                        {metadata.last_success !== null ? (
+                          <p className="crosshook-help-text" style={{ margin: 0 }}>
+                            Last worked: {formatRelativeTime(metadata.last_success)}
+                          </p>
+                        ) : null}
+                        {metadata.total_launches > 0 ? (
+                          <p className="crosshook-help-text" style={{ margin: 0 }}>
+                            Launched {metadata.total_launches} time{metadata.total_launches !== 1 ? 's' : ''} &bull;{' '}
+                            {metadata.failure_count_30d} failure{metadata.failure_count_30d !== 1 ? 's' : ''} in last 30
+                            days
+                          </p>
+                        ) : null}
+                        {driftWarning !== null ? (
+                          <p className="crosshook-danger" style={{ margin: 0 }} role="alert">
+                            {driftWarning}
+                          </p>
+                        ) : null}
+                        {metadata.is_community_import && (report.status === 'broken' || report.status === 'stale') ? (
+                          <p className="crosshook-help-text" style={{ margin: 0 }}>
+                            This profile was imported from a community tap — paths may need adjustment for your system.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
+                      {report.issues.map((issue, index) => (
+                        <li
+                          key={index}
+                          style={{ borderLeft: '3px solid var(--crosshook-danger, #ef4444)', paddingLeft: 10 }}
+                        >
+                          <strong>{issue.field}</strong>
+                          {issue.path ? <span className="crosshook-muted"> — {issue.path}</span> : null}
+                          <p style={{ margin: '2px 0' }}>{issue.message}</p>
+                          {issue.remediation ? (
+                            <p className="crosshook-help-text" style={{ margin: '2px 0' }}>
+                              {issue.remediation}
+                            </p>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </CollapsibleSection>
+                </div>
+              );
+            })()}
           </CollapsibleSection>
 
           {/* Actions — always visible at bottom of container */}
-          <div style={{ padding: 'var(--crosshook-card-padding)', borderTop: '1px solid var(--crosshook-color-border, rgba(255,255,255,0.08))' }}>
+          <div
+            style={{
+              padding: 'var(--crosshook-card-padding)',
+              borderTop: '1px solid var(--crosshook-color-border, rgba(255,255,255,0.08))',
+            }}
+          >
             <ProfileActions
               dirty={dirty}
               loading={loading}
@@ -861,7 +876,9 @@ export function ProfilesPage() {
             aria-labelledby="rename-dialog-heading"
             style={{ marginBottom: 'auto', marginTop: '12vh' }}
           >
-            <h3 id="rename-dialog-heading" style={{ margin: '0 0 12px' }}>Rename Profile</h3>
+            <h3 id="rename-dialog-heading" style={{ margin: '0 0 12px' }}>
+              Rename Profile
+            </h3>
             <div className="crosshook-field">
               <label className="crosshook-label" htmlFor="rename-profile-input">
                 New Name
@@ -884,7 +901,11 @@ export function ProfilesPage() {
                   }
                 }}
               />
-              {renameError ? <p className="crosshook-danger" role="alert">{renameError}</p> : null}
+              {renameError ? (
+                <p className="crosshook-danger" role="alert">
+                  {renameError}
+                </p>
+              ) : null}
             </div>
             <div className="crosshook-profile-editor-delete-actions">
               <button
@@ -913,17 +934,9 @@ export function ProfilesPage() {
       ) : null}
 
       {renameToast && !renameToastDismissed ? (
-        <div
-          className="crosshook-rename-toast"
-          role="status"
-          aria-live="polite"
-        >
+        <div className="crosshook-rename-toast" role="status" aria-live="polite">
           <span>Renamed to &lsquo;{renameToast.newName}&rsquo;</span>
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--ghost"
-            onClick={undoRename}
-          >
+          <button type="button" className="crosshook-button crosshook-button--ghost" onClick={undoRename}>
             Undo
           </button>
           <button

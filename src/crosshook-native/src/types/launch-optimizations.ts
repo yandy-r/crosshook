@@ -1,10 +1,4 @@
-export const LAUNCH_OPTIMIZATION_CATEGORIES = [
-  'input',
-  'performance',
-  'display',
-  'graphics',
-  'compatibility',
-] as const;
+export const LAUNCH_OPTIMIZATION_CATEGORIES = ['input', 'performance', 'display', 'graphics', 'compatibility'] as const;
 
 export type LaunchOptimizationCategory = (typeof LAUNCH_OPTIMIZATION_CATEGORIES)[number];
 export type LaunchOptimizationGpuVendor = 'nvidia' | 'amd';
@@ -80,7 +74,7 @@ export interface LaunchOptimizationConflict {
 export function getConflictingLaunchOptimizationIds(
   optionId: string,
   enabledOptionIds: readonly string[],
-  conflictMatrix: Readonly<Record<string, readonly string[]>>,
+  conflictMatrix: Readonly<Record<string, readonly string[]>>
 ): string[] {
   const conflictsWith = conflictMatrix[optionId] ?? [];
   if (conflictsWith.length === 0) {
@@ -91,7 +85,7 @@ export function getConflictingLaunchOptimizationIds(
 
 export function findLaunchOptimizationConflicts(
   enabledOptionIds: readonly string[],
-  conflictMatrix: Readonly<Record<string, readonly string[]>>,
+  conflictMatrix: Readonly<Record<string, readonly string[]>>
 ): LaunchOptimizationConflict[] {
   const conflicts: LaunchOptimizationConflict[] = [];
   for (const optionId of enabledOptionIds) {

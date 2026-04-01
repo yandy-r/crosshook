@@ -37,11 +37,11 @@ The stable alias is intended for launchers and Steam shortcuts that should keep 
 
 Options:
 
-| Flag | Description |
-| ---- | ----------- |
-| `--binary-only` | Build the release binary without AppImage bundling |
-| `--install-deps` | Install missing host build dependencies first |
-| `--yes` | Non-interactive dependency installation |
+| Flag             | Description                                        |
+| ---------------- | -------------------------------------------------- |
+| `--binary-only`  | Build the release binary without AppImage bundling |
+| `--install-deps` | Install missing host build dependencies first      |
+| `--yes`          | Non-interactive dependency installation            |
 
 ## Container Build
 
@@ -55,13 +55,13 @@ Uses a managed cached builder image derived from `scripts/build-native-container
 
 Options:
 
-| Flag | Description |
-| ---- | ----------- |
-| `--runtime docker\|podman` | Choose container runtime |
-| `--image IMAGE` | Use IMAGE directly instead of the managed cached builder image |
-| `--base-image IMAGE` | Base image used when building the managed cached builder image |
-| `--rebuild-image` | Force rebuilding the managed cached builder image |
-| `--install-node-modules` | Force `npm ci` inside the container |
+| Flag                        | Description                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------ |
+| `--runtime docker\|podman`  | Choose container runtime                                                             |
+| `--image IMAGE`             | Use IMAGE directly instead of the managed cached builder image                       |
+| `--base-image IMAGE`        | Base image used when building the managed cached builder image                       |
+| `--rebuild-image`           | Force rebuilding the managed cached builder image                                    |
+| `--install-node-modules`    | Force `npm ci` inside the container                                                  |
 | `--keep-worktree-artifacts` | Keep `src/crosshook-native` build artifacts instead of cleaning them after the build |
 
 ## CI/CD

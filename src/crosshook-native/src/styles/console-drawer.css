@@ -5,9 +5,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   border-top: 1px solid var(--crosshook-color-border);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 20%),
-    var(--crosshook-color-surface);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 20%), var(--crosshook-color-surface);
   overflow: hidden;
 }
 

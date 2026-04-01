@@ -6,14 +6,8 @@ import { useProfileContext } from '../../context/ProfileContext';
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
 
 export function SettingsPage() {
-  const {
-    settings,
-    recentFiles,
-    settingsError,
-    refreshPreferences,
-    handleAutoLoadChange,
-    clearRecentFiles,
-  } = usePreferencesContext();
+  const { settings, recentFiles, settingsError, refreshPreferences, handleAutoLoadChange, clearRecentFiles } =
+    usePreferencesContext();
   const { targetHomePath, steamClientInstallPath } = useProfileContext();
 
   return (

@@ -10,11 +10,7 @@ export interface SteamLaunchOptionsPanelProps {
   className?: string;
 }
 
-export function SteamLaunchOptionsPanel({
-  enabledOptionIds,
-  customEnvVars,
-  className,
-}: SteamLaunchOptionsPanelProps) {
+export function SteamLaunchOptionsPanel({ enabledOptionIds, customEnvVars, className }: SteamLaunchOptionsPanelProps) {
   const titleId = useId();
   const [command, setCommand] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -82,9 +78,7 @@ export function SteamLaunchOptionsPanel({
     }
   }
 
-  const rootClass = ['crosshook-panel', 'crosshook-steam-launch-options', className]
-    .filter(Boolean)
-    .join(' ');
+  const rootClass = ['crosshook-panel', 'crosshook-steam-launch-options', className].filter(Boolean).join(' ');
 
   return (
     <section className={rootClass} aria-labelledby={titleId}>
@@ -93,19 +87,16 @@ export function SteamLaunchOptionsPanel({
           Steam launch options
         </h2>
         <p className="crosshook-help-text crosshook-steam-launch-options__intro">
-          Paste this single line into the game&apos;s <strong>Properties → General → Launch Options</strong> in
-          Steam. It matches the same Proton optimization env vars and wrappers as a direct{' '}
-          <code>proton_run</code> launch, and must end with <code>%command%</code>.
+          Paste this single line into the game&apos;s <strong>Properties → General → Launch Options</strong> in Steam.
+          It matches the same Proton optimization env vars and wrappers as a direct <code>proton_run</code> launch, and
+          must end with <code>%command%</code>.
         </p>
       </div>
 
       {error ? <div className="crosshook-error-banner crosshook-error-banner--section">{error}</div> : null}
 
       <div className="crosshook-steam-launch-options__row">
-        <pre
-          className="crosshook-steam-launch-options__preview crosshook-console__code"
-          aria-busy={loading}
-        >
+        <pre className="crosshook-steam-launch-options__preview crosshook-console__code" aria-busy={loading}>
           {loading ? 'Generating…' : error ? '—' : command}
         </pre>
         <button

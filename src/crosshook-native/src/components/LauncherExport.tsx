@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type {
-  GameProfile,
-  LaunchMethod,
-  LauncherDeleteResult,
-  LauncherInfo,
-  TrainerLoadingMode,
-} from '../types';
+import type { GameProfile, LaunchMethod, LauncherDeleteResult, LauncherInfo, TrainerLoadingMode } from '../types';
 import { LauncherPreviewModal } from './LauncherPreviewModal';
 
 interface LauncherExportProps {
@@ -72,11 +66,13 @@ function deriveLauncherName(profile: GameProfile): string {
     return gameName;
   }
 
-  const trainerStem = stripAutomaticLauncherSuffix(safeTrim(profile.trainer.path)
-    .split(/[\\/]/)
-    .pop()
-    ?.replace(/\.[^.]+$/, '')
-    .trim() ?? '');
+  const trainerStem = stripAutomaticLauncherSuffix(
+    safeTrim(profile.trainer.path)
+      .split(/[\\/]/)
+      .pop()
+      ?.replace(/\.[^.]+$/, '')
+      .trim() ?? ''
+  );
   if (trainerStem) {
     return trainerStem;
   }
@@ -106,8 +102,7 @@ function buildExportRequest(
     launcher_icon_path: launcherIconPath.trim(),
     prefix_path:
       method === 'steam_applaunch' ? profile.steam.compatdata_path.trim() : profile.runtime.prefix_path.trim(),
-    proton_path:
-      method === 'steam_applaunch' ? profile.steam.proton_path.trim() : profile.runtime.proton_path.trim(),
+    proton_path: method === 'steam_applaunch' ? profile.steam.proton_path.trim() : profile.runtime.proton_path.trim(),
     steam_app_id: profile.steam.app_id.trim(),
     steam_client_install_path: steamClientInstallPath.trim(),
     target_home_path: targetHomePath.trim(),
@@ -206,7 +201,8 @@ export function LauncherExport({
             { label: 'Trainer Path', value: safeTrim(profile.trainer.path) || 'Not set' },
             {
               label: 'Trainer Loading Mode',
-              value: profile.trainer.loading_mode === 'copy_to_prefix' ? 'Copy into prefix' : 'Run from current directory',
+              value:
+                profile.trainer.loading_mode === 'copy_to_prefix' ? 'Copy into prefix' : 'Run from current directory',
             },
             { label: 'Steam App ID', value: safeTrim(profile.steam.app_id) || 'Not set' },
             { label: 'Compatdata Path', value: safeTrim(profile.steam.compatdata_path) || 'Not set' },
@@ -216,13 +212,14 @@ export function LauncherExport({
             { label: 'Trainer Path', value: safeTrim(profile.trainer.path) || 'Not set' },
             {
               label: 'Trainer Loading Mode',
-              value: profile.trainer.loading_mode === 'copy_to_prefix' ? 'Copy into prefix' : 'Run from current directory',
+              value:
+                profile.trainer.loading_mode === 'copy_to_prefix' ? 'Copy into prefix' : 'Run from current directory',
             },
             { label: 'Prefix Path', value: safeTrim(profile.runtime.prefix_path) || 'Not set' },
             { label: 'Proton Path', value: safeTrim(profile.runtime.proton_path) || 'Not set' },
             { label: 'Working Directory', value: safeTrim(profile.runtime.working_directory) || 'Not set' },
           ],
-    [method, profile],
+    [method, profile]
   );
 
   const canExport =
@@ -237,27 +234,27 @@ export function LauncherExport({
     ? launcherStatus.is_stale
       ? 'warning'
       : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
-      ? 'success'
-      : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
-      ? 'neutral'
-      : 'warning'
+        ? 'success'
+        : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
+          ? 'neutral'
+          : 'warning'
     : null;
   const launcherStatusLabel = launcherStatus
     ? launcherStatus.is_stale
       ? 'Stale'
       : launcherStatus.script_exists && launcherStatus.desktop_entry_exists
-      ? 'Exported'
-      : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
-      ? 'Not Exported'
-      : 'Partial'
+        ? 'Exported'
+        : !launcherStatus.script_exists && !launcherStatus.desktop_entry_exists
+          ? 'Not Exported'
+          : 'Partial'
     : '';
   const launcherStatusMessage = launcherStatus?.is_stale
     ? 'Launcher files are out of date with the current profile.'
     : launcherStatus?.script_exists && launcherStatus.desktop_entry_exists
-    ? 'Launcher files are exported and up to date.'
-    : !launcherStatus?.script_exists && !launcherStatus?.desktop_entry_exists
-    ? 'No launcher files are currently exported.'
-    : 'Only one launcher file exists for this profile.';
+      ? 'Launcher files are exported and up to date.'
+      : !launcherStatus?.script_exists && !launcherStatus?.desktop_entry_exists
+        ? 'No launcher files are currently exported.'
+        : 'Only one launcher file exists for this profile.';
 
   async function handleExport() {
     setIsExporting(true);
@@ -386,9 +383,7 @@ export function LauncherExport({
         {metadataRows.map((row) => (
           <div key={row.label} className="crosshook-export-section">
             <label className="crosshook-export-label">{row.label}</label>
-            <div className="crosshook-input crosshook-export-readonly">
-              {row.value}
-            </div>
+            <div className="crosshook-input crosshook-export-readonly">{row.value}</div>
           </div>
         ))}
       </div>
@@ -466,17 +461,11 @@ export function LauncherExport({
       ) : null}
       {launcherStatus?.is_stale ? (
         <div className="crosshook-export-callout" data-tone="warning">
-          <p className="crosshook-export-callout__title">
-            Launcher files are out of date with the current profile.
-          </p>
+          <p className="crosshook-export-callout__title">Launcher files are out of date with the current profile.</p>
           <p className="crosshook-export-callout__copy">
             Current slug: <code>{launcherStatus.launcher_slug}</code>
           </p>
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--warning"
-            onClick={handleExport}
-          >
+          <button type="button" className="crosshook-button crosshook-button--warning" onClick={handleExport}>
             Re-export Launcher
           </button>
         </div>

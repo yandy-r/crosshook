@@ -237,13 +237,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
 
   const refreshImportedProfileNames = useCallback(async () => {
     const names = await invoke<string[]>('profile_list');
-    setImportedProfileNames(
-      new Set(
-        names
-          .map((name) => sanitizeProfileName(name))
-          .filter((name) => name.length > 0)
-      )
-    );
+    setImportedProfileNames(new Set(names.map((name) => sanitizeProfileName(name)).filter((name) => name.length > 0)));
   }, []);
 
   const syncTaps = useCallback(async () => {
@@ -293,16 +287,12 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     async (tap: CommunityTapSubscription) => {
       setError(null);
       const normalized = normalizeTap(tap);
-      const nextTaps = taps.filter(
-        (entry) => tapIdentityKey(normalizeTap(entry)) !== tapIdentityKey(normalized)
-      );
+      const nextTaps = taps.filter((entry) => tapIdentityKey(normalizeTap(entry)) !== tapIdentityKey(normalized));
       const deduped = dedupeTaps(nextTaps);
       await saveSettingsTaps(deduped);
       setTaps(deduped);
       setLastTapSyncResults((prev) =>
-        prev.filter(
-          (r) => tapIdentityKey(normalizeTap(r.workspace.subscription)) !== tapIdentityKey(normalized),
-        ),
+        prev.filter((r) => tapIdentityKey(normalizeTap(r.workspace.subscription)) !== tapIdentityKey(normalized))
       );
       await refreshProfiles();
     },
@@ -372,23 +362,26 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     }
   }, []);
 
-  const saveImportedProfile = useCallback(async (name: string, profile: GameProfile) => {
-    setImporting(true);
-    setError(null);
+  const saveImportedProfile = useCallback(
+    async (name: string, profile: GameProfile) => {
+      setImporting(true);
+      setError(null);
 
-    try {
-      await invoke('profile_save', {
-        name,
-        data: profile,
-      });
-      await refreshImportedProfileNames();
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : String(saveError));
-      throw saveError;
-    } finally {
-      setImporting(false);
-    }
-  }, [refreshImportedProfileNames]);
+      try {
+        await invoke('profile_save', {
+          name,
+          data: profile,
+        });
+        await refreshImportedProfileNames();
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : String(saveError));
+        throw saveError;
+      } finally {
+        setImporting(false);
+      }
+    },
+    [refreshImportedProfileNames]
+  );
 
   useEffect(() => {
     let active = true;

@@ -59,10 +59,8 @@
   justify-content: space-between;
   gap: var(--crosshook-page-banner-gap);
   min-height: var(--crosshook-page-banner-min-height);
-  padding:
-    calc(var(--crosshook-page-padding) + var(--crosshook-page-banner-padding-top-offset))
-    var(--crosshook-page-banner-padding-inline)
-    var(--crosshook-page-banner-padding-bottom);
+  padding: calc(var(--crosshook-page-padding) + var(--crosshook-page-banner-padding-top-offset))
+    var(--crosshook-page-banner-padding-inline) var(--crosshook-page-banner-padding-bottom);
   margin-bottom: var(--crosshook-page-banner-margin-bottom);
   border-radius: 0 0 var(--crosshook-radius-lg) var(--crosshook-radius-lg);
   border: 1px solid var(--crosshook-color-border);

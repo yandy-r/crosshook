@@ -5,8 +5,7 @@ import { useEffect } from 'react';
 const WHEEL_MULTIPLIER = 2;
 const SMOOTH_FACTOR = 0.18;
 const ARROW_SCROLL_PX = 80;
-const SCROLLABLE =
-  '.crosshook-content-area, .crosshook-console-drawer__body, .crosshook-modal__body';
+const SCROLLABLE = '.crosshook-content-area, .crosshook-console-drawer__body, .crosshook-modal__body';
 const RESET_SCROLL_MOMENTUM_EVENT = 'crosshook:reset-scroll-momentum';
 
 const INTERACTIVE_ROLES = new Set([

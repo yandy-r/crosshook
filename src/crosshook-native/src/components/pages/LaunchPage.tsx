@@ -23,7 +23,7 @@ export function LaunchPage() {
     profile,
     profileState.launchMethod,
     profileState.steamClientInstallPath,
-    selectedName,
+    selectedName
   );
   const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
   const [isInsideGamescopeSession, setIsInsideGamescopeSession] = useState(false);
@@ -115,7 +115,9 @@ export function LaunchPage() {
                   launch: { ...current.launch, mangohud },
                 }));
               }}
-              showMangoHudOverlayEnabled={profile.launch.optimizations.enabled_option_ids.includes('show_mangohud_overlay')}
+              showMangoHudOverlayEnabled={profile.launch.optimizations.enabled_option_ids.includes(
+                'show_mangohud_overlay'
+              )}
               launchMethod={profileState.launchMethod}
             />
           </CollapsibleSection>

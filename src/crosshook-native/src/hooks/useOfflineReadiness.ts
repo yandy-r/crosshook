@@ -2,7 +2,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
-import type { CachedOfflineReadinessSnapshot, OfflineReadinessReport, OfflineReadinessScanCompletePayload } from '../types';
+import type {
+  CachedOfflineReadinessSnapshot,
+  OfflineReadinessReport,
+  OfflineReadinessScanCompletePayload,
+} from '../types';
 
 type HookStatus = 'idle' | 'loading' | 'loaded' | 'error' | 'single-complete';
 
@@ -37,9 +41,7 @@ function reducer(state: OfflineReadinessState, action: OfflineReadinessAction): 
     case 'single-complete': {
       const idx = state.reports.findIndex((r) => r.profile_name === action.report.profile_name);
       const next =
-        idx === -1
-          ? [...state.reports, action.report]
-          : state.reports.map((r, i) => (i === idx ? action.report : r));
+        idx === -1 ? [...state.reports, action.report] : state.reports.map((r, i) => (i === idx ? action.report : r));
       return { ...state, status: 'single-complete', reports: next, error: null };
     }
     case 'error':
@@ -57,7 +59,10 @@ function normalizeError(error: unknown): string {
 
 function snapshotToReport(row: CachedOfflineReadinessSnapshot): OfflineReadinessReport {
   const blocking = row.blocking_reasons
-    ? row.blocking_reasons.split(';').map((s) => s.trim()).filter(Boolean)
+    ? row.blocking_reasons
+        .split(';')
+        .map((s) => s.trim())
+        .filter(Boolean)
     : [];
   return {
     profile_name: row.profile_name,
@@ -113,15 +118,12 @@ export function useOfflineReadiness() {
     const controller = new AbortController();
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const unlistenScan = listen<OfflineReadinessScanCompletePayload>(
-      'offline-readiness-scan-complete',
-      () => {
-        startupEventReceivedRef.current = true;
-        if (active) {
-          void batchCheck(controller.signal);
-        }
+    const unlistenScan = listen<OfflineReadinessScanCompletePayload>('offline-readiness-scan-complete', () => {
+      startupEventReceivedRef.current = true;
+      if (active) {
+        void batchCheck(controller.signal);
       }
-    );
+    });
 
     const run = async () => {
       try {
@@ -183,6 +185,6 @@ export function useOfflineReadiness() {
       checkSingle,
       reportForProfile,
     }),
-    [state.status, state.reports, state.error, cachedByProfileName, batchCheck, checkSingle, reportForProfile],
+    [state.status, state.reports, state.error, cachedByProfileName, batchCheck, checkSingle, reportForProfile]
   );
 }

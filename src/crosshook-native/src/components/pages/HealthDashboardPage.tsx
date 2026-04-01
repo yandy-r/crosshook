@@ -92,14 +92,22 @@ function getVersionStatusColor(status: VersionCorrelationStatus | null | undefin
 
 function getVersionStatusLabel(status: VersionCorrelationStatus | null | undefined): string {
   switch (status) {
-    case 'matched': return 'Matched';
-    case 'game_updated': return 'Game Updated';
-    case 'trainer_changed': return 'Trainer Changed';
-    case 'both_changed': return 'Both Changed';
-    case 'update_in_progress': return 'Updating';
-    case 'untracked': return 'Untracked';
-    case 'unknown': return 'Unknown';
-    default: return 'Untracked';
+    case 'matched':
+      return 'Matched';
+    case 'game_updated':
+      return 'Game Updated';
+    case 'trainer_changed':
+      return 'Trainer Changed';
+    case 'both_changed':
+      return 'Both Changed';
+    case 'update_in_progress':
+      return 'Updating';
+    case 'untracked':
+      return 'Untracked';
+    case 'unknown':
+      return 'Unknown';
+    default:
+      return 'Untracked';
   }
 }
 
@@ -107,7 +115,7 @@ type CardTrend = 'up' | 'down' | null;
 
 function mergeOfflineReadinessForRow(
   report: EnrichedProfileHealthReport,
-  hookReport: OfflineReadinessReport | undefined,
+  hookReport: OfflineReadinessReport | undefined
 ): OfflineReadinessReport | undefined {
   const brief = report.offline_readiness;
   const offlineIssues = report.issues.filter((i) => i.field.startsWith('offline_readiness.'));
@@ -301,30 +309,47 @@ function TableToolbar({
               : 'Check All Versions'}
           </button>
         )}
-        {missingProtonCount !== undefined &&
-          missingProtonCount >= 2 &&
-          onFixProtonPaths !== undefined && (
-            <button
-              type="button"
-              className="crosshook-button crosshook-focus-ring crosshook-nav-target"
-              style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-              disabled={isScanning}
-              onClick={onFixProtonPaths}
-              aria-label={`Fix ${missingProtonCount} profiles with stale Proton paths`}
-              aria-disabled={isScanning}
-            >
-              {isScanning ? 'Scanning\u2026' : `Fix Proton Paths (${missingProtonCount})`}
-            </button>
-          )}
+        {missingProtonCount !== undefined && missingProtonCount >= 2 && onFixProtonPaths !== undefined && (
+          <button
+            type="button"
+            className="crosshook-button crosshook-focus-ring crosshook-nav-target"
+            style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
+            disabled={isScanning}
+            onClick={onFixProtonPaths}
+            aria-label={`Fix ${missingProtonCount} profiles with stale Proton paths`}
+            aria-disabled={isScanning}
+          >
+            {isScanning ? 'Scanning\u2026' : `Fix Proton Paths (${missingProtonCount})`}
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-function SortArrow({ field, sortField, sortDirection }: { field: SortField; sortField: SortField; sortDirection: SortDirection }) {
-  if (field !== sortField) return <span className="crosshook-health-dashboard-sort-arrow crosshook-health-dashboard-sort-arrow--inactive" aria-hidden="true">↕</span>;
+function SortArrow({
+  field,
+  sortField,
+  sortDirection,
+}: {
+  field: SortField;
+  sortField: SortField;
+  sortDirection: SortDirection;
+}) {
+  if (field !== sortField)
+    return (
+      <span
+        className="crosshook-health-dashboard-sort-arrow crosshook-health-dashboard-sort-arrow--inactive"
+        aria-hidden="true"
+      >
+        ↕
+      </span>
+    );
   return (
-    <span className="crosshook-health-dashboard-sort-arrow crosshook-health-dashboard-sort-arrow--active" aria-hidden="true">
+    <span
+      className="crosshook-health-dashboard-sort-arrow crosshook-health-dashboard-sort-arrow--active"
+      aria-hidden="true"
+    >
       {sortDirection === 'asc' ? '↑' : '↓'}
     </span>
   );
@@ -334,11 +359,7 @@ function SkeletonCards() {
   return (
     <>
       {[0, 1, 2, 3].map((i) => (
-        <div
-          key={i}
-          className="crosshook-card crosshook-health-dashboard-skeleton-card"
-          aria-hidden="true"
-        >
+        <div key={i} className="crosshook-card crosshook-health-dashboard-skeleton-card" aria-hidden="true">
           <div className="crosshook-health-dashboard-skeleton crosshook-health-dashboard-skeleton-card__count" />
           <div className="crosshook-health-dashboard-skeleton crosshook-health-dashboard-skeleton-card__label" />
         </div>
@@ -481,17 +502,15 @@ function IssueBreakdownPanel({ profiles }: { profiles: EnrichedProfileHealthRepo
         <p className="crosshook-muted">No issues found across all profiles.</p>
       ) : categoryCounts.length === 0 && totalRawIssues > 0 ? (
         <p className="crosshook-muted">
-          No actionable issues in this summary. Informational checks (including offline readiness notes) are
-          excluded here — expand a profile row to see full details.
+          No actionable issues in this summary. Informational checks (including offline readiness notes) are excluded
+          here — expand a profile row to see full details.
         </p>
       ) : (
         <ul className="crosshook-health-dashboard-breakdown-list">
           {categoryCounts.map(({ category, label, count }) => (
             <li key={category} className="crosshook-health-dashboard-breakdown-row">
               <span className="crosshook-health-dashboard-breakdown-label">{label}</span>
-              <span className="crosshook-status-chip crosshook-health-dashboard-breakdown-badge">
-                {count}
-              </span>
+              <span className="crosshook-status-chip crosshook-health-dashboard-breakdown-badge">{count}</span>
               <div className="crosshook-health-dashboard-breakdown-bar-track" aria-hidden="true">
                 <div
                   className="crosshook-health-dashboard-breakdown-bar"
@@ -517,8 +536,15 @@ function IssueDetailRow({
   onRevalidate: (name: string) => void;
   onFixNavigate: (name: string) => void | Promise<void>;
 }) {
-  const { scanResult, isScanning, applyResult, isApplying, error: migrationError, scanMigrations, applySingleMigration } =
-    useProtonMigration();
+  const {
+    scanResult,
+    isScanning,
+    applyResult,
+    isApplying,
+    error: migrationError,
+    scanMigrations,
+    applySingleMigration,
+  } = useProtonMigration();
   const [activeMigrationField, setActiveMigrationField] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
@@ -564,12 +590,18 @@ function IssueDetailRow({
             </div>
           ) : null}
           <div className="crosshook-health-dashboard-expanded-meta">
-            <span><strong>Launch Method:</strong> {report.launch_method}</span>
+            <span>
+              <strong>Launch Method:</strong> {report.launch_method}
+            </span>
             {meta?.last_success && (
-              <span><strong>Last Success:</strong> {formatRelativeTime(meta.last_success)}</span>
+              <span>
+                <strong>Last Success:</strong> {formatRelativeTime(meta.last_success)}
+              </span>
             )}
             {meta != null && meta.failure_count_30d > 0 && (
-              <span><strong>Failures (30d):</strong> {meta.failure_count_30d}</span>
+              <span>
+                <strong>Failures (30d):</strong> {meta.failure_count_30d}
+              </span>
             )}
             {meta?.is_favorite && <span>★ Favorite</span>}
             {meta?.is_community_import && <span className="crosshook-status-chip">Community</span>}
@@ -584,19 +616,20 @@ function IssueDetailRow({
                 const isMigrationActive = activeMigrationField === issue.field;
                 const suggestion: MigrationSuggestion | null =
                   protonField != null && scanResult != null
-                    ? (scanResult.suggestions.find((s) => s.profile_name === report.name && s.field === protonField) ?? null)
+                    ? (scanResult.suggestions.find((s) => s.profile_name === report.name && s.field === protonField) ??
+                      null)
                     : null;
                 const hasNoMatch = protonField != null && scanResult != null && suggestion === null;
 
                 return (
                   <li key={i} className="crosshook-health-dashboard-issue">
                     <span className="crosshook-health-dashboard-issue__field">{issue.field}</span>
-                    {issue.path && (
-                      <code className="crosshook-health-dashboard-issue__path">{issue.path}</code>
-                    )}
+                    {issue.path && <code className="crosshook-health-dashboard-issue__path">{issue.path}</code>}
                     <span className="crosshook-health-dashboard-issue__message">{issue.message}</span>
                     {issue.remediation && (
-                      <span className="crosshook-health-dashboard-issue__remediation crosshook-muted">{issue.remediation}</span>
+                      <span className="crosshook-health-dashboard-issue__remediation crosshook-muted">
+                        {issue.remediation}
+                      </span>
                     )}
                     {issueCategory === 'missing_proton' && (
                       <div className="crosshook-health-dashboard-migration-panel">
@@ -614,9 +647,7 @@ function IssueDetailRow({
                         )}
                         {isMigrationActive && (
                           <>
-                            {isScanning && (
-                              <span className="crosshook-muted">Scanning Proton installations…</span>
-                            )}
+                            {isScanning && <span className="crosshook-muted">Scanning Proton installations…</span>}
                             {!isScanning && suggestion && (
                               <div className="crosshook-health-dashboard-migration-inline">
                                 <div className="crosshook-health-dashboard-migration-path-comparison">
@@ -670,8 +701,7 @@ function IssueDetailRow({
                             )}
                             {!isScanning && hasNoMatch && (
                               <div className="crosshook-health-dashboard-migration-no-match">
-                                <span className="crosshook-muted">No matching Proton installation found.</span>
-                                {' '}
+                                <span className="crosshook-muted">No matching Proton installation found.</span>{' '}
                                 <button
                                   type="button"
                                   className="crosshook-button crosshook-button--small crosshook-button--ghost crosshook-focus-ring crosshook-nav-target"
@@ -714,7 +744,13 @@ function IssueDetailRow({
             <div
               role="status"
               className="crosshook-health-dashboard-migration-success"
-              style={{ color: 'var(--crosshook-color-success)', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}
+              style={{
+                color: 'var(--crosshook-color-success)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginTop: '8px',
+              }}
             >
               <span>&#10003; {successNotice}</span>
               <button
@@ -757,7 +793,7 @@ function IssueDetailRow({
 function CommunityImportHealthPanel({ profiles }: { profiles: EnrichedProfileHealthReport[] }) {
   const unhealthyImports = useMemo(
     () => profiles.filter((r) => r.metadata?.is_community_import === true && r.status !== 'healthy'),
-    [profiles],
+    [profiles]
   );
 
   return (
@@ -774,7 +810,9 @@ function CommunityImportHealthPanel({ profiles }: { profiles: EnrichedProfileHea
               <li key={report.name} className="crosshook-health-dashboard-panel-row">
                 <span className="crosshook-health-dashboard-panel-row__name">{report.name}</span>
                 <HealthBadge report={report} />
-                <span className="crosshook-muted">{report.issues.length} issue{report.issues.length !== 1 ? 's' : ''}</span>
+                <span className="crosshook-muted">
+                  {report.issues.length} issue{report.issues.length !== 1 ? 's' : ''}
+                </span>
               </li>
             ))}
           </ul>
@@ -785,7 +823,8 @@ function CommunityImportHealthPanel({ profiles }: { profiles: EnrichedProfileHea
 }
 
 export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRoute) => void }) {
-  const { summary, loading, error, batchValidate, cachedSnapshots, revalidateSingle, trendByName, staleInfoByName } = useProfileHealthContext();
+  const { summary, loading, error, batchValidate, cachedSnapshots, revalidateSingle, trendByName, staleInfoByName } =
+    useProfileHealthContext();
   const { selectProfile } = useProfileContext();
   const {
     scanResult: batchScanResult,
@@ -832,7 +871,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
     setVersionScanProgress({ done: 0, total: filteredProfiles.length });
     for (const report of filteredProfiles) {
       await invoke('check_version_status', { name: report.name }).catch(() => {});
-      setVersionScanProgress((prev) => prev ? { ...prev, done: prev.done + 1 } : null);
+      setVersionScanProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : null));
     }
     setIsVersionScanning(false);
     setVersionScanProgress(null);
@@ -857,9 +896,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
   }, [summary?.profiles]);
 
   const missingProtonCount = useMemo(() => {
-    return allProfiles.filter((r) =>
-      r.issues.some((issue) => categorizeIssue(issue) === 'missing_proton'),
-    ).length;
+    return allProfiles.filter((r) => r.issues.some((issue) => categorizeIssue(issue) === 'missing_proton')).length;
   }, [allProfiles]);
 
   const filteredProfiles = useMemo(() => {
@@ -939,11 +976,13 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
   const hasUnknownSentinel = (summary?.profiles ?? []).some((r) => r.name === '<unknown>');
 
   const cachedSnapshotList = useMemo(() => {
-    return Object.values(cachedSnapshots).slice().sort((a, b) => {
-      const rankDiff = (STATUS_RANK[b.status] ?? 0) - (STATUS_RANK[a.status] ?? 0);
-      if (rankDiff !== 0) return rankDiff;
-      return a.profile_name.localeCompare(b.profile_name);
-    });
+    return Object.values(cachedSnapshots)
+      .slice()
+      .sort((a, b) => {
+        const rankDiff = (STATUS_RANK[b.status] ?? 0) - (STATUS_RANK[a.status] ?? 0);
+        if (rankDiff !== 0) return rankDiff;
+        return a.profile_name.localeCompare(b.profile_name);
+      });
   }, [cachedSnapshots]);
 
   const recentFailures = useMemo(() => {
@@ -956,10 +995,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
   const showLoadingCards = loading && !summary;
   const isEmpty = !loading && summary?.total_count === 0;
   const allHealthy =
-    summary !== null &&
-    summary.broken_count === 0 &&
-    summary.stale_count === 0 &&
-    summary.total_count > 0;
+    summary !== null && summary.broken_count === 0 && summary.stale_count === 0 && summary.total_count > 0;
 
   const cardTrends = useMemo<{ healthy: CardTrend; stale: CardTrend; broken: CardTrend }>(() => {
     const snaps = Object.values(cachedSnapshots);
@@ -1024,7 +1060,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
       setAriaAnnouncement('');
     } else if (summary) {
       setAriaAnnouncement(
-        `Validation complete. ${summary.broken_count} broken, ${summary.stale_count} stale, ${summary.healthy_count} healthy.`,
+        `Validation complete. ${summary.broken_count} broken, ${summary.stale_count} stale, ${summary.healthy_count} healthy.`
       );
     } else {
       setAriaAnnouncement('Validation complete.');
@@ -1078,11 +1114,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
         {error && (
           <div role="alert" className="crosshook-health-dashboard-error crosshook-panel">
             <p>Health scan failed. Check app logs for details.</p>
-            <button
-              type="button"
-              className="crosshook-button"
-              onClick={handleRetry}
-            >
+            <button type="button" className="crosshook-button" onClick={handleRetry}>
               Retry
             </button>
           </div>
@@ -1130,20 +1162,14 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
         {isEmpty && (
           <div className="crosshook-health-dashboard-empty crosshook-panel">
             <p>No profiles configured yet.</p>
-            <button
-              type="button"
-              className="crosshook-button"
-              onClick={() => onNavigate?.('profiles')}
-            >
+            <button type="button" className="crosshook-button" onClick={() => onNavigate?.('profiles')}>
               Go to Profiles
             </button>
           </div>
         )}
 
         {allHealthy && (
-          <p className="crosshook-health-dashboard-all-healthy crosshook-muted">
-            All profiles are healthy.
-          </p>
+          <p className="crosshook-health-dashboard-all-healthy crosshook-muted">All profiles are healthy.</p>
         )}
 
         {hasUnknownSentinel && (
@@ -1153,11 +1179,9 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
         )}
 
         {(summary || showLoadingCards || cachedSnapshotList.length > 0) && (
-        <div className="crosshook-health-dashboard-section">
-          <h2 className="crosshook-heading-section crosshook-health-dashboard-section__heading">
-            Profile Status
-          </h2>
-        </div>
+          <div className="crosshook-health-dashboard-section">
+            <h2 className="crosshook-heading-section crosshook-health-dashboard-section__heading">Profile Status</h2>
+          </div>
         )}
 
         {summary === null && cachedSnapshotList.length > 0 && (
@@ -1171,56 +1195,82 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
             >
               <thead>
                 <tr role="row">
-                  <th role="columnheader" scope="col">Status</th>
-                  <th role="columnheader" scope="col">Name</th>
-                  <th role="columnheader" scope="col">Issues</th>
-                  <th role="columnheader" scope="col">Last Success</th>
-                  <th role="columnheader" scope="col">Method</th>
-                  <th role="columnheader" scope="col">Failures</th>
-                  <th role="columnheader" scope="col">&#9733;</th>
-                  <th role="columnheader" scope="col">Version</th>
-                  <th role="columnheader" scope="col">Offline</th>
-                  <th role="columnheader" scope="col">Source</th>
-                  <th role="columnheader" scope="col">Actions</th>
+                  <th role="columnheader" scope="col">
+                    Status
+                  </th>
+                  <th role="columnheader" scope="col">
+                    Name
+                  </th>
+                  <th role="columnheader" scope="col">
+                    Issues
+                  </th>
+                  <th role="columnheader" scope="col">
+                    Last Success
+                  </th>
+                  <th role="columnheader" scope="col">
+                    Method
+                  </th>
+                  <th role="columnheader" scope="col">
+                    Failures
+                  </th>
+                  <th role="columnheader" scope="col">
+                    &#9733;
+                  </th>
+                  <th role="columnheader" scope="col">
+                    Version
+                  </th>
+                  <th role="columnheader" scope="col">
+                    Offline
+                  </th>
+                  <th role="columnheader" scope="col">
+                    Source
+                  </th>
+                  <th role="columnheader" scope="col">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {cachedSnapshotList.map((snap) => {
                   const offCached = offlineReadiness.reportForProfile(snap.profile_name);
                   return (
-                  <tr
-                    key={snap.profile_name}
-                    tabIndex={0}
-                    role="row"
-                    aria-label={`${snap.profile_name} — ${snap.status}, ${snap.issue_count} issues`}
-                    onClick={() => {
-                      if (snap.status !== 'healthy') {
-                        void handleFixNavigation(snap.profile_name);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && snap.status !== 'healthy') {
-                        void handleFixNavigation(snap.profile_name);
-                      }
-                    }}
-                    style={snap.status !== 'healthy' ? { cursor: 'pointer' } : undefined}
-                  >
-                    <td className="crosshook-health-dashboard-td--status">
-                      <HealthBadge status={snap.status} />
-                    </td>
-                    <td>{snap.profile_name}</td>
-                    <td>{snap.issue_count}</td>
-                    <td>&#8212;</td>
-                    <td>&#8212;</td>
-                    <td>&#8212;</td>
-                    <td></td>
-                    <td></td>
-                    <td className="crosshook-health-dashboard-td--offline">
-                      {offCached ? <OfflineStatusBadge report={offCached} compact /> : <span className="crosshook-muted">—</span>}
-                    </td>
-                    <td></td>
-                    <td></td>
-                  </tr>
+                    <tr
+                      key={snap.profile_name}
+                      tabIndex={0}
+                      role="row"
+                      aria-label={`${snap.profile_name} — ${snap.status}, ${snap.issue_count} issues`}
+                      onClick={() => {
+                        if (snap.status !== 'healthy') {
+                          void handleFixNavigation(snap.profile_name);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && snap.status !== 'healthy') {
+                          void handleFixNavigation(snap.profile_name);
+                        }
+                      }}
+                      style={snap.status !== 'healthy' ? { cursor: 'pointer' } : undefined}
+                    >
+                      <td className="crosshook-health-dashboard-td--status">
+                        <HealthBadge status={snap.status} />
+                      </td>
+                      <td>{snap.profile_name}</td>
+                      <td>{snap.issue_count}</td>
+                      <td>&#8212;</td>
+                      <td>&#8212;</td>
+                      <td>&#8212;</td>
+                      <td></td>
+                      <td></td>
+                      <td className="crosshook-health-dashboard-td--offline">
+                        {offCached ? (
+                          <OfflineStatusBadge report={offCached} compact />
+                        ) : (
+                          <span className="crosshook-muted">—</span>
+                        )}
+                      </td>
+                      <td></td>
+                      <td></td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -1265,8 +1315,16 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   {renderSortHeader('favorite', '★')}
                   {renderSortHeader('version_status', 'Version')}
                   {renderSortHeader('offline_score', 'Offline')}
-                  <th role="columnheader" scope="col" className="crosshook-health-dashboard-th">Source</th>
-                  <th role="columnheader" scope="col" className="crosshook-health-dashboard-th crosshook-health-dashboard-th--actions">Actions</th>
+                  <th role="columnheader" scope="col" className="crosshook-health-dashboard-th">
+                    Source
+                  </th>
+                  <th
+                    role="columnheader"
+                    scope="col"
+                    className="crosshook-health-dashboard-th crosshook-health-dashboard-th--actions"
+                  >
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1274,8 +1332,12 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   const isExpanded = expandedProfile === report.name;
                   const rowTrend = trendByName[report.name];
                   const rowStaleInfo = staleInfoByName[report.name];
-                  const activeTrend: TrendDirection = (rowTrend === 'unchanged' || rowTrend === undefined) ? null : rowTrend ?? null;
-                  const offlineReport = mergeOfflineReadinessForRow(report, offlineReadiness.reportForProfile(report.name));
+                  const activeTrend: TrendDirection =
+                    rowTrend === 'unchanged' || rowTrend === undefined ? null : (rowTrend ?? null);
+                  const offlineReport = mergeOfflineReadinessForRow(
+                    report,
+                    offlineReadiness.reportForProfile(report.name)
+                  );
                   return (
                     <Fragment key={report.name}>
                       <tr
@@ -1328,7 +1390,9 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                         </td>
                         <td className="crosshook-health-dashboard-td--source">
                           {report.metadata?.is_community_import ? (
-                            <span className="crosshook-status-chip crosshook-health-dashboard-source-chip">Community</span>
+                            <span className="crosshook-status-chip crosshook-health-dashboard-source-chip">
+                              Community
+                            </span>
                           ) : null}
                         </td>
                         <td className="crosshook-health-dashboard-td--actions" onClick={(e) => e.stopPropagation()}>
@@ -1360,9 +1424,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
 
             <div className="crosshook-health-dashboard-validation-strip" aria-live="polite" aria-atomic="true">
               {ariaAnnouncement && (
-                <p className="crosshook-health-dashboard-validation-strip__text">
-                  {ariaAnnouncement}
-                </p>
+                <p className="crosshook-health-dashboard-validation-strip__text">{ariaAnnouncement}</p>
               )}
             </div>
 

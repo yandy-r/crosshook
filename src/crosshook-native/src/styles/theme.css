@@ -381,7 +381,6 @@ textarea {
   color: var(--crosshook-color-text-subtle);
 }
 
-
 .crosshook-input:focus-visible,
 .crosshook-select:focus-visible,
 .crosshook-textarea:focus-visible,
@@ -436,7 +435,9 @@ textarea {
   padding: 5px 14px;
   cursor: pointer;
   border-radius: var(--crosshook-radius-md);
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
   white-space: nowrap;
   min-height: var(--crosshook-touch-target-min);
 }
@@ -965,12 +966,16 @@ textarea {
 
 .crosshook-protondb-card--platinum {
   border-color: rgba(0, 120, 212, 0.28);
-  box-shadow: 0 0 0 1px rgba(0, 120, 212, 0.12), var(--crosshook-shadow-strong);
+  box-shadow:
+    0 0 0 1px rgba(0, 120, 212, 0.12),
+    var(--crosshook-shadow-strong);
 }
 
 .crosshook-protondb-card--gold {
   border-color: rgba(245, 158, 11, 0.26);
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.1), var(--crosshook-shadow-strong);
+  box-shadow:
+    0 0 0 1px rgba(245, 158, 11, 0.1),
+    var(--crosshook-shadow-strong);
 }
 
 .crosshook-protondb-card--silver {
@@ -983,12 +988,16 @@ textarea {
 
 .crosshook-protondb-card--borked {
   border-color: rgba(248, 113, 113, 0.24);
-  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.08), var(--crosshook-shadow-strong);
+  box-shadow:
+    0 0 0 1px rgba(248, 113, 113, 0.08),
+    var(--crosshook-shadow-strong);
 }
 
 .crosshook-protondb-card--native {
   border-color: rgba(34, 197, 94, 0.28);
-  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.1), var(--crosshook-shadow-strong);
+  box-shadow:
+    0 0 0 1px rgba(34, 197, 94, 0.1),
+    var(--crosshook-shadow-strong);
 }
 
 .crosshook-protondb-card--loading {
@@ -1326,7 +1335,9 @@ textarea {
 
 .crosshook-compatibility-viewer__result-card--selected {
   border-color: var(--crosshook-color-accent-strong);
-  box-shadow: 0 0 0 1px rgba(0, 120, 212, 0.45), var(--crosshook-shadow-strong);
+  box-shadow:
+    0 0 0 1px rgba(0, 120, 212, 0.45),
+    var(--crosshook-shadow-strong);
 }
 
 .crosshook-compatibility-viewer__result-source {
@@ -1385,9 +1396,10 @@ textarea {
   white-space: nowrap;
   cursor: pointer;
   flex-shrink: 0;
-  transition: border-color var(--crosshook-transition-fast) ease,
-              background var(--crosshook-transition-fast) ease,
-              color var(--crosshook-transition-fast) ease;
+  transition:
+    border-color var(--crosshook-transition-fast) ease,
+    background var(--crosshook-transition-fast) ease,
+    color var(--crosshook-transition-fast) ease;
 }
 
 .crosshook-pinned-strip__chip:hover {
@@ -1425,9 +1437,10 @@ textarea {
   line-height: 1;
   color: var(--crosshook-color-text-subtle);
   opacity: 0;
-  transition: opacity var(--crosshook-transition-fast) ease,
-              color var(--crosshook-transition-fast) ease,
-              background var(--crosshook-transition-fast) ease;
+  transition:
+    opacity var(--crosshook-transition-fast) ease,
+    color var(--crosshook-transition-fast) ease,
+    background var(--crosshook-transition-fast) ease;
   cursor: pointer;
 }
 
@@ -1461,8 +1474,9 @@ textarea {
   font-size: 1.2rem;
   cursor: pointer;
   line-height: 1;
-  transition: color var(--crosshook-transition-fast) ease,
-              border-color var(--crosshook-transition-fast) ease;
+  transition:
+    color var(--crosshook-transition-fast) ease,
+    border-color var(--crosshook-transition-fast) ease;
 }
 
 .crosshook-profile-pin-btn:hover {
@@ -2210,7 +2224,6 @@ textarea {
   backdrop-filter: blur(18px);
 }
 
-
 .crosshook-launch-panel__header {
   display: flex;
   justify-content: space-between;
@@ -2476,9 +2489,7 @@ textarea {
   padding: 28px;
   border-radius: 20px;
   border: 1px solid rgba(96, 165, 250, 0.24);
-  background:
-    radial-gradient(circle at top right, rgba(0, 120, 212, 0.14), transparent 30%),
-    rgba(10, 15, 24, 0.96);
+  background: radial-gradient(circle at top right, rgba(0, 120, 212, 0.14), transparent 30%), rgba(10, 15, 24, 0.96);
   box-shadow: var(--crosshook-shadow-strong);
   backdrop-filter: blur(18px);
 }
@@ -2746,9 +2757,7 @@ textarea {
 .crosshook-modal__backdrop {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at top, rgba(0, 120, 212, 0.14), transparent 32%),
-    rgba(3, 8, 20, 0.78);
+  background: radial-gradient(circle at top, rgba(0, 120, 212, 0.14), transparent 32%), rgba(3, 8, 20, 0.78);
   backdrop-filter: blur(12px);
   cursor: pointer;
 }
@@ -2892,9 +2901,7 @@ textarea {
   min-height: 0;
   overflow-y: auto;
   padding: 22px 24px 24px;
-  background:
-    radial-gradient(circle at top left, rgba(0, 120, 212, 0.08), transparent 28%),
-    rgba(4, 8, 16, 0.18);
+  background: radial-gradient(circle at top left, rgba(0, 120, 212, 0.08), transparent 28%), rgba(4, 8, 16, 0.18);
   scrollbar-gutter: stable both-edges;
 }
 
@@ -3823,7 +3830,8 @@ textarea {
 
 /* Health Dashboard — skeleton loading states */
 @keyframes crosshook-skeleton-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0.5;
   }
   50% {

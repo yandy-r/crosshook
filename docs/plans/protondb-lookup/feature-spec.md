@@ -29,10 +29,10 @@ CrossHook should enrich the profile editor with ProtonDB guidance whenever a pro
 
 ### Libraries and SDKs
 
-| Library | Version | Purpose | Installation |
-| --- | --- | --- | --- |
-| `reqwest` | current stable Rust release at implementation time | backend HTTP client with TLS, JSON decode, timeout handling | add to `/src/crosshook-native/crates/crosshook-core/Cargo.toml` |
-| `serde_json` | already present | normalize/cached ProtonDB payloads | already installed |
+| Library      | Version                                            | Purpose                                                     | Installation                                                    |
+| ------------ | -------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------- |
+| `reqwest`    | current stable Rust release at implementation time | backend HTTP client with TLS, JSON decode, timeout handling | add to `/src/crosshook-native/crates/crosshook-core/Cargo.toml` |
+| `serde_json` | already present                                    | normalize/cached ProtonDB payloads                          | already installed                                               |
 
 ### External Documentation
 
@@ -74,13 +74,13 @@ CrossHook should enrich the profile editor with ProtonDB guidance whenever a pro
 
 ### Edge Cases
 
-| Scenario | Expected Behavior | Notes |
-| --- | --- | --- |
-| Empty Steam App ID | Show neutral “add a Steam App ID to enable ProtonDB” state | No network call |
-| ProtonDB summary fetch fails but cache exists | Show cached result with stale label and retry action | Offline-tolerant |
-| ProtonDB returns unknown/new tier | Show exact raw tier text if safe, plus generic fallback styling | Avoid hard crash |
-| Recommendation includes unsupported raw command fragments | Keep the suggestion copy-only | Never inject blindly |
-| Existing custom env vars conflict with suggested env vars | Require explicit overwrite/merge handling | User intent wins |
+| Scenario                                                  | Expected Behavior                                               | Notes                |
+| --------------------------------------------------------- | --------------------------------------------------------------- | -------------------- |
+| Empty Steam App ID                                        | Show neutral “add a Steam App ID to enable ProtonDB” state      | No network call      |
+| ProtonDB summary fetch fails but cache exists             | Show cached result with stale label and retry action            | Offline-tolerant     |
+| ProtonDB returns unknown/new tier                         | Show exact raw tier text if safe, plus generic fallback styling | Avoid hard crash     |
+| Recommendation includes unsupported raw command fragments | Keep the suggestion copy-only                                   | Never inject blindly |
+| Existing custom env vars conflict with suggested env vars | Require explicit overwrite/merge handling                       | User intent wins     |
 
 ### Success Criteria
 
@@ -150,18 +150,18 @@ ProfileFormSections / ProfilesPage
 
 #### `NormalizedProtonDbSnapshot`
 
-| Field | Type | Constraints | Description |
-| --- | --- | --- | --- |
-| `app_id` | `String` | non-empty | Steam App ID used for lookup |
-| `tier` | `ProtonDbTier` | exact remote tier | exact current ProtonDB tier |
-| `best_reported_tier` | `Option<ProtonDbTier>` | nullable | best tier seen in remote payload |
-| `trending_tier` | `Option<ProtonDbTier>` | nullable | trend indicator from remote payload |
-| `score` | `Option<f32>` | nullable | aggregated ProtonDB score |
-| `confidence` | `Option<String>` | nullable | confidence label |
-| `total_reports` | `Option<u32>` | nullable | report count |
-| `recommendations` | `Vec<ProtonDbRecommendation>` | compact | normalized apply/copy suggestions |
-| `source_url` | `String` | non-empty | ProtonDB page or JSON source |
-| `fetched_at` | `String` | RFC 3339 | cache freshness anchor |
+| Field                | Type                          | Constraints       | Description                         |
+| -------------------- | ----------------------------- | ----------------- | ----------------------------------- |
+| `app_id`             | `String`                      | non-empty         | Steam App ID used for lookup        |
+| `tier`               | `ProtonDbTier`                | exact remote tier | exact current ProtonDB tier         |
+| `best_reported_tier` | `Option<ProtonDbTier>`        | nullable          | best tier seen in remote payload    |
+| `trending_tier`      | `Option<ProtonDbTier>`        | nullable          | trend indicator from remote payload |
+| `score`              | `Option<f32>`                 | nullable          | aggregated ProtonDB score           |
+| `confidence`         | `Option<String>`              | nullable          | confidence label                    |
+| `total_reports`      | `Option<u32>`                 | nullable          | report count                        |
+| `recommendations`    | `Vec<ProtonDbRecommendation>` | compact           | normalized apply/copy suggestions   |
+| `source_url`         | `String`                      | non-empty         | ProtonDB page or JSON source        |
+| `fetched_at`         | `String`                      | RFC 3339          | cache freshness anchor              |
 
 **Indexes:**
 
@@ -173,15 +173,15 @@ ProfileFormSections / ProfilesPage
 
 #### `external_cache_entries`
 
-| Field | Type | Constraints | Description |
-| --- | --- | --- | --- |
-| `cache_id` | `TEXT` | PK | row identifier |
-| `source_url` | `TEXT` | required | upstream source reference |
-| `cache_key` | `TEXT` | unique | namespaced ProtonDB cache key |
-| `payload_json` | `TEXT` | nullable | normalized cached payload |
-| `payload_size` | `INTEGER` | capped | payload size for safety |
-| `fetched_at` | `TEXT` | required | last successful fetch timestamp |
-| `expires_at` | `TEXT` | nullable | stale threshold |
+| Field          | Type      | Constraints | Description                     |
+| -------------- | --------- | ----------- | ------------------------------- |
+| `cache_id`     | `TEXT`    | PK          | row identifier                  |
+| `source_url`   | `TEXT`    | required    | upstream source reference       |
+| `cache_key`    | `TEXT`    | unique      | namespaced ProtonDB cache key   |
+| `payload_json` | `TEXT`    | nullable    | normalized cached payload       |
+| `payload_size` | `INTEGER` | capped      | payload size for safety         |
+| `fetched_at`   | `TEXT`    | required    | last successful fetch timestamp |
+| `expires_at`   | `TEXT`    | nullable    | stale threshold                 |
 
 **Indexes:**
 
@@ -229,10 +229,10 @@ ProfileFormSections / ProfilesPage
 
 **Errors:**
 
-| Status | Condition | Response |
-| --- | --- | --- |
-| soft-state | empty app id | idle/not-configured payload rather than hard error |
-| soft-state | remote timeout/unavailable | unavailable payload, optionally with stale cache |
+| Status     | Condition                                 | Response                                                |
+| ---------- | ----------------------------------------- | ------------------------------------------------------- |
+| soft-state | empty app id                              | idle/not-configured payload rather than hard error      |
+| soft-state | remote timeout/unavailable                | unavailable payload, optionally with stale cache        |
 | soft-state | undocumented rich report feed unavailable | summary-only payload plus degraded recommendation state |
 
 ### System Integration
@@ -294,12 +294,12 @@ ProfileFormSections / ProfilesPage
 
 ### UI Patterns
 
-| Component | Pattern | Notes |
-| --- | --- | --- |
-| ProtonDB lookup card | advisory info panel | keep near Steam metadata |
-| Exact tier badge | dedicated ProtonDB badge styling | do not overload legacy compatibility styles |
-| Recommendation actions | explicit copy/apply buttons | raw suggestions stay copy-only |
-| Freshness state | muted status text plus refresh action | communicate stale cache clearly |
+| Component              | Pattern                               | Notes                                       |
+| ---------------------- | ------------------------------------- | ------------------------------------------- |
+| ProtonDB lookup card   | advisory info panel                   | keep near Steam metadata                    |
+| Exact tier badge       | dedicated ProtonDB badge styling      | do not overload legacy compatibility styles |
+| Recommendation actions | explicit copy/apply buttons           | raw suggestions stay copy-only              |
+| Freshness state        | muted status text plus refresh action | communicate stale cache clearly             |
 
 ### Accessibility Requirements
 
@@ -331,12 +331,12 @@ ProfileFormSections / ProfilesPage
 
 ### Technology Decisions
 
-| Decision | Recommendation | Rationale |
-| --- | --- | --- |
-| HTTP client | `reqwest` in `crosshook-core` | backend-owned network logic with timeouts and JSON decode |
-| Cache storage | reuse `external_cache_entries` | existing table already fits remote JSON snapshots |
-| Tier contract | new `ProtonDbTier` enum | existing `CompatibilityRating` is lossy |
-| Recommendation application | explicit copy/apply only | avoids unsafe raw launch option injection |
+| Decision                   | Recommendation                 | Rationale                                                 |
+| -------------------------- | ------------------------------ | --------------------------------------------------------- |
+| HTTP client                | `reqwest` in `crosshook-core`  | backend-owned network logic with timeouts and JSON decode |
+| Cache storage              | reuse `external_cache_entries` | existing table already fits remote JSON snapshots         |
+| Tier contract              | new `ProtonDbTier` enum        | existing `CompatibilityRating` is lossy                   |
+| Recommendation application | explicit copy/apply only       | avoids unsafe raw launch option injection                 |
 
 ### Quick Wins
 
@@ -354,12 +354,12 @@ ProfileFormSections / ProfilesPage
 
 ### Technical Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-| --- | --- | --- | --- |
-| Hidden ProtonDB report feed changes or disappears | High | High | keep summary lookup independent and degrade recommendations gracefully |
-| Exact ProtonDB tiers get collapsed accidentally into legacy compatibility states | Medium | High | introduce a dedicated exact-tier contract and only map intentionally |
-| Unsafe raw launch strings get injected into launch builders | Medium | High | whitelist supported env vars and keep everything else copy-only |
-| Remote failures degrade the whole profile editor | Low | High | isolate state/errors inside a dedicated card and use stale-cache fallback |
+| Risk                                                                             | Likelihood | Impact | Mitigation                                                                |
+| -------------------------------------------------------------------------------- | ---------- | ------ | ------------------------------------------------------------------------- |
+| Hidden ProtonDB report feed changes or disappears                                | High       | High   | keep summary lookup independent and degrade recommendations gracefully    |
+| Exact ProtonDB tiers get collapsed accidentally into legacy compatibility states | Medium     | High   | introduce a dedicated exact-tier contract and only map intentionally      |
+| Unsafe raw launch strings get injected into launch builders                      | Medium     | High   | whitelist supported env vars and keep everything else copy-only           |
+| Remote failures degrade the whole profile editor                                 | Low        | High   | isolate state/errors inside a dedicated card and use stale-cache fallback |
 
 ### Integration Challenges
 

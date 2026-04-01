@@ -24,11 +24,7 @@ function parseOptionalInt(value: string): number | undefined {
   return isNaN(parsed) ? undefined : parsed;
 }
 
-export function GamescopeConfigPanel({
-  config,
-  onChange,
-  isInsideGamescopeSession,
-}: GamescopeConfigPanelProps) {
+export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSession }: GamescopeConfigPanelProps) {
   const id = useId();
   const isDisabled = !config.enabled;
   const showSessionWarning = isInsideGamescopeSession && config.enabled;
@@ -41,10 +37,7 @@ export function GamescopeConfigPanel({
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       {/* Enable toggle */}
-      <label
-        htmlFor={`${id}-enable`}
-        style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
-      >
+      <label htmlFor={`${id}-enable`} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
         <input
           id={`${id}-enable`}
           type="checkbox"
@@ -60,8 +53,8 @@ export function GamescopeConfigPanel({
       {/* Session warning banner */}
       {showSessionWarning ? (
         <div className="crosshook-warning-banner" role="alert">
-          Running inside an existing gamescope session. Gamescope will be auto-skipped at launch
-          unless &ldquo;Allow nested&rdquo; is enabled below.
+          Running inside an existing gamescope session. Gamescope will be auto-skipped at launch unless &ldquo;Allow
+          nested&rdquo; is enabled below.
         </div>
       ) : null}
 
@@ -82,7 +75,9 @@ export function GamescopeConfigPanel({
           <div className="crosshook-install-grid">
             <div className="crosshook-field">
               <span className="crosshook-label">Internal Resolution</span>
-              <p className="crosshook-help-text" style={{ margin: 0 }}>Game renders at</p>
+              <p className="crosshook-help-text" style={{ margin: 0 }}>
+                Game renders at
+              </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, alignItems: 'center' }}>
                 <input
                   id={`${id}-iw`}
@@ -110,7 +105,9 @@ export function GamescopeConfigPanel({
 
             <div className="crosshook-field">
               <span className="crosshook-label">Output Resolution</span>
-              <p className="crosshook-help-text" style={{ margin: 0 }}>Display output</p>
+              <p className="crosshook-help-text" style={{ margin: 0 }}>
+                Display output
+              </p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, alignItems: 'center' }}>
                 <input
                   id={`${id}-ow`}
@@ -143,7 +140,9 @@ export function GamescopeConfigPanel({
           <div className="crosshook-install-section-title">Performance</div>
           <div className="crosshook-install-grid">
             <div className="crosshook-field">
-              <label className="crosshook-label" htmlFor={`${id}-fps`}>Frame Rate Limit</label>
+              <label className="crosshook-label" htmlFor={`${id}-fps`}>
+                Frame Rate Limit
+              </label>
               <input
                 id={`${id}-fps`}
                 type="number"
@@ -157,7 +156,9 @@ export function GamescopeConfigPanel({
             </div>
 
             <div className="crosshook-field">
-              <label className="crosshook-label" htmlFor={`${id}-filter`}>Upscale Filter</label>
+              <label className="crosshook-label" htmlFor={`${id}-filter`}>
+                Upscale Filter
+              </label>
               <ThemedSelect
                 id={`${id}-filter`}
                 value={config.upscale_filter ?? ''}
@@ -173,15 +174,9 @@ export function GamescopeConfigPanel({
             </div>
 
             <div className="crosshook-field">
-              <label
-                className="crosshook-label"
-                htmlFor={`${id}-fsr`}
-                style={{ opacity: isFsr ? 1 : 0.5 }}
-              >
+              <label className="crosshook-label" htmlFor={`${id}-fsr`} style={{ opacity: isFsr ? 1 : 0.5 }}>
                 FSR Sharpness
-                {!isFsr ? (
-                  <span style={{ fontWeight: 400, marginLeft: 6 }}>(FSR filter only)</span>
-                ) : null}
+                {!isFsr ? <span style={{ fontWeight: 400, marginLeft: 6 }}>(FSR filter only)</span> : null}
               </label>
               <input
                 id={`${id}-fsr`}
@@ -194,9 +189,7 @@ export function GamescopeConfigPanel({
                 disabled={isDisabled || !isFsr}
                 onChange={(e) => patch({ fsr_sharpness: parseOptionalInt(e.target.value) })}
               />
-              <p className="crosshook-help-text">
-                Higher values produce a sharper image. Range 0-20.
-              </p>
+              <p className="crosshook-help-text">Higher values produce a sharper image. Range 0-20.</p>
             </div>
           </div>
         </section>
@@ -251,10 +244,7 @@ export function GamescopeConfigPanel({
         </section>
 
         {/* Advanced */}
-        <CollapsibleSection
-          title="Advanced"
-          defaultOpen={config.allow_nested || config.extra_args.length > 0}
-        >
+        <CollapsibleSection title="Advanced" defaultOpen={config.allow_nested || config.extra_args.length > 0}>
           <div style={{ display: 'grid', gap: 14, paddingTop: 4 }}>
             <div>
               <CheckboxFlag
@@ -270,7 +260,9 @@ export function GamescopeConfigPanel({
             </div>
 
             <div className="crosshook-field">
-              <label className="crosshook-label" htmlFor={`${id}-extra`}>Extra arguments</label>
+              <label className="crosshook-label" htmlFor={`${id}-extra`}>
+                Extra arguments
+              </label>
               <input
                 id={`${id}-extra`}
                 type="text"
@@ -284,9 +276,7 @@ export function GamescopeConfigPanel({
                   patch({ extra_args: args });
                 }}
               />
-              <p className="crosshook-help-text">
-                Space-separated extra CLI flags passed directly to gamescope.
-              </p>
+              <p className="crosshook-help-text">Space-separated extra CLI flags passed directly to gamescope.</p>
             </div>
           </div>
         </CollapsibleSection>
@@ -332,14 +322,16 @@ function CheckboxFlag({
       <span style={{ color: 'var(--crosshook-color-text)', fontWeight: 600 }}>
         {label}
         {hint ? (
-          <code style={{
-            marginLeft: 6,
-            fontSize: '0.82em',
-            padding: '2px 6px',
-            borderRadius: 4,
-            background: 'rgba(255, 255, 255, 0.06)',
-            color: 'var(--crosshook-color-text-muted)',
-          }}>
+          <code
+            style={{
+              marginLeft: 6,
+              fontSize: '0.82em',
+              padding: '2px 6px',
+              borderRadius: 4,
+              background: 'rgba(255, 255, 255, 0.06)',
+              color: 'var(--crosshook-color-text-muted)',
+            }}
+          >
             {hint}
           </code>
         ) : null}

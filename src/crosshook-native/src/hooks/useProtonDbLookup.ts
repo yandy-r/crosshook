@@ -29,9 +29,7 @@ function unavailableLookup(appId: string): ProtonDbLookupResult {
   };
 }
 
-function normalizeRecommendationGroup(
-  group: ProtonDbRecommendationGroup
-): ProtonDbRecommendationGroup {
+function normalizeRecommendationGroup(group: ProtonDbRecommendationGroup): ProtonDbRecommendationGroup {
   return {
     group_id: group.group_id ?? '',
     title: group.title ?? '',
@@ -62,10 +60,7 @@ function normalizeLookupResult(result: ProtonDbLookupResult): ProtonDbLookupResu
   };
 }
 
-function loadingLookup(
-  appId: string,
-  previous: ProtonDbLookupResult | null
-): ProtonDbLookupResult {
+function loadingLookup(appId: string, previous: ProtonDbLookupResult | null): ProtonDbLookupResult {
   const canReusePrevious = previous?.app_id === appId;
   return {
     app_id: appId,

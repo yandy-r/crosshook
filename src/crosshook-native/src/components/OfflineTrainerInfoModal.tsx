@@ -23,8 +23,7 @@ const FOCUSABLE_SELECTOR = [
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (el) =>
-      !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0,
+    (el) => !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0
   );
 }
 
@@ -37,8 +36,7 @@ export function OfflineTrainerInfoModal({ open, onClose, modalKey }: OfflineTrai
       return;
     }
 
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const frame = window.requestAnimationFrame(() => {
       const panel = panelRef.current;
@@ -65,10 +63,7 @@ export function OfflineTrainerInfoModal({ open, onClose, modalKey }: OfflineTrai
 
   const steamDeck = isSteamDeckRuntime();
 
-  const title =
-    modalKey === 'aurora_offline_setup'
-      ? 'Aurora offline keys'
-      : 'WeMod offline use';
+  const title = modalKey === 'aurora_offline_setup' ? 'Aurora offline keys' : 'WeMod offline use';
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape') {
@@ -135,7 +130,11 @@ export function OfflineTrainerInfoModal({ open, onClose, modalKey }: OfflineTrai
             </h2>
           </div>
           <div className="crosshook-modal__header-actions">
-            <button type="button" className="crosshook-button crosshook-button--ghost crosshook-modal__close" onClick={onClose}>
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--ghost crosshook-modal__close"
+              onClick={onClose}
+            >
               Close
             </button>
           </div>

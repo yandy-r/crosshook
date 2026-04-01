@@ -205,7 +205,11 @@ export function CompatibilityViewer({
       <CollapsibleSection
         title="Results"
         className="crosshook-panel"
-        meta={<span>{filteredEntries.length} of {entries.length} entries</span>}
+        meta={
+          <span>
+            {filteredEntries.length} of {entries.length} entries
+          </span>
+        }
       >
         {loading ? (
           <div className="crosshook-panel crosshook-compatibility-viewer__message">Loading compatibility data...</div>
@@ -264,9 +268,7 @@ export function CompatibilityViewer({
                       </span>
                     ) : null}
                     {metadata.author ? (
-                      <span className="crosshook-status-chip crosshook-compatibility-chip">
-                        By {metadata.author}
-                      </span>
+                      <span className="crosshook-status-chip crosshook-compatibility-chip">By {metadata.author}</span>
                     ) : null}
                   </div>
 

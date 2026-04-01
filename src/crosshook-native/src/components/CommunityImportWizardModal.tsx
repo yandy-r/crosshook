@@ -34,11 +34,7 @@ interface CommunityImportWizardModalProps {
   draft: CommunityImportPreview | null;
   saving: boolean;
   onClose: () => void;
-  onSave: (
-    profileName: string,
-    profile: GameProfile,
-    summary: CommunityImportResolutionSummary
-  ) => Promise<void>;
+  onSave: (profileName: string, profile: GameProfile, summary: CommunityImportResolutionSummary) => Promise<void>;
 }
 
 const STEP_LABELS = ['Profile Details', 'Auto-Resolve', 'Manual Adjustment', 'Validate & Save'] as const;
@@ -86,7 +82,11 @@ function normalizeProfile(profile: GameProfile): GameProfile {
 }
 
 function resolveLaunchMethod(profile: GameProfile): Exclude<LaunchMethod, ''> {
-  if (profile.launch?.method === 'steam_applaunch' || profile.launch?.method === 'proton_run' || profile.launch?.method === 'native') {
+  if (
+    profile.launch?.method === 'steam_applaunch' ||
+    profile.launch?.method === 'proton_run' ||
+    profile.launch?.method === 'native'
+  ) {
     return profile.launch.method;
   }
 
@@ -156,13 +156,7 @@ function isStrictLaunchValidationIssue(value: unknown): value is LaunchValidatio
   return Object.keys(value).every((key) => allowedKeys.has(key));
 }
 
-export function CommunityImportWizardModal({
-  open,
-  draft,
-  saving,
-  onClose,
-  onSave,
-}: CommunityImportWizardModalProps) {
+export function CommunityImportWizardModal({ open, draft, saving, onClose, onSave }: CommunityImportWizardModalProps) {
   const [step, setStep] = useState(0);
   const [profileName, setProfileName] = useState('');
   const [profile, setProfile] = useState<GameProfile | null>(null);
@@ -325,7 +319,15 @@ export function CommunityImportWizardModal({
     }
     void validateDraft();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, step, profile?.game.executable_path, profile?.steam.app_id, profile?.steam.compatdata_path, profile?.steam.proton_path, profile?.runtime.prefix_path]);
+  }, [
+    open,
+    step,
+    profile?.game.executable_path,
+    profile?.steam.app_id,
+    profile?.steam.compatdata_path,
+    profile?.steam.proton_path,
+    profile?.runtime.prefix_path,
+  ]);
 
   const fatalCount = validationIssues.filter((issue) => issue.severity === 'fatal').length;
   const warningCount = validationIssues.filter((issue) => issue.severity === 'warning').length;
@@ -421,20 +423,24 @@ export function CommunityImportWizardModal({
             >
               {autoPopulating ? 'Resolving...' : 'Re-run Auto-Resolve'}
             </button>
-            <span className="crosshook-muted">
-              Auto-resolved fields: {autoResolvedFields.size}
-            </span>
+            <span className="crosshook-muted">Auto-resolved fields: {autoResolvedFields.size}</span>
           </div>
           {autoPopulateError ? <p className="crosshook-community-browser__error">{autoPopulateError}</p> : null}
           {autoPopulateResult ? (
             <div className="crosshook-community-import-wizard__status-grid">
-              <div className={`crosshook-community-import-wizard__status crosshook-community-import-wizard__status--${toStatusClass(autoPopulateResult.app_id_state)}`}>
+              <div
+                className={`crosshook-community-import-wizard__status crosshook-community-import-wizard__status--${toStatusClass(autoPopulateResult.app_id_state)}`}
+              >
                 App ID: {autoPopulateResult.app_id_state}
               </div>
-              <div className={`crosshook-community-import-wizard__status crosshook-community-import-wizard__status--${toStatusClass(autoPopulateResult.compatdata_state)}`}>
+              <div
+                className={`crosshook-community-import-wizard__status crosshook-community-import-wizard__status--${toStatusClass(autoPopulateResult.compatdata_state)}`}
+              >
                 Compatdata: {autoPopulateResult.compatdata_state}
               </div>
-              <div className={`crosshook-community-import-wizard__status crosshook-community-import-wizard__status--${toStatusClass(autoPopulateResult.proton_state)}`}>
+              <div
+                className={`crosshook-community-import-wizard__status crosshook-community-import-wizard__status--${toStatusClass(autoPopulateResult.proton_state)}`}
+              >
                 Proton: {autoPopulateResult.proton_state}
               </div>
             </div>
@@ -445,7 +451,9 @@ export function CommunityImportWizardModal({
             <div className="crosshook-community-import-wizard__card">
               <div className="crosshook-community-import-wizard__label">Manual hints</div>
               {autoPopulateResult.manual_hints.map((hint) => (
-                <div key={hint} className="crosshook-muted">{hint}</div>
+                <div key={hint} className="crosshook-muted">
+                  {hint}
+                </div>
               ))}
             </div>
           ) : null}
@@ -551,7 +559,9 @@ export function CommunityImportWizardModal({
           >
             {validating ? 'Validating...' : 'Re-run Validation'}
           </button>
-          <span className="crosshook-muted">Fatal: {fatalCount} | Warnings: {warningCount}</span>
+          <span className="crosshook-muted">
+            Fatal: {fatalCount} | Warnings: {warningCount}
+          </span>
         </div>
         {validationError ? <p className="crosshook-community-browser__error">{validationError}</p> : null}
         {validationIssues.length > 0 ? (

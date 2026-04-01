@@ -6,7 +6,7 @@ function dialogFailureMessage(err: unknown): string {
 
 export async function chooseFile(
   title: string,
-  filters?: { name: string; extensions: string[] }[],
+  filters?: { name: string; extensions: string[] }[]
 ): Promise<string | null> {
   try {
     const result = await open({
@@ -30,7 +30,7 @@ export async function chooseFile(
 
 export async function chooseSaveFile(
   title: string,
-  options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] },
+  options?: { defaultPath?: string; filters?: { name: string; extensions: string[] }[] }
 ): Promise<string | null> {
   try {
     const result = await save({

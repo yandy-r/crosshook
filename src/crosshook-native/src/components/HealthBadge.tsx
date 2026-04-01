@@ -6,10 +6,7 @@ type HealthBadgeProps = {
   trend?: TrendDirection | null;
   tooltip?: string | null;
   onClick?: () => void;
-} & (
-  | { status: HealthStatus; report?: never }
-  | { status?: never; report: ProfileHealthReport }
-);
+} & ({ status: HealthStatus; report?: never } | { status?: never; report: ProfileHealthReport });
 
 const STATUS_TO_RATING: Record<HealthStatus, string> = {
   healthy: 'working',
@@ -29,22 +26,26 @@ const STATUS_LABEL: Record<HealthStatus, string> = {
   broken: 'Broken',
 };
 
-export function HealthBadge({ status, report, metadata = null, trend = null, tooltip = null, onClick }: HealthBadgeProps) {
+export function HealthBadge({
+  status,
+  report,
+  metadata = null,
+  trend = null,
+  tooltip = null,
+  onClick,
+}: HealthBadgeProps) {
   const resolvedStatus: HealthStatus = status ?? report.status;
   const rating = STATUS_TO_RATING[resolvedStatus];
 
   const showFailureTrend = metadata !== null && metadata.failure_count_30d >= 2;
   const failureCount = metadata?.failure_count_30d ?? 0;
-  const trendColor = failureCount >= 5
-    ? 'var(--crosshook-color-warning)'
-    : 'var(--crosshook-color-text-muted)';
+  const trendColor = failureCount >= 5 ? 'var(--crosshook-color-warning)' : 'var(--crosshook-color-text-muted)';
 
   const showVersionMismatch =
-    metadata !== null && (
-      metadata.version_status === 'game_updated' ||
+    metadata !== null &&
+    (metadata.version_status === 'game_updated' ||
       metadata.version_status === 'trainer_changed' ||
-      metadata.version_status === 'both_changed'
-    );
+      metadata.version_status === 'both_changed');
   const versionMismatchLabel =
     metadata?.version_status === 'both_changed'
       ? 'game and trainer version changed'
@@ -60,12 +61,36 @@ export function HealthBadge({ status, report, metadata = null, trend = null, too
 
   return (
     <span
-      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: isInteractive ? 'pointer' : undefined }}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        cursor: isInteractive ? 'pointer' : undefined,
+      }}
       title={tooltip ?? undefined}
-      onClick={isInteractive ? (e) => { e.preventDefault(); e.stopPropagation(); onClick?.(); } : undefined}
+      onClick={
+        isInteractive
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClick?.();
+            }
+          : undefined
+      }
       role={isInteractive ? 'button' : undefined}
       tabIndex={isInteractive ? 0 : undefined}
-      onKeyDown={isInteractive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onClick?.(); } } : undefined}
+      onKeyDown={
+        isInteractive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
     >
       <span
         className={`crosshook-status-chip crosshook-compatibility-badge crosshook-compatibility-badge--${rating}`}
@@ -85,7 +110,8 @@ export function HealthBadge({ status, report, metadata = null, trend = null, too
             whiteSpace: 'nowrap',
           }}
         >
-          {'\u2191'}{failureCount}x
+          {'\u2191'}
+          {failureCount}x
         </span>
       )}
       {(trend === 'got_worse' || trend === 'got_better') && (
@@ -95,9 +121,7 @@ export function HealthBadge({ status, report, metadata = null, trend = null, too
           style={{
             fontSize: '0.75em',
             fontWeight: 700,
-            color: trend === 'got_worse'
-              ? 'var(--crosshook-color-warning)'
-              : 'var(--crosshook-color-success)',
+            color: trend === 'got_worse' ? 'var(--crosshook-color-warning)' : 'var(--crosshook-color-success)',
             lineHeight: 1,
             whiteSpace: 'nowrap',
           }}

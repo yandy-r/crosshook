@@ -4,7 +4,9 @@ import { useCommunityProfiles } from '../../hooks/useCommunityProfiles';
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
 
-function toCompatibilityEntries(entries: ReturnType<typeof useCommunityProfiles>['index']['entries']): CompatibilityDatabaseEntry[] {
+function toCompatibilityEntries(
+  entries: ReturnType<typeof useCommunityProfiles>['index']['entries']
+): CompatibilityDatabaseEntry[] {
   return entries.map((entry) => ({
     id: `${entry.tap_url}::${entry.relative_path}`,
     tap_url: entry.tap_url,

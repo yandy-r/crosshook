@@ -14,7 +14,7 @@ function badgeStyle(
   score: number | null | undefined,
   readinessState: string | null | undefined,
   loading: boolean,
-  compact: boolean,
+  compact: boolean
 ): { label: string; classSuffix: string; aria: string } {
   if (loading) {
     return {

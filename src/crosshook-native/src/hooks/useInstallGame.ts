@@ -38,15 +38,9 @@ export interface UseInstallGameResult {
   hasFailed: boolean;
   isResolvingDefaultPrefixPath: boolean;
   setRequest: (request: InstallGameRequest) => void;
-  updateRequest: <Key extends keyof InstallGameRequest>(
-    key: Key,
-    value: InstallGameRequest[Key],
-  ) => void;
+  updateRequest: <Key extends keyof InstallGameRequest>(key: Key, value: InstallGameRequest[Key]) => void;
   patchRequest: (patch: Partial<InstallGameRequest>) => void;
-  setFieldError: <Key extends keyof InstallGameRequest>(
-    key: Key,
-    error: string | null,
-  ) => void;
+  setFieldError: <Key extends keyof InstallGameRequest>(key: Key, error: string | null) => void;
   setGeneralError: (error: string | null) => void;
   clearValidation: () => void;
   setStage: (stage: InstallGameStage) => void;
@@ -136,10 +130,7 @@ function mapValidationErrorToField(message: string): keyof InstallGameRequest | 
   return null;
 }
 
-function deriveReviewProfile(
-  profile: GameProfile | null,
-  executablePath: string,
-): GameProfile | null {
+function deriveReviewProfile(profile: GameProfile | null, executablePath: string): GameProfile | null {
   if (!profile) {
     return null;
   }
@@ -154,7 +145,9 @@ function deriveReviewProfile(
     },
     runtime: {
       ...profile.runtime,
-      working_directory: trimmedExecutablePath ? parentDirectory(trimmedExecutablePath) : profile.runtime.working_directory,
+      working_directory: trimmedExecutablePath
+        ? parentDirectory(trimmedExecutablePath)
+        : profile.runtime.working_directory,
     },
   };
 }
@@ -187,7 +180,7 @@ function deriveStatusText(
   stage: InstallGameStage,
   defaultPrefixPathState: InstallGamePrefixPathState,
   defaultPrefixPath: string,
-  result: InstallGameResult | null,
+  result: InstallGameResult | null
 ): string {
   if (defaultPrefixPathState === 'loading') {
     return 'Resolving the default prefix path from the current profile name.';
@@ -216,7 +209,7 @@ function deriveHintText(
   stage: InstallGameStage,
   result: InstallGameResult | null,
   defaultPrefixPath: string,
-  defaultPrefixPathError: string | null,
+  defaultPrefixPathError: string | null
 ): string {
   if (defaultPrefixPathError) {
     return defaultPrefixPathError;
@@ -274,7 +267,7 @@ export function useInstallGame(): UseInstallGameResult {
         setPrefixPathSource(trimmedValue.length > 0 ? 'manual' : 'auto');
       }
     },
-    [],
+    []
   );
 
   const patchRequest = useCallback((patch: Partial<InstallGameRequest>) => {
@@ -289,24 +282,21 @@ export function useInstallGame(): UseInstallGameResult {
     }
   }, []);
 
-  const setFieldError = useCallback(
-    <Key extends keyof InstallGameRequest>(key: Key, nextError: string | null) => {
-      setValidationState((current) => {
-        const fieldErrors = { ...current.fieldErrors };
-        if (nextError === null) {
-          delete fieldErrors[key];
-        } else {
-          fieldErrors[key] = nextError;
-        }
+  const setFieldError = useCallback(<Key extends keyof InstallGameRequest>(key: Key, nextError: string | null) => {
+    setValidationState((current) => {
+      const fieldErrors = { ...current.fieldErrors };
+      if (nextError === null) {
+        delete fieldErrors[key];
+      } else {
+        fieldErrors[key] = nextError;
+      }
 
-        return {
-          ...current,
-          fieldErrors,
-        };
-      });
-    },
-    [],
-  );
+      return {
+        ...current,
+        fieldErrors,
+      };
+    });
+  }, []);
 
   const setGeneralError = useCallback((nextError: string | null) => {
     setValidationState((current) => ({
@@ -367,16 +357,18 @@ export function useInstallGame(): UseInstallGameResult {
               },
               runtime: {
                 ...currentReviewProfile.runtime,
-                working_directory: trimmedPath ? parentDirectory(trimmedPath) : currentReviewProfile.runtime.working_directory,
+                working_directory: trimmedPath
+                  ? parentDirectory(trimmedPath)
+                  : currentReviewProfile.runtime.working_directory,
               },
-            },
+            }
       );
 
       if (result?.succeeded) {
         setStageState(trimmedPath.length > 0 ? 'ready_to_save' : 'review_required');
       }
     },
-    [result],
+    [result]
   );
 
   const resolveDefaultPrefixPath = useCallback(
@@ -430,7 +422,7 @@ export function useInstallGame(): UseInstallGameResult {
         return '';
       }
     },
-    [defaultPrefixPath],
+    [defaultPrefixPath]
   );
 
   const startInstall = useCallback(async () => {

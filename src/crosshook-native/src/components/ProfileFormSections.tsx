@@ -16,10 +16,7 @@ import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { VersionCorrelationStatus } from '../types/version';
 import { useTrainerTypeCatalog } from '../hooks/useTrainerTypeCatalog';
 import { deriveSteamClientInstallPath } from '../utils/steam';
-import {
-  mergeProtonDbEnvVarGroup,
-  type ProtonDbEnvVarConflict,
-} from '../utils/protondb';
+import { mergeProtonDbEnvVarGroup, type ProtonDbEnvVarConflict } from '../utils/protondb';
 
 export interface ProtonInstallOption {
   name: string;
@@ -105,14 +102,19 @@ function updateGameExecutablePath(current: GameProfile, nextExecutablePath: stri
     },
     runtime: {
       ...current.runtime,
-      working_directory: shouldDeriveWorkingDirectory ? parentDirectory(nextExecutablePath) : current.runtime.working_directory,
+      working_directory: shouldDeriveWorkingDirectory
+        ? parentDirectory(nextExecutablePath)
+        : current.runtime.working_directory,
     },
   };
 }
 
 export { deriveSteamClientInstallPath } from '../utils/steam';
 
-export function formatProtonInstallLabel(install: ProtonInstallOption, duplicateNameCounts: Record<string, number>): string {
+export function formatProtonInstallLabel(
+  install: ProtonInstallOption,
+  duplicateNameCounts: Record<string, number>
+): string {
   const baseLabel = install.name.trim() || 'Unnamed Proton install';
   if ((duplicateNameCounts[baseLabel] ?? 0) <= 1) {
     return baseLabel;
@@ -287,11 +289,7 @@ function LauncherMetadataFields(props: {
   );
 }
 
-function OptionalSection(props: {
-  summary: string;
-  children: ReactNode;
-  collapsed: boolean;
-}) {
+function OptionalSection(props: { summary: string; children: ReactNode; collapsed: boolean }) {
   if (!props.collapsed) {
     return <>{props.children}</>;
   }
@@ -316,8 +314,10 @@ function ProfileSelectorField({
   const isPinned = selectedProfile !== '' && profileSelector.favoriteProfiles.includes(selectedProfile);
   const pinnedSet = useMemo(() => new Set(profileSelector.favoriteProfiles), [profileSelector.favoriteProfiles]);
   const handleTogglePin = useMemo(
-    () => (value: string) => { void profileSelector.onToggleFavorite(value, !pinnedSet.has(value)); },
-    [pinnedSet, profileSelector],
+    () => (value: string) => {
+      void profileSelector.onToggleFavorite(value, !pinnedSet.has(value));
+    },
+    [pinnedSet, profileSelector]
   );
 
   return (
@@ -410,11 +410,13 @@ function TrainerVersionSetField({ profileName, onVersionSet }: { profileName: st
           {setting ? 'Saving...' : 'Set'}
         </button>
       </div>
-      <p className="crosshook-help-text">
-        Manually record the trainer version when it cannot be auto-detected.
-      </p>
+      <p className="crosshook-help-text">Manually record the trainer version when it cannot be auto-detected.</p>
       {error ? <p className="crosshook-danger">{error}</p> : null}
-      {success ? <p className="crosshook-help-text" role="status">Trainer version saved.</p> : null}
+      {success ? (
+        <p className="crosshook-help-text" role="status">
+          Trainer version saved.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -436,7 +438,11 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   } = props;
   const profileSelector = 'profileSelector' in props ? props.profileSelector : undefined;
   const profileNamesListId = useId();
-  const { catalog: trainerTypeCatalog, error: trainerTypeCatalogError, selectOptions: trainerTypeSelectOptions } = useTrainerTypeCatalog();
+  const {
+    catalog: trainerTypeCatalog,
+    error: trainerTypeCatalogError,
+    selectOptions: trainerTypeSelectOptions,
+  } = useTrainerTypeCatalog();
   const [trainerInfoModal, setTrainerInfoModal] = useState<TrainerInfoModalKey | null>(null);
   const [pendingProtonDbOverwrite, setPendingProtonDbOverwrite] = useState<PendingProtonDbOverwrite | null>(null);
   const [applyingProtonDbGroupId, setApplyingProtonDbGroupId] = useState<string | null>(null);
@@ -445,7 +451,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const currentTrainerTypeId = profile.trainer.trainer_type?.trim() || 'unknown';
   const selectedTrainerTypeEntry = useMemo(
     () => trainerTypeCatalog.find((e) => e.id === currentTrainerTypeId),
-    [trainerTypeCatalog, currentTrainerTypeId],
+    [trainerTypeCatalog, currentTrainerTypeId]
   );
 
   const showProfileSelector = profileSelector !== undefined;
@@ -469,10 +475,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     setProtonDbStatusMessage(null);
   }, [profileName, profile.steam.app_id, launchMethod]);
 
-  const applyProtonDbGroup = (
-    group: ProtonDbRecommendationGroup,
-    overwriteKeys: readonly string[],
-  ) => {
+  const applyProtonDbGroup = (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
     const merge = mergeProtonDbEnvVarGroup(profile.launch.custom_env_vars, group, overwriteKeys);
     onUpdateProfile((current) => ({
       ...current,
@@ -492,15 +495,13 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
           unchangedCount > 0
             ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged`
             : ''
-        }.`,
+        }.`
       );
       return;
     }
 
     if (unchangedCount > 0) {
-      setProtonDbStatusMessage(
-        'All suggested ProtonDB environment variables already match the current profile.',
-      );
+      setProtonDbStatusMessage('All suggested ProtonDB environment variables already match the current profile.');
       return;
     }
 
@@ -524,9 +525,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     setPendingProtonDbOverwrite({
       group,
       conflicts: merge.conflicts,
-      resolutions: Object.fromEntries(
-        merge.conflicts.map((conflict) => [conflict.key, 'keep_current' as const]),
-      ),
+      resolutions: Object.fromEntries(merge.conflicts.map((conflict) => [conflict.key, 'keep_current' as const])),
     });
     setProtonDbStatusMessage(null);
   };
@@ -558,20 +557,15 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
               Confirm conflicting environment-variable updates
             </h3>
             <p className="crosshook-protondb-card__recommendation-group-copy">
-              Choose per key whether CrossHook should keep the current profile value or use the
-              ProtonDB suggestion.
+              Choose per key whether CrossHook should keep the current profile value or use the ProtonDB suggestion.
             </p>
           </div>
 
           <div className="crosshook-protondb-card__recommendation-list">
             {pendingProtonDbOverwrite.conflicts.map((conflict) => {
-              const resolution =
-                pendingProtonDbOverwrite.resolutions[conflict.key] ?? 'keep_current';
+              const resolution = pendingProtonDbOverwrite.resolutions[conflict.key] ?? 'keep_current';
               return (
-                <div
-                  key={conflict.key}
-                  className="crosshook-protondb-card__recommendation-item"
-                >
+                <div key={conflict.key} className="crosshook-protondb-card__recommendation-item">
                   <p className="crosshook-protondb-card__recommendation-label">
                     <code>{conflict.key}</code>
                   </p>
@@ -595,7 +589,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                                   ...current.resolutions,
                                   [conflict.key]: 'keep_current',
                                 },
-                              },
+                              }
                         )
                       }
                     >
@@ -614,7 +608,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                                   ...current.resolutions,
                                   [conflict.key]: 'use_suggestion',
                                 },
-                              },
+                              }
                         )
                       }
                     >
@@ -642,7 +636,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                   pendingProtonDbOverwrite.group,
                   Object.entries(pendingProtonDbOverwrite.resolutions)
                     .filter(([, resolution]) => resolution === 'use_suggestion')
-                    .map(([key]) => key),
+                    .map(([key]) => key)
                 )
               }
             >
@@ -719,9 +713,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
         <FieldRow
           label="Game Path"
           value={profile.game.executable_path}
-          onChange={(value) =>
-            onUpdateProfile((current) => updateGameExecutablePath(current, value))
-          }
+          onChange={(value) => onUpdateProfile((current) => updateGameExecutablePath(current, value))}
           placeholder="/path/to/game.exe"
           browseLabel="Browse"
           onBrowse={async () => {
@@ -821,8 +813,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                       options={trainerTypeSelectOptions}
                     />
                   </div>
-                  {selectedTrainerTypeEntry &&
-                  isSupportedTrainerInfoModal(selectedTrainerTypeEntry.info_modal) ? (
+                  {selectedTrainerTypeEntry && isSupportedTrainerInfoModal(selectedTrainerTypeEntry.info_modal) ? (
                     <button
                       type="button"
                       className="crosshook-button crosshook-button--secondary"
@@ -871,7 +862,8 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                   ]}
                 />
                 <p className="crosshook-help-text">
-                  Use the original trainer location by default so stateful bundles like Aurora keep one shared install. Switch to copy mode only when a trainer requires prefix-local files.
+                  Use the original trainer location by default so stateful bundles like Aurora keep one shared install.
+                  Switch to copy mode only when a trainer requires prefix-local files.
                 </p>
               </div>
 
@@ -944,10 +936,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
               />
 
               {showLauncherMetadata ? (
-                <LauncherMetadataFields
-                  profile={profile}
-                  onUpdateProfile={onUpdateProfile}
-                />
+                <LauncherMetadataFields profile={profile} onUpdateProfile={onUpdateProfile} />
               ) : null}
             </div>
 
@@ -1047,10 +1036,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
               />
 
               {showLauncherMetadata ? (
-                <LauncherMetadataFields
-                  profile={profile}
-                  onUpdateProfile={onUpdateProfile}
-                />
+                <LauncherMetadataFields profile={profile} onUpdateProfile={onUpdateProfile} />
               ) : null}
 
               <OptionalSection summary="Working directory override" collapsed={workingDirectoryCollapsed}>

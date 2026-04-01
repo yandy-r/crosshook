@@ -32,9 +32,7 @@ const VALID_MANGOHUD_POSITIONS: readonly MangoHudPosition[] = [
 
 function parseMangoHudPosition(value: string | undefined): MangoHudPosition | undefined {
   if (!value) return undefined;
-  return VALID_MANGOHUD_POSITIONS.includes(value as MangoHudPosition)
-    ? (value as MangoHudPosition)
-    : undefined;
+  return VALID_MANGOHUD_POSITIONS.includes(value as MangoHudPosition) ? (value as MangoHudPosition) : undefined;
 }
 
 function parseOptionalInt(value: string): number | undefined {
@@ -96,10 +94,7 @@ export function MangoHudConfigPanel({
   const activePresetId = detectActivePreset(config, presets);
   const activePreset = presets.find((p) => p.id === activePresetId) ?? null;
 
-  const presetOptions = [
-    { value: '', label: 'Custom' },
-    ...presets.map((p) => ({ value: p.id, label: p.label })),
-  ];
+  const presetOptions = [{ value: '', label: 'Custom' }, ...presets.map((p) => ({ value: p.id, label: p.label }))];
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
@@ -151,7 +146,9 @@ export function MangoHudConfigPanel({
           <section style={{ display: 'grid', gap: 10 }}>
             <div className="crosshook-install-section-title">Preset</div>
             <div className="crosshook-field">
-              <label className="crosshook-label" htmlFor={`${id}-preset`}>Quick Preset</label>
+              <label className="crosshook-label" htmlFor={`${id}-preset`}>
+                Quick Preset
+              </label>
               <ThemedSelect
                 id={`${id}-preset`}
                 value={activePresetId}
@@ -163,9 +160,7 @@ export function MangoHudConfigPanel({
                 options={presetOptions}
                 placeholder="Custom"
               />
-              {activePreset ? (
-                <p className="crosshook-help-text">{activePreset.description}</p>
-              ) : null}
+              {activePreset ? <p className="crosshook-help-text">{activePreset.description}</p> : null}
             </div>
           </section>
         ) : null}
@@ -175,7 +170,9 @@ export function MangoHudConfigPanel({
           <div className="crosshook-install-section-title">Display</div>
           <div className="crosshook-install-grid">
             <div className="crosshook-field">
-              <label className="crosshook-label" htmlFor={`${id}-position`}>Position</label>
+              <label className="crosshook-label" htmlFor={`${id}-position`}>
+                Position
+              </label>
               <ThemedSelect
                 id={`${id}-position`}
                 value={config.position ?? ''}
@@ -186,7 +183,9 @@ export function MangoHudConfigPanel({
             </div>
 
             <div className="crosshook-field">
-              <label className="crosshook-label" htmlFor={`${id}-fps-limit`}>FPS Limit</label>
+              <label className="crosshook-label" htmlFor={`${id}-fps-limit`}>
+                FPS Limit
+              </label>
               <input
                 id={`${id}-fps-limit`}
                 type="number"
@@ -206,12 +205,7 @@ export function MangoHudConfigPanel({
         <CollapsibleSection
           title="Displayed Stats"
           defaultOpen={
-            config.gpu_stats ||
-            config.cpu_stats ||
-            config.ram ||
-            config.frametime ||
-            config.battery ||
-            config.watt
+            config.gpu_stats || config.cpu_stats || config.ram || config.frametime || config.battery || config.watt
           }
         >
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, paddingTop: 4 }}>
@@ -296,9 +290,7 @@ function CheckboxFlag({
         onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.checked)}
         style={{ width: 20, height: 20, accentColor: 'var(--crosshook-color-accent-strong)', flex: '0 0 auto' }}
       />
-      <span style={{ color: 'var(--crosshook-color-text)', fontWeight: 600 }}>
-        {label}
-      </span>
+      <span style={{ color: 'var(--crosshook-color-text)', fontWeight: 600 }}>{label}</span>
     </label>
   );
 }

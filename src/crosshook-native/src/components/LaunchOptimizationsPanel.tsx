@@ -67,7 +67,8 @@ const DEFAULT_STATUS: Record<LaunchMethod, LaunchOptimizationsPanelStatus> = {
   steam_applaunch: {
     tone: 'idle',
     label: 'Ready for Steam launch options',
-    detail: 'Use the Steam launch options panel below to copy a line into Steam; CrossHook does not inject it automatically.',
+    detail:
+      'Use the Steam launch options panel below to copy a line into Steam; CrossHook does not inject it automatically.',
   },
 };
 
@@ -125,7 +126,10 @@ function getStatusToneClass(tone: LaunchOptimizationsPanelStatusTone): string {
   return `crosshook-launch-optimizations__status-chip--${tone}`;
 }
 
-function formatConflictSummary(conflict: LaunchOptimizationConflict, optionsById: Record<string, OptimizationEntry>): string {
+function formatConflictSummary(
+  conflict: LaunchOptimizationConflict,
+  optionsById: Record<string, OptimizationEntry>
+): string {
   return `${optionsById[conflict.optionId]?.label ?? conflict.optionId} conflicts with ${optionsById[conflict.conflictsWith]?.label ?? conflict.conflictsWith}.`;
 }
 
@@ -171,15 +175,19 @@ function OptionGroup(props: {
   } = props;
   const groupOptionIds = group.options.map((option) => option.id);
   const groupConflicts = selectedConflicts.filter((conflict) => {
-    return (
-      groupOptionIds.includes(conflict.optionId) ||
-      groupOptionIds.includes(conflict.conflictsWith)
-    );
+    return groupOptionIds.includes(conflict.optionId) || groupOptionIds.includes(conflict.conflictsWith);
   });
 
   return (
-    <fieldset className={joinClasses('crosshook-launch-optimizations__group', `crosshook-launch-optimizations__group--${sectionTone}`)}>
-      <legend className="crosshook-launch-optimizations__group-title">{LAUNCH_OPTIMIZATION_CATEGORY_LABELS[group.category]}</legend>
+    <fieldset
+      className={joinClasses(
+        'crosshook-launch-optimizations__group',
+        `crosshook-launch-optimizations__group--${sectionTone}`
+      )}
+    >
+      <legend className="crosshook-launch-optimizations__group-title">
+        {LAUNCH_OPTIMIZATION_CATEGORY_LABELS[group.category]}
+      </legend>
       {groupConflicts.length > 0 ? (
         <div className="crosshook-warning-banner crosshook-launch-optimizations__group-warning">
           {groupConflicts.map((conflict) => formatConflictSummary(conflict, optionsById)).join(' ')}
@@ -198,10 +206,7 @@ function OptionGroup(props: {
             (conflictingId) => optionsById[conflictingId]?.label ?? conflictingId
           );
           const isBlockedByConflict = !isEnabled && blockedByLabels.length > 0;
-          const isSupported =
-            isMethodSupported &&
-            option.applicable_methods.includes(method) &&
-            !isBlockedByConflict;
+          const isSupported = isMethodSupported && option.applicable_methods.includes(method) && !isBlockedByConflict;
           const checkboxId = `${tooltipIdPrefix}-${option.id}`;
           const tooltipIdValue = `${tooltipIdPrefix}-${option.id}-tooltip`;
           const conflictLabels = getConflictLabels(option, optionsById, conflictMatrix);
@@ -330,8 +335,7 @@ function OptionGroup(props: {
                   ) : null}
                   {conflictLabels.length > 0 ? (
                     <p className="crosshook-launch-optimizations__tooltip-copy">
-                      Conflict note: {conflictLabels.join(', ')} should not be enabled together with
-                      this option.
+                      Conflict note: {conflictLabels.join(', ')} should not be enabled together with this option.
                     </p>
                   ) : null}
                 </div>
@@ -367,14 +371,8 @@ export function LaunchOptimizationsPanel({
   const [manualPresetName, setManualPresetName] = useState('');
   const [manualSavePending, setManualSavePending] = useState(false);
 
-  const optionsById = useMemo(
-    () => (catalog ? buildOptionsById(catalog.entries) : {}),
-    [catalog]
-  );
-  const conflictMatrix = useMemo(
-    () => (catalog ? buildConflictMatrix(catalog.entries) : {}),
-    [catalog]
-  );
+  const optionsById = useMemo(() => (catalog ? buildOptionsById(catalog.entries) : {}), [catalog]);
+  const conflictMatrix = useMemo(() => (catalog ? buildConflictMatrix(catalog.entries) : {}), [catalog]);
 
   if (!catalog) {
     return <div className="crosshook-optimization-panel">Loading optimizations...</div>;
@@ -382,8 +380,7 @@ export function LaunchOptimizationsPanel({
 
   const isMethodSupported = method === 'proton_run' || method === 'steam_applaunch';
   const hasNamedPresets = optimizationPresetNames.length > 0 && onSelectOptimizationPreset !== undefined;
-  const hasBundledPresets =
-    bundledOptimizationPresets.length > 0 && onApplyBundledPreset !== undefined;
+  const hasBundledPresets = bundledOptimizationPresets.length > 0 && onApplyBundledPreset !== undefined;
   const presetActionBusy = optimizationPresetActionBusy || manualSavePending;
   const presetSelectValue = (() => {
     if (!activeOptimizationPreset.trim()) {
@@ -468,8 +465,8 @@ export function LaunchOptimizationsPanel({
             ))}
           </div>
           <p className="crosshook-help-text crosshook-launch-optimizations__preset-help">
-            Applies CrossHook&apos;s curated option set, saves it under{' '}
-            <code>[launch.presets.bundled/&lt;id&gt;]</code>, and sets it as the active preset.
+            Applies CrossHook&apos;s curated option set, saves it under <code>[launch.presets.bundled/&lt;id&gt;]</code>
+            , and sets it as the active preset.
           </p>
         </div>
       ) : null}
@@ -525,8 +522,8 @@ export function LaunchOptimizationsPanel({
             placeholder="Select a preset"
           />
           <p className="crosshook-help-text crosshook-launch-optimizations__preset-help">
-            Switch the active named preset from your profile. Use bundled GPU presets or &quot;Save preset&quot;
-            above to add entries under <code>[launch.presets.&lt;name&gt;]</code> without editing TOML by hand.
+            Switch the active named preset from your profile. Use bundled GPU presets or &quot;Save preset&quot; above
+            to add entries under <code>[launch.presets.&lt;name&gt;]</code> without editing TOML by hand.
           </p>
         </div>
       ) : null}
