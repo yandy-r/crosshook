@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 import AutoPopulate from './AutoPopulate';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
+import ProtonDbLookupCard from './ProtonDbLookupCard';
 import { ThemedSelect } from './ui/ThemedSelect';
 import { chooseDirectory, chooseFile } from '../utils/dialog';
 import { OfflineTrainerInfoModal, type TrainerInfoModalKey } from './OfflineTrainerInfoModal';
@@ -11,8 +12,14 @@ function isSupportedTrainerInfoModal(value: string | undefined | null): value is
   return value === 'aurora_offline_setup' || value === 'wemod_offline_info';
 }
 import type { GameProfile, LaunchMethod } from '../types';
+import type { ProtonDbRecommendationGroup } from '../types/protondb';
+import type { VersionCorrelationStatus } from '../types/version';
 import { useTrainerTypeCatalog } from '../hooks/useTrainerTypeCatalog';
 import { deriveSteamClientInstallPath } from '../utils/steam';
+import {
+  mergeProtonDbEnvVarGroup,
+  type ProtonDbEnvVarConflict,
+} from '../utils/protondb';
 
 export interface ProtonInstallOption {
   name: string;
@@ -37,6 +44,7 @@ type ProfileFormSectionsBaseProps = {
   reviewMode?: boolean;
   profileExists?: boolean;
   trainerVersion?: string | null;
+  versionStatus?: VersionCorrelationStatus | null;
   onVersionSet?: () => void;
   onProfileNameChange: (value: string) => void;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
@@ -64,6 +72,12 @@ const optionalSectionSummaryStyle = {
   fontWeight: 600,
   listStyle: 'none',
   outline: 'none',
+};
+
+type PendingProtonDbOverwrite = {
+  group: ProtonDbRecommendationGroup;
+  conflicts: ProtonDbEnvVarConflict[];
+  resolutions: Record<string, 'keep_current' | 'use_suggestion'>;
 };
 
 function parentDirectory(path: string): string {
@@ -415,6 +429,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     reviewMode = false,
     profileExists = false,
     trainerVersion = null,
+    versionStatus = null,
     onVersionSet,
     onProfileNameChange,
     onUpdateProfile,
@@ -423,6 +438,9 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const profileNamesListId = useId();
   const { catalog: trainerTypeCatalog, error: trainerTypeCatalogError, selectOptions: trainerTypeSelectOptions } = useTrainerTypeCatalog();
   const [trainerInfoModal, setTrainerInfoModal] = useState<TrainerInfoModalKey | null>(null);
+  const [pendingProtonDbOverwrite, setPendingProtonDbOverwrite] = useState<PendingProtonDbOverwrite | null>(null);
+  const [applyingProtonDbGroupId, setApplyingProtonDbGroupId] = useState<string | null>(null);
+  const [protonDbStatusMessage, setProtonDbStatusMessage] = useState<string | null>(null);
 
   const currentTrainerTypeId = profile.trainer.trainer_type?.trim() || 'unknown';
   const selectedTrainerTypeEntry = useMemo(
@@ -438,10 +456,201 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const trainerCollapsed = reviewMode && profile.trainer.path.trim().length === 0;
   const workingDirectoryCollapsed = reviewMode && profile.runtime.working_directory.trim().length === 0;
   const showLauncherMetadata = supportsTrainerLaunch && !reviewMode;
+  const showProtonDbLookup = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
   const reviewModeNote = reviewMode ? (
     <p className="crosshook-help-text">
       Review mode keeps launch-critical fields expanded and collapses only empty optional overrides.
     </p>
+  ) : null;
+
+  useEffect(() => {
+    setPendingProtonDbOverwrite(null);
+    setApplyingProtonDbGroupId(null);
+    setProtonDbStatusMessage(null);
+  }, [profileName]);
+
+  const applyProtonDbGroup = (
+    group: ProtonDbRecommendationGroup,
+    overwriteKeys: readonly string[],
+  ) => {
+    const merge = mergeProtonDbEnvVarGroup(profile.launch.custom_env_vars, group, overwriteKeys);
+    onUpdateProfile((current) => ({
+      ...current,
+      launch: {
+        ...current.launch,
+        custom_env_vars: merge.mergedEnvVars,
+      },
+    }));
+    setApplyingProtonDbGroupId(null);
+    setPendingProtonDbOverwrite(null);
+
+    const appliedCount = merge.appliedKeys.length;
+    const unchangedCount = merge.unchangedKeys.length;
+    if (appliedCount > 0) {
+      setProtonDbStatusMessage(
+        `Applied ${appliedCount} ProtonDB environment variable${appliedCount === 1 ? '' : 's'}${
+          unchangedCount > 0
+            ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged`
+            : ''
+        }.`,
+      );
+      return;
+    }
+
+    if (unchangedCount > 0) {
+      setProtonDbStatusMessage(
+        'All suggested ProtonDB environment variables already match the current profile.',
+      );
+      return;
+    }
+
+    setProtonDbStatusMessage('No ProtonDB environment-variable changes were applied.');
+  };
+
+  const handleApplyProtonDbEnvVars = (group: ProtonDbRecommendationGroup) => {
+    if (group.env_vars.length === 0) {
+      return;
+    }
+
+    setApplyingProtonDbGroupId(group.group_id);
+    const merge = mergeProtonDbEnvVarGroup(profile.launch.custom_env_vars, group);
+    if (merge.conflicts.length === 0) {
+      applyProtonDbGroup(group, []);
+      return;
+    }
+
+    setApplyingProtonDbGroupId(null);
+    setPendingProtonDbOverwrite({
+      group,
+      conflicts: merge.conflicts,
+      resolutions: Object.fromEntries(
+        merge.conflicts.map((conflict) => [conflict.key, 'keep_current' as const]),
+      ),
+    });
+    setProtonDbStatusMessage(null);
+  };
+
+  const protonDbPanel = showProtonDbLookup ? (
+    <div style={{ display: 'grid', gap: 16, marginTop: 18 }}>
+      <ProtonDbLookupCard
+        appId={profile.steam.app_id}
+        trainerVersion={trainerVersion}
+        versionContext={{ version_status: versionStatus }}
+        onApplyEnvVars={reviewMode ? undefined : handleApplyProtonDbEnvVars}
+        applyingGroupId={applyingProtonDbGroupId}
+      />
+
+      {protonDbStatusMessage ? (
+        <p className="crosshook-help-text" role="status">
+          {protonDbStatusMessage}
+        </p>
+      ) : null}
+
+      {pendingProtonDbOverwrite ? (
+        <div
+          className="crosshook-protondb-card__recommendation-group"
+          role="group"
+          aria-label="ProtonDB overwrite confirmation"
+        >
+          <div className="crosshook-protondb-card__meta">
+            <h3 className="crosshook-protondb-card__recommendation-group-title">
+              Confirm conflicting environment-variable updates
+            </h3>
+            <p className="crosshook-protondb-card__recommendation-group-copy">
+              Choose per key whether CrossHook should keep the current profile value or use the
+              ProtonDB suggestion.
+            </p>
+          </div>
+
+          <div className="crosshook-protondb-card__recommendation-list">
+            {pendingProtonDbOverwrite.conflicts.map((conflict) => {
+              const resolution =
+                pendingProtonDbOverwrite.resolutions[conflict.key] ?? 'keep_current';
+              return (
+                <div
+                  key={conflict.key}
+                  className="crosshook-protondb-card__recommendation-item"
+                >
+                  <p className="crosshook-protondb-card__recommendation-label">
+                    <code>{conflict.key}</code>
+                  </p>
+                  <p className="crosshook-protondb-card__recommendation-note">
+                    Current: <code>{conflict.currentValue}</code>
+                  </p>
+                  <p className="crosshook-protondb-card__recommendation-note">
+                    Suggested: <code>{conflict.suggestedValue}</code>
+                  </p>
+                  <div className="crosshook-protondb-card__actions">
+                    <button
+                      type="button"
+                      className="crosshook-button crosshook-button--secondary"
+                      onClick={() =>
+                        setPendingProtonDbOverwrite((current) =>
+                          current == null
+                            ? current
+                            : {
+                                ...current,
+                                resolutions: {
+                                  ...current.resolutions,
+                                  [conflict.key]: 'keep_current',
+                                },
+                              },
+                        )
+                      }
+                    >
+                      {resolution === 'keep_current' ? 'Keeping current value' : 'Keep current'}
+                    </button>
+                    <button
+                      type="button"
+                      className="crosshook-button"
+                      onClick={() =>
+                        setPendingProtonDbOverwrite((current) =>
+                          current == null
+                            ? current
+                            : {
+                                ...current,
+                                resolutions: {
+                                  ...current.resolutions,
+                                  [conflict.key]: 'use_suggestion',
+                                },
+                              },
+                        )
+                      }
+                    >
+                      {resolution === 'use_suggestion' ? 'Using suggestion' : 'Use suggestion'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="crosshook-protondb-card__actions">
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary"
+              onClick={() => setPendingProtonDbOverwrite(null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="crosshook-button"
+              onClick={() =>
+                applyProtonDbGroup(
+                  pendingProtonDbOverwrite.group,
+                  Object.entries(pendingProtonDbOverwrite.resolutions)
+                    .filter(([, resolution]) => resolution === 'use_suggestion')
+                    .map(([key]) => key),
+                )
+              }
+            >
+              Apply selected changes
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   ) : null;
 
   return (
@@ -792,6 +1001,8 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                   }))
                 }
               />
+
+              {protonDbPanel}
             </div>
           </>
         ) : null}
@@ -820,6 +1031,18 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                     }));
                   }
                 }}
+              />
+
+              <FieldRow
+                label="Steam App ID"
+                value={profile.steam.app_id}
+                onChange={(value) =>
+                  onUpdateProfile((current) => ({
+                    ...current,
+                    steam: { ...current.steam, app_id: value },
+                  }))
+                }
+                placeholder="Optional for ProtonDB lookup"
               />
 
               {showLauncherMetadata ? (
@@ -879,6 +1102,8 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
                 }
               }}
             />
+
+            {protonDbPanel}
           </>
         ) : null}
 
