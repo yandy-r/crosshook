@@ -5,7 +5,6 @@ import LaunchPanel from '../LaunchPanel';
 import { LaunchSubTabs } from '../LaunchSubTabs';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useProfileContext } from '../../context/ProfileContext';
-import { PageBanner, LaunchArt } from '../layout/PageBanner';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
 import { buildProfileLaunchRequest } from '../../utils/launch';
 
@@ -41,38 +40,23 @@ export function LaunchPage() {
   );
 
   return (
-    <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--launch">
-      <PageBanner
-        eyebrow="Launch"
-        title="Launch controls"
-        copy="Start the selected profile through its current runtime method without the install-flow override from the old shell."
-        illustration={<LaunchArt />}
-      />
-
-      <div className="crosshook-launch-page__grid">
+    <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--launch">
+      <div className="crosshook-route-stack crosshook-launch-page__grid">
         <LaunchPanel
           profileId={profileId}
           method={profileState.launchMethod}
           request={launchRequest}
-          beforeActions={
-            <section style={{ marginTop: 16 }}>
-              <span
-                id="active-profile-label"
-                className="crosshook-heading-eyebrow"
-                style={{ marginBottom: 8, display: 'block' }}
-              >
-                Active Profile
-              </span>
-              <ThemedSelect
-                value={profileState.selectedProfile}
-                onValueChange={(name) => void profileState.selectProfile(name)}
-                placeholder="Select a profile"
-                pinnedValues={pinnedSet}
-                onTogglePin={handleTogglePin}
-                ariaLabelledby="active-profile-label"
-                options={profileState.profiles.map((name) => ({ value: name, label: name }))}
-              />
-            </section>
+          profileSelectSlot={
+            <ThemedSelect
+              id="launch-profile-selector"
+              value={profileState.selectedProfile}
+              onValueChange={(name) => void profileState.selectProfile(name)}
+              placeholder="Select a profile"
+              pinnedValues={pinnedSet}
+              onTogglePin={handleTogglePin}
+              ariaLabelledby="launch-active-profile-label"
+              options={profileState.profiles.map((name) => ({ value: name, label: name }))}
+            />
           }
           tabsSlot={
             <LaunchSubTabs

@@ -483,7 +483,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
               <input
                 className="crosshook-input"
                 value={profile.game.custom_cover_art_path ?? ''}
-                placeholder="/path/to/cover.png (optional, 460×215 px)"
+                placeholder="/path/to/cover.png (optional; landscape, backdrop crop)"
                 onChange={(event) =>
                   applyProfileUpdate((current) => ({
                     ...current,

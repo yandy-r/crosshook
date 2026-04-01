@@ -8,6 +8,8 @@ import { OnboardingWizard } from '../OnboardingWizard';
 import ProfilePreviewModal from '../ProfilePreviewModal';
 import ProfileSubTabs from '../ProfileSubTabs';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
+import { ProfilesArt } from '../layout/PageBanner';
+import { PanelRouteDecor } from '../layout/PanelRouteDecor';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { HealthBadge } from '../HealthBadge';
 import { OfflineStatusBadge } from '../OfflineStatusBadge';
@@ -15,13 +17,13 @@ import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
-import { PageBanner, ProfilesArt } from '../layout/PageBanner';
 import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
 import type { ProtonInstallOption } from '../../types/proton';
 import type { ProtonDbRecommendationGroup } from '../../types/protondb';
 import { chooseSaveFile } from '../../utils/dialog';
 import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
+import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../../utils/launchPanelActionButtonStyle';
 import { mergeProtonDbEnvVarGroup } from '../../utils/protondb';
 import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
 
@@ -591,14 +593,7 @@ export function ProfilesPage() {
   };
 
   return (
-    <div className="crosshook-page-scroll-shell">
-      <PageBanner
-        eyebrow="Profiles"
-        title="Profile editor"
-        copy="Select an existing profile or build a new one, then save it before switching to launch or export workflows."
-        illustration={<ProfilesArt />}
-      />
-
+    <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--profiles">
       {summary !== null && !healthLoading && summary.broken_count > 0 && !healthBannerDismissed ? (
         <div className="crosshook-rename-toast" role="status" aria-live="polite">
           <span>
@@ -615,58 +610,18 @@ export function ProfilesPage() {
         </div>
       ) : null}
 
-      <div style={{ display: 'grid', gap: 24 }}>
-        <div className="crosshook-panel" style={{ display: 'grid', gap: 0 }}>
-          {/* Wizard area */}
-          <div
-            style={{
-              padding: 'var(--crosshook-card-padding)',
-              borderBottom: '1px solid var(--crosshook-color-border, rgba(255,255,255,0.08))',
-              background: 'var(--crosshook-color-accent-soft)',
-            }}
-          >
-            <div className="crosshook-heading-eyebrow" style={{ marginBottom: 4 }}>
-              Guided Setup
-            </div>
-            <h2 style={{ margin: '4px 0 8px', fontSize: '1.1em', fontWeight: 600 }}>Profile Setup Wizard</h2>
-            <p className="crosshook-help-text" style={{ marginBottom: 16 }}>
-              {profiles.length === 0
-                ? 'Set up your first game + trainer combo in minutes with step-by-step guidance.'
-                : 'Use the guided wizard to create another profile with automatic readiness checks.'}
-            </p>
-            {profiles.length === 0 ? (
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  className="crosshook-button"
-                  style={{
-                    height: 'var(--crosshook-touch-target-min)',
-                    minHeight: 'var(--crosshook-touch-target-min)',
-                    padding: '0 14px',
-                    fontSize: '0.95rem',
-                  }}
-                  onClick={() => {
-                    setWizardMode('create');
-                    setShowWizard(true);
-                  }}
-                >
-                  New Profile
-                </button>
+      <div className="crosshook-route-stack crosshook-profiles-page">
+        <div className="crosshook-route-stack__body--fill crosshook-profiles-page__body">
+        <div className="crosshook-panel crosshook-panel--with-route-decor crosshook-profiles-hero-outer">
+          <PanelRouteDecor illustration={<ProfilesArt />} />
+          <section className="crosshook-launch-panel crosshook-route-hero-launch-panel">
+            <header className="crosshook-settings-header crosshook-launch-panel__title-strip">
+              <div className="crosshook-launch-panel__title-strip-inner">
+                <div className="crosshook-heading-eyebrow">Profiles</div>
               </div>
-            ) : null}
-          </div>
+            </header>
 
-          {/* Profile selector — always visible */}
-          {profiles.length > 0 && (
-            <div
-              style={{
-                padding: '12px var(--crosshook-card-padding)',
-                borderBottom: '1px solid var(--crosshook-color-border, rgba(255,255,255,0.08))',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
+            <div className="crosshook-launch-panel__profile-row">
               <label
                 className="crosshook-label"
                 htmlFor="profile-selector-top"
@@ -674,7 +629,7 @@ export function ProfilesPage() {
               >
                 Active Profile
               </label>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="crosshook-launch-panel__profile-row-select">
                 <ThemedSelect
                   id="profile-selector-top"
                   value={selectedProfile}
@@ -686,16 +641,11 @@ export function ProfilesPage() {
                   ]}
                 />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div className="crosshook-launch-panel__profile-row-actions">
                 <button
                   type="button"
-                  className="crosshook-button"
-                  style={{
-                    height: 'var(--crosshook-touch-target-min)',
-                    minHeight: 'var(--crosshook-touch-target-min)',
-                    padding: '0 14px',
-                    fontSize: '0.95rem',
-                  }}
+                  className="crosshook-button crosshook-launch-panel__action"
+                  style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
                   onClick={() => {
                     setWizardMode('create');
                     setShowWizard(true);
@@ -706,13 +656,8 @@ export function ProfilesPage() {
                 {hasSelectedProfile ? (
                   <button
                     type="button"
-                    className="crosshook-button crosshook-button--secondary"
-                    style={{
-                      height: 'var(--crosshook-touch-target-min)',
-                      minHeight: 'var(--crosshook-touch-target-min)',
-                      padding: '0 14px',
-                      fontSize: '0.95rem',
-                    }}
+                    className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
+                    style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
                     onClick={() => {
                       setWizardMode('edit');
                       setShowWizard(true);
@@ -723,88 +668,47 @@ export function ProfilesPage() {
                 ) : null}
               </div>
             </div>
-          )}
 
-        </div>
-
-        {/* Profile status bar — health, offline, version badges + refresh */}
-        <div className="crosshook-panel crosshook-profile-status-bar">
-          {renderProfileHealthBadge()}
-          {renderOfflineStatusBadge()}
-          {launchMethod !== 'native' && profile.trainer.path.trim().length > 0 ? (
-            <span className="crosshook-status-chip" title="Trainer type catalog id for offline scoring">
-              Trainer type: {trainerTypeDisplayName}
-            </span>
-          ) : null}
-          {renderVersionStatusBadge()}
-          {summary !== null && summary.stale_count + summary.broken_count > 0 ? (
-            <span className="crosshook-status-chip">
-              {summary.stale_count + summary.broken_count} of {summary.total_count} profile
-              {summary.total_count !== 1 ? 's' : ''} have issues
-            </span>
-          ) : null}
-          {!selectedReport && selectedStaleInfo?.isStale ? (
-            <span className="crosshook-status-chip crosshook-status-chip--muted" role="note">
-              Checked {selectedStaleInfo.daysAgo}d ago
-            </span>
-          ) : null}
-          <div className="crosshook-profile-status-bar__action">
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--secondary"
-              style={{ minHeight: 32, fontSize: '0.82rem' }}
-              onClick={async (event) => {
-                event.preventDefault();
-                await refreshProfiles();
-                await batchValidate();
-              }}
-            >
-              {summary !== null && summary.stale_count + summary.broken_count > 0
-                ? (healthLoading ? 'Checking...' : 'Re-check')
-                : 'Refresh'}
-            </button>
-          </div>
-        </div>
-
-        {/* Profile sub-tabs — Setup / Runtime / Environment / Trainer */}
-        <div className="crosshook-panel" style={{ padding: 'var(--crosshook-card-padding)' }}>
-          <ProfileSubTabs
-            profile={profile}
-            profileName={profileName}
-            profileExists={profileExists}
-            profiles={profiles}
-            launchMethod={launchMethod}
-            protonInstalls={protonInstalls}
-            protonInstallsError={protonInstallsError}
-            onUpdateProfile={updateProfile}
-            onProfileNameChange={setProfileName}
-            trainerVersion={selectedTrainerVersion}
-            onVersionSet={() => {
-              if (selectedProfile) void revalidateSingle(selectedProfile);
-            }}
-            showProtonDbLookup={showProtonDbLookup}
-            onApplyProtonDbEnvVars={handleApplyProtonDbEnvVars}
-            applyingProtonDbGroupId={applyingProtonDbGroupId}
-            protonDbStatusMessage={protonDbStatusMessage}
-            pendingProtonDbOverwrite={pendingProtonDbOverwrite}
-            onConfirmProtonDbOverwrite={(overwriteKeys) => {
-              if (pendingProtonDbOverwrite) {
-                applyProtonDbGroup(pendingProtonDbOverwrite.group, overwriteKeys);
-              }
-            }}
-            onCancelProtonDbOverwrite={() => setPendingProtonDbOverwrite(null)}
-            onUpdateProtonDbResolution={(key, resolution) =>
-              setPendingProtonDbOverwrite((current) =>
-                current == null
-                  ? current
-                  : { ...current, resolutions: { ...current.resolutions, [key]: resolution } }
-              )
-            }
-            steamClientInstallPath={effectiveSteamClientInstallPath}
-            targetHomePath={targetHomePath}
-            pendingReExport={pendingLauncherReExport}
-            onReExportHandled={() => setPendingLauncherReExport(false)}
-          />
+            <div className="crosshook-profiles-hero-status">
+              {renderProfileHealthBadge()}
+              {renderOfflineStatusBadge()}
+              {launchMethod !== 'native' && profile.trainer.path.trim().length > 0 ? (
+                <span className="crosshook-status-chip" title="Trainer type catalog id for offline scoring">
+                  Trainer type: {trainerTypeDisplayName}
+                </span>
+              ) : null}
+              {renderVersionStatusBadge()}
+              {summary !== null && summary.stale_count + summary.broken_count > 0 ? (
+                <span className="crosshook-status-chip">
+                  {summary.stale_count + summary.broken_count} of {summary.total_count} profile
+                  {summary.total_count !== 1 ? 's' : ''} have issues
+                </span>
+              ) : null}
+              {!selectedReport && selectedStaleInfo?.isStale ? (
+                <span className="crosshook-status-chip crosshook-status-chip--muted" role="note">
+                  Checked {selectedStaleInfo.daysAgo}d ago
+                </span>
+              ) : null}
+              <div className="crosshook-profiles-hero-status__action">
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
+                  style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
+                  onClick={async (event) => {
+                    event.preventDefault();
+                    await refreshProfiles();
+                    await batchValidate();
+                  }}
+                >
+                  {summary !== null && summary.stale_count + summary.broken_count > 0
+                    ? healthLoading
+                      ? 'Checking...'
+                      : 'Re-check'
+                    : 'Refresh'}
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
 
         {/* Health Issues card — shown when selected profile has broken/stale health */}
@@ -877,9 +781,51 @@ export function ProfilesPage() {
           );
         })()}
 
-        {/* Actions — always visible outside section cards */}
-        <div className="crosshook-panel">
+        {/* Profile sub-tabs — stable height; scroll inside active tab */}
+        <div className="crosshook-profiles-editor-host">
+          <div className="crosshook-panel crosshook-subtabs-shell crosshook-profiles-subtabs">
+            <ProfileSubTabs
+              profile={profile}
+              profileName={profileName}
+              profileExists={profileExists}
+              profiles={profiles}
+              launchMethod={launchMethod}
+              protonInstalls={protonInstalls}
+              protonInstallsError={protonInstallsError}
+              onUpdateProfile={updateProfile}
+              onProfileNameChange={setProfileName}
+              trainerVersion={selectedTrainerVersion}
+              onVersionSet={() => {
+                if (selectedProfile) void revalidateSingle(selectedProfile);
+              }}
+              showProtonDbLookup={showProtonDbLookup}
+              onApplyProtonDbEnvVars={handleApplyProtonDbEnvVars}
+              applyingProtonDbGroupId={applyingProtonDbGroupId}
+              protonDbStatusMessage={protonDbStatusMessage}
+              pendingProtonDbOverwrite={pendingProtonDbOverwrite}
+              onConfirmProtonDbOverwrite={(overwriteKeys) => {
+                if (pendingProtonDbOverwrite) {
+                  applyProtonDbGroup(pendingProtonDbOverwrite.group, overwriteKeys);
+                }
+              }}
+              onCancelProtonDbOverwrite={() => setPendingProtonDbOverwrite(null)}
+              onUpdateProtonDbResolution={(key, resolution) =>
+                setPendingProtonDbOverwrite((current) =>
+                  current == null ? current : { ...current, resolutions: { ...current.resolutions, [key]: resolution } }
+                )
+              }
+              steamClientInstallPath={effectiveSteamClientInstallPath}
+              targetHomePath={targetHomePath}
+              pendingReExport={pendingLauncherReExport}
+              onReExportHandled={() => setPendingLauncherReExport(false)}
+            />
+          </div>
+        </div>
+        </div>
+
+        <div className="crosshook-profiles-page__actions crosshook-route-footer crosshook-panel">
           <ProfileActions
+            layoutVariant="footer"
             dirty={dirty}
             loading={loading}
             saving={saving}
@@ -923,7 +869,6 @@ export function ProfilesPage() {
             </p>
           ) : null}
         </div>
-
       </div>
 
       {pendingDelete ? (

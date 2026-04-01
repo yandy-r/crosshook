@@ -27,7 +27,7 @@ Normative guidelines for AI agents in this repository. Stack overview, directory
 ## SHOULD (implementation)
 
 - **Rust**: `snake_case`; modules as directories with `mod.rs`; errors via `Result` with `anyhow` or project error types.
-- **React / TypeScript**: `PascalCase` components, `camelCase` hooks/functions; respect strict TS; wrap `invoke()` in hooks for stateful UI; CSS variables in `src/crosshook-native/src/styles/variables.css`; BEM-like `crosshook-*` classes.
+- **React / TypeScript**: `PascalCase` components, `camelCase` hooks/functions; respect strict TS; wrap `invoke()` in hooks for stateful UI; CSS variables in `src/crosshook-native/src/styles/variables.css`; BEM-like `crosshook-*` classes. **Route layout**: reuse the shared contract in `src/crosshook-native/src/styles/layout.css` (`crosshook-page-scroll-shell--fill`, `crosshook-route-stack`, `crosshook-route-stack__body--scroll` / `__body--fill`, `crosshook-route-card-host` / `crosshook-route-card-scroll` when a primary card must fill the body without stretching inner grids, `crosshook-route-footer`) instead of one-off viewport height chains on new pages.
 - **Verification**: After substantive Rust changes, run `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`. There is **no** configured frontend test framework—use dev/build scripts when UI behavior matters.
 - **Environment**: Repo may use `direnv` / `.envrc` and `dotenvx` for local secrets; do not bypass secret-handling conventions.
 
