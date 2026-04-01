@@ -1,4 +1,5 @@
 use std::fmt;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
@@ -22,6 +23,7 @@ const SUMMARY_URL_BASE: &str = "https://www.protondb.com/api/v1/reports/summarie
 const CACHE_TTL_HOURS: i64 = 6;
 const PAGE_SELECTOR_FIRST: i64 = 1;
 const REQUEST_TIMEOUT_SECS: u64 = 6;
+static PROTONDB_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 #[derive(Debug)]
 enum ProtonDbError {
@@ -107,7 +109,8 @@ pub async fn lookup_protondb(
         Err(error) => {
             tracing::warn!(app_id, %error, "ProtonDB live lookup failed");
             if let Some(stale_cache) = load_cached_lookup_row(metadata_store, &cache_key, true) {
-                if let Some(result) = cached_result_from_row(&app_id, &cache_key, stale_cache, true) {
+                if let Some(result) = cached_result_from_row(&app_id, &cache_key, stale_cache, true)
+                {
                     return result;
                 }
             }
@@ -127,14 +130,9 @@ pub async fn lookup_protondb(
 }
 
 async fn fetch_live_lookup(app_id: &str) -> Result<ProtonDbLookupResult, ProtonDbError> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .user_agent(format!("CrossHook/{}", env!("CARGO_PKG_VERSION")))
-        .build()
-        .map_err(ProtonDbError::Network)?;
-
+    let client = protondb_http_client()?;
     let summary_url = format!("{SUMMARY_URL_BASE}/{app_id}.json");
-    let summary = fetch_summary(&client, &summary_url).await?;
+    let summary = fetch_summary(client, &summary_url).await?;
     let fetched_at = Utc::now().to_rfc3339();
 
     let mut snapshot = ProtonDbSnapshot {
@@ -150,7 +148,7 @@ async fn fetch_live_lookup(app_id: &str) -> Result<ProtonDbLookupResult, ProtonD
         ..ProtonDbSnapshot::default()
     };
 
-    match fetch_recommendations(&client, app_id).await {
+    match fetch_recommendations(client, app_id).await {
         Ok(recommendation_groups) => {
             snapshot.recommendation_groups = recommendation_groups;
         }
@@ -172,6 +170,23 @@ async fn fetch_live_lookup(app_id: &str) -> Result<ProtonDbLookupResult, ProtonD
         cache: None,
         snapshot: Some(snapshot),
     })
+}
+
+fn protondb_http_client() -> Result<&'static reqwest::Client, ProtonDbError> {
+    if let Some(client) = PROTONDB_HTTP_CLIENT.get() {
+        return Ok(client);
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .user_agent(format!("CrossHook/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(ProtonDbError::Network)?;
+
+    let _ = PROTONDB_HTTP_CLIENT.set(client);
+    Ok(PROTONDB_HTTP_CLIENT
+        .get()
+        .expect("ProtonDB HTTP client should be initialized before use"))
 }
 
 async fn fetch_summary(
@@ -196,7 +211,9 @@ async fn fetch_summary(
         .map_err(ProtonDbError::Network)
 }
 
-async fn fetch_counts_json(client: &reqwest::Client) -> Result<ProtonDbCountsResponse, ProtonDbError> {
+async fn fetch_counts_json(
+    client: &reqwest::Client,
+) -> Result<ProtonDbCountsResponse, ProtonDbError> {
     client
         .get(COUNTS_URL)
         .send()
@@ -424,7 +441,12 @@ fn parse_rfc3339(value: &str) -> Option<DateTime<Utc>> {
         .map(|time| time.with_timezone(&Utc))
 }
 
-fn report_feed_id(app_id: i64, reports_count: i64, counts_timestamp: i64, page_selector: i64) -> i64 {
+fn report_feed_id(
+    app_id: i64,
+    reports_count: i64,
+    counts_timestamp: i64,
+    page_selector: i64,
+) -> i64 {
     hash_text(format!(
         "p{}*vRT{}",
         compose_hash_part(app_id, reports_count, counts_timestamp),
