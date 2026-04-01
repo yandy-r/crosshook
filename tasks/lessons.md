@@ -1,7 +1,12 @@
 # Lessons
 
+## 2026-03-31
+
+- When porting a JavaScript hash or checksum routine that relies on 32-bit overflow semantics, do not translate it with normal Rust arithmetic in debug builds. Use explicit `wrapping_*` operations so the code matches the upstream behavior and does not panic under real UI-triggered inputs.
+
 ## 2026-03-26
 
+- When reverse-engineering ProtonDB’s richer report feed, do not guess which inputs affect the hashed report path. In the current frontend chunks, the hash input is `zk(Number(appId), counts.reports, counts.timestamp, pageSelector)`, while `hardwareType` only selects the URL segment (`all-devices`, `pc`, `steam-deck`, `chrome-os`). Keep that distinction explicit before porting the lookup logic into CrossHook.
 - When debugging top-level page scroll carryover in the native Tauri shell, first identify the real scroll owner before patching route effects. In this repo, if multiple pages wrap themselves in the same `.crosshook-content-area`, move that scroll container into the shared layout shell and reset it there with a `ref` in `useLayoutEffect`; do not rely on per-page wrappers or `querySelector` plus `requestAnimationFrame` to clean up shared scroll state.
 - In React route/layout work, do not assume `key` survives inside a spread props object. If a remount is required, pass `key={...}` directly in JSX or the remount logic will silently fail.
 

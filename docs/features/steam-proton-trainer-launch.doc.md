@@ -11,6 +11,7 @@ This guide covers the three launch methods, auto-discovery, launcher export, and
 - [Overview](#overview)
 - [Launch methods](#launch-methods)
 - [Custom environment variables](#custom-environment-variables)
+- [ProtonDB guidance](#protondb-guidance)
 - [Auto-populate and Steam discovery](#auto-populate-and-steam-discovery)
 - [Workflow in CrossHook](#workflow-in-crosshook)
 - [Launcher export](#launcher-export)
@@ -111,6 +112,16 @@ The **Launch Optimizations** panel appears in the right column for `proton_run` 
 Per-profile custom env vars are edited in the Profile panel alongside launch settings. They apply after **Launch Optimizations** on the same key, so user-defined values override optimization-derived ones. For **`steam_applaunch`**, they appear in the generated Steam Launch Options string (not applied automatically to `steam -applaunch` — you must paste/update the line in Steam). **`proton_run`** applies them directly to CrossHook-built `proton run` commands.
 
 CrossHook blocks custom overrides for `WINEPREFIX`, `STEAM_COMPAT_DATA_PATH`, and `STEAM_COMPAT_CLIENT_INSTALL_PATH`. For precedence, syntax, and preview behavior, see the [quickstart § Custom environment variables](../getting-started/quickstart.md#custom-environment-variables).
+
+## ProtonDB guidance
+
+When the profile has a non-empty Steam App ID, the Profile editor shows a **ProtonDB Guidance** card beside the Steam metadata workflow. The card is available for both `steam_applaunch` and `proton_run` profiles as long as the profile carries a meaningful App ID.
+
+- CrossHook shows the exact ProtonDB tier instead of collapsing it into the older community compatibility scale.
+- Results are cache-backed. If ProtonDB is offline or the richer report feed cannot be normalized, CrossHook keeps the rest of the form usable and surfaces a soft stale/unavailable message inside the card only.
+- Version correlation is advisory: when the selected profile indicates that the game build changed recently, the card warns that the current ProtonDB guidance may be stale.
+- Safe env-var suggestions can be copied or explicitly applied into `launch.custom_env_vars`. If a key already exists, CrossHook requires a per-key overwrite decision before mutating the profile.
+- Raw launch strings remain copy-only. CrossHook never injects opaque remote launch strings directly into the launch pipeline.
 
 ## Dry Run / Preview Mode
 

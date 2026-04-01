@@ -680,6 +680,7 @@ export function ProfilesPage() {
             protonInstallsError={protonInstallsError}
             profileExists={profileExists}
             trainerVersion={selectedTrainerVersion}
+            versionStatus={selectedVersionStatus}
             onVersionSet={() => { if (selectedProfile) void revalidateSingle(selectedProfile); }}
             onProfileNameChange={setProfileName}
             onUpdateProfile={updateProfile}
