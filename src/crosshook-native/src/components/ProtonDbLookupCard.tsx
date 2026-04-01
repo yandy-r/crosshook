@@ -38,7 +38,7 @@ function formatTierLabel(tier: ProtonDbTier): string {
 
 function tierClassName(tier: ProtonDbTier): string {
   const normalized = tier.toLowerCase();
-  if (['platinum', 'gold', 'silver', 'bronze', 'borked'].includes(normalized)) {
+  if (['platinum', 'gold', 'silver', 'bronze', 'borked', 'native'].includes(normalized)) {
     return normalized;
   }
   return 'unknown';
@@ -76,7 +76,7 @@ export function ProtonDbLookupCard({
     };
   }, []);
   const { snapshot, cache, recommendationGroups } = lookup;
-  const actionableGroups = recommendationGroups.filter((g) => g.group_id !== 'report-feed-unavailable');
+  const actionableGroups = recommendationGroups;
 
   const cardClasses = useMemo(() => {
     const classes = ['crosshook-protondb-card'];
@@ -94,6 +94,7 @@ export function ProtonDbLookupCard({
   const stateClass = `crosshook-protondb-card__state crosshook-protondb-card__state--${stateTone(
     lookup.state
   )}`;
+  const sourceUrl = snapshot?.source_url?.trim() ?? '';
 
   const freshnessLabel =
     cache?.fetched_at || snapshot?.fetched_at
@@ -129,6 +130,16 @@ export function ProtonDbLookupCard({
   }
 
   function renderBanner() {
+    if (!lookup.appId) {
+      return (
+        <div className="crosshook-protondb-card__banner crosshook-protondb-card__banner--neutral">
+          <p className="crosshook-protondb-card__banner-copy crosshook-protondb-card__banner-copy--muted">
+            Add a Steam App ID to this profile to enable ProtonDB compatibility guidance.
+          </p>
+        </div>
+      );
+    }
+
     if (
       versionContext?.version_status === 'game_updated' ||
       versionContext?.version_status === 'both_changed'
@@ -149,16 +160,6 @@ export function ProtonDbLookupCard({
           <p className="crosshook-protondb-card__banner-copy">
             Steam is currently updating this game. ProtonDB guidance may not match the in-progress
             build yet.
-          </p>
-        </div>
-      );
-    }
-
-    if (!lookup.appId) {
-      return (
-        <div className="crosshook-protondb-card__banner crosshook-protondb-card__banner--neutral">
-          <p className="crosshook-protondb-card__banner-copy crosshook-protondb-card__banner-copy--muted">
-            Add a Steam App ID to this profile to enable ProtonDB compatibility guidance.
           </p>
         </div>
       );
@@ -207,14 +208,16 @@ export function ProtonDbLookupCard({
     return null;
   }
 
-  function renderRecommendationGroup(group: ProtonDbRecommendationGroup) {
+  function renderRecommendationGroup(group: ProtonDbRecommendationGroup, index: number) {
     const envVars = group.env_vars ?? [];
     const launchOptions = group.launch_options ?? [];
     const notes = group.notes ?? [];
     const canApplyEnvVars = envVars.length > 0 && onApplyEnvVars != null;
+    const groupId = group.group_id?.trim() || group.title?.trim() || `group-${index}`;
+    const isApplyingGroup = applyingGroupId != null && applyingGroupId === groupId;
 
     return (
-      <section key={group.group_id} className="crosshook-protondb-card__recommendation-group">
+      <section key={groupId} className="crosshook-protondb-card__recommendation-group">
         <div className="crosshook-protondb-card__meta">
           <h3 className="crosshook-protondb-card__recommendation-group-title">{group.title}</h3>
           {group.summary ? (
@@ -226,7 +229,7 @@ export function ProtonDbLookupCard({
           <div className="crosshook-protondb-card__recommendation-list">
             {envVars.map((envVar) => {
               const text = `${envVar.key}=${envVar.value}`;
-              const copyKey = `${group.group_id}:${envVar.key}`;
+              const copyKey = `${groupId}:${envVar.key}`;
               return (
                 <div key={copyKey} className="crosshook-protondb-card__recommendation-item">
                   <p className="crosshook-protondb-card__recommendation-label">
@@ -256,10 +259,10 @@ export function ProtonDbLookupCard({
               <button
                 type="button"
                 className="crosshook-button"
-                disabled={!canApplyEnvVars || applyingGroupId === group.group_id}
+                disabled={!canApplyEnvVars || isApplyingGroup}
                 onClick={() => onApplyEnvVars?.(group)}
               >
-                {applyingGroupId === group.group_id ? 'Applying…' : 'Apply Suggested Env Vars'}
+                {isApplyingGroup ? 'Applying…' : 'Apply Suggested Env Vars'}
               </button>
             </div>
           </div>
@@ -268,11 +271,15 @@ export function ProtonDbLookupCard({
         {launchOptions.length > 0 ? (
           <div className="crosshook-protondb-card__recommendation-list">
             {launchOptions.map((launchOption, index) => {
-              const copyKey = `${group.group_id}:launch:${index}`;
+              const text = launchOption.text?.trim() ?? '';
+              if (!text) {
+                return null;
+              }
+              const copyKey = `${groupId}:launch:${index}`;
               return (
                 <div key={copyKey} className="crosshook-protondb-card__recommendation-item">
                   <p className="crosshook-protondb-card__recommendation-label">
-                    <code>{launchOption.text}</code>
+                    <code>{text}</code>
                   </p>
                   <p className="crosshook-protondb-card__recommendation-note">
                     {launchOption.source_label}
@@ -286,7 +293,7 @@ export function ProtonDbLookupCard({
                     <button
                       type="button"
                       className="crosshook-button crosshook-button--secondary"
-                      onClick={() => void handleCopy(copyKey, launchOption.text)}
+                      onClick={() => void handleCopy(copyKey, text)}
                     >
                       {copyLabels[copyKey] ?? 'Copy Launch Options'}
                     </button>
@@ -300,7 +307,7 @@ export function ProtonDbLookupCard({
         {notes.length > 0 ? (
           <div className="crosshook-protondb-card__recommendation-list">
             {notes.map((note, index) => (
-              <div key={`${group.group_id}:note:${index}`} className="crosshook-protondb-card__recommendation-item">
+              <div key={`${groupId}:note:${index}`} className="crosshook-protondb-card__recommendation-item">
                 <p className="crosshook-protondb-card__recommendation-note">{note.text}</p>
                 {note.source_label ? (
                   <p className="crosshook-protondb-card__recommendation-note">{note.source_label}</p>
@@ -350,11 +357,11 @@ export function ProtonDbLookupCard({
         {renderBanner()}
 
         <div className="crosshook-protondb-card__source-row">
-          {snapshot?.source_url ? (
+          {sourceUrl ? (
             <button
               type="button"
               className="crosshook-button crosshook-button--outline"
-              onClick={() => void openUrl(snapshot.source_url)}
+              onClick={() => void openUrl(sourceUrl)}
             >
               Open in ProtonDB ↗
             </button>
@@ -375,7 +382,7 @@ export function ProtonDbLookupCard({
           <h3 className="crosshook-protondb-card__community-title">Community Recommendations</h3>
           {actionableGroups.length > 0 ? (
             <div className="crosshook-protondb-card__recommendations">
-              {actionableGroups.map(renderRecommendationGroup)}
+              {actionableGroups.map((group, index) => renderRecommendationGroup(group, index))}
             </div>
           ) : (
             <p className="crosshook-protondb-card__community-empty">

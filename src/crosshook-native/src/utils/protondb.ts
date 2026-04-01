@@ -24,7 +24,17 @@ export function mergeProtonDbEnvVarGroup(
   const appliedKeys: string[] = [];
   const unchangedKeys: string[] = [];
 
-  for (const envVar of group.env_vars) {
+  const envVars = group.env_vars;
+  if (!envVars || envVars.length === 0) {
+    return {
+      mergedEnvVars,
+      conflicts,
+      appliedKeys,
+      unchangedKeys,
+    };
+  }
+
+  for (const envVar of envVars) {
     const existingValue = currentEnvVars[envVar.key];
 
     if (existingValue === undefined) {
