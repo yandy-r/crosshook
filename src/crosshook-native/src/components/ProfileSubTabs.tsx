@@ -6,6 +6,7 @@ import LauncherExport from './LauncherExport';
 import ProtonDbLookupCard from './ProtonDbLookupCard';
 import { GameMetadataBar } from './profile-sections/GameMetadataBar';
 import { GameSection } from './profile-sections/GameSection';
+import { MediaSection } from './profile-sections/MediaSection';
 import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
 import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
 import { RuntimeSection } from './profile-sections/RuntimeSection';
@@ -85,7 +86,10 @@ export function ProfileSubTabs({
   const supportsTrainerLaunch = launchMethod !== 'native';
 
   const steamAppId = profile.steam.app_id;
-  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(steamAppId);
+  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(
+    steamAppId,
+    profile.game.custom_cover_art_path,
+  );
   const dominantColor = useImageDominantColor(coverArtUrl);
 
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
@@ -184,6 +188,11 @@ export function ProfileSubTabs({
             launchMethod={launchMethod}
             protonInstalls={protonInstalls}
             protonInstallsError={protonInstallsError}
+          />
+          <MediaSection
+            profile={profile}
+            onUpdateProfile={onUpdateProfile}
+            launchMethod={launchMethod}
           />
         </div>
       </Tabs.Content>

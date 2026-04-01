@@ -1322,6 +1322,7 @@ mod tests {
             game: GameSection {
                 name: "Elden Ring".to_string(),
                 executable_path: "/games/elden-ring/eldenring.exe".to_string(),
+                custom_cover_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: "/trainers/elden-ring.exe".to_string(),

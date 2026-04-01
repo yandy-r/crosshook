@@ -950,6 +950,7 @@ mod tests {
             game: GameSection {
                 name: "Test Game".to_string(),
                 executable_path: String::new(),
+                custom_cover_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: "/mnt/trainers/test.exe".to_string(),
@@ -1003,6 +1004,7 @@ mod tests {
             game: GameSection {
                 name: "Test Game".to_string(),
                 executable_path: String::new(),
+                custom_cover_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: "/mnt/trainers/test.exe".to_string(),
@@ -1048,6 +1050,7 @@ mod tests {
             game: GameSection {
                 name: "Legacy Steam Game".to_string(),
                 executable_path: "/games/legacy/launcher.exe".to_string(),
+                custom_cover_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: "/mnt/trainers/legacy.exe".to_string(),

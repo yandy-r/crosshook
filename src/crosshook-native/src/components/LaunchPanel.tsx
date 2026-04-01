@@ -576,6 +576,8 @@ interface LaunchPanelProps {
   beforeActions?: ReactNode;
   /** Slot rendered where the info/status area is (e.g. pinned profiles). */
   infoSlot?: ReactNode;
+  /** Slot rendered between the controls card and the actions card (e.g. tabbed config panels). */
+  tabsSlot?: ReactNode;
 }
 
 function buildGameOnlyRequest(request: LaunchRequest): LaunchRequest {
@@ -586,7 +588,7 @@ function buildGameOnlyRequest(request: LaunchRequest): LaunchRequest {
   };
 }
 
-export function LaunchPanel({ profileId, method, request, beforeActions, infoSlot }: LaunchPanelProps) {
+export function LaunchPanel({ profileId, method, request, beforeActions, infoSlot, tabsSlot }: LaunchPanelProps) {
   const {
     actionLabel,
     canLaunchGame,
@@ -697,234 +699,248 @@ export function LaunchPanel({ profileId, method, request, beforeActions, infoSlo
   }
 
   return (
-    <section className="crosshook-launch-panel">
-      <div className="crosshook-launch-panel__header">
-        <div>
-          <p className="crosshook-launch-panel__eyebrow">
-            {method === 'steam_applaunch'
-              ? 'Steam Launch'
-              : method === 'proton_run'
-                ? 'Proton Launch'
-                : 'Native Launch'}
-          </p>
-          <h1 className="crosshook-launch-panel__title">CrossHook Native</h1>
-          <p className="crosshook-launch-panel__copy">
-            {method === 'native'
-              ? 'Direct launch flow for Linux-native executables, driven by the native Tauri backend.'
-              : `Two-step launch flow for ${method === 'steam_applaunch' ? 'Steam' : 'Proton'} games and trainers, driven by the native Tauri backend.`}
-          </p>
-        </div>
+    <>
+      {/* ── Controls card ── */}
+      <div className="crosshook-panel">
+        <section className="crosshook-launch-panel">
+          <div className="crosshook-launch-panel__header">
+            <div>
+              <p className="crosshook-launch-panel__eyebrow">
+                {method === 'steam_applaunch'
+                  ? 'Steam Launch'
+                  : method === 'proton_run'
+                    ? 'Proton Launch'
+                    : 'Native Launch'}
+              </p>
+              <h1 className="crosshook-launch-panel__title">CrossHook Native</h1>
+              <p className="crosshook-launch-panel__copy">
+                {method === 'native'
+                  ? 'Direct launch flow for Linux-native executables, driven by the native Tauri backend.'
+                  : `Two-step launch flow for ${method === 'steam_applaunch' ? 'Steam' : 'Proton'} games and trainers, driven by the native Tauri backend.`}
+              </p>
+            </div>
 
-        <div className="crosshook-launch-panel__status" data-phase={phase}>
-          {phase}
-        </div>
-      </div>
+            <div className="crosshook-launch-panel__status" data-phase={phase}>
+              {phase}
+            </div>
+          </div>
 
-      {infoSlot}
+          {infoSlot}
 
-      {feedback ? (
-        <div
-          className="crosshook-launch-panel__feedback"
-          data-kind={feedback.kind}
-          data-severity={feedbackSeverity}
-          role="alert"
-        >
-          {diagnosticFeedback ? (
-            <>
-              <div className="crosshook-launch-panel__feedback-header">
-                <span className="crosshook-launch-panel__feedback-badge">{feedbackLabel}</span>
-                <p className="crosshook-launch-panel__feedback-title">{diagnosticFeedback.summary}</p>
-              </div>
-              <p className="crosshook-launch-panel__feedback-help">{diagnosticFeedback.exit_info.description}</p>
-              {visibleDiagnosticMatches.length > 0 ? (
-                <ul className="crosshook-launch-panel__feedback-list">
-                  {visibleDiagnosticMatches.map((patternMatch) => (
-                    <li
-                      key={`${diagnosticFeedback.analyzed_at}-${patternMatch.pattern_id}`}
-                      className="crosshook-launch-panel__feedback-item"
-                    >
-                      <div className="crosshook-launch-panel__feedback-header">
-                        <span
-                          className="crosshook-launch-panel__feedback-badge"
-                          data-severity={patternMatch.severity}
-                        >
-                          {patternMatch.severity}
-                        </span>
-                        <p className="crosshook-launch-panel__feedback-title">{patternMatch.summary}</p>
-                      </div>
-                      <p className="crosshook-launch-panel__feedback-help">{patternMatch.suggestion}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <div className="crosshook-launch-panel__feedback-actions">
-                {diagnosticMatches.length > 3 || diagnosticFeedback.suggestions.length > 0 ? (
-                  <button
-                    type="button"
-                    className="crosshook-button crosshook-button--secondary crosshook-launch-panel__feedback-action"
-                    onClick={() => setDiagnosticExpanded((current) => !current)}
-                  >
-                    {diagnosticExpanded ? 'Show Less' : 'Show Details'}
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="crosshook-button crosshook-button--secondary crosshook-launch-panel__feedback-action"
-                  onClick={handleCopyDiagnosticReport}
-                >
-                  {diagnosticCopyLabel}
-                </button>
-              </div>
-              {diagnosticExpanded ? (
-                <div className="crosshook-launch-panel__feedback-details">
-                  <p className="crosshook-launch-panel__feedback-help">
-                    Exit mode: {diagnosticFeedback.exit_info.failure_mode}
-                  </p>
-                  <p className="crosshook-launch-panel__feedback-help">
-                    Exit code: {diagnosticFeedback.exit_info.code ?? 'n/a'} | Signal:{' '}
-                    {diagnosticFeedback.exit_info.signal ?? 'n/a'}
-                  </p>
-                  {diagnosticFeedback.log_tail_path ? (
-                    <p className="crosshook-launch-panel__feedback-help">
-                      Log tail: {diagnosticFeedback.log_tail_path}
-                    </p>
-                  ) : null}
-                  {diagnosticFeedback.suggestions.length > 0 ? (
+          {feedback ? (
+            <div
+              className="crosshook-launch-panel__feedback"
+              data-kind={feedback.kind}
+              data-severity={feedbackSeverity}
+              role="alert"
+            >
+              {diagnosticFeedback ? (
+                <>
+                  <div className="crosshook-launch-panel__feedback-header">
+                    <span className="crosshook-launch-panel__feedback-badge">{feedbackLabel}</span>
+                    <p className="crosshook-launch-panel__feedback-title">{diagnosticFeedback.summary}</p>
+                  </div>
+                  <p className="crosshook-launch-panel__feedback-help">{diagnosticFeedback.exit_info.description}</p>
+                  {visibleDiagnosticMatches.length > 0 ? (
                     <ul className="crosshook-launch-panel__feedback-list">
-                      {diagnosticFeedback.suggestions.map((suggestion, index) => (
+                      {visibleDiagnosticMatches.map((patternMatch) => (
                         <li
-                          key={`${diagnosticFeedback.analyzed_at}-suggestion-${index}`}
+                          key={`${diagnosticFeedback.analyzed_at}-${patternMatch.pattern_id}`}
                           className="crosshook-launch-panel__feedback-item"
                         >
                           <div className="crosshook-launch-panel__feedback-header">
                             <span
                               className="crosshook-launch-panel__feedback-badge"
-                              data-severity={suggestion.severity}
+                              data-severity={patternMatch.severity}
                             >
-                              {suggestion.severity}
+                              {patternMatch.severity}
                             </span>
-                            <p className="crosshook-launch-panel__feedback-title">{suggestion.title}</p>
+                            <p className="crosshook-launch-panel__feedback-title">{patternMatch.summary}</p>
                           </div>
-                          <p className="crosshook-launch-panel__feedback-help">{suggestion.description}</p>
+                          <p className="crosshook-launch-panel__feedback-help">{patternMatch.suggestion}</p>
                         </li>
                       ))}
                     </ul>
                   ) : null}
-                </div>
-              ) : null}
-            </>
-          ) : validationFeedback ? (
-            <>
-              <div className="crosshook-launch-panel__feedback-header">
-                <span className="crosshook-launch-panel__feedback-badge">{feedbackLabel}</span>
-                <p className="crosshook-launch-panel__feedback-title">{validationFeedback.message}</p>
-              </div>
-              <p className="crosshook-launch-panel__feedback-help">{validationFeedback.help}</p>
-            </>
-          ) : (
-            <p className="crosshook-launch-panel__feedback-title">{runtimeFeedback}</p>
-          )}
-        </div>
-      ) : null}
-
-      {beforeActions}
-
-      <div className="crosshook-launch-panel__actions">
-        <div className="crosshook-launch-panel__action-block">
-          <button
-            type="button"
-            className="crosshook-button crosshook-launch-panel__action"
-            onClick={primaryAction}
-            disabled={!canLaunch || isBusy}
-            aria-describedby={launchGuidanceText ? launchGuidanceId : undefined}
-          >
-            {actionLabel}
-          </button>
-          {launchGuidanceText ? (
-            <span id={launchGuidanceId} className="crosshook-launch-panel__action-guidance">
-              {launchGuidanceText}
-            </span>
+                  <div className="crosshook-launch-panel__feedback-actions">
+                    {diagnosticMatches.length > 3 || diagnosticFeedback.suggestions.length > 0 ? (
+                      <button
+                        type="button"
+                        className="crosshook-button crosshook-button--secondary crosshook-launch-panel__feedback-action"
+                        onClick={() => setDiagnosticExpanded((current) => !current)}
+                      >
+                        {diagnosticExpanded ? 'Show Less' : 'Show Details'}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="crosshook-button crosshook-button--secondary crosshook-launch-panel__feedback-action"
+                      onClick={handleCopyDiagnosticReport}
+                    >
+                      {diagnosticCopyLabel}
+                    </button>
+                  </div>
+                  {diagnosticExpanded ? (
+                    <div className="crosshook-launch-panel__feedback-details">
+                      <p className="crosshook-launch-panel__feedback-help">
+                        Exit mode: {diagnosticFeedback.exit_info.failure_mode}
+                      </p>
+                      <p className="crosshook-launch-panel__feedback-help">
+                        Exit code: {diagnosticFeedback.exit_info.code ?? 'n/a'} | Signal:{' '}
+                        {diagnosticFeedback.exit_info.signal ?? 'n/a'}
+                      </p>
+                      {diagnosticFeedback.log_tail_path ? (
+                        <p className="crosshook-launch-panel__feedback-help">
+                          Log tail: {diagnosticFeedback.log_tail_path}
+                        </p>
+                      ) : null}
+                      {diagnosticFeedback.suggestions.length > 0 ? (
+                        <ul className="crosshook-launch-panel__feedback-list">
+                          {diagnosticFeedback.suggestions.map((suggestion, index) => (
+                            <li
+                              key={`${diagnosticFeedback.analyzed_at}-suggestion-${index}`}
+                              className="crosshook-launch-panel__feedback-item"
+                            >
+                              <div className="crosshook-launch-panel__feedback-header">
+                                <span
+                                  className="crosshook-launch-panel__feedback-badge"
+                                  data-severity={suggestion.severity}
+                                >
+                                  {suggestion.severity}
+                                </span>
+                                <p className="crosshook-launch-panel__feedback-title">{suggestion.title}</p>
+                              </div>
+                              <p className="crosshook-launch-panel__feedback-help">{suggestion.description}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </>
+              ) : validationFeedback ? (
+                <>
+                  <div className="crosshook-launch-panel__feedback-header">
+                    <span className="crosshook-launch-panel__feedback-badge">{feedbackLabel}</span>
+                    <p className="crosshook-launch-panel__feedback-title">{validationFeedback.message}</p>
+                  </div>
+                  <p className="crosshook-launch-panel__feedback-help">{validationFeedback.help}</p>
+                </>
+              ) : (
+                <p className="crosshook-launch-panel__feedback-title">{runtimeFeedback}</p>
+              )}
+            </div>
           ) : null}
-        </div>
 
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
-          onClick={() => request && requestPreview(buildGameOnlyRequest(request))}
-          disabled={previewDisabled}
-        >
-          {loading ? 'Loading Preview\u2026' : 'Preview Launch'}
-        </button>
-
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
-          onClick={reset}
-        >
-          Reset
-        </button>
+          {beforeActions}
+        </section>
       </div>
 
-      {hasVersionMismatch ? (
-        <div
-          className="crosshook-launch-panel__feedback"
-          data-kind="version"
-          data-severity="warning"
-          role="alert"
-          aria-live="polite"
-        >
-          <div className="crosshook-launch-panel__feedback-header">
-            <span className="crosshook-launch-panel__feedback-badge">Warning</span>
-            <p className="crosshook-launch-panel__feedback-title">{versionMismatchMessage()}</p>
-          </div>
-          <div className="crosshook-launch-panel__feedback-actions">
+      {/* ── Actions card ── */}
+      <div className="crosshook-panel">
+        <div className="crosshook-launch-panel__actions-card">
+          <div className="crosshook-launch-panel__actions">
+            <div className="crosshook-launch-panel__action-block">
+              <button
+                type="button"
+                className="crosshook-button crosshook-launch-panel__action"
+                onClick={primaryAction}
+                disabled={!canLaunch || isBusy}
+                aria-describedby={launchGuidanceText ? launchGuidanceId : undefined}
+              >
+                {actionLabel}
+              </button>
+              {launchGuidanceText ? (
+                <span id={launchGuidanceId} className="crosshook-launch-panel__action-guidance">
+                  {launchGuidanceText}
+                </span>
+              ) : null}
+            </div>
+
             <button
               type="button"
-              className="crosshook-button crosshook-button--secondary crosshook-launch-panel__feedback-action"
-              onClick={() => void handleMarkAsVerified()}
-              disabled={verifyBusy}
+              className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
+              onClick={() => request && requestPreview(buildGameOnlyRequest(request))}
+              disabled={previewDisabled}
             >
-              {verifyBusy ? 'Verifying\u2026' : 'Mark as Verified'}
+              {loading ? 'Loading Preview\u2026' : 'Preview Launch'}
+            </button>
+
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
+              onClick={reset}
+            >
+              Reset
             </button>
           </div>
-        </div>
-      ) : isUpdateInProgress ? (
-        <div className="crosshook-launch-panel__feedback" data-kind="version" data-severity="info" role="status">
-          <p className="crosshook-launch-panel__feedback-title">
-            Steam update in progress \u2014 version check skipped
-          </p>
-        </div>
-      ) : null}
 
-      {previewError ? (
-        <p className="crosshook-preview-modal__preview-error" role="alert">
-          Preview failed: {previewError}
-        </p>
-      ) : null}
+          {hasVersionMismatch ? (
+            <div
+              className="crosshook-launch-panel__feedback"
+              data-kind="version"
+              data-severity="warning"
+              role="alert"
+              aria-live="polite"
+            >
+              <div className="crosshook-launch-panel__feedback-header">
+                <span className="crosshook-launch-panel__feedback-badge">Warning</span>
+                <p className="crosshook-launch-panel__feedback-title">{versionMismatchMessage()}</p>
+              </div>
+              <div className="crosshook-launch-panel__feedback-actions">
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--secondary crosshook-launch-panel__feedback-action"
+                  onClick={() => void handleMarkAsVerified()}
+                  disabled={verifyBusy}
+                >
+                  {verifyBusy ? 'Verifying\u2026' : 'Mark as Verified'}
+                </button>
+              </div>
+            </div>
+          ) : isUpdateInProgress ? (
+            <div className="crosshook-launch-panel__feedback" data-kind="version" data-severity="info" role="status">
+              <p className="crosshook-launch-panel__feedback-title">
+                Steam update in progress \u2014 version check skipped
+              </p>
+            </div>
+          ) : null}
 
-      <div
-        className="crosshook-launch-panel__indicator"
-        data-state={isSessionActive ? 'active' : isWaitingForTrainer ? 'waiting' : 'idle'}
-      >
-        <div className="crosshook-launch-panel__indicator-row">
-          <span className="crosshook-launch-panel__indicator-dot" aria-hidden="true" />
-          <span className="crosshook-launch-panel__indicator-label">
-            {method === 'steam_applaunch'
-              ? 'Steam runner selected'
-              : method === 'proton_run'
-                ? 'Proton runner selected'
-                : 'Native runner selected'}
-          </span>
-          <span
-            aria-label="Launch status info"
-            style={{ cursor: 'help', opacity: 0.6, fontSize: '0.85em' }}
+          {previewError ? (
+            <p className="crosshook-preview-modal__preview-error" role="alert">
+              Preview failed: {previewError}
+            </p>
+          ) : null}
+
+          <div
+            className="crosshook-launch-panel__indicator"
+            data-state={isSessionActive ? 'active' : isWaitingForTrainer ? 'waiting' : 'idle'}
           >
-            &#9432;
-          </span>
+            <div className="crosshook-launch-panel__indicator-row">
+              <span className="crosshook-launch-panel__indicator-dot" aria-hidden="true" />
+              <span className="crosshook-launch-panel__indicator-label">
+                {method === 'steam_applaunch'
+                  ? 'Steam runner selected'
+                  : method === 'proton_run'
+                    ? 'Proton runner selected'
+                    : 'Native runner selected'}
+              </span>
+              <span
+                aria-label="Launch status info"
+                style={{ cursor: 'help', opacity: 0.6, fontSize: '0.85em' }}
+              >
+                &#9432;
+              </span>
+            </div>
+            {helperLogPath ? <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span> : null}
+          </div>
         </div>
-        {helperLogPath ? <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span> : null}
       </div>
 
+      {/* ── Tabs card (passed from parent) ── */}
+      {tabsSlot}
+
+      {/* PreviewModal — portal to document.body, stays outside cards */}
       {showPreview && preview ? (
         <PreviewModal
           preview={preview}
@@ -933,7 +949,7 @@ export function LaunchPanel({ profileId, method, request, beforeActions, infoSlo
           onLaunch={handleLaunchFromPreview}
         />
       ) : null}
-    </section>
+    </>
   );
 }
 

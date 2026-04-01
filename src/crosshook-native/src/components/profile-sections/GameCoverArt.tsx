@@ -4,10 +4,11 @@ import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 
 export interface GameCoverArtProps {
   steamAppId: string | undefined;
+  customCoverArtPath?: string;
 }
 
-export function GameCoverArt({ steamAppId }: GameCoverArtProps) {
-  const { coverArtUrl, loading } = useGameCoverArt(steamAppId);
+export function GameCoverArt({ steamAppId, customCoverArtPath }: GameCoverArtProps) {
+  const { coverArtUrl, loading } = useGameCoverArt(steamAppId, customCoverArtPath);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {

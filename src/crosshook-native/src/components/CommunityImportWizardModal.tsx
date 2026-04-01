@@ -479,6 +479,20 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
               />
             </label>
             <label className="crosshook-community-import-wizard__field">
+              <span className="crosshook-label">Custom Cover Art</span>
+              <input
+                className="crosshook-input"
+                value={profile.game.custom_cover_art_path ?? ''}
+                placeholder="/path/to/cover.png (optional, 460×215 px)"
+                onChange={(event) =>
+                  applyProfileUpdate((current) => ({
+                    ...current,
+                    game: { ...current.game, custom_cover_art_path: event.target.value },
+                  }))
+                }
+              />
+            </label>
+            <label className="crosshook-community-import-wizard__field">
               <span className="crosshook-label">Trainer Path</span>
               <input
                 className="crosshook-input"
