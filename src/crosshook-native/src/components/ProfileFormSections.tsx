@@ -508,11 +508,12 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   };
 
   const handleApplyProtonDbEnvVars = (group: ProtonDbRecommendationGroup) => {
-    if (group.env_vars.length === 0) {
+    const envVars = group.env_vars ?? [];
+    if (envVars.length === 0) {
       return;
     }
 
-    setApplyingProtonDbGroupId(group.group_id);
+    setApplyingProtonDbGroupId(group.group_id?.trim() || group.title?.trim() || null);
     const merge = mergeProtonDbEnvVarGroup(profile.launch.custom_env_vars, group);
     if (merge.conflicts.length === 0) {
       applyProtonDbGroup(group, []);
