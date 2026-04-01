@@ -51,6 +51,55 @@
   margin: 0 auto;
 }
 
+/* Route illustration integrated into a primary panel/card (see PanelRouteDecor) */
+.crosshook-panel.crosshook-panel--with-route-decor,
+.crosshook-card.crosshook-card--with-route-decor,
+.crosshook-page.crosshook-page--with-route-decor {
+  position: relative;
+  isolation: isolate;
+}
+
+.crosshook-panel--with-route-decor > *:not(.crosshook-panel-route-decor),
+.crosshook-card--with-route-decor > *:not(.crosshook-panel-route-decor),
+.crosshook-page--with-route-decor > *:not(.crosshook-panel-route-decor) {
+  position: relative;
+  z-index: 1;
+}
+
+.crosshook-panel-route-decor {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.crosshook-panel-route-decor__glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 52% 38% at 92% 8%, rgba(0, 120, 212, 0.09), transparent 70%);
+}
+
+.crosshook-panel-route-decor__art {
+  position: absolute;
+  top: -6px;
+  right: -2px;
+  width: min(180px, 42%);
+  aspect-ratio: 200 / 120;
+  max-height: min(108px, 26vh);
+  color: var(--crosshook-color-accent-strong);
+  opacity: 0.2;
+  mask-image: linear-gradient(125deg, rgb(0 0 0 / 0.9) 26%, transparent 76%);
+  -webkit-mask-image: linear-gradient(125deg, rgb(0 0 0 / 0.9) 26%, transparent 76%);
+}
+
+.crosshook-panel-route-decor__art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .crosshook-page-scroll-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -67,53 +116,83 @@
   width: 100%;
 }
 
+/*
+ * Route layout contract (shared by Install, Launch, Profiles, and other pages).
+ * - Shell + --fill: constrain to viewport column; overflow hidden at route root.
+ * - route-stack: flex column that fills Tabs.Content slot (flex: 1; min-height: 0).
+ * - __body--scroll | __body--fill: page-level scroll owner vs delegate scroll inward.
+ * - route-card-host + route-card-scroll: fill __body--fill with a bounded panel (Install tab inner parity);
+ *   scroll sits between host and primary card so inner grids do not stretch to the viewport.
+ * - route-footer: pinned action bar; flex-shrink 0; never absorbs free height.
+ */
+.crosshook-page-scroll-shell--fill {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.crosshook-route-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.crosshook-route-stack__body--scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--crosshook-grid-gap);
+  padding-bottom: 2px;
+  scrollbar-gutter: stable;
+}
+
+.crosshook-route-stack__body--fill {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--crosshook-grid-gap);
+}
+
+/* Fills __body--fill; clips. Pair with .crosshook-route-card-scroll for scroll + natural inner height. */
+.crosshook-route-card-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.crosshook-route-card-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.crosshook-route-footer {
+  flex: 0 0 auto;
+  z-index: 2;
+  border-top: 1px solid var(--crosshook-color-border);
+  box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.28);
+  background: linear-gradient(180deg, rgba(16, 22, 42, 0.98), rgba(12, 17, 32, 0.98));
+  backdrop-filter: blur(16px);
+}
+
 .crosshook-page-header {
   display: grid;
   gap: var(--crosshook-page-header-gap);
   margin-bottom: var(--crosshook-page-header-margin-bottom);
-}
-
-.crosshook-page-banner {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--crosshook-page-banner-gap);
-  min-height: var(--crosshook-page-banner-min-height);
-  padding: calc(var(--crosshook-page-padding) + var(--crosshook-page-banner-padding-top-offset))
-    var(--crosshook-page-banner-padding-inline) var(--crosshook-page-banner-padding-bottom);
-  margin-bottom: var(--crosshook-page-banner-margin-bottom);
-  border-radius: 0 0 var(--crosshook-radius-lg) var(--crosshook-radius-lg);
-  border: 1px solid var(--crosshook-color-border);
-  border-top: none;
-  background:
-    radial-gradient(ellipse 70% 100% at 90% 50%, rgba(0, 120, 212, 0.08), transparent 70%),
-    linear-gradient(180deg, rgba(18, 23, 42, 0.96), rgba(12, 17, 32, 0.96));
-  box-shadow: var(--crosshook-shadow-strong);
-  backdrop-filter: blur(18px);
-  overflow: hidden;
-}
-
-.crosshook-page-banner__text {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 8px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.crosshook-page-banner__art {
-  flex: 0 0 auto;
-  width: 180px;
-  height: 108px;
-  color: var(--crosshook-color-accent-strong);
-  opacity: 0.6;
-}
-
-.crosshook-page-banner__art svg {
-  width: 100%;
-  height: 100%;
 }
 
 .crosshook-resize-handle {

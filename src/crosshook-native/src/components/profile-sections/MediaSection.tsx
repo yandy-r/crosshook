@@ -35,7 +35,7 @@ export function MediaSection({ profile, onUpdateProfile, launchMethod }: MediaSe
               }));
             }
           }}
-          helperText="Overrides Steam/SteamGridDB art. Optimal size: 460×215 px (2:1 landscape)."
+          helperText="Overrides Steam/SteamGridDB. Shown as a full-width backdrop behind profile tabs (image is cropped to fill). Steam's store header is 460×215 (~2.14:1); a larger landscape file (e.g. 920×430) with the subject in the upper area usually looks best."
         />
 
         {launchMethod !== 'native' ? (

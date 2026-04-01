@@ -402,7 +402,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                   placeholder="/path/to/cover.png"
                   browseLabel="Browse"
                   browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]}
-                  helpText="Optional. Overrides Steam art. Optimal: 460×215 px (2:1 landscape)."
+                  helpText="Optional. Overrides Steam art. Used as a full-width tab backdrop (cropped to fill). Steam header is 460×215; larger landscape images with key art near the top look best."
                 />
 
                 {launchMethod !== 'native' ? (
