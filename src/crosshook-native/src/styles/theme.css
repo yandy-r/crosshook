@@ -418,13 +418,13 @@ textarea {
 }
 
 .crosshook-button--outline {
-  border-color: rgba(0, 120, 212, 0.5);
-  background: rgba(0, 120, 212, 0.08);
+  border-color: var(--protondb-accent-border);
+  background: var(--protondb-accent-bg-08);
   color: var(--crosshook-color-accent-strong);
 }
 
 .crosshook-button--outline:hover:not(:disabled) {
-  background: rgba(0, 120, 212, 0.14);
+  background: var(--protondb-accent-bg-14);
   border-color: var(--crosshook-color-accent-strong);
 }
 
@@ -945,6 +945,12 @@ textarea {
   border: 1px solid rgba(0, 120, 212, 0.34);
 }
 
+.crosshook-protondb-panel {
+  display: grid;
+  gap: var(--crosshook-protondb-panel-gap);
+  margin-top: var(--crosshook-protondb-panel-margin-top);
+}
+
 .crosshook-protondb-card {
   display: grid;
   gap: 16px;
@@ -1194,7 +1200,8 @@ textarea {
 .crosshook-protondb-card__source-link {
   color: var(--crosshook-color-accent-strong);
   font-weight: 600;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .crosshook-protondb-card__source-link:hover {

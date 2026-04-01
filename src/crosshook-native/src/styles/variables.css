@@ -77,6 +77,12 @@
   --crosshook-page-padding: 32px;
   --crosshook-transition-fast: 140ms;
   --crosshook-transition-standard: 220ms;
+
+  --protondb-accent-border: rgba(0, 120, 212, 0.5);
+  --protondb-accent-bg-08: rgba(0, 120, 212, 0.08);
+  --protondb-accent-bg-14: rgba(0, 120, 212, 0.14);
+  --crosshook-protondb-panel-gap: 16px;
+  --crosshook-protondb-panel-margin-top: 18px;
 }
 
 :root[data-crosshook-controller-mode='true'] {

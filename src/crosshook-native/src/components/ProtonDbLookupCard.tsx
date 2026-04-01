@@ -76,7 +76,7 @@ export function ProtonDbLookupCard({
     };
   }, []);
   const { snapshot, cache, recommendationGroups } = lookup;
-  const actionableGroups = recommendationGroups.filter((g) => g.group_id !== 'report-feed-unavailable');
+  const actionableGroups = recommendationGroups;
 
   const cardClasses = useMemo(() => {
     const classes = ['crosshook-protondb-card'];

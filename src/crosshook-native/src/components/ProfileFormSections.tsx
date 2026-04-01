@@ -467,7 +467,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     setPendingProtonDbOverwrite(null);
     setApplyingProtonDbGroupId(null);
     setProtonDbStatusMessage(null);
-  }, [profileName]);
+  }, [profileName, profile.steam.app_id, launchMethod]);
 
   const applyProtonDbGroup = (
     group: ProtonDbRecommendationGroup,
@@ -531,7 +531,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   };
 
   const protonDbPanel = showProtonDbLookup ? (
-    <div style={{ display: 'grid', gap: 16, marginTop: 18 }}>
+    <div className="crosshook-protondb-panel">
       <ProtonDbLookupCard
         appId={profile.steam.app_id}
         trainerVersion={trainerVersion}

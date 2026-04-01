@@ -2,10 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
-  ProtonDbAdvisoryNote,
   ProtonDbCacheState,
-  ProtonDbEnvVarSuggestion,
-  ProtonDbLaunchOptionSuggestion,
   ProtonDbLookupResult,
   ProtonDbLookupState,
   ProtonDbRecommendationGroup,
@@ -33,15 +30,15 @@ function unavailableLookup(appId: string): ProtonDbLookupResult {
 }
 
 function normalizeRecommendationGroup(
-  group: Partial<ProtonDbRecommendationGroup>
+  group: ProtonDbRecommendationGroup
 ): ProtonDbRecommendationGroup {
   return {
     group_id: group.group_id ?? '',
     title: group.title ?? '',
     summary: group.summary ?? '',
-    notes: (group.notes ?? []) as ProtonDbAdvisoryNote[],
-    env_vars: (group.env_vars ?? []) as ProtonDbEnvVarSuggestion[],
-    launch_options: (group.launch_options ?? []) as ProtonDbLaunchOptionSuggestion[],
+    notes: group.notes ?? [],
+    env_vars: group.env_vars ?? [],
+    launch_options: group.launch_options ?? [],
   };
 }
 
