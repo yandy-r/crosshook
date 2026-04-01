@@ -48,7 +48,13 @@ export const DEFAULT_GAMESCOPE_CONFIG: GamescopeConfig = {
   extra_args: [],
 };
 
-export type MangoHudPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'bottom-center';
+export type MangoHudPosition =
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'top-center'
+  | 'bottom-center';
 
 export interface MangoHudConfig {
   enabled: boolean;

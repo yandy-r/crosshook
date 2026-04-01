@@ -25,7 +25,7 @@ export interface InstallPageProps {
 
 function updateProfileReviewSession(
   set: Dispatch<SetStateAction<ProfileReviewSession | null>>,
-  updater: (session: ProfileReviewSession) => ProfileReviewSession,
+  updater: (session: ProfileReviewSession) => ProfileReviewSession
 ) {
   set((current) => (current === null ? current : updater(current)));
 }
@@ -54,17 +54,11 @@ function createProfileReviewSessionState(payload: InstallProfileReviewPayload): 
 
 export function InstallPage({ onNavigate }: InstallPageProps) {
   const { defaultSteamClientInstallPath } = usePreferencesContext();
-  const {
-    deleting,
-    loading,
-    persistProfileDraft,
-    saving,
-    steamClientInstallPath,
-  } = useProfileContext();
+  const { deleting, loading, persistProfileDraft, saving, steamClientInstallPath } = useProfileContext();
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
-    [defaultSteamClientInstallPath, steamClientInstallPath],
+    [defaultSteamClientInstallPath, steamClientInstallPath]
   );
 
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
@@ -117,8 +111,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
   async function handleOpenProfileReview(payload: InstallProfileReviewPayload) {
     if (payload.source === 'manual-verify') {
       const currentSession = profileReviewSession;
-      const sameReviewResult =
-        currentSession !== null && currentSession.helperLogPath === payload.helperLogPath;
+      const sameReviewResult = currentSession !== null && currentSession.helperLogPath === payload.helperLogPath;
 
       if (currentSession !== null && !sameReviewResult) {
         if (isProfileReviewSessionDirty(currentSession)) {
@@ -297,7 +290,8 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
     async function loadProtonInstalls() {
       try {
         const installs = await invoke<ProtonInstallOption[]>('list_proton_installs', {
-          steamClientInstallPath: effectiveSteamClientInstallPath.trim().length > 0 ? effectiveSteamClientInstallPath : undefined,
+          steamClientInstallPath:
+            effectiveSteamClientInstallPath.trim().length > 0 ? effectiveSteamClientInstallPath : undefined,
         });
         const sortedInstalls = [...installs].sort((left, right) => {
           if (left.is_official !== right.is_official) {
@@ -332,7 +326,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
 
   const reviewDirty = useMemo(
     () => profileReviewSession !== null && isProfileReviewSessionDirty(profileReviewSession),
-    [profileReviewSession],
+    [profileReviewSession]
   );
 
   const reviewCanSave =
@@ -352,7 +346,8 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
       reviewDescription =
         'The review draft is still incomplete. Select the final executable before saving, and the draft will stay open until you finish.';
     } else {
-      reviewDescription = `${profileReviewSession.installMessage} Saving persists the profile and returns you to the Profiles view.`.trim();
+      reviewDescription =
+        `${profileReviewSession.installMessage} Saving persists the profile and returns you to the Profiles view.`.trim();
     }
 
     if (profileReviewSession.saveError) {
@@ -380,10 +375,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
         </CollapsibleSection>
 
         <CollapsibleSection title="Update Game" className="crosshook-panel">
-          <UpdateGamePanel
-            protonInstalls={protonInstalls}
-            protonInstallsError={protonInstallsError}
-          />
+          <UpdateGamePanel protonInstalls={protonInstalls} protonInstallsError={protonInstallsError} />
         </CollapsibleSection>
       </div>
 
@@ -450,9 +442,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
             />
 
             {reviewFinalExecutableMissing ? (
-              <div className="crosshook-warning-banner">
-                Save is blocked until the final executable is selected.
-              </div>
+              <div className="crosshook-warning-banner">Save is blocked until the final executable is selected.</div>
             ) : null}
           </div>
         </ProfileReviewModal>

@@ -40,7 +40,9 @@ export function OfflineReadinessPanel({ report, error, loading }: OfflineReadine
         </p>
       ) : null}
       {loading && !report ? (
-        <p className="crosshook-launch-panel__feedback-help" role="status">Loading offline readiness…</p>
+        <p className="crosshook-launch-panel__feedback-help" role="status">
+          Loading offline readiness…
+        </p>
       ) : null}
       {report && report.blocking_reasons.length > 0 ? (
         <div className="crosshook-offline-readiness-panel__blocking">
@@ -66,10 +68,7 @@ export function OfflineReadinessPanel({ report, error, loading }: OfflineReadine
               </span>
               <div>
                 <div className="crosshook-launch-panel__feedback-header">
-                  <span
-                    className="crosshook-launch-panel__feedback-badge"
-                    data-severity={check.severity}
-                  >
+                  <span className="crosshook-launch-panel__feedback-badge" data-severity={check.severity}>
                     {healthSeverityLabel(check.severity)}
                   </span>
                   <p className="crosshook-launch-panel__feedback-title">
@@ -85,9 +84,7 @@ export function OfflineReadinessPanel({ report, error, loading }: OfflineReadine
           ))}
         </ul>
       ) : null}
-      {report && !loading ? (
-        <p className="crosshook-preview-modal__timestamp">Checked {report.checked_at}</p>
-      ) : null}
+      {report && !loading ? <p className="crosshook-preview-modal__timestamp">Checked {report.checked_at}</p> : null}
     </div>
   );
 }

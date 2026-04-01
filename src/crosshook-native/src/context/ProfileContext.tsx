@@ -25,7 +25,6 @@ interface ProfileProviderProps {
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
-
 export function ProfileProvider({ children }: ProfileProviderProps) {
   const profileState = useProfile({ autoSelectFirstProfile: false });
   const launchMethod = resolveLaunchMethod(profileState.profile);

@@ -91,9 +91,7 @@ export function ProtonDbLookupCard({
     return classes.join(' ');
   }, [className, lookup.state, snapshot]);
 
-  const stateClass = `crosshook-protondb-card__state crosshook-protondb-card__state--${stateTone(
-    lookup.state
-  )}`;
+  const stateClass = `crosshook-protondb-card__state crosshook-protondb-card__state--${stateTone(lookup.state)}`;
   const sourceUrl = snapshot?.source_url?.trim() ?? '';
 
   const freshnessLabel =
@@ -106,7 +104,10 @@ export function ProtonDbLookupCard({
     { label: 'Reports', value: snapshot?.total_reports != null ? String(snapshot.total_reports) : null },
     { label: 'Confidence', value: snapshot?.confidence ?? null },
     { label: 'Score', value: snapshot?.score != null ? snapshot.score.toFixed(2) : null },
-    { label: 'Best reported', value: snapshot?.best_reported_tier ? formatTierLabel(snapshot.best_reported_tier) : null },
+    {
+      label: 'Best reported',
+      value: snapshot?.best_reported_tier ? formatTierLabel(snapshot.best_reported_tier) : null,
+    },
     { label: 'Trending', value: snapshot?.trending_tier ? formatTierLabel(snapshot.trending_tier) : null },
     { label: 'Trainer version', value: trainerVersion ?? null },
     { label: 'Last updated', value: freshnessLabel },
@@ -140,15 +141,12 @@ export function ProtonDbLookupCard({
       );
     }
 
-    if (
-      versionContext?.version_status === 'game_updated' ||
-      versionContext?.version_status === 'both_changed'
-    ) {
+    if (versionContext?.version_status === 'game_updated' || versionContext?.version_status === 'both_changed') {
       return (
         <div className="crosshook-protondb-card__banner crosshook-protondb-card__banner--stale">
           <p className="crosshook-protondb-card__banner-copy">
-            The installed game build changed since the last successful launch. ProtonDB guidance may
-            be stale until newer reports catch up with the updated build.
+            The installed game build changed since the last successful launch. ProtonDB guidance may be stale until
+            newer reports catch up with the updated build.
           </p>
         </div>
       );
@@ -158,8 +156,7 @@ export function ProtonDbLookupCard({
       return (
         <div className="crosshook-protondb-card__banner crosshook-protondb-card__banner--stale">
           <p className="crosshook-protondb-card__banner-copy">
-            Steam is currently updating this game. ProtonDB guidance may not match the in-progress
-            build yet.
+            Steam is currently updating this game. ProtonDB guidance may not match the in-progress build yet.
           </p>
         </div>
       );
@@ -220,9 +217,7 @@ export function ProtonDbLookupCard({
       <section key={groupId} className="crosshook-protondb-card__recommendation-group">
         <div className="crosshook-protondb-card__meta">
           <h3 className="crosshook-protondb-card__recommendation-group-title">{group.title}</h3>
-          {group.summary ? (
-            <p className="crosshook-protondb-card__recommendation-group-copy">{group.summary}</p>
-          ) : null}
+          {group.summary ? <p className="crosshook-protondb-card__recommendation-group-copy">{group.summary}</p> : null}
         </div>
 
         {envVars.length > 0 ? (
@@ -333,13 +328,13 @@ export function ProtonDbLookupCard({
             </p>
           </div>
           {snapshot ? (
-            <span className={`crosshook-protondb-tier-badge crosshook-protondb-tier-badge--${tierClassName(snapshot.tier)}`}>
+            <span
+              className={`crosshook-protondb-tier-badge crosshook-protondb-tier-badge--${tierClassName(snapshot.tier)}`}
+            >
               {formatTierLabel(snapshot.tier)}
             </span>
           ) : (
-            <span className={stateClass}>
-              {lookup.state === 'ready' ? 'Ready' : STATE_LABELS[lookup.state]}
-            </span>
+            <span className={stateClass}>{lookup.state === 'ready' ? 'Ready' : STATE_LABELS[lookup.state]}</span>
           )}
         </div>
 
@@ -385,9 +380,7 @@ export function ProtonDbLookupCard({
               {actionableGroups.map((group, index) => renderRecommendationGroup(group, index))}
             </div>
           ) : (
-            <p className="crosshook-protondb-card__community-empty">
-              No community data available for this game yet.
-            </p>
+            <p className="crosshook-protondb-card__community-empty">No community data available for this game yet.</p>
           )}
         </div>
       ) : null}

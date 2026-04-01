@@ -3,11 +3,7 @@
  * The backend currently emits plain strings, but this type defensively handles
  * alternate object shapes in case the payload format changes.
  */
-export type LogPayload =
-  | string
-  | { line: string }
-  | { message: string }
-  | { text: string };
+export type LogPayload = string | { line: string } | { message: string } | { text: string };
 
 /**
  * Extract a displayable message from a log event payload (`launch-log`, `update-log`).

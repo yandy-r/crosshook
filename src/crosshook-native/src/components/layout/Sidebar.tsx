@@ -65,7 +65,13 @@ const ROUTE_LABELS: Record<AppRoute, string> = {
   health: 'Health',
 };
 
-function SidebarTrigger({ activeRoute, onNavigate, route, label, icon: Icon }: SidebarSectionItem & Pick<SidebarProps, 'activeRoute' | 'onNavigate'>) {
+function SidebarTrigger({
+  activeRoute,
+  onNavigate,
+  route,
+  label,
+  icon: Icon,
+}: SidebarSectionItem & Pick<SidebarProps, 'activeRoute' | 'onNavigate'>) {
   const isCurrent = activeRoute === route;
 
   return (
@@ -98,18 +104,21 @@ export function Sidebar({ activeRoute, onNavigate, controllerMode, lastProfile }
   const profileLabel = lastProfile.trim() || 'No profile selected';
 
   return (
-    <aside
-      className="crosshook-sidebar"
-      data-crosshook-focus-zone="sidebar"
-      aria-label="CrossHook navigation"
-    >
+    <aside className="crosshook-sidebar" data-crosshook-focus-zone="sidebar" aria-label="CrossHook navigation">
       <div className="crosshook-sidebar__brand">
         <div className="crosshook-sidebar__brand-content">
           <p className="crosshook-sidebar__brand-title">CrossHook</p>
           <p className="crosshook-sidebar__brand-subtitle">Launch, install, and manage profiles</p>
         </div>
         <div className="crosshook-sidebar__brand-art" aria-hidden="true">
-          <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            viewBox="0 0 64 64"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             {/* Crosshair outer ring */}
             <circle cx="32" cy="32" r="20" opacity={0.35} />
             <circle cx="32" cy="32" r="12" opacity={0.2} />

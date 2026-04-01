@@ -83,9 +83,7 @@ function isActionableSuggestion(value: unknown): value is ActionableSuggestion {
   const candidate = value as Partial<ActionableSuggestion>;
 
   return (
-    typeof candidate.title === 'string' &&
-    typeof candidate.description === 'string' &&
-    isSeverity(candidate.severity)
+    typeof candidate.title === 'string' && typeof candidate.description === 'string' && isSeverity(candidate.severity)
   );
 }
 

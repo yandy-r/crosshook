@@ -88,19 +88,19 @@ CrossHook generates a unique name for each duplicate to prevent overwriting exis
 
 ### Basic rules
 
-| Scenario | Source Name | Generated Name |
-|---|---|---|
-| First duplicate | `Elden Ring` | `Elden Ring (Copy)` |
-| "(Copy)" already exists | `Elden Ring` | `Elden Ring (Copy 2)` |
+| Scenario                      | Source Name  | Generated Name        |
+| ----------------------------- | ------------ | --------------------- |
+| First duplicate               | `Elden Ring` | `Elden Ring (Copy)`   |
+| "(Copy)" already exists       | `Elden Ring` | `Elden Ring (Copy 2)` |
 | "(Copy)" and "(Copy 2)" exist | `Elden Ring` | `Elden Ring (Copy 3)` |
 
 ### Suffix stripping
 
 When you duplicate a profile that already has a copy suffix, CrossHook strips the suffix before generating the new name. This prevents names from stacking:
 
-| Source Name | Existing Names | Result |
-|---|---|---|
-| `Elden Ring (Copy)` | `Elden Ring`, `Elden Ring (Copy)` | `Elden Ring (Copy 2)` |
+| Source Name           | Existing Names                                           | Result                |
+| --------------------- | -------------------------------------------------------- | --------------------- |
+| `Elden Ring (Copy)`   | `Elden Ring`, `Elden Ring (Copy)`                        | `Elden Ring (Copy 2)` |
 | `Elden Ring (Copy 2)` | `Elden Ring`, `Elden Ring (Copy)`, `Elden Ring (Copy 2)` | `Elden Ring (Copy 3)` |
 
 Without suffix stripping, duplicating "Elden Ring (Copy)" would produce "Elden Ring (Copy) (Copy)" -- an ugly and confusing name. CrossHook recognizes `(Copy)` and `(Copy N)` suffixes and removes them before generating the next candidate.
@@ -124,14 +124,14 @@ Every generated name must pass CrossHook's profile name validation before it is 
 
 Duplication performs a deep copy of all profile fields. The duplicate is identical to the original in every respect:
 
-| Section | Fields |
-|---|---|
-| **Game** | Game name, executable path |
-| **Trainer** | Trainer path, trainer kind (FLiNG, WeMod, etc.), loading mode (source directory or copy to prefix) |
-| **Injection** | DLL paths, per-DLL inject-on-launch flags |
-| **Steam** | Enabled flag, App ID, compatdata path, Proton path, launcher icon path, launcher display name |
-| **Runtime** | Prefix path, Proton path, working directory |
-| **Launch** | Launch method (steam_applaunch, proton_run, native), launch optimization toggles |
+| Section       | Fields                                                                                             |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| **Game**      | Game name, executable path                                                                         |
+| **Trainer**   | Trainer path, trainer kind (FLiNG, WeMod, etc.), loading mode (source directory or copy to prefix) |
+| **Injection** | DLL paths, per-DLL inject-on-launch flags                                                          |
+| **Steam**     | Enabled flag, App ID, compatdata path, Proton path, launcher icon path, launcher display name      |
+| **Runtime**   | Prefix path, Proton path, working directory                                                        |
+| **Launch**    | Launch method (steam_applaunch, proton_run, native), launch optimization toggles                   |
 
 ## What Does NOT Get Copied
 
@@ -189,11 +189,11 @@ The button requires a saved profile to be selected. Check these conditions:
 
 If an error banner appears below the action bar, it means the backend operation failed. Common causes:
 
-| Error Message | Cause | Fix |
-|---|---|---|
-| `profile file not found: ...` | The source profile was deleted between selection and duplication (rare). | Refresh the profile list and select a valid profile. |
-| IO error (permission denied, disk full) | CrossHook cannot write to `~/.config/crosshook/profiles/`. | Check that the directory exists and is writable. Verify available disk space. |
-| `invalid profile name: ...` | The generated name contains invalid characters. This should not happen under normal use. | Report this as a bug -- it indicates a name generation edge case. |
+| Error Message                           | Cause                                                                                    | Fix                                                                           |
+| --------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `profile file not found: ...`           | The source profile was deleted between selection and duplication (rare).                 | Refresh the profile list and select a valid profile.                          |
+| IO error (permission denied, disk full) | CrossHook cannot write to `~/.config/crosshook/profiles/`.                               | Check that the directory exists and is writable. Verify available disk space. |
+| `invalid profile name: ...`             | The generated name contains invalid characters. This should not happen under normal use. | Report this as a bug -- it indicates a name generation edge case.             |
 
 ### The duplicate has the wrong content
 

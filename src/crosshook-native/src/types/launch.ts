@@ -3,11 +3,11 @@ import type { LaunchOptimizations } from './launch-optimizations';
 import type { GamescopeConfig, LaunchMethod, MangoHudConfig, TrainerLoadingMode } from './profile';
 
 export enum LaunchPhase {
-  Idle = "Idle",
-  GameLaunching = "GameLaunching",
-  WaitingForTrainer = "WaitingForTrainer",
-  TrainerLaunching = "TrainerLaunching",
-  SessionActive = "SessionActive",
+  Idle = 'Idle',
+  GameLaunching = 'GameLaunching',
+  WaitingForTrainer = 'WaitingForTrainer',
+  TrainerLaunching = 'TrainerLaunching',
+  SessionActive = 'SessionActive',
 }
 
 export interface LaunchRequest {
@@ -59,9 +59,7 @@ export function isLaunchValidationIssue(value: unknown): value is LaunchValidati
   return (
     typeof candidate.message === 'string' &&
     typeof candidate.help === 'string' &&
-    (candidate.severity === 'fatal' ||
-      candidate.severity === 'warning' ||
-      candidate.severity === 'info')
+    (candidate.severity === 'fatal' || candidate.severity === 'warning' || candidate.severity === 'info')
   );
 }
 
@@ -75,12 +73,7 @@ export interface LaunchResult {
 
 // --- Preview / Dry Run Types ---
 
-export type EnvVarSource =
-  | 'proton_runtime'
-  | 'launch_optimization'
-  | 'host'
-  | 'steam_proton'
-  | 'profile_custom';
+export type EnvVarSource = 'proton_runtime' | 'launch_optimization' | 'host' | 'steam_proton' | 'profile_custom';
 
 export interface PreviewEnvVar {
   key: string;

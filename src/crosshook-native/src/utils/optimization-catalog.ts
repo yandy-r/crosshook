@@ -41,9 +41,7 @@ export function getCachedCatalog(): OptimizationCatalogPayload | null {
 }
 
 /** Build a lookup map from entry id to entry. */
-export function buildOptionsById(
-  entries: readonly OptimizationEntry[]
-): Record<string, OptimizationEntry> {
+export function buildOptionsById(entries: readonly OptimizationEntry[]): Record<string, OptimizationEntry> {
   const map: Record<string, OptimizationEntry> = {};
   for (const entry of entries) {
     map[entry.id] = entry;
@@ -56,9 +54,7 @@ export function buildOptionsById(
  * Declared `conflicts_with` edges are normalized to be bidirectional so the UI
  * and toggle logic stay consistent when the catalog lists a conflict on only one side.
  */
-export function buildConflictMatrix(
-  entries: readonly OptimizationEntry[]
-): Record<string, readonly string[]> {
+export function buildConflictMatrix(entries: readonly OptimizationEntry[]): Record<string, readonly string[]> {
   const knownIds = new Set(entries.map((e) => e.id));
   const mutable: Record<string, Set<string>> = {};
   for (const id of knownIds) {

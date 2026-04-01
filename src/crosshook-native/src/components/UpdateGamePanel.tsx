@@ -175,11 +175,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
         >
           {actionLabel}
         </button>
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={() => reset()}
-        >
+        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={() => reset()}>
           Reset
         </button>
       </div>

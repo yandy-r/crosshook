@@ -8,11 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
-import type {
-  ConfigDiffResult,
-  ConfigRevisionSource,
-  ConfigRevisionSummary,
-} from '../types/profile-history';
+import type { ConfigDiffResult, ConfigRevisionSource, ConfigRevisionSummary } from '../types/profile-history';
 import { formatRelativeTime } from '../utils/format';
 
 /* ── Focus-trap helpers (mirrors ProfilePreviewModal) ── */
@@ -29,7 +25,7 @@ const FOCUSABLE_SELECTOR = [
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (el) => !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0,
+    (el) => !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0
   );
 }
 
@@ -99,7 +95,12 @@ function DiffView({ diff }: { diff: ConfigDiffResult }) {
             cls += ' crosshook-history-diff-line--meta';
           }
           // eslint-disable-next-line react/no-array-index-key
-          return <span key={idx} className={cls}>{line}{'\n'}</span>;
+          return (
+            <span key={idx} className={cls}>
+              {line}
+              {'\n'}
+            </span>
+          );
         })}
       </pre>
     </div>
@@ -133,9 +134,7 @@ export function ConfigHistoryPanel({
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const bodyStyleRef = useRef('');
-  const hiddenNodesRef = useRef<
-    Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>
-  >([]);
+  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -187,18 +186,14 @@ export function ConfigHistoryPanel({
     const portalHost = portalHostRef.current;
     if (!portalHost) return;
 
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     bodyStyleRef.current = body.style.overflow;
     body.style.overflow = 'hidden';
     body.classList.add('crosshook-modal-open');
 
     hiddenNodesRef.current = Array.from(body.children)
-      .filter(
-        (child): child is HTMLElement =>
-          child instanceof HTMLElement && child !== portalHost,
-      )
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
       .map((element) => {
         const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
         const ariaHidden = element.getAttribute('aria-hidden');
@@ -255,7 +250,9 @@ export function ConfigHistoryPanel({
         setRevisionsLoading(false);
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [profileName, fetchConfigHistory]);
 
   useEffect(() => {
@@ -296,7 +293,9 @@ export function ConfigHistoryPanel({
         setDiffLoading(false);
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [selectedRevision, revisions, profileName, fetchConfigDiff]);
 
   /* ── Restore ── */
@@ -319,20 +318,13 @@ export function ConfigHistoryPanel({
         const data = await fetchConfigHistory(profileName);
         setRevisions(data);
       } catch (refreshErr: unknown) {
-        const detail =
-          refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+        const detail = refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
         console.warn('Config history list refresh failed after restore:', refreshErr);
-        setHistoryRefreshWarning(
-          `Restore completed, but the history list could not be refreshed: ${detail}`,
-        );
+        setHistoryRefreshWarning(`Restore completed, but the history list could not be refreshed: ${detail}`);
       }
     } catch (err: unknown) {
       setRestoreError(
-        err instanceof Error
-          ? err.message
-          : typeof err === 'string'
-            ? err
-            : 'Restore failed. No changes were applied.',
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Restore failed. No changes were applied.'
       );
     } finally {
       setRestoring(false);
@@ -355,17 +347,14 @@ export function ConfigHistoryPanel({
           if (updated) setSelectedRevision(updated);
         }
       } catch (err: unknown) {
-        const detail =
-          err instanceof Error ? err.message : typeof err === 'string' ? err : String(err);
+        const detail = err instanceof Error ? err.message : typeof err === 'string' ? err : String(err);
         console.error('Failed to mark revision as known good:', err);
-        setMarkKnownGoodError(
-          `Could not mark this snapshot as known good: ${detail}`,
-        );
+        setMarkKnownGoodError(`Could not mark this snapshot as known good: ${detail}`);
       } finally {
         setMarkingKnownGoodId(null);
       }
     },
-    [profileName, markKnownGood, fetchConfigHistory, selectedRevision],
+    [profileName, markKnownGood, fetchConfigHistory, selectedRevision]
   );
 
   /* ── Keyboard handler ── */
@@ -436,11 +425,7 @@ export function ConfigHistoryPanel({
 
   return createPortal(
     <div className="crosshook-modal" role="presentation">
-      <div
-        className="crosshook-modal__backdrop"
-        aria-hidden="true"
-        onMouseDown={handleBackdropMouseDown}
-      />
+      <div className="crosshook-modal__backdrop" aria-hidden="true" onMouseDown={handleBackdropMouseDown} />
       <div
         ref={surfaceRef}
         className="crosshook-modal__surface crosshook-panel crosshook-focus-scope crosshook-history-panel"
@@ -516,26 +501,17 @@ export function ConfigHistoryPanel({
                   aria-selected={selectedRevision?.id === rev.id}
                   className={
                     'crosshook-history-timeline-item' +
-                    (selectedRevision?.id === rev.id
-                      ? ' crosshook-history-timeline-item--selected'
-                      : '')
+                    (selectedRevision?.id === rev.id ? ' crosshook-history-timeline-item--selected' : '')
                   }
                   onClick={() => selectRevision(rev)}
                 >
                   <div className="crosshook-history-timeline-item__header">
-                    <span className="crosshook-history-badge">
-                      {SOURCE_LABELS[rev.source] ?? rev.source}
-                    </span>
+                    <span className="crosshook-history-badge">{SOURCE_LABELS[rev.source] ?? rev.source}</span>
                     {rev.is_last_known_working && (
-                      <span className="crosshook-history-badge crosshook-history-badge--known-good">
-                        Known good
-                      </span>
+                      <span className="crosshook-history-badge crosshook-history-badge--known-good">Known good</span>
                     )}
                   </div>
-                  <div
-                    className="crosshook-history-timeline-item__time"
-                    title={formatExactDate(rev.created_at)}
-                  >
+                  <div className="crosshook-history-timeline-item__time" title={formatExactDate(rev.created_at)}>
                     {formatRelativeTime(rev.created_at)}
                   </div>
                   {rev.profile_name_at_write !== profileName && (
@@ -551,11 +527,7 @@ export function ConfigHistoryPanel({
           {/* Detail column */}
           <div className="crosshook-history-detail">
             {restoreSuccess ? (
-              <div
-                className="crosshook-history-restore-success"
-                role="status"
-                aria-live="polite"
-              >
+              <div className="crosshook-history-restore-success" role="status" aria-live="polite">
                 {restoreSuccess}
               </div>
             ) : null}
@@ -579,17 +551,12 @@ export function ConfigHistoryPanel({
               </div>
             ) : pendingRestore ? (
               /* Restore confirmation */
-              <div
-                className="crosshook-history-confirm"
-                role="region"
-                aria-label="Restore confirmation"
-              >
+              <div className="crosshook-history-confirm" role="region" aria-label="Restore confirmation">
                 <h3 style={{ margin: '0 0 12px' }}>Restore this configuration snapshot?</h3>
                 <p className="crosshook-help-text" style={{ marginBottom: 16 }}>
-                  You're restoring the snapshot from{' '}
-                  <strong>{formatExactDate(pendingRestore.created_at)}</strong> (
-                  {SOURCE_LABELS[pendingRestore.source] ?? pendingRestore.source}). Your current
-                  config will be saved as a new snapshot first.
+                  You're restoring the snapshot from <strong>{formatExactDate(pendingRestore.created_at)}</strong> (
+                  {SOURCE_LABELS[pendingRestore.source] ?? pendingRestore.source}). Your current config will be saved as
+                  a new snapshot first.
                 </p>
                 {restoreError ? (
                   <p className="crosshook-danger" role="alert" style={{ marginBottom: 12 }}>
@@ -627,17 +594,13 @@ export function ConfigHistoryPanel({
                       {SOURCE_LABELS[selectedRevision.source] ?? selectedRevision.source}
                     </span>
                     {selectedRevision.is_last_known_working && (
-                      <span className="crosshook-history-badge crosshook-history-badge--known-good">
-                        Known good
-                      </span>
+                      <span className="crosshook-history-badge crosshook-history-badge--known-good">Known good</span>
                     )}
                   </div>
                   <div className="crosshook-help-text" style={{ marginTop: 6 }}>
                     {formatExactDate(selectedRevision.created_at)}
                     {selectedRevision.source_revision_id !== null && (
-                      <span className="crosshook-muted">
-                        {' '}— restored from #{selectedRevision.source_revision_id}
-                      </span>
+                      <span className="crosshook-muted"> — restored from #{selectedRevision.source_revision_id}</span>
                     )}
                   </div>
                 </div>
@@ -674,9 +637,7 @@ export function ConfigHistoryPanel({
                       disabled={markingKnownGoodId === selectedRevision.id}
                       onClick={() => void handleMarkKnownGood(selectedRevision)}
                     >
-                      {markingKnownGoodId === selectedRevision.id
-                        ? 'Marking…'
-                        : 'Mark as known good'}
+                      {markingKnownGoodId === selectedRevision.id ? 'Marking…' : 'Mark as known good'}
                     </button>
                   )}
                   {markKnownGoodError ? (
@@ -693,23 +654,17 @@ export function ConfigHistoryPanel({
         {/* Footer */}
         <footer className="crosshook-modal__footer">
           <span className="crosshook-modal__footer-copy">
-            {revisions.length > 0
-              ? `${revisions.length} snapshot${revisions.length !== 1 ? 's' : ''}`
-              : ''}
+            {revisions.length > 0 ? `${revisions.length} snapshot${revisions.length !== 1 ? 's' : ''}` : ''}
           </span>
           <div className="crosshook-modal__footer-actions">
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              onClick={onClose}
-            >
+            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={onClose}>
               Close
             </button>
           </div>
         </footer>
       </div>
     </div>,
-    portalHostRef.current,
+    portalHostRef.current
   );
 }
 

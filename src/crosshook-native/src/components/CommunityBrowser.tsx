@@ -109,7 +109,9 @@ function TapChip({
     <div className="crosshook-community-tap">
       <div className="crosshook-community-tap__meta">
         <strong className="crosshook-community-tap__url">{tap.url}</strong>
-        <span className="crosshook-community-tap__branch">{tap.branch ? `Branch: ${tap.branch}` : 'Default branch'}</span>
+        <span className="crosshook-community-tap__branch">
+          {tap.branch ? `Branch: ${tap.branch}` : 'Default branch'}
+        </span>
         <span className="crosshook-community-tap__branch">
           {shortPinnedCommit ? `Pinned: ${shortPinnedCommit}` : `Tracking: ${shortHeadCommit ?? 'unsynced'}`}
         </span>
@@ -376,7 +378,11 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
                 onPin={(tapToPin) => {
                   setNotice(null);
                   void pinTapToCurrentVersion(tapToPin)
-                    .then(() => setNotice(`Pinned ${tapToPin.url} to ${getTapHeadCommit(tapToPin)?.slice(0, 12) ?? 'current commit'}.`))
+                    .then(() =>
+                      setNotice(
+                        `Pinned ${tapToPin.url} to ${getTapHeadCommit(tapToPin)?.slice(0, 12) ?? 'current commit'}.`
+                      )
+                    )
                     .catch((pinError) => {
                       setError(pinError instanceof Error ? pinError.message : String(pinError));
                     });
@@ -402,7 +408,11 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
       <CollapsibleSection
         title="Community Profiles"
         className="crosshook-panel crosshook-community-browser__panel"
-        meta={<span>{visibleEntries.length} of {index.entries.length} profiles</span>}
+        meta={
+          <span>
+            {visibleEntries.length} of {index.entries.length} profiles
+          </span>
+        }
       >
         <div className="crosshook-community-browser__toolbar">
           <div className="crosshook-community-browser__field">
@@ -440,11 +450,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
           </button>
         </div>
 
-        {notice ? (
-          <p className="crosshook-success crosshook-community-browser__helper">
-            {notice}
-          </p>
-        ) : null}
+        {notice ? <p className="crosshook-success crosshook-community-browser__helper">{notice}</p> : null}
         {error ? <p className="crosshook-community-browser__error">{error}</p> : null}
         {index.diagnostics.length > 0 ? (
           <div className="crosshook-community-browser__diagnostics">
@@ -457,9 +463,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
         ) : null}
 
         {loading ? (
-          <p className="crosshook-muted crosshook-community-browser__helper">
-            Loading community profiles...
-          </p>
+          <p className="crosshook-muted crosshook-community-browser__helper">Loading community profiles...</p>
         ) : visibleEntries.length === 0 ? (
           <p className="crosshook-community-browser__empty">
             No community profiles matched the current search. Sync a tap or widen the filter.
@@ -470,7 +474,10 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
               const importedProfileName = deriveCommunityImportProfileName(entry);
               const isImported = importedProfileNames.has(importedProfileName);
               return (
-                <article key={`${entry.tap_url}::${entry.relative_path}`} className="crosshook-community-browser__profile-card">
+                <article
+                  key={`${entry.tap_url}::${entry.relative_path}`}
+                  className="crosshook-community-browser__profile-card"
+                >
                   <div className="crosshook-community-browser__profile-header">
                     <div className="crosshook-community-browser__profile-title">
                       <h3 className="crosshook-community-browser__profile-name">
@@ -513,9 +520,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
                     )}
                   </div>
 
-                  <div className="crosshook-muted crosshook-community-browser__source">
-                    Source: {entry.tap_url}
-                  </div>
+                  <div className="crosshook-muted crosshook-community-browser__source">Source: {entry.tap_url}</div>
 
                   <div className="crosshook-community-browser__button-row">
                     {isImported ? (
@@ -551,9 +556,8 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
         }}
         onSave={async (profileName, profile, summary) => {
           await saveImportedProfile(profileName, profile);
-          const sourceLabel = importDraftSource === 'file' || importDraftSource === null
-            ? profilesDirectoryPath
-            : importDraftSource;
+          const sourceLabel =
+            importDraftSource === 'file' || importDraftSource === null ? profilesDirectoryPath : importDraftSource;
           setNotice(
             `Imported ${profileName} (${summary.autoResolvedCount} auto-resolved, ${summary.unresolvedCount} unresolved) from ${sourceLabel}.`
           );

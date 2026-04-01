@@ -3,16 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import type { GameProfile } from '../types/profile';
-import type {
-  UpdateGameRequest,
-  UpdateGameResult,
-  UpdateGameStage,
-  UpdateGameValidationState,
-} from '../types';
-import {
-  UPDATE_GAME_VALIDATION_MESSAGES,
-  UPDATE_GAME_VALIDATION_FIELD,
-} from '../types';
+import type { UpdateGameRequest, UpdateGameResult, UpdateGameStage, UpdateGameValidationState } from '../types';
+import { UPDATE_GAME_VALIDATION_MESSAGES, UPDATE_GAME_VALIDATION_FIELD } from '../types';
 import type { UpdateGameValidationError } from '../types/update';
 
 export interface UseUpdateGameResult {
@@ -327,7 +319,10 @@ export function useUpdateGame(): UseUpdateGameResult {
     }
   })();
 
-  const canStart = (stage === 'idle' || stage === 'complete' || stage === 'failed') && request.updater_path.trim().length > 0 && selectedProfile.length > 0;
+  const canStart =
+    (stage === 'idle' || stage === 'complete' || stage === 'failed') &&
+    request.updater_path.trim().length > 0 &&
+    selectedProfile.length > 0;
   const isRunning = stage === 'preparing' || stage === 'running_updater';
 
   return {

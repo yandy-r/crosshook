@@ -42,11 +42,7 @@ function SelectItemNode({
   onTogglePin?: (value: string) => void;
 }) {
   return (
-    <Select.Item
-      value={toRadix(opt.value)}
-      disabled={opt.disabled}
-      className="crosshook-themed-select__item"
-    >
+    <Select.Item value={toRadix(opt.value)} disabled={opt.disabled} className="crosshook-themed-select__item">
       <Select.ItemText>{opt.label}</Select.ItemText>
       {onTogglePin ? (
         <span
@@ -54,8 +50,14 @@ function SelectItemNode({
           tabIndex={-1}
           className={`crosshook-themed-select__pin${isPinned ? ' crosshook-themed-select__pin--active' : ''}`}
           aria-label={isPinned ? `Unpin ${opt.label}` : `Pin ${opt.label}`}
-          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-          onPointerUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onPointerUp={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -84,21 +86,13 @@ export function ThemedSelect({
   id,
   className,
 }: ThemedSelectProps) {
-  const allOptions = groups && groups.length > 0
-    ? groups.flatMap((g) => g.options)
-    : (options ?? []);
+  const allOptions = groups && groups.length > 0 ? groups.flatMap((g) => g.options) : (options ?? []);
   const radixValue = toRadix(value);
   const hasValue = allOptions.some((o) => o.value === value);
 
   return (
-    <Select.Root
-      value={hasValue ? radixValue : undefined}
-      onValueChange={(v) => onValueChange(fromRadix(v))}
-    >
-      <Select.Trigger
-        id={id}
-        className={`crosshook-themed-select__trigger ${className ?? ''}`.trim()}
-      >
+    <Select.Root value={hasValue ? radixValue : undefined} onValueChange={(v) => onValueChange(fromRadix(v))}>
+      <Select.Trigger id={id} className={`crosshook-themed-select__trigger ${className ?? ''}`.trim()}>
         <Select.Value placeholder={placeholder} />
         <Select.Icon className="crosshook-themed-select__icon">
           <ChevronIcon />
@@ -106,12 +100,7 @@ export function ThemedSelect({
       </Select.Trigger>
 
       <Select.Portal>
-        <Select.Content
-          className="crosshook-themed-select__content"
-          position="popper"
-          sideOffset={4}
-          align="start"
-        >
+        <Select.Content className="crosshook-themed-select__content" position="popper" sideOffset={4} align="start">
           <Select.ScrollUpButton className="crosshook-themed-select__scroll-btn">
             <ChevronUpIcon />
           </Select.ScrollUpButton>
@@ -122,19 +111,26 @@ export function ThemedSelect({
                   <Fragment key={group.label}>
                     {gi > 0 && <Select.Separator className="crosshook-themed-select__separator" />}
                     <Select.Group>
-                      <Select.Label className="crosshook-themed-select__group-label">
-                        {group.label}
-                      </Select.Label>
+                      <Select.Label className="crosshook-themed-select__group-label">{group.label}</Select.Label>
                       {group.options.map((opt) => (
-                        <SelectItemNode key={opt.value} opt={opt} isPinned={pinnedValues?.has(opt.value)} onTogglePin={onTogglePin} />
+                        <SelectItemNode
+                          key={opt.value}
+                          opt={opt}
+                          isPinned={pinnedValues?.has(opt.value)}
+                          onTogglePin={onTogglePin}
+                        />
                       ))}
                     </Select.Group>
                   </Fragment>
                 ))
               : (options ?? []).map((opt) => (
-                  <SelectItemNode key={opt.value} opt={opt} isPinned={pinnedValues?.has(opt.value)} onTogglePin={onTogglePin} />
-                ))
-            }
+                  <SelectItemNode
+                    key={opt.value}
+                    opt={opt}
+                    isPinned={pinnedValues?.has(opt.value)}
+                    onTogglePin={onTogglePin}
+                  />
+                ))}
           </Select.Viewport>
 
           <Select.ScrollDownButton className="crosshook-themed-select__scroll-btn">
@@ -148,7 +144,16 @@ export function ThemedSelect({
 
 function ChevronIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M3.5 5.25 7 8.75l3.5-3.5" />
     </svg>
   );
@@ -156,7 +161,16 @@ function ChevronIcon() {
 
 function ChevronUpIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M10.5 8.75 7 5.25l-3.5 3.5" />
     </svg>
   );
@@ -164,7 +178,16 @@ function ChevronUpIcon() {
 
 function CheckIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M3 7.5 5.5 10 11 4" />
     </svg>
   );

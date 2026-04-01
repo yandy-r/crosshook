@@ -3,11 +3,7 @@ import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import type { GameProfile } from '../types';
 
 /** Mirrors `RESERVED_CUSTOM_ENV_KEYS` in crosshook-core `launch/request.rs`. */
-const RESERVED_CUSTOM_ENV_KEYS = new Set([
-  'WINEPREFIX',
-  'STEAM_COMPAT_DATA_PATH',
-  'STEAM_COMPAT_CLIENT_INSTALL_PATH',
-]);
+const RESERVED_CUSTOM_ENV_KEYS = new Set(['WINEPREFIX', 'STEAM_COMPAT_DATA_PATH', 'STEAM_COMPAT_CLIENT_INSTALL_PATH']);
 
 type CustomEnvVarRow = { id: string; key: string; value: string };
 
@@ -100,7 +96,7 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
   const [rows, setRows] = useState<CustomEnvVarRow[]>(() => recordToCustomEnvRows(customEnvVars));
   const customEnvVarsSignature = useMemo(
     () => JSON.stringify([profileName, customEnvRecordSignature(customEnvVars)]),
-    [profileName, customEnvVars],
+    [profileName, customEnvVars]
   );
 
   useEffect(() => {
@@ -149,10 +145,8 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
           const valueInputId = `${idPrefix}-custom-env-val-${row.id}`;
           const valueInvalid = row.value.includes('\0');
           const keyInvalid = Boolean(rowErr) && !valueInvalid;
-          const describeKey =
-            [keyInvalid ? rowErrorId : '', precedenceId].filter(Boolean).join(' ') || undefined;
-          const describeValue =
-            [valueInvalid ? rowErrorId : '', precedenceId].filter(Boolean).join(' ') || undefined;
+          const describeKey = [keyInvalid ? rowErrorId : '', precedenceId].filter(Boolean).join(' ') || undefined;
+          const describeValue = [valueInvalid ? rowErrorId : '', precedenceId].filter(Boolean).join(' ') || undefined;
 
           return (
             <div key={row.id} className="crosshook-custom-env-row">

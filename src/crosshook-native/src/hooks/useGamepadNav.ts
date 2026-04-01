@@ -334,11 +334,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
   }, []);
 
   const focusZone = useCallback(
-    (
-      zone: FocusZone,
-      preference: 'remembered' | 'first' | 'last' = 'remembered',
-      scrollIntoView = true,
-    ): boolean => {
+    (zone: FocusZone, preference: 'remembered' | 'first' | 'last' = 'remembered', scrollIntoView = true): boolean => {
       const root = getRootElement(rootRef);
       const zoneRoot = getFocusZoneRoot(root, zone);
 
@@ -419,9 +415,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
       );
       const baseIndex = currentIndex >= 0 ? currentIndex : 0;
       const targetIndex =
-        direction > 0
-          ? (baseIndex + 1) % focusables.length
-          : (baseIndex - 1 + focusables.length) % focusables.length;
+        direction > 0 ? (baseIndex + 1) % focusables.length : (baseIndex - 1 + focusables.length) % focusables.length;
       const target = focusables[targetIndex];
 
       if (!target) {
@@ -447,7 +441,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
       const activeZone = getCurrentZone();
       const focusRoot =
         activeZone && !isModalNavigationRoot(navigationRoot)
-          ? getFocusZoneRoot(getRootElement(rootRef), activeZone) ?? navigationRoot
+          ? (getFocusZoneRoot(getRootElement(rootRef), activeZone) ?? navigationRoot)
           : navigationRoot;
       const focusables = getFocusableElements(focusRoot);
       if (focusables.length === 0) {

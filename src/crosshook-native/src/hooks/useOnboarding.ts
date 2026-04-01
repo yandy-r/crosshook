@@ -1,18 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useCallback, useState } from 'react';
 
-import type {
-  OnboardingWizardStage,
-  ReadinessCheckResult,
-} from '../types/onboarding';
+import type { OnboardingWizardStage, ReadinessCheckResult } from '../types/onboarding';
 import type { VersionCheckResult } from '../types/version';
 
-const STAGE_SEQUENCE: OnboardingWizardStage[] = [
-  'game_setup',
-  'trainer_setup',
-  'runtime_setup',
-  'completed',
-];
+const STAGE_SEQUENCE: OnboardingWizardStage[] = ['game_setup', 'trainer_setup', 'runtime_setup', 'completed'];
 
 export interface UseOnboardingResult {
   stage: OnboardingWizardStage;
@@ -84,11 +76,9 @@ function createInitialOnboardingState(): {
 }
 
 export function useOnboarding(): UseOnboardingResult {
-  const [stage, setStage] = useState<OnboardingWizardStage>(
-    () => createInitialOnboardingState().stage,
-  );
+  const [stage, setStage] = useState<OnboardingWizardStage>(() => createInitialOnboardingState().stage);
   const [readinessResult, setReadinessResult] = useState<ReadinessCheckResult | null>(
-    () => createInitialOnboardingState().readinessResult,
+    () => createInitialOnboardingState().readinessResult
   );
   const [checkError, setCheckError] = useState<string | null>(null);
   const [lastCreatedProfileName, setLastCreatedProfileName] = useState<string | null>(null);
@@ -117,7 +107,11 @@ export function useOnboarding(): UseOnboardingResult {
     setStage((current) => {
       const currentIndex = STAGE_SEQUENCE.indexOf(current);
       let nextIndex = currentIndex + 1;
-      if (nextIndex < STAGE_SEQUENCE.length && STAGE_SEQUENCE[nextIndex] === 'trainer_setup' && launchMethod === 'native') {
+      if (
+        nextIndex < STAGE_SEQUENCE.length &&
+        STAGE_SEQUENCE[nextIndex] === 'trainer_setup' &&
+        launchMethod === 'native'
+      ) {
         nextIndex += 1;
       }
       return nextIndex < STAGE_SEQUENCE.length ? STAGE_SEQUENCE[nextIndex] : current;

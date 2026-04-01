@@ -1,20 +1,7 @@
 import { createPortal } from 'react-dom';
-import {
-  Fragment,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react';
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { CollapsibleSection } from './ui/CollapsibleSection';
-import type {
-  ApplyMigrationRequest,
-  BatchMigrationResult,
-  MigrationScanResult,
-  MigrationSuggestion,
-} from '../types';
+import type { ApplyMigrationRequest, BatchMigrationResult, MigrationScanResult, MigrationSuggestion } from '../types';
 import '../styles/preview.css';
 
 /* ───────── Focus-trap helpers (mirrors LauncherPreviewModal) ───────── */
@@ -32,10 +19,7 @@ const FOCUSABLE_SELECTOR = [
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (el) =>
-      !el.hasAttribute('disabled') &&
-      el.tabIndex >= 0 &&
-      el.getClientRects().length > 0,
+    (el) => !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0
   );
 }
 
@@ -102,9 +86,7 @@ export function MigrationReviewModal({
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const bodyStyleRef = useRef('');
-  const hiddenNodesRef = useRef<
-    Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>
-  >([]);
+  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
@@ -112,9 +94,7 @@ export function MigrationReviewModal({
   const safeRows = scanResult.suggestions.filter(isSafe);
   const needsReviewRows = scanResult.suggestions.filter((s) => !isSafe(s));
 
-  const [checked, setChecked] = useState<Set<string>>(
-    () => new Set(safeRows.map(rowKey)),
-  );
+  const [checked, setChecked] = useState<Set<string>>(() => new Set(safeRows.map(rowKey)));
 
   const isAllSafeChecked = safeRows.length > 0 && safeRows.every((s) => checked.has(rowKey(s)));
   const isSomeSafeChecked = safeRows.some((s) => checked.has(rowKey(s)));
@@ -149,18 +129,14 @@ export function MigrationReviewModal({
 
     window.dispatchEvent(new Event(RESET_SCROLL_MOMENTUM_EVENT));
 
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     bodyStyleRef.current = body.style.overflow;
     body.style.overflow = 'hidden';
     body.classList.add('crosshook-modal-open');
 
     hiddenNodesRef.current = Array.from(body.children)
-      .filter(
-        (child): child is HTMLElement =>
-          child instanceof HTMLElement && child !== portalHost,
-      )
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
       .map((element) => {
         const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
         const ariaHidden = element.getAttribute('aria-hidden');
@@ -279,11 +255,7 @@ export function MigrationReviewModal({
 
   return createPortal(
     <div className="crosshook-modal" role="presentation">
-      <div
-        className="crosshook-modal__backdrop"
-        aria-hidden="true"
-        onMouseDown={handleBackdropMouseDown}
-      />
+      <div className="crosshook-modal__backdrop" aria-hidden="true" onMouseDown={handleBackdropMouseDown} />
       <div
         ref={surfaceRef}
         className="crosshook-modal__surface crosshook-panel crosshook-focus-scope"
@@ -300,10 +272,7 @@ export function MigrationReviewModal({
             <h2 ref={headingRef} id={titleId} className="crosshook-modal__title" tabIndex={-1}>
               Fix Proton Paths
               {!isBatchApplying && !batchResult && scanResult.affected_count > 0 && (
-                <span
-                  className="crosshook-muted"
-                  style={{ fontSize: '0.75em', fontWeight: 400, marginLeft: '8px' }}
-                >
+                <span className="crosshook-muted" style={{ fontSize: '0.75em', fontWeight: 400, marginLeft: '8px' }}>
                   ({scanResult.affected_count} affected)
                 </span>
               )}
@@ -316,7 +285,9 @@ export function MigrationReviewModal({
           {/* Applying phase */}
           {isBatchApplying && (
             <div aria-live="polite" style={{ padding: '16px 0' }}>
-              <p>Updating {selectedCount} profile{selectedCount !== 1 ? 's' : ''}\u2026</p>
+              <p>
+                Updating {selectedCount} profile{selectedCount !== 1 ? 's' : ''}\u2026
+              </p>
               {selectedCount >= 3 && (
                 <progress
                   aria-label="Updating profiles"
@@ -332,10 +303,7 @@ export function MigrationReviewModal({
 
           {/* Batch apply error */}
           {!isBatchApplying && batchError && (
-            <div
-              role="alert"
-              style={{ color: 'var(--crosshook-color-danger)', marginBottom: '12px' }}
-            >
+            <div role="alert" style={{ color: 'var(--crosshook-color-danger)', marginBottom: '12px' }}>
               {batchError}
             </div>
           )}
@@ -409,33 +377,18 @@ export function MigrationReviewModal({
                       <span>Select All ({safeRows.length})</span>
                     </label>
                   </div>
-                  <MigrationTable
-                    rows={safeRows}
-                    checked={checked}
-                    onCheckRow={handleCheckRow}
-                  />
+                  <MigrationTable rows={safeRows} checked={checked} onCheckRow={handleCheckRow} />
                 </div>
               )}
 
               {/* Needs manual review (collapsed, unchecked) */}
               {needsReviewRows.length > 0 && (
-                <CollapsibleSection
-                  title={`Needs Manual Review (${needsReviewRows.length})`}
-                  defaultOpen={false}
-                >
-                  <p
-                    className="crosshook-muted"
-                    style={{ fontSize: '0.875em', marginBottom: '8px' }}
-                  >
-                    These suggestions involve cross-major or cross-family Proton changes. Review
-                    carefully — your WINE prefix may need recreation.
+                <CollapsibleSection title={`Needs Manual Review (${needsReviewRows.length})`} defaultOpen={false}>
+                  <p className="crosshook-muted" style={{ fontSize: '0.875em', marginBottom: '8px' }}>
+                    These suggestions involve cross-major or cross-family Proton changes. Review carefully — your WINE
+                    prefix may need recreation.
                   </p>
-                  <MigrationTable
-                    rows={needsReviewRows}
-                    checked={checked}
-                    onCheckRow={handleCheckRow}
-                    showWarnings
-                  />
+                  <MigrationTable rows={needsReviewRows} checked={checked} onCheckRow={handleCheckRow} showWarnings />
                 </CollapsibleSection>
               )}
 
@@ -449,18 +402,12 @@ export function MigrationReviewModal({
                     border: '1px solid var(--crosshook-color-border)',
                   }}
                 >
-                  <p
-                    className="crosshook-muted"
-                    style={{ fontSize: '0.875em', marginBottom: '8px' }}
-                  >
+                  <p className="crosshook-muted" style={{ fontSize: '0.875em', marginBottom: '8px' }}>
                     The following profiles have no Proton installation available. Fix manually.
                   </p>
                   <ul style={{ paddingLeft: '16px' }}>
                     {scanResult.unmatched.map((u) => (
-                      <li
-                        key={`${u.profile_name}:${u.field}`}
-                        style={{ fontSize: '0.875em', marginBottom: '4px' }}
-                      >
+                      <li key={`${u.profile_name}:${u.field}`} style={{ fontSize: '0.875em', marginBottom: '4px' }}>
                         <strong>{u.profile_name}</strong>
                         <span className="crosshook-muted" style={{ marginLeft: '8px' }}>
                           {FIELD_LABELS[u.field] ?? u.field}
@@ -557,7 +504,7 @@ export function MigrationReviewModal({
         </footer>
       </div>
     </div>,
-    portalHostRef.current,
+    portalHostRef.current
   );
 }
 
@@ -575,18 +522,25 @@ function MigrationTable({
   showWarnings?: boolean;
 }) {
   return (
-    <table
-      className="crosshook-health-dashboard-table"
-      style={{ width: '100%', fontSize: '0.875em' }}
-    >
+    <table className="crosshook-health-dashboard-table" style={{ width: '100%', fontSize: '0.875em' }}>
       <thead>
         <tr role="row">
           <th role="columnheader" scope="col" style={{ width: '32px' }}></th>
-          <th role="columnheader" scope="col">Profile</th>
-          <th role="columnheader" scope="col">Field</th>
-          <th role="columnheader" scope="col">Current</th>
-          <th role="columnheader" scope="col">Suggested</th>
-          <th role="columnheader" scope="col">Confidence</th>
+          <th role="columnheader" scope="col">
+            Profile
+          </th>
+          <th role="columnheader" scope="col">
+            Field
+          </th>
+          <th role="columnheader" scope="col">
+            Current
+          </th>
+          <th role="columnheader" scope="col">
+            Suggested
+          </th>
+          <th role="columnheader" scope="col">
+            Confidence
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -610,18 +564,12 @@ function MigrationTable({
                 <td>{s.profile_name}</td>
                 <td className="crosshook-muted">{FIELD_LABELS[s.field] ?? s.field}</td>
                 <td>
-                  <span
-                    style={{ color: 'var(--crosshook-color-danger)' }}
-                    title={s.old_path}
-                  >
+                  <span style={{ color: 'var(--crosshook-color-danger)' }} title={s.old_path}>
                     {s.old_proton_name}
                   </span>
                 </td>
                 <td>
-                  <span
-                    style={{ color: 'var(--crosshook-color-success)' }}
-                    title={s.new_path}
-                  >
+                  <span style={{ color: 'var(--crosshook-color-success)' }} title={s.new_path}>
                     {s.new_proton_name}
                   </span>
                 </td>

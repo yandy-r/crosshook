@@ -23,7 +23,7 @@ export function LaunchStateProvider({ children }: { children: ReactNode }) {
     profileState.profile,
     profileState.launchMethod,
     profileState.steamClientInstallPath,
-    selectedName,
+    selectedName
   );
 
   const launchState = useLaunchState({
@@ -33,11 +33,7 @@ export function LaunchStateProvider({ children }: { children: ReactNode }) {
     request,
   });
 
-  return (
-    <LaunchStateContext.Provider value={launchState}>
-      {children}
-    </LaunchStateContext.Provider>
-  );
+  return <LaunchStateContext.Provider value={launchState}>{children}</LaunchStateContext.Provider>;
 }
 
 export function useLaunchStateContext(): LaunchStateContextValue {

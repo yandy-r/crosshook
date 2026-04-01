@@ -1,13 +1,5 @@
 import { createPortal } from 'react-dom';
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-  type ReactNode,
-} from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type {
   PatternMatch,
@@ -43,10 +35,7 @@ const FOCUSABLE_SELECTOR = [
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (el) =>
-      !el.hasAttribute('disabled') &&
-      el.tabIndex >= 0 &&
-      el.getClientRects().length > 0,
+    (el) => !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0
   );
 }
 
@@ -151,28 +140,28 @@ function buildSummaryParts(preview: LaunchPreview): ReactNode[] {
     parts.push(
       <span key="pass" className="crosshook-preview-modal__count--success">
         {passedCount} passed
-      </span>,
+      </span>
     );
   }
   if (warningCount > 0) {
     parts.push(
       <span key="warn" className="crosshook-preview-modal__count--warning">
         {warningCount} {warningCount === 1 ? 'warning' : 'warnings'}
-      </span>,
+      </span>
     );
   }
   if (fatalCount > 0) {
     parts.push(
       <span key="err" className="crosshook-preview-modal__count--danger">
         {fatalCount} {fatalCount === 1 ? 'error' : 'errors'}
-      </span>,
+      </span>
     );
   }
   if (preview.validation.issues.length === 0) {
     parts.push(
       <span key="ok" className="crosshook-preview-modal__count--success">
         all checks passed
-      </span>,
+      </span>
     );
   }
 
@@ -194,9 +183,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const bodyStyleRef = useRef('');
-  const hiddenNodesRef = useRef<
-    Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>
-  >([]);
+  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
   const [copyLabel, setCopyLabel] = useState('Copy Preview');
@@ -222,18 +209,14 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
     const portalHost = portalHostRef.current;
     if (!portalHost) return;
 
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     bodyStyleRef.current = body.style.overflow;
     body.style.overflow = 'hidden';
     body.classList.add('crosshook-modal-open');
 
     hiddenNodesRef.current = Array.from(body.children)
-      .filter(
-        (child): child is HTMLElement =>
-          child instanceof HTMLElement && child !== portalHost,
-      )
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
       .map((element) => {
         const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
         const ariaHidden = element.getAttribute('aria-hidden');
@@ -339,11 +322,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
 
   return createPortal(
     <div className="crosshook-modal" role="presentation">
-      <div
-        className="crosshook-modal__backdrop"
-        aria-hidden="true"
-        onMouseDown={handleBackdropMouseDown}
-      />
+      <div className="crosshook-modal__backdrop" aria-hidden="true" onMouseDown={handleBackdropMouseDown} />
       <div
         ref={surfaceRef}
         className="crosshook-modal__surface crosshook-panel crosshook-focus-scope"
@@ -365,9 +344,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
             <span
               className={[
                 'crosshook-modal__status-chip',
-                previewIsReady
-                  ? 'crosshook-modal__status-chip--success'
-                  : 'crosshook-modal__status-chip--danger',
+                previewIsReady ? 'crosshook-modal__status-chip--success' : 'crosshook-modal__status-chip--danger',
               ].join(' ')}
             >
               {previewIsReady ? 'Ready to launch' : 'Cannot launch'}
@@ -380,9 +357,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
           <div className="crosshook-preview-modal__summary-fields">
             <div className="crosshook-preview-modal__summary-field">
               <div className="crosshook-preview-modal__summary-label">Method</div>
-              <div className="crosshook-preview-modal__summary-value">
-                {methodLabel(preview.resolved_method)}
-              </div>
+              <div className="crosshook-preview-modal__summary-value">{methodLabel(preview.resolved_method)}</div>
             </div>
             <div className="crosshook-preview-modal__summary-field">
               <div className="crosshook-preview-modal__summary-label">Game Executable</div>
@@ -416,19 +391,14 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
               defaultOpen
               meta={
                 <span style={{ fontSize: '0.82rem' }}>
-                  {preview.validation.issues.length}{' '}
-                  {preview.validation.issues.length === 1 ? 'check' : 'checks'}
+                  {preview.validation.issues.length} {preview.validation.issues.length === 1 ? 'check' : 'checks'}
                 </span>
               }
             >
               {sortedIssues.length > 0 ? (
                 <ul className="crosshook-preview-modal__validation-list">
                   {sortedIssues.map((issue, i) => (
-                    <li
-                      key={i}
-                      className="crosshook-preview-modal__validation-item"
-                      data-severity={issue.severity}
-                    >
+                    <li key={i} className="crosshook-preview-modal__validation-item" data-severity={issue.severity}>
                       <span
                         className="crosshook-preview-modal__validation-icon"
                         data-severity={issue.severity}
@@ -437,13 +407,9 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
                         {severityIcon(issue.severity)}
                       </span>
                       <div className="crosshook-preview-modal__validation-content">
-                        <div className="crosshook-preview-modal__validation-message">
-                          {issue.message}
-                        </div>
+                        <div className="crosshook-preview-modal__validation-message">{issue.message}</div>
                         {issue.help ? (
-                          <div className="crosshook-preview-modal__validation-help">
-                            {issue.help}
-                          </div>
+                          <div className="crosshook-preview-modal__validation-help">{issue.help}</div>
                         ) : null}
                       </div>
                     </li>
@@ -457,24 +423,18 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
             {/* Command Chain */}
             <CollapsibleSection title="Command Chain" defaultOpen>
               {preview.effective_command ? (
-                <pre className="crosshook-preview-modal__command-block">
-                  {preview.effective_command}
-                </pre>
+                <pre className="crosshook-preview-modal__command-block">{preview.effective_command}</pre>
               ) : (
                 <p className="crosshook-preview-modal__empty">No command resolved.</p>
               )}
               {isSteam && preview.steam_launch_options ? (
                 <>
                   <div className="crosshook-preview-modal__sub-label">Steam Launch Options</div>
-                  <pre className="crosshook-preview-modal__command-block">
-                    {preview.steam_launch_options}
-                  </pre>
+                  <pre className="crosshook-preview-modal__command-block">{preview.steam_launch_options}</pre>
                 </>
               ) : null}
               {preview.directives_error ? (
-                <div className="crosshook-preview-modal__directives-error">
-                  {preview.directives_error}
-                </div>
+                <div className="crosshook-preview-modal__directives-error">{preview.directives_error}</div>
               ) : null}
             </CollapsibleSection>
 
@@ -503,9 +463,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
                   ))}
                 </>
               ) : (
-                <p className="crosshook-preview-modal__empty">
-                  No environment variables resolved.
-                </p>
+                <p className="crosshook-preview-modal__empty">No environment variables resolved.</p>
               )}
               {preview.cleared_variables.length > 0 ? (
                 <div className="crosshook-preview-modal__cleared-vars">
@@ -539,54 +497,40 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
                       </div>
                     </div>
                     <div className="crosshook-preview-modal__field">
-                      <div className="crosshook-preview-modal__field-label">
-                        Steam Client Install
-                      </div>
+                      <div className="crosshook-preview-modal__field-label">Steam Client Install</div>
                       <div className="crosshook-preview-modal__field-value">
                         {preview.proton_setup.steam_client_install_path}
                       </div>
                     </div>
                     <div className="crosshook-preview-modal__field">
-                      <div className="crosshook-preview-modal__field-label">
-                        Proton Executable
-                      </div>
+                      <div className="crosshook-preview-modal__field-label">Proton Executable</div>
                       <div className="crosshook-preview-modal__field-value">
                         {preview.proton_setup.proton_executable}
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <p className="crosshook-preview-modal__empty">
-                    No Proton setup data available.
-                  </p>
+                  <p className="crosshook-preview-modal__empty">No Proton setup data available.</p>
                 )}
                 {preview.trainer ? (
                   <div className="crosshook-preview-modal__field-list" style={{ marginTop: 16 }}>
                     <div className="crosshook-preview-modal__sub-label">Trainer Info</div>
                     <div className="crosshook-preview-modal__field">
                       <div className="crosshook-preview-modal__field-label">Trainer Path</div>
-                      <div className="crosshook-preview-modal__field-value">
-                        {preview.trainer.path}
-                      </div>
+                      <div className="crosshook-preview-modal__field-value">{preview.trainer.path}</div>
                     </div>
                     <div className="crosshook-preview-modal__field">
                       <div className="crosshook-preview-modal__field-label">Host Path</div>
-                      <div className="crosshook-preview-modal__field-value">
-                        {preview.trainer.host_path}
-                      </div>
+                      <div className="crosshook-preview-modal__field-value">{preview.trainer.host_path}</div>
                     </div>
                     <div className="crosshook-preview-modal__field">
                       <div className="crosshook-preview-modal__field-label">Loading Mode</div>
-                      <div className="crosshook-preview-modal__field-value">
-                        {preview.trainer.loading_mode}
-                      </div>
+                      <div className="crosshook-preview-modal__field-value">{preview.trainer.loading_mode}</div>
                     </div>
                     {preview.trainer.staged_path ? (
                       <div className="crosshook-preview-modal__field">
                         <div className="crosshook-preview-modal__field-label">Staged Path</div>
-                        <div className="crosshook-preview-modal__field-value">
-                          {preview.trainer.staged_path}
-                        </div>
+                        <div className="crosshook-preview-modal__field-value">{preview.trainer.staged_path}</div>
                       </div>
                     ) : null}
                   </div>
@@ -599,10 +543,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
         {/* Footer */}
         <footer className="crosshook-modal__footer">
           <span
-            className={[
-              'crosshook-preview-modal__timestamp',
-              stale ? 'crosshook-preview-modal__timestamp--stale' : '',
-            ]
+            className={['crosshook-preview-modal__timestamp', stale ? 'crosshook-preview-modal__timestamp--stale' : '']
               .filter(Boolean)
               .join(' ')}
           >
@@ -610,33 +551,20 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
             {stale ? ' (stale)' : ''}
           </span>
           <div className="crosshook-modal__footer-actions">
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              onClick={handleCopy}
-            >
+            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={handleCopy}>
               {copyLabel}
             </button>
-            <button
-              type="button"
-              className="crosshook-button"
-              onClick={onLaunch}
-              disabled={!previewIsReady}
-            >
+            <button type="button" className="crosshook-button" onClick={onLaunch} disabled={!previewIsReady}>
               Launch Now
             </button>
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              onClick={onClose}
-            >
+            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={onClose}>
               Close
             </button>
           </div>
         </footer>
       </div>
     </div>,
-    portalHostRef.current,
+    portalHostRef.current
   );
 }
 
@@ -677,8 +605,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
     statusText,
   } = useLaunchStateContext();
 
-  const hasOfflineConcern =
-    Boolean(offlineReadinessError) || offlineWarning || launchPathWarnings.length > 0;
+  const hasOfflineConcern = Boolean(offlineReadinessError) || offlineWarning || launchPathWarnings.length > 0;
   const [offlineSectionOpen, setOfflineSectionOpen] = useState(false);
 
   useEffect(() => {
@@ -697,9 +624,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
   const metadata = healthByName[profileId]?.metadata ?? null;
   const versionStatus = metadata?.version_status ?? null;
   const hasVersionMismatch =
-    versionStatus === 'game_updated' ||
-    versionStatus === 'trainer_changed' ||
-    versionStatus === 'both_changed';
+    versionStatus === 'game_updated' || versionStatus === 'trainer_changed' || versionStatus === 'both_changed';
   const isUpdateInProgress = versionStatus === 'update_in_progress';
 
   async function handleMarkAsVerified() {
@@ -741,20 +666,10 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
   const validationFeedback = feedback?.kind === 'validation' ? feedback.issue : null;
   const diagnosticFeedback = feedback?.kind === 'diagnostic' ? feedback.report : null;
   const runtimeFeedback = feedback?.kind === 'runtime' ? feedback.message : null;
-  const diagnosticMatches = diagnosticFeedback
-    ? sortPatternMatchesBySeverity(diagnosticFeedback.pattern_matches)
-    : [];
-  const visibleDiagnosticMatches = diagnosticExpanded
-    ? diagnosticMatches
-    : diagnosticMatches.slice(0, 3);
-  const feedbackSeverity =
-    diagnosticFeedback?.severity ?? validationFeedback?.severity ?? 'fatal';
-  const feedbackLabel =
-    feedbackSeverity === 'fatal'
-      ? 'Fatal'
-      : feedbackSeverity === 'warning'
-        ? 'Warning'
-        : 'Info';
+  const diagnosticMatches = diagnosticFeedback ? sortPatternMatchesBySeverity(diagnosticFeedback.pattern_matches) : [];
+  const visibleDiagnosticMatches = diagnosticExpanded ? diagnosticMatches : diagnosticMatches.slice(0, 3);
+  const feedbackSeverity = diagnosticFeedback?.severity ?? validationFeedback?.severity ?? 'fatal';
+  const feedbackLabel = feedbackSeverity === 'fatal' ? 'Fatal' : feedbackSeverity === 'warning' ? 'Warning' : 'Info';
 
   useEffect(() => {
     setDiagnosticExpanded(false);
@@ -796,7 +711,11 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
       <div className="crosshook-launch-panel__header">
         <div>
           <p className="crosshook-launch-panel__eyebrow">
-            {method === 'steam_applaunch' ? 'Steam Launch' : method === 'proton_run' ? 'Proton Launch' : 'Native Launch'}
+            {method === 'steam_applaunch'
+              ? 'Steam Launch'
+              : method === 'proton_run'
+                ? 'Proton Launch'
+                : 'Native Launch'}
           </p>
           <h1 className="crosshook-launch-panel__title">CrossHook Native</h1>
           <p className="crosshook-launch-panel__copy">
@@ -814,9 +733,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
       <div className="crosshook-launch-panel__info">
         <p className="crosshook-launch-panel__status-text">{statusText}</p>
         <p className="crosshook-launch-panel__hint">{hintText}</p>
-        {helperLogPath ? (
-          <p className="crosshook-launch-panel__helper-log">Helper log: {helperLogPath}</p>
-        ) : null}
+        {helperLogPath ? <p className="crosshook-launch-panel__helper-log">Helper log: {helperLogPath}</p> : null}
         {feedback ? (
           <div
             className="crosshook-launch-panel__feedback"
@@ -827,16 +744,10 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
             {diagnosticFeedback ? (
               <>
                 <div className="crosshook-launch-panel__feedback-header">
-                  <span className="crosshook-launch-panel__feedback-badge">
-                    {feedbackLabel}
-                  </span>
-                  <p className="crosshook-launch-panel__feedback-title">
-                    {diagnosticFeedback.summary}
-                  </p>
+                  <span className="crosshook-launch-panel__feedback-badge">{feedbackLabel}</span>
+                  <p className="crosshook-launch-panel__feedback-title">{diagnosticFeedback.summary}</p>
                 </div>
-                <p className="crosshook-launch-panel__feedback-help">
-                  {diagnosticFeedback.exit_info.description}
-                </p>
+                <p className="crosshook-launch-panel__feedback-help">{diagnosticFeedback.exit_info.description}</p>
                 {visibleDiagnosticMatches.length > 0 ? (
                   <ul className="crosshook-launch-panel__feedback-list">
                     {visibleDiagnosticMatches.map((patternMatch) => (
@@ -851,13 +762,9 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
                           >
                             {patternMatch.severity}
                           </span>
-                          <p className="crosshook-launch-panel__feedback-title">
-                            {patternMatch.summary}
-                          </p>
+                          <p className="crosshook-launch-panel__feedback-title">{patternMatch.summary}</p>
                         </div>
-                        <p className="crosshook-launch-panel__feedback-help">
-                          {patternMatch.suggestion}
-                        </p>
+                        <p className="crosshook-launch-panel__feedback-help">{patternMatch.suggestion}</p>
                       </li>
                     ))}
                   </ul>
@@ -886,7 +793,8 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
                       Exit mode: {diagnosticFeedback.exit_info.failure_mode}
                     </p>
                     <p className="crosshook-launch-panel__feedback-help">
-                      Exit code: {diagnosticFeedback.exit_info.code ?? 'n/a'} | Signal: {diagnosticFeedback.exit_info.signal ?? 'n/a'}
+                      Exit code: {diagnosticFeedback.exit_info.code ?? 'n/a'} | Signal:{' '}
+                      {diagnosticFeedback.exit_info.signal ?? 'n/a'}
                     </p>
                     {diagnosticFeedback.log_tail_path ? (
                       <p className="crosshook-launch-panel__feedback-help">
@@ -907,13 +815,9 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
                               >
                                 {suggestion.severity}
                               </span>
-                              <p className="crosshook-launch-panel__feedback-title">
-                                {suggestion.title}
-                              </p>
+                              <p className="crosshook-launch-panel__feedback-title">{suggestion.title}</p>
                             </div>
-                            <p className="crosshook-launch-panel__feedback-help">
-                              {suggestion.description}
-                            </p>
+                            <p className="crosshook-launch-panel__feedback-help">{suggestion.description}</p>
                           </li>
                         ))}
                       </ul>
@@ -924,21 +828,13 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
             ) : validationFeedback ? (
               <>
                 <div className="crosshook-launch-panel__feedback-header">
-                  <span className="crosshook-launch-panel__feedback-badge">
-                    {feedbackLabel}
-                  </span>
-                  <p className="crosshook-launch-panel__feedback-title">
-                    {validationFeedback.message}
-                  </p>
+                  <span className="crosshook-launch-panel__feedback-badge">{feedbackLabel}</span>
+                  <p className="crosshook-launch-panel__feedback-title">{validationFeedback.message}</p>
                 </div>
-                <p className="crosshook-launch-panel__feedback-help">
-                  {validationFeedback.help}
-                </p>
+                <p className="crosshook-launch-panel__feedback-help">{validationFeedback.help}</p>
               </>
             ) : (
-              <p className="crosshook-launch-panel__feedback-title">
-                {runtimeFeedback}
-              </p>
+              <p className="crosshook-launch-panel__feedback-title">{runtimeFeedback}</p>
             )}
           </div>
         ) : null}
@@ -952,10 +848,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
           onToggle={setOfflineSectionOpen}
           meta={
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <OfflineStatusBadge
-                report={offlineReadiness}
-                loading={offlineReadinessLoading && !offlineReadiness}
-              />
+              <OfflineStatusBadge report={offlineReadiness} loading={offlineReadinessLoading && !offlineReadiness} />
               {!offlineReadinessLoading && offlineReadiness ? (
                 <span className="crosshook-muted" style={{ fontSize: '0.85rem' }}>
                   {offlineReadiness.readiness_state.replace(/_/g, ' ')}
@@ -972,15 +865,9 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
           {launchPathWarnings.length > 0 ? (
             <ul className="crosshook-launch-panel__feedback-list" aria-label="Launch path warnings">
               {sortIssuesBySeverity(launchPathWarnings).map((issue, index) => (
-                <li
-                  key={`launch-warn-${issue.message}-${index}`}
-                  className="crosshook-launch-panel__feedback-item"
-                >
+                <li key={`launch-warn-${issue.message}-${index}`} className="crosshook-launch-panel__feedback-item">
                   <div className="crosshook-launch-panel__feedback-header">
-                    <span
-                      className="crosshook-launch-panel__feedback-badge"
-                      data-severity={issue.severity}
-                    >
+                    <span className="crosshook-launch-panel__feedback-badge" data-severity={issue.severity}>
                       {issue.severity}
                     </span>
                     <p className="crosshook-launch-panel__feedback-title">{issue.message}</p>
@@ -1045,12 +932,7 @@ export function LaunchPanel({ profileId, method, request }: LaunchPanelProps) {
           </div>
         </div>
       ) : isUpdateInProgress ? (
-        <div
-          className="crosshook-launch-panel__feedback"
-          data-kind="version"
-          data-severity="info"
-          role="status"
-        >
+        <div className="crosshook-launch-panel__feedback" data-kind="version" data-severity="info" role="status">
           <p className="crosshook-launch-panel__feedback-title">
             Steam update in progress \u2014 version check skipped
           </p>

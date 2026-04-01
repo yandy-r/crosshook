@@ -83,16 +83,13 @@ export function ConsoleView() {
       <header className="crosshook-console__header">
         <div>
           <div className="crosshook-heading-eyebrow">Runtime Console</div>
-          <div className="crosshook-heading-copy">
-            Helper log stream
-          </div>
+          <div className="crosshook-heading-copy">Helper log stream</div>
         </div>
 
         <div>
           <button type="button" onClick={() => setLines([])} className="crosshook-button crosshook-button--secondary">
             Clear
-          </button>
-          {' '}
+          </button>{' '}
           <button
             type="button"
             onClick={() => setCollapsed((value) => !value)}
@@ -107,9 +104,7 @@ export function ConsoleView() {
         <div ref={bodyRef} onScroll={handleBodyScroll} className="crosshook-console__body">
           {lines.length === 0 ? (
             <div className="crosshook-console__empty">
-              <div className="crosshook-heading-copy">
-                Waiting for log output
-              </div>
+              <div className="crosshook-heading-copy">Waiting for log output</div>
               <div className="crosshook-heading-copy">
                 Launch a game, apply an update, or run an installer to stream helper output here. New lines appear
                 automatically.

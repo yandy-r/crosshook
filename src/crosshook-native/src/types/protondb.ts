@@ -1,14 +1,6 @@
 import type { VersionCorrelationStatus } from './version';
 
-export type ProtonDbTier =
-  | 'platinum'
-  | 'gold'
-  | 'silver'
-  | 'bronze'
-  | 'borked'
-  | 'native'
-  | 'unknown'
-  | (string & {});
+export type ProtonDbTier = 'platinum' | 'gold' | 'silver' | 'bronze' | 'borked' | 'native' | 'unknown' | (string & {});
 
 export type ProtonDbLookupState = 'idle' | 'loading' | 'ready' | 'stale' | 'unavailable';
 export type ProtonDbAdvisoryKind = 'note' | 'launch_option';

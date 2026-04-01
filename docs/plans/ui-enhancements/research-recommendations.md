@@ -330,14 +330,14 @@ The codebase already has a nearly identical grid card pattern in `CommunityBrows
 
 ### New CSS Needed
 
-| Element                    | New CSS Class                           | Description                                                                                              | Phase |
-| -------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------- | :---: |
-| Cover art image            | `crosshook-profile-cover-art`           | `aspect-ratio: 460/215`, `object-fit: cover`, `border-radius` matching card, conditional rendering       |   1   |
-| Gradient scrim on art      | `crosshook-profile-cover-art--gradient` | `::after` with `linear-gradient(transparent 40%, rgba(0,0,0,0.85))` for text over image readability      |   4   |
-| Profile grid container     | `crosshook-profile-grid`                | `display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--crosshook-profile-grid-min), 1fr))`|   4   |
-| Profile grid min-width var | `--crosshook-profile-grid-min`          | `200px` default, `280px` controller mode (new CSS variable in `variables.css`)                           |   4   |
-| Image loading skeleton     | `crosshook-skeleton`                    | Keyframe shimmer animation for image loading state                                                       |   2   |
-| View mode toggle           | `crosshook-profile-view-toggle`         | Segmented control for grid/list switch                                                                   |   4   |
+| Element                    | New CSS Class                           | Description                                                                                               | Phase |
+| -------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------- | :---: |
+| Cover art image            | `crosshook-profile-cover-art`           | `aspect-ratio: 460/215`, `object-fit: cover`, `border-radius` matching card, conditional rendering        |   1   |
+| Gradient scrim on art      | `crosshook-profile-cover-art--gradient` | `::after` with `linear-gradient(transparent 40%, rgba(0,0,0,0.85))` for text over image readability       |   4   |
+| Profile grid container     | `crosshook-profile-grid`                | `display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--crosshook-profile-grid-min), 1fr))` |   4   |
+| Profile grid min-width var | `--crosshook-profile-grid-min`          | `200px` default, `280px` controller mode (new CSS variable in `variables.css`)                            |   4   |
+| Image loading skeleton     | `crosshook-skeleton`                    | Keyframe shimmer animation for image loading state                                                        |   2   |
+| View mode toggle           | `crosshook-profile-view-toggle`         | Segmented control for grid/list switch                                                                    |   4   |
 
 ### Interaction Model: Grid Card Actions
 

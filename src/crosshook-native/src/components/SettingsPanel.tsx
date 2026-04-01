@@ -141,11 +141,7 @@ function ManageLaunchersSection({
         </>
       }
     >
-      {error ? (
-        <p className="crosshook-danger crosshook-settings-error">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p className="crosshook-danger crosshook-settings-error">{error}</p> : null}
 
       <ul className="crosshook-recent-list">
         {launchers.map((launcher) => (
@@ -259,8 +255,8 @@ function DiagnosticExportSection() {
       meta={<span className="crosshook-muted">Bug reports and troubleshooting</span>}
     >
       <p className="crosshook-muted crosshook-settings-help">
-        Export a diagnostic bundle containing system info, profiles, logs, and Steam diagnostics as a
-        single .tar.gz archive. Attach this to GitHub issues for faster troubleshooting.
+        Export a diagnostic bundle containing system info, profiles, logs, and Steam diagnostics as a single .tar.gz
+        archive. Attach this to GitHub issues for faster troubleshooting.
       </p>
 
       <label className="crosshook-settings-checkbox-row">
@@ -287,9 +283,7 @@ function DiagnosticExportSection() {
         />
         <span>
           <span className="crosshook-label">Use default location</span>
-          <p className="crosshook-muted crosshook-settings-note">
-            Save the bundle to the system temp directory.
-          </p>
+          <p className="crosshook-muted crosshook-settings-note">Save the bundle to the system temp directory.</p>
         </span>
       </label>
 
@@ -297,12 +291,7 @@ function DiagnosticExportSection() {
         <div className="crosshook-settings-field-row">
           <label className="crosshook-label">Export directory</label>
           <div className="crosshook-settings-input-row">
-            <input
-              className="crosshook-input"
-              value={customDir ?? ''}
-              readOnly
-              placeholder="No directory selected"
-            />
+            <input className="crosshook-input" value={customDir ?? ''} readOnly placeholder="No directory selected" />
             <button
               type="button"
               className="crosshook-button crosshook-button--secondary"
@@ -461,9 +450,7 @@ export function SettingsPanel({
               </div>
             </div>
 
-            <p className="crosshook-muted crosshook-settings-help">
-              {profilesDirectoryMessage}
-            </p>
+            <p className="crosshook-muted crosshook-settings-help">{profilesDirectoryMessage}</p>
             <p className="crosshook-muted crosshook-settings-note">
               The native backend should resolve this to `~/.config/crosshook/profiles` by default and persist any custom
               location through the settings store.
@@ -478,10 +465,7 @@ export function SettingsPanel({
             ) : null}
           </CollapsibleSection>
 
-          <ManageLaunchersSection
-            targetHomePath={targetHomePath}
-            steamClientInstallPath={steamClientInstallPath}
-          />
+          <ManageLaunchersSection targetHomePath={targetHomePath} steamClientInstallPath={steamClientInstallPath} />
 
           <DiagnosticExportSection />
         </div>

@@ -137,7 +137,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
         message: reviewableInstallResult.message,
       });
     },
-    [candidateOptions, logPath, onOpenProfileReview, request.profile_name, reviewProfile, reviewableInstallResult],
+    [candidateOptions, logPath, onOpenProfileReview, request.profile_name, reviewProfile, reviewableInstallResult]
   );
 
   useEffect(() => {
@@ -348,11 +348,17 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
           <div className="crosshook-install-candidate-list">
             <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
               <span>Generated profile preview</span>
-              <span>{reviewProfile?.game.name || request.display_name || request.profile_name || 'Unnamed profile'}</span>
+              <span>
+                {reviewProfile?.game.name || request.display_name || request.profile_name || 'Unnamed profile'}
+              </span>
             </div>
             <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
               <span>Runtime target</span>
-              <span>{reviewProfile?.game.executable_path || request.installed_game_executable_path || 'Awaiting executable confirmation'}</span>
+              <span>
+                {reviewProfile?.game.executable_path ||
+                  request.installed_game_executable_path ||
+                  'Awaiting executable confirmation'}
+              </span>
             </div>
             <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
               <span>Prefix</span>
@@ -408,7 +414,9 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
           Reset Form
         </button>
         <div className="crosshook-help-text" style={{ alignSelf: 'center' }}>
-          {isResolvingDefaultPrefixPath ? 'Resolving the suggested prefix path before install.' : 'The generated profile stays editable until the modal save step.'}
+          {isResolvingDefaultPrefixPath
+            ? 'Resolving the suggested prefix path before install.'
+            : 'The generated profile stays editable until the modal save step.'}
         </div>
         {reviewableInstallResult !== null ? (
           <button

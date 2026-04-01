@@ -78,10 +78,7 @@ function FieldCard({ label, state, currentValue, proposedValue, onApply }: Field
   const stateVariant = getStateVariant(state);
   const hasProposedValue = proposedValue.trim().length > 0;
   const showApply =
-    state === 'Found' &&
-    onApply !== null &&
-    hasProposedValue &&
-    proposedValue.trim() !== currentValue.trim();
+    state === 'Found' && onApply !== null && hasProposedValue && proposedValue.trim() !== currentValue.trim();
 
   return (
     <div className={`crosshook-auto-populate__field-card crosshook-auto-populate__field-card--${stateVariant}`}>
@@ -93,7 +90,11 @@ function FieldCard({ label, state, currentValue, proposedValue, onApply }: Field
           </div>
         </div>
         {showApply ? (
-          <button type="button" className="crosshook-auto-populate__button crosshook-auto-populate__button--subtle" onClick={onApply}>
+          <button
+            type="button"
+            className="crosshook-auto-populate__button crosshook-auto-populate__button--subtle"
+            onClick={onApply}
+          >
             Apply
           </button>
         ) : null}
@@ -105,7 +106,8 @@ function FieldCard({ label, state, currentValue, proposedValue, onApply }: Field
           {currentValue.trim().length > 0 ? currentValue : 'unset'}
         </div>
         <div className="crosshook-auto-populate__field-value">
-          <strong className="crosshook-auto-populate__field-value-label">Proposed:</strong> {hasProposedValue ? proposedValue : 'none'}
+          <strong className="crosshook-auto-populate__field-value-label">Proposed:</strong>{' '}
+          {hasProposedValue ? proposedValue : 'none'}
         </div>
       </div>
     </div>
@@ -148,8 +150,7 @@ export function AutoPopulate({
   }
 
   const appIdState = result?.app_id_state ?? (currentAppId.trim().length > 0 ? 'Saved' : 'Idle');
-  const compatdataState =
-    result?.compatdata_state ?? (currentCompatdataPath.trim().length > 0 ? 'Saved' : 'Idle');
+  const compatdataState = result?.compatdata_state ?? (currentCompatdataPath.trim().length > 0 ? 'Saved' : 'Idle');
   const protonState = result?.proton_state ?? (currentProtonPath.trim().length > 0 ? 'Saved' : 'Idle');
 
   return (

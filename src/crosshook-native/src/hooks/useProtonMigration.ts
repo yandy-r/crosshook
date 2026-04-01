@@ -2,12 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useCallback, useState } from 'react';
 
 import { useProfileHealthContext } from '../context/ProfileHealthContext';
-import type {
-  ApplyMigrationRequest,
-  BatchMigrationResult,
-  MigrationApplyResult,
-  MigrationScanResult,
-} from '../types';
+import type { ApplyMigrationRequest, BatchMigrationResult, MigrationApplyResult, MigrationScanResult } from '../types';
 
 function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -42,41 +37,47 @@ export function useProtonMigration() {
     }
   }, []);
 
-  const applySingleMigration = useCallback(async (request: ApplyMigrationRequest) => {
-    setIsApplying(true);
-    setError(null);
-    try {
-      const result = await invoke<MigrationApplyResult>('apply_proton_migration', { request });
-      setApplyResult(result);
-      if (result.outcome === 'applied') {
-        await revalidateSingle(request.profile_name);
+  const applySingleMigration = useCallback(
+    async (request: ApplyMigrationRequest) => {
+      setIsApplying(true);
+      setError(null);
+      try {
+        const result = await invoke<MigrationApplyResult>('apply_proton_migration', { request });
+        setApplyResult(result);
+        if (result.outcome === 'applied') {
+          await revalidateSingle(request.profile_name);
+        }
+      } catch (err) {
+        const message = normalizeError(err);
+        setError(`${message} Re-scan to see current state.`);
+      } finally {
+        setIsApplying(false);
       }
-    } catch (err) {
-      const message = normalizeError(err);
-      setError(`${message} Re-scan to see current state.`);
-    } finally {
-      setIsApplying(false);
-    }
-  }, [revalidateSingle]);
+    },
+    [revalidateSingle]
+  );
 
-  const applyBatchMigration = useCallback(async (requests: ApplyMigrationRequest[]) => {
-    setIsBatchApplying(true);
-    setBatchResult(null);
-    setBatchError(null);
-    try {
-      const result = await invoke<BatchMigrationResult>('apply_batch_migration', {
-        request: { migrations: requests },
-      });
-      setBatchResult(result);
-      if (result.applied_count > 0) {
-        await batchValidate();
+  const applyBatchMigration = useCallback(
+    async (requests: ApplyMigrationRequest[]) => {
+      setIsBatchApplying(true);
+      setBatchResult(null);
+      setBatchError(null);
+      try {
+        const result = await invoke<BatchMigrationResult>('apply_batch_migration', {
+          request: { migrations: requests },
+        });
+        setBatchResult(result);
+        if (result.applied_count > 0) {
+          await batchValidate();
+        }
+      } catch (err) {
+        setBatchError(`${normalizeError(err)} Re-scan to see current state.`);
+      } finally {
+        setIsBatchApplying(false);
       }
-    } catch (err) {
-      setBatchError(`${normalizeError(err)} Re-scan to see current state.`);
-    } finally {
-      setIsBatchApplying(false);
-    }
-  }, [batchValidate]);
+    },
+    [batchValidate]
+  );
 
   return {
     scanResult,

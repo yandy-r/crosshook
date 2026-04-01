@@ -15,7 +15,7 @@ export function buildProfileLaunchRequest(
   profile: GameProfile,
   launchMethod: Exclude<LaunchMethod, ''>,
   steamClientInstallPath: string,
-  profileName: string,
+  profileName: string
 ): LaunchRequest | null {
   if (!profile.game.executable_path.trim()) {
     return null;

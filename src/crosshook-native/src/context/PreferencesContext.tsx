@@ -57,24 +57,18 @@ async function loadPreferences() {
   };
 }
 
-export function PreferencesProvider({
-  children,
-  activeProfileName,
-}: PreferencesProviderProps) {
+export function PreferencesProvider({ children, activeProfileName }: PreferencesProviderProps) {
   const [settings, setSettings] = useState<AppSettingsData>(EMPTY_SETTINGS);
   const [recentFiles, setRecentFiles] = useState<RecentFilesData>(EMPTY_RECENT_FILES);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
 
-  const applyLoadedPreferences = useCallback(
-    (nextPreferences: Awaited<ReturnType<typeof loadPreferences>>) => {
-      setSettings(nextPreferences.loadedSettings);
-      setRecentFiles(nextPreferences.loadedRecentFiles);
-      setDefaultSteamClientInstallPath(nextPreferences.steamClientInstallPath);
-      setSettingsError(null);
-    },
-    []
-  );
+  const applyLoadedPreferences = useCallback((nextPreferences: Awaited<ReturnType<typeof loadPreferences>>) => {
+    setSettings(nextPreferences.loadedSettings);
+    setRecentFiles(nextPreferences.loadedRecentFiles);
+    setDefaultSteamClientInstallPath(nextPreferences.steamClientInstallPath);
+    setSettingsError(null);
+  }, []);
 
   const refreshPreferences = useCallback(async () => {
     try {
@@ -109,7 +103,6 @@ export function PreferencesProvider({
       active = false;
     };
   }, [applyLoadedPreferences]);
-
 
   const handleAutoLoadChange = useCallback(
     async (enabled: boolean) => {

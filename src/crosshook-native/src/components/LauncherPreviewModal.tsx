@@ -1,12 +1,5 @@
 import { createPortal } from 'react-dom';
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { copyToClipboard } from '../utils/clipboard';
 import '../styles/preview.css';
@@ -26,10 +19,7 @@ const FOCUSABLE_SELECTOR = [
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (el) =>
-      !el.hasAttribute('disabled') &&
-      el.tabIndex >= 0 &&
-      el.getClientRects().length > 0,
+    (el) => !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0
   );
 }
 
@@ -59,9 +49,7 @@ export function LauncherPreviewModal({
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const bodyStyleRef = useRef('');
-  const hiddenNodesRef = useRef<
-    Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>
-  >([]);
+  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
   const [copyScriptLabel, setCopyScriptLabel] = useState('Copy Script');
@@ -91,18 +79,14 @@ export function LauncherPreviewModal({
 
     window.dispatchEvent(new Event(RESET_SCROLL_MOMENTUM_EVENT));
 
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     bodyStyleRef.current = body.style.overflow;
     body.style.overflow = 'hidden';
     body.classList.add('crosshook-modal-open');
 
     hiddenNodesRef.current = Array.from(body.children)
-      .filter(
-        (child): child is HTMLElement =>
-          child instanceof HTMLElement && child !== portalHost,
-      )
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
       .map((element) => {
         const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
         const ariaHidden = element.getAttribute('aria-hidden');
@@ -208,11 +192,7 @@ export function LauncherPreviewModal({
 
   return createPortal(
     <div className="crosshook-modal" role="presentation">
-      <div
-        className="crosshook-modal__backdrop"
-        aria-hidden="true"
-        onMouseDown={handleBackdropMouseDown}
-      />
+      <div className="crosshook-modal__backdrop" aria-hidden="true" onMouseDown={handleBackdropMouseDown} />
       <div
         ref={surfaceRef}
         className="crosshook-modal__surface crosshook-panel crosshook-focus-scope"
@@ -245,9 +225,7 @@ export function LauncherPreviewModal({
                 });
               }}
             >
-              <pre className="crosshook-preview-modal__command-block">
-                {scriptContent}
-              </pre>
+              <pre className="crosshook-preview-modal__command-block">{scriptContent}</pre>
             </CollapsibleSection>
 
             <CollapsibleSection
@@ -260,9 +238,7 @@ export function LauncherPreviewModal({
                 });
               }}
             >
-              <pre className="crosshook-preview-modal__command-block">
-                {desktopContent}
-              </pre>
+              <pre className="crosshook-preview-modal__command-block">{desktopContent}</pre>
             </CollapsibleSection>
           </div>
         </div>
@@ -285,18 +261,14 @@ export function LauncherPreviewModal({
             >
               {copyDesktopLabel}
             </button>
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              onClick={onClose}
-            >
+            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={onClose}>
               Close
             </button>
           </div>
         </footer>
       </div>
     </div>,
-    portalHostRef.current,
+    portalHostRef.current
   );
 }
 

@@ -122,7 +122,9 @@
   line-height: 1;
   color: var(--crosshook-color-text-subtle);
   cursor: pointer;
-  transition: color 100ms ease, background 100ms ease;
+  transition:
+    color 100ms ease,
+    background 100ms ease;
 }
 
 .crosshook-themed-select__pin:hover {

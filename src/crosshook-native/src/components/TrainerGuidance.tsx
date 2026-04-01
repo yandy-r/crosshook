@@ -26,7 +26,9 @@ export function TrainerGuidance({ selectedMode, onModeChange, guidanceContent }:
         <LoadingModeCard
           id="source_directory"
           title={sourceDirectoryEntry?.title ?? 'Source Directory'}
-          summary={sourceDirectoryEntry?.description ?? 'Proton reads the trainer directly from its downloaded location.'}
+          summary={
+            sourceDirectoryEntry?.description ?? 'Proton reads the trainer directly from its downloaded location.'
+          }
           whenToUse={sourceDirectoryEntry?.when_to_use}
           examples={sourceDirectoryEntry?.examples}
           isSelected={selectedMode === 'source_directory'}
@@ -37,7 +39,10 @@ export function TrainerGuidance({ selectedMode, onModeChange, guidanceContent }:
         <LoadingModeCard
           id="copy_to_prefix"
           title={copyToPrefixEntry?.title ?? 'Copy to Prefix'}
-          summary={copyToPrefixEntry?.description ?? "CrossHook copies the trainer into the WINE prefix's C:\\ drive before launch."}
+          summary={
+            copyToPrefixEntry?.description ??
+            "CrossHook copies the trainer into the WINE prefix's C:\\ drive before launch."
+          }
           whenToUse={copyToPrefixEntry?.when_to_use}
           examples={copyToPrefixEntry?.examples}
           isSelected={selectedMode === 'copy_to_prefix'}
@@ -70,7 +75,9 @@ export function TrainerGuidance({ selectedMode, onModeChange, guidanceContent }:
       ) : null}
 
       <div className="crosshook-panel crosshook-trainer-guidance__av-warning" role="note">
-        <span className="crosshook-trainer-guidance__av-warning-icon" aria-hidden="true">⚠</span>
+        <span className="crosshook-trainer-guidance__av-warning-icon" aria-hidden="true">
+          ⚠
+        </span>
         <p className="crosshook-trainer-guidance__av-warning-text">
           Some antivirus tools may flag trainer executables — this is a known false positive with game trainers.
         </p>
@@ -124,9 +131,7 @@ function LoadingModeCard({
         </div>
         <div className="crosshook-trainer-guidance__mode-card-title-row">
           <span className="crosshook-trainer-guidance__mode-card-title">{title}</span>
-          {badge ? (
-            <span className="crosshook-trainer-guidance__mode-card-badge">{badge}</span>
-          ) : null}
+          {badge ? <span className="crosshook-trainer-guidance__mode-card-badge">{badge}</span> : null}
         </div>
       </div>
 
@@ -174,9 +179,7 @@ function TrainerSourceCard({ title, description, whenToUse, disclaimer }: Traine
     <div className="crosshook-panel crosshook-trainer-guidance__source-card">
       <div className="crosshook-trainer-guidance__source-card-title">{title}</div>
       <p className="crosshook-trainer-guidance__source-card-description">{description}</p>
-      {disclaimer ? (
-        <p className="crosshook-trainer-guidance__source-card-disclaimer">{disclaimer}</p>
-      ) : null}
+      {disclaimer ? <p className="crosshook-trainer-guidance__source-card-disclaimer">{disclaimer}</p> : null}
       <CollapsibleSection
         title="When to use"
         defaultOpen={false}

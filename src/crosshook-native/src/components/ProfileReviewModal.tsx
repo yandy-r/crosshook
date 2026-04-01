@@ -55,10 +55,7 @@ const FOCUSABLE_SELECTOR = [
 
 function getFocusableElements(container: HTMLElement) {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) =>
-      !element.hasAttribute('disabled') &&
-      element.tabIndex >= 0 &&
-      element.getClientRects().length > 0,
+    (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length > 0
   );
 }
 
@@ -138,9 +135,7 @@ export function ProfileReviewModal({
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const bodyStyleRef = useRef<string>('');
-  const hiddenNodesRef = useRef<
-    Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>
-  >([]);
+  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const titleId = useId();
   const descriptionId = useId();
   const [isMounted, setIsMounted] = useState(false);
@@ -175,18 +170,14 @@ export function ProfileReviewModal({
       return;
     }
 
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     bodyStyleRef.current = body.style.overflow;
     body.style.overflow = 'hidden';
     body.classList.add('crosshook-modal-open');
 
     hiddenNodesRef.current = Array.from(body.children)
-      .filter(
-        (child): child is HTMLElement =>
-          child instanceof HTMLElement && child !== portalHost,
-      )
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
       .map((element) => {
         const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
         const ariaHidden = element.getAttribute('aria-hidden');
@@ -195,8 +186,7 @@ export function ProfileReviewModal({
         return { element, inert: inertState, ariaHidden };
       });
 
-    const focusTarget =
-      initialFocusRef?.current ?? headingRef.current ?? closeButtonRef.current ?? null;
+    const focusTarget = initialFocusRef?.current ?? headingRef.current ?? closeButtonRef.current ?? null;
 
     const frame = window.requestAnimationFrame(() => {
       if (focusElement(focusTarget)) {
@@ -309,19 +299,10 @@ export function ProfileReviewModal({
 
   return createPortal(
     <div className="crosshook-modal" role="presentation">
-      <div
-        className="crosshook-modal__backdrop"
-        aria-hidden="true"
-        onMouseDown={handleBackdropMouseDown}
-      />
+      <div className="crosshook-modal__backdrop" aria-hidden="true" onMouseDown={handleBackdropMouseDown} />
       <div
         ref={surfaceRef}
-        className={[
-          'crosshook-modal__surface',
-          'crosshook-panel',
-          'crosshook-focus-scope',
-          className,
-        ]
+        className={['crosshook-modal__surface', 'crosshook-panel', 'crosshook-focus-scope', className]
           .filter(Boolean)
           .join(' ')}
         role="dialog"
@@ -345,12 +326,7 @@ export function ProfileReviewModal({
           </div>
 
           <div className="crosshook-modal__header-actions">
-            <span
-              className={[
-                'crosshook-modal__status-chip',
-                resolveStatusToneClass(statusTone),
-              ].join(' ')}
-            >
+            <span className={['crosshook-modal__status-chip', resolveStatusToneClass(statusTone)].join(' ')}>
               {statusLabel}
             </span>
             <button
@@ -399,8 +375,8 @@ export function ProfileReviewModal({
 
         <footer className="crosshook-modal__footer">
           <div className="crosshook-modal__footer-copy">
-            Review the generated profile before saving it to disk. Saving switches you to the Profile tab for
-            further edits.
+            Review the generated profile before saving it to disk. Saving switches you to the Profile tab for further
+            edits.
           </div>
           {footer ? <div className="crosshook-modal__footer-actions">{footer}</div> : null}
         </footer>
@@ -449,7 +425,7 @@ export function ProfileReviewModal({
         ) : null}
       </div>
     </div>,
-    portalHostRef.current,
+    portalHostRef.current
   );
 }
 

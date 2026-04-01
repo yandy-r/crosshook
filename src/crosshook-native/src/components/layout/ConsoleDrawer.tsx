@@ -11,9 +11,7 @@ function countLogLines(payload: unknown): number {
     return 0;
   }
 
-  return text
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0).length;
+  return text.split(/\r?\n/).filter((line) => line.trim().length > 0).length;
 }
 
 function formatLineCount(count: number): string {
@@ -146,11 +144,7 @@ export function ConsoleDrawer({ panelRef }: ConsoleDrawerProps) {
         </span>
       </button>
 
-      <div
-        id={bodyId}
-        aria-hidden={collapsed}
-        className="crosshook-console-drawer__body"
-      >
+      <div id={bodyId} aria-hidden={collapsed} className="crosshook-console-drawer__body">
         <ConsoleView />
       </div>
     </section>

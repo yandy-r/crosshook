@@ -1,13 +1,5 @@
 import { createPortal } from 'react-dom';
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 
 import { invoke } from '@tauri-apps/api/core';
 import { ControllerPrompts } from './layout/ControllerPrompts';
@@ -45,10 +37,7 @@ const FOCUSABLE_SELECTOR = [
 
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) =>
-      !element.hasAttribute('disabled') &&
-      element.tabIndex >= 0 &&
-      element.getClientRects().length > 0,
+    (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length > 0
   );
 }
 
@@ -92,9 +81,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const bodyStyleRef = useRef<string>('');
-  const hiddenNodesRef = useRef<
-    Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>
-  >([]);
+  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -139,7 +126,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
 
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
-    [defaultSteamClientInstallPath, steamClientInstallPath],
+    [defaultSteamClientInstallPath, steamClientInstallPath]
   );
 
   useEffect(() => {
@@ -147,9 +134,8 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     async function loadProtonInstalls() {
       try {
         const installs = await invoke<ProtonInstallOption[]>('list_proton_installs', {
-          steamClientInstallPath: effectiveSteamClientInstallPath.trim().length > 0
-            ? effectiveSteamClientInstallPath
-            : undefined,
+          steamClientInstallPath:
+            effectiveSteamClientInstallPath.trim().length > 0 ? effectiveSteamClientInstallPath : undefined,
         });
         if (active) {
           setProtonInstalls(installs);
@@ -160,7 +146,9 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
       }
     }
     void loadProtonInstalls();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [effectiveSteamClientInstallPath]);
 
   // Portal host — created unconditionally on mount, NOT gated on `open`
@@ -189,18 +177,14 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     const portalHost = portalHostRef.current;
     if (!portalHost) return;
 
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     bodyStyleRef.current = body.style.overflow;
     body.style.overflow = 'hidden';
     body.classList.add('crosshook-modal-open');
 
     hiddenNodesRef.current = Array.from(body.children)
-      .filter(
-        (child): child is HTMLElement =>
-          child instanceof HTMLElement && child !== portalHost,
-      )
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
       .map((element) => {
         const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
         const ariaHidden = element.getAttribute('aria-hidden');
@@ -306,11 +290,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
 
   return createPortal(
     <div className="crosshook-modal" role="presentation">
-      <div
-        className="crosshook-modal__backdrop"
-        aria-hidden="true"
-        onMouseDown={handleBackdropMouseDown}
-      />
+      <div className="crosshook-modal__backdrop" aria-hidden="true" onMouseDown={handleBackdropMouseDown} />
       <div
         ref={surfaceRef}
         className="crosshook-modal__surface crosshook-panel crosshook-focus-scope crosshook-onboarding-wizard"
@@ -326,12 +306,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
             <div className="crosshook-heading-eyebrow">
               {isCompleted ? 'Complete' : `Step ${visibleStep} of ${TOTAL_VISIBLE_STEPS}`}
             </div>
-            <h2
-              ref={headingRef}
-              id={titleId}
-              className="crosshook-modal__title"
-              tabIndex={-1}
-            >
+            <h2 ref={headingRef} id={titleId} className="crosshook-modal__title" tabIndex={-1}>
               {isGameSetup && 'Game Setup'}
               {isTrainerSetup && 'Trainer Setup'}
               {isRuntimeSetup && 'Runtime Setup'}
@@ -355,7 +330,6 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
 
         {/* Step content */}
         <div className="crosshook-modal__body crosshook-onboarding-wizard__body">
-
           {/* Step 1: Game Setup */}
           {isGameSetup && (
             <section aria-label="Game setup">
@@ -405,7 +379,9 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                   }
                   placeholder="/path/to/game.exe"
                   browseLabel="Browse"
-                  browseFilters={launchMethod === 'native' ? undefined : [{ name: 'Windows Executable', extensions: ['exe'] }]}
+                  browseFilters={
+                    launchMethod === 'native' ? undefined : [{ name: 'Windows Executable', extensions: ['exe'] }]
+                  }
                 />
               </div>
 
@@ -646,12 +622,17 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
           {/* Readiness check results strip */}
           {readinessResult !== null && (
             <div className="crosshook-onboarding-wizard__checks-strip">
-              <p>System checks: {readinessResult.critical_failures === 0 ? 'All passed' : `${readinessResult.critical_failures} issue(s)`}</p>
+              <p>
+                System checks:{' '}
+                {readinessResult.critical_failures === 0
+                  ? 'All passed'
+                  : `${readinessResult.critical_failures} issue(s)`}
+              </p>
               <ul>
-                {readinessResult.checks.map(check => (
+                {readinessResult.checks.map((check) => (
                   <li key={check.field}>
-                    <span style={{ color: resolveCheckColor(check.severity) }}>{resolveCheckIcon(check.severity)}</span>
-                    {' '}{check.message}
+                    <span style={{ color: resolveCheckColor(check.severity) }}>{resolveCheckIcon(check.severity)}</span>{' '}
+                    {check.message}
                   </li>
                 ))}
               </ul>
@@ -705,7 +686,9 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                   type="button"
                   className="crosshook-button"
                   style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                  disabled={saving || profileName.trim().length === 0 || profile.game.executable_path.trim().length === 0}
+                  disabled={
+                    saving || profileName.trim().length === 0 || profile.game.executable_path.trim().length === 0
+                  }
                   onClick={() => void handleComplete()}
                 >
                   {saving ? 'Saving...' : 'Save Profile'}
@@ -734,7 +717,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
         </footer>
       </div>
     </div>,
-    portalHostRef.current,
+    portalHostRef.current
   );
 }
 
