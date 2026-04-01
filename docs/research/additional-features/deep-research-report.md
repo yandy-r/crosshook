@@ -144,25 +144,25 @@ _Sources: Contrarian, Analogical, Historical, Archaeological, Negative-Space_
 
 ### P2 -- Plan For
 
-| Feature                                          | Perspectives | Effort  | Impact | Codebase Ready |
-| ------------------------------------------------ | :----------: | ------- | ------ | :------------: |
-| Optimization presets per profile (A/B configs)   |     4/8      | Medium  | Medium |     Ready      |
-| Gamescope wrapper integration                    |     3/8      | Low-Med | Medium |    Partial     |
-| Game metadata / cover art (SteamGridDB)          |     3/8      | Medium  | Medium |    Partial     |
-| ProtonDB compatibility lookup                    |     4/8      | Medium  | Medium |    Partial     |
-| Adaptive Deck Mode layout (CSS-driven)           |     3/8      | Low     | Medium |     Ready      |
-| Community profile export from GUI                |     3/8      | Low     | Medium |     Ready      |
-| Profile duplicate / clone                        |     3/8      | Low     | Medium |     Ready      |
-| Custom env variables per profile                 |     3/8      | Low-Med | Medium |    Partial     |
-| Extended optimization catalog (DXVK_ASYNC, etc.) |     3/8      | Low     | Medium |     Ready      |
-| Tap pinning / version locking                    |     3/8      | Low     | Medium |     Ready      |
-| Settings expansion (defaults, theme, log level)  |     3/8      | Low-Med | Medium |     Ready      |
-| Prefix health monitoring / disk usage            |     3/8      | Medium  | Medium |    Partial     |
-| Network isolation for trainers (unshare --net)   |     2/8      | Low     | Medium |    Partial     |
-| Trainer hash verification (SHA-256)              |     2/8      | Low     | Medium |      None      |
-| Stale launcher detection (is_stale field)        |     2/8      | Low     | Medium |     Ready      |
-| MangoHud per-profile configuration               |     2/8      | Low-Med | Medium |    Partial     |
-| Data-driven optimization catalog (loadable TOML) |     2/8      | Medium  | Medium |    Partial     |
+| Feature                                             | Perspectives | Effort  | Impact | Codebase Ready |
+| --------------------------------------------------- | :----------: | ------- | ------ | :------------: |
+| Optimization presets per profile (A/B configs)      |     4/8      | Medium  | Medium |     Ready      |
+| Gamescope wrapper integration                       |     3/8      | Low-Med | Medium |    Partial     |
+| Game metadata / cover art (SteamGridDB)             |     3/8      | Medium  | Medium |    Partial     |
+| ProtonDB compatibility lookup                       |     4/8      | Medium  | Medium |    Partial     |
+| Adaptive Deck Mode layout (CSS-driven)              |     3/8      | Low     | Medium |     Ready      |
+| Community profile export from GUI                   |     3/8      | Low     | Medium |     Ready      |
+| Profile duplicate / clone                           |     3/8      | Low     | Medium |     Ready      |
+| Custom env variables per profile                    |     3/8      | Low-Med | Medium |    Partial     |
+| Extended optimization catalog (DXVK_ASYNC, etc.)    |     3/8      | Low     | Medium |     Ready      |
+| Tap pinning / version locking                       |     3/8      | Low     | Medium |     Ready      |
+| Settings expansion (defaults, theme, log level)     |     3/8      | Low-Med | Medium |     Ready      |
+| Prefix health monitoring / disk usage (issue `#61`) |     3/8      | Medium  | Medium |    Partial     |
+| Network isolation for trainers (unshare --net)      |     2/8      | Low     | Medium |    Partial     |
+| Trainer hash verification (SHA-256)                 |     2/8      | Low     | Medium |      None      |
+| Stale launcher detection (is_stale field)           |     2/8      | Low     | Medium |     Ready      |
+| MangoHud per-profile configuration                  |     2/8      | Low-Med | Medium |    Partial     |
+| Data-driven optimization catalog (loadable TOML)    |     2/8      | Medium  | Medium |    Partial     |
 
 **Quick wins in P2** (low effort + infrastructure exists):
 
@@ -172,6 +172,10 @@ _Sources: Contrarian, Analogical, Historical, Archaeological, Negative-Space_
 - Adaptive Deck layout: CSS-only via existing `data-crosshook-controller-mode` attribute
 - Extended optimization catalog: add entries to existing `LAUNCH_OPTIMIZATION_DEFINITIONS`
 - Tap pinning: add `pinned_commit` field to `CommunityTapSubscription`
+
+> **Storage note — Game metadata / cover art (#52)**: The original "cache images alongside TOML files" approach predates the metadata DB. Correct persistence split: metadata JSON in `external_cache_entries` (key `steam:appdetails:v1:{app_id}`, 7-day TTL) plus filesystem image cache at `~/.local/share/crosshook/cache/images/` tracked by a new `game_image_cache` table. SteamGridDB API key belongs in `settings.toml`. Image binaries must **not** go in `external_cache_entries` — the 512 KiB cap silently stores `NULL` for oversized payloads. See `implementation-guide.md` Issue #52 Storage Boundary Note for the full datum classification.
+
+**Planning note — prefix health (`#61`)**: Score and implement alongside the post-SQLite persistence checkpoint. Classify prefix size history, orphan snapshots, last-scan metadata, and cleanup audit data as SQLite operational metadata where they should survive restarts; keep user thresholds/toggles in `settings.toml` when they are preferences; keep directory-walk progress and one-shot `statvfs` reads as runtime-only. Require explicit migration, offline/local expectations, degraded DB behavior, and visibility/editability in the issue and plan (see `docs/research/additional-features/implementation-guide.md`, Issue #61 Storage Boundary Note).
 
 ---
 
@@ -342,6 +346,8 @@ Future feature scoring and prioritization should treat persistence/usability fit
 - Does offline behavior remain clear and testable?
 - Is degraded/failure behavior defined when persistence is unavailable?
 - Is user visibility/editability of persisted data explicit?
+
+**Retroactive application**: P2 features identified before the metadata DB existed should be reviewed against these criteria before implementation begins. Issues #52 (game metadata / cover art), #60 (settings expansion), and #61 (prefix health monitoring) have been updated with storage boundary notes in `implementation-guide.md`. Remaining P2 features should be reviewed at planning time.
 
 ### Phase 1: 8 Asymmetric Research Personas
 
