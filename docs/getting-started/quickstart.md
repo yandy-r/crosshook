@@ -16,9 +16,10 @@ If you want the deeper Steam-specific workflow details, jump to the [Steam / Pro
    5. [First Launch](#first-launch)
    6. [Create a Profile](#create-a-profile)
    7. [Custom environment variables](#custom-environment-variables)
-   8. [Launch a Game with a Trainer](#launch-a-game-with-a-trainer)
-   9. [Dry Run / Preview Mode](#dry-run--preview-mode)
-   10. [Launch Modes](#launch-modes)
+   8. [ProtonDB guidance](#protondb-guidance)
+   9. [Launch a Game with a Trainer](#launch-a-game-with-a-trainer)
+   10. [Dry Run / Preview Mode](#dry-run--preview-mode)
+   11. [Launch Modes](#launch-modes)
        1. [Steam App Launch (`steam_applaunch`)](#steam-app-launch-steam_applaunch)
        2. [Proton Run (`proton_run`)](#proton-run-proton_run)
        3. [Native (`native`)](#native-native)
@@ -134,6 +135,8 @@ method = "steam_applaunch"
 
 When a profile uses `proton_run`, the Profile editor also shows a `Launch Optimizations` panel in the right column. The panel is limited to `proton_run` profiles, and each visible option has an info tooltip that explains what it does, when it helps, and the main caveat. Existing saved profiles autosave only the optimization section, while new unsaved profiles show `Save profile first to enable autosave` until you save them once.
 
+If the profile has a Steam App ID, the Profile editor also shows a **ProtonDB Guidance** card. It displays the exact ProtonDB tier (`platinum`, `gold`, `silver`, `bronze`, `borked`, and any future upstream labels), a freshness indicator, and normalized community suggestions. When CrossHook can safely normalize env-var tweaks, you can copy them or apply them into the profile’s custom env map; raw launch strings stay copy-only.
+
 ## Custom environment variables
 
 In the Profile editor and in the **Profile Setup Wizard** (New Profile / Edit in Wizard on the Profiles page), **Custom Environment Variables** lets you add arbitrary `KEY=value` pairs that CrossHook applies when building launches.
@@ -150,6 +153,15 @@ In the Profile editor and in the **Profile Setup Wizard** (New Profile / Edit in
 **Syntax rules:** Keys must be non-empty, must not contain `=`, and neither keys nor values may contain NUL bytes. Duplicate keys are avoided by the editor shape; invalid entries are surfaced in validation.
 
 **Troubleshooting:** If a variable does not appear to take effect, use dry run and check the environment list — entries sourced from the profile show as **Profile custom**. For Steam games, confirm you pasted an updated launch options line after changing custom vars. For more Steam-specific detail, see the [Steam / Proton feature guide](../features/steam-proton-trainer-launch.doc.md#custom-environment-variables).
+
+## ProtonDB guidance
+
+The **ProtonDB Guidance** card appears in the Profile editor whenever the profile has a meaningful Steam App ID. CrossHook keeps this feature advisory:
+
+- Exact tiers are shown as ProtonDB reports them; CrossHook does not collapse them into the older `working` / `partial` labels.
+- Cached results remain visible when ProtonDB is unavailable. The card marks those results as cached/stale instead of failing the form.
+- If the game build changed recently, the card warns that the community guidance may lag the installed build.
+- Only normalized env-var suggestions can be applied directly. Unsupported or raw launch strings remain copy-only so CrossHook never injects opaque remote commands into the launch pipeline.
 
 ## Launch a Game with a Trainer
 
