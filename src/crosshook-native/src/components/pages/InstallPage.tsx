@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import { invoke } from '@tauri-apps/api/core';
 
 import InstallGamePanel from '../InstallGamePanel';
-import ProfileFormSections, { type ProtonInstallOption } from '../ProfileFormSections';
+import ProfileFormSections from '../ProfileFormSections';
 import UpdateGamePanel from '../UpdateGamePanel';
 import ProfileReviewModal, { type ProfileReviewModalConfirmation } from '../ProfileReviewModal';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
@@ -10,6 +10,7 @@ import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import type { GameProfile } from '../../types';
 import type { InstallProfileReviewPayload } from '../../types/install';
+import type { ProtonInstallOption } from '../../types/proton';
 import type { ProfileReviewSession } from '../../types/profile-review';
 import { profilesEqual } from '../../utils/profile-compare';
 import { PageBanner, InstallArt } from '../layout/PageBanner';

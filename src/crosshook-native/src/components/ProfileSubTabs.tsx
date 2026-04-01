@@ -12,9 +12,10 @@ import { RuntimeSection } from './profile-sections/RuntimeSection';
 import { TrainerSection } from './profile-sections/TrainerSection';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
-import type { PendingProtonDbOverwrite, ProtonInstallOption } from './ProfileFormSections';
+import type { PendingProtonDbOverwrite } from './ProfileFormSections';
 import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { GameProfile, LaunchMethod } from '../types';
+import type { ProtonInstallOption } from '../types/proton';
 
 type SubTabId = 'setup' | 'runtime' | 'environment' | 'trainer' | 'export';
 
@@ -155,7 +156,7 @@ export function ProfileSubTabs({
         className="crosshook-subtab-content"
         style={{ display: activeTab === 'setup' ? undefined : 'none' }}
       >
-        <div style={{ display: 'grid', gap: 12, paddingTop: 16 }}>
+        <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
           <ProfileIdentitySection
             profileName={profileName}
             profile={profile}
@@ -176,7 +177,7 @@ export function ProfileSubTabs({
         className="crosshook-subtab-content"
         style={{ display: activeTab === 'runtime' ? undefined : 'none' }}
       >
-        <div style={{ paddingTop: 16 }}>
+        <div className="crosshook-subtab-content__inner">
           <RuntimeSection
             profile={profile}
             onUpdateProfile={onUpdateProfile}
@@ -194,7 +195,7 @@ export function ProfileSubTabs({
         className="crosshook-subtab-content"
         style={{ display: activeTab === 'environment' ? undefined : 'none' }}
       >
-        <div style={{ display: 'grid', gap: 16, paddingTop: 16 }}>
+        <div className="crosshook-subtab-content__inner">
           <CustomEnvironmentVariablesSection
             profileName={profileName}
             customEnvVars={profile.launch.custom_env_vars}
@@ -306,7 +307,7 @@ export function ProfileSubTabs({
           className="crosshook-subtab-content"
           style={{ display: activeTab === 'trainer' ? undefined : 'none' }}
         >
-          <div style={{ paddingTop: 16 }}>
+          <div className="crosshook-subtab-content__inner">
             <TrainerSection
               profile={profile}
               onUpdateProfile={onUpdateProfile}
@@ -328,7 +329,7 @@ export function ProfileSubTabs({
           className="crosshook-subtab-content"
           style={{ display: activeTab === 'export' ? undefined : 'none' }}
         >
-          <div style={{ paddingTop: 16 }}>
+          <div className="crosshook-subtab-content__inner">
             <LauncherExport
               profile={profile}
               profileName={profileName}

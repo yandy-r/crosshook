@@ -9,8 +9,10 @@ pub fn normalize_app_id(app_id: &str) -> Option<String> {
     }
 }
 
-pub fn cache_key_for_app_id(app_id: &str) -> String {
-    format!("{}:{}", STEAM_METADATA_CACHE_NAMESPACE, app_id.trim())
+pub fn cache_key_for_app_id(app_id: &str) -> Option<String> {
+    normalize_app_id(app_id).map(|normalized| {
+        format!("{}:{}", STEAM_METADATA_CACHE_NAMESPACE, normalized)
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
@@ -76,12 +78,13 @@ mod tests {
     fn cache_key_is_namespaced() {
         assert_eq!(
             cache_key_for_app_id("1245620"),
-            "steam:appdetails:v1:1245620"
+            Some("steam:appdetails:v1:1245620".to_string())
         );
         assert_eq!(
             cache_key_for_app_id("  1245620  "),
-            "steam:appdetails:v1:1245620"
+            Some("steam:appdetails:v1:1245620".to_string())
         );
+        assert_eq!(cache_key_for_app_id("abc123"), None);
     }
 
     #[test]

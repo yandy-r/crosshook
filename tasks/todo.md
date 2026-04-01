@@ -1,5 +1,20 @@
 # Task Plan
 
+## 2026-04-01 - verified review findings implementation
+
+- [x] Patch backend game-image cache/download behavior, metadata helpers, and redacted settings debug output.
+- [x] Patch shared/frontend types plus the verified accessibility, stale-state, and refactor fixes.
+- [x] Run verification (`crosshook-core` tests and native TypeScript build) and record the outcome.
+
+### Review
+
+- Reworked game-image cache expiry and download handling so expiry compares parsed datetimes, oversized responses are rejected before full buffering, SteamGridDB requests select the intended artwork dimensions, and cached filenames now use MIME-derived extensions instead of a hardcoded `.jpg`.
+- Hardened supporting Rust surfaces by redacting `steamgriddb_api_key` from `AppSettingsData` debug output, making `GameImageError` compose as a standard error, validating Steam metadata cache keys through `normalize_app_id`, and making expired image eviction transactional with migration coverage for the expires index.
+- Added the verified frontend fixes: visible launch guidance with `aria-describedby`, labelled launch-page profile selection, latest-state ProtonDB env-var merging, post-refresh profile-health revalidation, stale-image/metadata cleanup in hooks and components, synced settings API-key local state, a shared `ProtonInstallOption` type, and the extracted `useSetTrainerVersion` hook.
+- Verification:
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `npm run build` in `src/crosshook-native`
+
 ## 2026-04-01 - pr 133 conflict resolution
 
 - [x] Create a backup ref for the current PR 133 branch tip.

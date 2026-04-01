@@ -1,5 +1,5 @@
 use super::MetadataStoreError;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 
 #[derive(Debug, Clone)]
 pub struct GameImageCacheRow {
@@ -113,8 +113,32 @@ pub fn get_game_image(
     })
 }
 
-pub fn evict_expired_images(conn: &Connection) -> Result<Vec<String>, MetadataStoreError> {
-    let mut stmt = conn
+pub fn evict_expired_images(conn: &mut Connection) -> Result<Vec<String>, MetadataStoreError> {
+    let tx = conn.transaction().map_err(|source| MetadataStoreError::Database {
+        action: "begin evict expired game images transaction",
+        source,
+    })?;
+
+    let file_paths = select_expired_image_paths(&tx)?;
+    tx.execute(
+        "DELETE FROM game_image_cache
+         WHERE expires_at IS NOT NULL AND expires_at < datetime('now')",
+        [],
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "delete expired game image cache rows",
+        source,
+    })?;
+    tx.commit().map_err(|source| MetadataStoreError::Database {
+        action: "commit evict expired game images transaction",
+        source,
+    })?;
+
+    Ok(file_paths)
+}
+
+fn select_expired_image_paths(tx: &Transaction<'_>) -> Result<Vec<String>, MetadataStoreError> {
+    let mut stmt = tx
         .prepare(
             "SELECT file_path FROM game_image_cache
              WHERE expires_at IS NOT NULL AND expires_at < datetime('now')",
@@ -124,29 +148,18 @@ pub fn evict_expired_images(conn: &Connection) -> Result<Vec<String>, MetadataSt
             source,
         })?;
 
-    let file_paths = stmt
+    let rows = stmt
         .query_map([], |row| row.get::<_, String>(0))
         .map_err(|source| MetadataStoreError::Database {
             action: "query expired game image file paths",
             source,
-        })?
-        .collect::<Result<Vec<_>, _>>()
+        })?;
+
+    rows.collect::<Result<Vec<_>, _>>()
         .map_err(|source| MetadataStoreError::Database {
             action: "collect expired game image file paths",
             source,
-        })?;
-
-    conn.execute(
-        "DELETE FROM game_image_cache
-         WHERE expires_at IS NOT NULL AND expires_at < datetime('now')",
-        [],
-    )
-    .map_err(|source| MetadataStoreError::Database {
-        action: "delete expired game image cache rows",
-        source,
-    })?;
-
-    Ok(file_paths)
+        })
 }
 
 #[cfg(test)]
@@ -260,7 +273,7 @@ mod tests {
 
     #[test]
     fn evict_expired_images_removes_expired_rows_and_returns_paths() {
-        let conn = open_test_db();
+        let mut conn = open_test_db();
 
         // Insert an already-expired row (expires_at in the past).
         conn.execute(
@@ -304,7 +317,7 @@ mod tests {
         )
         .unwrap();
 
-        let evicted = evict_expired_images(&conn).unwrap();
+        let evicted = evict_expired_images(&mut conn).unwrap();
 
         assert_eq!(evicted.len(), 1);
         assert_eq!(evicted[0], "/cache/expired.jpg");

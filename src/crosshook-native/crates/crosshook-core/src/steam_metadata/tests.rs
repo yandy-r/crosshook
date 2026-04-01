@@ -20,7 +20,7 @@ fn seed_cache_entry(
     result: &SteamMetadataLookupResult,
     expires_at: &str,
 ) {
-    let cache_key = cache_key_for_app_id(app_id);
+    let cache_key = cache_key_for_app_id(app_id).expect("valid app id should produce a cache key");
     let payload = serde_json::to_string(result).expect("serialize cache payload");
     store
         .put_cache_entry(
@@ -103,20 +103,10 @@ fn expired_cache_returns_stale_when_network_unavailable() {
 
     let result = runtime().block_on(super::lookup_steam_metadata(&store, app_id, false));
 
-    // Either Stale (stale fallback worked) or Unavailable (store disabled / no cache row found).
-    // With in-memory store seeded with expired entry, expect Stale.
-    assert!(
-        result.state == SteamMetadataLookupState::Stale
-            || result.state == SteamMetadataLookupState::Unavailable,
-        "expected Stale or Unavailable, got {:?}",
-        result.state
-    );
-
-    if result.state == SteamMetadataLookupState::Stale {
-        assert!(result.from_cache);
-        assert!(result.is_stale);
-        assert!(result.app_details.is_some(), "stale result should have details");
-    }
+    assert_eq!(result.state, SteamMetadataLookupState::Stale);
+    assert!(result.from_cache);
+    assert!(result.is_stale);
+    assert!(result.app_details.is_some(), "stale result should have details");
 }
 
 #[test]

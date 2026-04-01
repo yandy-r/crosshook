@@ -27,6 +27,7 @@ export function ProfileIdentitySection({
   profiles,
 }: ProfileIdentitySectionProps) {
   const profileNamesListId = useId();
+  const gameNameId = useId();
 
   return (
     <>
@@ -61,8 +62,11 @@ export function ProfileIdentitySection({
         </div>
 
         <div className="crosshook-field">
-          <label className="crosshook-label">Game Name</label>
+          <label className="crosshook-label" htmlFor={gameNameId}>
+            Game Name
+          </label>
           <input
+            id={gameNameId}
             className="crosshook-input"
             value={profile.game.name}
             placeholder="God of War Ragnarok"

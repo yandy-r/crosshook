@@ -355,6 +355,10 @@ function SteamGridDbSection({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    setLocalKey(apiKey ?? '');
+  }, [apiKey]);
+
   async function handleSave() {
     if (!onApiKeyChange) {
       return;

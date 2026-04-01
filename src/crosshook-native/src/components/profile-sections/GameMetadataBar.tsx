@@ -16,6 +16,10 @@ export function GameMetadataBar({ steamAppId }: GameMetadataBarProps) {
   const genres = result.app_details?.genres ?? [];
   const isStale = result.state === 'stale';
 
+  if (!name && genres.length === 0 && !isStale) {
+    return null;
+  }
+
   return (
     <div className="crosshook-game-metadata-bar">
       {name ? <span className="crosshook-game-metadata-bar__name">{name}</span> : null}

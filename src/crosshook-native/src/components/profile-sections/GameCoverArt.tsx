@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 
 export interface GameCoverArtProps {
@@ -6,6 +8,11 @@ export interface GameCoverArtProps {
 
 export function GameCoverArt({ steamAppId }: GameCoverArtProps) {
   const { coverArtUrl, loading } = useGameCoverArt(steamAppId);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [coverArtUrl]);
 
   if (!steamAppId) {
     return null;
@@ -15,7 +22,7 @@ export function GameCoverArt({ steamAppId }: GameCoverArtProps) {
     return <div className="crosshook-profile-cover-art crosshook-skeleton" />;
   }
 
-  if (!coverArtUrl) {
+  if (!coverArtUrl || failed) {
     return null;
   }
 
@@ -24,6 +31,7 @@ export function GameCoverArt({ steamAppId }: GameCoverArtProps) {
       src={coverArtUrl}
       className="crosshook-profile-cover-art"
       alt="Game cover art"
+      onError={() => setFailed(true)}
     />
   );
 }

@@ -3,10 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 import ConfigHistoryPanel from '../ConfigHistoryPanel';
 import ProfileActions from '../ProfileActions';
-import {
-  type PendingProtonDbOverwrite,
-  type ProtonInstallOption,
-} from '../ProfileFormSections';
+import { type PendingProtonDbOverwrite } from '../ProfileFormSections';
 import { OnboardingWizard } from '../OnboardingWizard';
 import ProfilePreviewModal from '../ProfilePreviewModal';
 import ProfileSubTabs from '../ProfileSubTabs';
@@ -20,6 +17,7 @@ import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
 import { PageBanner, ProfilesArt } from '../layout/PageBanner';
 import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
+import type { ProtonInstallOption } from '../../types/proton';
 import type { ProtonDbRecommendationGroup } from '../../types/protondb';
 import { chooseSaveFile } from '../../utils/dialog';
 import { deriveTargetHomePath } from '../../utils/steam';
@@ -267,14 +265,22 @@ export function ProfilesPage() {
 
   const applyProtonDbGroup = useCallback(
     (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
-      const merge = mergeProtonDbEnvVarGroup(profile.launch.custom_env_vars, group, overwriteKeys);
-      updateProfile((current) => ({
-        ...current,
-        launch: {
-          ...current.launch,
-          custom_env_vars: merge.mergedEnvVars,
-        },
-      }));
+      const merge = {
+        appliedKeys: [] as string[],
+        unchangedKeys: [] as string[],
+      };
+      updateProfile((current) => {
+        const nextMerge = mergeProtonDbEnvVarGroup(current.launch.custom_env_vars, group, overwriteKeys);
+        merge.appliedKeys = nextMerge.appliedKeys;
+        merge.unchangedKeys = nextMerge.unchangedKeys;
+        return {
+          ...current,
+          launch: {
+            ...current.launch,
+            custom_env_vars: nextMerge.mergedEnvVars,
+          },
+        };
+      });
       setApplyingProtonDbGroupId(null);
       setPendingProtonDbOverwrite(null);
 
@@ -298,7 +304,7 @@ export function ProfilesPage() {
 
       setProtonDbStatusMessage('No ProtonDB environment-variable changes were applied.');
     },
-    [profile.launch.custom_env_vars, updateProfile]
+    [updateProfile]
   );
 
   const handleApplyProtonDbEnvVars = useCallback(
@@ -714,9 +720,10 @@ export function ProfilesPage() {
               type="button"
               className="crosshook-button crosshook-button--secondary"
               style={{ minHeight: 32, fontSize: '0.82rem' }}
-              onClick={(event) => {
+              onClick={async (event) => {
                 event.preventDefault();
-                void refreshProfiles();
+                await refreshProfiles();
+                await batchValidate();
               }}
             >
               {summary !== null && summary.stale_count + summary.broken_count > 0

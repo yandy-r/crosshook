@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type M
 
 import { invoke } from '@tauri-apps/api/core';
 import { ControllerPrompts } from './layout/ControllerPrompts';
-import { type ProtonInstallOption, LauncherMetadataFields } from './ProfileFormSections';
+import { LauncherMetadataFields } from './ProfileFormSections';
 import { InstallField } from './ui/InstallField';
 import { ThemedSelect } from './ui/ThemedSelect';
 import { ProtonPathField } from './ui/ProtonPathField';
@@ -15,6 +15,7 @@ import { usePreferencesContext } from '../context/PreferencesContext';
 import { resolveLaunchMethod } from '../utils/launch';
 import { deriveSteamClientInstallPath } from '../utils/steam';
 import type { HealthIssueSeverity } from '../types/health';
+import type { ProtonInstallOption } from '../types/proton';
 
 export interface OnboardingWizardProps {
   open: boolean;

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use chrono::{Duration as ChronoDuration, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, NaiveDateTime, Utc};
 use infer::Infer;
 
 use crate::metadata::{sha256_hex, MetadataStore};
@@ -52,7 +52,7 @@ pub(super) fn http_client() -> Result<&'static reqwest::Client, GameImageError> 
 /// explicit allow-list of `image/jpeg`, `image/png`, `image/webp` (I1 / I3).
 /// SVG has no magic bytes and maps to `application/octet-stream` — it is
 /// therefore unconditionally rejected.
-fn validate_image_bytes(bytes: &[u8]) -> Result<(), GameImageError> {
+fn validate_image_bytes(bytes: &[u8]) -> Result<&'static str, GameImageError> {
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err(GameImageError::TooLarge);
     }
@@ -64,7 +64,27 @@ fn validate_image_bytes(bytes: &[u8]) -> Result<(), GameImageError> {
     if !ALLOWED_IMAGE_MIMES.contains(&mime) {
         return Err(GameImageError::ForbiddenFormat(mime.to_string()));
     }
-    Ok(())
+    Ok(mime)
+}
+
+fn mime_extension(mime_type: &str) -> &'static str {
+    match mime_type {
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        "image/webp" => "webp",
+        _ => "img",
+    }
+}
+
+fn parse_expiration(expires_at: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(expires_at)
+        .map(|value| value.with_timezone(&Utc))
+        .ok()
+        .or_else(|| {
+            NaiveDateTime::parse_from_str(expires_at, "%Y-%m-%dT%H:%M:%S")
+                .ok()
+                .map(|value| value.and_utc())
+        })
 }
 
 /// Construct a safe, canonicalized path inside `base_dir`.
@@ -147,7 +167,8 @@ pub async fn download_and_cache_image(
         let is_expired = row
             .expires_at
             .as_deref()
-            .map(|exp| exp <= Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string().as_str())
+            .and_then(parse_expiration)
+            .map(|expires_at| expires_at <= Utc::now())
             .unwrap_or(false);
 
         if !is_expired {
@@ -219,15 +240,18 @@ pub async fn download_and_cache_image(
     // ------------------------------------------------------------------
     // Step (d): Validate image bytes (magic bytes, size, MIME allow-list)
     // ------------------------------------------------------------------
-    if let Err(error) = validate_image_bytes(&bytes) {
-        tracing::warn!(
-            app_id,
-            image_type = image_type_str,
-            %error,
-            "game image rejected by validation"
-        );
-        return Ok(None);
-    }
+    let mime_type = match validate_image_bytes(&bytes) {
+        Ok(mime_type) => mime_type,
+        Err(error) => {
+            tracing::warn!(
+                app_id,
+                image_type = image_type_str,
+                %error,
+                "game image rejected by validation"
+            );
+            return Ok(None);
+        }
+    };
 
     // ------------------------------------------------------------------
     // Step (e): Construct safe cache path
@@ -241,7 +265,7 @@ pub async fn download_and_cache_image(
         ));
     }
 
-    let filename = filename_for(image_type, source);
+    let filename = filename_for(image_type, source, mime_extension(mime_type));
     let file_path = safe_image_cache_path(&base_dir, app_id, &filename)
         .map_err(|error| format!("safe_image_cache_path failed: {error}"))?;
 
@@ -268,10 +292,6 @@ pub async fn download_and_cache_image(
         ),
     };
     let content_hash = sha256_hex(&bytes);
-    let mime_type = Infer::new()
-        .get(&bytes)
-        .map(|t| t.mime_type())
-        .unwrap_or("image/jpeg");
     let file_size = bytes.len() as i64;
     let absolute_path = file_path
         .to_str()
@@ -331,7 +351,7 @@ fn build_download_url(app_id: &str, image_type: GameImageType) -> String {
     }
 }
 
-fn filename_for(image_type: GameImageType, source: GameImageSource) -> String {
+fn filename_for(image_type: GameImageType, source: GameImageSource, extension: &str) -> String {
     let source_suffix = match source {
         GameImageSource::SteamCdn => "steam_cdn",
         GameImageSource::SteamGridDb => "steamgriddb",
@@ -341,7 +361,7 @@ fn filename_for(image_type: GameImageType, source: GameImageSource) -> String {
         GameImageType::Hero => "hero",
         GameImageType::Capsule => "capsule",
     };
-    format!("{type_prefix}_{source_suffix}.jpg")
+    format!("{type_prefix}_{source_suffix}.{extension}")
 }
 
 fn image_cache_base_dir() -> Result<PathBuf, String> {
@@ -365,15 +385,24 @@ async fn download_image_bytes(url: &str) -> Result<Vec<u8>, GameImageError> {
         .error_for_status()
         .map_err(GameImageError::Network)?;
 
-    // Read bytes with an explicit size limit (I4)
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(GameImageError::Network)?
-        .to_vec();
+    read_limited_response(response).await
+}
 
-    if bytes.len() > MAX_IMAGE_BYTES {
-        return Err(GameImageError::TooLarge);
+pub(super) async fn read_limited_response(
+    mut response: reqwest::Response,
+) -> Result<Vec<u8>, GameImageError> {
+    if let Some(content_length) = response.content_length() {
+        if content_length > MAX_IMAGE_BYTES as u64 {
+            return Err(GameImageError::TooLarge);
+        }
+    }
+
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(GameImageError::Network)? {
+        if bytes.len() + chunk.len() > MAX_IMAGE_BYTES {
+            return Err(GameImageError::TooLarge);
+        }
+        bytes.extend_from_slice(&chunk);
     }
 
     Ok(bytes)
@@ -532,6 +561,26 @@ mod tests {
         let result = validate_image_bytes(&large);
         assert!(result.is_err(), "content exceeding 5 MB must be rejected");
         _ = oversized; // suppress unused warning
+    }
+
+    #[test]
+    fn filename_for_uses_inferred_extension() {
+        assert_eq!(
+            filename_for(GameImageType::Cover, GameImageSource::SteamCdn, "png"),
+            "cover_steam_cdn.png"
+        );
+        assert_eq!(
+            filename_for(GameImageType::Capsule, GameImageSource::SteamGridDb, "webp"),
+            "capsule_steamgriddb.webp"
+        );
+    }
+
+    #[test]
+    fn parse_expiration_accepts_rfc3339_and_legacy_utc_format() {
+        assert!(parse_expiration("2026-04-01T12:34:56Z").is_some());
+        assert!(parse_expiration("2026-04-01T12:34:56+00:00").is_some());
+        assert!(parse_expiration("2026-04-01T12:34:56").is_some());
+        assert!(parse_expiration("not-a-timestamp").is_none());
     }
 
     // -----------------------------------------------------------------------

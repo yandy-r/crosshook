@@ -954,7 +954,7 @@ impl MetadataStore {
     }
 
     pub fn evict_expired_images(&self) -> Result<Vec<String>, MetadataStoreError> {
-        self.with_conn("evict expired game image cache entries", |conn| {
+        self.with_conn_mut("evict expired game image cache entries", |conn| {
             game_image_store::evict_expired_images(conn)
         })
     }

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::client::http_client;
+use super::client::{http_client, read_limited_response};
 use super::models::{GameImageError, GameImageType};
 
 // ---------------------------------------------------------------------------
@@ -83,17 +83,14 @@ pub async fn fetch_steamgriddb_image(
         .error_for_status()
         .map_err(GameImageError::Network)?;
 
-    let bytes = image_response
-        .bytes()
-        .await
-        .map_err(GameImageError::Network)?
-        .to_vec();
-
-    if bytes.len() > MAX_IMAGE_BYTES {
+    if image_response
+        .content_length()
+        .is_some_and(|content_length| content_length > MAX_IMAGE_BYTES as u64)
+    {
         return Err(GameImageError::TooLarge);
     }
 
-    Ok(bytes)
+    read_limited_response(image_response).await
 }
 
 // ---------------------------------------------------------------------------
@@ -101,12 +98,20 @@ pub async fn fetch_steamgriddb_image(
 // ---------------------------------------------------------------------------
 
 fn build_endpoint(app_id: &str, image_type: &GameImageType) -> String {
-    let path_segment = match image_type {
-        GameImageType::Cover => "grids",
-        GameImageType::Hero => "heroes",
-        GameImageType::Capsule => "grids",
+    let (path_segment, dimensions) = match image_type {
+        GameImageType::Cover => ("grids", Some("460x215,920x430")),
+        GameImageType::Hero => ("heroes", None),
+        GameImageType::Capsule => ("grids", Some("342x482,600x900")),
     };
-    format!("https://www.steamgriddb.com/api/v2/{path_segment}/steam/{app_id}")
+
+    match dimensions {
+        Some(dimensions) => {
+            format!(
+                "https://www.steamgriddb.com/api/v2/{path_segment}/steam/{app_id}?dimensions={dimensions}"
+            )
+        }
+        None => format!("https://www.steamgriddb.com/api/v2/{path_segment}/steam/{app_id}"),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +125,10 @@ mod tests {
     #[test]
     fn build_endpoint_cover_uses_grids() {
         let url = build_endpoint("440", &GameImageType::Cover);
-        assert_eq!(url, "https://www.steamgriddb.com/api/v2/grids/steam/440");
+        assert_eq!(
+            url,
+            "https://www.steamgriddb.com/api/v2/grids/steam/440?dimensions=460x215,920x430"
+        );
     }
 
     #[test]
@@ -132,6 +140,9 @@ mod tests {
     #[test]
     fn build_endpoint_capsule_uses_grids() {
         let url = build_endpoint("440", &GameImageType::Capsule);
-        assert_eq!(url, "https://www.steamgriddb.com/api/v2/grids/steam/440");
+        assert_eq!(
+            url,
+            "https://www.steamgriddb.com/api/v2/grids/steam/440?dimensions=342x482,600x900"
+        );
     }
 }

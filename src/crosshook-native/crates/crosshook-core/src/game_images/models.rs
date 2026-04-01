@@ -80,8 +80,25 @@ impl fmt::Display for GameImageError {
     }
 }
 
+impl std::error::Error for GameImageError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Io(error) => Some(error),
+            Self::Network(error) => Some(error),
+            Self::ClientBuild(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
 impl From<std::io::Error> for GameImageError {
     fn from(error: std::io::Error) -> Self {
         Self::Io(error)
+    }
+}
+
+impl From<reqwest::Error> for GameImageError {
+    fn from(error: reqwest::Error) -> Self {
+        Self::Network(error)
     }
 }

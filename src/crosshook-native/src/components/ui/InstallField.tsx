@@ -18,7 +18,9 @@ export function InstallField(props: {
 }) {
   return (
     <div className={props.className ? `crosshook-field ${props.className}` : 'crosshook-field'}>
-      <label className="crosshook-label">{props.label}</label>
+      <label htmlFor={props.id} className="crosshook-label">
+        {props.label}
+      </label>
       <div className="crosshook-install-field-control">
         <input
           id={props.id}

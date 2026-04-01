@@ -736,5 +736,14 @@ mod tests {
             )
             .unwrap();
         assert_eq!(idx, 1, "missing index idx_game_image_cache_app_type_source");
+
+        let expires_idx: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_game_image_cache_expires'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(expires_idx, 1, "missing index idx_game_image_cache_expires");
     }
 }

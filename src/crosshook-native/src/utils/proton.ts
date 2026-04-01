@@ -1,4 +1,4 @@
-import type { ProtonInstallOption } from '../components/ProfileFormSections';
+import type { ProtonInstallOption } from '../types/proton';
 
 export function formatProtonInstallLabel(
   install: ProtonInstallOption,

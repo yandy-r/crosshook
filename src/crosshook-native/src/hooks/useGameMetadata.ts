@@ -15,8 +15,11 @@ const idleLookup = (appId = ''): SteamMetadataLookupResult => ({
   is_stale: false,
 });
 
+const METADATA_LOOKUP_DEBOUNCE_MS = 400;
+
 function normalizeAppId(appId: string): string {
-  return appId.trim();
+  const trimmed = appId.trim();
+  return /^\d+$/.test(trimmed) ? trimmed : '';
 }
 
 function unavailableLookup(appId: string): SteamMetadataLookupResult {
@@ -140,7 +143,13 @@ export function useGameMetadata(steamAppId: string | undefined): UseGameMetadata
       return;
     }
 
-    void runLookup(false);
+    const timer = window.setTimeout(() => {
+      void runLookup(false);
+    }, METADATA_LOOKUP_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [normalizedAppId, runLookup]);
 
   const refresh = useCallback(async () => {

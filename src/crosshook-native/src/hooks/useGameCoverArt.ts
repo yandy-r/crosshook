@@ -28,6 +28,7 @@ export function useGameCoverArt(steamAppId: string | undefined): UseGameCoverArt
 
     const requestId = ++requestIdRef.current;
     setLoading(true);
+    setCoverArtUrl(null);
 
     try {
       const path = await invoke<string | null>('fetch_game_cover_art', {
@@ -66,6 +67,7 @@ export function useGameCoverArt(steamAppId: string | undefined): UseGameCoverArt
       return;
     }
 
+    setCoverArtUrl(null);
     void fetchCoverArt();
   }, [normalizedAppId, fetchCoverArt]);
 

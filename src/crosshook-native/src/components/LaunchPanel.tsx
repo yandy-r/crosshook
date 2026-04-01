@@ -608,6 +608,7 @@ export function LaunchPanel({ profileId, method, request, beforeActions, infoSlo
   const [diagnosticExpanded, setDiagnosticExpanded] = useState(false);
   const [diagnosticCopyLabel, setDiagnosticCopyLabel] = useState('Copy Report');
   const [verifyBusy, setVerifyBusy] = useState(false);
+  const launchGuidanceId = useId();
 
   const metadata = healthByName[profileId]?.metadata ?? null;
   const versionStatus = metadata?.version_status ?? null;
@@ -658,6 +659,7 @@ export function LaunchPanel({ profileId, method, request, beforeActions, infoSlo
   const visibleDiagnosticMatches = diagnosticExpanded ? diagnosticMatches : diagnosticMatches.slice(0, 3);
   const feedbackSeverity = diagnosticFeedback?.severity ?? validationFeedback?.severity ?? 'fatal';
   const feedbackLabel = feedbackSeverity === 'fatal' ? 'Fatal' : feedbackSeverity === 'warning' ? 'Warning' : 'Info';
+  const launchGuidanceText = [statusText, hintText].filter(Boolean).join(' — ');
 
   useEffect(() => {
     setDiagnosticExpanded(false);
@@ -828,15 +830,22 @@ export function LaunchPanel({ profileId, method, request, beforeActions, infoSlo
       {beforeActions}
 
       <div className="crosshook-launch-panel__actions">
-        <button
-          type="button"
-          className="crosshook-button crosshook-launch-panel__action"
-          onClick={primaryAction}
-          disabled={!canLaunch || isBusy}
-          title={[statusText, hintText].filter(Boolean).join(' \u2014 ')}
-        >
-          {actionLabel}
-        </button>
+        <div className="crosshook-launch-panel__action-block">
+          <button
+            type="button"
+            className="crosshook-button crosshook-launch-panel__action"
+            onClick={primaryAction}
+            disabled={!canLaunch || isBusy}
+            aria-describedby={launchGuidanceText ? launchGuidanceId : undefined}
+          >
+            {actionLabel}
+          </button>
+          {launchGuidanceText ? (
+            <span id={launchGuidanceId} className="crosshook-launch-panel__action-guidance">
+              {launchGuidanceText}
+            </span>
+          ) : null}
+        </div>
 
         <button
           type="button"
@@ -907,13 +916,13 @@ export function LaunchPanel({ profileId, method, request, beforeActions, infoSlo
                 : 'Native runner selected'}
           </span>
           <span
-            title={[statusText, hintText, helperLogPath ? `Log: ${helperLogPath}` : ''].filter(Boolean).join('\n')}
             aria-label="Launch status info"
             style={{ cursor: 'help', opacity: 0.6, fontSize: '0.85em' }}
           >
             &#9432;
           </span>
         </div>
+        {helperLogPath ? <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span> : null}
       </div>
 
       {showPreview && preview ? (

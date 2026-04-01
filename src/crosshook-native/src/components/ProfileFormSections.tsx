@@ -1,5 +1,4 @@
 import { useEffect, useId, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import ProtonDbLookupCard from './ProtonDbLookupCard';
@@ -10,17 +9,13 @@ import { GameSection } from './profile-sections/GameSection';
 import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
 import { TrainerSection } from './profile-sections/TrainerSection';
 import { RuntimeSection } from './profile-sections/RuntimeSection';
+import { useSetTrainerVersion } from '../hooks/useSetTrainerVersion';
 import type { GameProfile, LaunchMethod } from '../types';
+import type { ProtonInstallOption } from '../types/proton';
 import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { VersionCorrelationStatus } from '../types/version';
 import { mergeProtonDbEnvVarGroup, type ProtonDbEnvVarConflict } from '../utils/protondb';
 import { formatProtonInstallLabel } from '../utils/proton';
-
-export interface ProtonInstallOption {
-  name: string;
-  path: string;
-  is_official: boolean;
-}
 
 export type ProfileFormSectionsProfileSelector = {
   profiles: string[];
@@ -109,6 +104,7 @@ export function updateGameExecutablePath(current: GameProfile, nextExecutablePat
 
 export { deriveSteamClientInstallPath } from '../utils/steam';
 export { formatProtonInstallLabel } from '../utils/proton';
+export type { ProtonInstallOption } from '../types/proton';
 
 export function FieldRow(props: {
   label: string;
@@ -345,26 +341,13 @@ function ProfileSelectorField({
 
 export function TrainerVersionSetField({ profileName, onVersionSet }: { profileName: string; onVersionSet?: () => void }) {
   const [pendingVersion, setPendingVersion] = useState('');
-  const [setting, setSetting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
   const inputId = useId();
+  const { setting, error, success, setVersion, clearSuccess } = useSetTrainerVersion(profileName, onVersionSet);
 
   const handleSet = async () => {
-    const version = pendingVersion.trim();
-    if (!version) return;
-    setSetting(true);
-    setError(null);
-    setSuccess(false);
-    try {
-      await invoke('set_trainer_version', { name: profileName, version });
-      onVersionSet?.();
+    const saved = await setVersion(pendingVersion);
+    if (saved) {
       setPendingVersion('');
-      setSuccess(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSetting(false);
     }
   };
 
@@ -382,7 +365,7 @@ export function TrainerVersionSetField({ profileName, onVersionSet }: { profileN
           placeholder="e.g. v1.0.2 or 2024.01.15"
           onChange={(event: ChangeEvent<HTMLInputElement>) => {
             setPendingVersion(event.target.value);
-            setSuccess(false);
+            clearSuccess();
           }}
           onKeyDown={(event) => {
             if (event.key === 'Enter') void handleSet();
@@ -429,7 +412,6 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const [applyingProtonDbGroupId, setApplyingProtonDbGroupId] = useState<string | null>(null);
   const [protonDbStatusMessage, setProtonDbStatusMessage] = useState<string | null>(null);
 
-  const showProfileSelector = profileSelector !== undefined;
   const profiles = profileSelector?.profiles;
   const selectedProfile = profileSelector?.selectedProfile;
   const showProtonDbLookup = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
@@ -446,14 +428,22 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   }, [profileName, profile.steam.app_id, launchMethod]);
 
   const applyProtonDbGroup = (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
-    const merge = mergeProtonDbEnvVarGroup(profile.launch.custom_env_vars, group, overwriteKeys);
-    onUpdateProfile((current) => ({
-      ...current,
-      launch: {
-        ...current.launch,
-        custom_env_vars: merge.mergedEnvVars,
-      },
-    }));
+    const merge = {
+      appliedKeys: [] as string[],
+      unchangedKeys: [] as string[],
+    };
+    onUpdateProfile((current) => {
+      const nextMerge = mergeProtonDbEnvVarGroup(current.launch.custom_env_vars, group, overwriteKeys);
+      merge.appliedKeys = nextMerge.appliedKeys;
+      merge.unchangedKeys = nextMerge.unchangedKeys;
+      return {
+        ...current,
+        launch: {
+          ...current.launch,
+          custom_env_vars: nextMerge.mergedEnvVars,
+        },
+      };
+    });
     setApplyingProtonDbGroupId(null);
     setPendingProtonDbOverwrite(null);
 
@@ -632,10 +622,10 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
         profiles={profiles}
       />
 
-      {showProfileSelector ? (
+      {profileSelector ? (
         <ProfileSelectorField
           profileNamesListId={profileNamesListId}
-          profileSelector={profileSelector!}
+          profileSelector={profileSelector}
           selectedProfile={selectedProfile ?? ''}
         />
       ) : null}

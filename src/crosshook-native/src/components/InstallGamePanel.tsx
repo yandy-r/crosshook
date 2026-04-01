@@ -148,7 +148,15 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
         message: reviewableInstallResult.message,
       });
     },
-    [candidateOptions, logPath, onOpenProfileReview, request.profile_name, reviewProfile, reviewableInstallResult]
+    [
+      candidateOptions,
+      logPath,
+      onOpenProfileReview,
+      request.launcher_icon_path,
+      request.profile_name,
+      reviewProfile,
+      reviewableInstallResult,
+    ]
   );
 
   useEffect(() => {

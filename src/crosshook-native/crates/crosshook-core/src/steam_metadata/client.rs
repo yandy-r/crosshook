@@ -86,7 +86,8 @@ pub async fn lookup_steam_metadata(
         return SteamMetadataLookupResult::default();
     };
 
-    let cache_key = cache_key_for_app_id(&app_id);
+    let cache_key = cache_key_for_app_id(&app_id)
+        .expect("normalized app id must always produce a cache key");
     if !force_refresh {
         if let Some(valid_cache) = load_cached_lookup_row(store, &cache_key, false) {
             if let Some(result) = cached_result_from_row(&app_id, valid_cache, false) {
@@ -291,4 +292,3 @@ fn cached_result_from_row(
 
     Some(result)
 }
-

@@ -139,6 +139,16 @@ textarea {
   outline: none;
 }
 
+.crosshook-subtab-content__inner {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.crosshook-subtab-content__inner--wide-gap {
+  gap: 16px;
+}
+
 .crosshook-panel,
 .crosshook-card {
   background: linear-gradient(180deg, rgba(18, 23, 42, 0.96), rgba(12, 17, 32, 0.96));
@@ -2440,9 +2450,21 @@ textarea {
   flex-wrap: wrap;
 }
 
+.crosshook-launch-panel__action-block {
+  display: grid;
+  gap: 6px;
+  min-width: min(100%, 280px);
+}
+
 .crosshook-launch-panel__action {
   min-height: var(--crosshook-launch-panel-action-min-height);
   padding: 0 var(--crosshook-launch-panel-action-padding-inline);
+}
+
+.crosshook-launch-panel__action-guidance {
+  color: #9fb1c8;
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
 .crosshook-launch-panel__action:disabled {
@@ -4210,6 +4232,7 @@ textarea {
   --_tab-game-r: var(--crosshook-game-color-r, 0);
   --_tab-game-g: var(--crosshook-game-color-g, 120);
   --_tab-game-b: var(--crosshook-game-color-b, 212);
+
   position: relative;
   z-index: 2;
   margin-top: 0;
