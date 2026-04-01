@@ -350,15 +350,8 @@ mod launch_preset_metadata_tests {
             ..GameProfile::default()
         };
 
-        observe_profile_write(
-            &conn,
-            "demo",
-            &profile_v1,
-            path,
-            SyncSource::AppWrite,
-            None,
-        )
-        .expect("observe v1");
+        observe_profile_write(&conn, "demo", &profile_v1, path, SyncSource::AppWrite, None)
+            .expect("observe v1");
 
         let h1: Option<String> = conn
             .query_row(
@@ -371,23 +364,19 @@ mod launch_preset_metadata_tests {
             .flatten();
 
         let mut launch = launch;
-        launch.presets.get_mut("p").expect("preset").enabled_option_ids =
-            vec!["enable_hdr".to_string()];
+        launch
+            .presets
+            .get_mut("p")
+            .expect("preset")
+            .enabled_option_ids = vec!["enable_hdr".to_string()];
 
         let profile_v2 = GameProfile {
             launch,
             ..GameProfile::default()
         };
 
-        observe_profile_write(
-            &conn,
-            "demo",
-            &profile_v2,
-            path,
-            SyncSource::AppWrite,
-            None,
-        )
-        .expect("observe v2");
+        observe_profile_write(&conn, "demo", &profile_v2, path, SyncSource::AppWrite, None)
+            .expect("observe v2");
 
         let h2: Option<String> = conn
             .query_row(

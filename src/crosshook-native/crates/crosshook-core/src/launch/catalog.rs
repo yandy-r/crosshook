@@ -85,7 +85,13 @@ impl OptimizationCatalog {
     }
 }
 
-const VALID_CATEGORIES: &[&str] = &["input", "performance", "display", "graphics", "compatibility"];
+const VALID_CATEGORIES: &[&str] = &[
+    "input",
+    "performance",
+    "display",
+    "graphics",
+    "compatibility",
+];
 
 /// Parses a TOML catalog text, validates each entry, and returns valid entries
 /// plus a list of warning strings for skipped entries.
@@ -115,17 +121,11 @@ pub fn parse_catalog_toml(
             continue;
         }
         if !seen_ids.insert(entry.id.clone()) {
-            warnings.push(format!(
-                "skipping duplicate optimization id: {}",
-                entry.id
-            ));
+            warnings.push(format!("skipping duplicate optimization id: {}", entry.id));
             continue;
         }
         if entry.label.is_empty() {
-            warnings.push(format!(
-                "skipping optimization '{}': empty label",
-                entry.id
-            ));
+            warnings.push(format!("skipping optimization '{}': empty label", entry.id));
             continue;
         }
         if entry.category.is_empty() {
@@ -340,11 +340,7 @@ mod tests {
 
     #[test]
     fn merge_user_override_replaces_in_position() {
-        let defaults = vec![
-            test_entry("a"),
-            test_entry("b"),
-            test_entry("c"),
-        ];
+        let defaults = vec![test_entry("a"), test_entry("b"), test_entry("c")];
         let mut b_new = test_entry("b");
         b_new.label = "Override B".to_string();
         let overrides = vec![b_new];
@@ -417,7 +413,8 @@ mod tests {
         );
         let override_path = temp_dir.path().join("optimization_catalog.toml");
         let mut f = std::fs::File::create(&override_path).expect("create override file");
-        f.write_all(override_toml.as_bytes()).expect("write override");
+        f.write_all(override_toml.as_bytes())
+            .expect("write override");
 
         let catalog = load_catalog(Some(temp_dir.path()), &[]);
 

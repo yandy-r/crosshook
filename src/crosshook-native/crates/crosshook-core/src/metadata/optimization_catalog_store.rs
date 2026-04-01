@@ -11,10 +11,12 @@ pub fn persist_optimization_catalog(
     entries: &[OptimizationEntry],
     catalog_version: u32,
 ) -> Result<(), MetadataStoreError> {
-    let tx = conn.transaction().map_err(|source| MetadataStoreError::Database {
-        action: "begin optimization catalog transaction",
-        source,
-    })?;
+    let tx = conn
+        .transaction()
+        .map_err(|source| MetadataStoreError::Database {
+            action: "begin optimization catalog transaction",
+            source,
+        })?;
 
     tx.execute("DELETE FROM optimization_catalog", [])
         .map_err(|source| MetadataStoreError::Database {
@@ -33,7 +35,11 @@ pub fn persist_optimization_catalog(
         let applicable_methods_json =
             serde_json::to_string(&entry.applicable_methods).unwrap_or_else(|_| "[]".to_string());
 
-        let source = if entry.community { "community" } else { "default" };
+        let source = if entry.community {
+            "community"
+        } else {
+            "default"
+        };
 
         tx.execute(
             "INSERT INTO optimization_catalog (

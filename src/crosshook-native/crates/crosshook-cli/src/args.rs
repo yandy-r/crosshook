@@ -246,14 +246,8 @@ mod tests {
 
     #[test]
     fn parses_launch_dry_run_flag() {
-        let cli = Cli::try_parse_from([
-            "crosshook",
-            "launch",
-            "--profile",
-            "test",
-            "--dry-run",
-        ])
-        .expect("parser should accept launch with --dry-run");
+        let cli = Cli::try_parse_from(["crosshook", "launch", "--profile", "test", "--dry-run"])
+            .expect("parser should accept launch with --dry-run");
 
         match cli.command {
             Command::Launch(command) => {

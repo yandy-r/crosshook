@@ -1,6 +1,6 @@
 use crosshook_core::metadata::{
-    BundledOptimizationPresetRow, ConfigRevisionSource, MetadataStore, MetadataStoreError,
-    ProfileLaunchPresetOrigin, SyncSource, sha256_hex, MAX_HISTORY_LIST_LIMIT,
+    sha256_hex, BundledOptimizationPresetRow, ConfigRevisionSource, MetadataStore,
+    MetadataStoreError, ProfileLaunchPresetOrigin, SyncSource, MAX_HISTORY_LIST_LIMIT,
 };
 use crosshook_core::profile::{
     bundled_optimization_preset_toml_key, DuplicateProfileResult, GameProfile, MangoHudConfig,
@@ -190,14 +190,11 @@ pub struct BundledOptimizationPresetDto {
     pub catalog_version: i64,
 }
 
-fn bundled_row_to_dto(row: BundledOptimizationPresetRow) -> Result<BundledOptimizationPresetDto, String> {
-    let enabled_option_ids: Vec<String> =
-        serde_json::from_str(&row.option_ids_json).map_err(|e| {
-            format!(
-                "corrupt bundled preset {} option list: {e}",
-                row.preset_id
-            )
-        })?;
+fn bundled_row_to_dto(
+    row: BundledOptimizationPresetRow,
+) -> Result<BundledOptimizationPresetDto, String> {
+    let enabled_option_ids: Vec<String> = serde_json::from_str(&row.option_ids_json)
+        .map_err(|e| format!("corrupt bundled preset {} option list: {e}", row.preset_id))?;
     Ok(BundledOptimizationPresetDto {
         preset_id: row.preset_id,
         display_name: row.display_name,
@@ -252,7 +249,13 @@ pub fn profile_save(
         tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save failed");
     }
 
-    capture_config_revision(&name, &data, ConfigRevisionSource::ManualSave, None, &metadata_store);
+    capture_config_revision(
+        &name,
+        &data,
+        ConfigRevisionSource::ManualSave,
+        None,
+        &metadata_store,
+    );
 
     emit_profiles_changed(&app, "saved");
     Ok(())
@@ -373,12 +376,7 @@ pub fn profile_apply_bundled_optimization_preset(
 
     let toml_key = bundled_optimization_preset_toml_key(&row.preset_id);
     store
-        .materialize_launch_optimization_preset(
-            profile_name,
-            &toml_key,
-            enabled_option_ids,
-            true,
-        )
+        .materialize_launch_optimization_preset(profile_name, &toml_key, enabled_option_ids, true)
         .map_err(map_error)?;
 
     let updated = store.load(profile_name).map_err(map_error)?;
@@ -604,7 +602,13 @@ pub fn profile_import_legacy(
         tracing::warn!(%e, profile_name = %stem, "metadata sync after import_legacy failed");
     }
 
-    capture_config_revision(stem, &profile, ConfigRevisionSource::Import, None, &metadata_store);
+    capture_config_revision(
+        stem,
+        &profile,
+        ConfigRevisionSource::Import,
+        None,
+        &metadata_store,
+    );
 
     emit_profiles_changed(&app, "imported-legacy");
     Ok(profile)
@@ -855,9 +859,7 @@ pub fn profile_config_history(
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<Vec<ConfigRevisionSummary>, String> {
     if !metadata_store.is_available() {
-        return Err(
-            "config history is unavailable — metadata store is not accessible".to_string(),
-        );
+        return Err("config history is unavailable — metadata store is not accessible".to_string());
     }
 
     let profile_id = match metadata_store
@@ -868,7 +870,11 @@ pub fn profile_config_history(
         None => return Ok(Vec::new()),
     };
 
-    let capped_limit = Some(limit.unwrap_or(MAX_HISTORY_LIST_LIMIT).min(MAX_HISTORY_LIST_LIMIT));
+    let capped_limit = Some(
+        limit
+            .unwrap_or(MAX_HISTORY_LIST_LIMIT)
+            .min(MAX_HISTORY_LIST_LIMIT),
+    );
     let rows = metadata_store
         .list_config_revisions(&profile_id, capped_limit)
         .map_err(|e| e.to_string())?;
@@ -933,9 +939,7 @@ pub fn profile_config_diff(
             .get_config_revision(&profile_id, right_id)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| {
-                format!(
-                    "revision {right_id} not found or does not belong to profile '{name}'"
-                )
+                format!("revision {right_id} not found or does not belong to profile '{name}'")
             })?;
         (right_row.snapshot_toml, format!("revision/{right_id}"))
     } else {
@@ -946,8 +950,12 @@ pub fn profile_config_diff(
     };
 
     let left_label = format!("revision/{revision_id}");
-    let (diff_text, added_lines, removed_lines, truncated) =
-        compute_unified_diff(&left_label, &right_label, &left_row.snapshot_toml, &right_text);
+    let (diff_text, added_lines, removed_lines, truncated) = compute_unified_diff(
+        &left_label,
+        &right_label,
+        &left_row.snapshot_toml,
+        &right_text,
+    );
 
     if diff_text.len() > MAX_DIFF_OUTPUT_BYTES {
         return Err(format!(
@@ -1079,9 +1087,7 @@ pub fn profile_mark_known_good(
         .set_known_good_revision(&profile_id, revision_id)
         .map_err(|e| match e {
             MetadataStoreError::Corrupt(_) => {
-                format!(
-                    "revision {revision_id} not found or does not belong to profile '{name}'"
-                )
+                format!("revision {revision_id} not found or does not belong to profile '{name}'")
             }
             _ => e.to_string(),
         })?;

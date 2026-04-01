@@ -483,10 +483,7 @@ fn validate_branch_name(branch: &str) -> Result<(), CommunityTapError> {
 ///
 /// Rejects `file://`, `git://`, bare paths, and any other scheme not explicitly permitted.
 fn validate_tap_url(url: &str) -> Result<(), CommunityTapError> {
-    if url.starts_with("https://")
-        || url.starts_with("ssh://git@")
-        || url.starts_with("git@")
-    {
+    if url.starts_with("https://") || url.starts_with("ssh://git@") || url.starts_with("git@") {
         Ok(())
     } else {
         Err(CommunityTapError::InvalidTapUrl(url.to_string()))
@@ -724,10 +721,7 @@ mod tests {
 
     #[test]
     fn git_security_env_pairs_include_config_isolation() {
-        let keys: Vec<_> = git_security_env_pairs()
-            .iter()
-            .map(|(k, _)| *k)
-            .collect();
+        let keys: Vec<_> = git_security_env_pairs().iter().map(|(k, _)| *k).collect();
         assert!(keys.contains(&"GIT_CONFIG_NOSYSTEM"));
         assert!(keys.contains(&"GIT_CONFIG_GLOBAL"));
         assert!(keys.contains(&"GIT_TERMINAL_PROMPT"));

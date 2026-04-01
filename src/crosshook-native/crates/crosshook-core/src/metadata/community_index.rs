@@ -372,11 +372,17 @@ fn map_community_profile_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Commun
 mod tests {
     use super::*;
     use crate::community::index::CommunityProfileIndexEntry;
-    use crate::community::{CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating};
+    use crate::community::{
+        CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating,
+    };
     use crate::profile::GameProfile;
     use std::path::PathBuf;
 
-    fn make_entry(game_version: String, trainer_version: String, proton_version: String) -> CommunityProfileIndexEntry {
+    fn make_entry(
+        game_version: String,
+        trainer_version: String,
+        proton_version: String,
+    ) -> CommunityProfileIndexEntry {
         CommunityProfileIndexEntry {
             tap_url: "https://example.invalid".to_string(),
             tap_branch: None,
@@ -404,21 +410,30 @@ mod tests {
     fn rejects_oversized_game_version() {
         let entry = make_entry("a".repeat(257), String::new(), String::new());
         let err = check_a6_bounds(&entry).unwrap_err();
-        assert!(err.contains("game_version"), "expected game_version in error: {err}");
+        assert!(
+            err.contains("game_version"),
+            "expected game_version in error: {err}"
+        );
     }
 
     #[test]
     fn rejects_oversized_trainer_version() {
         let entry = make_entry(String::new(), "a".repeat(257), String::new());
         let err = check_a6_bounds(&entry).unwrap_err();
-        assert!(err.contains("trainer_version"), "expected trainer_version in error: {err}");
+        assert!(
+            err.contains("trainer_version"),
+            "expected trainer_version in error: {err}"
+        );
     }
 
     #[test]
     fn rejects_oversized_proton_version() {
         let entry = make_entry(String::new(), String::new(), "a".repeat(257));
         let err = check_a6_bounds(&entry).unwrap_err();
-        assert!(err.contains("proton_version"), "expected proton_version in error: {err}");
+        assert!(
+            err.contains("proton_version"),
+            "expected proton_version in error: {err}"
+        );
     }
 
     #[test]

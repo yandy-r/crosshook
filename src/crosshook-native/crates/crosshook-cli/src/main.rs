@@ -15,7 +15,9 @@ use crosshook_core::launch::{
     self, build_launch_preview, LaunchRequest, RuntimeLaunchConfig, SteamLaunchConfig,
     ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
-use crosshook_core::profile::{export_community_profile, resolve_launch_method, GameProfile, ProfileStore};
+use crosshook_core::profile::{
+    export_community_profile, resolve_launch_method, GameProfile, ProfileStore,
+};
 use crosshook_core::settings::SettingsStore;
 use crosshook_core::steam::discovery::discover_steam_root_candidates;
 use crosshook_core::steam::libraries::discover_steam_libraries;
@@ -124,10 +126,7 @@ async fn run() -> Result<(), CliError> {
     Ok(())
 }
 
-async fn launch_profile(
-    command: LaunchCommand,
-    global: &GlobalOptions,
-) -> Result<(), CliError> {
+async fn launch_profile(command: LaunchCommand, global: &GlobalOptions) -> Result<(), CliError> {
     let profile_name = command
         .profile
         .or_else(|| global.profile.clone())
@@ -406,10 +405,7 @@ async fn handle_profile_command(
     Ok(())
 }
 
-async fn handle_steam_command(
-    command: SteamArgs,
-    global: &GlobalOptions,
-) -> Result<(), CliError> {
+async fn handle_steam_command(command: SteamArgs, global: &GlobalOptions) -> Result<(), CliError> {
     match command.command {
         SteamCommand::Discover => {
             let mut diagnostics: Vec<String> = Vec::new();
@@ -679,10 +675,19 @@ async fn handle_status_command(global: &GlobalOptions) -> Result<(), CliError> {
         if let Some(settings) = settings_data {
             println!();
             println!("Settings:");
-            println!("  auto_load_last_profile: {}", settings.auto_load_last_profile);
+            println!(
+                "  auto_load_last_profile: {}",
+                settings.auto_load_last_profile
+            );
             println!("  last_used_profile:      {}", settings.last_used_profile);
-            println!("  community_taps:         {}", settings.community_taps.len());
-            println!("  onboarding_completed:   {}", settings.onboarding_completed);
+            println!(
+                "  community_taps:         {}",
+                settings.community_taps.len()
+            );
+            println!(
+                "  onboarding_completed:   {}",
+                settings.onboarding_completed
+            );
         }
     }
 
@@ -692,9 +697,8 @@ async fn handle_status_command(global: &GlobalOptions) -> Result<(), CliError> {
 fn profile_store(profile_dir: Option<PathBuf>) -> Result<ProfileStore, CliError> {
     match profile_dir {
         Some(path) => Ok(ProfileStore::with_base_path(path)),
-        None => ProfileStore::try_new().map_err(|e| {
-            CliError::General(format!("failed to initialize profile store: {e}"))
-        }),
+        None => ProfileStore::try_new()
+            .map_err(|e| CliError::General(format!("failed to initialize profile store: {e}"))),
     }
 }
 
@@ -717,14 +721,10 @@ fn launch_request_from_profile(
                 app_id: profile.steam.app_id.clone(),
                 compatdata_path: profile.steam.compatdata_path.clone(),
                 proton_path: profile.steam.proton_path.clone(),
-                steam_client_install_path: steam_client_install_path
-                    .to_string_lossy()
-                    .into_owned(),
+                steam_client_install_path: steam_client_install_path.to_string_lossy().into_owned(),
             },
             _ => SteamLaunchConfig {
-                steam_client_install_path: steam_client_install_path
-                    .to_string_lossy()
-                    .into_owned(),
+                steam_client_install_path: steam_client_install_path.to_string_lossy().into_owned(),
                 ..Default::default()
             },
         },

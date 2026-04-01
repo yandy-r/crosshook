@@ -376,7 +376,10 @@ mod tests {
 
         let limited = list_config_revisions(&conn, "profile-1", Some(2)).unwrap();
         assert_eq!(limited.len(), 2, "limit parameter must be honoured");
-        assert_eq!(limited[0].content_hash, "hash3", "newest within limit first");
+        assert_eq!(
+            limited[0].content_hash, "hash3",
+            "newest within limit first"
+        );
         assert_eq!(limited[1].content_hash, "hash2");
     }
 
@@ -604,7 +607,10 @@ mod tests {
         let r1 = get_config_revision(&conn, "profile-1", id1)
             .unwrap()
             .unwrap();
-        assert!(r1.is_last_known_working, "initial known-good marker must be set");
+        assert!(
+            r1.is_last_known_working,
+            "initial known-good marker must be set"
+        );
 
         // Supersede: mark id2 as known-good
         set_known_good_revision(&conn, "profile-1", id2).unwrap();
@@ -656,7 +662,10 @@ mod tests {
         let r = get_config_revision(&conn, "profile-1", id)
             .unwrap()
             .unwrap();
-        assert!(!r.is_last_known_working, "known-good marker must be cleared");
+        assert!(
+            !r.is_last_known_working,
+            "known-good marker must be cleared"
+        );
     }
 
     // ── get / ownership ───────────────────────────────────────────────────────
@@ -734,10 +743,7 @@ mod tests {
         );
 
         let get_result = store.get_config_revision("profile-1", 1).unwrap();
-        assert!(
-            get_result.is_none(),
-            "disabled store get must return None"
-        );
+        assert!(get_result.is_none(), "disabled store get must return None");
 
         assert!(
             store.set_known_good_revision("profile-1", 1).is_ok(),

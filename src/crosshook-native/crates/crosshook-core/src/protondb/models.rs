@@ -249,13 +249,22 @@ mod tests {
         let known: ProtonDbTier =
             serde_json::from_str(r#""gold""#).expect("gold tier should deserialize");
         assert_eq!(known, ProtonDbTier::Gold);
-        assert_eq!(known.legacy_compatibility_rating(), CompatibilityRating::Working);
+        assert_eq!(
+            known.legacy_compatibility_rating(),
+            CompatibilityRating::Working
+        );
 
-        let unknown: ProtonDbTier =
-            serde_json::from_str(r#""experimental-tier""#).expect("unknown tier should deserialize");
-        assert_eq!(unknown, ProtonDbTier::Other("experimental-tier".to_string()));
+        let unknown: ProtonDbTier = serde_json::from_str(r#""experimental-tier""#)
+            .expect("unknown tier should deserialize");
+        assert_eq!(
+            unknown,
+            ProtonDbTier::Other("experimental-tier".to_string())
+        );
         assert_eq!(unknown.as_str(), "experimental-tier");
-        assert_eq!(serde_json::to_string(&unknown).expect("serialize unknown tier"), r#""experimental-tier""#);
+        assert_eq!(
+            serde_json::to_string(&unknown).expect("serialize unknown tier"),
+            r#""experimental-tier""#
+        );
     }
 
     #[test]

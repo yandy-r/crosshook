@@ -111,9 +111,7 @@ pub(crate) fn resolve_directives_with_catalog(
             let value = &pair[1];
 
             if !catalog.allowed_env_keys.contains(key.as_str()) {
-                return Err(ValidationError::UnknownLaunchOptimization(
-                    entry.id.clone(),
-                ));
+                return Err(ValidationError::UnknownLaunchOptimization(entry.id.clone()));
             }
 
             directives.env.push((key.clone(), value.clone()));
@@ -267,8 +265,12 @@ mod tests {
     use crate::launch::catalog;
 
     fn make_test_catalog() -> OptimizationCatalog {
-        let (entries, warnings) = catalog::parse_catalog_toml(catalog::DEFAULT_CATALOG_TOML, "test");
-        assert!(warnings.is_empty(), "default catalog must parse cleanly: {warnings:?}");
+        let (entries, warnings) =
+            catalog::parse_catalog_toml(catalog::DEFAULT_CATALOG_TOML, "test");
+        assert!(
+            warnings.is_empty(),
+            "default catalog must parse cleanly: {warnings:?}"
+        );
         OptimizationCatalog::from_entries(entries)
     }
 
@@ -290,9 +292,8 @@ mod tests {
         let catalog = make_test_catalog();
         let ids = vec!["enable_hdr".to_string(), "disable_steam_input".to_string()];
 
-        let directives =
-            resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
-                .expect("resolve directives");
+        let directives = resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
+            .expect("resolve directives");
 
         assert_eq!(
             directives.env,
@@ -315,10 +316,12 @@ mod tests {
         let _command_search_path =
             crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
 
-        let ids = vec!["use_gamemode".to_string(), "show_mangohud_overlay".to_string()];
-        let directives =
-            resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
-                .expect("resolve directives");
+        let ids = vec![
+            "use_gamemode".to_string(),
+            "show_mangohud_overlay".to_string(),
+        ];
+        let directives = resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
+            .expect("resolve directives");
 
         assert_eq!(directives.wrappers, vec!["mangohud", "gamemoderun"]);
         assert!(directives.env.is_empty());
@@ -341,9 +344,8 @@ mod tests {
         .map(str::to_string)
         .collect();
 
-        let directives =
-            resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
-                .expect("resolve directives");
+        let directives = resolve_directives_with_catalog(&ids, METHOD_PROTON_RUN, &catalog)
+            .expect("resolve directives");
 
         assert_eq!(
             directives.env,

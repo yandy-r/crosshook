@@ -87,7 +87,9 @@ fn locate_manifest_for_app(app_id: &str, steam_client_path: &str) -> Option<Path
 }
 
 /// Derive the Steam client install path from a profile's compatdata path.
-fn steam_client_install_path_from_profile(profile: &crosshook_core::profile::GameProfile) -> String {
+fn steam_client_install_path_from_profile(
+    profile: &crosshook_core::profile::GameProfile,
+) -> String {
     const STEAM_COMPATDATA_MARKER: &str = "/steamapps/compatdata/";
     let compatdata_path = profile.steam.compatdata_path.trim().replace('\\', "/");
     compatdata_path
@@ -147,9 +149,13 @@ pub fn check_version_status(
 
     let status = compute_correlation_status(
         &current_build_id_raw,
-        snapshot_row.as_ref().and_then(|r| r.steam_build_id.as_deref()),
+        snapshot_row
+            .as_ref()
+            .and_then(|r| r.steam_build_id.as_deref()),
         current_trainer_hash.as_deref(),
-        snapshot_row.as_ref().and_then(|r| r.trainer_file_hash.as_deref()),
+        snapshot_row
+            .as_ref()
+            .and_then(|r| r.trainer_file_hash.as_deref()),
         state_flags,
     );
 

@@ -1,12 +1,14 @@
-use crosshook_core::metadata::{DriftState, HealthSnapshotRow, MetadataStore, OfflineReadinessRow, VersionSnapshotRow};
+use crosshook_core::metadata::{
+    DriftState, HealthSnapshotRow, MetadataStore, OfflineReadinessRow, VersionSnapshotRow,
+};
 use crosshook_core::offline::OfflineReadinessReport;
 use crosshook_core::profile::health::{
     batch_check_health, batch_check_health_with_enrich, check_profile_health, HealthCheckSummary,
     HealthIssue, HealthIssueSeverity, HealthStatus, ProfileHealthReport,
 };
 use crosshook_core::profile::{GameProfile, ProfileStore};
-use crosshook_core::steam::manifest::parse_manifest_full;
 use crosshook_core::steam::libraries::discover_steam_libraries;
+use crosshook_core::steam::manifest::parse_manifest_full;
 use crosshook_core::steam::{discover_steam_root_candidates, SteamLibrary};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -154,7 +156,11 @@ fn live_steam_build_id_for_profile(profile: &GameProfile) -> Option<String> {
     let mut diagnostics = Vec::new();
     let configured = steam_client_install_path_from_profile(profile);
     let steam_roots = discover_steam_root_candidates(
-        if configured.is_empty() { "" } else { configured.as_str() },
+        if configured.is_empty() {
+            ""
+        } else {
+            configured.as_str()
+        },
         &mut diagnostics,
     );
     let libraries = discover_steam_libraries(&steam_roots, &mut diagnostics);
@@ -190,7 +196,11 @@ fn live_steam_build_ids_for_profiles(
     for (steam_path, entries) in by_steam_path {
         let mut diagnostics = Vec::new();
         let steam_roots = discover_steam_root_candidates(
-            if steam_path.is_empty() { "" } else { steam_path.as_str() },
+            if steam_path.is_empty() {
+                ""
+            } else {
+                steam_path.as_str()
+            },
             &mut diagnostics,
         );
         let libraries = discover_steam_libraries(&steam_roots, &mut diagnostics);
@@ -341,7 +351,10 @@ fn enrich_profile(
     // Inject version mismatch as a Warning health issue (BR-6: Warning, not Error)
     let mut report = report;
     if let Some(ref status) = version_status {
-        if matches!(status.as_str(), "game_updated" | "trainer_changed" | "both_changed") {
+        if matches!(
+            status.as_str(),
+            "game_updated" | "trainer_changed" | "both_changed"
+        ) {
             let (message, remediation) = match status.as_str() {
                 "game_updated" => (
                     "Game version has changed since last successful launch".to_string(),
@@ -610,7 +623,10 @@ pub fn get_cached_offline_readiness_snapshots(
     let rows = metadata_store
         .load_offline_readiness_snapshot_rows()
         .map_err(|e| e.to_string())?;
-    Ok(rows.into_iter().map(CachedOfflineReadinessSnapshot::from).collect())
+    Ok(rows
+        .into_iter()
+        .map(CachedOfflineReadinessSnapshot::from)
+        .collect())
 }
 
 /// Returns the health check result for a single named profile, enriched with
@@ -636,15 +652,17 @@ pub fn get_profile_health(
 
     let mut offline_readiness: Option<OfflineReadinessBrief> = None;
     if let Some(pid) = metadata_store.lookup_profile_id(&name).ok().flatten() {
-        if let Ok(Some(off)) = metadata_store.with_sqlite_conn("get_profile_health offline", |conn| {
-            crosshook_core::offline::enrich_health_report_with_offline(
-                conn,
-                &name,
-                &pid,
-                &profile,
-                &mut report,
-            )
-        }) {
+        if let Ok(Some(off)) =
+            metadata_store.with_sqlite_conn("get_profile_health offline", |conn| {
+                crosshook_core::offline::enrich_health_report_with_offline(
+                    conn,
+                    &name,
+                    &pid,
+                    &profile,
+                    &mut report,
+                )
+            })
+        {
             offline_readiness = Some(OfflineReadinessBrief::from(&off));
         }
     }
@@ -684,8 +702,12 @@ pub fn get_profile_health(
             .flatten()
     });
     let version_status = version_snapshot.as_ref().map(|s| s.status.clone());
-    let snapshot_build_id = version_snapshot.as_ref().and_then(|s| s.steam_build_id.clone());
-    let trainer_version = version_snapshot.as_ref().and_then(|s| s.trainer_version.clone());
+    let snapshot_build_id = version_snapshot
+        .as_ref()
+        .and_then(|s| s.steam_build_id.clone());
+    let trainer_version = version_snapshot
+        .as_ref()
+        .and_then(|s| s.trainer_version.clone());
     let current_build_id = live_steam_build_id_for_profile(&profile);
 
     Ok(EnrichedProfileHealthReport {

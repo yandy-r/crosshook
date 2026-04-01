@@ -102,10 +102,7 @@ pub fn parse_trainer_type_catalog_toml(
             continue;
         }
         if !seen_ids.insert(entry.id.clone()) {
-            warnings.push(format!(
-                "skipping duplicate trainer_type id: {}",
-                entry.id
-            ));
+            warnings.push(format!("skipping duplicate trainer_type id: {}", entry.id));
             continue;
         }
         valid.push(entry);

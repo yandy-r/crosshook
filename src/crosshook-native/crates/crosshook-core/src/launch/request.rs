@@ -44,7 +44,11 @@ pub struct LaunchRequest {
     pub launch_game_only: bool,
     #[serde(default)]
     pub profile_name: Option<String>,
-    #[serde(rename = "custom_env_vars", default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(
+        rename = "custom_env_vars",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
     pub custom_env_vars: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
     pub gamescope: GamescopeConfig,
@@ -229,7 +233,9 @@ pub enum ValidationError {
     /// Running inside an existing gamescope session without `allow_nested`.
     GamescopeNestedSession,
     /// Only one of width/height was set for a resolution pair.
-    GamescopeResolutionPairIncomplete { pair: String },
+    GamescopeResolutionPairIncomplete {
+        pair: String,
+    },
     /// FSR sharpness value is outside the valid range (0–20).
     GamescopeFsrSharpnessOutOfRange(u8),
     /// Fullscreen and borderless are mutually exclusive in gamescope.
@@ -625,9 +631,7 @@ fn collect_custom_env_issues(request: &LaunchRequest, issues: &mut Vec<LaunchVal
 fn collect_gamescope_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidationIssue>) {
     let method = request.resolved_method();
     if method != METHOD_PROTON_RUN {
-        issues.push(
-            ValidationError::GamescopeNotSupportedForMethod(method.to_string()).issue(),
-        );
+        issues.push(ValidationError::GamescopeNotSupportedForMethod(method.to_string()).issue());
         return;
     }
 
@@ -1409,7 +1413,9 @@ mod tests {
             .insert("WINEPREFIX".to_string(), "/tmp/evil".to_string());
         assert_eq!(
             validate(&request),
-            Err(ValidationError::CustomEnvVarReservedKey("WINEPREFIX".to_string()))
+            Err(ValidationError::CustomEnvVarReservedKey(
+                "WINEPREFIX".to_string()
+            ))
         );
     }
 
@@ -1431,7 +1437,10 @@ mod tests {
         request
             .custom_env_vars
             .insert("   ".to_string(), "1".to_string());
-        assert_eq!(validate(&request), Err(ValidationError::CustomEnvVarKeyEmpty));
+        assert_eq!(
+            validate(&request),
+            Err(ValidationError::CustomEnvVarKeyEmpty)
+        );
     }
 
     #[test]

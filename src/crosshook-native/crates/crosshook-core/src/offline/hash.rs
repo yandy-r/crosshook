@@ -79,4 +79,3 @@ pub fn verify_and_cache_trainer_hash(
         file_size,
     }))
 }
-

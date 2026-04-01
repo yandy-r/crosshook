@@ -191,7 +191,9 @@ pub async fn run_version_scan(app_handle: AppHandle) {
         };
 
         let snapshot_build_id = snapshot.as_ref().and_then(|s| s.steam_build_id.as_deref());
-        let snapshot_trainer_hash = snapshot.as_ref().and_then(|s| s.trainer_file_hash.as_deref());
+        let snapshot_trainer_hash = snapshot
+            .as_ref()
+            .and_then(|s| s.trainer_file_hash.as_deref());
 
         let status = compute_correlation_status(
             &manifest.build_id,
@@ -225,7 +227,10 @@ fn emit_version_scan_complete(app_handle: &AppHandle, scanned: u32, mismatches: 
 
     match app_handle.emit(
         "version-scan-complete",
-        &VersionScanComplete { scanned, mismatches },
+        &VersionScanComplete {
+            scanned,
+            mismatches,
+        },
     ) {
         Ok(()) => tracing::info!(scanned, mismatches, "startup version scan complete"),
         Err(e) => tracing::warn!(%e, "failed to emit version-scan-complete event"),

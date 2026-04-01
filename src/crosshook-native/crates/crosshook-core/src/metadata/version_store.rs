@@ -1,5 +1,5 @@
 use super::models::{
-    MAX_VERSION_SNAPSHOTS_PER_PROFILE, VersionCorrelationStatus, VersionSnapshotRow,
+    VersionCorrelationStatus, VersionSnapshotRow, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
 use super::MetadataStoreError;
 use chrono::Utc;
