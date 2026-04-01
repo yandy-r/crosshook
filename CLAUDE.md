@@ -43,7 +43,7 @@ For storage changes, plans must also:
 ## Labels (use only these families)
 
 - `type:` bug, feature, docs, refactor, compatibility, build, migration
-- `area:` injection, memory, process, ui, build, profiles, cli
+- `area:` injection, memory, process, ui, build, profiles, cli, launch, security
 - `platform:` steam-deck, linux, macos, wine, proton
 - `priority:` critical, high, medium, low
 - `status:` needs-triage, in-progress, blocked, needs-info

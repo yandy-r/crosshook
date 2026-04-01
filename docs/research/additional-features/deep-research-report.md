@@ -347,7 +347,7 @@ Future feature scoring and prioritization should treat persistence/usability fit
 - Is degraded/failure behavior defined when persistence is unavailable?
 - Is user visibility/editability of persisted data explicit?
 
-**Retroactive application**: P2 features identified before the metadata DB existed should be reviewed against these criteria before implementation begins. Issues #52 (game metadata / cover art), #60 (settings expansion), and #61 (prefix health monitoring) have been updated with storage boundary notes in `implementation-guide.md`. Remaining P2 features should be reviewed at planning time.
+**Retroactive application**: P2 features identified before the metadata DB existed should be reviewed against these criteria before implementation begins. Issues #52 (game metadata / cover art), #60 (settings expansion), #61 (prefix health monitoring), and #62 (network isolation) have been updated with storage boundary notes in `implementation-guide.md`. Remaining P2 features should be reviewed at planning time.
 
 ### Phase 1: 8 Asymmetric Research Personas
 

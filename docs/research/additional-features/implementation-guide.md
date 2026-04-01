@@ -243,6 +243,27 @@ Issue #52's original text says "cache images locally alongside profile TOML file
 
 Acceptance criteria for `#52` planning must include explicit persistence rationale plus migration, offline, degraded-mode, and visibility/editability behavior.
 
+### Issue #62 Storage Boundary Note
+
+When planning `#62` (network isolation for trainers via `unshare --net`), the core deliverable is a per-profile toggle. Apply the storage checkpoint:
+
+**Datum classification:**
+
+| Datum | Layer | Reasoning |
+| --- | --- | --- |
+| Per-profile "Isolate trainer network" toggle | Profile TOML (`network_isolation` field) | User-editable per-profile preference; belongs alongside other launch wrapper toggles in the profile config |
+| Isolation active state at launch time | Runtime-only (in-memory) | Ephemeral; the `unshare --net` wrapper is prepended to the command at launch and not persisted beyond the process |
+| Network isolation outcome per launch | SQLite `launch_operations.diagnostic_json` (existing column) | Launch diagnostics already capture the wrapper chain; no new column or migration needed |
+
+**Persistence/usability summary:**
+
+- **Migration/backward compatibility**: The new `network_isolation` field in profile TOML should default to `true` (on). Existing profiles without the field use the default — `serde` default deserialization covers this without a migration.
+- **Offline behavior**: Fully local feature; no network dependency. Works identically offline.
+- **Degraded behavior**: If `unshare --net` fails at launch time (e.g., unprivileged user namespaces disabled by kernel policy), launch must proceed without isolation and surface a non-blocking warning. The UI toggle remains visible but should be annotated as unavailable when the capability check fails.
+- **User visibility/editability**: Toggle visible and editable in the profile editor UI. The setting is stored in the profile TOML file — user-readable and directly editable without CrossHook.
+
+Acceptance criteria for `#62` planning must include explicit persistence rationale plus migration, offline, degraded-mode, and visibility/editability behavior.
+
 ---
 
 ### Phase 7: Future (P3 Features)
