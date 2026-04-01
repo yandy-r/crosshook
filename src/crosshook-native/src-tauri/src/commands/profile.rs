@@ -228,6 +228,43 @@ pub fn profile_load(name: String, store: State<'_, ProfileStore>) -> Result<Game
     store.load(&name).map_err(map_error)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileSummary {
+    pub name: String,
+    pub game_name: String,
+    pub steam_app_id: String,
+    pub custom_cover_art_path: Option<String>,
+}
+
+#[tauri::command]
+pub fn profile_list_summaries(store: State<'_, ProfileStore>) -> Result<Vec<ProfileSummary>, String> {
+    let names = store.list().map_err(map_error)?;
+    let mut summaries = Vec::with_capacity(names.len());
+    for name in names {
+        match store.load(&name) {
+            Ok(profile) => {
+                let effective = profile.effective_profile();
+                let cover_art = effective.game.custom_cover_art_path.trim();
+                summaries.push(ProfileSummary {
+                    name,
+                    game_name: effective.game.name.clone(),
+                    steam_app_id: effective.steam.app_id.clone(),
+                    custom_cover_art_path: if cover_art.is_empty() {
+                        None
+                    } else {
+                        Some(cover_art.to_string())
+                    },
+                });
+            }
+            Err(e) => {
+                tracing::warn!(profile_name = %name, %e, "skipping profile in summaries");
+            }
+        }
+    }
+    Ok(summaries)
+}
+
 #[tauri::command]
 pub fn profile_save(
     name: String,

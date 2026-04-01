@@ -210,29 +210,71 @@ pub async fn download_and_cache_image(
                     "SteamGridDB fetch failed; falling back to Steam CDN"
                 );
                 // Fall back to Steam CDN
-                let cdn_url = build_download_url(app_id, image_type);
-                match download_image_bytes(&cdn_url).await {
-                    Ok(b) => (b, GameImageSource::SteamCdn),
-                    Err(cdn_error) => {
-                        tracing::warn!(
-                            app_id,
-                            image_type = image_type_str,
-                            %cdn_error,
-                            "Steam CDN fallback also failed"
-                        );
-                        return Ok(stale_fallback_path(store, app_id, &image_type_str));
+                if image_type == GameImageType::Portrait {
+                    let candidates = portrait_candidate_urls(app_id);
+                    let mut last_err = None;
+                    let mut found = None;
+                    for url in &candidates {
+                        match download_image_bytes(url).await {
+                            Ok(b) => { found = Some(b); break; }
+                            Err(e) => { last_err = Some(e); }
+                        }
+                    }
+                    match found {
+                        Some(b) => (b, GameImageSource::SteamCdn),
+                        None => {
+                            if let Some(e) = last_err {
+                                tracing::warn!(app_id, image_type = image_type_str, %e, "all portrait CDN candidates failed");
+                            }
+                            return Ok(stale_fallback_path(store, app_id, &image_type_str));
+                        }
+                    }
+                } else {
+                    let cdn_url = build_download_url(app_id, image_type);
+                    match download_image_bytes(&cdn_url).await {
+                        Ok(b) => (b, GameImageSource::SteamCdn),
+                        Err(cdn_error) => {
+                            tracing::warn!(
+                                app_id,
+                                image_type = image_type_str,
+                                %cdn_error,
+                                "Steam CDN fallback also failed"
+                            );
+                            return Ok(stale_fallback_path(store, app_id, &image_type_str));
+                        }
                     }
                 }
             }
         }
     } else {
         // No API key — use Steam CDN directly
-        let cdn_url = build_download_url(app_id, image_type);
-        match download_image_bytes(&cdn_url).await {
-            Ok(b) => (b, GameImageSource::SteamCdn),
-            Err(error) => {
-                tracing::warn!(app_id, image_type = image_type_str, %error, "game image download failed");
-                return Ok(stale_fallback_path(store, app_id, &image_type_str));
+        if image_type == GameImageType::Portrait {
+            let candidates = portrait_candidate_urls(app_id);
+            let mut last_err = None;
+            let mut found = None;
+            for url in &candidates {
+                match download_image_bytes(url).await {
+                    Ok(b) => { found = Some(b); break; }
+                    Err(e) => { last_err = Some(e); }
+                }
+            }
+            match found {
+                Some(b) => (b, GameImageSource::SteamCdn),
+                None => {
+                    if let Some(e) = last_err {
+                        tracing::warn!(app_id, image_type = image_type_str, %e, "all portrait CDN candidates failed");
+                    }
+                    return Ok(stale_fallback_path(store, app_id, &image_type_str));
+                }
+            }
+        } else {
+            let cdn_url = build_download_url(app_id, image_type);
+            match download_image_bytes(&cdn_url).await {
+                Ok(b) => (b, GameImageSource::SteamCdn),
+                Err(error) => {
+                    tracing::warn!(app_id, image_type = image_type_str, %error, "game image download failed");
+                    return Ok(stale_fallback_path(store, app_id, &image_type_str));
+                }
             }
         }
     };
@@ -348,7 +390,20 @@ fn build_download_url(app_id: &str, image_type: GameImageType) -> String {
                 "https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/capsule_616x353.jpg"
             )
         }
+        GameImageType::Portrait => {
+            format!(
+                "https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900_2x.jpg"
+            )
+        }
     }
+}
+
+fn portrait_candidate_urls(app_id: &str) -> Vec<String> {
+    vec![
+        format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900_2x.jpg"),
+        format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900.jpg"),
+        format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/header.jpg"),
+    ]
 }
 
 fn filename_for(image_type: GameImageType, source: GameImageSource, extension: &str) -> String {
@@ -360,6 +415,7 @@ fn filename_for(image_type: GameImageType, source: GameImageSource, extension: &
         GameImageType::Cover => "cover",
         GameImageType::Hero => "hero",
         GameImageType::Capsule => "capsule",
+        GameImageType::Portrait => "portrait",
     };
     format!("{type_prefix}_{source_suffix}.{extension}")
 }
@@ -572,6 +628,37 @@ mod tests {
         assert_eq!(
             filename_for(GameImageType::Capsule, GameImageSource::SteamGridDb, "webp"),
             "capsule_steamgriddb.webp"
+        );
+    }
+
+    #[test]
+    fn filename_for_portrait_type() {
+        assert_eq!(
+            filename_for(GameImageType::Portrait, GameImageSource::SteamCdn, "jpg"),
+            "portrait_steam_cdn.jpg"
+        );
+        assert_eq!(
+            filename_for(GameImageType::Portrait, GameImageSource::SteamGridDb, "webp"),
+            "portrait_steamgriddb.webp"
+        );
+    }
+
+    #[test]
+    fn portrait_candidate_urls_returns_three_in_order() {
+        let app_id = "440";
+        let urls = portrait_candidate_urls(app_id);
+        assert_eq!(urls.len(), 3);
+        assert_eq!(
+            urls[0],
+            "https://cdn.cloudflare.steamstatic.com/steam/apps/440/library_600x900_2x.jpg"
+        );
+        assert_eq!(
+            urls[1],
+            "https://cdn.cloudflare.steamstatic.com/steam/apps/440/library_600x900.jpg"
+        );
+        assert_eq!(
+            urls[2],
+            "https://cdn.cloudflare.steamstatic.com/steam/apps/440/header.jpg"
         );
     }
 

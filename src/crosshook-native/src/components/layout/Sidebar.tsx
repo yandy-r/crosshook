@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import {
+  LibraryIcon,
   ProfilesIcon,
   LaunchIcon,
   InstallIcon,
@@ -10,7 +11,7 @@ import {
   HealthIcon,
 } from '../icons/SidebarIcons';
 
-export type AppRoute = 'profiles' | 'launch' | 'install' | 'community' | 'compatibility' | 'settings' | 'health';
+export type AppRoute = 'library' | 'profiles' | 'launch' | 'install' | 'community' | 'compatibility' | 'settings' | 'health';
 
 export interface SidebarProps {
   activeRoute: AppRoute;
@@ -34,6 +35,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     label: 'Game',
     items: [
+      { route: 'library', label: 'Library', icon: LibraryIcon },
       { route: 'profiles', label: 'Profiles', icon: ProfilesIcon },
       { route: 'launch', label: 'Launch', icon: LaunchIcon },
     ],
@@ -56,6 +58,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
 ];
 
 const ROUTE_LABELS: Record<AppRoute, string> = {
+  library: 'Library',
   profiles: 'Profiles',
   launch: 'Launch',
   install: 'Install Game',

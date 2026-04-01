@@ -13,6 +13,17 @@ const defaults: IconProps = {
   strokeLinejoin: 'round',
 };
 
+export function LibraryIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <rect x="3" y="3" width="6" height="6" rx="1" />
+      <rect x="11" y="3" width="6" height="6" rx="1" />
+      <rect x="3" y="11" width="6" height="6" rx="1" />
+      <rect x="11" y="11" width="6" height="6" rx="1" />
+    </svg>
+  );
+}
+
 export function ProfilesIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

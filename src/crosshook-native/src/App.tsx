@@ -17,6 +17,7 @@ import { useGamepadNav } from './hooks/useGamepadNav';
 import { useScrollEnhance } from './hooks/useScrollEnhance';
 
 const VALID_APP_ROUTES: Record<AppRoute, true> = {
+  library: true,
   profiles: true,
   launch: true,
   install: true,
@@ -40,7 +41,7 @@ function handleGamepadBack(): void {
 
 function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const { profileName, selectedProfile } = useProfileContext();
-  const [route, setRoute] = useState<AppRoute>('profiles');
+  const [route, setRoute] = useState<AppRoute>('library');
   const lastProfile = profileName.trim() || selectedProfile;
   const consolePanelRef = useRef<PanelImperativeHandle>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);

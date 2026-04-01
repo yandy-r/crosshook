@@ -128,3 +128,34 @@ export function HealthDashboardArt() {
     </svg>
   );
 }
+
+export function LibraryArt() {
+  return (
+    <svg {...SVG_DEFAULTS}>
+      {/* Shelf rows */}
+      <line x1="35" y1="35" x2="165" y2="35" opacity={0.15} />
+      <line x1="35" y1="65" x2="165" y2="65" opacity={0.12} />
+      <line x1="35" y1="95" x2="165" y2="95" opacity={0.1} />
+      {/* Book spines — top shelf */}
+      <rect x="45" y="12" width="14" height="23" rx="2" strokeWidth={1.2} opacity={0.4} />
+      <rect x="62" y="16" width="12" height="19" rx="2" opacity={0.3} />
+      <rect x="77" y="10" width="16" height="25" rx="2" opacity={0.35} />
+      <rect x="96" y="14" width="11" height="21" rx="2" opacity={0.25} />
+      <rect x="110" y="11" width="15" height="24" rx="2" strokeWidth={1.2} opacity={0.38} />
+      <rect x="128" y="15" width="13" height="20" rx="2" opacity={0.28} />
+      {/* Book spines — middle shelf */}
+      <rect x="50" y="42" width="16" height="23" rx="2" opacity={0.3} />
+      <rect x="69" y="45" width="12" height="20" rx="2" opacity={0.22} />
+      <rect x="84" y="40" width="14" height="25" rx="2" strokeWidth={1.2} opacity={0.35} />
+      <rect x="101" y="44" width="18" height="21" rx="2" opacity={0.25} />
+      <rect x="122" y="41" width="13" height="24" rx="2" opacity={0.3} />
+      {/* Game controller accent */}
+      <circle cx="155" cy="52" r="8" opacity={0.18} />
+      <path d="M151 52h8M155 48v8" strokeWidth={1.5} opacity={0.2} />
+      {/* Floating accent dots */}
+      <circle cx="170" cy="20" r="2.5" fill="currentColor" opacity={0.12} stroke="none" />
+      <circle cx="30" cy="80" r="3" fill="currentColor" opacity={0.08} stroke="none" />
+      <circle cx="175" cy="100" r="2" fill="currentColor" opacity={0.1} stroke="none" />
+    </svg>
+  );
+}

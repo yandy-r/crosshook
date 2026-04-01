@@ -25,6 +25,7 @@ pub async fn fetch_game_cover_art(
     let image_type = match image_type.as_deref().unwrap_or("cover") {
         "hero" => GameImageType::Hero,
         "capsule" => GameImageType::Capsule,
+        "portrait" => GameImageType::Portrait,
         _ => GameImageType::Cover,
     };
 

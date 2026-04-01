@@ -13,6 +13,7 @@ export interface UseGameCoverArtResult {
 export function useGameCoverArt(
   steamAppId: string | undefined,
   customCoverArtPath?: string,
+  imageType?: string,
 ): UseGameCoverArtResult {
   const normalizedAppId = useMemo(
     () => normalizeAppId(steamAppId ?? ''),
@@ -41,7 +42,7 @@ export function useGameCoverArt(
     try {
       const path = await invoke<string | null>('fetch_game_cover_art', {
         appId: normalizedAppId,
-        imageType: 'cover',
+        imageType: imageType ?? 'cover',
       });
 
       if (requestId !== requestIdRef.current) {
@@ -65,7 +66,7 @@ export function useGameCoverArt(
         setLoading(false);
       }
     }
-  }, [normalizedAppId]);
+  }, [normalizedAppId, imageType]);
 
   useEffect(() => {
     if (customUrl) {

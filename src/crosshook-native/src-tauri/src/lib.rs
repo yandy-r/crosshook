@@ -218,6 +218,7 @@ pub fn run() {
             commands::profile::profile_duplicate,
             commands::profile::profile_import_legacy,
             commands::profile::profile_list,
+            commands::profile::profile_list_summaries,
             commands::profile::profile_load,
             commands::profile::profile_rename,
             commands::profile::profile_save,

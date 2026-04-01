@@ -71,6 +71,9 @@
   --crosshook-content-console-gap: 12px;
   --crosshook-resize-handle-thickness: 14px;
   --crosshook-grid-gap: 20px;
+  --crosshook-library-card-width: 190px;
+  --crosshook-library-card-aspect: 3 / 4;
+  --crosshook-library-grid-gap: var(--crosshook-grid-gap);
   --crosshook-custom-env-rows-gap: 12px;
   --crosshook-custom-env-row-gap: 8px;
   --crosshook-custom-env-fields-gap: 10px;
