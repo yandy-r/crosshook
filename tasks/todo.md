@@ -1,5 +1,55 @@
 # Task Plan
 
+## 2026-03-31 - protondb lookup implementation
+
+- [x] Task 1.1: Define the backend ProtonDB contract and exact-tier model.
+- [x] Task 1.2: Implement cache-backed ProtonDB fetch and safe recommendation normalization.
+- [x] Task 1.3: Add backend tests for tier mapping, cache fallback, and safe suggestion parsing.
+- [x] Task 2.1: Expose ProtonDB lookup as a thin Tauri command.
+- [x] Task 2.2: Add frontend ProtonDB types and lookup hook.
+- [x] Task 2.3: Extend theme styling for exact ProtonDB tiers and degraded states.
+- [x] Task 3.1: Build a dedicated ProtonDB lookup card component.
+- [x] Task 3.2: Compose the ProtonDB card into the profile editor flow.
+- [x] Task 3.3: Implement explicit copy/apply merge behavior for supported suggestions.
+- [x] Task 4.1: Join ProtonDB panel state with version-correlation signals.
+- [x] Task 4.2: Add regression coverage for version-aware ProtonDB messaging.
+- [x] Task 5.1: Define cross-feature Steam App ID and cache namespace contract.
+- [x] Task 5.2: Document explicit integration boundary for issue `#52`.
+- [x] Task 6.1: Define promotion eligibility for advisory recommendations.
+- [x] Task 6.2: Define preset-candidate persistence and rollback guidance.
+- [x] Task 7.1: Update user-facing docs for ProtonDB lookup behavior.
+- [x] Task 7.2: Run verification, record manual regression coverage, and add the implementation closeout.
+
+### ProtonDB Version-Aware Verification Scenarios
+
+- Up-to-date version: when the selected profile `version_status` is `matched` or `unknown`, the ProtonDB card should show exact tier + guidance without any stale-build warning and must remain fully advisory.
+- Unknown version: when no version snapshot exists, the ProtonDB card should still load and render normally, with no blocking validation or forced retry path.
+- Game updated: when `version_status` is `game_updated` or `both_changed`, the ProtonDB card should surface a stale-guidance warning that recommendations may lag the new build, but profile editing, saving, and launch validation must remain non-blocking.
+- Update in progress: when `version_status` is `update_in_progress`, the ProtonDB card should warn that Steam is still changing the build and the guidance may not match yet, again without blocking edits or save.
+
+## Implementation Review
+
+- Added a new `crosshook_core::protondb` module with exact-tier DTOs, cache-backed async lookup, summary-first live fetches, stale-cache fallback, and best-effort recommendation aggregation from ProtonDB’s current hashed report-feed path.
+- The backend now normalizes advisory data into safe env-var suggestions, copy-only raw launch strings, and grouped notes; unsupported remote launch text never mutates launch behavior directly.
+- Added a thin `protondb_lookup` Tauri command and mirrored the DTOs in TypeScript with a dedicated `useProtonDbLookup` hook.
+- The Profile editor now renders a `ProtonDB Guidance` card for `steam_applaunch` and `proton_run` profiles, including exact tiers, freshness/source state, refresh, copy actions, safe env-var apply actions, and per-key overwrite confirmation before profile mutation.
+- Version correlation now feeds the ProtonDB card so recent game-build changes warn that the community guidance may be stale without blocking edit/save flows.
+- Planning and user-facing docs were updated to lock the Steam App ID/cache namespace contract for issue `#52`, define preset-promotion/rollback rules, and document the advisory ProtonDB workflow.
+- Verification:
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-native --no-run`
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+- Manual regression checks still pending in a graphical/native shell:
+  - empty Steam App ID shows the neutral ProtonDB state with no lookup request
+  - cached-hit and stale-cache fallback states render the expected banners
+  - remote timeout/unavailable behavior stays local to the ProtonDB card
+  - exact-tier badges and summary metadata render cleanly in the profile editor layout
+  - version-correlation warning banners appear only for `game_updated`, `both_changed`, and `update_in_progress`
+  - copy/apply flows for normalized env suggestions work end to end, including per-key overwrite confirmation
+- Residual risk:
+  - ProtonDB’s richer report-feed path is still undocumented. The implementation is summary-first and degrades safely, but if ProtonDB changes its hashed feed contract, recommendation groups may fall back to the advisory unavailable state until the resolver is updated.
+  - No live Tauri/manual UI pass was run here, so the remaining open risk is presentation/interaction polish in the real shell rather than type or compile correctness.
+
 ## 2026-03-27 - post-launch failure diagnostics
 
 - [x] Task 1.1: Define diagnostic data models.
@@ -16,7 +66,7 @@
 - [x] Run targeted Rust and TypeScript verification.
 - [x] Add a short implementation review with outcome and residual risk.
 
-## Implementation Review
+### Implementation Review
 
 - Added a new `crosshook_core::launch::diagnostics` module with typed models, exit-status analysis, log-pattern scanning, and a public `analyze()` API that produces a single `DiagnosticReport`.
 - `src-tauri/src/commands/launch.rs` now captures child exit status, reads a bounded log tail after the final drain, runs diagnostics, sanitizes user-visible paths, emits `launch-diagnostic`, and then emits `launch-complete` in that order.
@@ -37,7 +87,7 @@
 - [x] Run focused frontend verification.
 - [x] Add a short implementation review with outcome and residual risk.
 
-## Implementation Review
+### Implementation Review
 
 - The top-level route shell in `ContentArea.tsx` was reusing the same `Tabs.Content` node across route changes, which let the shared scrollable `.crosshook-content-area` keep its prior `scrollTop`.
 - `Tabs.Content` is now keyed by the active route, and `ContentArea` also explicitly scrolls the active `.crosshook-content-area` back to the top on every route change.
@@ -54,7 +104,7 @@
 - [x] Run focused frontend verification.
 - [x] Add a short implementation review with outcome and residual risk.
 
-## Implementation Review
+### Implementation Review
 
 - The remaining `Profiles -> Launch` jump was not stale page scroll state. In controller mode, `useGamepadNav` was auto-focusing the first content control after a route change and allowing that focus handoff to call `scrollIntoView`.
 - On the Launch page, the first focusable control sits low enough that this auto-focus could pull the page down on first entry even after the content wrapper was remounted.
@@ -71,7 +121,7 @@
 - [x] Run focused frontend verification.
 - [x] Add a short implementation review with outcome and residual risk.
 
-## Implementation Review
+### Implementation Review
 
 - The earlier route-remount change had a real bug: `key` was placed inside a spread object passed to `Tabs.Content`, and React ignores `key` in spread props. `ContentArea.tsx` now applies `key={route}` directly on each `Tabs.Content`, so the route panel can actually remount.
 - `ContentArea.tsx` still explicitly scrolls the active `.crosshook-content-area` to the top on every route change.
@@ -89,7 +139,7 @@
 - [x] Run focused Rust and TypeScript verification.
 - [x] Add a short implementation review with outcome and residual risk.
 
-## Implementation Review
+### Implementation Review
 
 - `ValidationError` now exposes a serializable `LaunchValidationIssue` with `message`, `help`, and `severity`, and every current launch validation variant provides actionable fix guidance while remaining `fatal` in the existing fail-fast flow.
 - The Tauri `validate_launch` command now returns the structured validation payload, while `launch_game` and `launch_trainer` keep their runtime string-error behavior unchanged.
@@ -111,7 +161,7 @@
 - [x] Run focused Rust and TypeScript verification.
 - [x] Add a short implementation review with outcome and residual risk.
 
-## Implementation Review
+### Implementation Review
 
 - Profiles now persist `trainer.loading_mode` with `source_directory` as the default, and launch/export requests carry the same choice through Rust, Tauri, the CLI, and the frontend types.
 - `proton_run` trainer launches no longer stage by default. In `source_directory` mode, CrossHook runs the canonical trainer path directly and keeps the working directory anchored to the trainer bundle. In `copy_to_prefix` mode, the previous staging behavior remains intact.
@@ -133,7 +183,7 @@
 - [x] Run focused verification for the affected frontend paths.
 - [x] Add a short review note with outcome and residual risk.
 
-## Review
+### Review
 
 - `ProfileFormSections.tsx` now reuses the existing launcher metadata fields for both Steam and Proton profile editing, while still keeping install review mode limited to launch-critical fields.
 - Verification:
@@ -163,7 +213,7 @@
 - Keep `InstallProfileReviewPayload` in `src/crosshook-native/src/types/install.ts`.
 - Put modal-local `ProfileReviewSession` in `src/crosshook-native/src/types/profile-review.ts`.
 
-## Review
+### Review
 
 - Research artifacts and `feature-spec.md` were completed and validated.
 - `shared.md` was created and validated with zero warnings.
@@ -250,7 +300,7 @@
 - [x] Task 4.1: Update user-facing documentation for the new panel.
 - [x] Task 4.2: Run final verification and record the planning closeout.
 
-## Implementation Review
+### Implementation Review
 
 - Task 1.1 added a typed `launch-optimizations.ts` catalog with stable option IDs, category labels, applicability metadata, and wrapper-conflict metadata for the `proton_run` path.
 - `GameProfile.launch.optimizations` and `LaunchRequest.optimizations` now accept the shared `LaunchOptimizations` payload without forcing current runtime code changes.
@@ -312,7 +362,7 @@
 - [x] Move `Launch Optimizations` into the full-width area below the main editor/launcher layout.
 - [x] Run focused frontend verification for the updated tab and layout wiring.
 
-## Review
+### Review
 
 - `App.tsx` now exposes a dedicated `Logs` tab for `ConsoleView`, which removes the console from the `Main` workspace and keeps the runtime log stream available without competing with launch controls.
 - The `Launch Optimizations` panel now renders in the full-width row below the main two-column layout, which preserves the right-column space for `LaunchPanel` and `LauncherExport` and gives the option grid much more horizontal room.
@@ -325,7 +375,7 @@
 - [x] Block incompatible selections immediately in the optimization panel instead of waiting for launch-time validation.
 - [x] Run focused frontend verification for the new conflict feedback path.
 
-## Review
+### Review
 
 - The launch-optimization contract now exposes a conflict matrix helper so the UI and hook use the same mutually-exclusive option relationships as the panel metadata.
 - The panel now disables blocked options, labels them with the active blocker, and renders conflict warnings inside each affected option group instead of only at the top of the panel.
@@ -339,7 +389,7 @@
 - [x] Draft a tracking issue body that matches the existing planning-driven feature issue format.
 - [x] Create the GitHub issue with the selected labels and record the result here.
 
-## Review
+### Review
 
 - Created [Issue #33](https://github.com/yandy-r/crosshook/issues/33): `feat: Sidebar navigation, dedicated views, and persistent console drawer`.
 - The issue body follows the same planning-driven structure used by `#24` and `#28`: summary, planning artifacts, architecture, critical path, key design decisions, planned phases, success criteria, and validation expectations.
@@ -367,7 +417,7 @@
 - [x] Batch 9: complete Task `3.10`.
 - [x] Run integration verification, repair any cross-task conflicts, and write the closeout review.
 
-## Review
+### Review
 
 - The horizontal tab shell was replaced with a provider-backed vertical navigation layout using `Sidebar`, `ContentArea`, `ConsoleDrawer`, and a persistent controller prompt bar.
 - Profile, launch, install, community, compatibility, and settings flows now live in dedicated page shells under `src/crosshook-native/src/components/pages/`, and the old `ProfileEditor.tsx` composition was removed.
@@ -387,7 +437,7 @@
 - [x] Fix the shell container so the resizable panel group spans the full app viewport instead of a single grid cell.
 - [x] Re-run frontend verification and record the correction.
 
-## Review
+### Review
 
 - The regression came from wrapping the panel-group shell in a two-column CSS grid without explicitly spanning the child across the grid, which collapsed the entire app into the first grid track.
 - `layout.css` now treats `.crosshook-app-layout` as a flex wrapper and forces nested panel groups to fill the available width and height, which restores the intended sidebar + content layout.
@@ -399,7 +449,7 @@
 - [x] Replace the shell separators with explicit resize handles, loosen the sidebar/content constraints, and let the log drawer honor the panel height instead of a fixed internal height.
 - [x] Re-run frontend verification and record the correction.
 
-## Review
+### Review
 
 - The second regression came from treating `Separator` as a resize handle without giving it explicit sizing/styling, keeping the sidebar width too tightly capped, and letting the console drawer body keep a fixed internal height that fought the vertical panel size.
 - `App.tsx` now uses explicit shell panel classes and resize-handle classes, the sidebar can grow wider, the content pane has a real minimum size, and the log panel now uses panel sizing rather than disappearing below a fixed drawer body.
@@ -414,7 +464,7 @@
 - [x] Restore a centered bounded shell width, lock the shell to viewport height for true internal resizing, and relax the sidebar collapse threshold so desktop/tablet widths stay expanded by default.
 - [x] Re-run frontend verification and record the correction.
 
-## Review
+### Review
 
 - The remaining issues came from three shell-sizing mistakes: the app shell no longer respected the previous centered max-width, it used `min-height` instead of a fixed viewport-bounded height so vertical resizing pushed content offscreen, and the sidebar auto-collapse threshold was too aggressive for normal desktop/tablet layouts.
 - `layout.css` now restores a centered `var(--crosshook-content-width)` shell, gives the shell a fixed viewport-bounded height, and keeps the content area internally scrollable instead of letting the whole shell grow vertically.
@@ -429,7 +479,7 @@
 - [x] Widen the centered shell and push the sidebar collapse breakpoint down so normal app widths keep the full sidebar visible.
 - [x] Re-run frontend verification and record the correction.
 
-## Review
+### Review
 
 - The latest screenshot showed the shell was directionally better but still using an over-aggressive sidebar collapse breakpoint and a content width that was too close to the older compact layout for the denser form rows.
 - `variables.css` now widens `--crosshook-content-width` to `1440px`, and the sidebar collapse behavior only kicks in below `560px` instead of collapsing at ordinary app widths.
@@ -443,7 +493,7 @@
 - [x] Cap the sidebar resize range at about 40% of the shell width.
 - [x] Keep the current widened centered shell and re-run frontend verification.
 
-## Review
+### Review
 
 - The final correction turns the sidebar behavior into an explicit product decision instead of a guessed breakpoint: the sidebar now stays expanded by default, and no responsive auto-collapse logic remains in the current shell.
 - `App.tsx` now limits the sidebar to roughly `14%`-`40%` with a `20%` default, and `Sidebar.tsx` no longer manages `matchMedia` collapse state.
@@ -458,7 +508,7 @@
 - [x] Remove the remaining sidebar collapse state and keep the sidebar resize range aligned with the agreed `~40%` max.
 - [x] Re-run frontend verification and record the follow-through.
 
-## Review
+### Review
 
 - The missing follow-through was that the previous visual complaint was still hitting live auto-collapse behavior; the current correction removes that behavior entirely instead of just adjusting its threshold.
 - `Sidebar.tsx` now always renders the expanded sidebar, `App.tsx` keeps the agreed `20%` default / `40%` max sidebar range, and `variables.css` no longer includes any automatic sidebar-width collapse override.
@@ -472,7 +522,7 @@
 - [x] Replace the shell panel numeric size props with explicit percentage strings for sidebar/content/log sizing.
 - [x] Re-run frontend verification and record the correction.
 
-## Review
+### Review
 
 - The real resize bug was that `react-resizable-panels` treats numeric `defaultSize` / `minSize` / `maxSize` values as pixels, not percentages. The sidebar and content/log panes were therefore being constrained to tens of pixels instead of percentage-based shell space.
 - `App.tsx` now uses explicit percentage strings for the resizable shell panels, while the log drawer `collapsedSize` stays pixel-based to match the visible handle height.
@@ -486,7 +536,7 @@
 - [x] Reattach both surfaces to the dedicated `Launch` page using the existing profile-context contract.
 - [x] Re-run frontend verification and record the correction.
 
-## Review
+### Review
 
 - The optimization features were not removed from the codebase; they were orphaned during the shell/page refactor because the new `LaunchPage` only rendered `LaunchPanel`.
 - `LaunchPage.tsx` now renders `LaunchOptimizationsPanel` for `proton_run` and `steam_applaunch` profiles, and renders `SteamLaunchOptionsPanel` beneath it for `steam_applaunch`.
