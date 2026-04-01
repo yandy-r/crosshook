@@ -1,5 +1,4 @@
 import SettingsPanel from '../SettingsPanel';
-import { PageBanner, SettingsArt } from '../layout/PageBanner';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 
@@ -18,45 +17,46 @@ export function SettingsPage() {
   const { targetHomePath, steamClientInstallPath } = useProfileContext();
 
   return (
-    <div className="crosshook-page-scroll-shell">
-      <PageBanner
-        eyebrow="Settings"
-        title="App preferences and storage"
-        copy="Manage startup behavior, recent file history, and storage-related defaults from one page."
-        illustration={<SettingsArt />}
-      />
+    <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--settings">
+      <div className="crosshook-route-stack crosshook-settings-page">
+        {settingsError ? (
+          <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
+            {settingsError}
+          </div>
+        ) : null}
 
-      {settingsError ? (
-        <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
-          {settingsError}
+        <div className="crosshook-route-stack__body--fill crosshook-settings-page__body">
+          <div className="crosshook-route-card-host">
+            <div className="crosshook-route-card-scroll">
+              <SettingsPanel
+                autoLoadLastProfile={settings.auto_load_last_profile}
+                lastUsedProfile={settings.last_used_profile}
+                profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY}
+                profilesDirectoryConfigured={false}
+                recentFiles={{
+                  gamePaths: recentFiles.game_paths,
+                  trainerPaths: recentFiles.trainer_paths,
+                  dllPaths: recentFiles.dll_paths,
+                }}
+                recentFilesLimit={10}
+                targetHomePath={targetHomePath}
+                steamClientInstallPath={steamClientInstallPath}
+                steamGridDbApiKey={settings.steamgriddb_api_key}
+                onAutoLoadLastProfileChange={(enabled) => {
+                  void handleAutoLoadChange(enabled);
+                }}
+                onRefreshRecentFiles={() => {
+                  void refreshPreferences();
+                }}
+                onClearRecentFiles={() => {
+                  void clearRecentFiles();
+                }}
+                onSteamGridDbApiKeyChange={handleSteamGridDbApiKeyChange}
+              />
+            </div>
+          </div>
         </div>
-      ) : null}
-
-      <SettingsPanel
-        autoLoadLastProfile={settings.auto_load_last_profile}
-        lastUsedProfile={settings.last_used_profile}
-        profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY}
-        profilesDirectoryConfigured={false}
-        recentFiles={{
-          gamePaths: recentFiles.game_paths,
-          trainerPaths: recentFiles.trainer_paths,
-          dllPaths: recentFiles.dll_paths,
-        }}
-        recentFilesLimit={10}
-        targetHomePath={targetHomePath}
-        steamClientInstallPath={steamClientInstallPath}
-        steamGridDbApiKey={settings.steamgriddb_api_key}
-        onAutoLoadLastProfileChange={(enabled) => {
-          void handleAutoLoadChange(enabled);
-        }}
-        onRefreshRecentFiles={() => {
-          void refreshPreferences();
-        }}
-        onClearRecentFiles={() => {
-          void clearRecentFiles();
-        }}
-        onSteamGridDbApiKeyChange={handleSteamGridDbApiKeyChange}
-      />
+      </div>
     </div>
   );
 }

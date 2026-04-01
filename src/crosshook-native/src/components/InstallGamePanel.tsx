@@ -220,65 +220,66 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
 
   return (
     <section className="crosshook-install-shell" aria-labelledby="install-game-heading">
-      {hasCoverHero ? (
-        <div className="crosshook-profile-hero">
-          {coverArtUrl ? (
-            <>
-              <img
-                src={coverArtUrl}
-                className="crosshook-profile-hero__art"
-                alt=""
-                aria-hidden="true"
-              />
-              <div className="crosshook-profile-hero__gradient" />
-            </>
-          ) : (
-            <div className="crosshook-profile-hero__skeleton crosshook-skeleton" />
-          )}
-          <div className="crosshook-profile-hero__content">
+      <div className="crosshook-install-shell__content">
+        {hasCoverHero ? (
+          <div className="crosshook-profile-hero">
+            {coverArtUrl ? (
+              <>
+                <img
+                  src={coverArtUrl}
+                  className="crosshook-profile-hero__art"
+                  alt=""
+                  aria-hidden="true"
+                />
+                <div className="crosshook-profile-hero__gradient" />
+              </>
+            ) : (
+              <div className="crosshook-profile-hero__skeleton crosshook-skeleton" />
+            )}
+            <div className="crosshook-profile-hero__content">
+              <div className="crosshook-heading-eyebrow">Install Game</div>
+              <h3 id="install-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
+                Guided install shell
+              </h3>
+              <p className="crosshook-heading-copy">
+                This flow resolves a default prefix, runs the installer through Proton, and hands back a reviewable
+                profile without saving it yet.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="crosshook-install-intro">
             <div className="crosshook-heading-eyebrow">Install Game</div>
             <h3 id="install-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
               Guided install shell
             </h3>
             <p className="crosshook-heading-copy">
-              This flow resolves a default prefix, runs the installer through Proton, and hands back a reviewable profile
-              without saving it yet.
+              This flow resolves a default prefix, runs the installer through Proton, and hands back a reviewable
+              profile without saving it yet.
             </p>
           </div>
-        </div>
-      ) : (
-        <div className="crosshook-install-intro">
-          <div className="crosshook-heading-eyebrow">Install Game</div>
-          <h3 id="install-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
-            Guided install shell
-          </h3>
-          <p className="crosshook-heading-copy">
-            This flow resolves a default prefix, runs the installer through Proton, and hands back a reviewable profile
-            without saving it yet.
-          </p>
-        </div>
-      )}
+        )}
 
-      <Tabs.Root
-        className="crosshook-install-flow-tabs"
-        style={gameColorStyle}
-        value={activeInstallTab}
-        onValueChange={(value) => setActiveInstallTab(isInstallFlowTabId(value) ? value : 'identity')}
-      >
-        <Tabs.List
-          className={`crosshook-subtab-row${dominantColor ? ' crosshook-subtab-row--themed' : ''}`}
-          aria-label="Install flow sections"
+        <Tabs.Root
+          className="crosshook-install-flow-tabs"
+          style={gameColorStyle}
+          value={activeInstallTab}
+          onValueChange={(value) => setActiveInstallTab(isInstallFlowTabId(value) ? value : 'identity')}
         >
-          {installFlowTabs.map(({ id, label }) => (
-            <Tabs.Trigger
-              key={id}
-              value={id}
-              className={`crosshook-subtab${activeInstallTab === id ? ' crosshook-subtab--active' : ''}`}
-            >
-              {label}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
+          <Tabs.List
+            className={`crosshook-subtab-row${dominantColor ? ' crosshook-subtab-row--themed' : ''}`}
+            aria-label="Install flow sections"
+          >
+            {installFlowTabs.map(({ id, label }) => (
+              <Tabs.Trigger
+                key={id}
+                value={id}
+                className={`crosshook-subtab${activeInstallTab === id ? ' crosshook-subtab--active' : ''}`}
+              >
+                {label}
+              </Tabs.Trigger>
+            ))}
+          </Tabs.List>
 
         <Tabs.Content
           value="identity"
@@ -512,53 +513,56 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
             </div>
           </div>
         </Tabs.Content>
-      </Tabs.Root>
+        </Tabs.Root>
+      </div>
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          className="crosshook-button"
-          onClick={async () => {
-            const shouldProceed = await Promise.resolve(onRequestInstallAction?.('retry') ?? true);
-            if (!shouldProceed) {
-              return;
-            }
+      <div className="crosshook-install-shell__footer crosshook-route-footer">
+        <div className="crosshook-install-shell__actions">
+          <button
+            type="button"
+            className="crosshook-button"
+            onClick={async () => {
+              const shouldProceed = await Promise.resolve(onRequestInstallAction?.('retry') ?? true);
+              if (!shouldProceed) {
+                return;
+              }
 
-            await startInstall();
-          }}
-          disabled={isRunningInstaller || isResolvingDefaultPrefixPath}
-        >
-          {actionLabel}
-        </button>
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={async () => {
-            const shouldProceed = await Promise.resolve(onRequestInstallAction?.('reset') ?? true);
-            if (!shouldProceed) {
-              return;
-            }
-
-            reset();
-          }}
-        >
-          Reset Form
-        </button>
-        <div className="crosshook-help-text" style={{ alignSelf: 'center' }}>
-          {isResolvingDefaultPrefixPath
-            ? 'Resolving the suggested prefix path before install.'
-            : 'The generated profile stays editable until the modal save step.'}
-        </div>
-        {reviewableInstallResult !== null ? (
+              await startInstall();
+            }}
+            disabled={isRunningInstaller || isResolvingDefaultPrefixPath}
+          >
+            {actionLabel}
+          </button>
           <button
             type="button"
             className="crosshook-button crosshook-button--secondary"
-            disabled={!canReviewGeneratedProfile}
-            onClick={() => openReviewPayload('manual-verify')}
+            onClick={async () => {
+              const shouldProceed = await Promise.resolve(onRequestInstallAction?.('reset') ?? true);
+              if (!shouldProceed) {
+                return;
+              }
+
+              reset();
+            }}
           >
-            Review in Modal
+            Reset Form
           </button>
-        ) : null}
+          <div className="crosshook-help-text crosshook-install-shell__actions-guidance">
+            {isResolvingDefaultPrefixPath
+              ? 'Resolving the suggested prefix path before install.'
+              : 'The generated profile stays editable until the modal save step.'}
+          </div>
+          {reviewableInstallResult !== null ? (
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary"
+              disabled={!canReviewGeneratedProfile}
+              onClick={() => openReviewPayload('manual-verify')}
+            >
+              Review in Modal
+            </button>
+          ) : null}
+        </div>
       </div>
     </section>
   );

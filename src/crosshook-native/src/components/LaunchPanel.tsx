@@ -16,6 +16,9 @@ import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { usePreviewState } from '../hooks/usePreviewState';
 import { useProfileHealthContext } from '../context/ProfileHealthContext';
 import { copyToClipboard } from '../utils/clipboard';
+import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../utils/launchPanelActionButtonStyle';
+import { LaunchArt } from './layout/PageBanner';
+import { PanelRouteDecor } from './layout/PanelRouteDecor';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import '../styles/preview.css';
 
@@ -590,13 +593,6 @@ function buildGameOnlyRequest(request: LaunchRequest): LaunchRequest {
   };
 }
 
-const LAUNCH_ACTION_BTN_STYLE = {
-  height: 'var(--crosshook-touch-target-min)',
-  minHeight: 'var(--crosshook-touch-target-min)',
-  padding: '0 14px',
-  fontSize: '0.95rem',
-} as const;
-
 export function LaunchPanel({
   profileId,
   method,
@@ -717,10 +713,11 @@ export function LaunchPanel({
   }
 
   return (
-    <div className="crosshook-launch-panel-stack">
+    <div className="crosshook-route-stack crosshook-launch-panel-stack">
       {/* ── Launch controls (aligned with Profiles page “Profiles” strip) ── */}
-      <div className="crosshook-panel">
-        <section className="crosshook-launch-panel">
+      <div className="crosshook-panel crosshook-panel--with-route-decor">
+        <PanelRouteDecor illustration={<LaunchArt />} />
+        <section className="crosshook-launch-panel crosshook-route-hero-launch-panel">
           <header className="crosshook-settings-header crosshook-launch-panel__title-strip">
             <div className="crosshook-launch-panel__title-strip-inner">
               <div className="crosshook-heading-eyebrow">Launch</div>
@@ -851,7 +848,7 @@ export function LaunchPanel({
               <button
                 type="button"
                 className="crosshook-button crosshook-launch-panel__action"
-                style={LAUNCH_ACTION_BTN_STYLE}
+                style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
                 onClick={primaryAction}
                 disabled={!canLaunch || isBusy}
                 aria-describedby={launchGuidanceText ? launchGuidanceId : undefined}
@@ -861,7 +858,7 @@ export function LaunchPanel({
               <button
                 type="button"
                 className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
-                style={LAUNCH_ACTION_BTN_STYLE}
+                style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
                 onClick={() => request && requestPreview(buildGameOnlyRequest(request))}
                 disabled={previewDisabled}
               >
@@ -870,7 +867,7 @@ export function LaunchPanel({
               <button
                 type="button"
                 className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
-                style={LAUNCH_ACTION_BTN_STYLE}
+                style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
                 onClick={reset}
               >
                 Reset

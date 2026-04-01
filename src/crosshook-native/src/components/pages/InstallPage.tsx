@@ -12,7 +12,8 @@ import type { GameProfile } from '../../types';
 import type { InstallProfileReviewPayload } from '../../types/install';
 import type { ProfileReviewSession } from '../../types/profile-review';
 import { profilesEqual } from '../../utils/profile-compare';
-import { PageBanner, InstallArt } from '../layout/PageBanner';
+import { InstallArt } from '../layout/PageBanner';
+import { PanelRouteDecor } from '../layout/PanelRouteDecor';
 import type { AppRoute } from '../layout/Sidebar';
 
 type InstallPageTab = 'install' | 'update';
@@ -322,55 +323,54 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
   }
 
   return (
-    <div className="crosshook-page-scroll-shell">
-      <PageBanner
-        eyebrow="Setup"
-        title="Install game"
-        copy="Run the installer in a Proton-backed flow, review the generated profile in-place, and save directly back into the Profiles view when the draft is ready."
-        illustration={<InstallArt />}
-      />
-
-      <div style={{ display: 'grid', gap: 24 }}>
-        <div className="crosshook-panel crosshook-install-page-tabs" style={{ padding: 'var(--crosshook-card-padding)' }}>
-          <Tabs.Root
-            className="crosshook-install-page-tabs__root"
-            value={installPageTab}
-            onValueChange={(value) => setInstallPageTab(value as InstallPageTab)}
+    <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--install">
+      <div className="crosshook-route-stack crosshook-install-page">
+        <div className="crosshook-route-stack__body--fill crosshook-install-page__body">
+          <div
+            className="crosshook-panel crosshook-panel--with-route-decor crosshook-install-page-tabs"
+            style={{ padding: 'var(--crosshook-card-padding)' }}
           >
-            <Tabs.List className="crosshook-subtab-row" aria-label="Install page sections">
-              <Tabs.Trigger value="install" className="crosshook-subtab">
-                Install Game
-              </Tabs.Trigger>
-              <Tabs.Trigger value="update" className="crosshook-subtab">
-                Update Game
-              </Tabs.Trigger>
-            </Tabs.List>
-
-            <Tabs.Content
-              value="install"
-              forceMount
-              className="crosshook-subtab-content"
-              style={{ display: installPageTab === 'install' ? undefined : 'none' }}
+            <PanelRouteDecor illustration={<InstallArt />} />
+            <Tabs.Root
+              className="crosshook-install-page-tabs__root"
+              value={installPageTab}
+              onValueChange={(value) => setInstallPageTab(value as InstallPageTab)}
             >
-              <div className="crosshook-subtab-content__inner crosshook-install-page-tabs__panel-inner">
-                <InstallGamePanel
-                  onOpenProfileReview={handleOpenProfileReview}
-                  onRequestInstallAction={handleInstallActionConfirmation}
-                />
-              </div>
-            </Tabs.Content>
+              <Tabs.List className="crosshook-subtab-row" aria-label="Install page sections">
+                <Tabs.Trigger value="install" className="crosshook-subtab">
+                  Install Game
+                </Tabs.Trigger>
+                <Tabs.Trigger value="update" className="crosshook-subtab">
+                  Update Game
+                </Tabs.Trigger>
+              </Tabs.List>
 
-            <Tabs.Content
-              value="update"
-              forceMount
-              className="crosshook-subtab-content"
-              style={{ display: installPageTab === 'update' ? undefined : 'none' }}
-            >
-              <div className="crosshook-subtab-content__inner crosshook-install-page-tabs__panel-inner">
-                <UpdateGamePanel protonInstalls={protonInstalls} protonInstallsError={protonInstallsError} />
-              </div>
-            </Tabs.Content>
-          </Tabs.Root>
+              <Tabs.Content
+                value="install"
+                forceMount
+                className="crosshook-subtab-content crosshook-install-page-tabs__content"
+                style={{ display: installPageTab === 'install' ? undefined : 'none' }}
+              >
+                <div className="crosshook-subtab-content__inner crosshook-install-page-tabs__panel-inner">
+                  <InstallGamePanel
+                    onOpenProfileReview={handleOpenProfileReview}
+                    onRequestInstallAction={handleInstallActionConfirmation}
+                  />
+                </div>
+              </Tabs.Content>
+
+              <Tabs.Content
+                value="update"
+                forceMount
+                className="crosshook-subtab-content crosshook-install-page-tabs__content"
+                style={{ display: installPageTab === 'update' ? undefined : 'none' }}
+              >
+                <div className="crosshook-subtab-content__inner crosshook-install-page-tabs__panel-inner">
+                  <UpdateGamePanel protonInstalls={protonInstalls} protonInstallsError={protonInstallsError} />
+                </div>
+              </Tabs.Content>
+            </Tabs.Root>
+          </div>
         </div>
       </div>
 

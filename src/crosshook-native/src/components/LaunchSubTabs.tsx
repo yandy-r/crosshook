@@ -302,10 +302,10 @@ export function LaunchSubTabs({
             <Tabs.Content
               value="optimizations"
               forceMount
-              className="crosshook-subtab-content crosshook-subtab-content--fill"
+              className="crosshook-subtab-content"
               style={{ display: activeTab === 'optimizations' ? undefined : 'none' }}
             >
-              <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--scroll">
+              <div className="crosshook-subtab-content__inner">
                 <LaunchOptimizationsPanel
                   method={launchMethod}
                   enabledOptionIds={enabledOptionIds}

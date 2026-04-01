@@ -1,4 +1,6 @@
 import { useDeferredValue, useMemo, useState, type ChangeEvent } from 'react';
+import { CompatibilityArt } from './layout/PageBanner';
+import { PanelRouteDecor } from './layout/PanelRouteDecor';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 
 export type CompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
@@ -140,7 +142,11 @@ export function CompatibilityViewer({
   }, [deferredGameFilter, deferredPlatformFilter, deferredTrainerFilter, entries]);
 
   return (
-    <section className="crosshook-card crosshook-compatibility-viewer" aria-label="Trainer compatibility viewer">
+    <section
+      className="crosshook-card crosshook-card--with-route-decor crosshook-compatibility-viewer"
+      aria-label="Trainer compatibility viewer"
+    >
+      <PanelRouteDecor illustration={<CompatibilityArt />} />
       <header className="crosshook-compatibility-viewer__header">
         <div className="crosshook-heading-eyebrow">Compatibility</div>
         <h2 className="crosshook-heading-title">{title}</h2>

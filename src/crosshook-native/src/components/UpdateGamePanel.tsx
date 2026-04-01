@@ -89,44 +89,45 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
       data-crosshook-focus-zone
       style={gameColorStyle}
     >
-      {hasCoverHero ? (
-        <div className="crosshook-profile-hero">
-          {coverArtUrl ? (
-            <>
-              <img
-                src={coverArtUrl}
-                className="crosshook-profile-hero__art"
-                alt=""
-                aria-hidden="true"
-              />
-              <div className="crosshook-profile-hero__gradient" />
-            </>
-          ) : (
-            <div className="crosshook-profile-hero__skeleton crosshook-skeleton" />
-          )}
-          <div className="crosshook-profile-hero__content">
-            <GameMetadataBar steamAppId={steamAppIdForCover} />
-            {!steamAppIdForCover && selectedProfile ? (
-              <div className="crosshook-game-metadata-bar">
-                <span className="crosshook-game-metadata-bar__name">{selectedProfile}</span>
-              </div>
-            ) : null}
+      <div className="crosshook-install-shell__content">
+        {hasCoverHero ? (
+          <div className="crosshook-profile-hero">
+            {coverArtUrl ? (
+              <>
+                <img
+                  src={coverArtUrl}
+                  className="crosshook-profile-hero__art"
+                  alt=""
+                  aria-hidden="true"
+                />
+                <div className="crosshook-profile-hero__gradient" />
+              </>
+            ) : (
+              <div className="crosshook-profile-hero__skeleton crosshook-skeleton" />
+            )}
+            <div className="crosshook-profile-hero__content">
+              <GameMetadataBar steamAppId={steamAppIdForCover} />
+              {!steamAppIdForCover && selectedProfile ? (
+                <div className="crosshook-game-metadata-bar">
+                  <span className="crosshook-game-metadata-bar__name">{selectedProfile}</span>
+                </div>
+              ) : null}
+              <div className="crosshook-heading-eyebrow">Update Game</div>
+              <h3 id="update-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
+                {heroTitle}
+              </h3>
+              <p className="crosshook-heading-copy">{heroCopy}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="crosshook-install-intro">
             <div className="crosshook-heading-eyebrow">Update Game</div>
             <h3 id="update-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
               {heroTitle}
             </h3>
             <p className="crosshook-heading-copy">{heroCopy}</p>
           </div>
-        </div>
-      ) : (
-        <div className="crosshook-install-intro">
-          <div className="crosshook-heading-eyebrow">Update Game</div>
-          <h3 id="update-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
-            {heroTitle}
-          </h3>
-          <p className="crosshook-heading-copy">{heroCopy}</p>
-        </div>
-      )}
+        )}
 
       <div className="crosshook-install-section">
         <div className="crosshook-install-section-title">Profile</div>
@@ -222,19 +223,22 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
           ) : null}
         </div>
       </div>
+      </div>
 
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          className="crosshook-button"
-          onClick={() => setShowConfirmation(true)}
-          disabled={isRunning || !canStart}
-        >
-          {actionLabel}
-        </button>
-        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={() => reset()}>
-          Reset
-        </button>
+      <div className="crosshook-install-shell__footer crosshook-route-footer">
+        <div className="crosshook-install-shell__actions">
+          <button
+            type="button"
+            className="crosshook-button"
+            onClick={() => setShowConfirmation(true)}
+            disabled={isRunning || !canStart}
+          >
+            {actionLabel}
+          </button>
+          <button type="button" className="crosshook-button crosshook-button--secondary" onClick={() => reset()}>
+            Reset
+          </button>
+        </div>
       </div>
 
       {showConfirmation && (

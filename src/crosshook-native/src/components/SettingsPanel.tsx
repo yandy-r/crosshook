@@ -4,6 +4,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useLauncherManagement } from '../hooks/useLauncherManagement';
 import { chooseDirectory } from '../utils/dialog';
+import { SettingsArt } from './layout/PageBanner';
+import { PanelRouteDecor } from './layout/PanelRouteDecor';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import type { DiagnosticBundleResult } from '../types';
 
@@ -473,7 +475,8 @@ export function SettingsPanel({
     : 'No custom directory is configured yet. CrossHook will use the default profile store until one is provided.';
 
   return (
-    <section className="crosshook-card crosshook-settings-panel" aria-label="Settings">
+    <section className="crosshook-card crosshook-card--with-route-decor crosshook-settings-panel" aria-label="Settings">
+      <PanelRouteDecor illustration={<SettingsArt />} />
       <header className="crosshook-settings-header">
         <div className="crosshook-heading-eyebrow">Settings</div>
         <h2 className="crosshook-heading-title">App preferences and storage</h2>
