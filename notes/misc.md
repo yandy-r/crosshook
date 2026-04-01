@@ -1,6 +1,6 @@
 ## Ideas
 
-### UI Enhancements (Lancy Page)
+### UI Enhancements (Launch Page)
 
 I recently did a pretty large overhaul of the Profile page in PR 134
 
