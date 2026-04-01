@@ -417,6 +417,17 @@ textarea {
   color: var(--crosshook-color-text);
 }
 
+.crosshook-button--outline {
+  border-color: rgba(0, 120, 212, 0.5);
+  background: rgba(0, 120, 212, 0.08);
+  color: var(--crosshook-color-accent-strong);
+}
+
+.crosshook-button--outline:hover:not(:disabled) {
+  background: rgba(0, 120, 212, 0.14);
+  border-color: var(--crosshook-color-accent-strong);
+}
+
 .crosshook-button--ghost {
   border: 1px solid rgba(255, 255, 255, 0.15);
   background: transparent;
@@ -932,6 +943,358 @@ textarea {
   color: #bfdbfe;
   background: rgba(0, 120, 212, 0.18);
   border: 1px solid rgba(0, 120, 212, 0.34);
+}
+
+.crosshook-protondb-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(120, 160, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(14, 20, 40, 0.96), rgba(9, 14, 28, 0.96)),
+    radial-gradient(circle at top right, rgba(0, 120, 212, 0.12), transparent 30%);
+  box-shadow: var(--crosshook-shadow-strong);
+}
+
+.crosshook-protondb-card--platinum {
+  border-color: rgba(0, 120, 212, 0.28);
+  box-shadow: 0 0 0 1px rgba(0, 120, 212, 0.12), var(--crosshook-shadow-strong);
+}
+
+.crosshook-protondb-card--gold {
+  border-color: rgba(245, 158, 11, 0.26);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.1), var(--crosshook-shadow-strong);
+}
+
+.crosshook-protondb-card--silver {
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+.crosshook-protondb-card--bronze {
+  border-color: rgba(180, 83, 9, 0.24);
+}
+
+.crosshook-protondb-card--borked {
+  border-color: rgba(248, 113, 113, 0.24);
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.08), var(--crosshook-shadow-strong);
+}
+
+.crosshook-protondb-card--loading {
+  border-color: rgba(59, 130, 246, 0.24);
+  background:
+    linear-gradient(180deg, rgba(14, 20, 40, 0.96), rgba(9, 14, 28, 0.96)),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.18), transparent 30%);
+}
+
+.crosshook-protondb-card--stale {
+  border-color: rgba(245, 158, 11, 0.22);
+  background:
+    linear-gradient(180deg, rgba(14, 20, 40, 0.96), rgba(9, 14, 28, 0.96)),
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.14), transparent 30%);
+}
+
+.crosshook-protondb-card--unavailable {
+  border-color: rgba(248, 113, 113, 0.2);
+  background:
+    linear-gradient(180deg, rgba(14, 20, 40, 0.96), rgba(9, 14, 28, 0.96)),
+    radial-gradient(circle at top right, rgba(248, 113, 113, 0.12), transparent 30%);
+}
+
+.crosshook-protondb-card__header {
+  display: grid;
+  gap: 6px;
+}
+
+.crosshook-protondb-card__title-row,
+.crosshook-protondb-card__summary-row,
+.crosshook-protondb-card__banner-row,
+.crosshook-protondb-card__action-row,
+.crosshook-protondb-card__source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.crosshook-protondb-card__title-row {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.crosshook-protondb-card__source-row {
+  justify-content: space-between;
+}
+
+.crosshook-protondb-card__title {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.crosshook-protondb-card__subtitle {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  line-height: 1.55;
+}
+
+.crosshook-protondb-card__meta,
+.crosshook-protondb-card__summary {
+  display: grid;
+  gap: 8px;
+}
+
+.crosshook-protondb-card__summary {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 5px 20px;
+  align-items: baseline;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.crosshook-protondb-card__summary-key {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.crosshook-protondb-card__summary-value {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.crosshook-protondb-card__community {
+  display: grid;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--crosshook-color-border);
+}
+
+.crosshook-protondb-card__community-title {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.crosshook-protondb-card__community-empty {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.crosshook-protondb-card__recommendations {
+  display: grid;
+  gap: 12px;
+}
+
+.crosshook-protondb-card__recommendation-group {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(8, 14, 26, 0.62);
+}
+
+.crosshook-protondb-card__recommendation-group-title {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.crosshook-protondb-card__recommendation-group-copy {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  line-height: 1.55;
+}
+
+.crosshook-protondb-card__recommendation-list {
+  display: grid;
+  gap: 8px;
+}
+
+.crosshook-protondb-card__recommendation-item {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.crosshook-protondb-card__recommendation-label {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  font-weight: 600;
+}
+
+.crosshook-protondb-card__recommendation-note {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.crosshook-protondb-card__banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.crosshook-protondb-card__banner--loading {
+  border-color: rgba(59, 130, 246, 0.28);
+  background: rgba(59, 130, 246, 0.11);
+}
+
+.crosshook-protondb-card__banner--stale {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.crosshook-protondb-card__banner--unavailable {
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.crosshook-protondb-card__banner--neutral {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.crosshook-protondb-card__banner-copy {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  line-height: 1.55;
+}
+
+.crosshook-protondb-card__banner-copy--muted {
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-protondb-card__source-link {
+  color: var(--crosshook-color-accent-strong);
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.crosshook-protondb-card__source-link:hover {
+  text-decoration: underline;
+}
+
+.crosshook-protondb-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.crosshook-protondb-card__state {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.crosshook-protondb-card__state--loading {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.crosshook-protondb-card__state--stale {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.crosshook-protondb-card__state--unavailable {
+  color: #fecaca;
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.28);
+}
+
+.crosshook-protondb-card__state--neutral {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.crosshook-protondb-tier-badge,
+.crosshook-protondb-tier-badge--platinum,
+.crosshook-protondb-tier-badge--gold,
+.crosshook-protondb-tier-badge--silver,
+.crosshook-protondb-tier-badge--bronze,
+.crosshook-protondb-tier-badge--borked {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.81rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.crosshook-protondb-tier-badge--platinum {
+  color: #dbeafe;
+  background: rgba(0, 120, 212, 0.2);
+  border: 1px solid rgba(0, 120, 212, 0.38);
+}
+
+.crosshook-protondb-tier-badge--gold {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.36);
+}
+
+.crosshook-protondb-tier-badge--silver {
+  color: #e2e8f0;
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.34);
+}
+
+.crosshook-protondb-tier-badge--bronze {
+  color: #fed7aa;
+  background: rgba(180, 83, 9, 0.18);
+  border: 1px solid rgba(180, 83, 9, 0.36);
+}
+
+.crosshook-protondb-tier-badge--borked {
+  color: #fecaca;
+  background: rgba(248, 113, 113, 0.18);
+  border: 1px solid rgba(248, 113, 113, 0.34);
+}
+
+.crosshook-protondb-tier-badge--unknown {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.14);
+  border: 1px solid rgba(148, 163, 184, 0.28);
 }
 
 .crosshook-compatibility-viewer__count {
