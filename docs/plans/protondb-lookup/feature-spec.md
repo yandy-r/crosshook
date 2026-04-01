@@ -93,6 +93,36 @@ CrossHook should enrich the profile editor with ProtonDB guidance whenever a pro
 - [ ] Steam App ID ownership, cache namespaces, and DTO boundaries are stable and documented for issue `#52` reuse without data-model duplication.
 - [ ] Repeatedly accepted safe recommendations have a documented promotion path into reusable preset candidates with explicit user review.
 
+## Cross-Feature Contract
+
+### Steam App ID Ownership and Cache Namespace
+
+- `steam.app_id` remains the canonical profile-owned identifier for ProtonDB and adjacent metadata features.
+- Issue `#53` owns the ProtonDB lookup cache namespace. The canonical lookup key is `protondb:{steam_app_id}` and stores only normalized CrossHook DTO payloads.
+- Issue `#52` may reuse the same `steam.app_id` and cache provenance fields, but it must not duplicate ProtonDB fetch or cache rows under a competing lookup namespace.
+- When future metadata features need their own cache rows, they should use sibling namespaces such as `steam-store:{steam_app_id}` or `cover-art:{steam_app_id}` rather than overloading `protondb:{steam_app_id}`.
+
+### Issue `#52` Boundary
+
+- In scope for `#53`: ProtonDB fetch, normalization, cache persistence, exact-tier rendering, version-aware advisory messaging, and explicit copy/apply behavior for safe env suggestions.
+- Out of scope for `#53`: Steam store metadata enrichment, cover-art pipelines, screenshot/media ingestion, or any alternate metadata cache keyed separately from the canonical `steam.app_id`.
+- Reuse rule: `#52` consumes the already-resolved Steam App ID plus cache/source provenance from `#53` and adds its own presentation or sibling metadata, not a second ProtonDB client.
+
+## Preset Promotion Lifecycle
+
+### Promotion Eligibility
+
+- Only normalized env-var-only recommendation groups are eligible for promotion. Any dependency on raw launch strings keeps the guidance advisory-only.
+- A candidate must be accepted explicitly by the user multiple times without overwrite conflicts on the same Steam App ID before it is considered stable enough for promotion review.
+- Version-aware gating applies: if the profile is currently `game_updated`, `both_changed`, or `update_in_progress`, the recommendation is not eligible for promotion.
+- Promotion is opt-in and reviewable. CrossHook does not auto-create presets from ProtonDB suggestions during normal profile editing.
+
+### Candidate Tracking and Rollback
+
+- Candidate promotions are tracked in planning/docs first, not written silently into profile state or bundled preset catalogs by issue `#53`.
+- Reviewers should record the Steam App ID, normalized env map, supporting-report evidence, and any overwrite-conflict history before promoting a candidate into a later preset task.
+- Rollback rule: if refreshed ProtonDB data drops the recommendation, or version-correlation signals show the game build changed, the candidate is marked stale and removed from the promotion queue until reconfirmed.
+
 ## Technical Specifications
 
 ### Architecture Overview
