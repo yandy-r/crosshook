@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, HashMap};
 
 use serde::Deserialize;
 
@@ -58,7 +58,8 @@ pub(crate) struct ProtonDbReportNotes {
 struct EnvGroupAggregate {
     count: usize,
     env_vars: Vec<ProtonDbEnvVarSuggestion>,
-    launch_options: BTreeSet<String>,
+    /// Per raw launch string: how many reports contributed that exact string (copy-only tails).
+    launch_options: BTreeMap<String, usize>,
     notes: Vec<ProtonDbAdvisoryNote>,
 }
 
@@ -101,7 +102,7 @@ pub(crate) fn normalize_report_feed(
                 }
             }
             if !raw_launch.is_empty() && launch_string_needs_copy_only(&raw_launch) {
-                entry.launch_options.insert(raw_launch.clone());
+                *entry.launch_options.entry(raw_launch.clone()).or_insert(0) += 1;
             }
             if !note_text.is_empty() {
                 push_note(&mut entry.notes, &source_label, &note_text);
@@ -145,11 +146,11 @@ pub(crate) fn normalize_report_feed(
             launch_options: aggregate
                 .launch_options
                 .into_iter()
-                .map(|text| ProtonDbLaunchOptionSuggestion {
+                .map(|(text, count)| ProtonDbLaunchOptionSuggestion {
                     kind: ProtonDbAdvisoryKind::LaunchOption,
                     source_label: "Raw launch option".to_string(),
                     text,
-                    supporting_report_count: Some(aggregate.count as u32),
+                    supporting_report_count: Some(count as u32),
                 })
                 .collect(),
         });
@@ -261,7 +262,7 @@ fn safe_env_var_suggestions(raw_launch: &str, source_label: &str) -> Vec<ProtonD
         return Vec::new();
     }
 
-    let mut env_vars = Vec::new();
+    let mut env_map: HashMap<String, ProtonDbEnvVarSuggestion> = HashMap::new();
     for token in prefix.split_whitespace() {
         let Some((key, value)) = token.split_once('=') else {
             continue;
@@ -270,19 +271,22 @@ fn safe_env_var_suggestions(raw_launch: &str, source_label: &str) -> Vec<ProtonD
         if !is_safe_env_key(normalized_key) || !is_safe_env_value(value) {
             continue;
         }
-        if RESERVED_ENV_KEYS.contains(&normalized_key) {
+        if RESERVED_ENV_KEYS.contains(&normalized_key) || normalized_key.starts_with("STEAM_COMPAT_") {
             continue;
         }
-        env_vars.push(ProtonDbEnvVarSuggestion {
-            key: normalized_key.to_string(),
-            value: value.to_string(),
-            source_label: source_label.to_string(),
-            supporting_report_count: None,
-        });
+        env_map.insert(
+            normalized_key.to_string(),
+            ProtonDbEnvVarSuggestion {
+                key: normalized_key.to_string(),
+                value: value.to_string(),
+                source_label: source_label.to_string(),
+                supporting_report_count: None,
+            },
+        );
     }
 
+    let mut env_vars: Vec<ProtonDbEnvVarSuggestion> = env_map.into_values().collect();
     env_vars.sort_by(|left, right| left.key.cmp(&right.key).then(left.value.cmp(&right.value)));
-    env_vars.dedup_by(|left, right| left.key == right.key && left.value == right.value);
     env_vars
 }
 

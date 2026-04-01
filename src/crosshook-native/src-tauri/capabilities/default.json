@@ -6,6 +6,9 @@
   "permissions": [
     "core:default",
     "dialog:default",
-    "shell:allow-open"
+    {
+      "identifier": "shell:allow-open",
+      "allow": [{ "url": "https://www.protondb.com/**" }]
+    }
   ]
 }

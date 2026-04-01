@@ -1,3 +1,5 @@
+use std::fmt;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
@@ -21,6 +23,34 @@ const SUMMARY_URL_BASE: &str = "https://www.protondb.com/api/v1/reports/summarie
 const CACHE_TTL_HOURS: i64 = 6;
 const PAGE_SELECTOR_FIRST: i64 = 1;
 const REQUEST_TIMEOUT_SECS: u64 = 6;
+static PROTONDB_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+#[derive(Debug)]
+enum ProtonDbError {
+    NotFound,
+    HashResolutionFailed,
+    Network(reqwest::Error),
+    InvalidAppId(String),
+    InvalidTimestamp(i64),
+}
+
+impl fmt::Display for ProtonDbError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotFound => write!(f, "ProtonDB summary not found for this Steam App ID"),
+            Self::HashResolutionFailed => {
+                write!(f, "ProtonDB report feed hash could not be resolved")
+            }
+            Self::Network(error) => write!(f, "network error: {error}"),
+            Self::InvalidAppId(id) => {
+                write!(f, "app ID {id:?} cannot be used for a report feed lookup")
+            }
+            Self::InvalidTimestamp(ts) => {
+                write!(f, "ProtonDB counts timestamp {ts} is not positive")
+            }
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 struct CachedLookupRow {
@@ -79,7 +109,8 @@ pub async fn lookup_protondb(
         Err(error) => {
             tracing::warn!(app_id, %error, "ProtonDB live lookup failed");
             if let Some(stale_cache) = load_cached_lookup_row(metadata_store, &cache_key, true) {
-                if let Some(result) = cached_result_from_row(&app_id, &cache_key, stale_cache, true) {
+                if let Some(result) = cached_result_from_row(&app_id, &cache_key, stale_cache, true)
+                {
                     return result;
                 }
             }
@@ -98,15 +129,10 @@ pub async fn lookup_protondb(
     }
 }
 
-async fn fetch_live_lookup(app_id: &str) -> Result<ProtonDbLookupResult, String> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .user_agent(format!("CrossHook/{}", env!("CARGO_PKG_VERSION")))
-        .build()
-        .map_err(|error| error.to_string())?;
-
+async fn fetch_live_lookup(app_id: &str) -> Result<ProtonDbLookupResult, ProtonDbError> {
+    let client = protondb_http_client()?;
     let summary_url = format!("{SUMMARY_URL_BASE}/{app_id}.json");
-    let summary = fetch_summary(&client, &summary_url).await?;
+    let summary = fetch_summary(client, &summary_url).await?;
     let fetched_at = Utc::now().to_rfc3339();
 
     let mut snapshot = ProtonDbSnapshot {
@@ -122,16 +148,17 @@ async fn fetch_live_lookup(app_id: &str) -> Result<ProtonDbLookupResult, String>
         ..ProtonDbSnapshot::default()
     };
 
-    match fetch_recommendations(&client, app_id).await {
+    match fetch_recommendations(client, app_id).await {
         Ok(recommendation_groups) => {
             snapshot.recommendation_groups = recommendation_groups;
         }
         Err(error) => {
             tracing::warn!(app_id, %error, "ProtonDB report aggregation degraded");
-            let message = if error.contains("hash could not be resolved") {
-                "No community report data is available for this game on ProtonDB yet."
-            } else {
-                "Community report data could not be loaded right now. Tier information is still shown above."
+            let message = match error {
+                ProtonDbError::HashResolutionFailed | ProtonDbError::InvalidAppId(_) => {
+                    "No community report data is available for this game on ProtonDB yet."
+                }
+                _ => "Community report data could not be loaded right now. Tier information is still shown above.",
             };
             snapshot.recommendation_groups = vec![degraded_recommendation_group(message)];
         }
@@ -145,67 +172,121 @@ async fn fetch_live_lookup(app_id: &str) -> Result<ProtonDbLookupResult, String>
     })
 }
 
+fn protondb_http_client() -> Result<&'static reqwest::Client, ProtonDbError> {
+    if let Some(client) = PROTONDB_HTTP_CLIENT.get() {
+        return Ok(client);
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .user_agent(format!("CrossHook/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(ProtonDbError::Network)?;
+
+    let _ = PROTONDB_HTTP_CLIENT.set(client);
+    Ok(PROTONDB_HTTP_CLIENT
+        .get()
+        .expect("ProtonDB HTTP client should be initialized before use"))
+}
+
 async fn fetch_summary(
     client: &reqwest::Client,
     summary_url: &str,
-) -> Result<ProtonDbSummaryResponse, String> {
+) -> Result<ProtonDbSummaryResponse, ProtonDbError> {
     let response = client
         .get(summary_url)
         .send()
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(ProtonDbError::Network)?;
 
     if response.status() == StatusCode::NOT_FOUND {
-        return Err("ProtonDB summary not found for Steam App ID".to_string());
+        return Err(ProtonDbError::NotFound);
     }
 
     response
         .error_for_status()
-        .map_err(|error| error.to_string())?
+        .map_err(ProtonDbError::Network)?
         .json::<ProtonDbSummaryResponse>()
         .await
-        .map_err(|error| error.to_string())
+        .map_err(ProtonDbError::Network)
+}
+
+async fn fetch_counts_json(
+    client: &reqwest::Client,
+) -> Result<ProtonDbCountsResponse, ProtonDbError> {
+    client
+        .get(COUNTS_URL)
+        .send()
+        .await
+        .map_err(ProtonDbError::Network)?
+        .error_for_status()
+        .map_err(ProtonDbError::Network)?
+        .json::<ProtonDbCountsResponse>()
+        .await
+        .map_err(ProtonDbError::Network)
 }
 
 async fn fetch_recommendations(
     client: &reqwest::Client,
     app_id: &str,
-) -> Result<Vec<super::models::ProtonDbRecommendationGroup>, String> {
-    let counts = client
-        .get(COUNTS_URL)
-        .send()
-        .await
-        .map_err(|error| error.to_string())?
-        .error_for_status()
-        .map_err(|error| error.to_string())?
-        .json::<ProtonDbCountsResponse>()
-        .await
-        .map_err(|error| error.to_string())?;
+) -> Result<Vec<super::models::ProtonDbRecommendationGroup>, ProtonDbError> {
+    let mut counts = fetch_counts_json(client).await?;
 
-    let report_feed_id = report_feed_id(
-        app_id.parse::<i64>().map_err(|error| error.to_string())?,
-        counts.reports,
-        counts.timestamp,
-        PAGE_SELECTOR_FIRST,
+    if counts.timestamp <= 0 {
+        return Err(ProtonDbError::InvalidTimestamp(counts.timestamp));
+    }
+
+    let app_id_i64 = app_id
+        .parse::<i64>()
+        .map_err(|_| ProtonDbError::InvalidAppId(app_id.to_string()))?;
+
+    let mut report_feed_url = format!(
+        "{REPORTS_URL_BASE}/all-devices/app/{}.json",
+        report_feed_id(
+            app_id_i64,
+            counts.reports,
+            counts.timestamp,
+            PAGE_SELECTOR_FIRST,
+        )
     );
-    let report_feed_url = format!("{REPORTS_URL_BASE}/all-devices/app/{report_feed_id}.json");
 
-    let response = client
+    let mut response = client
         .get(&report_feed_url)
         .send()
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(ProtonDbError::Network)?;
 
     if response.status() == StatusCode::NOT_FOUND {
-        return Err("ProtonDB report feed hash could not be resolved".to_string());
+        counts = fetch_counts_json(client).await?;
+        if counts.timestamp <= 0 {
+            return Err(ProtonDbError::InvalidTimestamp(counts.timestamp));
+        }
+        report_feed_url = format!(
+            "{REPORTS_URL_BASE}/all-devices/app/{}.json",
+            report_feed_id(
+                app_id_i64,
+                counts.reports,
+                counts.timestamp,
+                PAGE_SELECTOR_FIRST,
+            )
+        );
+        response = client
+            .get(&report_feed_url)
+            .send()
+            .await
+            .map_err(ProtonDbError::Network)?;
+    }
+
+    if response.status() == StatusCode::NOT_FOUND {
+        return Err(ProtonDbError::HashResolutionFailed);
     }
 
     let feed = response
         .error_for_status()
-        .map_err(|error| error.to_string())?
+        .map_err(ProtonDbError::Network)?
         .json::<ProtonDbReportFeedResponse>()
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(ProtonDbError::Network)?;
 
     Ok(normalize_report_feed(feed))
 }
@@ -323,6 +404,10 @@ fn cached_result_from_row(
     }
 
     let mut result = serde_json::from_str::<ProtonDbLookupResult>(&row.payload_json).ok()?;
+    if result.snapshot.is_none() {
+        return None;
+    }
+
     result.app_id = app_id.to_string();
     result.state = if is_stale {
         ProtonDbLookupState::Stale
@@ -335,7 +420,7 @@ fn cached_result_from_row(
         expires_at: row.expires_at.clone(),
         from_cache: true,
         is_stale,
-        is_offline: true,
+        is_offline: is_stale,
     });
 
     if let Some(snapshot) = result.snapshot.as_mut() {
@@ -356,7 +441,12 @@ fn parse_rfc3339(value: &str) -> Option<DateTime<Utc>> {
         .map(|time| time.with_timezone(&Utc))
 }
 
-fn report_feed_id(app_id: i64, reports_count: i64, counts_timestamp: i64, page_selector: i64) -> i64 {
+fn report_feed_id(
+    app_id: i64,
+    reports_count: i64,
+    counts_timestamp: i64,
+    page_selector: i64,
+) -> i64 {
     hash_text(format!(
         "p{}*vRT{}",
         compose_hash_part(app_id, reports_count, counts_timestamp),

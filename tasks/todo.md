@@ -1,5 +1,23 @@
 # Task Plan
 
+## 2026-04-01 - pr 133 conflict resolution
+
+- [x] Create a backup ref for the current PR 133 branch tip.
+- [x] Rebuild the branch on top of current `main` with only the post-`#132` follow-up commits.
+- [x] Resolve any replay conflicts by keeping `main`'s merged `#132` feature content and preserving the intended review fixes.
+- [x] Apply any remaining ProtonDB type-safety and review cleanups needed for a clean build.
+- [x] Run verification (`tsc`, `crosshook-core` tests, native binary build) and record the closeout.
+
+### Review
+
+- Rebuilt `feat/protondb-lookup` on top of current `main` and replayed only the post-`#132` follow-up commits, so the branch diff is now limited to the intended 11 follow-up files instead of re-carrying the full ProtonDB feature history.
+- Preserved the review-fix behavior from the replayed commits, including the report-feed retry path, stricter cache handling, optional-field TypeScript normalization, `native` tier styling, and the quickstart TOC fix.
+- Added the remaining merge-readiness fixes that were still missing locally: optional `env_vars` handling in the profile form, stable ProtonDB recommendation group keys in the card, guarded `openUrl` usage, and removal of the deprecated `word-wrap` property.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `./scripts/build-native.sh --binary-only`
+
 ## 2026-03-31 - protondb lookup implementation
 
 - [x] Task 1.1: Define the backend ProtonDB contract and exact-tier model.
