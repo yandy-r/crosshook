@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
 import { invoke } from '@tauri-apps/api/core';
 
 import InstallGamePanel from '../InstallGamePanel';
 import ProfileFormSections from '../ProfileFormSections';
 import UpdateGamePanel from '../UpdateGamePanel';
 import ProfileReviewModal, { type ProfileReviewModalConfirmation } from '../ProfileReviewModal';
-import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import type { GameProfile } from '../../types';
@@ -15,6 +15,8 @@ import type { ProfileReviewSession } from '../../types/profile-review';
 import { profilesEqual } from '../../utils/profile-compare';
 import { PageBanner, InstallArt } from '../layout/PageBanner';
 import type { AppRoute } from '../layout/Sidebar';
+
+type InstallPageTab = 'install' | 'update';
 
 type ReviewConfirmationState = ProfileReviewModalConfirmation & {
   restoreIsOpen: boolean;
@@ -62,6 +64,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
     [defaultSteamClientInstallPath, steamClientInstallPath]
   );
 
+  const [installPageTab, setInstallPageTab] = useState<InstallPageTab>('install');
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
   const [profileReviewSession, setProfileReviewSession] = useState<ProfileReviewSession | null>(null);
@@ -368,16 +371,53 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
       />
 
       <div style={{ display: 'grid', gap: 24 }}>
-        <CollapsibleSection title="Install Game" className="crosshook-panel">
-          <InstallGamePanel
-            onOpenProfileReview={handleOpenProfileReview}
-            onRequestInstallAction={handleInstallActionConfirmation}
-          />
-        </CollapsibleSection>
+        <div className="crosshook-panel crosshook-install-page-tabs" style={{ padding: 'var(--crosshook-card-padding)' }}>
+          <Tabs.Root
+            className="crosshook-install-page-tabs__root"
+            value={installPageTab}
+            onValueChange={(value) => setInstallPageTab(value as InstallPageTab)}
+          >
+            <Tabs.List className="crosshook-subtab-row" aria-label="Install page sections">
+              <Tabs.Trigger
+                value="install"
+                className={`crosshook-subtab${installPageTab === 'install' ? ' crosshook-subtab--active' : ''}`}
+              >
+                Install Game
+              </Tabs.Trigger>
+              <Tabs.Trigger
+                value="update"
+                className={`crosshook-subtab${installPageTab === 'update' ? ' crosshook-subtab--active' : ''}`}
+              >
+                Update Game
+              </Tabs.Trigger>
+            </Tabs.List>
 
-        <CollapsibleSection title="Update Game" className="crosshook-panel">
-          <UpdateGamePanel protonInstalls={protonInstalls} protonInstallsError={protonInstallsError} />
-        </CollapsibleSection>
+            <Tabs.Content
+              value="install"
+              forceMount
+              className="crosshook-subtab-content"
+              style={{ display: installPageTab === 'install' ? undefined : 'none' }}
+            >
+              <div className="crosshook-subtab-content__inner crosshook-install-page-tabs__panel-inner">
+                <InstallGamePanel
+                  onOpenProfileReview={handleOpenProfileReview}
+                  onRequestInstallAction={handleInstallActionConfirmation}
+                />
+              </div>
+            </Tabs.Content>
+
+            <Tabs.Content
+              value="update"
+              forceMount
+              className="crosshook-subtab-content"
+              style={{ display: installPageTab === 'update' ? undefined : 'none' }}
+            >
+              <div className="crosshook-subtab-content__inner crosshook-install-page-tabs__panel-inner">
+                <UpdateGamePanel protonInstalls={protonInstalls} protonInstallsError={protonInstallsError} />
+              </div>
+            </Tabs.Content>
+          </Tabs.Root>
+        </div>
       </div>
 
       {profileReviewSession !== null && (profileReviewSession.isOpen || reviewConfirmation !== null) ? (

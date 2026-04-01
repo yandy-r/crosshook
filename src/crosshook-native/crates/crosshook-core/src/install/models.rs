@@ -25,6 +25,9 @@ pub struct InstallGameRequest {
     pub prefix_path: String,
     #[serde(default)]
     pub installed_game_executable_path: String,
+    /// Optional local image path; copied onto the generated profile's `game.custom_cover_art_path`.
+    #[serde(default)]
+    pub custom_cover_art_path: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -78,6 +81,8 @@ pub enum InstallGameValidationError {
     PrefixPathNotDirectory,
     InstalledGameExecutablePathMissing,
     InstalledGameExecutablePathNotFile,
+    CustomCoverArtPathMissing,
+    CustomCoverArtPathNotFile,
 }
 
 impl InstallGameRequest {
@@ -99,7 +104,7 @@ impl InstallGameRequest {
             game: GameSection {
                 name: self.resolved_display_name().to_string(),
                 executable_path: String::new(),
-                custom_cover_art_path: String::new(),
+                custom_cover_art_path: self.custom_cover_art_path.trim().to_string(),
             },
             trainer: TrainerSection {
                 path: self.trainer_path.trim().to_string(),
@@ -194,6 +199,12 @@ impl InstallGameValidationError {
             Self::InstalledGameExecutablePathNotFile => {
                 "The final game executable path must be a file.".to_string()
             }
+            Self::CustomCoverArtPathMissing => {
+                "The custom cover art path does not exist.".to_string()
+            }
+            Self::CustomCoverArtPathNotFile => {
+                "The custom cover art path must be a file.".to_string()
+            }
         }
     }
 }
@@ -239,11 +250,13 @@ mod tests {
                 .to_string(),
             prefix_path: prefix_path.to_string_lossy().into_owned(),
             installed_game_executable_path: String::new(),
+            custom_cover_art_path: "/media/art/cover.png".to_string(),
         };
 
         let profile = request.reviewable_profile(&prefix_path);
 
         assert_eq!(profile.game.name, "God of War Ragnarok");
+        assert_eq!(profile.game.custom_cover_art_path, "/media/art/cover.png");
         assert!(profile.game.executable_path.is_empty());
         assert_eq!(profile.trainer.path, "/mnt/trainers/gowr.exe");
         assert_eq!(

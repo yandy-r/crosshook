@@ -149,6 +149,27 @@ textarea {
   gap: 16px;
 }
 
+/* Install page — outer panel provides chrome; tab panels render flat install shells inside */
+.crosshook-panel.crosshook-install-page-tabs .crosshook-install-page-tabs__panel-inner > .crosshook-install-shell {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* Install flow — nested section tabs under intro; shell grid gap replaces list margin-top */
+.crosshook-install-shell .crosshook-install-flow-tabs > .crosshook-subtab-row {
+  margin-top: 0;
+  width: 100%;
+}
+
+.crosshook-install-page-tabs__root > .crosshook-subtab-row {
+  margin-top: 0;
+  width: 100%;
+}
+
 .crosshook-panel,
 .crosshook-card {
   background: linear-gradient(180deg, rgba(18, 23, 42, 0.96), rgba(12, 17, 32, 0.96));

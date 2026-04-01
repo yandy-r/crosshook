@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { type CSSProperties, useState } from 'react';
 
 import type { ProtonInstallOption } from './ProfileFormSections';
+import { GameMetadataBar } from './profile-sections/GameMetadataBar';
 import { InstallField } from './ui/InstallField';
 import { ProtonPathField } from './ui/ProtonPathField';
 import { ThemedSelect } from './ui/ThemedSelect';
+import { useGameCoverArt } from '../hooks/useGameCoverArt';
+import { useImageDominantColor } from '../hooks/useImageDominantColor';
 import { useUpdateGame } from '../hooks/useUpdateGame';
 import type { UpdateGameStage } from '../types';
 
@@ -44,6 +47,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
     profilesError,
     isLoadingProfiles,
     selectedProfile,
+    profileCoverSource,
     updateField,
     statusText,
     hintText,
@@ -58,18 +62,71 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
   const [showConfirmation, setShowConfirmation] = useState(false);
   const logPath = result?.helper_log_path ?? '';
 
+  const steamAppIdForCover = profileCoverSource?.steamAppId;
+  const customCoverForHook =
+    profileCoverSource && profileCoverSource.customCoverArtPath.trim().length > 0
+      ? profileCoverSource.customCoverArtPath.trim()
+      : undefined;
+  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(steamAppIdForCover, customCoverForHook);
+  const dominantColor = useImageDominantColor(coverArtUrl);
+  const gameColorStyle: CSSProperties | undefined = dominantColor
+    ? ({
+        '--crosshook-game-color-r': String(dominantColor[0]),
+        '--crosshook-game-color-g': String(dominantColor[1]),
+        '--crosshook-game-color-b': String(dominantColor[2]),
+      } as CSSProperties)
+    : undefined;
+  const hasCoverHero = profileCoverSource !== null && (Boolean(coverArtUrl) || coverArtLoading);
+
+  const heroTitle = 'Apply update to existing prefix';
+  const heroCopy =
+    'Run a Windows update executable against an existing Proton prefix. Select a profile to auto-fill the prefix and Proton paths.';
+
   return (
-    <section className="crosshook-install-shell" aria-labelledby="update-game-heading" data-crosshook-focus-zone>
-      <div className="crosshook-install-intro">
-        <div className="crosshook-heading-eyebrow">Update Game</div>
-        <h3 id="update-game-heading" className="crosshook-heading-title" style={{ fontSize: '1.5rem' }}>
-          Apply update to existing prefix
-        </h3>
-        <p className="crosshook-heading-copy">
-          Run a Windows update executable against an existing Proton prefix. Select a profile to auto-fill the prefix
-          and Proton paths.
-        </p>
-      </div>
+    <section
+      className="crosshook-install-shell"
+      aria-labelledby="update-game-heading"
+      data-crosshook-focus-zone
+      style={gameColorStyle}
+    >
+      {hasCoverHero ? (
+        <div className="crosshook-profile-hero">
+          {coverArtUrl ? (
+            <>
+              <img
+                src={coverArtUrl}
+                className="crosshook-profile-hero__art"
+                alt=""
+                aria-hidden="true"
+              />
+              <div className="crosshook-profile-hero__gradient" />
+            </>
+          ) : (
+            <div className="crosshook-profile-hero__skeleton crosshook-skeleton" />
+          )}
+          <div className="crosshook-profile-hero__content">
+            <GameMetadataBar steamAppId={steamAppIdForCover} />
+            {!steamAppIdForCover && selectedProfile ? (
+              <div className="crosshook-game-metadata-bar">
+                <span className="crosshook-game-metadata-bar__name">{selectedProfile}</span>
+              </div>
+            ) : null}
+            <div className="crosshook-heading-eyebrow">Update Game</div>
+            <h3 id="update-game-heading" className="crosshook-heading-title" style={{ fontSize: '1.5rem' }}>
+              {heroTitle}
+            </h3>
+            <p className="crosshook-heading-copy">{heroCopy}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="crosshook-install-intro">
+          <div className="crosshook-heading-eyebrow">Update Game</div>
+          <h3 id="update-game-heading" className="crosshook-heading-title" style={{ fontSize: '1.5rem' }}>
+            {heroTitle}
+          </h3>
+          <p className="crosshook-heading-copy">{heroCopy}</p>
+        </div>
+      )}
 
       <div className="crosshook-install-section">
         <div className="crosshook-install-section-title">Profile</div>

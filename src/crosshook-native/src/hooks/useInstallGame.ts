@@ -61,6 +61,7 @@ function createEmptyInstallGameRequest(): InstallGameRequest {
     prefix_path: '',
     installed_game_executable_path: '',
     launcher_icon_path: '',
+    custom_cover_art_path: '',
   };
 }
 
@@ -114,6 +115,10 @@ function mapValidationErrorToField(message: string): keyof InstallGameRequest | 
 
   if (normalized.includes('trainer path')) {
     return 'trainer_path';
+  }
+
+  if (normalized.includes('custom cover art path')) {
+    return 'custom_cover_art_path';
   }
 
   if (normalized.includes('proton path')) {
