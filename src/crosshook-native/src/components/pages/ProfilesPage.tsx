@@ -506,6 +506,7 @@ export function ProfilesPage() {
   const selectedTrend = selectedProfile ? (trendByName[selectedProfile] ?? null) : null;
   const selectedVersionStatus = selectedReport?.metadata?.version_status ?? null;
   const selectedTrainerVersion = selectedReport?.metadata?.trainer_version ?? null;
+  const hasSelectedProfile = selectedProfile.trim().length > 0;
 
   const VERSION_STATUS_LABELS: Record<string, string> = {
     game_updated: 'Game updated',
@@ -633,30 +634,26 @@ export function ProfilesPage() {
                 ? 'Set up your first game + trainer combo in minutes with step-by-step guidance.'
                 : 'Use the guided wizard to create another profile with automatic readiness checks.'}
             </p>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="crosshook-button"
-                onClick={() => {
-                  setWizardMode('create');
-                  setShowWizard(true);
-                }}
-              >
-                New Profile
-              </button>
-              {profileExists && (
+            {profiles.length === 0 ? (
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  className="crosshook-button crosshook-button--secondary"
+                  className="crosshook-button"
+                  style={{
+                    height: 'var(--crosshook-touch-target-min)',
+                    minHeight: 'var(--crosshook-touch-target-min)',
+                    padding: '0 14px',
+                    fontSize: '0.95rem',
+                  }}
                   onClick={() => {
-                    setWizardMode('edit');
+                    setWizardMode('create');
                     setShowWizard(true);
                   }}
                 >
-                  Edit in Wizard
+                  New Profile
                 </button>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
 
           {/* Profile selector — always visible */}
@@ -688,6 +685,42 @@ export function ProfilesPage() {
                     ...profiles.map((name) => ({ value: name, label: name })),
                   ]}
                 />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="crosshook-button"
+                  style={{
+                    height: 'var(--crosshook-touch-target-min)',
+                    minHeight: 'var(--crosshook-touch-target-min)',
+                    padding: '0 14px',
+                    fontSize: '0.95rem',
+                  }}
+                  onClick={() => {
+                    setWizardMode('create');
+                    setShowWizard(true);
+                  }}
+                >
+                  New Profile
+                </button>
+                {hasSelectedProfile ? (
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--secondary"
+                    style={{
+                      height: 'var(--crosshook-touch-target-min)',
+                      minHeight: 'var(--crosshook-touch-target-min)',
+                      padding: '0 14px',
+                      fontSize: '0.95rem',
+                    }}
+                    onClick={() => {
+                      setWizardMode('edit');
+                      setShowWizard(true);
+                    }}
+                  >
+                    Edit in Wizard
+                  </button>
+                ) : null}
               </div>
             </div>
           )}

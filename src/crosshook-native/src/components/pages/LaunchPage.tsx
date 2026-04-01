@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core';
 
 import LaunchPanel from '../LaunchPanel';
 import { LaunchSubTabs } from '../LaunchSubTabs';
-import { PinnedProfilesStrip } from '../PinnedProfilesStrip';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useProfileContext } from '../../context/ProfileContext';
 import { PageBanner, LaunchArt } from '../layout/PageBanner';
@@ -55,16 +54,6 @@ export function LaunchPage() {
           profileId={profileId}
           method={profileState.launchMethod}
           request={launchRequest}
-          infoSlot={
-            profileState.favoriteProfiles.length > 0 ? (
-              <PinnedProfilesStrip
-                favoriteProfiles={profileState.favoriteProfiles}
-                selectedProfile={profileState.selectedProfile}
-                onSelectProfile={profileState.selectProfile}
-                onToggleFavorite={profileState.toggleFavorite}
-              />
-            ) : null
-          }
           beforeActions={
             <section style={{ marginTop: 16 }}>
               <span
