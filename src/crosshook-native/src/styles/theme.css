@@ -2448,6 +2448,7 @@ textarea {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  align-items: start;
 }
 
 .crosshook-launch-panel__action-block {
@@ -2506,6 +2507,11 @@ textarea {
 .crosshook-launch-panel__indicator-copy {
   color: #7f8fb0;
   font-size: 0.9rem;
+}
+
+.crosshook-launch-panel__actions-card {
+  display: grid;
+  gap: var(--crosshook-launch-panel-gap, 16px);
 }
 
 .crosshook-export-panel {
