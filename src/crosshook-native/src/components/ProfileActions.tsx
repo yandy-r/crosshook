@@ -53,6 +53,8 @@ export interface ProfileActionsProps {
   onExportCommunity: () => void | Promise<void>;
   /** Opens the configuration history panel for the current profile. */
   onViewHistory: () => void;
+  /** Profiles page footer: tighter top spacing for the pinned action bar. */
+  layoutVariant?: 'default' | 'footer';
 }
 
 const VERSION_MISMATCH_STATUSES = new Set<VersionCorrelationStatus>([
@@ -85,6 +87,7 @@ export function ProfileActions({
   onPreview,
   onExportCommunity,
   onViewHistory,
+  layoutVariant = 'default',
 }: ProfileActionsProps) {
   const { selectedProfile } = useProfileContext();
   const { healthByName, revalidateSingle } = useProfileHealthContext();
@@ -114,8 +117,11 @@ export function ProfileActions({
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 18 }}>
+    <div className={layoutVariant === 'footer' ? 'crosshook-profile-actions crosshook-profile-actions--footer' : 'crosshook-profile-actions'}>
+      <div
+        className="crosshook-profile-actions__toolbar"
+        style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: layoutVariant === 'footer' ? 0 : 18 }}
+      >
         <button type="button" className="crosshook-button" onClick={() => void onSave()} disabled={!canSave}>
           {saving ? 'Saving...' : 'Save'}
         </button>

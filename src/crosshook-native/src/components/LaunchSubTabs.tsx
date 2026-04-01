@@ -148,16 +148,13 @@ export function LaunchSubTabs({
       } as CSSProperties
     : undefined;
 
-  const hasHero = Boolean(coverArtUrl) || coverArtLoading;
+  const showCoverArt = Boolean(coverArtUrl) || coverArtLoading;
 
   // No tabs for native method — return null after all hooks have been called.
   if (isNative) return null;
 
   return (
-    <div
-      className="crosshook-panel crosshook-launch-subtabs"
-      style={{ padding: 'var(--crosshook-card-padding)' }}
-    >
+    <div className="crosshook-panel crosshook-launch-subtabs crosshook-subtabs-shell">
       <Tabs.Root
         className="crosshook-subtabs-root"
         value={activeTab}
@@ -169,175 +166,181 @@ export function LaunchSubTabs({
         }}
         style={gameColorStyle}
       >
-        {/* Blended cover art hero banner */}
-        {hasHero ? (
-          <div className="crosshook-profile-hero">
-            {coverArtUrl ? (
-              <>
-                <img
-                  src={coverArtUrl}
-                  className="crosshook-profile-hero__art"
-                  alt=""
-                  aria-hidden="true"
-                />
-                <div className="crosshook-profile-hero__gradient" />
-              </>
-            ) : (
-              <div className="crosshook-profile-hero__skeleton crosshook-skeleton" />
-            )}
-            <div className="crosshook-profile-hero__content">
-              <GameMetadataBar steamAppId={steamAppId} />
-            </div>
+        <div
+          className={[
+            'crosshook-subtabs-backdrop',
+            !showCoverArt ? 'crosshook-subtabs-backdrop--empty' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          aria-hidden="true"
+        >
+          {coverArtUrl ? (
+            <img
+              src={coverArtUrl}
+              className="crosshook-subtabs-backdrop__art"
+              alt=""
+              aria-hidden="true"
+            />
+          ) : null}
+          {coverArtLoading && !coverArtUrl ? (
+            <div className="crosshook-subtabs-backdrop__skeleton crosshook-skeleton" />
+          ) : null}
+          <div className="crosshook-subtabs-backdrop__veil" />
+        </div>
+
+        <div className="crosshook-subtabs-foreground">
+          <Tabs.List
+            className={`crosshook-subtab-row${dominantColor ? ' crosshook-subtab-row--themed' : ''}`}
+            aria-label="Launch configuration sections"
+          >
+            {tabs.map((tab) => (
+              <Tabs.Trigger
+                key={tab}
+                value={tab}
+                className={`crosshook-subtab${activeTab === tab ? ' crosshook-subtab--active' : ''}`}
+              >
+                {TAB_LABELS[tab]}
+              </Tabs.Trigger>
+            ))}
+          </Tabs.List>
+
+          <div className="crosshook-subtabs-metadata">
+            <GameMetadataBar steamAppId={steamAppId} />
           </div>
-        ) : null}
 
-        {/* Tab row — themed when game color is available */}
-        <Tabs.List
-          className={`crosshook-subtab-row${dominantColor ? ' crosshook-subtab-row--themed' : ''}`}
-          aria-label="Launch configuration sections"
-        >
-          {tabs.map((tab) => (
-            <Tabs.Trigger
-              key={tab}
-              value={tab}
-              className={`crosshook-subtab${activeTab === tab ? ' crosshook-subtab--active' : ''}`}
-            >
-              {TAB_LABELS[tab]}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-
-        {/* Offline tab */}
-        <Tabs.Content
-          value="offline"
-          forceMount
-          className="crosshook-subtab-content"
-          style={{ display: activeTab === 'offline' ? undefined : 'none' }}
-        >
-          <div className="crosshook-subtab-content__inner">
-            <div
-              className="crosshook-launch-panel__offline"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}
-            >
-              <OfflineStatusBadge
+          {/* Offline tab */}
+          <Tabs.Content
+            value="offline"
+            forceMount
+            className="crosshook-subtab-content"
+            style={{ display: activeTab === 'offline' ? undefined : 'none' }}
+          >
+            <div className="crosshook-subtab-content__inner">
+              <div
+                className="crosshook-launch-panel__offline"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}
+              >
+                <OfflineStatusBadge
+                  report={offlineReadiness}
+                  loading={offlineReadinessLoading && !offlineReadiness}
+                />
+                {!offlineReadinessLoading && offlineReadiness ? (
+                  <span className="crosshook-muted" style={{ fontSize: '0.85rem' }}>
+                    {offlineReadiness.readiness_state.replace(/_/g, ' ')}
+                  </span>
+                ) : null}
+              </div>
+              <OfflineReadinessPanel
                 report={offlineReadiness}
-                loading={offlineReadinessLoading && !offlineReadiness}
+                error={offlineReadinessError}
+                loading={offlineReadinessLoading}
               />
-              {!offlineReadinessLoading && offlineReadiness ? (
-                <span className="crosshook-muted" style={{ fontSize: '0.85rem' }}>
-                  {offlineReadiness.readiness_state.replace(/_/g, ' ')}
-                </span>
+              {launchPathWarnings.length > 0 ? (
+                <ul className="crosshook-launch-panel__feedback-list" aria-label="Launch path warnings">
+                  {launchPathWarnings.map((issue, index) => (
+                    <li
+                      key={`launch-warn-${issue.message}-${index}`}
+                      className="crosshook-launch-panel__feedback-item"
+                    >
+                      <div className="crosshook-launch-panel__feedback-header">
+                        <span
+                          className="crosshook-launch-panel__feedback-badge"
+                          data-severity={issue.severity}
+                        >
+                          {issue.severity}
+                        </span>
+                        <p className="crosshook-launch-panel__feedback-title">{issue.message}</p>
+                      </div>
+                      <p className="crosshook-launch-panel__feedback-help">{issue.help}</p>
+                    </li>
+                  ))}
+                </ul>
               ) : null}
             </div>
-            <OfflineReadinessPanel
-              report={offlineReadiness}
-              error={offlineReadinessError}
-              loading={offlineReadinessLoading}
-            />
-            {launchPathWarnings.length > 0 ? (
-              <ul className="crosshook-launch-panel__feedback-list" aria-label="Launch path warnings">
-                {launchPathWarnings.map((issue, index) => (
-                  <li
-                    key={`launch-warn-${issue.message}-${index}`}
-                    className="crosshook-launch-panel__feedback-item"
-                  >
-                    <div className="crosshook-launch-panel__feedback-header">
-                      <span
-                        className="crosshook-launch-panel__feedback-badge"
-                        data-severity={issue.severity}
-                      >
-                        {issue.severity}
-                      </span>
-                      <p className="crosshook-launch-panel__feedback-title">{issue.message}</p>
-                    </div>
-                    <p className="crosshook-launch-panel__feedback-help">{issue.help}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </Tabs.Content>
-
-        {/* Gamescope tab — proton_run only */}
-        {showsGamescopeTab ? (
-          <Tabs.Content
-            value="gamescope"
-            forceMount
-            className="crosshook-subtab-content"
-            style={{ display: activeTab === 'gamescope' ? undefined : 'none' }}
-          >
-            <div className="crosshook-subtab-content__inner">
-              <GamescopeConfigPanel
-                config={gamescopeConfig}
-                onChange={onGamescopeChange}
-                isInsideGamescopeSession={isInsideGamescopeSession}
-              />
-            </div>
           </Tabs.Content>
-        ) : null}
 
-        {/* MangoHud tab — proton_run or steam_applaunch */}
-        {showsMangoHudTab ? (
-          <Tabs.Content
-            value="mangohud"
-            forceMount
-            className="crosshook-subtab-content"
-            style={{ display: activeTab === 'mangohud' ? undefined : 'none' }}
-          >
-            <div className="crosshook-subtab-content__inner">
-              <MangoHudConfigPanel
-                config={mangoHudConfig}
-                onChange={onMangoHudChange}
-                showMangoHudOverlayEnabled={showMangoHudOverlayEnabled}
-                launchMethod={launchMethod}
-              />
-            </div>
-          </Tabs.Content>
-        ) : null}
+          {/* Gamescope tab — proton_run only */}
+          {showsGamescopeTab ? (
+            <Tabs.Content
+              value="gamescope"
+              forceMount
+              className="crosshook-subtab-content"
+              style={{ display: activeTab === 'gamescope' ? undefined : 'none' }}
+            >
+              <div className="crosshook-subtab-content__inner">
+                <GamescopeConfigPanel
+                  config={gamescopeConfig}
+                  onChange={onGamescopeChange}
+                  isInsideGamescopeSession={isInsideGamescopeSession}
+                />
+              </div>
+            </Tabs.Content>
+          ) : null}
 
-        {/* Optimizations tab — proton_run or steam_applaunch */}
-        {showsOptimizationsTab ? (
-          <Tabs.Content
-            value="optimizations"
-            forceMount
-            className="crosshook-subtab-content crosshook-subtab-content--fill"
-            style={{ display: activeTab === 'optimizations' ? undefined : 'none' }}
-          >
-            <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--scroll">
-              <LaunchOptimizationsPanel
-                method={launchMethod}
-                enabledOptionIds={enabledOptionIds}
-                onToggleOption={onToggleOption}
-                status={launchOptimizationsStatus}
-                optimizationPresetNames={optimizationPresetNames}
-                activeOptimizationPreset={activeOptimizationPreset}
-                onSelectOptimizationPreset={onSelectOptimizationPreset}
-                bundledOptimizationPresets={bundledOptimizationPresets}
-                onApplyBundledPreset={onApplyBundledPreset}
-                optimizationPresetActionBusy={optimizationPresetActionBusy}
-                onSaveManualPreset={onSaveManualPreset}
-                catalog={catalog}
-              />
-            </div>
-          </Tabs.Content>
-        ) : null}
+          {/* MangoHud tab — proton_run or steam_applaunch */}
+          {showsMangoHudTab ? (
+            <Tabs.Content
+              value="mangohud"
+              forceMount
+              className="crosshook-subtab-content"
+              style={{ display: activeTab === 'mangohud' ? undefined : 'none' }}
+            >
+              <div className="crosshook-subtab-content__inner">
+                <MangoHudConfigPanel
+                  config={mangoHudConfig}
+                  onChange={onMangoHudChange}
+                  showMangoHudOverlayEnabled={showMangoHudOverlayEnabled}
+                  launchMethod={launchMethod}
+                />
+              </div>
+            </Tabs.Content>
+          ) : null}
 
-        {/* Steam Options tab — steam_applaunch only */}
-        {showsSteamOptionsTab ? (
-          <Tabs.Content
-            value="steam-options"
-            forceMount
-            className="crosshook-subtab-content"
-            style={{ display: activeTab === 'steam-options' ? undefined : 'none' }}
-          >
-            <div className="crosshook-subtab-content__inner">
-              <SteamLaunchOptionsPanel
-                enabledOptionIds={enabledOptionIds}
-                customEnvVars={customEnvVars}
-              />
-            </div>
-          </Tabs.Content>
-        ) : null}
+          {/* Optimizations tab — proton_run or steam_applaunch */}
+          {showsOptimizationsTab ? (
+            <Tabs.Content
+              value="optimizations"
+              forceMount
+              className="crosshook-subtab-content crosshook-subtab-content--fill"
+              style={{ display: activeTab === 'optimizations' ? undefined : 'none' }}
+            >
+              <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--scroll">
+                <LaunchOptimizationsPanel
+                  method={launchMethod}
+                  enabledOptionIds={enabledOptionIds}
+                  onToggleOption={onToggleOption}
+                  status={launchOptimizationsStatus}
+                  optimizationPresetNames={optimizationPresetNames}
+                  activeOptimizationPreset={activeOptimizationPreset}
+                  onSelectOptimizationPreset={onSelectOptimizationPreset}
+                  bundledOptimizationPresets={bundledOptimizationPresets}
+                  onApplyBundledPreset={onApplyBundledPreset}
+                  optimizationPresetActionBusy={optimizationPresetActionBusy}
+                  onSaveManualPreset={onSaveManualPreset}
+                  catalog={catalog}
+                />
+              </div>
+            </Tabs.Content>
+          ) : null}
+
+          {/* Steam Options tab — steam_applaunch only */}
+          {showsSteamOptionsTab ? (
+            <Tabs.Content
+              value="steam-options"
+              forceMount
+              className="crosshook-subtab-content"
+              style={{ display: activeTab === 'steam-options' ? undefined : 'none' }}
+            >
+              <div className="crosshook-subtab-content__inner">
+                <SteamLaunchOptionsPanel
+                  enabledOptionIds={enabledOptionIds}
+                  customEnvVars={customEnvVars}
+                />
+              </div>
+            </Tabs.Content>
+          ) : null}
+        </div>
       </Tabs.Root>
     </div>
   );

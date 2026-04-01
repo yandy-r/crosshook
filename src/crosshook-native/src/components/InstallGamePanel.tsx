@@ -315,7 +315,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
                   browseLabel="Browse"
                   browseTitle="Select Custom Cover Art"
                   browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]}
-                  helpText="Overrides Steam/SteamGridDB art. Optimal size: 460×215 px (2:1 landscape)."
+                  helpText="Overrides Steam/SteamGridDB. Shown as a full-width backdrop behind profile tabs (cropped to fill). Steam's store header is 460×215 (~2.14:1); larger landscape art (e.g. 920×430) with focal detail toward the top works well."
                   error={validation.fieldErrors.custom_cover_art_path}
                 />
 

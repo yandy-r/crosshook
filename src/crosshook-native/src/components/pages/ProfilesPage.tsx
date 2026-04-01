@@ -591,7 +591,7 @@ export function ProfilesPage() {
   };
 
   return (
-    <div className="crosshook-page-scroll-shell">
+    <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--profiles">
       <PageBanner
         eyebrow="Profiles"
         title="Profile editor"
@@ -615,7 +615,8 @@ export function ProfilesPage() {
         </div>
       ) : null}
 
-      <div style={{ display: 'grid', gap: 24 }}>
+      <div className="crosshook-profiles-page">
+        <div className="crosshook-profiles-page__body">
         <div className="crosshook-panel" style={{ padding: 'var(--crosshook-card-padding)' }}>
           <header className="crosshook-settings-header" style={{ marginBottom: 14 }}>
             <div className="crosshook-heading-eyebrow">Profiles</div>
@@ -727,45 +728,6 @@ export function ProfilesPage() {
           </div>
         </div>
 
-        {/* Profile sub-tabs — Setup / Runtime / Environment / Trainer */}
-        <div className="crosshook-panel" style={{ padding: 'var(--crosshook-card-padding)' }}>
-          <ProfileSubTabs
-            profile={profile}
-            profileName={profileName}
-            profileExists={profileExists}
-            profiles={profiles}
-            launchMethod={launchMethod}
-            protonInstalls={protonInstalls}
-            protonInstallsError={protonInstallsError}
-            onUpdateProfile={updateProfile}
-            onProfileNameChange={setProfileName}
-            trainerVersion={selectedTrainerVersion}
-            onVersionSet={() => {
-              if (selectedProfile) void revalidateSingle(selectedProfile);
-            }}
-            showProtonDbLookup={showProtonDbLookup}
-            onApplyProtonDbEnvVars={handleApplyProtonDbEnvVars}
-            applyingProtonDbGroupId={applyingProtonDbGroupId}
-            protonDbStatusMessage={protonDbStatusMessage}
-            pendingProtonDbOverwrite={pendingProtonDbOverwrite}
-            onConfirmProtonDbOverwrite={(overwriteKeys) => {
-              if (pendingProtonDbOverwrite) {
-                applyProtonDbGroup(pendingProtonDbOverwrite.group, overwriteKeys);
-              }
-            }}
-            onCancelProtonDbOverwrite={() => setPendingProtonDbOverwrite(null)}
-            onUpdateProtonDbResolution={(key, resolution) =>
-              setPendingProtonDbOverwrite((current) =>
-                current == null ? current : { ...current, resolutions: { ...current.resolutions, [key]: resolution } }
-              )
-            }
-            steamClientInstallPath={effectiveSteamClientInstallPath}
-            targetHomePath={targetHomePath}
-            pendingReExport={pendingLauncherReExport}
-            onReExportHandled={() => setPendingLauncherReExport(false)}
-          />
-        </div>
-
         {/* Health Issues card — shown when selected profile has broken/stale health */}
         {(() => {
           const report = selectedReport;
@@ -836,9 +798,51 @@ export function ProfilesPage() {
           );
         })()}
 
-        {/* Actions — always visible outside section cards */}
-        <div className="crosshook-panel">
+        {/* Profile sub-tabs — stable height; scroll inside active tab */}
+        <div className="crosshook-profiles-editor-host">
+          <div className="crosshook-panel crosshook-subtabs-shell crosshook-profiles-subtabs">
+            <ProfileSubTabs
+              profile={profile}
+              profileName={profileName}
+              profileExists={profileExists}
+              profiles={profiles}
+              launchMethod={launchMethod}
+              protonInstalls={protonInstalls}
+              protonInstallsError={protonInstallsError}
+              onUpdateProfile={updateProfile}
+              onProfileNameChange={setProfileName}
+              trainerVersion={selectedTrainerVersion}
+              onVersionSet={() => {
+                if (selectedProfile) void revalidateSingle(selectedProfile);
+              }}
+              showProtonDbLookup={showProtonDbLookup}
+              onApplyProtonDbEnvVars={handleApplyProtonDbEnvVars}
+              applyingProtonDbGroupId={applyingProtonDbGroupId}
+              protonDbStatusMessage={protonDbStatusMessage}
+              pendingProtonDbOverwrite={pendingProtonDbOverwrite}
+              onConfirmProtonDbOverwrite={(overwriteKeys) => {
+                if (pendingProtonDbOverwrite) {
+                  applyProtonDbGroup(pendingProtonDbOverwrite.group, overwriteKeys);
+                }
+              }}
+              onCancelProtonDbOverwrite={() => setPendingProtonDbOverwrite(null)}
+              onUpdateProtonDbResolution={(key, resolution) =>
+                setPendingProtonDbOverwrite((current) =>
+                  current == null ? current : { ...current, resolutions: { ...current.resolutions, [key]: resolution } }
+                )
+              }
+              steamClientInstallPath={effectiveSteamClientInstallPath}
+              targetHomePath={targetHomePath}
+              pendingReExport={pendingLauncherReExport}
+              onReExportHandled={() => setPendingLauncherReExport(false)}
+            />
+          </div>
+        </div>
+        </div>
+
+        <div className="crosshook-profiles-page__actions crosshook-panel">
           <ProfileActions
+            layoutVariant="footer"
             dirty={dirty}
             loading={loading}
             saving={saving}
