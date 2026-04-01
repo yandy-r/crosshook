@@ -3,6 +3,7 @@ pub mod collections;
 pub mod community;
 pub mod diagnostics;
 pub mod export;
+pub mod game_metadata;
 pub mod health;
 pub mod install;
 pub mod launch;

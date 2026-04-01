@@ -1,5 +1,6 @@
 pub mod community;
 pub mod export;
+pub mod game_images;
 pub mod install;
 pub mod launch;
 pub mod logging;
@@ -9,5 +10,6 @@ pub mod onboarding;
 pub mod profile;
 pub mod protondb;
 pub mod settings;
+pub mod steam_metadata;
 pub mod steam;
 pub mod update;

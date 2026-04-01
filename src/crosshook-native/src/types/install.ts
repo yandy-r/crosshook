@@ -10,6 +10,7 @@ export interface InstallGameRequest {
   proton_path: string;
   prefix_path: string;
   installed_game_executable_path: string;
+  launcher_icon_path: string;
 }
 
 export interface InstallGameResult {

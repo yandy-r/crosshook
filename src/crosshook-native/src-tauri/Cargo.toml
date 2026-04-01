@@ -17,7 +17,7 @@ crosshook-core = { path = "../crates/crosshook-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1.1.0"
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"

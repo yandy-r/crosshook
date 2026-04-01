@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useLauncherManagement } from '../hooks/useLauncherManagement';
 import { chooseDirectory } from '../utils/dialog';
 import { CollapsibleSection } from './ui/CollapsibleSection';
@@ -21,10 +22,12 @@ export interface SettingsPanelProps {
   recentFilesLimit?: number;
   targetHomePath: string;
   steamClientInstallPath: string;
+  steamGridDbApiKey?: string | null;
   onAutoLoadLastProfileChange: (enabled: boolean) => void;
   onProfilesDirectoryPathChange?: (path: string) => void;
   onRefreshRecentFiles?: () => void;
   onClearRecentFiles?: () => void;
+  onSteamGridDbApiKeyChange?: (key: string) => Promise<void>;
 }
 
 function toDisplayList(paths: string[], maxItems?: number) {
@@ -340,6 +343,107 @@ function DiagnosticExportSection() {
   );
 }
 
+function SteamGridDbSection({
+  apiKey,
+  onApiKeyChange,
+}: {
+  apiKey?: string | null;
+  onApiKeyChange?: (key: string) => Promise<void>;
+}) {
+  const [localKey, setLocalKey] = useState(apiKey ?? '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    if (!onApiKeyChange) {
+      return;
+    }
+    setIsSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await onApiKeyChange(localKey);
+      setSaved(true);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <CollapsibleSection
+      title="SteamGridDB"
+      defaultOpen={false}
+      className="crosshook-panel crosshook-settings-section"
+      meta={<span className="crosshook-muted">Optional — higher-quality cover art</span>}
+    >
+      <p className="crosshook-muted crosshook-settings-help">
+        Enter your SteamGridDB API key to fetch higher-quality cover art for your game profiles. When set, CrossHook
+        will try SteamGridDB before falling back to Steam CDN images.
+      </p>
+
+      <div className="crosshook-settings-field-row">
+        <label className="crosshook-label" htmlFor="steamgriddb-api-key">
+          API Key
+        </label>
+        <div className="crosshook-settings-input-row">
+          <input
+            id="steamgriddb-api-key"
+            type="password"
+            className="crosshook-input"
+            value={localKey}
+            onChange={(event) => {
+              setLocalKey(event.target.value);
+              setSaved(false);
+            }}
+            placeholder="Enter your SteamGridDB API key"
+            autoComplete="off"
+          />
+          {onApiKeyChange ? (
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary"
+              disabled={isSaving}
+              onClick={() => void handleSave()}
+            >
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {saved ? (
+        <p className="crosshook-muted crosshook-settings-note" style={{ color: 'var(--crosshook-success, #4caf50)' }}>
+          API key saved.
+        </p>
+      ) : null}
+
+      {saveError ? (
+        <p className="crosshook-danger crosshook-settings-error" style={{ marginTop: 4 }}>
+          {saveError}
+        </p>
+      ) : null}
+
+      <p className="crosshook-muted crosshook-settings-note">
+        The key is stored in plaintext in <code>~/.config/crosshook/settings.toml</code>. Avoid syncing this file to
+        public repositories.
+      </p>
+
+      <div className="crosshook-settings-clear-row">
+        <button
+          type="button"
+          className="crosshook-button crosshook-button--outline"
+          onClick={() => void openShell('https://www.steamgriddb.com/')}
+        >
+          Get API Key at steamgriddb.com ↗
+        </button>
+      </div>
+    </CollapsibleSection>
+  );
+}
+
 export function SettingsPanel({
   autoLoadLastProfile,
   lastUsedProfile,
@@ -349,10 +453,12 @@ export function SettingsPanel({
   recentFilesLimit = 10,
   targetHomePath,
   steamClientInstallPath,
+  steamGridDbApiKey,
   onAutoLoadLastProfileChange,
   onProfilesDirectoryPathChange,
   onRefreshRecentFiles,
   onClearRecentFiles,
+  onSteamGridDbApiKeyChange,
 }: SettingsPanelProps) {
   const handleProfilesDirectoryChange = (event: ChangeEvent<HTMLInputElement>) => {
     onProfilesDirectoryPathChange?.(event.target.value);
@@ -468,6 +574,8 @@ export function SettingsPanel({
           <ManageLaunchersSection targetHomePath={targetHomePath} steamClientInstallPath={steamClientInstallPath} />
 
           <DiagnosticExportSection />
+
+          <SteamGridDbSection apiKey={steamGridDbApiKey} onApiKeyChange={onSteamGridDbApiKeyChange} />
         </div>
 
         <section className="crosshook-settings-recent-column" aria-label="Recent files">

@@ -60,6 +60,7 @@ function createEmptyInstallGameRequest(): InstallGameRequest {
     proton_path: '',
     prefix_path: '',
     installed_game_executable_path: '',
+    launcher_icon_path: '',
   };
 }
 

@@ -3,6 +3,7 @@ mod collections;
 mod community_index;
 mod config_history_store;
 mod db;
+mod game_image_store;
 mod health_store;
 mod launch_history;
 mod launcher_sync;
@@ -14,6 +15,7 @@ mod preset_store;
 pub mod profile_sync;
 mod version_store;
 
+pub use game_image_store::GameImageCacheRow;
 pub use health_store::HealthSnapshotRow;
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
@@ -905,6 +907,55 @@ impl MetadataStore {
     ) -> Result<Option<HealthSnapshotRow>, MetadataStoreError> {
         self.with_conn("look up a health snapshot", |conn| {
             health_store::lookup_health_snapshot(conn, profile_id)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Game image cache persistence
+    // -------------------------------------------------------------------------
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn upsert_game_image(
+        &self,
+        steam_app_id: &str,
+        image_type: &str,
+        source: &str,
+        file_path: &str,
+        file_size: Option<i64>,
+        content_hash: Option<&str>,
+        mime_type: Option<&str>,
+        source_url: Option<&str>,
+        expires_at: Option<&str>,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("upsert a game image cache entry", |conn| {
+            game_image_store::upsert_game_image(
+                conn,
+                steam_app_id,
+                image_type,
+                source,
+                file_path,
+                file_size,
+                content_hash,
+                mime_type,
+                source_url,
+                expires_at,
+            )
+        })
+    }
+
+    pub fn get_game_image(
+        &self,
+        steam_app_id: &str,
+        image_type: &str,
+    ) -> Result<Option<GameImageCacheRow>, MetadataStoreError> {
+        self.with_conn("get a game image cache entry", |conn| {
+            game_image_store::get_game_image(conn, steam_app_id, image_type)
+        })
+    }
+
+    pub fn evict_expired_images(&self) -> Result<Vec<String>, MetadataStoreError> {
+        self.with_conn("evict expired game image cache entries", |conn| {
+            game_image_store::evict_expired_images(conn)
         })
     }
 

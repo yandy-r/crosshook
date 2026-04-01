@@ -228,6 +228,8 @@ pub fn run() {
             commands::profile::profile_save_manual_optimization_preset,
             commands::profile::profile_export_toml,
             commands::protondb::protondb_lookup,
+            commands::game_metadata::fetch_game_metadata,
+            commands::game_metadata::fetch_game_cover_art,
             commands::settings::recent_files_load,
             commands::settings::recent_files_save,
             commands::settings::settings_load,

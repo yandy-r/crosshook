@@ -10,6 +10,7 @@ export interface AppSettingsData {
   community_taps: CommunityTapSubscription[];
   onboarding_completed?: boolean;
   offline_mode?: boolean;
+  steamgriddb_api_key?: string | null;
 }
 
 export interface RecentFilesData {

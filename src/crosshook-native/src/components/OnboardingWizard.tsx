@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type M
 
 import { invoke } from '@tauri-apps/api/core';
 import { ControllerPrompts } from './layout/ControllerPrompts';
-import { type ProtonInstallOption } from './ProfileFormSections';
+import { type ProtonInstallOption, LauncherMetadataFields } from './ProfileFormSections';
 import { InstallField } from './ui/InstallField';
 import { ThemedSelect } from './ui/ThemedSelect';
 import { ProtonPathField } from './ui/ProtonPathField';
@@ -383,6 +383,8 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                     launchMethod === 'native' ? undefined : [{ name: 'Windows Executable', extensions: ['exe'] }]
                   }
                 />
+
+                <LauncherMetadataFields profile={profile} onUpdateProfile={updateProfile} />
               </div>
 
               <div className="crosshook-install-section-title">Runner Method</div>

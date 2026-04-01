@@ -24,6 +24,7 @@ pub struct AppSettingsData {
     pub community_taps: Vec<CommunityTapSubscription>,
     pub onboarding_completed: bool,
     pub offline_mode: bool,
+    pub steamgriddb_api_key: Option<String>,
 }
 
 #[derive(Debug)]
@@ -139,6 +140,7 @@ mod tests {
             }],
             onboarding_completed: true,
             offline_mode: false,
+            steamgriddb_api_key: None,
         };
 
         store.save(&settings).unwrap();
@@ -202,6 +204,7 @@ mod tests {
                 community_taps: Vec::new(),
                 onboarding_completed: false,
                 offline_mode: false,
+                steamgriddb_api_key: None,
             },
         );
     }

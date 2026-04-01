@@ -6,8 +6,15 @@ import { useProfileContext } from '../../context/ProfileContext';
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
 
 export function SettingsPage() {
-  const { settings, recentFiles, settingsError, refreshPreferences, handleAutoLoadChange, clearRecentFiles } =
-    usePreferencesContext();
+  const {
+    settings,
+    recentFiles,
+    settingsError,
+    refreshPreferences,
+    handleAutoLoadChange,
+    handleSteamGridDbApiKeyChange,
+    clearRecentFiles,
+  } = usePreferencesContext();
   const { targetHomePath, steamClientInstallPath } = useProfileContext();
 
   return (
@@ -38,6 +45,7 @@ export function SettingsPage() {
         recentFilesLimit={10}
         targetHomePath={targetHomePath}
         steamClientInstallPath={steamClientInstallPath}
+        steamGridDbApiKey={settings.steamgriddb_api_key}
         onAutoLoadLastProfileChange={(enabled) => {
           void handleAutoLoadChange(enabled);
         }}
@@ -47,6 +55,7 @@ export function SettingsPage() {
         onClearRecentFiles={() => {
           void clearRecentFiles();
         }}
+        onSteamGridDbApiKeyChange={handleSteamGridDbApiKeyChange}
       />
     </>
   );
