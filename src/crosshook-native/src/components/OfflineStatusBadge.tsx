@@ -89,9 +89,6 @@ export function OfflineStatusBadge({
       style={{
         border: `1px solid ${border}`,
         background,
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
       }}
     >
       {loading ? (

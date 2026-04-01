@@ -128,16 +128,35 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
         return;
       }
 
+      // Patch launcher icon from the install form onto the generated profile
+      const patchedProfile = request.launcher_icon_path.trim()
+        ? {
+            ...reviewProfile,
+            steam: {
+              ...reviewProfile.steam,
+              launcher: { ...reviewProfile.steam.launcher, icon_path: request.launcher_icon_path.trim() },
+            },
+          }
+        : reviewProfile;
+
       void onOpenProfileReview({
         source,
         profileName: reviewableInstallResult.profile_name.trim() || request.profile_name.trim(),
-        generatedProfile: reviewProfile,
+        generatedProfile: patchedProfile,
         candidateOptions,
         helperLogPath: logPath,
         message: reviewableInstallResult.message,
       });
     },
-    [candidateOptions, logPath, onOpenProfileReview, request.profile_name, reviewProfile, reviewableInstallResult]
+    [
+      candidateOptions,
+      logPath,
+      onOpenProfileReview,
+      request.launcher_icon_path,
+      request.profile_name,
+      reviewProfile,
+      reviewableInstallResult,
+    ]
   );
 
   useEffect(() => {
@@ -229,6 +248,17 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
             placeholder="God of War Ragnarok"
             helpText="Optional friendly name for the generated profile."
             error={validation.fieldErrors.display_name}
+          />
+
+          <InstallField
+            label="Launcher Icon"
+            value={request.launcher_icon_path}
+            onChange={(value) => updateRequest('launcher_icon_path', value)}
+            placeholder="/path/to/icon.png"
+            browseLabel="Browse"
+            browseTitle="Select Launcher Icon"
+            browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }]}
+            helpText="Optional icon for the desktop launcher entry."
           />
         </div>
       </div>

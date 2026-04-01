@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react';
 import { chooseDirectory, chooseFile } from '../../utils/dialog';
 
 export function InstallField(props: {
+  id?: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -17,9 +18,12 @@ export function InstallField(props: {
 }) {
   return (
     <div className={props.className ? `crosshook-field ${props.className}` : 'crosshook-field'}>
-      <label className="crosshook-label">{props.label}</label>
+      <label htmlFor={props.id} className="crosshook-label">
+        {props.label}
+      </label>
       <div className="crosshook-install-field-control">
         <input
+          id={props.id}
           className="crosshook-input"
           style={{ flex: 1, minWidth: 0 }}
           value={props.value}

@@ -126,6 +126,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 14 {
+        migrate_13_to_14(conn)?;
+        conn.pragma_update(None, "user_version", 14_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 14",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -630,6 +639,41 @@ fn migrate_11_to_12(conn: &Connection) -> Result<(), MetadataStoreError> {
     Ok(())
 }
 
+fn migrate_13_to_14(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS game_image_cache (
+            cache_id         TEXT PRIMARY KEY,
+            steam_app_id     TEXT NOT NULL,
+            image_type       TEXT NOT NULL DEFAULT 'cover',
+            source           TEXT NOT NULL DEFAULT 'steam_cdn',
+            file_path        TEXT NOT NULL,
+            file_size        INTEGER NOT NULL DEFAULT 0,
+            content_hash     TEXT NOT NULL DEFAULT '',
+            mime_type        TEXT NOT NULL DEFAULT 'image/jpeg',
+            width            INTEGER,
+            height           INTEGER,
+            source_url       TEXT NOT NULL DEFAULT '',
+            preferred_source TEXT NOT NULL DEFAULT 'auto',
+            expires_at       TEXT,
+            fetched_at       TEXT NOT NULL,
+            created_at       TEXT NOT NULL,
+            updated_at       TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_game_image_cache_app_type_source
+            ON game_image_cache(steam_app_id, image_type, source);
+        CREATE INDEX IF NOT EXISTS idx_game_image_cache_expires
+            ON game_image_cache(expires_at);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 13 to 14",
+        source,
+    })?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -666,5 +710,40 @@ mod tests {
                 .unwrap();
             assert_eq!(n, 1, "missing table {table}");
         }
+    }
+
+    #[test]
+    fn migration_13_to_14_creates_game_image_cache_table() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Verify the table exists
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'game_image_cache'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 1, "missing table game_image_cache");
+
+        // Verify the unique index exists
+        let idx: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_game_image_cache_app_type_source'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(idx, 1, "missing index idx_game_image_cache_app_type_source");
+
+        let expires_idx: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_game_image_cache_expires'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(expires_idx, 1, "missing index idx_game_image_cache_expires");
     }
 }

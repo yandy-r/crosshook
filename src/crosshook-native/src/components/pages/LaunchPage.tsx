@@ -5,10 +5,13 @@ import GamescopeConfigPanel from '../GamescopeConfigPanel';
 import MangoHudConfigPanel from '../MangoHudConfigPanel';
 import LaunchOptimizationsPanel from '../LaunchOptimizationsPanel';
 import LaunchPanel from '../LaunchPanel';
+import { OfflineReadinessPanel } from '../OfflineReadinessPanel';
+import { OfflineStatusBadge } from '../OfflineStatusBadge';
 import { PinnedProfilesStrip } from '../PinnedProfilesStrip';
 import SteamLaunchOptionsPanel from '../SteamLaunchOptionsPanel';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
+import { useLaunchStateContext } from '../../context/LaunchStateContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { PageBanner, LaunchArt } from '../layout/PageBanner';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
@@ -64,31 +67,44 @@ export function LaunchPage() {
 
       <div style={{ display: 'grid', gap: 24 }}>
         <CollapsibleSection title="Launch Controls" className="crosshook-panel">
-          <LaunchPanel profileId={profileId} method={profileState.launchMethod} request={launchRequest} />
+          <LaunchPanel
+            profileId={profileId}
+            method={profileState.launchMethod}
+            request={launchRequest}
+            infoSlot={
+              profileState.favoriteProfiles.length > 0 ? (
+                <PinnedProfilesStrip
+                  favoriteProfiles={profileState.favoriteProfiles}
+                  selectedProfile={profileState.selectedProfile}
+                  onSelectProfile={profileState.selectProfile}
+                  onToggleFavorite={profileState.toggleFavorite}
+                />
+              ) : null
+            }
+            beforeActions={
+              <section style={{ marginTop: 16 }}>
+                <span
+                  id="active-profile-label"
+                  className="crosshook-heading-eyebrow"
+                  style={{ marginBottom: 8, display: 'block' }}
+                >
+                  Active Profile
+                </span>
+                <ThemedSelect
+                  value={profileState.selectedProfile}
+                  onValueChange={(name) => void profileState.selectProfile(name)}
+                  placeholder="Select a profile"
+                  pinnedValues={pinnedSet}
+                  onTogglePin={handleTogglePin}
+                  ariaLabelledby="active-profile-label"
+                  options={profileState.profiles.map((name) => ({ value: name, label: name }))}
+                />
+              </section>
+            }
+          />
         </CollapsibleSection>
 
-        <section className="crosshook-launch-profile-selector">
-          <span className="crosshook-heading-eyebrow">Active Profile</span>
-          <ThemedSelect
-            value={profileState.selectedProfile}
-            onValueChange={(name) => void profileState.selectProfile(name)}
-            placeholder="Select a profile"
-            pinnedValues={pinnedSet}
-            onTogglePin={handleTogglePin}
-            options={profileState.profiles.map((name) => ({ value: name, label: name }))}
-          />
-        </section>
-
-        {profileState.favoriteProfiles.length > 0 ? (
-          <section className="crosshook-panel">
-            <PinnedProfilesStrip
-              favoriteProfiles={profileState.favoriteProfiles}
-              selectedProfile={profileState.selectedProfile}
-              onSelectProfile={profileState.selectProfile}
-              onToggleFavorite={profileState.toggleFavorite}
-            />
-          </section>
-        ) : null}
+        <OfflineReadinessSection method={profileState.launchMethod} />
 
         {showsGamescopePanel ? (
           <CollapsibleSection title="Gamescope" className="crosshook-panel" defaultOpen={false}>
@@ -156,6 +172,67 @@ export function LaunchPage() {
         ) : null}
       </div>
     </>
+  );
+}
+
+function OfflineReadinessSection({ method }: { method: string }) {
+  const {
+    offlineReadiness,
+    offlineReadinessError,
+    offlineReadinessLoading,
+    offlineWarning,
+    launchPathWarnings,
+  } = useLaunchStateContext();
+
+  const hasOfflineConcern = Boolean(offlineReadinessError) || offlineWarning || launchPathWarnings.length > 0;
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (hasOfflineConcern) {
+      setOpen(true);
+    }
+  }, [hasOfflineConcern]);
+
+  if (method === 'native') return null;
+
+  return (
+    <CollapsibleSection
+      title="Offline readiness"
+      className="crosshook-panel crosshook-launch-panel__offline"
+      open={open}
+      onToggle={setOpen}
+      meta={
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <OfflineStatusBadge report={offlineReadiness} loading={offlineReadinessLoading && !offlineReadiness} />
+          {!offlineReadinessLoading && offlineReadiness ? (
+            <span className="crosshook-muted" style={{ fontSize: '0.85rem' }}>
+              {offlineReadiness.readiness_state.replace(/_/g, ' ')}
+            </span>
+          ) : null}
+        </span>
+      }
+    >
+      <OfflineReadinessPanel
+        report={offlineReadiness}
+        error={offlineReadinessError}
+        loading={offlineReadinessLoading}
+      />
+      {launchPathWarnings.length > 0 ? (
+        <ul className="crosshook-launch-panel__feedback-list" aria-label="Launch path warnings">
+          {launchPathWarnings.map((issue, index) => (
+            <li key={`launch-warn-${issue.message}-${index}`} className="crosshook-launch-panel__feedback-item">
+              <div className="crosshook-launch-panel__feedback-header">
+                <span className="crosshook-launch-panel__feedback-badge" data-severity={issue.severity}>
+                  {issue.severity}
+                </span>
+                <p className="crosshook-launch-panel__feedback-title">{issue.message}</p>
+              </div>
+              <p className="crosshook-launch-panel__feedback-help">{issue.help}</p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </CollapsibleSection>
   );
 }
 

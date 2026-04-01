@@ -13,3 +13,4 @@ export * from './version';
 export * from './onboarding';
 export * from './offline';
 export * from './protondb';
+export * from './proton';
