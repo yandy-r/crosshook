@@ -13,6 +13,8 @@ export interface SelectOption {
   value: string;
   label: string;
   disabled?: boolean;
+  /** Shown in the dropdown row only (not in the closed trigger). */
+  badge?: string;
 }
 
 export interface SelectOptionGroup {
@@ -44,7 +46,10 @@ function SelectItemNode({
 }) {
   return (
     <Select.Item value={toRadix(opt.value)} disabled={opt.disabled} className="crosshook-themed-select__item">
-      <Select.ItemText>{opt.label}</Select.ItemText>
+      <span className="crosshook-themed-select__item-lead">
+        <Select.ItemText className="crosshook-themed-select__item-text">{opt.label}</Select.ItemText>
+        {opt.badge ? <span className="crosshook-themed-select__item-badge">{opt.badge}</span> : null}
+      </span>
       {onTogglePin ? (
         <span
           role="button"

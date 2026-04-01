@@ -699,7 +699,7 @@ export function LaunchPanel({ profileId, method, request, beforeActions, infoSlo
   }
 
   return (
-    <>
+    <div className="crosshook-launch-panel-stack">
       {/* ── Controls card ── */}
       <div className="crosshook-panel">
         <section className="crosshook-launch-panel">
@@ -949,7 +949,7 @@ export function LaunchPanel({ profileId, method, request, beforeActions, infoSlo
           onLaunch={handleLaunchFromPreview}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 

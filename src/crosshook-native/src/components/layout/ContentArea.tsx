@@ -55,10 +55,14 @@ export function ContentArea({ route, onNavigate }: ContentAreaProps) {
   }
 
   return (
-    <div ref={scrollRef} className="crosshook-content-area">
-      <Tabs.Content key={route} {...contentProps}>
-        {renderPage()}
-      </Tabs.Content>
+    <div className="crosshook-content-area">
+      <div className="crosshook-content-viewport">
+        <div ref={scrollRef} className="crosshook-page-scroll-body" data-crosshook-page-scroll="true">
+          <Tabs.Content key={route} {...contentProps}>
+            {renderPage()}
+          </Tabs.Content>
+        </div>
+      </div>
     </div>
   );
 }

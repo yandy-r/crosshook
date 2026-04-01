@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
+import * as Tabs from '@radix-ui/react-tabs';
 
-import type { ProtonInstallOption } from './ProfileFormSections';
 import { InstallField } from './ui/InstallField';
 import { ProtonPathField } from './ui/ProtonPathField';
+import { useGameCoverArt } from '../hooks/useGameCoverArt';
+import { useImageDominantColor } from '../hooks/useImageDominantColor';
 import { useInstallGame } from '../hooks/useInstallGame';
+import { useProtonInstalls } from '../hooks/useProtonInstalls';
+import type { GameProfile } from '../types/profile';
 import type {
   InstallGameExecutableCandidate,
   InstallGamePrefixPathState,
@@ -12,6 +15,19 @@ import type {
   InstallProfileReviewPayload,
   ProfileReviewSource,
 } from '../types/install';
+
+type InstallFlowTabId = 'identity' | 'media' | 'runtime' | 'review';
+
+const INSTALL_FLOW_TAB_LABELS: Record<InstallFlowTabId, string> = {
+  identity: 'Profile identity',
+  media: 'Install media',
+  runtime: 'Runtime',
+  review: 'Review',
+};
+
+function isInstallFlowTabId(value: string): value is InstallFlowTabId {
+  return Object.prototype.hasOwnProperty.call(INSTALL_FLOW_TAB_LABELS, value);
+}
 
 export interface InstallGamePanelProps {
   onOpenProfileReview: (payload: InstallProfileReviewPayload) => void | Promise<boolean>;
@@ -114,13 +130,33 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
     hintText,
   } = useInstallGame();
 
+  const customCoverTrimmed = request.custom_cover_art_path.trim();
+  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(
+    undefined,
+    customCoverTrimmed.length > 0 ? customCoverTrimmed : undefined
+  );
+  const dominantColor = useImageDominantColor(coverArtUrl);
+  const gameColorStyle: CSSProperties | undefined = dominantColor
+    ? ({
+        '--crosshook-game-color-r': String(dominantColor[0]),
+        '--crosshook-game-color-g': String(dominantColor[1]),
+        '--crosshook-game-color-b': String(dominantColor[2]),
+      } as CSSProperties)
+    : undefined;
+  const hasCoverHero = Boolean(coverArtUrl) || coverArtLoading;
+
   const candidateCount = candidateOptions.length;
   const logPath = result?.helper_log_path ?? '';
   const reviewableInstallResult = result?.succeeded === true && reviewProfile !== null ? result : null;
   const canReviewGeneratedProfile = reviewableInstallResult !== null && reviewProfile !== null;
   const lastAutoOpenReviewKeyRef = useRef<string | null>(null);
-  const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
-  const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
+  const [activeInstallTab, setActiveInstallTab] = useState<InstallFlowTabId>('identity');
+  const { installs: protonInstalls, error: protonInstallsError } = useProtonInstalls();
+
+  const installFlowTabs = (['identity', 'media', 'runtime', 'review'] as const).map((id) => ({
+    id,
+    label: INSTALL_FLOW_TAB_LABELS[id],
+  }));
 
   const openReviewPayload = useCallback(
     (source: ProfileReviewSource) => {
@@ -128,16 +164,19 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
         return;
       }
 
-      // Patch launcher icon from the install form onto the generated profile
-      const patchedProfile = request.launcher_icon_path.trim()
-        ? {
-            ...reviewProfile,
-            steam: {
+      const patchedProfile: GameProfile = {
+        ...reviewProfile,
+        game: {
+          ...reviewProfile.game,
+          custom_cover_art_path: reviewProfile.game.custom_cover_art_path,
+        },
+        steam: request.launcher_icon_path.trim()
+          ? {
               ...reviewProfile.steam,
               launcher: { ...reviewProfile.steam.launcher, icon_path: request.launcher_icon_path.trim() },
-            },
-          }
-        : reviewProfile;
+            }
+          : reviewProfile.steam,
+      };
 
       void onOpenProfileReview({
         source,
@@ -179,239 +218,301 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
     openReviewPayload('install-complete');
   }, [openReviewPayload, reviewableInstallResult, reviewProfile]);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadProtonInstalls() {
-      try {
-        const installs = await invoke<ProtonInstallOption[]>('list_proton_installs');
-        const sortedInstalls = [...installs].sort((left, right) => {
-          if (left.is_official !== right.is_official) {
-            return left.is_official ? -1 : 1;
-          }
-
-          return left.name.localeCompare(right.name) || left.path.localeCompare(right.path);
-        });
-
-        if (!active) {
-          return;
-        }
-
-        setProtonInstalls(sortedInstalls);
-        setProtonInstallsError(null);
-      } catch (loadError) {
-        if (!active) {
-          return;
-        }
-
-        setProtonInstalls([]);
-        setProtonInstallsError(loadError instanceof Error ? loadError.message : String(loadError));
-      }
-    }
-
-    void loadProtonInstalls();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
   return (
     <section className="crosshook-install-shell" aria-labelledby="install-game-heading">
-      <div className="crosshook-install-intro">
-        <div className="crosshook-heading-eyebrow">Install Game</div>
-        <h3 id="install-game-heading" className="crosshook-heading-title" style={{ fontSize: '1.5rem' }}>
-          Guided install shell
-        </h3>
-        <p className="crosshook-heading-copy">
-          This tab resolves a default prefix, runs the installer through Proton, and hands back a reviewable profile
-          without saving it yet.
-        </p>
-      </div>
-
-      <div className="crosshook-install-section">
-        <div className="crosshook-install-section-title">Profile identity</div>
-        <div className="crosshook-install-grid">
-          <InstallField
-            label="Profile Name"
-            value={request.profile_name}
-            onChange={(value) => updateRequest('profile_name', value)}
-            placeholder="god-of-war-ragnarok"
-            helpText="Saved profile identifier and default prefix slug."
-            error={validation.fieldErrors.profile_name}
-          />
-
-          <InstallField
-            label="Display Name"
-            value={request.display_name}
-            onChange={(value) => updateRequest('display_name', value)}
-            placeholder="God of War Ragnarok"
-            helpText="Optional friendly name for the generated profile."
-            error={validation.fieldErrors.display_name}
-          />
-
-          <InstallField
-            label="Launcher Icon"
-            value={request.launcher_icon_path}
-            onChange={(value) => updateRequest('launcher_icon_path', value)}
-            placeholder="/path/to/icon.png"
-            browseLabel="Browse"
-            browseTitle="Select Launcher Icon"
-            browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }]}
-            helpText="Optional icon for the desktop launcher entry."
-          />
-        </div>
-      </div>
-
-      <div className="crosshook-install-section">
-        <div className="crosshook-install-section-title">Install media</div>
-        <div className="crosshook-install-grid">
-          <InstallField
-            label="Installer EXE"
-            value={request.installer_path}
-            onChange={(value) => updateRequest('installer_path', value)}
-            placeholder="/mnt/media/setup.exe"
-            browseLabel="Browse"
-            browseTitle="Select Installer Executable"
-            browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
-            helpText="Choose the installer media, not the final game executable."
-            error={validation.fieldErrors.installer_path}
-          />
-
-          <InstallField
-            label="Trainer EXE"
-            value={request.trainer_path}
-            onChange={(value) => updateRequest('trainer_path', value)}
-            placeholder="/mnt/media/trainer.exe"
-            browseLabel="Browse"
-            browseTitle="Select Optional Trainer Executable"
-            browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
-            helpText="Optional. The review step keeps trainer media separate from the game executable."
-            error={validation.fieldErrors.trainer_path}
-          />
-        </div>
-      </div>
-
-      <div className="crosshook-install-section">
-        <div className="crosshook-install-section-title">Runtime</div>
-        <div className="crosshook-install-runtime-stack">
-          <ProtonPathField
-            value={request.proton_path}
-            onChange={(value) => updateRequest('proton_path', value)}
-            error={validation.fieldErrors.proton_path}
-            installs={protonInstalls}
-            installsError={protonInstallsError}
-          />
-
-          <InstallField
-            label="Prefix Path"
-            value={request.prefix_path}
-            onChange={(value) => updateRequest('prefix_path', value)}
-            placeholder="/home/user/.local/share/crosshook/prefixes/god-of-war-ragnarok"
-            browseLabel="Browse"
-            browseMode="directory"
-            browseTitle="Select Prefix Directory"
-            helpText={
-              defaultPrefixPathState === 'loading'
-                ? 'Resolving the default prefix from the entered profile name.'
-                : defaultPrefixPath.trim().length > 0
-                  ? `Suggested default prefix: ${defaultPrefixPath}`
-                  : 'Defaults under ~/.local/share/crosshook/prefixes/<slug> and stays editable.'
-            }
-            error={validation.fieldErrors.prefix_path || defaultPrefixPathError}
-            className="crosshook-install-prefix-field"
-          />
-        </div>
-      </div>
-
-      <div className="crosshook-install-card">
-        <div className="crosshook-install-status">
-          <div>
-            <div className="crosshook-install-stage">{stageLabel(stage)}</div>
-            <h4 style={{ margin: '10px 0 0', fontSize: '1.05rem' }}>Status and review space</h4>
-            <p className="crosshook-heading-copy" style={{ marginTop: 8 }}>
-              {statusText}
+      {hasCoverHero ? (
+        <div className="crosshook-profile-hero">
+          {coverArtUrl ? (
+            <>
+              <img
+                src={coverArtUrl}
+                className="crosshook-profile-hero__art"
+                alt=""
+                aria-hidden="true"
+              />
+              <div className="crosshook-profile-hero__gradient" />
+            </>
+          ) : (
+            <div className="crosshook-profile-hero__skeleton crosshook-skeleton" />
+          )}
+          <div className="crosshook-profile-hero__content">
+            <div className="crosshook-heading-eyebrow">Install Game</div>
+            <h3 id="install-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
+              Guided install shell
+            </h3>
+            <p className="crosshook-heading-copy">
+              This flow resolves a default prefix, runs the installer through Proton, and hands back a reviewable profile
+              without saving it yet.
             </p>
           </div>
-          <div style={{ display: 'grid', gap: 10, justifyItems: 'end' }}>
-            <div className="crosshook-install-pill">{prefixStateLabel(defaultPrefixPathState)}</div>
-            <div className="crosshook-install-pill">Candidates: {candidateCount}</div>
-          </div>
         </div>
+      ) : (
+        <div className="crosshook-install-intro">
+          <div className="crosshook-heading-eyebrow">Install Game</div>
+          <h3 id="install-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
+            Guided install shell
+          </h3>
+          <p className="crosshook-heading-copy">
+            This flow resolves a default prefix, runs the installer through Proton, and hands back a reviewable profile
+            without saving it yet.
+          </p>
+        </div>
+      )}
 
-        <div className="crosshook-install-review">
-          {error ? <p className="crosshook-danger">{error}</p> : null}
-          {validation.generalError ? <p className="crosshook-danger">{validation.generalError}</p> : null}
-          <p className="crosshook-help-text">{hintText}</p>
+      <Tabs.Root
+        className="crosshook-install-flow-tabs"
+        style={gameColorStyle}
+        value={activeInstallTab}
+        onValueChange={(value) => setActiveInstallTab(isInstallFlowTabId(value) ? value : 'identity')}
+      >
+        <Tabs.List
+          className={`crosshook-subtab-row${dominantColor ? ' crosshook-subtab-row--themed' : ''}`}
+          aria-label="Install flow sections"
+        >
+          {installFlowTabs.map(({ id, label }) => (
+            <Tabs.Trigger
+              key={id}
+              value={id}
+              className={`crosshook-subtab${activeInstallTab === id ? ' crosshook-subtab--active' : ''}`}
+            >
+              {label}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
 
-          <InstallField
-            label="Final Executable"
-            value={request.installed_game_executable_path}
-            onChange={(value) => setInstalledExecutablePath(value)}
-            placeholder="/home/user/.local/share/crosshook/prefixes/god-of-war-ragnarok/drive_c/Game/Game.exe"
-            browseLabel="Browse"
-            browseTitle="Select Installed Game Executable"
-            browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
-            helpText="Selecting a candidate fills this field, but it remains editable for the final review step."
-            error={validation.fieldErrors.installed_game_executable_path}
-          />
-
-          {candidateOptions.length > 0 ? (
-            <div className="crosshook-install-candidate-list">
-              {candidateOptions.map((candidate) => (
-                <CandidateRow
-                  key={`${candidate.index}:${candidate.path}`}
-                  candidate={candidate}
-                  currentPath={request.installed_game_executable_path}
-                  onSelect={setInstalledExecutablePath}
+        <Tabs.Content
+          value="identity"
+          forceMount
+          className="crosshook-subtab-content"
+          style={{ display: activeInstallTab === 'identity' ? undefined : 'none' }}
+        >
+          <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+            <div className="crosshook-install-section">
+              <div className="crosshook-install-grid">
+                <InstallField
+                  label="Profile Name"
+                  value={request.profile_name}
+                  onChange={(value) => updateRequest('profile_name', value)}
+                  placeholder="god-of-war-ragnarok"
+                  helpText="Saved profile identifier and default prefix slug."
+                  error={validation.fieldErrors.profile_name}
                 />
-              ))}
-            </div>
-          ) : (
-            <p className="crosshook-help-text">
-              {isRunningInstaller
-                ? 'Candidate discovery will appear after the installer exits.'
-                : 'No executable candidates have been discovered yet.'}
-            </p>
-          )}
 
-          <div className="crosshook-install-candidate-list">
-            <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
-              <span>Generated profile preview</span>
-              <span>
-                {reviewProfile?.game.name || request.display_name || request.profile_name || 'Unnamed profile'}
-              </span>
-            </div>
-            <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
-              <span>Runtime target</span>
-              <span>
-                {reviewProfile?.game.executable_path ||
-                  request.installed_game_executable_path ||
-                  'Awaiting executable confirmation'}
-              </span>
-            </div>
-            <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
-              <span>Prefix</span>
-              <span>{reviewProfile?.runtime.prefix_path || request.prefix_path || 'Awaiting prefix resolution'}</span>
-            </div>
-            <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
-              <span>Working directory</span>
-              <span>{reviewProfile?.runtime.working_directory || 'Will be derived from the selected executable'}</span>
+                <InstallField
+                  label="Display Name"
+                  value={request.display_name}
+                  onChange={(value) => updateRequest('display_name', value)}
+                  placeholder="God of War Ragnarok"
+                  helpText="Optional friendly name for the generated profile."
+                  error={validation.fieldErrors.display_name}
+                />
+
+                <InstallField
+                  label="Custom Cover Art"
+                  value={request.custom_cover_art_path}
+                  onChange={(value) => updateRequest('custom_cover_art_path', value)}
+                  placeholder="/path/to/cover.png"
+                  browseLabel="Browse"
+                  browseTitle="Select Custom Cover Art"
+                  browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]}
+                  helpText="Overrides Steam/SteamGridDB art. Optimal size: 460×215 px (2:1 landscape)."
+                  error={validation.fieldErrors.custom_cover_art_path}
+                />
+
+                <InstallField
+                  label="Launcher Icon"
+                  value={request.launcher_icon_path}
+                  onChange={(value) => updateRequest('launcher_icon_path', value)}
+                  placeholder="/path/to/icon.png"
+                  browseLabel="Browse"
+                  browseTitle="Select Launcher Icon"
+                  browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }]}
+                  helpText="Optional icon for the desktop launcher entry."
+                />
+              </div>
             </div>
           </div>
+        </Tabs.Content>
 
-          {logPath ? (
-            <div className="crosshook-install-candidate" style={{ cursor: 'default', flexDirection: 'column' }}>
-              <span>Installer log path</span>
-              <span style={{ wordBreak: 'break-all', color: 'var(--crosshook-color-text)' }}>{logPath}</span>
+        <Tabs.Content
+          value="media"
+          forceMount
+          className="crosshook-subtab-content"
+          style={{ display: activeInstallTab === 'media' ? undefined : 'none' }}
+        >
+          <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+            <div className="crosshook-install-section">
+              <div className="crosshook-install-grid">
+                <InstallField
+                  label="Installer EXE"
+                  value={request.installer_path}
+                  onChange={(value) => updateRequest('installer_path', value)}
+                  placeholder="/mnt/media/setup.exe"
+                  browseLabel="Browse"
+                  browseTitle="Select Installer Executable"
+                  browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
+                  helpText="Choose the installer media, not the final game executable."
+                  error={validation.fieldErrors.installer_path}
+                />
+
+                <InstallField
+                  label="Trainer EXE"
+                  value={request.trainer_path}
+                  onChange={(value) => updateRequest('trainer_path', value)}
+                  placeholder="/mnt/media/trainer.exe"
+                  browseLabel="Browse"
+                  browseTitle="Select Optional Trainer Executable"
+                  browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
+                  helpText="Optional. The review step keeps trainer media separate from the game executable."
+                  error={validation.fieldErrors.trainer_path}
+                />
+              </div>
             </div>
-          ) : (
-            <p className="crosshook-help-text">
-              Installer logs will be exposed here once the backend command returns a log path.
-            </p>
-          )}
-        </div>
-      </div>
+          </div>
+        </Tabs.Content>
+
+        <Tabs.Content
+          value="runtime"
+          forceMount
+          className="crosshook-subtab-content"
+          style={{ display: activeInstallTab === 'runtime' ? undefined : 'none' }}
+        >
+          <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+            <div className="crosshook-install-section">
+              <div className="crosshook-install-runtime-stack">
+                <ProtonPathField
+                  value={request.proton_path}
+                  onChange={(value) => updateRequest('proton_path', value)}
+                  error={validation.fieldErrors.proton_path}
+                  installs={protonInstalls}
+                  installsError={protonInstallsError}
+                />
+
+                <InstallField
+                  label="Prefix Path"
+                  value={request.prefix_path}
+                  onChange={(value) => updateRequest('prefix_path', value)}
+                  placeholder="/home/user/.local/share/crosshook/prefixes/god-of-war-ragnarok"
+                  browseLabel="Browse"
+                  browseMode="directory"
+                  browseTitle="Select Prefix Directory"
+                  helpText={
+                    defaultPrefixPathState === 'loading'
+                      ? 'Resolving the default prefix from the entered profile name.'
+                      : defaultPrefixPath.trim().length > 0
+                        ? `Suggested default prefix: ${defaultPrefixPath}`
+                        : 'Defaults under ~/.local/share/crosshook/prefixes/<slug> and stays editable.'
+                  }
+                  error={validation.fieldErrors.prefix_path || defaultPrefixPathError}
+                  className="crosshook-install-prefix-field"
+                />
+              </div>
+            </div>
+          </div>
+        </Tabs.Content>
+
+        <Tabs.Content
+          value="review"
+          forceMount
+          className="crosshook-subtab-content"
+          style={{ display: activeInstallTab === 'review' ? undefined : 'none' }}
+        >
+          <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+            <div className="crosshook-install-card">
+              <div className="crosshook-install-status">
+                <div>
+                  <div className="crosshook-install-stage">{stageLabel(stage)}</div>
+                  <h4 style={{ margin: '10px 0 0', fontSize: '1.05rem' }}>Status and review space</h4>
+                  <p className="crosshook-heading-copy" style={{ marginTop: 8 }}>
+                    {statusText}
+                  </p>
+                </div>
+                <div style={{ display: 'grid', gap: 10, justifyItems: 'end' }}>
+                  <div className="crosshook-install-pill">{prefixStateLabel(defaultPrefixPathState)}</div>
+                  <div className="crosshook-install-pill">Candidates: {candidateCount}</div>
+                </div>
+              </div>
+
+              <div className="crosshook-install-review">
+                {error ? <p className="crosshook-danger">{error}</p> : null}
+                {validation.generalError ? <p className="crosshook-danger">{validation.generalError}</p> : null}
+                <p className="crosshook-help-text">{hintText}</p>
+
+                <InstallField
+                  label="Final Executable"
+                  value={request.installed_game_executable_path}
+                  onChange={(value) => setInstalledExecutablePath(value)}
+                  placeholder="/home/user/.local/share/crosshook/prefixes/god-of-war-ragnarok/drive_c/Game/Game.exe"
+                  browseLabel="Browse"
+                  browseTitle="Select Installed Game Executable"
+                  browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
+                  helpText="Selecting a candidate fills this field, but it remains editable for the final review step."
+                  error={validation.fieldErrors.installed_game_executable_path}
+                />
+
+                {candidateOptions.length > 0 ? (
+                  <div className="crosshook-install-candidate-list">
+                    {candidateOptions.map((candidate) => (
+                      <CandidateRow
+                        key={`${candidate.index}:${candidate.path}`}
+                        candidate={candidate}
+                        currentPath={request.installed_game_executable_path}
+                        onSelect={setInstalledExecutablePath}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="crosshook-help-text">
+                    {isRunningInstaller
+                      ? 'Candidate discovery will appear after the installer exits.'
+                      : 'No executable candidates have been discovered yet.'}
+                  </p>
+                )}
+
+                <div className="crosshook-install-candidate-list">
+                  <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
+                    <span>Generated profile preview</span>
+                    <span>
+                      {reviewProfile?.game.name || request.display_name || request.profile_name || 'Unnamed profile'}
+                    </span>
+                  </div>
+                  <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
+                    <span>Runtime target</span>
+                    <span>
+                      {reviewProfile?.game.executable_path ||
+                        request.installed_game_executable_path ||
+                        'Awaiting executable confirmation'}
+                    </span>
+                  </div>
+                  <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
+                    <span>Prefix</span>
+                    <span>
+                      {reviewProfile?.runtime.prefix_path || request.prefix_path || 'Awaiting prefix resolution'}
+                    </span>
+                  </div>
+                  <div className="crosshook-install-candidate" style={{ cursor: 'default' }}>
+                    <span>Working directory</span>
+                    <span>
+                      {reviewProfile?.runtime.working_directory || 'Will be derived from the selected executable'}
+                    </span>
+                  </div>
+                </div>
+
+                {logPath ? (
+                  <div className="crosshook-install-candidate" style={{ cursor: 'default', flexDirection: 'column' }}>
+                    <span>Installer log path</span>
+                    <span style={{ wordBreak: 'break-all', color: 'var(--crosshook-color-text)' }}>{logPath}</span>
+                  </div>
+                ) : (
+                  <p className="crosshook-help-text">
+                    Installer logs will be exposed here once the backend command returns a log path.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </Tabs.Content>
+      </Tabs.Root>
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <button

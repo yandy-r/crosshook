@@ -29,6 +29,7 @@ pub fn validate_install_request(
     validate_profile_name(request.resolved_profile_name())?;
     validate_installer_path(request.installer_path.trim())?;
     validate_optional_trainer_path(request.trainer_path.trim())?;
+    validate_optional_custom_cover_art_path(request.custom_cover_art_path.trim())?;
     validate_proton_path(request.proton_path.trim())?;
     validate_prefix_path(request.prefix_path.trim())?;
     validate_optional_installed_game_executable_path(
@@ -184,6 +185,22 @@ fn validate_optional_trainer_path(path: &str) -> Result<(), InstallGameValidatio
     }
     if !path.is_file() {
         return Err(InstallGameValidationError::TrainerPathNotFile);
+    }
+
+    Ok(())
+}
+
+fn validate_optional_custom_cover_art_path(path: &str) -> Result<(), InstallGameValidationError> {
+    if path.is_empty() {
+        return Ok(());
+    }
+
+    let path = Path::new(path);
+    if !path.exists() {
+        return Err(InstallGameValidationError::CustomCoverArtPathMissing);
+    }
+    if !path.is_file() {
+        return Err(InstallGameValidationError::CustomCoverArtPathNotFile);
     }
 
     Ok(())
@@ -355,6 +372,7 @@ mod tests {
             proton_path: proton_path.to_string_lossy().into_owned(),
             prefix_path: prefix_path.to_string_lossy().into_owned(),
             installed_game_executable_path: String::new(),
+            custom_cover_art_path: String::new(),
         }
     }
 
@@ -413,7 +431,7 @@ mod tests {
             Err(InstallGameValidationError::ProtonPathNotExecutable)
         ));
 
-        let mut request = base_request;
+        let mut request = base_request.clone();
         request.installed_game_executable_path = temp_dir
             .path()
             .join("candidate")
@@ -423,6 +441,13 @@ mod tests {
         assert!(matches!(
             validate_install_request(&request),
             Err(InstallGameValidationError::InstalledGameExecutablePathNotFile)
+        ));
+
+        let mut request = base_request;
+        request.custom_cover_art_path = temp_dir.path().to_string_lossy().into_owned();
+        assert!(matches!(
+            validate_install_request(&request),
+            Err(InstallGameValidationError::CustomCoverArtPathNotFile)
         ));
     }
 
