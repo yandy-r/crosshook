@@ -118,10 +118,7 @@ export function ProfileActions({
 
   return (
     <div className={layoutVariant === 'footer' ? 'crosshook-profile-actions crosshook-profile-actions--footer' : 'crosshook-profile-actions'}>
-      <div
-        className="crosshook-profile-actions__toolbar"
-        style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: layoutVariant === 'footer' ? 0 : 18 }}
-      >
+      <div className="crosshook-profile-actions__toolbar">
         <button type="button" className="crosshook-button" onClick={() => void onSave()} disabled={!canSave}>
           {saving ? 'Saving...' : 'Save'}
         </button>

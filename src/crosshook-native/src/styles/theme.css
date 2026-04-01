@@ -218,6 +218,17 @@ textarea {
   overflow-y: auto;
 }
 
+.crosshook-profile-actions__toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: var(--crosshook-profile-actions-toolbar-margin-top);
+}
+
+.crosshook-profile-actions--footer .crosshook-profile-actions__toolbar {
+  margin-top: 0;
+}
+
 /* Footer chrome: .crosshook-route-footer (layout.css) */
 
 /* Profiles route body (--fill): hero/health stay natural height; editor host absorbs remainder and scrolls inside subtabs */

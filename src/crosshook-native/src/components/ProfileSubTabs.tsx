@@ -1,4 +1,4 @@
-import { type CSSProperties, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
@@ -101,6 +101,12 @@ export function ProfileSubTabs({
     ...(supportsTrainerLaunch ? ['trainer' as const] : []),
     ...(supportsLauncherExport ? ['export' as const] : []),
   ];
+
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.includes(activeTab)) {
+      setActiveTab(tabs[0]);
+    }
+  }, [tabs.join(','), activeTab]);
 
   // Apply game color as CSS custom properties for the themed tab bar
   const gameColorStyle: CSSProperties | undefined = dominantColor

@@ -112,6 +112,13 @@ export function LaunchSubTabs({
   const [activeTab, setActiveTab] = useState<LaunchSubTabId>(tabs[0] ?? 'optimizations');
   const autoSwitchedRef = useRef(false);
 
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.includes(activeTab)) {
+      setActiveTab(tabs[0]);
+      autoSwitchedRef.current = false;
+    }
+  }, [tabs.join(','), activeTab]);
+
   const {
     offlineReadiness,
     offlineReadinessError,
