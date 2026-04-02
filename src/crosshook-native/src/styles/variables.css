@@ -90,6 +90,15 @@
   --crosshook-profile-actions-toolbar-margin-top: 18px;
   --crosshook-protondb-panel-margin-top: 18px;
 
+  --crosshook-autosave-saving-bg: rgba(245, 197, 66, 0.14);
+  --crosshook-autosave-saving-border: rgba(245, 197, 66, 0.3);
+  --crosshook-autosave-success-bg: rgba(40, 199, 111, 0.16);
+  --crosshook-autosave-success-border: rgba(40, 199, 111, 0.3);
+  --crosshook-autosave-warning-bg: rgba(245, 197, 66, 0.14);
+  --crosshook-autosave-warning-border: rgba(245, 197, 66, 0.3);
+  --crosshook-autosave-error-bg: rgba(255, 117, 143, 0.14);
+  --crosshook-autosave-error-border: rgba(255, 117, 143, 0.3);
+
   --crosshook-profile-cover-art-aspect: 460 / 215;
   --crosshook-skeleton-duration: 1.8s;
   --crosshook-skeleton-color-from: var(--crosshook-color-surface);

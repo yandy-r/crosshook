@@ -12,7 +12,7 @@ import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
 import { LAUNCH_OPTIMIZATION_APPLICABLE_METHODS } from '../types/launch-optimizations';
-import type { BundledOptimizationPreset, LaunchMethod } from '../types';
+import type { BundledOptimizationPreset, LaunchAutoSaveStatus, LaunchMethod } from '../types';
 import type { GamescopeConfig, MangoHudConfig } from '../types/profile';
 import type { LaunchOptimizationsPanelStatus } from './LaunchOptimizationsPanel';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
@@ -61,6 +61,10 @@ export interface LaunchSubTabsProps {
 
   // Steam Launch Options panel
   customEnvVars?: Readonly<Record<string, string>>;
+
+  // Auto-save status indicators
+  gamescopeAutoSaveStatus?: LaunchAutoSaveStatus;
+  mangoHudAutoSaveStatus?: LaunchAutoSaveStatus;
 }
 
 export function LaunchSubTabs({
@@ -85,6 +89,8 @@ export function LaunchSubTabs({
   onSaveManualPreset,
   catalog,
   customEnvVars,
+  gamescopeAutoSaveStatus,
+  mangoHudAutoSaveStatus,
 }: LaunchSubTabsProps) {
   const isNative = launchMethod === 'native';
 
@@ -94,7 +100,7 @@ export function LaunchSubTabs({
       launchMethod as (typeof LAUNCH_OPTIMIZATION_APPLICABLE_METHODS)[number]
     );
 
-  const showsGamescopeTab = launchMethod === 'proton_run';
+  const showsGamescopeTab = launchMethod === 'proton_run' || launchMethod === 'steam_applaunch';
   const showsMangoHudTab = launchMethodSupportsOptimizations;
   const showsOptimizationsTab = launchMethodSupportsOptimizations;
   const showsSteamOptionsTab = launchMethod === 'steam_applaunch';
@@ -111,6 +117,38 @@ export function LaunchSubTabs({
 
   const [activeTab, setActiveTab] = useState<LaunchSubTabId>(tabs[0] ?? 'optimizations');
   const autoSwitchedRef = useRef(false);
+
+  // Unified auto-save status chip — show the highest-priority non-idle status across all tabs.
+  const TONE_PRIORITY: Record<string, number> = { idle: 0, success: 1, warning: 2, saving: 3, error: 4 };
+  const allStatuses: LaunchAutoSaveStatus[] = [
+    launchOptimizationsStatus ?? { tone: 'idle', label: '' },
+    gamescopeAutoSaveStatus ?? { tone: 'idle', label: '' },
+    mangoHudAutoSaveStatus ?? { tone: 'idle', label: '' },
+  ];
+  const combinedAutoSaveStatus = allStatuses.reduce<LaunchAutoSaveStatus>(
+    (best, s) => ((TONE_PRIORITY[s.tone] ?? 0) > (TONE_PRIORITY[best.tone] ?? 0) ? s : best),
+    { tone: 'idle', label: '' }
+  );
+  // Fade chip out 3s after success
+  const [chipVisible, setChipVisible] = useState(false);
+  const chipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (chipTimerRef.current !== null) {
+      clearTimeout(chipTimerRef.current);
+      chipTimerRef.current = null;
+    }
+    if (combinedAutoSaveStatus.tone !== 'idle') {
+      setChipVisible(true);
+      if (combinedAutoSaveStatus.tone === 'success') {
+        chipTimerRef.current = setTimeout(() => setChipVisible(false), 3000);
+      }
+    } else {
+      setChipVisible(false);
+    }
+    return () => {
+      if (chipTimerRef.current !== null) clearTimeout(chipTimerRef.current);
+    };
+  }, [combinedAutoSaveStatus.tone, combinedAutoSaveStatus.label]);
 
   useEffect(() => {
     if (tabs.length > 0 && !tabs.includes(activeTab)) {
@@ -210,6 +248,15 @@ export function LaunchSubTabs({
                 {TAB_LABELS[tab]}
               </Tabs.Trigger>
             ))}
+            {chipVisible && combinedAutoSaveStatus.tone !== 'idle' ? (
+              <span
+                className={`crosshook-launch-autosave-chip crosshook-launch-autosave-chip--${combinedAutoSaveStatus.tone}`}
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {combinedAutoSaveStatus.label}
+              </span>
+            ) : null}
           </Tabs.List>
 
           <div className="crosshook-subtabs-metadata">
@@ -317,7 +364,6 @@ export function LaunchSubTabs({
                   method={launchMethod}
                   enabledOptionIds={enabledOptionIds}
                   onToggleOption={onToggleOption}
-                  status={launchOptimizationsStatus}
                   optimizationPresetNames={optimizationPresetNames}
                   activeOptimizationPreset={activeOptimizationPreset}
                   onSelectOptimizationPreset={onSelectOptimizationPreset}
@@ -343,6 +389,7 @@ export function LaunchSubTabs({
                 <SteamLaunchOptionsPanel
                   enabledOptionIds={enabledOptionIds}
                   customEnvVars={customEnvVars}
+                  gamescopeConfig={gamescopeConfig}
                 />
               </div>
             </Tabs.Content>

@@ -4,8 +4,8 @@ use crosshook_core::metadata::{
     MetadataStoreError, ProfileLaunchPresetOrigin, SyncSource, MAX_HISTORY_LIST_LIMIT,
 };
 use crosshook_core::profile::{
-    bundled_optimization_preset_toml_key, DuplicateProfileResult, GameProfile, MangoHudConfig,
-    ProfileStore, ProfileStoreError,
+    bundled_optimization_preset_toml_key, DuplicateProfileResult, GameProfile, GamescopeConfig,
+    MangoHudConfig, ProfileStore, ProfileStoreError,
 };
 use crosshook_core::settings::SettingsStore;
 use serde::{Deserialize, Serialize};
@@ -366,6 +366,66 @@ pub fn profile_save_mangohud_config(
         None,
     ) {
         tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save_mangohud_config failed");
+    }
+    capture_config_revision(
+        &name,
+        &profile,
+        ConfigRevisionSource::ManualSave,
+        None,
+        &metadata_store,
+    );
+    Ok(())
+}
+
+#[tauri::command]
+pub fn profile_save_gamescope_config(
+    name: String,
+    config: GamescopeConfig,
+    store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<(), String> {
+    let mut profile = store.load(&name).map_err(|e| e.to_string())?;
+    profile.launch.gamescope = config;
+    store.save(&name, &profile).map_err(|e| e.to_string())?;
+    let profile_path = store.base_path.join(format!("{name}.toml"));
+    if let Err(e) = metadata_store.observe_profile_write(
+        &name,
+        &profile,
+        &profile_path,
+        SyncSource::AppWrite,
+        None,
+    ) {
+        tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save_gamescope_config failed");
+    }
+    capture_config_revision(
+        &name,
+        &profile,
+        ConfigRevisionSource::ManualSave,
+        None,
+        &metadata_store,
+    );
+    Ok(())
+}
+
+#[tauri::command]
+pub fn profile_save_trainer_gamescope_config(
+    name: String,
+    config: GamescopeConfig,
+    store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<(), String> {
+    let mut profile = store.load(&name).map_err(|e| e.to_string())?;
+    profile.launch.trainer_gamescope = config;
+    store.save(&name, &profile).map_err(|e| e.to_string())?;
+    let profile_path = store.base_path.join(format!("{name}.toml"));
+    if let Err(e) = metadata_store.observe_profile_write(
+        &name,
+        &profile,
+        &profile_path,
+        SyncSource::AppWrite,
+        None,
+    ) {
+        tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save_trainer_gamescope_config failed");
     }
     capture_config_revision(
         &name,

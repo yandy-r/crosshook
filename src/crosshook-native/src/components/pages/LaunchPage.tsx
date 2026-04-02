@@ -65,7 +65,7 @@ export function LaunchPage() {
               customCoverArtPath={profile.game.custom_cover_art_path}
               gamescopeConfig={profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG}
               onGamescopeChange={(gamescope) => {
-                profileState.updateProfile((current) => ({
+                profileState.updateLaunchSetting((current) => ({
                   ...current,
                   launch: { ...current.launch, gamescope },
                 }));
@@ -73,7 +73,7 @@ export function LaunchPage() {
               isInsideGamescopeSession={isInsideGamescopeSession}
               mangoHudConfig={profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG}
               onMangoHudChange={(mangohud) => {
-                profileState.updateProfile((current) => ({
+                profileState.updateLaunchSetting((current) => ({
                   ...current,
                   launch: { ...current.launch, mangohud },
                 }));
@@ -97,6 +97,8 @@ export function LaunchPage() {
               onSaveManualPreset={profileState.saveManualOptimizationPreset}
               catalog={profileState.catalog}
               customEnvVars={profile.launch.custom_env_vars}
+              gamescopeAutoSaveStatus={profileState.gamescopeAutoSaveStatus}
+              mangoHudAutoSaveStatus={profileState.mangoHudAutoSaveStatus}
             />
           }
         />

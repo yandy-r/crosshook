@@ -1,6 +1,6 @@
 import { useCallback, useId, useMemo, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-import type { BundledOptimizationPreset, LaunchMethod } from '../types';
+import type { BundledOptimizationPreset, LaunchAutoSaveStatus, LaunchMethod } from '../types';
 import { ThemedSelect, type SelectOptionGroup } from './ui/ThemedSelect';
 import {
   LAUNCH_OPTIMIZATION_CATEGORIES,
@@ -14,19 +14,13 @@ import {
 import type { OptimizationCatalogPayload, OptimizationEntry } from '../utils/optimization-catalog';
 import { buildOptionsById, buildConflictMatrix } from '../utils/optimization-catalog';
 
-type LaunchOptimizationsPanelStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
-
-export interface LaunchOptimizationsPanelStatus {
-  tone: LaunchOptimizationsPanelStatusTone;
-  label: string;
-  detail?: string;
-}
+/** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
+export type LaunchOptimizationsPanelStatus = LaunchAutoSaveStatus;
 
 export interface LaunchOptimizationsPanelProps {
   method: LaunchMethod;
   enabledOptionIds: readonly LaunchOptimizationId[];
   onToggleOption: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
-  status?: LaunchOptimizationsPanelStatus;
   className?: string;
   /** Sorted preset names from `launch.presets` (empty hides the preset row). */
   optimizationPresetNames?: readonly string[];
@@ -47,30 +41,6 @@ interface GroupedOptions {
   category: LaunchOptimizationCategory;
   options: OptimizationEntry[];
 }
-
-const DEFAULT_STATUS: Record<LaunchMethod, LaunchOptimizationsPanelStatus> = {
-  '': {
-    tone: 'warning',
-    label: 'Profile method is not set',
-    detail: 'Launch optimizations apply to proton_run and steam_applaunch profiles.',
-  },
-  native: {
-    tone: 'warning',
-    label: 'Unavailable for native launches',
-    detail: 'Switch the launch method to proton_run or steam_applaunch to edit these toggles.',
-  },
-  proton_run: {
-    tone: 'idle',
-    label: 'Ready for Proton-backed launches',
-    detail: 'These settings stay profile-scoped and apply to direct proton_run launches.',
-  },
-  steam_applaunch: {
-    tone: 'idle',
-    label: 'Ready for Steam launch options',
-    detail:
-      'Use the Steam launch options panel below to copy a line into Steam; CrossHook does not inject it automatically.',
-  },
-};
 
 function joinClasses(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(' ');
@@ -127,10 +97,6 @@ function formatConflictLabels(conflictLabels: readonly string[]): string {
   }
 
   return `${conflictLabels.slice(0, -1).join(', ')}, or ${conflictLabels[conflictLabels.length - 1]}`;
-}
-
-function getStatusToneClass(tone: LaunchOptimizationsPanelStatusTone): string {
-  return `crosshook-launch-optimizations__status-chip--${tone}`;
 }
 
 function formatConflictSummary(
@@ -359,7 +325,6 @@ export function LaunchOptimizationsPanel({
   method,
   enabledOptionIds,
   onToggleOption,
-  status,
   className,
   optimizationPresetNames = [],
   activeOptimizationPreset = '',
@@ -488,8 +453,6 @@ export function LaunchOptimizationsPanel({
   const advancedGroups = groupOptions(advancedOptions);
   const enabledCommonCount = selectedOptions.filter((option) => !option.advanced).length;
   const enabledAdvancedCount = selectedOptions.filter((option) => option.advanced).length;
-  const defaultStatus = DEFAULT_STATUS[method] ?? DEFAULT_STATUS[''];
-  const resolvedStatus = status ?? defaultStatus;
   const rootClassName = joinClasses('crosshook-panel', 'crosshook-launch-optimizations', className);
   const showManualPresetSave = isMethodSupported && onSaveManualPreset !== undefined;
   const showOptimizedPresetSelect = isMethodSupported && optimizationPresetGroups.length > 0;
@@ -514,16 +477,6 @@ export function LaunchOptimizationsPanel({
           <span className="crosshook-launch-optimizations__summary-chip">
             {formatCountLabel(enabledCommonCount, 'common option', 'common options')} /{' '}
             {formatCountLabel(enabledAdvancedCount, 'advanced option', 'advanced options')}
-          </span>
-          <span
-            className={joinClasses(
-              'crosshook-launch-optimizations__status-chip',
-              getStatusToneClass(resolvedStatus.tone)
-            )}
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {resolvedStatus.label}
           </span>
         </div>
       </div>
