@@ -52,7 +52,7 @@ pub(super) fn http_client() -> Result<&'static reqwest::Client, GameImageError> 
 /// explicit allow-list of `image/jpeg`, `image/png`, `image/webp` (I1 / I3).
 /// SVG has no magic bytes and maps to `application/octet-stream` — it is
 /// therefore unconditionally rejected.
-fn validate_image_bytes(bytes: &[u8]) -> Result<&'static str, GameImageError> {
+pub(super) fn validate_image_bytes(bytes: &[u8]) -> Result<&'static str, GameImageError> {
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err(GameImageError::TooLarge);
     }
@@ -211,21 +211,10 @@ pub async fn download_and_cache_image(
                 );
                 // Fall back to Steam CDN
                 if image_type == GameImageType::Portrait {
-                    let candidates = portrait_candidate_urls(app_id);
-                    let mut last_err = None;
-                    let mut found = None;
-                    for url in &candidates {
-                        match download_image_bytes(url).await {
-                            Ok(b) => { found = Some(b); break; }
-                            Err(e) => { last_err = Some(e); }
-                        }
-                    }
-                    match found {
-                        Some(b) => (b, GameImageSource::SteamCdn),
-                        None => {
-                            if let Some(e) = last_err {
-                                tracing::warn!(app_id, image_type = image_type_str, %e, "all portrait CDN candidates failed");
-                            }
+                    match try_portrait_candidates(app_id).await {
+                        Ok(b) => (b, GameImageSource::SteamCdn),
+                        Err(err) => {
+                            tracing::warn!(app_id, image_type = image_type_str, %err, "all portrait CDN candidates failed");
                             return Ok(stale_fallback_path(store, app_id, &image_type_str));
                         }
                     }
@@ -249,21 +238,10 @@ pub async fn download_and_cache_image(
     } else {
         // No API key — use Steam CDN directly
         if image_type == GameImageType::Portrait {
-            let candidates = portrait_candidate_urls(app_id);
-            let mut last_err = None;
-            let mut found = None;
-            for url in &candidates {
-                match download_image_bytes(url).await {
-                    Ok(b) => { found = Some(b); break; }
-                    Err(e) => { last_err = Some(e); }
-                }
-            }
-            match found {
-                Some(b) => (b, GameImageSource::SteamCdn),
-                None => {
-                    if let Some(e) = last_err {
-                        tracing::warn!(app_id, image_type = image_type_str, %e, "all portrait CDN candidates failed");
-                    }
+            match try_portrait_candidates(app_id).await {
+                Ok(b) => (b, GameImageSource::SteamCdn),
+                Err(err) => {
+                    tracing::warn!(app_id, image_type = image_type_str, %err, "all portrait CDN candidates failed");
                     return Ok(stale_fallback_path(store, app_id, &image_type_str));
                 }
             }
@@ -429,6 +407,21 @@ fn image_cache_base_dir() -> Result<PathBuf, String> {
                 .join("cache")
                 .join("images")
         })
+}
+
+/// Try each portrait candidate URL in order, returning the bytes from the
+/// first successful download or the last error if all candidates fail.
+async fn try_portrait_candidates(app_id: &str) -> Result<Vec<u8>, GameImageError> {
+    let candidates = portrait_candidate_urls(app_id);
+    let mut last_err = None;
+    for url in &candidates {
+        match download_image_bytes(url).await {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => last_err = Some(e),
+        }
+    }
+    // portrait_candidate_urls always returns at least one URL.
+    Err(last_err.expect("portrait_candidate_urls returned no candidates"))
 }
 
 async fn download_image_bytes(url: &str) -> Result<Vec<u8>, GameImageError> {
