@@ -2,6 +2,16 @@ import type { DiagnosticReport } from './diagnostics';
 import type { LaunchOptimizations } from './launch-optimizations';
 import type { GamescopeConfig, LaunchMethod, MangoHudConfig, TrainerLoadingMode } from './profile';
 
+/** Tone for the auto-save status indicator shared across Launch page tabs. */
+export type LaunchAutoSaveStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
+
+/** Status of an auto-save operation (optimizations, gamescope, or mangohud). */
+export interface LaunchAutoSaveStatus {
+  tone: LaunchAutoSaveStatusTone;
+  label: string;
+  detail?: string;
+}
+
 export enum LaunchPhase {
   Idle = 'Idle',
   GameLaunching = 'GameLaunching',

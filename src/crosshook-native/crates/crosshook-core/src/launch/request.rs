@@ -228,7 +228,7 @@ pub enum ValidationError {
     CustomEnvVarReservedKey(String),
     /// The `gamescope` binary is not installed or not found on PATH.
     GamescopeBinaryMissing,
-    /// Gamescope is only supported for `proton_run` launches.
+    /// Gamescope is only supported for `proton_run` and `steam_applaunch` launches.
     GamescopeNotSupportedForMethod(String),
     /// Running inside an existing gamescope session without `allow_nested`.
     GamescopeNestedSession,
@@ -361,7 +361,7 @@ impl ValidationError {
                 "gamescope is not installed or not found on PATH.".to_string()
             }
             Self::GamescopeNotSupportedForMethod(method) => {
-                format!("Gamescope is only supported for proton_run launches, not '{method}'.")
+                format!("Gamescope is only supported for proton_run and steam_applaunch launches, not '{method}'.")
             }
             Self::GamescopeNestedSession => {
                 "Running inside an existing gamescope session. Gamescope will be auto-skipped unless allow_nested is enabled.".to_string()
@@ -541,7 +541,8 @@ impl ValidationError {
                 "Install gamescope from your distribution's package manager.".to_string()
             }
             Self::GamescopeNotSupportedForMethod(_) => {
-                "Switch the launch method to proton_run to use gamescope.".to_string()
+                "Switch the launch method to proton_run or steam_applaunch to use gamescope."
+                    .to_string()
             }
             Self::GamescopeNestedSession => {
                 "Enable 'Allow nested' in the gamescope configuration to override.".to_string()
@@ -630,7 +631,7 @@ fn collect_custom_env_issues(request: &LaunchRequest, issues: &mut Vec<LaunchVal
 
 fn collect_gamescope_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidationIssue>) {
     let method = request.resolved_method();
-    if method != METHOD_PROTON_RUN {
+    if method != METHOD_PROTON_RUN && method != METHOD_STEAM_APPLAUNCH {
         issues.push(ValidationError::GamescopeNotSupportedForMethod(method.to_string()).issue());
         return;
     }
@@ -1485,5 +1486,43 @@ mod tests {
         let issue = err.issue();
         assert_eq!(issue.severity, ValidationSeverity::Warning);
         assert!(issue.message.contains("40"));
+    }
+
+    #[test]
+    fn gamescope_validation_passes_for_steam_applaunch() {
+        let (_td, mut request) = steam_request();
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            internal_width: Some(1920),
+            internal_height: Some(1080),
+            ..Default::default()
+        };
+        let issues = validate_all(&request);
+        let gamescope_method_issue = issues.iter().any(|i| {
+            i.message
+                .contains("only supported for proton_run and steam_applaunch")
+        });
+        assert!(
+            !gamescope_method_issue,
+            "steam_applaunch should not emit GamescopeNotSupportedForMethod"
+        );
+    }
+
+    #[test]
+    fn gamescope_validation_rejected_for_native() {
+        let (_td, mut request) = native_request();
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        let issues = validate_all(&request);
+        let gamescope_method_issue = issues.iter().any(|i| {
+            i.message
+                .contains("only supported for proton_run and steam_applaunch")
+        });
+        assert!(
+            gamescope_method_issue,
+            "native method should emit GamescopeNotSupportedForMethod"
+        );
     }
 }

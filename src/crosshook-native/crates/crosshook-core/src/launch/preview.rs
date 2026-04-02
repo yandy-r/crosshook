@@ -334,10 +334,16 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
 
     // Steam launch options (for copy/paste); may still be computed when directive resolution failed
     // so errors surface consistently with the standalone Steam options panel.
+    let gamescope_param = if request.gamescope.enabled {
+        Some(&request.gamescope)
+    } else {
+        None
+    };
     let steam_launch_options = if resolved_method == ResolvedLaunchMethod::SteamApplaunch {
         match build_steam_launch_options_command(
             &request.optimizations.enabled_option_ids,
             &request.custom_env_vars,
+            gamescope_param,
         ) {
             Ok(command) => Some(command),
             Err(error) => {
@@ -640,11 +646,19 @@ fn build_effective_command_string(
             parts.push(request.game_path.trim().to_string());
             Ok(parts.join(" "))
         }
-        ResolvedLaunchMethod::SteamApplaunch => build_steam_launch_options_command(
-            &request.optimizations.enabled_option_ids,
-            &request.custom_env_vars,
-        )
-        .map_err(|error| error.to_string()),
+        ResolvedLaunchMethod::SteamApplaunch => {
+            let gs = if request.gamescope.enabled {
+                Some(&request.gamescope)
+            } else {
+                None
+            };
+            build_steam_launch_options_command(
+                &request.optimizations.enabled_option_ids,
+                &request.custom_env_vars,
+                gs,
+            )
+            .map_err(|error| error.to_string())
+        }
         ResolvedLaunchMethod::Native => Ok(request.game_path.trim().to_string()),
     }
 }
@@ -1197,6 +1211,7 @@ mod tests {
         let expected = build_steam_launch_options_command(
             &request.optimizations.enabled_option_ids,
             &request.custom_env_vars,
+            None,
         )
         .expect("steam line");
 
@@ -1214,5 +1229,77 @@ mod tests {
             .expect("DXVK_ASYNC");
         assert_eq!(dxvk.value, "0");
         assert_eq!(dxvk.source, EnvVarSource::ProfileCustom);
+    }
+
+    #[test]
+    fn preview_steam_gamescope_active_includes_gamescope_in_command() {
+        let (_td, mut request) = steam_request();
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            internal_width: Some(2560),
+            internal_height: Some(1440),
+            fullscreen: true,
+            ..Default::default()
+        };
+
+        let preview = build_launch_preview(&request).expect("preview");
+        let steam_opts = preview
+            .steam_launch_options
+            .as_deref()
+            .expect("steam_launch_options");
+        assert!(
+            steam_opts.starts_with("gamescope"),
+            "steam launch options should start with gamescope: {steam_opts}"
+        );
+        assert!(
+            steam_opts.contains("-w 2560 -h 1440 -f"),
+            "should contain gamescope args: {steam_opts}"
+        );
+        assert!(
+            steam_opts.contains("-- %command%"),
+            "should contain separator before %%command%%: {steam_opts}"
+        );
+
+        let effective = preview
+            .effective_command
+            .as_deref()
+            .expect("effective_command");
+        assert!(
+            effective.starts_with("gamescope"),
+            "effective command should also contain gamescope: {effective}"
+        );
+    }
+
+    #[test]
+    fn preview_steam_gamescope_mangohud_swap() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let mangohud_path = temp_dir.path().join("mangohud");
+        write_executable_file(&mangohud_path);
+        let _command_search_path =
+            crate::launch::test_support::ScopedCommandSearchPath::new(temp_dir.path());
+
+        let (_td, mut request) = steam_request();
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            ..Default::default()
+        };
+        request.optimizations.enabled_option_ids = vec!["show_mangohud_overlay".to_string()];
+
+        let preview = build_launch_preview(&request).expect("preview");
+        let steam_opts = preview
+            .steam_launch_options
+            .as_deref()
+            .expect("steam_launch_options");
+        assert!(
+            steam_opts.contains("--mangoapp"),
+            "should contain --mangoapp: {steam_opts}"
+        );
+        // mangohud should not appear as a separate wrapper token between -- and %command%
+        let after_separator = steam_opts.split("-- ").last().unwrap_or("");
+        assert!(
+            !after_separator.contains("mangohud"),
+            "mangohud should not appear as wrapper after --: {steam_opts}"
+        );
     }
 }

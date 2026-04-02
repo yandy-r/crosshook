@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { GameProfile, LaunchMethod, LauncherDeleteResult, LauncherInfo, TrainerLoadingMode } from '../types';
+import type { GameProfile, GamescopeConfig, LaunchMethod, LauncherDeleteResult, LauncherInfo, TrainerLoadingMode } from '../types';
 import { LauncherPreviewModal } from './LauncherPreviewModal';
 
 interface LauncherExportProps {
@@ -25,6 +25,7 @@ interface SteamExternalLauncherExportRequest {
   steam_client_install_path: string;
   target_home_path: string;
   profile_name?: string;
+  gamescope?: GamescopeConfig;
 }
 
 interface SteamExternalLauncherExportResult {
@@ -107,6 +108,7 @@ function buildExportRequest(
     steam_client_install_path: steamClientInstallPath.trim(),
     target_home_path: targetHomePath.trim(),
     profile_name: profileName.trim() || undefined,
+    gamescope: profile.launch?.trainer_gamescope,
   };
 }
 
@@ -143,7 +145,7 @@ export function LauncherExport({
         steamClientInstallPath,
         targetHomePath
       ),
-    [profile, profileName, method, launcherName, steamClientInstallPath, targetHomePath]
+    [profile, profileName, method, launcherName, steamClientInstallPath, targetHomePath, profile.launch]
   );
 
   const refreshLauncherStatus = useCallback(async () => {
@@ -207,6 +209,7 @@ export function LauncherExport({
             { label: 'Steam App ID', value: safeTrim(profile.steam.app_id) || 'Not set' },
             { label: 'Compatdata Path', value: safeTrim(profile.steam.compatdata_path) || 'Not set' },
             { label: 'Proton Path', value: safeTrim(profile.steam.proton_path) || 'Not set' },
+            { label: 'Trainer Gamescope', value: profile.launch?.trainer_gamescope?.enabled ? 'Enabled' : 'Disabled' },
           ]
         : [
             { label: 'Trainer Path', value: safeTrim(profile.trainer.path) || 'Not set' },
@@ -217,6 +220,7 @@ export function LauncherExport({
             },
             { label: 'Prefix Path', value: safeTrim(profile.runtime.prefix_path) || 'Not set' },
             { label: 'Proton Path', value: safeTrim(profile.runtime.proton_path) || 'Not set' },
+            { label: 'Trainer Gamescope', value: profile.launch?.trainer_gamescope?.enabled ? 'Enabled' : 'Disabled' },
             { label: 'Working Directory', value: safeTrim(profile.runtime.working_directory) || 'Not set' },
           ],
     [method, profile]

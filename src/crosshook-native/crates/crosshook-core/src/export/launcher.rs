@@ -5,7 +5,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::profile::TrainerLoadingMode;
+use crate::launch::runtime_helpers::build_gamescope_args;
+use crate::profile::{GamescopeConfig, TrainerLoadingMode};
 use serde::{Deserialize, Serialize};
 
 const TRAINER_SUFFIX: &str = " - Trainer";
@@ -25,6 +26,8 @@ pub struct SteamExternalLauncherExportRequest {
     pub target_home_path: String,
     #[serde(default)]
     pub profile_name: Option<String>,
+    #[serde(default)]
+    pub gamescope: GamescopeConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -367,6 +370,9 @@ fi
         "TRAINER_HOST_PATH={}\n",
         shell_single_quoted(&request.trainer_path)
     ));
+    if request.gamescope.enabled {
+        content.push_str(&build_gamescope_script_block(&request.gamescope));
+    }
     match request.trainer_loading_mode {
         TrainerLoadingMode::SourceDirectory => {
             content.push_str(
@@ -376,9 +382,12 @@ trainer_host_path="$(realpath "$TRAINER_HOST_PATH")"
 trainer_host_dir="$(dirname "$trainer_host_path")"
 cd "$trainer_host_dir"
 
-exec "$PROTON" run "$trainer_host_path"
 "#,
             );
+            content.push_str(&build_exec_line(
+                request.gamescope.enabled,
+                "\"$trainer_host_path\"",
+            ));
         }
         TrainerLoadingMode::CopyToPrefix => {
             content.push_str(
@@ -450,12 +459,58 @@ mkdir -p "$staged_trainer_dir"
 cp -f "$trainer_host_path" "$staged_trainer_host_path"
 stage_trainer_support_files "$trainer_source_dir" "$staged_trainer_dir" "$trainer_file_name" "$trainer_base_name"
 
-exec "$PROTON" run "$staged_trainer_windows_path"
 "#,
             );
+            content.push_str(&build_exec_line(
+                request.gamescope.enabled,
+                "\"$staged_trainer_windows_path\"",
+            ));
         }
     }
     content
+}
+
+fn build_gamescope_script_block(config: &GamescopeConfig) -> String {
+    let raw_args = build_gamescope_args(config);
+    let has_fullscreen = raw_args.iter().any(|a| a == "-f");
+
+    let mut quoted_args: Vec<String> = Vec::new();
+    if !has_fullscreen {
+        quoted_args.push(shell_single_quoted("-f"));
+    }
+    for token in &raw_args {
+        quoted_args.push(shell_single_quoted(token));
+    }
+    let args_literal = quoted_args.join(" ");
+
+    let mut block = String::new();
+    block.push_str(&format!(
+        "\n# Gamescope wrapper — launches trainer in its own compositor session.\n\
+         _GAMESCOPE_ARGS=({args_literal})\n"
+    ));
+
+    if config.allow_nested {
+        block.push_str("_GS_PREFIX=(gamescope \"${_GAMESCOPE_ARGS[@]}\" --)\n");
+    } else {
+        block.push_str(
+            r#"if [[ -z "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]]; then
+  _GS_PREFIX=(gamescope "${_GAMESCOPE_ARGS[@]}" --)
+else
+  _GS_PREFIX=()
+fi
+"#,
+        );
+    }
+
+    block
+}
+
+fn build_exec_line(gamescope_enabled: bool, target_path: &str) -> String {
+    if gamescope_enabled {
+        format!("exec \"${{_GS_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n")
+    } else {
+        format!("exec \"$PROTON\" run {target_path}\n")
+    }
 }
 
 pub(crate) fn build_desktop_entry_content(
@@ -742,6 +797,7 @@ mod tests {
                 .into_owned(),
             target_home_path: "/tmp/not-a-home/compatdata/steam".to_string(),
             profile_name: None,
+            ..Default::default()
         };
 
         let result = export_launchers(&request).expect("export");
@@ -829,6 +885,7 @@ mod tests {
                 .into_owned(),
             target_home_path: temp_home.path().to_string_lossy().into_owned(),
             profile_name: None,
+            ..Default::default()
         };
 
         let result = export_launchers(&request).expect("export");
@@ -891,6 +948,7 @@ mod tests {
             steam_client_install_path: String::new(),
             target_home_path: "/home/user".to_string(),
             profile_name: None,
+            ..Default::default()
         };
 
         let script_content = build_trainer_script_content(&request, "Witcher 3");
@@ -917,6 +975,7 @@ mod tests {
             steam_client_install_path: String::new(),
             target_home_path: "/home/user".to_string(),
             profile_name: None,
+            ..Default::default()
         };
 
         let content = preview_trainer_script_content(&request).expect("preview script");
@@ -939,6 +998,7 @@ mod tests {
             steam_client_install_path: String::new(),
             target_home_path: "/home/user".to_string(),
             profile_name: None,
+            ..Default::default()
         };
 
         let content = preview_desktop_entry_content(&request).expect("preview desktop");
@@ -975,5 +1035,133 @@ mod tests {
 
         let result = preview_desktop_entry_content(&request);
         assert!(result.is_err());
+    }
+
+    fn make_gamescope_request(
+        gamescope: GamescopeConfig,
+        loading_mode: TrainerLoadingMode,
+    ) -> SteamExternalLauncherExportRequest {
+        SteamExternalLauncherExportRequest {
+            method: "proton_run".to_string(),
+            trainer_path: "/opt/trainers/MyGame.exe".to_string(),
+            trainer_loading_mode: loading_mode,
+            prefix_path: "/tmp/compatdata/12345".to_string(),
+            proton_path: "/opt/proton/proton".to_string(),
+            target_home_path: "/home/user".to_string(),
+            gamescope,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn gamescope_disabled_script_unchanged() {
+        let request = make_gamescope_request(
+            GamescopeConfig::default(),
+            TrainerLoadingMode::SourceDirectory,
+        );
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(!content.contains("_GAMESCOPE_ARGS"));
+        assert!(!content.contains("_GS_PREFIX"));
+        assert!(!content.contains("gamescope"));
+        assert!(content.contains("exec \"$PROTON\" run \"$trainer_host_path\""));
+    }
+
+    #[test]
+    fn gamescope_enabled_source_directory_wraps_exec() {
+        let request = make_gamescope_request(
+            GamescopeConfig {
+                enabled: true,
+                internal_width: Some(800),
+                internal_height: Some(400),
+                fullscreen: true,
+                ..Default::default()
+            },
+            TrainerLoadingMode::SourceDirectory,
+        );
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(content.contains("_GAMESCOPE_ARGS=("));
+        assert!(content.contains("'-f'"));
+        assert!(content.contains("'-w' '800'"));
+        assert!(content.contains("'-h' '400'"));
+        assert!(content.contains("GAMESCOPE_WAYLAND_DISPLAY"));
+        assert!(content.contains(r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$trainer_host_path""#));
+        assert!(!content.contains("exec \"$PROTON\" run \"$trainer_host_path\""));
+    }
+
+    #[test]
+    fn gamescope_enabled_copy_to_prefix_wraps_exec() {
+        let request = make_gamescope_request(
+            GamescopeConfig {
+                enabled: true,
+                fullscreen: true,
+                ..Default::default()
+            },
+            TrainerLoadingMode::CopyToPrefix,
+        );
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(content.contains("_GAMESCOPE_ARGS=("));
+        assert!(content.contains(
+            r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$staged_trainer_windows_path""#
+        ));
+        assert!(!content.contains(
+            "exec \"$PROTON\" run \"$staged_trainer_windows_path\""
+        ));
+    }
+
+    #[test]
+    fn gamescope_allow_nested_skips_guard() {
+        let request = make_gamescope_request(
+            GamescopeConfig {
+                enabled: true,
+                allow_nested: true,
+                fullscreen: true,
+                ..Default::default()
+            },
+            TrainerLoadingMode::SourceDirectory,
+        );
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(!content.contains("GAMESCOPE_WAYLAND_DISPLAY"));
+        assert!(content.contains("_GS_PREFIX=("));
+    }
+
+    #[test]
+    fn gamescope_fullscreen_always_present() {
+        let request = make_gamescope_request(
+            GamescopeConfig {
+                enabled: true,
+                fullscreen: false,
+                internal_width: Some(1280),
+                internal_height: Some(720),
+                ..Default::default()
+            },
+            TrainerLoadingMode::SourceDirectory,
+        );
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(
+            content.contains("'-f'"),
+            "fullscreen flag must always be present for trainer gamescope"
+        );
+    }
+
+    #[test]
+    fn gamescope_script_does_not_override_display() {
+        let request = make_gamescope_request(
+            GamescopeConfig {
+                enabled: true,
+                fullscreen: true,
+                ..Default::default()
+            },
+            TrainerLoadingMode::SourceDirectory,
+        );
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(
+            !content.contains("pgrep -x wineserver"),
+            "script should not detect wineserver DISPLAY"
+        );
+        assert!(
+            !content.contains("DISPLAY="),
+            "script should not override DISPLAY"
+        );
+        assert!(content.contains("gamescope"));
     }
 }

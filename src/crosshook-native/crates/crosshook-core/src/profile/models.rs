@@ -302,6 +302,11 @@ pub struct LaunchSection {
     /// Per-profile gamescope compositor wrapper configuration.
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
     pub gamescope: GamescopeConfig,
+    /// Gamescope configuration for trainer launcher exports.
+    /// Separate from the game config so the trainer can use a smaller
+    /// compositor window (e.g. 800x400) while the game uses full resolution.
+    #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
+    pub trainer_gamescope: GamescopeConfig,
     /// Per-profile MangoHud overlay configuration.
     #[serde(default, skip_serializing_if = "MangoHudConfig::is_default")]
     pub mangohud: MangoHudConfig,
@@ -779,6 +784,33 @@ type = "fling"
         let s = toml::to_string_pretty(&p).expect("serialize");
         let back: GameProfile = toml::from_str(&s).expect("deserialize");
         assert_eq!(back.trainer.trainer_type, "aurora");
+    }
+
+    #[test]
+    fn trainer_gamescope_default_omitted_from_profile_toml() {
+        let profile = sample_profile();
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(
+            !serialized.contains("[launch.trainer_gamescope]"),
+            "default GamescopeConfig should be omitted from TOML output: {serialized}"
+        );
+    }
+
+    #[test]
+    fn trainer_gamescope_roundtrip() {
+        let mut profile = sample_profile();
+        profile.launch.trainer_gamescope = GamescopeConfig {
+            enabled: true,
+            internal_width: Some(800),
+            internal_height: Some(400),
+            fullscreen: true,
+            grab_cursor: true,
+            ..GamescopeConfig::default()
+        };
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(serialized.contains("[launch.trainer_gamescope]"));
+        let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+        assert_eq!(parsed.launch.trainer_gamescope, profile.launch.trainer_gamescope);
     }
 
     #[test]

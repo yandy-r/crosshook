@@ -231,6 +231,8 @@ pub fn run() {
             commands::profile::profile_save,
             commands::profile::profile_save_launch_optimizations,
             commands::profile::profile_save_mangohud_config,
+            commands::profile::profile_save_gamescope_config,
+            commands::profile::profile_save_trainer_gamescope_config,
             commands::profile::profile_list_bundled_optimization_presets,
             commands::profile::profile_apply_bundled_optimization_preset,
             commands::profile::profile_save_manual_optimization_preset,

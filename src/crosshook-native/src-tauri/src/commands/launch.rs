@@ -15,6 +15,7 @@ use crosshook_core::launch::{
     LaunchValidationIssue, ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN,
     METHOD_STEAM_APPLAUNCH,
 };
+use crosshook_core::profile::GamescopeConfig;
 use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file, MetadataStore};
 use crosshook_core::offline::readiness::MIN_OFFLINE_READINESS_SCORE;
 use crosshook_core::profile::ProfileStore;
@@ -48,13 +49,21 @@ pub fn preview_launch(request: LaunchRequest) -> Result<LaunchPreview, String> {
 
 /// Builds a Steam per-game “Launch Options” line from the same optimization IDs as `proton_run`,
 /// plus profile custom env vars (custom wins on duplicate keys in the prefix).
+///
+/// When `gamescope` is provided and enabled, the gamescope compositor is inserted as a wrapper
+/// (e.g. `gamescope -w 2560 -h 1440 -f -- %command%`).
 #[tauri::command]
 pub fn build_steam_launch_options_command(
     enabled_option_ids: Vec<String>,
     custom_env_vars: BTreeMap<String, String>,
+    gamescope: Option<GamescopeConfig>,
 ) -> Result<String, String> {
-    build_steam_launch_options_command_core(&enabled_option_ids, &custom_env_vars)
-        .map_err(|error| error.to_string())
+    build_steam_launch_options_command_core(
+        &enabled_option_ids,
+        &custom_env_vars,
+        gamescope.as_ref(),
+    )
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
