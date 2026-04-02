@@ -1113,6 +1113,18 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         clearTimeout(launchOptimizationsAutosaveTimerRef.current);
         launchOptimizationsAutosaveTimerRef.current = null;
       }
+      if (gamescopeAutosaveTimerRef.current !== null) {
+        clearTimeout(gamescopeAutosaveTimerRef.current);
+        gamescopeAutosaveTimerRef.current = null;
+      }
+      if (trainerGamescopeAutosaveTimerRef.current !== null) {
+        clearTimeout(trainerGamescopeAutosaveTimerRef.current);
+        trainerGamescopeAutosaveTimerRef.current = null;
+      }
+      if (mangoHudAutosaveTimerRef.current !== null) {
+        clearTimeout(mangoHudAutosaveTimerRef.current);
+        mangoHudAutosaveTimerRef.current = null;
+      }
 
       setRenaming(true);
       setError(null);
@@ -1400,6 +1412,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     }
 
     if (currentJson === lastSavedGamescopeJsonRef.current) {
+      setGamescopeAutoSaveStatus({ tone: 'idle', label: 'Ready' });
       return;
     }
 
@@ -1424,6 +1437,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
           setGamescopeAutoSaveStatus({ tone: 'success', label: 'Saved automatically' });
         } catch (err) {
           if (cancelled) return;
+          setDirty(true);
           setGamescopeAutoSaveStatus({ tone: 'error', label: 'Failed to save', detail: formatInvokeError(err) });
         }
       })();
@@ -1455,6 +1469,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     }
 
     if (currentJson === lastSavedTrainerGamescopeJsonRef.current) {
+      setTrainerGamescopeAutoSaveStatus({ tone: 'idle', label: 'Ready' });
       return;
     }
 
@@ -1479,6 +1494,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
           setTrainerGamescopeAutoSaveStatus({ tone: 'success', label: 'Saved automatically' });
         } catch (err) {
           if (cancelled) return;
+          setDirty(true);
           setTrainerGamescopeAutoSaveStatus({ tone: 'error', label: 'Failed to save', detail: formatInvokeError(err) });
         }
       })();
@@ -1510,6 +1526,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     }
 
     if (currentJson === lastSavedMangoHudJsonRef.current) {
+      setMangoHudAutoSaveStatus({ tone: 'idle', label: 'Ready' });
       return;
     }
 
@@ -1534,6 +1551,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
           setMangoHudAutoSaveStatus({ tone: 'success', label: 'Saved automatically' });
         } catch (err) {
           if (cancelled) return;
+          setDirty(true);
           setMangoHudAutoSaveStatus({ tone: 'error', label: 'Failed to save', detail: formatInvokeError(err) });
         }
       })();
