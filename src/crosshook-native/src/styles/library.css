@@ -1,11 +1,15 @@
 /* ── Library Page ──────────────────────────────────────────────────────── */
 
-.crosshook-library-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+/* .crosshook-library-page sits on .crosshook-route-stack — flex layout is
+   inherited from the route-stack contract. Page-specific children below. */
+
+.crosshook-library-page__content {
   padding: var(--crosshook-page-padding);
   max-width: var(--crosshook-content-width);
+}
+
+.crosshook-library-page__footer {
+  padding: 12px var(--crosshook-page-padding);
 }
 
 /* ── Toolbar ───────────────────────────────────────────────────────────── */

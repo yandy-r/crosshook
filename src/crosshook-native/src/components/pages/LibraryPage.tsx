@@ -1,21 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 
 import type { AppRoute } from '../layout/Sidebar';
-import type { LibraryCardData, LibraryViewMode } from '../../types/library';
+import type { LibraryViewMode } from '../../types/library';
 import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
+import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useProfileContext } from '../../context/ProfileContext';
 import { LibraryToolbar } from '../library/LibraryToolbar';
 import { LibraryGrid } from '../library/LibraryGrid';
 import { LibraryArt } from '../layout/PageBanner';
 import { PanelRouteDecor } from '../layout/PanelRouteDecor';
-
-interface ProfileSummary {
-  name: string;
-  gameName: string;
-  steamAppId: string;
-  customCoverArtPath?: string;
-}
 
 const VIEW_MODE_KEY = 'crosshook.library.viewMode';
 
@@ -32,44 +25,15 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   const { profiles, favoriteProfiles, selectProfile, toggleFavorite, refreshProfiles } =
     useProfileContext();
 
-  const [summaries, setSummaries] = useState<LibraryCardData[]>([]);
+  const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<LibraryViewMode>(loadViewMode);
   const [launchingName, setLaunchingName] = useState<string | undefined>();
 
-  // Fetch summaries from backend (no favorites dependency — avoids re-fetch on toggle)
-  const fetchSummaries = useCallback(async () => {
-    try {
-      const result = await invoke<ProfileSummary[]>('profile_list_summaries');
-      setSummaries(result.map((s) => ({
-        name: s.name,
-        gameName: s.gameName,
-        steamAppId: s.steamAppId,
-        customCoverArtPath: s.customCoverArtPath,
-        isFavorite: false,
-      })));
-    } catch (err) {
-      console.error('Failed to fetch profile summaries', err);
-    }
-  }, []);
-
-  // On mount + when profiles list changes
+  // Refresh profile list from context on mount
   useEffect(() => {
-    void fetchSummaries();
     void refreshProfiles();
-  }, [fetchSummaries, refreshProfiles]);
-
-  useEffect(() => {
-    void fetchSummaries();
-  }, [profiles, fetchSummaries]);
-
-  // Enrich with favorite state separately (no network call)
-  useEffect(() => {
-    const favoriteSet = new Set(favoriteProfiles);
-    setSummaries((prev) =>
-      prev.map((s) => ({ ...s, isFavorite: favoriteSet.has(s.name) })),
-    );
-  }, [favoriteProfiles]);
+  }, [refreshProfiles]);
 
   // Persist view mode
   const handleViewModeChange = useCallback((mode: LibraryViewMode) => {
@@ -118,27 +82,39 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
         );
       });
     },
-    [toggleFavorite],
+    [setSummaries, toggleFavorite],
   );
 
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--library">
-      <PanelRouteDecor illustration={<LibraryArt />} />
-      <div className="crosshook-library-page">
-        <LibraryToolbar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          viewMode={viewMode}
-          onViewModeChange={handleViewModeChange}
-        />
-        <LibraryGrid
-          profiles={filtered}
-          onLaunch={handleLaunch}
-          onEdit={handleEdit}
-          onToggleFavorite={handleToggleFavorite}
-          launchingName={launchingName}
-          onNavigate={onNavigate}
-        />
+      <div className="crosshook-route-stack crosshook-library-page">
+        <div className="crosshook-panel crosshook-panel--with-route-decor">
+          <PanelRouteDecor illustration={<LibraryArt />} />
+        </div>
+        <div className="crosshook-route-stack__body--fill crosshook-library-page__body">
+          <div className="crosshook-route-card-host">
+            <div className="crosshook-route-card-scroll">
+              <div className="crosshook-library-page__content">
+                <LibraryGrid
+                  profiles={filtered}
+                  onLaunch={handleLaunch}
+                  onEdit={handleEdit}
+                  onToggleFavorite={handleToggleFavorite}
+                  launchingName={launchingName}
+                  onNavigate={onNavigate}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="crosshook-route-footer crosshook-library-page__footer">
+          <LibraryToolbar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+          />
+        </div>
       </div>
     </div>
   );
