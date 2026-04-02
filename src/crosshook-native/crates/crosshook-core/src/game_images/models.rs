@@ -9,6 +9,7 @@ pub enum GameImageType {
     Cover,
     Hero,
     Capsule,
+    Portrait,
 }
 
 impl fmt::Display for GameImageType {
@@ -17,6 +18,7 @@ impl fmt::Display for GameImageType {
             Self::Cover => write!(f, "cover"),
             Self::Hero => write!(f, "hero"),
             Self::Capsule => write!(f, "capsule"),
+            Self::Portrait => write!(f, "portrait"),
         }
     }
 }

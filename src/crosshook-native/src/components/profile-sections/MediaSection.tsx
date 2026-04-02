@@ -1,3 +1,5 @@
+import { invoke } from '@tauri-apps/api/core';
+
 import type { GameProfile, LaunchMethod } from '../../types';
 import { FieldRow } from '../ProfileFormSections';
 import { chooseFile } from '../../utils/dialog';
@@ -29,10 +31,19 @@ export function MediaSection({ profile, onUpdateProfile, launchMethod }: MediaSe
               { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
             ]);
             if (path) {
-              onUpdateProfile((current) => ({
-                ...current,
-                game: { ...current.game, custom_cover_art_path: path },
-              }));
+              try {
+                const imported = await invoke<string>('import_custom_cover_art', { sourcePath: path });
+                onUpdateProfile((current) => ({
+                  ...current,
+                  game: { ...current.game, custom_cover_art_path: imported },
+                }));
+              } catch (err) {
+                console.error('Failed to import custom cover art', err);
+                onUpdateProfile((current) => ({
+                  ...current,
+                  game: { ...current.game, custom_cover_art_path: path },
+                }));
+              }
             }
           }}
           helperText="Overrides Steam/SteamGridDB. Shown as a full-width backdrop behind profile tabs (image is cropped to fill). Steam's store header is 460×215 (~2.14:1); a larger landscape file (e.g. 920×430) with the subject in the upper area usually looks best."

@@ -1,0 +1,59 @@
+import type { LibraryCardData } from '../../types/library';
+import type { AppRoute } from '../layout/Sidebar';
+import { LibraryCard } from './LibraryCard';
+
+interface LibraryGridProps {
+  profiles: LibraryCardData[];
+  selectedName?: string;
+  onSelect?: (name: string) => void;
+  onLaunch: (name: string) => void;
+  onEdit: (name: string) => void;
+  onToggleFavorite: (name: string, current: boolean) => void;
+  launchingName?: string;
+  onNavigate?: (route: AppRoute) => void;
+}
+
+export function LibraryGrid({
+  profiles,
+  selectedName,
+  onSelect,
+  onLaunch,
+  onEdit,
+  onToggleFavorite,
+  launchingName,
+  onNavigate,
+}: LibraryGridProps) {
+  if (profiles.length === 0) {
+    return (
+      <div className="crosshook-library-empty">
+        <h2 className="crosshook-library-empty__heading">No game profiles yet</h2>
+        <p>Create your first profile to see it here.</p>
+        <button
+          className="crosshook-library-empty__cta"
+          onClick={() => onNavigate?.('profiles')}
+        >
+          Create a profile
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="crosshook-library-grid" role="list">
+      {profiles.map((profile) => (
+        <LibraryCard
+          key={profile.name}
+          profile={profile}
+          isSelected={selectedName === profile.name}
+          onSelect={onSelect}
+          onLaunch={onLaunch}
+          onEdit={onEdit}
+          onToggleFavorite={onToggleFavorite}
+          isLaunching={launchingName === profile.name}
+        />
+      ))}
+    </div>
+  );
+}
+
+export default LibraryGrid;

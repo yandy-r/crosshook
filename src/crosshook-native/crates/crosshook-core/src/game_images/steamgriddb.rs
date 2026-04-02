@@ -102,6 +102,7 @@ fn build_endpoint(app_id: &str, image_type: &GameImageType) -> String {
         GameImageType::Cover => ("grids", Some("460x215,920x430")),
         GameImageType::Hero => ("heroes", None),
         GameImageType::Capsule => ("grids", Some("342x482,600x900")),
+        GameImageType::Portrait => ("grids", Some("342x482,600x900")),
     };
 
     match dimensions {
@@ -140,6 +141,15 @@ mod tests {
     #[test]
     fn build_endpoint_capsule_uses_grids() {
         let url = build_endpoint("440", &GameImageType::Capsule);
+        assert_eq!(
+            url,
+            "https://www.steamgriddb.com/api/v2/grids/steam/440?dimensions=342x482,600x900"
+        );
+    }
+
+    #[test]
+    fn build_endpoint_portrait_uses_grids() {
+        let url = build_endpoint("440", &GameImageType::Portrait);
         assert_eq!(
             url,
             "https://www.steamgriddb.com/api/v2/grids/steam/440?dimensions=342x482,600x900"

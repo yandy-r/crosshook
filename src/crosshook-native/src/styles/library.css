@@ -1,0 +1,282 @@
+/* ── Library Page ──────────────────────────────────────────────────────── */
+
+/* .crosshook-library-page sits on .crosshook-route-stack — flex layout is
+   inherited from the route-stack contract. Page-specific children below. */
+
+.crosshook-library-page__content {
+  padding: var(--crosshook-page-padding);
+  max-width: var(--crosshook-content-width);
+}
+
+.crosshook-library-page__toolbar-bar {
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: var(--crosshook-radius-md);
+  background: var(--crosshook-color-surface);
+  border: 1px solid var(--crosshook-color-border);
+}
+
+/* ── Toolbar ───────────────────────────────────────────────────────────── */
+
+.crosshook-library-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.crosshook-library-toolbar__search {
+  flex: 1;
+  min-width: 200px;
+  padding: 8px 14px;
+  border-radius: var(--crosshook-radius-sm);
+  border: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface);
+  color: var(--crosshook-color-text);
+  font-family: var(--crosshook-font-body);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-toolbar__search:focus {
+  border-color: var(--crosshook-color-accent);
+}
+
+.crosshook-library-toolbar__search::placeholder {
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-library-toolbar__view-toggle {
+  display: flex;
+  gap: 2px;
+  border-radius: var(--crosshook-radius-sm);
+  border: 1px solid var(--crosshook-color-border);
+  overflow: hidden;
+}
+
+.crosshook-library-toolbar__view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--crosshook-color-text-muted);
+  cursor: pointer;
+  transition: background var(--crosshook-transition-fast) ease,
+    color var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-toolbar__view-btn:hover {
+  background: var(--crosshook-color-accent-soft);
+}
+
+.crosshook-library-toolbar__view-btn[aria-pressed='true'] {
+  background: var(--crosshook-color-accent);
+  color: var(--crosshook-color-text);
+}
+
+/* ── Grid ──────────────────────────────────────────────────────────────── */
+
+.crosshook-library-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(var(--crosshook-library-card-width), 1fr)
+  );
+  gap: var(--crosshook-library-grid-gap);
+  align-content: start;
+}
+
+/* ── Card ──────────────────────────────────────────────────────────────── */
+
+.crosshook-library-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--crosshook-radius-md);
+  background: var(--crosshook-color-surface);
+  cursor: pointer;
+  transition: transform var(--crosshook-transition-fast) ease,
+    box-shadow var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--crosshook-shadow-soft);
+}
+
+.crosshook-library-card--selected {
+  outline: 3px solid var(--crosshook-color-accent-strong);
+  outline-offset: 2px;
+  box-shadow: 0 0 12px rgba(45, 163, 255, 0.45);
+}
+
+.crosshook-library-card__image {
+  aspect-ratio: var(--crosshook-library-card-aspect);
+  width: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.crosshook-library-card__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 50%);
+  pointer-events: none;
+  transition: background var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-card:hover .crosshook-library-card__scrim {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.15) 60%);
+}
+
+.crosshook-library-card__footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.crosshook-library-card__title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-library-card__actions {
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-card:hover .crosshook-library-card__actions,
+.crosshook-library-card:focus-within .crosshook-library-card__actions {
+  opacity: 1;
+}
+
+.crosshook-library-card__btn--launch {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--crosshook-color-accent);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-card__btn--launch:hover {
+  background: var(--crosshook-color-accent-strong);
+}
+
+.crosshook-library-card__btn--launch:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.crosshook-library-card__btn--glass {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  color: var(--crosshook-color-text);
+  cursor: pointer;
+  transition: background var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-card__btn--glass:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.crosshook-library-card__favorite-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  color: var(--crosshook-color-danger);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+}
+
+.crosshook-library-card__fallback {
+  aspect-ratio: var(--crosshook-library-card-aspect);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, var(--crosshook-color-surface-strong), var(--crosshook-color-surface));
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--crosshook-color-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────────── */
+
+.crosshook-library-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 64px 24px;
+  text-align: center;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-library-empty__heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-library-empty__cta {
+  padding: 10px 24px;
+  border: none;
+  border-radius: var(--crosshook-radius-sm);
+  background: var(--crosshook-color-accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-empty__cta:hover {
+  background: var(--crosshook-color-accent-strong);
+}
+
+/* ── Skeleton shimmer reuse ────────────────────────────────────────────── */
+
+.crosshook-library-card__image.crosshook-skeleton {
+  aspect-ratio: var(--crosshook-library-card-aspect);
+}
