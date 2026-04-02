@@ -6,6 +6,7 @@ import CommunityPage from '../pages/CommunityPage';
 import HealthDashboardPage from '../pages/HealthDashboardPage';
 import InstallPage from '../pages/InstallPage';
 import LaunchPage from '../pages/LaunchPage';
+import LibraryPage from '../pages/LibraryPage';
 import ProfilesPage from '../pages/ProfilesPage';
 import SettingsPage from '../pages/SettingsPage';
 import type { AppRoute } from './Sidebar';
@@ -47,6 +48,8 @@ export function ContentArea({ route, onNavigate }: ContentAreaProps) {
         return <SettingsPage />;
       case 'health':
         return <HealthDashboardPage onNavigate={onNavigate} />;
+      case 'library':
+        return <LibraryPage onNavigate={onNavigate} />;
       default: {
         const _exhaustive: never = route;
         return _exhaustive;

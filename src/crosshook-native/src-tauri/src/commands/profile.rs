@@ -1,3 +1,4 @@
+use crosshook_core::game_images::{import_custom_cover_art, is_in_managed_media_dir};
 use crosshook_core::metadata::{
     sha256_hex, BundledOptimizationPresetRow, ConfigRevisionSource, MetadataStore,
     MetadataStoreError, ProfileLaunchPresetOrigin, SyncSource, MAX_HISTORY_LIST_LIMIT,
@@ -228,14 +229,63 @@ pub fn profile_load(name: String, store: State<'_, ProfileStore>) -> Result<Game
     store.load(&name).map_err(map_error)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileSummary {
+    pub name: String,
+    pub game_name: String,
+    pub steam_app_id: String,
+    pub custom_cover_art_path: Option<String>,
+}
+
+#[tauri::command]
+pub fn profile_list_summaries(store: State<'_, ProfileStore>) -> Result<Vec<ProfileSummary>, String> {
+    let names = store.list().map_err(map_error)?;
+    let mut summaries = Vec::with_capacity(names.len());
+    for name in names {
+        match store.load(&name) {
+            Ok(profile) => {
+                let effective = profile.effective_profile();
+                let cover_art = effective.game.custom_cover_art_path.trim();
+                summaries.push(ProfileSummary {
+                    name,
+                    game_name: effective.game.name.clone(),
+                    steam_app_id: effective.steam.app_id.clone(),
+                    custom_cover_art_path: if cover_art.is_empty() {
+                        None
+                    } else {
+                        Some(cover_art.to_string())
+                    },
+                });
+            }
+            Err(e) => {
+                tracing::warn!(profile_name = %name, %e, "skipping profile in summaries");
+            }
+        }
+    }
+    Ok(summaries)
+}
+
 #[tauri::command]
 pub fn profile_save(
     name: String,
-    data: GameProfile,
+    mut data: GameProfile,
     app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
+    // Auto-import custom cover art into the managed media directory when the
+    // source path points outside it (e.g. a user-typed filesystem path).
+    let cover = data.game.custom_cover_art_path.trim().to_string();
+    if !cover.is_empty() && !is_in_managed_media_dir(&cover) {
+        match import_custom_cover_art(&cover) {
+            Ok(imported) => data.game.custom_cover_art_path = imported,
+            Err(e) => {
+                tracing::warn!(profile_name = %name, %e, "failed to import custom cover art; keeping original path");
+            }
+        }
+    }
+
     store.save(&name, &data).map_err(map_error)?;
 
     let profile_path = store.base_path.join(format!("{name}.toml"));

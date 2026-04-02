@@ -15,6 +15,13 @@ use tokio::time::{sleep, Duration};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Prevent GBM EGL display creation failures on multi-GPU systems (e.g. eGPU setups)
+    // by disabling WebKitGTK's DMA-BUF renderer. The dev script sets this via the shell
+    // environment, but the AppImage needs it set before WebKit initializes.
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
     let profile_store = ProfileStore::try_new().unwrap_or_else(|error| {
         eprintln!("CrossHook: failed to initialize profile store: {error}");
         std::process::exit(1);
@@ -218,6 +225,7 @@ pub fn run() {
             commands::profile::profile_duplicate,
             commands::profile::profile_import_legacy,
             commands::profile::profile_list,
+            commands::profile::profile_list_summaries,
             commands::profile::profile_load,
             commands::profile::profile_rename,
             commands::profile::profile_save,
@@ -230,6 +238,7 @@ pub fn run() {
             commands::protondb::protondb_lookup,
             commands::game_metadata::fetch_game_metadata,
             commands::game_metadata::fetch_game_cover_art,
+            commands::game_metadata::import_custom_cover_art,
             commands::settings::recent_files_load,
             commands::settings::recent_files_save,
             commands::settings::settings_load,

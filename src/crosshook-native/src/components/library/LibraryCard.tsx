@@ -1,0 +1,146 @@
+import { useEffect, useRef, useState } from 'react';
+import type { LibraryCardData } from '../../types/library';
+import { useGameCoverArt } from '../../hooks/useGameCoverArt';
+
+interface LibraryCardProps {
+  profile: LibraryCardData;
+  isSelected?: boolean;
+  onSelect?: (name: string) => void;
+  onLaunch: (name: string) => void;
+  onEdit: (name: string) => void;
+  onToggleFavorite: (name: string, current: boolean) => void;
+  isLaunching?: boolean;
+}
+
+function getInitials(gameName: string, name: string): string {
+  const source = gameName || name;
+  return source.slice(0, 2).toUpperCase();
+}
+
+export function LibraryCard({
+  profile,
+  isSelected,
+  onSelect,
+  onLaunch,
+  onEdit,
+  onToggleFavorite,
+  isLaunching,
+}: LibraryCardProps) {
+  // IntersectionObserver: only fetch cover art when card enters viewport
+  const [visible, setVisible] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setVisible(true);
+        obs.disconnect();
+      }
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const { coverArtUrl, loading } = useGameCoverArt(
+    visible ? profile.steamAppId : undefined,
+    profile.customCoverArtPath,
+    'portrait',
+  );
+
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => setImgFailed(false), [coverArtUrl]);
+
+  const displayName = profile.gameName || profile.name;
+  const hasMedia = !!(coverArtUrl && !imgFailed);
+  const showTitle = !hasMedia && !loading;
+
+  const cardClass = [
+    'crosshook-library-card',
+    isSelected && 'crosshook-library-card--selected',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div
+      ref={cardRef}
+      className={cardClass}
+      role="listitem"
+      onClick={() => onSelect?.(profile.name)}
+    >
+      {/* Cover image / skeleton / fallback */}
+      {loading ? (
+        <div className="crosshook-library-card__image crosshook-skeleton" />
+      ) : hasMedia ? (
+        <img
+          className="crosshook-library-card__image"
+          src={coverArtUrl}
+          alt={displayName}
+          loading="lazy"
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        <div className="crosshook-library-card__fallback">
+          {getInitials(profile.gameName, profile.name)}
+        </div>
+      )}
+
+      {/* Gradient scrim */}
+      <div className="crosshook-library-card__scrim" />
+
+      {/* Favorite badge (persistent when favorited) */}
+      {profile.isFavorite && (
+        <div className="crosshook-library-card__favorite-badge" aria-label="Favorited">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
+          </svg>
+        </div>
+      )}
+
+      {/* Footer with title and actions */}
+      <div className="crosshook-library-card__footer">
+        {showTitle && <span className="crosshook-library-card__title">{displayName}</span>}
+        <div className="crosshook-library-card__actions">
+          <button
+            className="crosshook-library-card__btn--launch"
+            aria-label={`Launch ${displayName}`}
+            disabled={isLaunching}
+            onClick={(e) => {
+              e.stopPropagation();
+              onLaunch(profile.name);
+            }}
+          >
+            {isLaunching ? 'Launching...' : 'Launch'}
+          </button>
+          <button
+            className="crosshook-library-card__btn--glass"
+            aria-label={profile.isFavorite ? `Unfavorite ${displayName}` : `Favorite ${displayName}`}
+            aria-pressed={profile.isFavorite}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(profile.name, profile.isFavorite);
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" fill={profile.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
+              <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
+            </svg>
+          </button>
+          <button
+            className="crosshook-library-card__btn--glass"
+            aria-label={`Edit ${displayName}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(profile.name);
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14.5 2.5l3 3L6 17H3v-3z" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default LibraryCard;
