@@ -46,6 +46,7 @@ fn build_export_request_for_profile(
         steam_client_install_path: steam_client_install_path.to_string(),
         target_home_path: target_home_path.to_string(),
         profile_name: profile_name.map(|name| name.to_string()),
+        gamescope: profile.launch.trainer_gamescope.clone(),
     })
 }
 
@@ -283,6 +284,7 @@ pub fn rename_launcher(
         steam_client_install_path: steam_client_install_path.clone(),
         target_home_path: target_home_path.clone(),
         profile_name: None,
+        gamescope: Default::default(),
     };
     let result = crosshook_core::export::rename_launcher_files(
         &old_launcher_slug,

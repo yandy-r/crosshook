@@ -9,9 +9,11 @@ import type {
   ConfigRollbackResult,
   DuplicateProfileResult,
   GameProfile,
+  LaunchAutoSaveStatus,
   LauncherInfo,
   RecentFilesData,
 } from '../types';
+import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
 import {
   getConflictingLaunchOptimizationIds,
   type LaunchOptimizationId,
@@ -49,6 +51,9 @@ export interface UseProfileResult {
   profileExists: boolean;
   pendingDelete: PendingDelete | null;
   launchOptimizationsStatus: LaunchOptimizationsStatus;
+  gamescopeAutoSaveStatus: LaunchAutoSaveStatus;
+  trainerGamescopeAutoSaveStatus: LaunchAutoSaveStatus;
+  mangoHudAutoSaveStatus: LaunchAutoSaveStatus;
   /** True while any config-history IPC call is in flight. */
   historyLoading: boolean;
   /** Error message from the most recent config-history operation; null when none. */
@@ -57,6 +62,7 @@ export interface UseProfileResult {
   selectProfile: (name: string) => Promise<void>;
   hydrateProfile: (name: string, profile: GameProfile) => void;
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
+  updateLaunchSetting: (updater: (current: GameProfile) => GameProfile) => void;
   toggleLaunchOptimization: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
   /** Persists switching the active named optimization preset (requires presets in profile TOML). */
   switchLaunchOptimizationPreset: (presetName: string) => Promise<void>;
@@ -136,13 +142,11 @@ function formatInvokeError(err: unknown): string {
   }
 }
 
-export type LaunchOptimizationsStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
+/** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
+export type LaunchOptimizationsStatusTone = LaunchAutoSaveStatus['tone'];
 
-export interface LaunchOptimizationsStatus {
-  tone: LaunchOptimizationsStatusTone;
-  label: string;
-  detail?: string;
-}
+/** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
+export type LaunchOptimizationsStatus = LaunchAutoSaveStatus;
 
 function stripAutomaticLauncherSuffix(value: string): string {
   const trimmed = value.trim();
@@ -460,6 +464,15 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [optimizationPresetActionBusy, setOptimizationPresetActionBusy] = useState(false);
   const launchOptimizationsAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedLaunchOptimizationIdsRef = useRef<LaunchOptimizationId[]>([]);
+  const [gamescopeAutoSaveStatus, setGamescopeAutoSaveStatus] = useState<LaunchAutoSaveStatus>({ tone: 'idle', label: 'Ready' });
+  const gamescopeAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedGamescopeJsonRef = useRef<string>('null');
+  const [trainerGamescopeAutoSaveStatus, setTrainerGamescopeAutoSaveStatus] = useState<LaunchAutoSaveStatus>({ tone: 'idle', label: 'Ready' });
+  const trainerGamescopeAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedTrainerGamescopeJsonRef = useRef<string>('null');
+  const [mangoHudAutoSaveStatus, setMangoHudAutoSaveStatus] = useState<LaunchAutoSaveStatus>({ tone: 'idle', label: 'Ready' });
+  const mangoHudAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedMangoHudJsonRef = useRef<string>('null');
   const hasExistingSavedProfileRef = useRef(false);
   const pendingLaunchPresetRef = useRef<string | null>(null);
   const profileRef = useRef(profile);
@@ -554,6 +567,9 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
         setProfile(normalized);
         setDirty(false);
         lastSavedLaunchOptimizationIdsRef.current = normalized.launch.optimizations.enabled_option_ids;
+        lastSavedGamescopeJsonRef.current = JSON.stringify(normalized.launch.gamescope ?? null);
+        lastSavedTrainerGamescopeJsonRef.current = JSON.stringify(normalized.launch.trainer_gamescope ?? null);
+        lastSavedMangoHudJsonRef.current = JSON.stringify(normalized.launch.mangohud ?? null);
 
         try {
           await syncProfileMetadata(trimmed, normalized);
@@ -659,6 +675,14 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const updateProfile = useCallback((updater: (current: GameProfile) => GameProfile) => {
     setProfile((current) => updater(current));
     setDirty(true);
+  }, []);
+
+  /** Like `updateProfile`, but only marks dirty when the profile has never been saved.
+   *  Use for fields that are auto-saved (gamescope, mangohud) so the Profiles page
+   *  does not show "Unsaved changes" after auto-save completes. */
+  const updateLaunchSetting = useCallback((updater: (current: GameProfile) => GameProfile) => {
+    setProfile((current) => updater(current));
+    setDirty((currentDirty) => currentDirty || !hasExistingSavedProfileRef.current);
   }, []);
 
   const hasExistingSavedProfile = useMemo(() => {
@@ -1359,6 +1383,171 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     };
   }, [enqueueLaunchProfileWrite, hasExistingSavedProfile, profile, profileName]);
 
+  // --- Gamescope auto-save effect (mirrors the optimization auto-save pattern above) ---
+  useEffect(() => {
+    const currentJson = JSON.stringify(profile.launch.gamescope ?? null);
+
+    if (gamescopeAutosaveTimerRef.current !== null) {
+      clearTimeout(gamescopeAutosaveTimerRef.current);
+      gamescopeAutosaveTimerRef.current = null;
+    }
+
+    if (!hasExistingSavedProfile) {
+      if (currentJson !== lastSavedGamescopeJsonRef.current) {
+        setGamescopeAutoSaveStatus({ tone: 'warning', label: 'Save profile first' });
+      }
+      return;
+    }
+
+    if (currentJson === lastSavedGamescopeJsonRef.current) {
+      return;
+    }
+
+    setGamescopeAutoSaveStatus({ tone: 'saving', label: 'Saving...' });
+
+    const trimmedName = profileName.trim();
+    let cancelled = false;
+
+    gamescopeAutosaveTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          await enqueueLaunchProfileWrite(async () => {
+            await invoke('profile_save_gamescope_config', {
+              name: trimmedName,
+              config: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
+            });
+          });
+
+          if (cancelled) return;
+
+          lastSavedGamescopeJsonRef.current = currentJson;
+          setGamescopeAutoSaveStatus({ tone: 'success', label: 'Saved automatically' });
+        } catch (err) {
+          if (cancelled) return;
+          setGamescopeAutoSaveStatus({ tone: 'error', label: 'Failed to save', detail: formatInvokeError(err) });
+        }
+      })();
+    }, launchOptimizationsAutosaveDelayMs);
+
+    return () => {
+      cancelled = true;
+      if (gamescopeAutosaveTimerRef.current !== null) {
+        clearTimeout(gamescopeAutosaveTimerRef.current);
+        gamescopeAutosaveTimerRef.current = null;
+      }
+    };
+  }, [enqueueLaunchProfileWrite, hasExistingSavedProfile, profile, profileName]);
+
+  // --- Trainer gamescope auto-save effect ---
+  useEffect(() => {
+    const currentJson = JSON.stringify(profile.launch.trainer_gamescope ?? null);
+
+    if (trainerGamescopeAutosaveTimerRef.current !== null) {
+      clearTimeout(trainerGamescopeAutosaveTimerRef.current);
+      trainerGamescopeAutosaveTimerRef.current = null;
+    }
+
+    if (!hasExistingSavedProfile) {
+      if (currentJson !== lastSavedTrainerGamescopeJsonRef.current) {
+        setTrainerGamescopeAutoSaveStatus({ tone: 'warning', label: 'Save profile first' });
+      }
+      return;
+    }
+
+    if (currentJson === lastSavedTrainerGamescopeJsonRef.current) {
+      return;
+    }
+
+    setTrainerGamescopeAutoSaveStatus({ tone: 'saving', label: 'Saving...' });
+
+    const trimmedName = profileName.trim();
+    let cancelled = false;
+
+    trainerGamescopeAutosaveTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          await enqueueLaunchProfileWrite(async () => {
+            await invoke('profile_save_trainer_gamescope_config', {
+              name: trimmedName,
+              config: profile.launch.trainer_gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
+            });
+          });
+
+          if (cancelled) return;
+
+          lastSavedTrainerGamescopeJsonRef.current = currentJson;
+          setTrainerGamescopeAutoSaveStatus({ tone: 'success', label: 'Saved automatically' });
+        } catch (err) {
+          if (cancelled) return;
+          setTrainerGamescopeAutoSaveStatus({ tone: 'error', label: 'Failed to save', detail: formatInvokeError(err) });
+        }
+      })();
+    }, launchOptimizationsAutosaveDelayMs);
+
+    return () => {
+      cancelled = true;
+      if (trainerGamescopeAutosaveTimerRef.current !== null) {
+        clearTimeout(trainerGamescopeAutosaveTimerRef.current);
+        trainerGamescopeAutosaveTimerRef.current = null;
+      }
+    };
+  }, [enqueueLaunchProfileWrite, hasExistingSavedProfile, profile, profileName]);
+
+  // --- MangoHud auto-save effect (mirrors the optimization auto-save pattern above) ---
+  useEffect(() => {
+    const currentJson = JSON.stringify(profile.launch.mangohud ?? null);
+
+    if (mangoHudAutosaveTimerRef.current !== null) {
+      clearTimeout(mangoHudAutosaveTimerRef.current);
+      mangoHudAutosaveTimerRef.current = null;
+    }
+
+    if (!hasExistingSavedProfile) {
+      if (currentJson !== lastSavedMangoHudJsonRef.current) {
+        setMangoHudAutoSaveStatus({ tone: 'warning', label: 'Save profile first' });
+      }
+      return;
+    }
+
+    if (currentJson === lastSavedMangoHudJsonRef.current) {
+      return;
+    }
+
+    setMangoHudAutoSaveStatus({ tone: 'saving', label: 'Saving...' });
+
+    const trimmedName = profileName.trim();
+    let cancelled = false;
+
+    mangoHudAutosaveTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          await enqueueLaunchProfileWrite(async () => {
+            await invoke('profile_save_mangohud_config', {
+              name: trimmedName,
+              config: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
+            });
+          });
+
+          if (cancelled) return;
+
+          lastSavedMangoHudJsonRef.current = currentJson;
+          setMangoHudAutoSaveStatus({ tone: 'success', label: 'Saved automatically' });
+        } catch (err) {
+          if (cancelled) return;
+          setMangoHudAutoSaveStatus({ tone: 'error', label: 'Failed to save', detail: formatInvokeError(err) });
+        }
+      })();
+    }, launchOptimizationsAutosaveDelayMs);
+
+    return () => {
+      cancelled = true;
+      if (mangoHudAutosaveTimerRef.current !== null) {
+        clearTimeout(mangoHudAutosaveTimerRef.current);
+        mangoHudAutosaveTimerRef.current = null;
+      }
+    };
+  }, [enqueueLaunchProfileWrite, hasExistingSavedProfile, profile, profileName]);
+
   const profileExists = useMemo(() => profiles.includes(profileName.trim()), [profileName, profiles]);
 
   return {
@@ -1377,12 +1566,16 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     profileExists,
     pendingDelete,
     launchOptimizationsStatus,
+    gamescopeAutoSaveStatus,
+    trainerGamescopeAutoSaveStatus,
+    mangoHudAutoSaveStatus,
     historyLoading,
     historyError,
     setProfileName,
     selectProfile,
     hydrateProfile,
     updateProfile,
+    updateLaunchSetting,
     toggleLaunchOptimization,
     switchLaunchOptimizationPreset,
     bundledOptimizationPresets,

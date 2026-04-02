@@ -302,6 +302,11 @@ pub struct LaunchSection {
     /// Per-profile gamescope compositor wrapper configuration.
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
     pub gamescope: GamescopeConfig,
+    /// Gamescope configuration for trainer launcher exports.
+    /// Separate from the game config so the trainer can use a smaller
+    /// compositor window (e.g. 800x400) while the game uses full resolution.
+    #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
+    pub trainer_gamescope: GamescopeConfig,
     /// Per-profile MangoHud overlay configuration.
     #[serde(default, skip_serializing_if = "MangoHudConfig::is_default")]
     pub mangohud: MangoHudConfig,

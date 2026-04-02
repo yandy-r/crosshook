@@ -130,6 +130,7 @@ export interface GameProfile {
     active_preset?: string;
     custom_env_vars: Record<string, string>;
     gamescope?: GamescopeConfig;
+    trainer_gamescope?: GamescopeConfig;
     mangohud?: MangoHudConfig;
   };
   local_override?: {

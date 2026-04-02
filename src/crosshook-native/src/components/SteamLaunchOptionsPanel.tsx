@@ -1,16 +1,19 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
+import type { GamescopeConfig } from '../types/profile';
 import { copyToClipboard } from '../utils/clipboard';
 
 export interface SteamLaunchOptionsPanelProps {
   enabledOptionIds: readonly LaunchOptimizationId[];
   /** Profile `launch.custom_env_vars` — merged into the Steam launch options prefix after optimizations. */
   customEnvVars?: Readonly<Record<string, string>>;
+  /** When provided and enabled, gamescope wrapping is included in the generated command. */
+  gamescopeConfig?: GamescopeConfig;
   className?: string;
 }
 
-export function SteamLaunchOptionsPanel({ enabledOptionIds, customEnvVars, className }: SteamLaunchOptionsPanelProps) {
+export function SteamLaunchOptionsPanel({ enabledOptionIds, customEnvVars, gamescopeConfig, className }: SteamLaunchOptionsPanelProps) {
   const titleId = useId();
   const [command, setCommand] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +28,14 @@ export function SteamLaunchOptionsPanel({ enabledOptionIds, customEnvVars, class
     return { ...customEnvVars };
   }, [serializedCustomEnv]);
 
+  const serializedGamescope = JSON.stringify(gamescopeConfig ?? null);
+  const stableGamescope = useMemo<GamescopeConfig | null>(() => {
+    if (gamescopeConfig == null) {
+      return null;
+    }
+    return { ...gamescopeConfig };
+  }, [serializedGamescope]);
+
   useEffect(() => {
     let cancelled = false;
     const ids = [...enabledOptionIds];
@@ -37,6 +48,7 @@ export function SteamLaunchOptionsPanel({ enabledOptionIds, customEnvVars, class
         const line = await invoke<string>('build_steam_launch_options_command', {
           enabledOptionIds: ids,
           customEnvVars: { ...stableCustomEnv },
+          gamescope: stableGamescope,
         });
         if (!cancelled) {
           setCommand(line);
@@ -57,7 +69,7 @@ export function SteamLaunchOptionsPanel({ enabledOptionIds, customEnvVars, class
     return () => {
       cancelled = true;
     };
-  }, [enabledOptionIds, serializedCustomEnv, stableCustomEnv]);
+  }, [enabledOptionIds, serializedCustomEnv, stableCustomEnv, serializedGamescope, stableGamescope]);
 
   async function handleCopy() {
     if (!command.trim()) {

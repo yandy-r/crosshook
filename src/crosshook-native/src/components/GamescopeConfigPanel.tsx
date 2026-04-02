@@ -1,4 +1,5 @@
-import { useId, type ChangeEvent } from 'react';
+import { useId, useRef, type ChangeEvent } from 'react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import type { GamescopeConfig, GamescopeFilter } from '../types/profile';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { ThemedSelect } from './ui/ThemedSelect';
@@ -7,6 +8,30 @@ export interface GamescopeConfigPanelProps {
   config: GamescopeConfig;
   onChange: (config: GamescopeConfig) => void;
   isInsideGamescopeSession: boolean;
+  /** Optional hint displayed below the enable checkbox. */
+  enableHint?: string;
+}
+
+const RESOLUTION_PRESETS: Array<{ value: string; label: string; width: number; height: number }> = [
+  { value: '800x400', label: '800 x 400', width: 800, height: 400 },
+  { value: '1280x720', label: '1280 x 720 (720p)', width: 1280, height: 720 },
+  { value: '1920x1080', label: '1920 x 1080 (1080p)', width: 1920, height: 1080 },
+  { value: '1920x1200', label: '1920 x 1200 (WUXGA)', width: 1920, height: 1200 },
+  { value: '2560x1440', label: '2560 x 1440 (1440p)', width: 2560, height: 1440 },
+  { value: '2560x1600', label: '2560 x 1600 (WQXGA)', width: 2560, height: 1600 },
+  { value: '3440x1440', label: '3440 x 1440 (UW 1440p)', width: 3440, height: 1440 },
+  { value: '3840x2160', label: '3840 x 2160 (4K)', width: 3840, height: 2160 },
+];
+
+const RESOLUTION_PRESET_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Custom' },
+  ...RESOLUTION_PRESETS.map(({ value, label }) => ({ value, label })),
+];
+
+function matchResolutionPreset(width: number | undefined, height: number | undefined): string {
+  if (width === undefined || height === undefined) return '';
+  const match = RESOLUTION_PRESETS.find((p) => p.width === width && p.height === height);
+  return match?.value ?? '';
 }
 
 const UPSCALE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
@@ -24,11 +49,23 @@ function parseOptionalInt(value: string): number | undefined {
   return isNaN(parsed) ? undefined : parsed;
 }
 
-export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSession }: GamescopeConfigPanelProps) {
+export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSession, enableHint }: GamescopeConfigPanelProps) {
   const id = useId();
   const isDisabled = !config.enabled;
   const showSessionWarning = isInsideGamescopeSession && config.enabled;
   const isFsr = config.upscale_filter === 'fsr';
+  // Track whether the user has manually collapsed/expanded the body.
+  // `null` means "follow enabled state"; `boolean` means "user override".
+  const userCollapseRef = useRef<boolean | null>(null);
+  const prevEnabledRef = useRef(config.enabled);
+
+  // When enabled toggles, auto-expand/collapse unless the user has overridden.
+  if (config.enabled !== prevEnabledRef.current) {
+    userCollapseRef.current = null;
+    prevEnabledRef.current = config.enabled;
+  }
+
+  const isBodyOpen = userCollapseRef.current !== null ? !userCollapseRef.current : config.enabled;
 
   function patch(partial: Partial<GamescopeConfig>): void {
     onChange({ ...config, ...partial });
@@ -37,18 +74,69 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       {/* Enable toggle */}
-      <label htmlFor={`${id}-enable`} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-        <input
-          id={`${id}-enable`}
-          type="checkbox"
-          checked={config.enabled}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => patch({ enabled: e.target.checked })}
-          style={{ width: 20, height: 20, accentColor: 'var(--crosshook-color-accent-strong)' }}
-        />
-        <span style={{ color: 'var(--crosshook-color-text)', fontWeight: 700 }}>
-          Enable gamescope compositor wrapper
-        </span>
-      </label>
+      <div>
+        <label htmlFor={`${id}-enable`} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+          <input
+            id={`${id}-enable`}
+            type="checkbox"
+            checked={config.enabled}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => patch({ enabled: e.target.checked })}
+            style={{ width: 20, height: 20, accentColor: 'var(--crosshook-color-accent-strong)' }}
+          />
+          <span style={{ color: 'var(--crosshook-color-text)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            Enable gamescope compositor wrapper
+            {enableHint ? (
+              <Tooltip.Provider delayDuration={200}>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <span
+                      role="img"
+                      aria-label="Info"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        border: '1.5px solid var(--crosshook-color-text-subtle)',
+                        fontSize: '0.72em',
+                        fontWeight: 700,
+                        color: 'var(--crosshook-color-text-subtle)',
+                        cursor: 'help',
+                        flexShrink: 0,
+                      }}
+                    >
+                      i
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Portal>
+                    <Tooltip.Content
+                      side="top"
+                      sideOffset={6}
+                      style={{
+                        maxWidth: 320,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        fontSize: '0.85rem',
+                        lineHeight: 1.4,
+                        color: 'var(--crosshook-color-text)',
+                        background: 'var(--crosshook-color-surface-raised, #2a2a2e)',
+                        border: '1px solid var(--crosshook-color-border-strong)',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                        zIndex: 9999,
+                      }}
+                    >
+                      {enableHint}
+                      <Tooltip.Arrow style={{ fill: 'var(--crosshook-color-surface-raised, #2a2a2e)' }} />
+                    </Tooltip.Content>
+                  </Tooltip.Portal>
+                </Tooltip.Root>
+              </Tooltip.Provider>
+            ) : null}
+          </span>
+        </label>
+      </div>
 
       {/* Session warning banner */}
       {showSessionWarning ? (
@@ -58,16 +146,11 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
         </div>
       ) : null}
 
-      {/* Body — disabled when gamescope is off */}
-      <div
-        style={{
-          display: 'grid',
-          gap: 20,
-          opacity: isDisabled ? 0.4 : undefined,
-          pointerEvents: isDisabled ? 'none' : undefined,
-          transition: 'opacity 220ms ease',
-        }}
-        aria-disabled={isDisabled}
+      {/* Body — collapsible, auto-opens when enabled, user can always toggle */}
+      <CollapsibleSection
+        title="Gamescope Settings"
+        open={isBodyOpen}
+        onToggle={(nextOpen) => { userCollapseRef.current = !nextOpen; }}
       >
         {/* Resolution */}
         <section style={{ display: 'grid', gap: 10 }}>
@@ -78,6 +161,20 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
               <p className="crosshook-help-text" style={{ margin: 0 }}>
                 Game renders at
               </p>
+              <ThemedSelect
+                id={`${id}-ir-preset`}
+                value={matchResolutionPreset(config.internal_width, config.internal_height)}
+                onValueChange={(value) => {
+                  const preset = RESOLUTION_PRESETS.find((p) => p.value === value);
+                  if (preset) {
+                    patch({ internal_width: preset.width, internal_height: preset.height });
+                  } else {
+                    patch({ internal_width: undefined, internal_height: undefined });
+                  }
+                }}
+                options={RESOLUTION_PRESET_OPTIONS}
+                placeholder="Custom"
+              />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, alignItems: 'center' }}>
                 <input
                   id={`${id}-iw`}
@@ -108,6 +205,20 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
               <p className="crosshook-help-text" style={{ margin: 0 }}>
                 Display output
               </p>
+              <ThemedSelect
+                id={`${id}-or-preset`}
+                value={matchResolutionPreset(config.output_width, config.output_height)}
+                onValueChange={(value) => {
+                  const preset = RESOLUTION_PRESETS.find((p) => p.value === value);
+                  if (preset) {
+                    patch({ output_width: preset.width, output_height: preset.height });
+                  } else {
+                    patch({ output_width: undefined, output_height: undefined });
+                  }
+                }}
+                options={RESOLUTION_PRESET_OPTIONS}
+                placeholder="Custom"
+              />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, alignItems: 'center' }}>
                 <input
                   id={`${id}-ow`}
@@ -244,7 +355,7 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
         </section>
 
         {/* Advanced */}
-        <CollapsibleSection title="Advanced" defaultOpen={config.allow_nested || config.extra_args.length > 0}>
+        <CollapsibleSection title="Advanced" defaultOpen={config.allow_nested || (config.extra_args?.length ?? 0) > 0}>
           <div style={{ display: 'grid', gap: 14, paddingTop: 4 }}>
             <div>
               <CheckboxFlag
@@ -267,7 +378,7 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
                 id={`${id}-extra`}
                 type="text"
                 className="crosshook-input"
-                value={config.extra_args.join(' ')}
+                value={(config.extra_args ?? []).join(' ')}
                 placeholder="e.g. --hdr-itm-enable --expose-wayland"
                 disabled={isDisabled}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => {
@@ -280,7 +391,7 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
             </div>
           </div>
         </CollapsibleSection>
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }

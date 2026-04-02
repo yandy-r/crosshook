@@ -2,6 +2,7 @@ import { type CSSProperties, useEffect, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
+import { GamescopeConfigPanel } from './GamescopeConfigPanel';
 import LauncherExport from './LauncherExport';
 import ProtonDbLookupCard from './ProtonDbLookupCard';
 import { GameMetadataBar } from './profile-sections/GameMetadataBar';
@@ -18,7 +19,7 @@ import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { GameProfile, LaunchMethod } from '../types';
 import type { ProtonInstallOption } from '../types/proton';
 
-type SubTabId = 'setup' | 'runtime' | 'environment' | 'trainer' | 'export';
+type SubTabId = 'setup' | 'runtime' | 'environment' | 'trainer' | 'gamescope' | 'export';
 
 export interface ProfileSubTabsProps {
   profile: GameProfile;
@@ -54,6 +55,7 @@ const TAB_LABELS: Record<SubTabId, string> = {
   runtime: 'Runtime',
   environment: 'Environment',
   trainer: 'Trainer',
+  gamescope: 'Gamescope',
   export: 'Export',
 };
 
@@ -86,10 +88,7 @@ export function ProfileSubTabs({
   const supportsTrainerLaunch = launchMethod !== 'native';
 
   const steamAppId = profile.steam.app_id;
-  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(
-    steamAppId,
-    profile.game.custom_cover_art_path,
-  );
+  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(steamAppId, profile.game.custom_cover_art_path);
   const dominantColor = useImageDominantColor(coverArtUrl);
 
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
@@ -99,6 +98,7 @@ export function ProfileSubTabs({
     'runtime',
     'environment',
     ...(supportsTrainerLaunch ? ['trainer' as const] : []),
+    ...(supportsLauncherExport ? ['gamescope' as const] : []),
     ...(supportsLauncherExport ? ['export' as const] : []),
   ];
 
@@ -110,11 +110,11 @@ export function ProfileSubTabs({
 
   // Apply game color as CSS custom properties for the themed tab bar
   const gameColorStyle: CSSProperties | undefined = dominantColor
-    ? {
+    ? ({
         '--crosshook-game-color-r': String(dominantColor[0]),
         '--crosshook-game-color-g': String(dominantColor[1]),
         '--crosshook-game-color-b': String(dominantColor[2]),
-      } as CSSProperties
+      } as CSSProperties)
     : undefined;
 
   const showCoverArt = Boolean(coverArtUrl) || coverArtLoading;
@@ -127,21 +127,13 @@ export function ProfileSubTabs({
       style={gameColorStyle}
     >
       <div
-        className={[
-          'crosshook-subtabs-backdrop',
-          !showCoverArt ? 'crosshook-subtabs-backdrop--empty' : '',
-        ]
+        className={['crosshook-subtabs-backdrop', !showCoverArt ? 'crosshook-subtabs-backdrop--empty' : '']
           .filter(Boolean)
           .join(' ')}
         aria-hidden="true"
       >
         {coverArtUrl ? (
-          <img
-            src={coverArtUrl}
-            className="crosshook-subtabs-backdrop__art"
-            alt=""
-            aria-hidden="true"
-          />
+          <img src={coverArtUrl} className="crosshook-subtabs-backdrop__art" alt="" aria-hidden="true" />
         ) : null}
         {coverArtLoading && !coverArtUrl ? (
           <div className="crosshook-subtabs-backdrop__skeleton crosshook-skeleton" />
@@ -205,11 +197,7 @@ export function ProfileSubTabs({
               protonInstalls={protonInstalls}
               protonInstallsError={protonInstallsError}
             />
-            <MediaSection
-              profile={profile}
-              onUpdateProfile={onUpdateProfile}
-              launchMethod={launchMethod}
-            />
+            <MediaSection profile={profile} onUpdateProfile={onUpdateProfile} launchMethod={launchMethod} />
           </div>
         </Tabs.Content>
 
@@ -341,6 +329,41 @@ export function ProfileSubTabs({
                 profileExists={profileExists}
                 trainerVersion={trainerVersion}
                 onVersionSet={onVersionSet}
+              />
+            </div>
+          </Tabs.Content>
+        ) : null}
+
+        {/* Gamescope tab — trainer gamescope config for Steam/Proton methods */}
+        {supportsLauncherExport ? (
+          <Tabs.Content
+            value="gamescope"
+            forceMount
+            className="crosshook-subtab-content"
+            style={{ display: activeTab === 'gamescope' ? undefined : 'none' }}
+          >
+            <div className="crosshook-subtab-content__inner">
+              <GamescopeConfigPanel
+                config={
+                  profile.launch.trainer_gamescope ?? {
+                    enabled: false,
+                    fullscreen: false,
+                    borderless: false,
+                    grab_cursor: false,
+                    force_grab_cursor: false,
+                    hdr_enabled: false,
+                    allow_nested: false,
+                    extra_args: [],
+                  }
+                }
+                onChange={(trainerGamescope) =>
+                  onUpdateProfile((current) => ({
+                    ...current,
+                    launch: { ...current.launch, trainer_gamescope: trainerGamescope },
+                  }))
+                }
+                isInsideGamescopeSession={false}
+                enableHint="Required when the game also launches under gamescope. The trainer runs in its own compositor window so it can display alongside the game."
               />
             </div>
           </Tabs.Content>
