@@ -1,3 +1,4 @@
+use crosshook_core::game_images::{import_custom_cover_art, is_in_managed_media_dir};
 use crosshook_core::metadata::{
     sha256_hex, BundledOptimizationPresetRow, ConfigRevisionSource, MetadataStore,
     MetadataStoreError, ProfileLaunchPresetOrigin, SyncSource, MAX_HISTORY_LIST_LIMIT,
@@ -268,11 +269,23 @@ pub fn profile_list_summaries(store: State<'_, ProfileStore>) -> Result<Vec<Prof
 #[tauri::command]
 pub fn profile_save(
     name: String,
-    data: GameProfile,
+    mut data: GameProfile,
     app: AppHandle,
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
+    // Auto-import custom cover art into the managed media directory when the
+    // source path points outside it (e.g. a user-typed filesystem path).
+    let cover = data.game.custom_cover_art_path.trim().to_string();
+    if !cover.is_empty() && !is_in_managed_media_dir(&cover) {
+        match import_custom_cover_art(&cover) {
+            Ok(imported) => data.game.custom_cover_art_path = imported,
+            Err(e) => {
+                tracing::warn!(profile_name = %name, %e, "failed to import custom cover art; keeping original path");
+            }
+        }
+    }
+
     store.save(&name, &data).map_err(map_error)?;
 
     let profile_path = store.base_path.join(format!("{name}.toml"));

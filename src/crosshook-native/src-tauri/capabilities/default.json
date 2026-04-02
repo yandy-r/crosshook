@@ -15,7 +15,10 @@
     },
     {
       "identifier": "fs:allow-read-file",
-      "allow": [{ "path": "$LOCALDATA/crosshook/cache/images/**" }]
+      "allow": [
+        { "path": "$LOCALDATA/crosshook/cache/images/**" },
+        { "path": "$LOCALDATA/crosshook/media/**" }
+      ]
     }
   ]
 }

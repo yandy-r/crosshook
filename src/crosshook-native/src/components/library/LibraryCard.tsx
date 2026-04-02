@@ -45,6 +45,9 @@ export function LibraryCard({
     'portrait',
   );
 
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => setImgFailed(false), [coverArtUrl]);
+
   const displayName = profile.gameName || profile.name;
 
   return (
@@ -52,12 +55,13 @@ export function LibraryCard({
       {/* Cover image / skeleton / fallback */}
       {loading ? (
         <div className="crosshook-library-card__image crosshook-skeleton" />
-      ) : coverArtUrl ? (
+      ) : coverArtUrl && !imgFailed ? (
         <img
           className="crosshook-library-card__image"
           src={coverArtUrl}
           alt={displayName}
           loading="lazy"
+          onError={() => setImgFailed(true)}
         />
       ) : (
         <div className="crosshook-library-card__fallback">

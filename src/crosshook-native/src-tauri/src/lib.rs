@@ -231,6 +231,7 @@ pub fn run() {
             commands::protondb::protondb_lookup,
             commands::game_metadata::fetch_game_metadata,
             commands::game_metadata::fetch_game_cover_art,
+            commands::game_metadata::import_custom_cover_art,
             commands::settings::recent_files_load,
             commands::settings::recent_files_save,
             commands::settings::settings_load,

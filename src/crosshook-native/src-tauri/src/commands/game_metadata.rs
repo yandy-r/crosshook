@@ -1,4 +1,6 @@
-use crosshook_core::game_images::{download_and_cache_image, GameImageType};
+use crosshook_core::game_images::{
+    download_and_cache_image, import_custom_cover_art as core_import_cover_art, GameImageType,
+};
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::settings::SettingsStore;
 use crosshook_core::steam_metadata::{lookup_steam_metadata, SteamMetadataLookupResult};
@@ -38,4 +40,9 @@ pub async fn fetch_game_cover_art(
     let api_key = api_key_owned.as_deref();
 
     download_and_cache_image(&store, &app_id, image_type, api_key).await
+}
+
+#[tauri::command]
+pub fn import_custom_cover_art(source_path: String) -> Result<String, String> {
+    core_import_cover_art(&source_path)
 }
