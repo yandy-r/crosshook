@@ -45,6 +45,8 @@ commit_parsers = [
   { message = "^docs\\(internal\\):", skip = true },
   { message = "^docs\\(research\\):", skip = true },
   { message = "^docs\\(plan\\):", skip = true },
+  { message = "^docs\\(contributing\\):", skip = true },
+  { message = "(?i)update readme|README", skip = true },
   { message = "^style", skip = true },
   { message = "^feat", group = "Features" },
   { message = "^fix", group = "Bug Fixes" },
