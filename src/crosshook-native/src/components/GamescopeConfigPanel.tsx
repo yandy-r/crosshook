@@ -10,6 +10,8 @@ export interface GamescopeConfigPanelProps {
   isInsideGamescopeSession: boolean;
   /** Optional hint displayed below the enable checkbox. */
   enableHint?: string;
+  /** When true, the fullscreen flag is forced on and cannot be toggled (e.g. trainer mode). */
+  lockedFullscreen?: boolean;
 }
 
 const RESOLUTION_PRESETS: Array<{ value: string; label: string; width: number; height: number }> = [
@@ -49,7 +51,7 @@ function parseOptionalInt(value: string): number | undefined {
   return isNaN(parsed) ? undefined : parsed;
 }
 
-export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSession, enableHint }: GamescopeConfigPanelProps) {
+export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSession, enableHint, lockedFullscreen }: GamescopeConfigPanelProps) {
   const id = useId();
   const isDisabled = !config.enabled;
   const showSessionWarning = isInsideGamescopeSession && config.enabled;
@@ -90,8 +92,11 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <span
-                      role="img"
+                      role="button"
+                      tabIndex={0}
                       aria-label="Info"
+                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                      onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.stopPropagation(); e.preventDefault(); } }}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -311,10 +316,10 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
             <CheckboxFlag
               id={`${id}-fs`}
-              label="Fullscreen"
+              label={lockedFullscreen ? 'Fullscreen (forced for trainer)' : 'Fullscreen'}
               hint="-f"
-              checked={config.fullscreen}
-              disabled={isDisabled}
+              checked={lockedFullscreen || config.fullscreen}
+              disabled={isDisabled || !!lockedFullscreen}
               onChange={(v) => patch({ fullscreen: v, borderless: v ? false : config.borderless })}
             />
             <CheckboxFlag

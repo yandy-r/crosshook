@@ -787,6 +787,33 @@ type = "fling"
     }
 
     #[test]
+    fn trainer_gamescope_default_omitted_from_profile_toml() {
+        let profile = sample_profile();
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(
+            !serialized.contains("[launch.trainer_gamescope]"),
+            "default GamescopeConfig should be omitted from TOML output: {serialized}"
+        );
+    }
+
+    #[test]
+    fn trainer_gamescope_roundtrip() {
+        let mut profile = sample_profile();
+        profile.launch.trainer_gamescope = GamescopeConfig {
+            enabled: true,
+            internal_width: Some(800),
+            internal_height: Some(400),
+            fullscreen: true,
+            grab_cursor: true,
+            ..GamescopeConfig::default()
+        };
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(serialized.contains("[launch.trainer_gamescope]"));
+        let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+        assert_eq!(parsed.launch.trainer_gamescope, profile.launch.trainer_gamescope);
+    }
+
+    #[test]
     fn mangohud_config_default_omitted_from_profile_toml() {
         let profile = sample_profile();
         let serialized = toml::to_string_pretty(&profile).expect("serialize");

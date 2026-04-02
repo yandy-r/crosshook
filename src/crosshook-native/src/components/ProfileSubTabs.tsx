@@ -364,6 +364,7 @@ export function ProfileSubTabs({
                 }
                 isInsideGamescopeSession={false}
                 enableHint="Required when the game also launches under gamescope. The trainer runs in its own compositor window so it can display alongside the game."
+                lockedFullscreen
               />
             </div>
           </Tabs.Content>
