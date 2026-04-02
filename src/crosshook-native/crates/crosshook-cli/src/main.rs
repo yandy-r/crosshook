@@ -748,6 +748,7 @@ fn launch_request_from_profile(
         profile_name: Some(profile_name.to_string()),
         custom_env_vars: profile.launch.custom_env_vars.clone(),
         gamescope: profile.launch.gamescope.clone(),
+        mangohud: profile.launch.mangohud.clone(),
     })
 }
 
