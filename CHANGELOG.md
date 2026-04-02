@@ -12,6 +12,8 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **ui:** Route layout, panel decor, and polish across routes ([#138](https://github.com/yandy-r/crosshook/issues/138)) ([`d9c145a`](https://github.com/yandy-r/crosshook/commit/d9c145aa1e8d6a152e014163e67c3bccd363c054))
 
+- **cli:** Include mangohud in LaunchRequest from profile ([`9a821e5`](https://github.com/yandy-r/crosshook/commit/9a821e5b5522bbe3cfa09c7b1cd0181278f7c779))
+
 
 ### Features
 
