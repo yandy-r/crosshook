@@ -8,8 +8,12 @@
   max-width: var(--crosshook-content-width);
 }
 
-.crosshook-library-page__footer {
-  padding: 12px var(--crosshook-page-padding);
+.crosshook-library-page__toolbar-bar {
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: var(--crosshook-radius-md);
+  background: var(--crosshook-color-surface);
+  border: 1px solid var(--crosshook-color-border);
 }
 
 /* ── Toolbar ───────────────────────────────────────────────────────────── */
@@ -103,6 +107,12 @@
   box-shadow: var(--crosshook-shadow-soft);
 }
 
+.crosshook-library-card--selected {
+  outline: 3px solid var(--crosshook-color-accent-strong);
+  outline-offset: 2px;
+  box-shadow: 0 0 12px rgba(45, 163, 255, 0.45);
+}
+
 .crosshook-library-card__image {
   aspect-ratio: var(--crosshook-library-card-aspect);
   width: 100%;
@@ -131,16 +141,18 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  align-items: flex-start;
 }
 
 .crosshook-library-card__title {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
-  color: var(--crosshook-color-text);
+  max-width: 100%;
+  color: var(--crosshook-color-text-muted);
 }
 
 .crosshook-library-card__actions {

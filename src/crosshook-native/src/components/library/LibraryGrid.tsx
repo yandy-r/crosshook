@@ -4,6 +4,8 @@ import { LibraryCard } from './LibraryCard';
 
 interface LibraryGridProps {
   profiles: LibraryCardData[];
+  selectedName?: string;
+  onSelect?: (name: string) => void;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
@@ -13,6 +15,8 @@ interface LibraryGridProps {
 
 export function LibraryGrid({
   profiles,
+  selectedName,
+  onSelect,
   onLaunch,
   onEdit,
   onToggleFavorite,
@@ -40,6 +44,8 @@ export function LibraryGrid({
         <LibraryCard
           key={profile.name}
           profile={profile}
+          isSelected={selectedName === profile.name}
+          onSelect={onSelect}
           onLaunch={onLaunch}
           onEdit={onEdit}
           onToggleFavorite={onToggleFavorite}

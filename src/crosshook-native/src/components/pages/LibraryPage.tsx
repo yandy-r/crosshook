@@ -7,8 +7,6 @@ import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useProfileContext } from '../../context/ProfileContext';
 import { LibraryToolbar } from '../library/LibraryToolbar';
 import { LibraryGrid } from '../library/LibraryGrid';
-import { LibraryArt } from '../layout/PageBanner';
-import { PanelRouteDecor } from '../layout/PanelRouteDecor';
 
 const VIEW_MODE_KEY = 'crosshook.library.viewMode';
 
@@ -22,7 +20,7 @@ interface LibraryPageProps {
 }
 
 export function LibraryPage({ onNavigate }: LibraryPageProps) {
-  const { profiles, favoriteProfiles, selectProfile, toggleFavorite, refreshProfiles } =
+  const { profiles, favoriteProfiles, selectedProfile, selectProfile, toggleFavorite, refreshProfiles } =
     useProfileContext();
 
   const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles);
@@ -88,15 +86,22 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--library">
       <div className="crosshook-route-stack crosshook-library-page">
-        <div className="crosshook-panel crosshook-panel--with-route-decor">
-          <PanelRouteDecor illustration={<LibraryArt />} />
-        </div>
         <div className="crosshook-route-stack__body--fill crosshook-library-page__body">
           <div className="crosshook-route-card-host">
             <div className="crosshook-route-card-scroll">
               <div className="crosshook-library-page__content">
+                <div className="crosshook-library-page__toolbar-bar">
+                  <LibraryToolbar
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    viewMode={viewMode}
+                    onViewModeChange={handleViewModeChange}
+                  />
+                </div>
                 <LibraryGrid
                   profiles={filtered}
+                  selectedName={selectedProfile}
+                  onSelect={selectProfile}
                   onLaunch={handleLaunch}
                   onEdit={handleEdit}
                   onToggleFavorite={handleToggleFavorite}
@@ -106,14 +111,6 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
               </div>
             </div>
           </div>
-        </div>
-        <div className="crosshook-route-footer crosshook-library-page__footer">
-          <LibraryToolbar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            viewMode={viewMode}
-            onViewModeChange={handleViewModeChange}
-          />
         </div>
       </div>
     </div>

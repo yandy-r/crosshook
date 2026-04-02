@@ -4,6 +4,8 @@ import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 
 interface LibraryCardProps {
   profile: LibraryCardData;
+  isSelected?: boolean;
+  onSelect?: (name: string) => void;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
@@ -17,6 +19,8 @@ function getInitials(gameName: string, name: string): string {
 
 export function LibraryCard({
   profile,
+  isSelected,
+  onSelect,
   onLaunch,
   onEdit,
   onToggleFavorite,
@@ -49,13 +53,25 @@ export function LibraryCard({
   useEffect(() => setImgFailed(false), [coverArtUrl]);
 
   const displayName = profile.gameName || profile.name;
+  const hasMedia = !!(coverArtUrl && !imgFailed);
+  const showTitle = !hasMedia && !loading;
+
+  const cardClass = [
+    'crosshook-library-card',
+    isSelected && 'crosshook-library-card--selected',
+  ].filter(Boolean).join(' ');
 
   return (
-    <div ref={cardRef} className="crosshook-library-card" role="listitem">
+    <div
+      ref={cardRef}
+      className={cardClass}
+      role="listitem"
+      onClick={() => onSelect?.(profile.name)}
+    >
       {/* Cover image / skeleton / fallback */}
       {loading ? (
         <div className="crosshook-library-card__image crosshook-skeleton" />
-      ) : coverArtUrl && !imgFailed ? (
+      ) : hasMedia ? (
         <img
           className="crosshook-library-card__image"
           src={coverArtUrl}
@@ -83,7 +99,7 @@ export function LibraryCard({
 
       {/* Footer with title and actions */}
       <div className="crosshook-library-card__footer">
-        <span className="crosshook-library-card__title">{displayName}</span>
+        {showTitle && <span className="crosshook-library-card__title">{displayName}</span>}
         <div className="crosshook-library-card__actions">
           <button
             className="crosshook-library-card__btn--launch"
