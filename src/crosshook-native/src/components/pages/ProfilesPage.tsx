@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core';
 
 import ConfigHistoryPanel from '../ConfigHistoryPanel';
 import ProfileActions from '../ProfileActions';
-import { type PendingProtonDbOverwrite } from '../ProfileFormSections';
 import { OnboardingWizard } from '../OnboardingWizard';
 import ProfilePreviewModal from '../ProfilePreviewModal';
 import ProfileSubTabs from '../ProfileSubTabs';
@@ -19,12 +18,10 @@ import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
 import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
 import type { ProtonInstallOption } from '../../types/proton';
-import type { ProtonDbRecommendationGroup } from '../../types/protondb';
 import { chooseSaveFile } from '../../utils/dialog';
 import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../../utils/launchPanelActionButtonStyle';
-import { mergeProtonDbEnvVarGroup } from '../../utils/protondb';
 import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
 
 function suggestedCommunityExportFilename(profileName: string): string {
@@ -137,11 +134,6 @@ export function ProfilesPage() {
   const offlineReadiness = useOfflineReadiness();
   const { labels: trainerTypeLabels } = useTrainerTypeCatalog();
 
-  // ProtonDB state for the Environment tab
-  const [pendingProtonDbOverwrite, setPendingProtonDbOverwrite] = useState<PendingProtonDbOverwrite | null>(null);
-  const [applyingProtonDbGroupId, setApplyingProtonDbGroupId] = useState<string | null>(null);
-  const [protonDbStatusMessage, setProtonDbStatusMessage] = useState<string | null>(null);
-
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
     [defaultSteamClientInstallPath, steamClientInstallPath]
@@ -167,8 +159,6 @@ export function ProfilesPage() {
     !duplicating &&
     !renaming &&
     !exportingCommunity;
-  const showProtonDbLookup = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
-
   useEffect(() => {
     let active = true;
 
@@ -257,82 +247,6 @@ export function ProfilesPage() {
       }
     };
   }, []);
-
-  // Reset ProtonDB state when profile or launch method changes
-  useEffect(() => {
-    setPendingProtonDbOverwrite(null);
-    setApplyingProtonDbGroupId(null);
-    setProtonDbStatusMessage(null);
-  }, [profileName, profile.steam.app_id, launchMethod]);
-
-  const applyProtonDbGroup = useCallback(
-    (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
-      const merge = {
-        appliedKeys: [] as string[],
-        unchangedKeys: [] as string[],
-      };
-      updateProfile((current) => {
-        const nextMerge = mergeProtonDbEnvVarGroup(current.launch.custom_env_vars, group, overwriteKeys);
-        merge.appliedKeys = nextMerge.appliedKeys;
-        merge.unchangedKeys = nextMerge.unchangedKeys;
-        return {
-          ...current,
-          launch: {
-            ...current.launch,
-            custom_env_vars: nextMerge.mergedEnvVars,
-          },
-        };
-      });
-      setApplyingProtonDbGroupId(null);
-      setPendingProtonDbOverwrite(null);
-
-      const appliedCount = merge.appliedKeys.length;
-      const unchangedCount = merge.unchangedKeys.length;
-      if (appliedCount > 0) {
-        setProtonDbStatusMessage(
-          `Applied ${appliedCount} ProtonDB environment variable${appliedCount === 1 ? '' : 's'}${
-            unchangedCount > 0
-              ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged`
-              : ''
-          }.`
-        );
-        return;
-      }
-
-      if (unchangedCount > 0) {
-        setProtonDbStatusMessage('All suggested ProtonDB environment variables already match the current profile.');
-        return;
-      }
-
-      setProtonDbStatusMessage('No ProtonDB environment-variable changes were applied.');
-    },
-    [updateProfile]
-  );
-
-  const handleApplyProtonDbEnvVars = useCallback(
-    (group: ProtonDbRecommendationGroup) => {
-      const envVars = group.env_vars ?? [];
-      if (envVars.length === 0) {
-        return;
-      }
-
-      setApplyingProtonDbGroupId(group.group_id?.trim() || group.title?.trim() || null);
-      const merge = mergeProtonDbEnvVarGroup(profile.launch.custom_env_vars, group);
-      if (merge.conflicts.length === 0) {
-        applyProtonDbGroup(group, []);
-        return;
-      }
-
-      setApplyingProtonDbGroupId(null);
-      setPendingProtonDbOverwrite({
-        group,
-        conflicts: merge.conflicts,
-        resolutions: Object.fromEntries(merge.conflicts.map((conflict) => [conflict.key, 'keep_current' as const])),
-      });
-      setProtonDbStatusMessage(null);
-    },
-    [applyProtonDbGroup, profile.launch.custom_env_vars]
-  );
 
   const showRenameToast = useCallback((oldName: string, newName: string) => {
     if (renameToastTimerRef.current !== null) {
@@ -798,22 +712,6 @@ export function ProfilesPage() {
               onVersionSet={() => {
                 if (selectedProfile) void revalidateSingle(selectedProfile);
               }}
-              showProtonDbLookup={showProtonDbLookup}
-              onApplyProtonDbEnvVars={handleApplyProtonDbEnvVars}
-              applyingProtonDbGroupId={applyingProtonDbGroupId}
-              protonDbStatusMessage={protonDbStatusMessage}
-              pendingProtonDbOverwrite={pendingProtonDbOverwrite}
-              onConfirmProtonDbOverwrite={(overwriteKeys) => {
-                if (pendingProtonDbOverwrite) {
-                  applyProtonDbGroup(pendingProtonDbOverwrite.group, overwriteKeys);
-                }
-              }}
-              onCancelProtonDbOverwrite={() => setPendingProtonDbOverwrite(null)}
-              onUpdateProtonDbResolution={(key, resolution) =>
-                setPendingProtonDbOverwrite((current) =>
-                  current == null ? current : { ...current, resolutions: { ...current.resolutions, [key]: resolution } }
-                )
-              }
               steamClientInstallPath={effectiveSteamClientInstallPath}
               targetHomePath={targetHomePath}
               pendingReExport={pendingLauncherReExport}
