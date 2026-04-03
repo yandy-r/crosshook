@@ -8,6 +8,8 @@ trainer_path=""
 trainer_host_path=""
 trainer_loading_mode="source_directory"
 log_file=""
+gamescope_enabled="0"
+gamescope_args=()
 
 log() {
   printf '[steam-trainer-launcher] %s\n' "$*"
@@ -70,6 +72,14 @@ while (($# > 0)); do
       log_file="${2:-}"
       shift 2
       ;;
+    --gamescope-enabled)
+      gamescope_enabled="1"
+      shift
+      ;;
+    --gamescope-arg)
+      gamescope_args+=("${2:-}")
+      shift 2
+      ;;
     *)
       fail "Unknown argument: $1"
       ;;
@@ -113,6 +123,23 @@ log "Launching detached host runner."
 
 runner_pid=""
 if runner_pid="$(
+  runner_command=(
+    /bin/bash "$runner_script"
+      --compatdata "$compatdata"
+      --proton "$proton"
+      --steam-client "$steam_client"
+      --trainer-path "$trainer_path"
+      --trainer-host-path "$trainer_host_path"
+      --trainer-loading-mode "$trainer_loading_mode"
+      --log-file "$log_file"
+  )
+  if [[ "$gamescope_enabled" == "1" ]]; then
+    runner_command+=(--gamescope-enabled)
+    for arg in "${gamescope_args[@]}"; do
+      runner_command+=(--gamescope-arg "$arg")
+    done
+  fi
+
   setsid env -i \
     HOME="${HOME:-}" \
     USER="${USER:-}" \
@@ -123,14 +150,7 @@ if runner_pid="$(
     WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
     XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
     DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
-    /bin/bash "$runner_script" \
-      --compatdata "$compatdata" \
-      --proton "$proton" \
-      --steam-client "$steam_client" \
-      --trainer-path "$trainer_path" \
-      --trainer-host-path "$trainer_host_path" \
-      --trainer-loading-mode "$trainer_loading_mode" \
-      --log-file "$log_file" \
+    "${runner_command[@]}" \
       </dev/null >/dev/null 2>&1 &
   printf '%s' "$!"
 )"; then

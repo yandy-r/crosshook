@@ -262,9 +262,10 @@ impl LaunchPreview {
 pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, String> {
     let resolved_method = ResolvedLaunchMethod::from_request(request);
     let validation_issues = validate_all(request);
+    let gamescope_config = request.effective_gamescope_config();
 
-    let gamescope_active = request.gamescope.enabled
-        && (request.gamescope.allow_nested || !is_inside_gamescope_session());
+    let gamescope_active =
+        gamescope_config.enabled && (gamescope_config.allow_nested || !is_inside_gamescope_session());
 
     // Resolve launch directives (wrappers + optimization env).
     // `steam_applaunch` uses the same optimization catalog as `proton_run` for Steam Launch Options,
@@ -315,6 +316,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                 request,
                 resolved_method,
                 directives,
+                gamescope_config,
                 gamescope_active,
             ) {
                 Ok(command) => Some(command),
@@ -334,8 +336,8 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
 
     // Steam launch options (for copy/paste); may still be computed when directive resolution failed
     // so errors surface consistently with the standalone Steam options panel.
-    let gamescope_param = if request.gamescope.enabled {
-        Some(&request.gamescope)
+    let gamescope_param = if gamescope_config.enabled {
+        Some(gamescope_config)
     } else {
         None
     };
@@ -608,6 +610,7 @@ fn build_effective_command_string(
     request: &LaunchRequest,
     method: ResolvedLaunchMethod,
     directives: &LaunchDirectives,
+    gamescope_config: &crate::profile::GamescopeConfig,
     gamescope_active: bool,
 ) -> Result<String, String> {
     match method {
@@ -617,7 +620,7 @@ fn build_effective_command_string(
             if gamescope_active {
                 // Apply MangoHud → mangoapp swap: if wrappers contain "mangohud", remove it and
                 // add "--mangoapp" to the gamescope args instead.
-                let mut gamescope_args = build_gamescope_args(&request.gamescope);
+                let mut gamescope_args = build_gamescope_args(gamescope_config);
                 let wrappers_without_mangohud: Vec<String> = directives
                     .wrappers
                     .iter()
@@ -643,12 +646,16 @@ fn build_effective_command_string(
 
             parts.push(request.runtime.proton_path.trim().to_string());
             parts.push("run".to_string());
-            parts.push(request.game_path.trim().to_string());
+            if request.launch_trainer_only {
+                parts.push(resolve_trainer_launch_path_for_preview(request));
+            } else {
+                parts.push(request.game_path.trim().to_string());
+            }
             Ok(parts.join(" "))
         }
         ResolvedLaunchMethod::SteamApplaunch => {
-            let gs = if request.gamescope.enabled {
-                Some(&request.gamescope)
+            let gs = if gamescope_config.enabled {
+                Some(gamescope_config)
             } else {
                 None
             };
@@ -660,6 +667,29 @@ fn build_effective_command_string(
             .map_err(|error| error.to_string())
         }
         ResolvedLaunchMethod::Native => Ok(request.game_path.trim().to_string()),
+    }
+}
+
+fn resolve_trainer_launch_path_for_preview(request: &LaunchRequest) -> String {
+    match request.trainer_loading_mode {
+        TrainerLoadingMode::SourceDirectory => request.trainer_host_path.trim().to_string(),
+        TrainerLoadingMode::CopyToPrefix => {
+            let path = Path::new(request.trainer_host_path.trim());
+            let file_stem = path
+                .file_stem()
+                .map(|segment| segment.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let file_name = path
+                .file_name()
+                .map(|segment| segment.to_string_lossy().into_owned())
+                .unwrap_or_default();
+
+            if file_stem.is_empty() || file_name.is_empty() {
+                request.trainer_host_path.trim().to_string()
+            } else {
+                format!("C:\\CrossHook\\StagedTrainers\\{}\\{}", file_stem, file_name)
+            }
+        }
     }
 }
 
@@ -1301,5 +1331,51 @@ mod tests {
             !after_separator.contains("mangohud"),
             "mangohud should not appear as wrapper after --: {steam_opts}"
         );
+    }
+
+    #[test]
+    fn preview_trainer_only_uses_trainer_gamescope_and_trainer_path() {
+        let (_td, mut request) = proton_request();
+        request.launch_trainer_only = true;
+        request.launch_game_only = false;
+        request.gamescope = crate::profile::GamescopeConfig::default();
+        request.trainer_gamescope = Some(crate::profile::GamescopeConfig {
+            enabled: true,
+            internal_width: Some(1024),
+            internal_height: Some(576),
+            ..Default::default()
+        });
+
+        let preview = build_launch_preview(&request).expect("preview");
+        assert!(preview.gamescope_active);
+        let command = preview
+            .effective_command
+            .as_deref()
+            .expect("effective command");
+        assert!(command.starts_with("gamescope"), "expected gamescope in: {command}");
+        assert!(
+            command.contains(request.trainer_host_path.as_str()),
+            "expected trainer host path in: {command}"
+        );
+        assert!(
+            !command.contains(request.game_path.as_str()),
+            "trainer-only command should not contain game path: {command}"
+        );
+    }
+
+    #[test]
+    fn preview_trainer_only_falls_back_to_main_gamescope_when_trainer_disabled() {
+        let (_td, mut request) = proton_request();
+        request.launch_trainer_only = true;
+        request.launch_game_only = false;
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            ..Default::default()
+        };
+        request.trainer_gamescope = Some(crate::profile::GamescopeConfig::default());
+
+        let preview = build_launch_preview(&request).expect("preview");
+        assert!(preview.gamescope_active, "expected fallback gamescope to be active");
     }
 }

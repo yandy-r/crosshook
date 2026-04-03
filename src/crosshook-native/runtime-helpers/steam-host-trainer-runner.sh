@@ -10,6 +10,8 @@ trainer_loading_mode="source_directory"
 log_file=""
 staged_trainer_host_path=""
 staged_trainer_windows_path=""
+gamescope_enabled="0"
+gamescope_args=()
 
 log() {
   printf '[steam-trainer-runner] %s\n' "$*"
@@ -183,6 +185,14 @@ while (($# > 0)); do
       log_file="${2:-}"
       shift 2
       ;;
+    --gamescope-enabled)
+      gamescope_enabled="1"
+      shift
+      ;;
+    --gamescope-arg)
+      gamescope_args+=("${2:-}")
+      shift 2
+      ;;
     *)
       fail "Unknown argument: $1"
       ;;
@@ -258,7 +268,12 @@ fi
 
 log_runtime_context
 log "Launching trainer with direct proton run."
-if "$proton" run "$trainer_path"; then
+if [[ "$gamescope_enabled" == "1" ]]; then
+  launch_command=(gamescope "${gamescope_args[@]}" -- "$proton" run "$trainer_path")
+else
+  launch_command=("$proton" run "$trainer_path")
+fi
+if "${launch_command[@]}"; then
   log "Trainer proton run exited successfully."
   exit 0
 fi
