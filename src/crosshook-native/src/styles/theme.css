@@ -3109,7 +3109,7 @@ textarea {
 }
 
 .crosshook-launch-panel__indicator[data-state='running'] .crosshook-launch-panel__indicator-dot {
-  background: #f5c542;
+  background: var(--crosshook-color-warning);
   animation: crosshook-pulse 2s ease-in-out infinite;
 }
 

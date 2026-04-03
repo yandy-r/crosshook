@@ -399,7 +399,9 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     }
 
     if (isGameRunning && state.phase === LaunchPhase.Idle) {
-      return 'Game process detected. Launch Trainer when ready.';
+      return method === 'native'
+        ? 'Native game detected. Trainer unavailable.'
+        : 'Game process detected. Launch Trainer when ready.';
     }
 
     switch (state.phase) {
@@ -459,7 +461,9 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
 
   const canLaunchGame = hasLaunchRequest && state.phase === LaunchPhase.Idle && !isBusy && !isGameRunning;
   const canLaunchTrainer =
-    hasLaunchRequest && isTwoStepLaunch && state.phase !== LaunchPhase.TrainerLaunching;
+    hasLaunchRequest &&
+    isTwoStepLaunch &&
+    (state.phase === LaunchPhase.Idle || state.phase === LaunchPhase.WaitingForTrainer);
 
   const offlineWarning =
     offlineReadiness !== null &&

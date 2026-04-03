@@ -686,6 +686,7 @@ export function LaunchPanel({
   }
 
   function handleLaunchFromPreview() {
+    if (isGameRunning) return;
     setShowPreview(false);
     clearPreview();
     launchGame();
