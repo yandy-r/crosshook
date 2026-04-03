@@ -6,6 +6,13 @@ export interface ProtonDbEnvVarConflict {
   suggestedValue: string;
 }
 
+/** Pending user confirmation when ProtonDB suggestions conflict with existing custom env vars. */
+export type PendingProtonDbOverwrite = {
+  group: ProtonDbRecommendationGroup;
+  conflicts: ProtonDbEnvVarConflict[];
+  resolutions: Record<string, 'keep_current' | 'use_suggestion'>;
+};
+
 export interface ProtonDbEnvVarMergeResult {
   mergedEnvVars: Record<string, string>;
   conflicts: ProtonDbEnvVarConflict[];

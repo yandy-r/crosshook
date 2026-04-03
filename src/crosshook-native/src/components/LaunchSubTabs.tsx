@@ -1,27 +1,38 @@
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
+import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import GamescopeConfigPanel from './GamescopeConfigPanel';
 import MangoHudConfigPanel from './MangoHudConfigPanel';
 import LaunchOptimizationsPanel from './LaunchOptimizationsPanel';
 import { OfflineReadinessPanel } from './OfflineReadinessPanel';
 import { OfflineStatusBadge } from './OfflineStatusBadge';
+import ProtonDbLookupCard from './ProtonDbLookupCard';
 import SteamLaunchOptionsPanel from './SteamLaunchOptionsPanel';
 import { GameMetadataBar } from './profile-sections/GameMetadataBar';
 import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
 import { LAUNCH_OPTIMIZATION_APPLICABLE_METHODS } from '../types/launch-optimizations';
-import type { BundledOptimizationPreset, LaunchAutoSaveStatus, LaunchMethod } from '../types';
+import type { BundledOptimizationPreset, GameProfile, LaunchAutoSaveStatus, LaunchMethod } from '../types';
+import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { GamescopeConfig, MangoHudConfig } from '../types/profile';
 import type { LaunchOptimizationsPanelStatus } from './LaunchOptimizationsPanel';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
 import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
+import type { PendingProtonDbOverwrite } from '../utils/protondb';
 
-export type LaunchSubTabId = 'offline' | 'gamescope' | 'mangohud' | 'optimizations' | 'steam-options';
+export type LaunchSubTabId =
+  | 'offline'
+  | 'environment'
+  | 'gamescope'
+  | 'mangohud'
+  | 'optimizations'
+  | 'steam-options';
 
 const TAB_LABELS: Record<LaunchSubTabId, string> = {
   offline: 'Offline',
+  environment: 'Environment',
   gamescope: 'Gamescope',
   mangohud: 'MangoHud',
   optimizations: 'Optimizations',
@@ -62,6 +73,24 @@ export interface LaunchSubTabsProps {
   // Steam Launch Options panel
   customEnvVars?: Readonly<Record<string, string>>;
 
+  // Environment tab — custom env vars + optional ProtonDB suggestions
+  profileName: string;
+  onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
+  onEnvironmentBlurAutoSave?: (
+    trigger: 'key' | 'value',
+    row: Readonly<{ key: string; value: string }>,
+    nextEnvVars: Readonly<Record<string, string>>
+  ) => void;
+  showProtonDbLookup: boolean;
+  trainerVersion?: string | null;
+  onApplyProtonDbEnvVars: (group: ProtonDbRecommendationGroup) => void;
+  applyingProtonDbGroupId: string | null;
+  protonDbStatusMessage: string | null;
+  pendingProtonDbOverwrite: PendingProtonDbOverwrite | null;
+  onConfirmProtonDbOverwrite: (overwriteKeys: readonly string[]) => void;
+  onCancelProtonDbOverwrite: () => void;
+  onUpdateProtonDbResolution: (key: string, resolution: 'keep_current' | 'use_suggestion') => void;
+
   // Auto-save status indicators
   gamescopeAutoSaveStatus?: LaunchAutoSaveStatus;
   mangoHudAutoSaveStatus?: LaunchAutoSaveStatus;
@@ -89,6 +118,18 @@ export function LaunchSubTabs({
   onSaveManualPreset,
   catalog,
   customEnvVars,
+  profileName,
+  onUpdateProfile,
+  onEnvironmentBlurAutoSave,
+  showProtonDbLookup,
+  trainerVersion,
+  onApplyProtonDbEnvVars,
+  applyingProtonDbGroupId,
+  protonDbStatusMessage,
+  pendingProtonDbOverwrite,
+  onConfirmProtonDbOverwrite,
+  onCancelProtonDbOverwrite,
+  onUpdateProtonDbResolution,
   gamescopeAutoSaveStatus,
   mangoHudAutoSaveStatus,
 }: LaunchSubTabsProps) {
@@ -106,16 +147,17 @@ export function LaunchSubTabs({
   const showsSteamOptionsTab = launchMethod === 'steam_applaunch';
 
   const tabs: LaunchSubTabId[] = isNative
-    ? []
+    ? ['environment', 'offline']
     : [
         ...(showsOptimizationsTab ? ['optimizations' as const] : []),
+        'environment',
         ...(showsMangoHudTab ? ['mangohud' as const] : []),
         ...(showsGamescopeTab ? ['gamescope' as const] : []),
         ...(showsSteamOptionsTab ? ['steam-options' as const] : []),
         'offline',
       ];
 
-  const [activeTab, setActiveTab] = useState<LaunchSubTabId>(tabs[0] ?? 'optimizations');
+  const [activeTab, setActiveTab] = useState<LaunchSubTabId>(tabs[0] ?? 'environment');
   const autoSwitchedRef = useRef(false);
 
   // Unified auto-save status chip — show the highest-priority non-idle status across all tabs.
@@ -194,9 +236,6 @@ export function LaunchSubTabs({
     : undefined;
 
   const showCoverArt = Boolean(coverArtUrl) || coverArtLoading;
-
-  // No tabs for native method — return null after all hooks have been called.
-  if (isNative) return null;
 
   return (
     <div className="crosshook-panel crosshook-launch-subtabs crosshook-subtabs-shell">
@@ -394,6 +433,118 @@ export function LaunchSubTabs({
               </div>
             </Tabs.Content>
           ) : null}
+
+          {/* Environment tab — custom env vars + ProtonDB lookup */}
+          <Tabs.Content
+            value="environment"
+            forceMount
+            className="crosshook-subtab-content"
+            style={{ display: activeTab === 'environment' ? undefined : 'none' }}
+          >
+            <div className="crosshook-subtab-content__inner">
+              <CustomEnvironmentVariablesSection
+                profileName={profileName}
+                customEnvVars={customEnvVars ?? {}}
+                onUpdateProfile={onUpdateProfile}
+                idPrefix="launch-subtabs"
+                onAutoSaveBlur={onEnvironmentBlurAutoSave}
+              />
+
+              {showProtonDbLookup && steamAppId ? (
+                <div className="crosshook-protondb-panel">
+                  <ProtonDbLookupCard
+                    appId={steamAppId}
+                    trainerVersion={trainerVersion ?? null}
+                    versionContext={null}
+                    onApplyEnvVars={onApplyProtonDbEnvVars}
+                    applyingGroupId={applyingProtonDbGroupId}
+                  />
+
+                  {protonDbStatusMessage ? (
+                    <p className="crosshook-help-text" role="status">
+                      {protonDbStatusMessage}
+                    </p>
+                  ) : null}
+
+                  {pendingProtonDbOverwrite ? (
+                    <div
+                      className="crosshook-protondb-card__recommendation-group"
+                      role="group"
+                      aria-label="ProtonDB overwrite confirmation"
+                    >
+                      <div className="crosshook-protondb-card__meta">
+                        <h3 className="crosshook-protondb-card__recommendation-group-title">
+                          Confirm conflicting environment-variable updates
+                        </h3>
+                        <p className="crosshook-protondb-card__recommendation-group-copy">
+                          Choose per key whether CrossHook should keep the current profile value or use the ProtonDB
+                          suggestion.
+                        </p>
+                      </div>
+
+                      <div className="crosshook-protondb-card__recommendation-list">
+                        {pendingProtonDbOverwrite.conflicts.map((conflict) => {
+                          const resolution = pendingProtonDbOverwrite.resolutions[conflict.key] ?? 'keep_current';
+                          return (
+                            <div key={conflict.key} className="crosshook-protondb-card__recommendation-item">
+                              <p className="crosshook-protondb-card__recommendation-label">
+                                <code>{conflict.key}</code>
+                              </p>
+                              <p className="crosshook-protondb-card__recommendation-note">
+                                Current: <code>{conflict.currentValue}</code>
+                              </p>
+                              <p className="crosshook-protondb-card__recommendation-note">
+                                Suggested: <code>{conflict.suggestedValue}</code>
+                              </p>
+                              <div className="crosshook-protondb-card__actions">
+                                <button
+                                  type="button"
+                                  className="crosshook-button crosshook-button--secondary"
+                                  onClick={() => onUpdateProtonDbResolution(conflict.key, 'keep_current')}
+                                >
+                                  {resolution === 'keep_current' ? 'Keeping current value' : 'Keep current'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="crosshook-button"
+                                  onClick={() => onUpdateProtonDbResolution(conflict.key, 'use_suggestion')}
+                                >
+                                  {resolution === 'use_suggestion' ? 'Using suggestion' : 'Use suggestion'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="crosshook-protondb-card__actions">
+                        <button
+                          type="button"
+                          className="crosshook-button crosshook-button--secondary"
+                          onClick={onCancelProtonDbOverwrite}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="crosshook-button"
+                          onClick={() =>
+                            onConfirmProtonDbOverwrite(
+                              Object.entries(pendingProtonDbOverwrite.resolutions)
+                                .filter(([, resolution]) => resolution === 'use_suggestion')
+                                .map(([key]) => key)
+                            )
+                          }
+                        >
+                          Apply selected changes
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </Tabs.Content>
         </div>
       </Tabs.Root>
     </div>

@@ -13,7 +13,7 @@ import type { GameProfile, LaunchMethod } from '../types';
 import type { ProtonInstallOption } from '../types/proton';
 import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { VersionCorrelationStatus } from '../types/version';
-import { mergeProtonDbEnvVarGroup, type ProtonDbEnvVarConflict } from '../utils/protondb';
+import { mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../utils/protondb';
 import { formatProtonInstallLabel } from '../utils/proton';
 
 export type ProfileFormSectionsProfileSelector = {
@@ -63,11 +63,7 @@ const optionalSectionSummaryStyle = {
   outline: 'none',
 };
 
-export type PendingProtonDbOverwrite = {
-  group: ProtonDbRecommendationGroup;
-  conflicts: ProtonDbEnvVarConflict[];
-  resolutions: Record<string, 'keep_current' | 'use_suggestion'>;
-};
+export type { PendingProtonDbOverwrite };
 
 export function parentDirectory(path: string): string {
   const normalized = path.trim().replace(/\\/g, '/');

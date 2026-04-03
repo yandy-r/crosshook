@@ -89,10 +89,15 @@ export interface CustomEnvironmentVariablesSectionProps {
   customEnvVars: Record<string, string>;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   idPrefix: string;
+  onAutoSaveBlur?: (
+    trigger: 'key' | 'value',
+    row: Readonly<{ key: string; value: string }>,
+    nextEnvVars: Readonly<Record<string, string>>
+  ) => void;
 }
 
 export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariablesSectionProps) {
-  const { profileName, customEnvVars, onUpdateProfile, idPrefix } = props;
+  const { profileName, customEnvVars, onUpdateProfile, idPrefix, onAutoSaveBlur } = props;
   const [rows, setRows] = useState<CustomEnvVarRow[]>(() => recordToCustomEnvRows(customEnvVars));
   const customEnvVarsSignature = useMemo(
     () => JSON.stringify([profileName, customEnvRecordSignature(customEnvVars)]),
@@ -166,6 +171,9 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
                       const nextKey = event.target.value;
                       applyRows(rows.map((r) => (r.id === row.id ? { ...r, key: nextKey } : r)));
                     }}
+                    onBlur={() => {
+                      onAutoSaveBlur?.('key', { key: row.key, value: row.value }, customEnvRowsToRecord(rows));
+                    }}
                   />
                 </div>
                 <div className="crosshook-field">
@@ -183,6 +191,11 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
                       const nextVal = event.target.value;
                       applyRows(rows.map((r) => (r.id === row.id ? { ...r, value: nextVal } : r)));
                     }}
+                    onBlur={() => {
+                      if (row.key.trim().length > 0) {
+                        onAutoSaveBlur?.('value', { key: row.key, value: row.value }, customEnvRowsToRecord(rows));
+                      }
+                    }}
                   />
                 </div>
                 <div className="crosshook-field">
@@ -190,7 +203,11 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
                     type="button"
                     className="crosshook-button crosshook-button--secondary"
                     aria-label="Remove this environment variable row"
-                    onClick={() => applyRows(rows.filter((r) => r.id !== row.id))}
+                    onClick={() => {
+                      const nextRows = rows.filter((r) => r.id !== row.id);
+                      applyRows(nextRows);
+                      onAutoSaveBlur?.('key', { key: row.key, value: row.value }, customEnvRowsToRecord(nextRows));
+                    }}
                   >
                     Remove
                   </button>
