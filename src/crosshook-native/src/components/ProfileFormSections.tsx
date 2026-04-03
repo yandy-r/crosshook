@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
 
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
+import ProtonDbOverwriteConfirmation from './ProtonDbOverwriteConfirmation';
 import ProtonDbLookupCard from './ProtonDbLookupCard';
 import { ThemedSelect } from './ui/ThemedSelect';
 import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
@@ -469,103 +470,26 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
       ) : null}
 
       {pendingProtonDbOverwrite ? (
-        <div
-          className="crosshook-protondb-card__recommendation-group"
-          role="group"
-          aria-label="ProtonDB overwrite confirmation"
-        >
-          <div className="crosshook-protondb-card__meta">
-            <h3 className="crosshook-protondb-card__recommendation-group-title">
-              Confirm conflicting environment-variable updates
-            </h3>
-            <p className="crosshook-protondb-card__recommendation-group-copy">
-              Choose per key whether CrossHook should keep the current profile value or use the ProtonDB suggestion.
-            </p>
-          </div>
-
-          <div className="crosshook-protondb-card__recommendation-list">
-            {pendingProtonDbOverwrite.conflicts.map((conflict) => {
-              const resolution = pendingProtonDbOverwrite.resolutions[conflict.key] ?? 'keep_current';
-              return (
-                <div key={conflict.key} className="crosshook-protondb-card__recommendation-item">
-                  <p className="crosshook-protondb-card__recommendation-label">
-                    <code>{conflict.key}</code>
-                  </p>
-                  <p className="crosshook-protondb-card__recommendation-note">
-                    Current: <code>{conflict.currentValue}</code>
-                  </p>
-                  <p className="crosshook-protondb-card__recommendation-note">
-                    Suggested: <code>{conflict.suggestedValue}</code>
-                  </p>
-                  <div className="crosshook-protondb-card__actions">
-                    <button
-                      type="button"
-                      className="crosshook-button crosshook-button--secondary"
-                      onClick={() =>
-                        setPendingProtonDbOverwrite((current) =>
-                          current == null
-                            ? current
-                            : {
-                                ...current,
-                                resolutions: {
-                                  ...current.resolutions,
-                                  [conflict.key]: 'keep_current',
-                                },
-                              }
-                        )
-                      }
-                    >
-                      {resolution === 'keep_current' ? 'Keeping current value' : 'Keep current'}
-                    </button>
-                    <button
-                      type="button"
-                      className="crosshook-button"
-                      onClick={() =>
-                        setPendingProtonDbOverwrite((current) =>
-                          current == null
-                            ? current
-                            : {
-                                ...current,
-                                resolutions: {
-                                  ...current.resolutions,
-                                  [conflict.key]: 'use_suggestion',
-                                },
-                              }
-                        )
-                      }
-                    >
-                      {resolution === 'use_suggestion' ? 'Using suggestion' : 'Use suggestion'}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="crosshook-protondb-card__actions">
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--secondary"
-              onClick={() => setPendingProtonDbOverwrite(null)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="crosshook-button"
-              onClick={() =>
-                applyProtonDbGroup(
-                  pendingProtonDbOverwrite.group,
-                  Object.entries(pendingProtonDbOverwrite.resolutions)
-                    .filter(([, resolution]) => resolution === 'use_suggestion')
-                    .map(([key]) => key)
-                )
-              }
-            >
-              Apply selected changes
-            </button>
-          </div>
-        </div>
+        <ProtonDbOverwriteConfirmation
+          pendingProtonDbOverwrite={pendingProtonDbOverwrite}
+          onUpdateProtonDbResolution={(key, choice) =>
+            setPendingProtonDbOverwrite((current) =>
+              current == null
+                ? current
+                : {
+                    ...current,
+                    resolutions: {
+                      ...current.resolutions,
+                      [key]: choice,
+                    },
+                  }
+            )
+          }
+          onCancelProtonDbOverwrite={() => setPendingProtonDbOverwrite(null)}
+          onConfirmProtonDbOverwrite={(selectedKeys) =>
+            applyProtonDbGroup(pendingProtonDbOverwrite.group, selectedKeys)
+          }
+        />
       ) : null}
     </div>
   ) : null;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 import LaunchPanel from '../LaunchPanel';
@@ -64,6 +64,26 @@ export function LaunchPage() {
   const [pendingProtonDbOverwrite, setPendingProtonDbOverwrite] = useState<PendingProtonDbOverwrite | null>(null);
   const [applyingProtonDbGroupId, setApplyingProtonDbGroupId] = useState<string | null>(null);
   const [protonDbStatusMessage, setProtonDbStatusMessage] = useState<string | null>(null);
+  const environmentAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistProfileDraftRef = useRef(profileState.persistProfileDraft);
+  const latestProfileRef = useRef(profileState.profile);
+  const latestProfileNameRef = useRef(profileState.profileName);
+  const latestNextEnvVarsRef = useRef<Readonly<Record<string, string>>>({});
+
+  useEffect(() => {
+    persistProfileDraftRef.current = profileState.persistProfileDraft;
+    latestProfileRef.current = profileState.profile;
+    latestProfileNameRef.current = profileState.profileName;
+  }, [profileState.persistProfileDraft, profileState.profile, profileState.profileName]);
+
+  useEffect(() => {
+    return () => {
+      if (environmentAutosaveTimerRef.current !== null) {
+        clearTimeout(environmentAutosaveTimerRef.current);
+        environmentAutosaveTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     setPendingProtonDbOverwrite(null);
@@ -148,17 +168,23 @@ export function LaunchPage() {
       if (trigger === 'value' && row.key.trim().length === 0) {
         return;
       }
-      setTimeout(() => {
-        void profileState.persistProfileDraft(profileState.profileName, {
-          ...profileState.profile,
+      latestNextEnvVarsRef.current = { ...nextEnvVars };
+      if (environmentAutosaveTimerRef.current !== null) {
+        clearTimeout(environmentAutosaveTimerRef.current);
+      }
+      environmentAutosaveTimerRef.current = setTimeout(() => {
+        const latestProfile = latestProfileRef.current;
+        const latestProfileName = latestProfileNameRef.current;
+        void persistProfileDraftRef.current(latestProfileName, {
+          ...latestProfile,
           launch: {
-            ...profileState.profile.launch,
-            custom_env_vars: { ...nextEnvVars },
+            ...latestProfile.launch,
+            custom_env_vars: { ...latestNextEnvVarsRef.current },
           },
         });
-      }, 0);
+      }, 400);
     },
-    [hasSavedSelectedProfile, profileState.persistProfileDraft, profileState.profile, profileState.profileName]
+    [hasSavedSelectedProfile]
   );
 
   return (

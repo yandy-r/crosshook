@@ -172,7 +172,9 @@ export function CustomEnvironmentVariablesSection(props: CustomEnvironmentVariab
                       applyRows(rows.map((r) => (r.id === row.id ? { ...r, key: nextKey } : r)));
                     }}
                     onBlur={() => {
-                      onAutoSaveBlur?.('key', { key: row.key, value: row.value }, customEnvRowsToRecord(rows));
+                      if (row.key.trim().length > 0) {
+                        onAutoSaveBlur?.('key', { key: row.key, value: row.value }, customEnvRowsToRecord(rows));
+                      }
                     }}
                   />
                 </div>
