@@ -261,6 +261,7 @@ mod tests {
                 community_taps: Vec::new(),
                 onboarding_completed: false,
                 offline_mode: false,
+                ..Default::default()
             })
             .unwrap();
         profile_store
@@ -282,6 +283,7 @@ mod tests {
                 community_taps: Vec::new(),
                 onboarding_completed: false,
                 offline_mode: false,
+                ..Default::default()
             })
             .unwrap();
         profile_store
@@ -303,6 +305,7 @@ mod tests {
                 community_taps: Vec::new(),
                 onboarding_completed: false,
                 offline_mode: false,
+                ..Default::default()
             })
             .unwrap();
 
@@ -321,6 +324,7 @@ mod tests {
                 community_taps: Vec::new(),
                 onboarding_completed: false,
                 offline_mode: false,
+                ..Default::default()
             })
             .unwrap();
 

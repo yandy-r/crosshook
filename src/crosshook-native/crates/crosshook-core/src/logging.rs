@@ -61,9 +61,11 @@ pub fn log_file_path() -> LoggingResult<PathBuf> {
     resolve_log_file_path(None)
 }
 
-pub fn init_logging(mirror_stdout: bool) -> LoggingResult<PathBuf> {
+/// Initialize global tracing. If `RUST_LOG` is set, it wins over `settings_filter`.
+/// When `RUST_LOG` is unset, `settings_filter` is used when non-empty; otherwise `info`.
+pub fn init_logging(mirror_stdout: bool, settings_filter: Option<&str>) -> LoggingResult<PathBuf> {
     let log_file_path = resolve_log_file_path(None)?;
-    let subscriber = build_subscriber(&log_file_path, mirror_stdout)?;
+    let subscriber = build_subscriber(&log_file_path, mirror_stdout, settings_filter)?;
 
     tracing::subscriber::set_global_default(subscriber)
         .map_err(|error| LoggingError::SubscriberAlreadyInitialized(error.to_string()))?;
@@ -80,6 +82,7 @@ pub fn init_logging(mirror_stdout: bool) -> LoggingResult<PathBuf> {
 fn build_subscriber(
     log_file_path: &Path,
     mirror_stdout: bool,
+    settings_filter: Option<&str>,
 ) -> LoggingResult<impl tracing::Subscriber + Send + Sync> {
     let writer = RotatingLogWriter::open(
         log_file_path,
@@ -88,9 +91,14 @@ fn build_subscriber(
         DEFAULT_LOG_ROTATED_FILES,
     )?;
 
-    let env_filter = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("info"))
-        .expect("the fallback logging filter must be valid");
+    let env_filter = if std::env::var_os("RUST_LOG").is_some() {
+        EnvFilter::try_from_default_env()
+            .map_err(|e| LoggingError::SubscriberAlreadyInitialized(e.to_string()))?
+    } else if let Some(f) = settings_filter.map(str::trim).filter(|s| !s.is_empty()) {
+        EnvFilter::try_new(f).unwrap_or_else(|_| EnvFilter::new("info"))
+    } else {
+        EnvFilter::new("info")
+    };
 
     Ok(tracing_subscriber::registry().with(env_filter).with(
         tracing_subscriber::fmt::layer()

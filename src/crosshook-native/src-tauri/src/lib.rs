@@ -8,7 +8,7 @@ use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::offline::{initialize_trainer_type_catalog, load_trainer_type_catalog};
 use crosshook_core::profile::ProfileStore;
-use crosshook_core::settings::{RecentFilesStore, SettingsStore};
+use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore};
 pub use paths::resolve_script_path;
 use tauri::{Emitter, Manager};
 use tokio::time::{sleep, Duration};
@@ -22,12 +22,19 @@ pub fn run() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
 
-    let profile_store = ProfileStore::try_new().unwrap_or_else(|error| {
-        eprintln!("CrossHook: failed to initialize profile store: {error}");
-        std::process::exit(1);
-    });
     let settings_store = SettingsStore::try_new().unwrap_or_else(|error| {
         eprintln!("CrossHook: failed to initialize settings store: {error}");
+        std::process::exit(1);
+    });
+    let initial_settings: AppSettingsData = settings_store
+        .load()
+        .unwrap_or_else(|_| AppSettingsData::default());
+    let profile_store = ProfileStore::try_new_with_settings_data(
+        &initial_settings,
+        &settings_store.base_path,
+    )
+    .unwrap_or_else(|error| {
+        eprintln!("CrossHook: failed to initialize profile store: {error}");
         std::process::exit(1);
     });
     let recent_files_store = RecentFilesStore::try_new().unwrap_or_else(|error| {
@@ -59,7 +66,12 @@ pub fn run() {
             let metadata_for_startup = metadata_for_startup.clone();
 
             move |app| {
-                let log_path = logging::init_logging(false)?;
+                let settings_for_log = settings_store
+                    .load()
+                    .unwrap_or_else(|_| AppSettingsData::default());
+                let lf = settings_for_log.log_filter.trim();
+                let user_filter = if lf.is_empty() { None } else { Some(lf) };
+                let log_path = logging::init_logging(false, user_filter)?;
                 tracing::info!(log_path = %log_path.display(), "starting CrossHook Native");
 
                 paths::ensure_development_scripts_executable()?;

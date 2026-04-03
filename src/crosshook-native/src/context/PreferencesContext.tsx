@@ -7,6 +7,7 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { AppSettingsData, RecentFilesData } from '../types';
+import { DEFAULT_APP_SETTINGS, toSettingsSaveRequest } from '../types/settings';
 
 export interface PreferencesContextValue {
   settings: AppSettingsData;
@@ -14,6 +15,8 @@ export interface PreferencesContextValue {
   settingsError: string | null;
   defaultSteamClientInstallPath: string;
   refreshPreferences: () => Promise<void>;
+  /** Merge partial settings, save to settings.toml, reload computed IPC fields. */
+  persistSettings: (patch: Partial<AppSettingsData>) => Promise<void>;
   handleAutoLoadChange: (enabled: boolean) => Promise<void>;
   handleSteamGridDbApiKeyChange: (key: string) => Promise<void>;
   clearRecentFiles: () => Promise<void>;
@@ -23,15 +26,6 @@ export interface PreferencesProviderProps {
   children: ReactNode;
   activeProfileName?: string;
 }
-
-const EMPTY_SETTINGS: AppSettingsData = {
-  auto_load_last_profile: false,
-  last_used_profile: '',
-  community_taps: [],
-  onboarding_completed: false,
-  offline_mode: false,
-  has_steamgriddb_api_key: false,
-};
 
 const EMPTY_RECENT_FILES: RecentFilesData = {
   game_paths: [],
@@ -60,7 +54,7 @@ async function loadPreferences() {
 }
 
 export function PreferencesProvider({ children, activeProfileName }: PreferencesProviderProps) {
-  const [settings, setSettings] = useState<AppSettingsData>(EMPTY_SETTINGS);
+  const [settings, setSettings] = useState<AppSettingsData>(DEFAULT_APP_SETTINGS);
   const [recentFiles, setRecentFiles] = useState<RecentFilesData>(EMPTY_RECENT_FILES);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [defaultSteamClientInstallPath, setDefaultSteamClientInstallPath] = useState('');
@@ -106,24 +100,30 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
     };
   }, [applyLoadedPreferences]);
 
+  const persistSettings = useCallback(
+    async (patch: Partial<AppSettingsData>) => {
+      const merged: AppSettingsData = { ...settings, ...patch };
+      await invoke('settings_save', { data: toSettingsSaveRequest(merged) });
+      const loaded = await invoke<AppSettingsData>('settings_load');
+      setSettings(loaded);
+      setSettingsError(null);
+    },
+    [settings]
+  );
+
   const handleAutoLoadChange = useCallback(
     async (enabled: boolean) => {
-      const nextSettings = {
-        ...settings,
-        auto_load_last_profile: enabled,
-        last_used_profile: activeProfileName?.trim() || settings.last_used_profile,
-      } satisfies AppSettingsData;
-
       try {
-        await invoke('settings_save', { data: nextSettings });
-        setSettings(nextSettings);
-        setSettingsError(null);
+        await persistSettings({
+          auto_load_last_profile: enabled,
+          last_used_profile: activeProfileName?.trim() || settings.last_used_profile,
+        });
       } catch (error) {
         setSettingsError(formatError(error));
         throw error;
       }
     },
-    [activeProfileName, settings]
+    [activeProfileName, persistSettings, settings.last_used_profile]
   );
 
   const handleSteamGridDbApiKeyChange = useCallback(
@@ -170,6 +170,7 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
       settingsError,
       defaultSteamClientInstallPath,
       refreshPreferences,
+      persistSettings,
       handleAutoLoadChange,
       handleSteamGridDbApiKeyChange,
       clearRecentFiles,
@@ -179,6 +180,7 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
       defaultSteamClientInstallPath,
       handleAutoLoadChange,
       handleSteamGridDbApiKeyChange,
+      persistSettings,
       recentFiles,
       refreshPreferences,
       settings,

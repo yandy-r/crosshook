@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { AppSettingsData, GameProfile } from '../types';
+import { toSettingsSaveRequest } from '../types/settings';
 
 export type CommunityCompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
 
@@ -223,10 +224,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
   const saveSettingsTaps = useCallback(async (nextTaps: CommunityTapSubscription[]) => {
     const settings = await invoke<AppSettingsData>('settings_load');
     await invoke('settings_save', {
-      data: {
-        ...settings,
-        community_taps: nextTaps,
-      } satisfies AppSettingsData,
+      data: toSettingsSaveRequest({ ...settings, community_taps: nextTaps }),
     });
   }, []);
 

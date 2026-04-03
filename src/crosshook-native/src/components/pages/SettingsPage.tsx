@@ -1,8 +1,8 @@
+import { useCallback } from 'react';
 import SettingsPanel from '../SettingsPanel';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
-
-const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
+import { chooseDirectory } from '../../utils/dialog';
 
 export function SettingsPage() {
   const {
@@ -10,11 +10,19 @@ export function SettingsPage() {
     recentFiles,
     settingsError,
     refreshPreferences,
+    persistSettings,
     handleAutoLoadChange,
     handleSteamGridDbApiKeyChange,
     clearRecentFiles,
   } = usePreferencesContext();
   const { targetHomePath, steamClientInstallPath } = useProfileContext();
+
+  const handleBrowseProfilesDirectory = useCallback(async () => {
+    const dir = await chooseDirectory('Select profiles directory');
+    if (dir && dir.trim()) {
+      await persistSettings({ profiles_directory: dir.trim() });
+    }
+  }, [persistSettings]);
 
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--settings">
@@ -29,19 +37,15 @@ export function SettingsPage() {
           <div className="crosshook-route-card-host">
             <div className="crosshook-route-card-scroll">
               <SettingsPanel
-                autoLoadLastProfile={settings.auto_load_last_profile}
-                lastUsedProfile={settings.last_used_profile}
-                profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY}
-                profilesDirectoryConfigured={false}
+                settings={settings}
+                onPersistSettings={persistSettings}
                 recentFiles={{
                   gamePaths: recentFiles.game_paths,
                   trainerPaths: recentFiles.trainer_paths,
                   dllPaths: recentFiles.dll_paths,
                 }}
-                recentFilesLimit={10}
                 targetHomePath={targetHomePath}
                 steamClientInstallPath={steamClientInstallPath}
-		hasSteamgriddbApiKey={settings.has_steamgriddb_api_key}
                 onAutoLoadLastProfileChange={(enabled) => {
                   void handleAutoLoadChange(enabled);
                 }}
@@ -52,6 +56,7 @@ export function SettingsPage() {
                   void clearRecentFiles();
                 }}
                 onSteamGridDbApiKeyChange={handleSteamGridDbApiKeyChange}
+                onBrowseProfilesDirectory={handleBrowseProfilesDirectory}
               />
             </div>
           </div>

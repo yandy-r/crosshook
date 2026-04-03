@@ -6,7 +6,6 @@ use std::path::{Path, PathBuf};
 
 const SETTINGS_DIR: &str = "crosshook";
 const RECENT_FILE_NAME: &str = "recent.toml";
-const MAX_RECENT_FILES: usize = 10;
 
 #[derive(Debug, Clone)]
 pub struct RecentFilesStore {
@@ -82,42 +81,46 @@ impl RecentFilesStore {
         Self { path }
     }
 
-    pub fn load(&self) -> Result<RecentFilesData, RecentFilesStoreError> {
+    pub fn load(&self, max_entries: usize) -> Result<RecentFilesData, RecentFilesStoreError> {
         if !self.path.exists() {
             return Ok(RecentFilesData::default());
         }
 
         let content = fs::read_to_string(&self.path)?;
         let mut recent_files: RecentFilesData = toml::from_str(&content)?;
-        normalize_existing_paths(&mut recent_files.game_paths);
-        normalize_existing_paths(&mut recent_files.trainer_paths);
-        normalize_existing_paths(&mut recent_files.dll_paths);
+        normalize_existing_paths(&mut recent_files.game_paths, max_entries);
+        normalize_existing_paths(&mut recent_files.trainer_paths, max_entries);
+        normalize_existing_paths(&mut recent_files.dll_paths, max_entries);
         Ok(recent_files)
     }
 
-    pub fn save(&self, recent_files: &RecentFilesData) -> Result<(), RecentFilesStoreError> {
+    pub fn save(
+        &self,
+        recent_files: &RecentFilesData,
+        max_entries: usize,
+    ) -> Result<(), RecentFilesStoreError> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }
 
         let mut recent_files = recent_files.clone();
-        cap_recent_paths(&mut recent_files.game_paths);
-        cap_recent_paths(&mut recent_files.trainer_paths);
-        cap_recent_paths(&mut recent_files.dll_paths);
+        cap_recent_paths(&mut recent_files.game_paths, max_entries);
+        cap_recent_paths(&mut recent_files.trainer_paths, max_entries);
+        cap_recent_paths(&mut recent_files.dll_paths, max_entries);
 
         fs::write(&self.path, toml::to_string_pretty(&recent_files)?)?;
         Ok(())
     }
 }
 
-fn normalize_existing_paths(paths: &mut Vec<String>) {
+fn normalize_existing_paths(paths: &mut Vec<String>, max_entries: usize) {
     paths.retain(|path| Path::new(path).exists());
-    cap_recent_paths(paths);
+    cap_recent_paths(paths, max_entries);
 }
 
-fn cap_recent_paths(paths: &mut Vec<String>) {
-    if paths.len() > MAX_RECENT_FILES {
-        paths.truncate(MAX_RECENT_FILES);
+fn cap_recent_paths(paths: &mut Vec<String>, max_entries: usize) {
+    if paths.len() > max_entries {
+        paths.truncate(max_entries);
     }
 }
 
@@ -148,8 +151,9 @@ mod tests {
             dll_paths: vec![dll_a.display().to_string()],
         };
 
-        store.save(&recent_files).unwrap();
-        let loaded = store.load().unwrap();
+        let cap = 10usize;
+        store.save(&recent_files, cap).unwrap();
+        let loaded = store.load(cap).unwrap();
         assert_eq!(loaded, recent_files);
     }
 
@@ -208,10 +212,11 @@ mod tests {
         };
 
         fs::write(&store.path, toml::to_string_pretty(&recent_files).unwrap()).unwrap();
-        let loaded = store.load().unwrap();
+        let cap = 10usize;
+        let loaded = store.load(cap).unwrap();
 
-        assert_eq!(loaded.game_paths.len(), MAX_RECENT_FILES);
-        assert_eq!(loaded.trainer_paths.len(), MAX_RECENT_FILES);
+        assert_eq!(loaded.game_paths.len(), cap);
+        assert_eq!(loaded.trainer_paths.len(), cap);
         assert_eq!(loaded.dll_paths.len(), 8);
         assert!(!loaded
             .game_paths
@@ -241,7 +246,28 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let store = RecentFilesStore::with_path(temp_dir.path().join("recent.toml"));
 
-        let loaded = store.load().unwrap();
+        let loaded = store.load(10).unwrap();
         assert_eq!(loaded, RecentFilesData::default());
+    }
+
+    #[test]
+    fn cap_respects_custom_max_on_save_and_load() {
+        let temp_dir = tempdir().unwrap();
+        let store = RecentFilesStore::with_path(temp_dir.path().join("recent.toml"));
+        let cap = 3usize;
+        let game_paths: Vec<String> = (0..6)
+            .map(|i| {
+                let path = temp_dir.path().join(format!("g-{i}.exe"));
+                create_file(&path);
+                path.display().to_string()
+            })
+            .collect();
+        let recent_files = RecentFilesData {
+            game_paths,
+            ..Default::default()
+        };
+        store.save(&recent_files, cap).unwrap();
+        let loaded = store.load(cap).unwrap();
+        assert_eq!(loaded.game_paths.len(), cap);
     }
 }

@@ -19,6 +19,7 @@ import {
   type LaunchOptimizationId,
   type LaunchOptimizations,
 } from '../types/launch-optimizations';
+import { toSettingsSaveRequest } from '../types/settings';
 import { resolveLaunchMethod, type ResolvedLaunchMethod } from '../utils/launch';
 import { useLaunchOptimizationCatalog } from './useLaunchOptimizationCatalog';
 import {
@@ -503,10 +504,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const syncProfileMetadata = useCallback(async (name: string, currentProfile: GameProfile) => {
     const settings = await invoke<AppSettingsData>('settings_load');
     await invoke('settings_save', {
-      data: {
-        ...settings,
-        last_used_profile: name,
-      } satisfies AppSettingsData,
+      data: toSettingsSaveRequest({ ...settings, last_used_profile: name }),
     });
 
     const recentFiles = await invoke<RecentFilesData>('recent_files_load');
@@ -628,10 +626,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       const settings = await invoke<AppSettingsData>('settings_load');
       if (settings.last_used_profile === name) {
         await invoke('settings_save', {
-          data: {
-            ...settings,
-            last_used_profile: '',
-          } satisfies AppSettingsData,
+          data: toSettingsSaveRequest({ ...settings, last_used_profile: '' }),
         });
       }
       const names = await invoke<string[]>('profile_list');
