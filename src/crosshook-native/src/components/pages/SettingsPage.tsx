@@ -41,7 +41,7 @@ export function SettingsPage() {
                 recentFilesLimit={10}
                 targetHomePath={targetHomePath}
                 steamClientInstallPath={steamClientInstallPath}
-                steamGridDbApiKey={settings.steamgriddb_api_key}
+		hasSteamgriddbApiKey={settings.has_steamgriddb_api_key}
                 onAutoLoadLastProfileChange={(enabled) => {
                   void handleAutoLoadChange(enabled);
                 }}

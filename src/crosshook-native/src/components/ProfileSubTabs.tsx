@@ -14,12 +14,13 @@ import { RuntimeSection } from './profile-sections/RuntimeSection';
 import { TrainerSection } from './profile-sections/TrainerSection';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
+import { resolveArtAppId } from '../utils/art';
 import type { PendingProtonDbOverwrite } from './ProfileFormSections';
 import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { GameProfile, LaunchMethod } from '../types';
 import type { ProtonInstallOption } from '../types/proton';
 
-type SubTabId = 'setup' | 'runtime' | 'environment' | 'trainer' | 'gamescope' | 'export';
+type SubTabId = 'setup' | 'runtime' | 'game_art' | 'environment' | 'trainer' | 'gamescope' | 'export';
 
 export interface ProfileSubTabsProps {
   profile: GameProfile;
@@ -53,6 +54,7 @@ export interface ProfileSubTabsProps {
 const TAB_LABELS: Record<SubTabId, string> = {
   setup: 'Setup',
   runtime: 'Runtime',
+  game_art: 'Game Art',
   environment: 'Environment',
   trainer: 'Trainer',
   gamescope: 'Gamescope',
@@ -87,8 +89,8 @@ export function ProfileSubTabs({
   const [activeTab, setActiveTab] = useState<SubTabId>('setup');
   const supportsTrainerLaunch = launchMethod !== 'native';
 
-  const steamAppId = profile.steam.app_id;
-  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(steamAppId, profile.game.custom_cover_art_path);
+  const steamAppId = resolveArtAppId(profile);
+  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(steamAppId || undefined, profile.game.custom_cover_art_path);
   const dominantColor = useImageDominantColor(coverArtUrl);
 
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
@@ -96,6 +98,7 @@ export function ProfileSubTabs({
   const tabs: SubTabId[] = [
     'setup',
     'runtime',
+    'game_art',
     'environment',
     ...(supportsTrainerLaunch ? ['trainer' as const] : []),
     ...(supportsLauncherExport ? ['gamescope' as const] : []),
@@ -197,6 +200,17 @@ export function ProfileSubTabs({
               protonInstalls={protonInstalls}
               protonInstallsError={protonInstallsError}
             />
+          </div>
+        </Tabs.Content>
+
+        {/* Game Art tab — cover, portrait, background art + launcher icon */}
+        <Tabs.Content
+          value="game_art"
+          forceMount
+          className="crosshook-subtab-content"
+          style={{ display: activeTab === 'game_art' ? undefined : 'none' }}
+        >
+          <div className="crosshook-subtab-content__inner">
             <MediaSection profile={profile} onUpdateProfile={onUpdateProfile} launchMethod={launchMethod} />
           </div>
         </Tabs.Content>

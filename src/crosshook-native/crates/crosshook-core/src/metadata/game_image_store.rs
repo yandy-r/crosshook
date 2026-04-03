@@ -114,10 +114,12 @@ pub fn get_game_image(
 }
 
 pub fn evict_expired_images(conn: &mut Connection) -> Result<Vec<String>, MetadataStoreError> {
-    let tx = conn.transaction().map_err(|source| MetadataStoreError::Database {
-        action: "begin evict expired game images transaction",
-        source,
-    })?;
+    let tx = conn
+        .transaction()
+        .map_err(|source| MetadataStoreError::Database {
+            action: "begin evict expired game images transaction",
+            source,
+        })?;
 
     let file_paths = select_expired_image_paths(&tx)?;
     tx.execute(

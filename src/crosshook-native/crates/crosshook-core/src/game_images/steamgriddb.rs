@@ -46,19 +46,28 @@ pub async fn fetch_steamgriddb_image(
     tracing::debug!(app_id, endpoint, "fetching image from SteamGridDB");
 
     let client = http_client()?;
-    let response = client
+    let raw_response = client
         .get(&endpoint)
         .bearer_auth(api_key)
         .send()
         .await
-        .map_err(GameImageError::Network)?
+        .map_err(GameImageError::Network)?;
+
+    let status_code = raw_response.status();
+    if status_code == reqwest::StatusCode::UNAUTHORIZED
+        || status_code == reqwest::StatusCode::FORBIDDEN
+    {
+        return Err(GameImageError::AuthFailure {
+            status: status_code.as_u16(),
+            message: "SteamGridDB API key is missing, invalid, or expired".to_string(),
+        });
+    }
+
+    let response = raw_response
         .error_for_status()
         .map_err(GameImageError::Network)?;
 
-    let body: SteamGridDbResponse = response
-        .json()
-        .await
-        .map_err(GameImageError::Network)?;
+    let body: SteamGridDbResponse = response.json().await.map_err(GameImageError::Network)?;
 
     if !body.success {
         return Err(GameImageError::Store(
@@ -71,7 +80,9 @@ pub async fn fetch_steamgriddb_image(
         .into_iter()
         .next()
         .map(|item| item.url)
-        .ok_or_else(|| GameImageError::Store("SteamGridDB returned no items for this app".to_string()))?;
+        .ok_or_else(|| {
+            GameImageError::Store("SteamGridDB returned no items for this app".to_string())
+        })?;
 
     tracing::debug!(app_id, image_url = %first_url, "downloading SteamGridDB image");
 
@@ -103,6 +114,7 @@ fn build_endpoint(app_id: &str, image_type: &GameImageType) -> String {
         GameImageType::Hero => ("heroes", None),
         GameImageType::Capsule => ("grids", Some("342x482,600x900")),
         GameImageType::Portrait => ("grids", Some("342x482,600x900")),
+        GameImageType::Background => ("heroes", None),
     };
 
     match dimensions {
@@ -154,5 +166,11 @@ mod tests {
             url,
             "https://www.steamgriddb.com/api/v2/grids/steam/440?dimensions=342x482,600x900"
         );
+    }
+
+    #[test]
+    fn build_endpoint_background_uses_heroes() {
+        let url = build_endpoint("440", &GameImageType::Background);
+        assert_eq!(url, "https://www.steamgriddb.com/api/v2/heroes/steam/440");
     }
 }

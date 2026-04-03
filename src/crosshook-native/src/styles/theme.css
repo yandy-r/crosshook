@@ -3867,6 +3867,77 @@ textarea {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Media / Game Art slots
+   --------------------------------------------------------------------------- */
+
+.crosshook-media-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-media-slot__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crosshook-media-slot__badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.crosshook-media-slot__badge--custom {
+  background: rgba(var(--crosshook-color-accent-rgb, 130 180 255), 0.15);
+  color: var(--crosshook-color-accent-strong);
+}
+
+.crosshook-media-slot__badge--auto {
+  background: rgba(160, 210, 140, 0.15);
+  color: #8fd07a;
+}
+
+.crosshook-media-slot__badge--not-set {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-media-slot__preview {
+  width: 100%;
+  height: 100px;
+  border-radius: var(--crosshook-media-slot-preview-radius, 6px);
+  overflow: hidden;
+  background: var(--crosshook-color-surface);
+  border: 1px solid var(--crosshook-color-border);
+}
+
+.crosshook-media-slot__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.crosshook-media-slot__placeholder {
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 6px,
+    rgba(255, 255, 255, 0.03) 6px,
+    rgba(255, 255, 255, 0.03) 12px
+  );
+}
+
 @media (max-width: 900px) {
   .crosshook-app {
     padding: 16px;

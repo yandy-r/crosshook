@@ -106,7 +106,10 @@ fn expired_cache_returns_stale_when_network_unavailable() {
     assert_eq!(result.state, SteamMetadataLookupState::Stale);
     assert!(result.from_cache);
     assert!(result.is_stale);
-    assert!(result.app_details.is_some(), "stale result should have details");
+    assert!(
+        result.app_details.is_some(),
+        "stale result should have details"
+    );
 }
 
 #[test]

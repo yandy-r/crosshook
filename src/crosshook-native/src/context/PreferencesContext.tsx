@@ -30,7 +30,7 @@ const EMPTY_SETTINGS: AppSettingsData = {
   community_taps: [],
   onboarding_completed: false,
   offline_mode: false,
-  steamgriddb_api_key: null,
+  has_steamgriddb_api_key: false,
 };
 
 const EMPTY_RECENT_FILES: RecentFilesData = {
@@ -128,21 +128,22 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
 
   const handleSteamGridDbApiKeyChange = useCallback(
     async (key: string) => {
-      const nextSettings = {
-        ...settings,
-        steamgriddb_api_key: key.trim().length > 0 ? key.trim() : null,
-      } satisfies AppSettingsData;
+      const trimmedKey = key.trim();
+      const keyOrNull = trimmedKey.length > 0 ? trimmedKey : null;
 
       try {
-        await invoke('settings_save', { data: nextSettings });
-        setSettings(nextSettings);
+        await invoke('settings_save_steamgriddb_key', { key: keyOrNull });
+        setSettings((previous) => ({
+          ...previous,
+          has_steamgriddb_api_key: keyOrNull !== null,
+        }));
         setSettingsError(null);
       } catch (error) {
         setSettingsError(formatError(error));
         throw error;
       }
     },
-    [settings]
+    []
   );
 
   const clearRecentFiles = useCallback(async () => {
