@@ -164,14 +164,12 @@ pub fn build_proton_game_command(
     let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
     let umu_run_path = resolve_umu_run_path();
     let mut command = if let Some(ref umu) = umu_run_path {
-        let app_id = resolve_steam_app_id_for_umu(request);
         if gamescope_active {
             let (gamescope_args, filtered_wrappers) =
                 prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
             new_umu_run_command_with_gamescope(
                 umu,
                 request.runtime.proton_path.trim(),
-                app_id,
                 &filtered_wrappers,
                 &gamescope_args,
             )
@@ -179,7 +177,6 @@ pub fn build_proton_game_command(
             new_umu_run_command(
                 umu,
                 request.runtime.proton_path.trim(),
-                app_id,
                 &directives.wrappers,
             )
         }
@@ -209,6 +206,7 @@ pub fn build_proton_game_command(
         &directives.env,
         &request.custom_env_vars,
     );
+    command.env("GAMEID", resolved_umu_game_id_for_env(request));
     apply_mangohud_config_env(
         &mut command,
         request,
@@ -241,14 +239,12 @@ pub fn build_proton_trainer_command(
     let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
     let umu_run_path = resolve_umu_run_path();
     let mut command = if let Some(ref umu) = umu_run_path {
-        let app_id = resolve_steam_app_id_for_umu(request);
         if gamescope_active {
             let (gamescope_args, filtered_wrappers) =
                 prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
             new_umu_run_command_with_gamescope(
                 umu,
                 request.runtime.proton_path.trim(),
-                app_id,
                 &filtered_wrappers,
                 &gamescope_args,
             )
@@ -256,7 +252,6 @@ pub fn build_proton_trainer_command(
             new_umu_run_command(
                 umu,
                 request.runtime.proton_path.trim(),
-                app_id,
                 &directives.wrappers,
             )
         }
@@ -286,6 +281,7 @@ pub fn build_proton_trainer_command(
         &directives.env,
         &request.custom_env_vars,
     );
+    command.env("GAMEID", resolved_umu_game_id_for_env(request));
     apply_mangohud_config_env(
         &mut command,
         request,
@@ -402,6 +398,8 @@ fn trainer_arguments(request: &LaunchRequest, log_path: &Path) -> Vec<OsString> 
         request.steam.proton_path.clone().into(),
         "--steam-client".into(),
         request.steam.steam_client_install_path.clone().into(),
+        "--steam-app-id".into(),
+        request.steam.app_id.clone().into(),
         "--trainer-path".into(),
         request.trainer_path.clone().into(),
         "--trainer-host-path".into(),
@@ -535,8 +533,7 @@ fn validation_error_to_io_error(error: ValidationError) -> std::io::Error {
 }
 
 /// Returns the best available Steam App ID for umu-run's `GAMEID`.
-/// Prefers `steam.app_id`, falls back to `runtime.steam_app_id`, then `""` (which
-/// `resolve_game_id` in runtime_helpers will map to `"0"`).
+/// Prefers `steam.app_id`, falls back to `runtime.steam_app_id`, then `""`.
 fn resolve_steam_app_id_for_umu(request: &LaunchRequest) -> &str {
     let steam_id = request.steam.app_id.trim();
     if !steam_id.is_empty() {
@@ -547,6 +544,15 @@ fn resolve_steam_app_id_for_umu(request: &LaunchRequest) -> &str {
         return runtime_id;
     }
     ""
+}
+
+fn resolved_umu_game_id_for_env(request: &LaunchRequest) -> String {
+    let trimmed = resolve_steam_app_id_for_umu(request).trim();
+    if trimmed.is_empty() {
+        "0".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 #[cfg(test)]
@@ -708,6 +714,7 @@ mod tests {
             command_env_value(&command, "WINEPREFIX"),
             Some(prefix_path.to_string_lossy().into_owned())
         );
+        assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
     }
 
     #[test]
@@ -762,6 +769,7 @@ mod tests {
             command_env_value(&command, "DXVK_ASYNC"),
             Some("0".to_string())
         );
+        assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
     }
 
     #[test]
@@ -892,6 +900,7 @@ mod tests {
             command_env_value(&command, "WINEPREFIX"),
             Some(wine_prefix_path.to_string_lossy().into_owned())
         );
+        assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
         assert!(wine_prefix_path
             .join("drive_c/CrossHook/StagedTrainers/sample/sample.ini")
             .exists());
@@ -942,6 +951,46 @@ mod tests {
                 "--trainer-timeout-seconds".to_string(),
                 "10".to_string(),
                 "--game-only".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn trainer_command_includes_steam_app_id_and_trainer_arguments() {
+        let _guard = DisableUmuRun::new();
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let script_path = temp_dir.path().join("steam-launch-trainer.sh");
+        let log_path = temp_dir.path().join("trainer.log");
+        let request = steam_request();
+
+        let command = build_trainer_command(&request, &script_path, &log_path);
+
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args,
+            vec![
+                script_path.to_string_lossy().into_owned(),
+                "--compatdata".to_string(),
+                "/tmp/compat".to_string(),
+                "--proton".to_string(),
+                "/tmp/proton".to_string(),
+                "--steam-client".to_string(),
+                "/tmp/steam".to_string(),
+                "--steam-app-id".to_string(),
+                "12345".to_string(),
+                "--trainer-path".to_string(),
+                "/trainers/trainer.exe".to_string(),
+                "--trainer-host-path".to_string(),
+                "/trainers/trainer.exe".to_string(),
+                "--trainer-loading-mode".to_string(),
+                "source_directory".to_string(),
+                "--log-file".to_string(),
+                log_path.to_string_lossy().into_owned(),
             ]
         );
     }

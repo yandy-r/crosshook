@@ -11,6 +11,7 @@ log_file=""
 staged_trainer_host_path=""
 staged_trainer_windows_path=""
 umu_run_path=""
+steam_app_id=""
 
 log() {
   printf '[steam-trainer-runner] %s\n' "$*"
@@ -188,6 +189,10 @@ while (($# > 0)); do
       umu_run_path="${2:-}"
       shift 2
       ;;
+    --steam-app-id)
+      steam_app_id="${2:-}"
+      shift 2
+      ;;
     *)
       fail "Unknown argument: $1"
       ;;
@@ -265,22 +270,23 @@ log_runtime_context
 
 if [[ -n "$umu_run_path" ]]; then
   log "Launching trainer via umu-run: $umu_run_path"
-  if GAMEID="0" PROTONPATH="$(dirname "$proton")" \
+  if GAMEID="${steam_app_id:-0}" PROTONPATH="$(dirname "$proton")" \
      "$umu_run_path" "$trainer_path"; then
     log "Trainer umu-run exited successfully."
     exit 0
+  else
+    exit_code=$?
+    log "Trainer umu-run exited with code $exit_code"
+    exit "$exit_code"
   fi
-  exit_code=$?
-  log "Trainer umu-run exited with code $exit_code"
-  exit "$exit_code"
 fi
 
 log "Launching trainer with direct proton run."
 if "$proton" run "$trainer_path"; then
   log "Trainer proton run exited successfully."
   exit 0
+else
+  exit_code=$?
+  log "Trainer proton run exited with code $exit_code"
+  exit "$exit_code"
 fi
-
-exit_code=$?
-log "Trainer proton run exited with code $exit_code"
-exit "$exit_code"

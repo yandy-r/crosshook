@@ -516,7 +516,8 @@ fn build_exec_line(gamescope_enabled: bool, target_path: &str, steam_app_id: &st
     // When gamescope wraps the command, env var assignments like `GAMEID=x cmd`
     // are parsed as command names by gamescope's reaper (everything after `--` is
     // the child argv). Use `env` to set them in the gamescope case. For the
-    // non-gamescope case, `exec KEY=VALUE cmd` is a valid bash construct.
+    // non-gamescope case, use `exec env ...` so assignments are not mistaken for
+    // the command name when the line is parsed or wrapped.
     let umu_env = format!(
         "GAMEID={game_id} PROTONPATH=\"$(dirname \"$PROTON\")\""
     );
@@ -529,7 +530,7 @@ fn build_exec_line(gamescope_enabled: bool, target_path: &str, steam_app_id: &st
         ));
     } else {
         block.push_str(&format!(
-            "  exec {umu_env} umu-run {target_path}\n"
+            "  exec env {umu_env} umu-run {target_path}\n"
         ));
     }
     block.push_str("else\n");
@@ -539,7 +540,7 @@ fn build_exec_line(gamescope_enabled: bool, target_path: &str, steam_app_id: &st
         ));
     } else {
         block.push_str(&format!(
-            "  exec \"$PROTON\" run {target_path}\n"
+            "  exec env {umu_env} \"$PROTON\" run {target_path}\n"
         ));
     }
     block.push_str("fi\n");
@@ -867,8 +868,12 @@ mod tests {
             .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(script_content.contains("staged_trainer_windows_path=\"C:\\\\CrossHook\\\\StagedTrainers\\\\$trainer_base_name\\\\$trainer_file_name\""));
         assert!(script_content.contains("if command -v umu-run >/dev/null 2>&1; then"));
-        assert!(script_content.contains("umu-run \"$staged_trainer_windows_path\""));
-        assert!(script_content.contains("exec \"$PROTON\" run \"$staged_trainer_windows_path\""));
+        assert!(script_content.contains(
+            r#"exec env GAMEID=1245620 PROTONPATH="$(dirname "$PROTON")" umu-run "$staged_trainer_windows_path""#
+        ));
+        assert!(script_content.contains(
+            r#"exec env GAMEID=1245620 PROTONPATH="$(dirname "$PROTON")" "$PROTON" run "$staged_trainer_windows_path""#
+        ));
         assert!(script_content.contains("fi\n"));
 
         let desktop_content = fs::read_to_string(&result.desktop_entry_path).expect("desktop");
@@ -992,8 +997,12 @@ mod tests {
         assert!(script_content.contains("elif [[ -d \"$PREFIX_ROOT/pfx\" ]]; then"));
         assert!(script_content.contains("trainer_host_path=\"$(realpath \"$TRAINER_HOST_PATH\")\""));
         assert!(script_content.contains("if command -v umu-run >/dev/null 2>&1; then"));
-        assert!(script_content.contains("umu-run \"$trainer_host_path\""));
-        assert!(script_content.contains("exec \"$PROTON\" run \"$trainer_host_path\""));
+        assert!(script_content.contains(
+            r#"exec env GAMEID=0 PROTONPATH="$(dirname "$PROTON")" umu-run "$trainer_host_path""#
+        ));
+        assert!(script_content.contains(
+            r#"exec env GAMEID=0 PROTONPATH="$(dirname "$PROTON")" "$PROTON" run "$trainer_host_path""#
+        ));
         assert!(script_content.contains("fi\n"));
         assert!(!script_content
             .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
@@ -1103,8 +1112,12 @@ mod tests {
         assert!(!content.contains("_GS_PREFIX"));
         assert!(!content.contains("gamescope"));
         assert!(content.contains("if command -v umu-run >/dev/null 2>&1; then"));
-        assert!(content.contains("umu-run \"$trainer_host_path\""));
-        assert!(content.contains("exec \"$PROTON\" run \"$trainer_host_path\""));
+        assert!(content.contains(
+            r#"exec env GAMEID=0 PROTONPATH="$(dirname "$PROTON")" umu-run "$trainer_host_path""#
+        ));
+        assert!(content.contains(
+            r#"exec env GAMEID=0 PROTONPATH="$(dirname "$PROTON")" "$PROTON" run "$trainer_host_path""#
+        ));
         assert!(content.contains("fi\n"));
     }
 

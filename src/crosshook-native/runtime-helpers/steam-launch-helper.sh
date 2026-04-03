@@ -389,21 +389,22 @@ run_proton_with_clean_env() {
        setsid "$umu_run_path" "$target_path"; then
       log "Trainer umu-run exited successfully."
       return 0
+    else
+      local exit_code=$?
+      log "Trainer umu-run exited with code $exit_code"
+      return "$exit_code"
     fi
-    local exit_code=$?
-    log "Trainer umu-run exited with code $exit_code"
-    return "$exit_code"
   fi
 
   log "Launching trainer with direct proton run."
   if setsid "$proton" run "$target_path"; then
     log "Trainer proton run exited successfully."
     return 0
+  else
+    local exit_code=$?
+    log "Trainer proton run exited with code $exit_code"
+    return "$exit_code"
   fi
-
-  local exit_code=$?
-  log "Trainer proton run exited with code $exit_code"
-  return "$exit_code"
 }
 
 trainer_exe_name=""

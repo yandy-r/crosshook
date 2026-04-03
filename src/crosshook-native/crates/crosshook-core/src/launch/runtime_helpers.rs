@@ -102,18 +102,17 @@ pub fn build_gamescope_args(config: &GamescopeConfig) -> Vec<String> {
 
 /// Builds a `Command` that invokes `umu-run` instead of the Proton binary directly.
 ///
-/// Sets `GAMEID` and `PROTONPATH` as command-level environment variables.
-/// `PROTONPATH` is the parent directory of `proton_path` (umu-run convention).
-/// `GAMEID` uses `steam_app_id` when provided, otherwise `"0"`.
+/// Sets `PROTONPATH` as a command-level environment variable (parent directory of
+/// `proton_path`, umu-run convention). Does **not** set `GAMEID`; callers must set
+/// `GAMEID` after `apply_optimization_and_custom_environment` so optimizations and
+/// custom env cannot overwrite it.
 /// `env_clear()` is called, so the caller must apply host/optimization env afterward.
 pub fn new_umu_run_command(
     umu_run_path: &str,
     proton_path: &str,
-    steam_app_id: &str,
     wrappers: &[String],
 ) -> Command {
     let proton_dir = resolve_proton_dir(proton_path);
-    let game_id = resolve_game_id(steam_app_id);
 
     let mut command = if wrappers.is_empty() {
         Command::new(umu_run_path.trim())
@@ -126,7 +125,6 @@ pub fn new_umu_run_command(
         cmd
     };
     command.env_clear();
-    command.env("GAMEID", &game_id);
     command.env("PROTONPATH", &proton_dir);
     command
 }
@@ -134,12 +132,10 @@ pub fn new_umu_run_command(
 pub fn new_umu_run_command_with_gamescope(
     umu_run_path: &str,
     proton_path: &str,
-    steam_app_id: &str,
     wrappers: &[String],
     gamescope_args: &[String],
 ) -> Command {
     let proton_dir = resolve_proton_dir(proton_path);
-    let game_id = resolve_game_id(steam_app_id);
 
     let mut command = Command::new("gamescope");
     for arg in gamescope_args {
@@ -151,7 +147,6 @@ pub fn new_umu_run_command_with_gamescope(
     }
     command.arg(umu_run_path.trim());
     command.env_clear();
-    command.env("GAMEID", &game_id);
     command.env("PROTONPATH", &proton_dir);
     command
 }
@@ -161,15 +156,6 @@ fn resolve_proton_dir(proton_path: &str) -> String {
         .parent()
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_default()
-}
-
-fn resolve_game_id(steam_app_id: &str) -> String {
-    let trimmed = steam_app_id.trim();
-    if trimmed.is_empty() {
-        "0".to_string()
-    } else {
-        trimmed.to_string()
-    }
 }
 
 pub fn new_proton_command_with_gamescope(
