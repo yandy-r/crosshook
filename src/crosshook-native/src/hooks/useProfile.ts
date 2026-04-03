@@ -320,6 +320,7 @@ function normalizeProfileForEdit(profile: GameProfile, optionsById: Record<strin
     prefix_path: '',
     proton_path: '',
     working_directory: '',
+    steam_app_id: '',
   };
   const { presets, active_preset } = normalizeLaunchPresetsSection(profile, optionsById);
   let enabledOptionIds = normalizeLaunchOptimizationIds(profile.launch.optimizations?.enabled_option_ids, optionsById);
@@ -343,6 +344,7 @@ function normalizeProfileForEdit(profile: GameProfile, optionsById: Record<strin
       },
     },
     runtime: {
+      ...runtime,
       prefix_path: runtime.prefix_path.trim(),
       proton_path: runtime.proton_path.trim(),
       working_directory: runtime.working_directory.trim(),

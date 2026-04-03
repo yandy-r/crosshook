@@ -10,6 +10,7 @@ pub enum GameImageType {
     Hero,
     Capsule,
     Portrait,
+    Background,
 }
 
 impl fmt::Display for GameImageType {
@@ -19,6 +20,7 @@ impl fmt::Display for GameImageType {
             Self::Hero => write!(f, "hero"),
             Self::Capsule => write!(f, "capsule"),
             Self::Portrait => write!(f, "portrait"),
+            Self::Background => write!(f, "background"),
         }
     }
 }
@@ -63,21 +65,37 @@ pub enum GameImageError {
     ClientBuild(reqwest::Error),
     /// The metadata store operation failed.
     Store(String),
+    /// The upstream API returned HTTP 401 or 403 (bad or expired API key).
+    AuthFailure { status: u16, message: String },
 }
 
 impl fmt::Display for GameImageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidAppId => write!(f, "app_id must be a non-empty decimal integer"),
-            Self::InvalidFilename => write!(f, "filename must be a plain basename with no path separators"),
-            Self::PathEscaped => write!(f, "constructed cache path escaped the expected base directory"),
-            Self::InvalidPath => write!(f, "could not compute parent of the constructed cache path"),
+            Self::InvalidFilename => write!(
+                f,
+                "filename must be a plain basename with no path separators"
+            ),
+            Self::PathEscaped => write!(
+                f,
+                "constructed cache path escaped the expected base directory"
+            ),
+            Self::InvalidPath => {
+                write!(f, "could not compute parent of the constructed cache path")
+            }
             Self::TooLarge => write!(f, "image response exceeds the 5 MB size limit"),
-            Self::ForbiddenFormat(mime) => write!(f, "image format '{mime}' is not permitted (allowed: jpeg, png, webp)"),
+            Self::ForbiddenFormat(mime) => write!(
+                f,
+                "image format '{mime}' is not permitted (allowed: jpeg, png, webp)"
+            ),
             Self::Io(error) => write!(f, "I/O error: {error}"),
             Self::Network(error) => write!(f, "network error: {error}"),
             Self::ClientBuild(error) => write!(f, "failed to build HTTP client: {error}"),
             Self::Store(msg) => write!(f, "metadata store error: {msg}"),
+            Self::AuthFailure { status, message } => {
+                write!(f, "API authentication failed (HTTP {status}): {message}")
+            }
         }
     }
 }
@@ -102,5 +120,49 @@ impl From<std::io::Error> for GameImageError {
 impl From<reqwest::Error> for GameImageError {
     fn from(error: reqwest::Error) -> Self {
         Self::Network(error)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_background_produces_background_string() {
+        assert_eq!(GameImageType::Background.to_string(), "background");
+    }
+
+    #[test]
+    fn display_all_variants_match_snake_case() {
+        assert_eq!(GameImageType::Cover.to_string(), "cover");
+        assert_eq!(GameImageType::Hero.to_string(), "hero");
+        assert_eq!(GameImageType::Capsule.to_string(), "capsule");
+        assert_eq!(GameImageType::Portrait.to_string(), "portrait");
+        assert_eq!(GameImageType::Background.to_string(), "background");
+    }
+
+    #[test]
+    fn auth_failure_display_includes_status_and_message() {
+        let err = GameImageError::AuthFailure {
+            status: 401,
+            message: "invalid key".to_string(),
+        };
+        let display = err.to_string();
+        assert!(display.contains("401"));
+        assert!(display.contains("invalid key"));
+    }
+
+    #[test]
+    fn auth_failure_display_403() {
+        let err = GameImageError::AuthFailure {
+            status: 403,
+            message: "forbidden".to_string(),
+        };
+        let display = err.to_string();
+        assert_eq!(display, "API authentication failed (HTTP 403): forbidden");
     }
 }

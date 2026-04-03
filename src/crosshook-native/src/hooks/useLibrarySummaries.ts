@@ -8,6 +8,7 @@ interface ProfileSummary {
   gameName: string;
   steamAppId: string;
   customCoverArtPath?: string;
+  customPortraitArtPath?: string;
 }
 
 export interface UseLibrarySummariesResult {
@@ -46,6 +47,7 @@ export function useLibrarySummaries(
           gameName: s.gameName,
           steamAppId: s.steamAppId,
           customCoverArtPath: s.customCoverArtPath,
+          customPortraitArtPath: s.customPortraitArtPath,
           isFavorite: favoriteSet.has(s.name),
         })),
       );

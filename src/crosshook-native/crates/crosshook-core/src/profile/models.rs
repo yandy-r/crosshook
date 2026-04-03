@@ -190,8 +190,24 @@ pub struct GameSection {
     pub name: String,
     #[serde(rename = "executable_path", default)]
     pub executable_path: String,
-    #[serde(rename = "custom_cover_art_path", default, skip_serializing_if = "String::is_empty")]
+    #[serde(
+        rename = "custom_cover_art_path",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
     pub custom_cover_art_path: String,
+    #[serde(
+        rename = "custom_portrait_art_path",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub custom_portrait_art_path: String,
+    #[serde(
+        rename = "custom_background_art_path",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub custom_background_art_path: String,
 }
 
 fn default_trainer_type() -> String {
@@ -266,6 +282,14 @@ pub struct RuntimeSection {
     pub proton_path: String,
     #[serde(rename = "working_directory", default)]
     pub working_directory: String,
+    /// Optional Steam App ID for media/metadata lookup only.
+    /// Does NOT affect launch behavior.
+    #[serde(
+        rename = "steam_app_id",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub steam_app_id: String,
 }
 
 impl RuntimeSection {
@@ -273,6 +297,7 @@ impl RuntimeSection {
         self.prefix_path.trim().is_empty()
             && self.proton_path.trim().is_empty()
             && self.working_directory.trim().is_empty()
+            && self.steam_app_id.trim().is_empty()
     }
 }
 
@@ -356,11 +381,18 @@ pub struct LocalOverrideGameSection {
     pub executable_path: String,
     #[serde(rename = "custom_cover_art_path", default)]
     pub custom_cover_art_path: String,
+    #[serde(rename = "custom_portrait_art_path", default)]
+    pub custom_portrait_art_path: String,
+    #[serde(rename = "custom_background_art_path", default)]
+    pub custom_background_art_path: String,
 }
 
 impl LocalOverrideGameSection {
     pub fn is_empty(&self) -> bool {
-        self.executable_path.trim().is_empty() && self.custom_cover_art_path.trim().is_empty()
+        self.executable_path.trim().is_empty()
+            && self.custom_cover_art_path.trim().is_empty()
+            && self.custom_portrait_art_path.trim().is_empty()
+            && self.custom_background_art_path.trim().is_empty()
     }
 }
 
@@ -413,8 +445,35 @@ impl GameProfile {
         if !self.local_override.game.executable_path.trim().is_empty() {
             merged.game.executable_path = self.local_override.game.executable_path.clone();
         }
-        if !self.local_override.game.custom_cover_art_path.trim().is_empty() {
-            merged.game.custom_cover_art_path = self.local_override.game.custom_cover_art_path.clone();
+        if !self
+            .local_override
+            .game
+            .custom_cover_art_path
+            .trim()
+            .is_empty()
+        {
+            merged.game.custom_cover_art_path =
+                self.local_override.game.custom_cover_art_path.clone();
+        }
+        if !self
+            .local_override
+            .game
+            .custom_portrait_art_path
+            .trim()
+            .is_empty()
+        {
+            merged.game.custom_portrait_art_path =
+                self.local_override.game.custom_portrait_art_path.clone();
+        }
+        if !self
+            .local_override
+            .game
+            .custom_background_art_path
+            .trim()
+            .is_empty()
+        {
+            merged.game.custom_background_art_path =
+                self.local_override.game.custom_background_art_path.clone();
         }
         if !self.local_override.trainer.path.trim().is_empty() {
             merged.trainer.path = self.local_override.trainer.path.clone();
@@ -442,7 +501,12 @@ impl GameProfile {
         let mut storage = effective.clone();
 
         storage.local_override.game.executable_path = effective.game.executable_path.clone();
-        storage.local_override.game.custom_cover_art_path = effective.game.custom_cover_art_path.clone();
+        storage.local_override.game.custom_cover_art_path =
+            effective.game.custom_cover_art_path.clone();
+        storage.local_override.game.custom_portrait_art_path =
+            effective.game.custom_portrait_art_path.clone();
+        storage.local_override.game.custom_background_art_path =
+            effective.game.custom_background_art_path.clone();
         storage.local_override.trainer.path = effective.trainer.path.clone();
         storage.local_override.steam.compatdata_path = effective.steam.compatdata_path.clone();
         storage.local_override.steam.proton_path = effective.steam.proton_path.clone();
@@ -451,6 +515,8 @@ impl GameProfile {
 
         storage.game.executable_path.clear();
         storage.game.custom_cover_art_path.clear();
+        storage.game.custom_portrait_art_path.clear();
+        storage.game.custom_background_art_path.clear();
         storage.trainer.path.clear();
         storage.steam.compatdata_path.clear();
         storage.steam.proton_path.clear();
@@ -477,6 +543,8 @@ impl From<LegacyProfileData> for GameProfile {
                 name: String::default(),
                 executable_path: value.game_path,
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: value.trainer_path,
@@ -526,6 +594,39 @@ pub fn resolve_launch_method(profile: &GameProfile) -> &str {
     "native"
 }
 
+/// Returns the effective Steam App ID to use for art/metadata resolution.
+///
+/// Priority: `steam.app_id` (non-empty) → `runtime.steam_app_id`.
+/// This field is media-only and does NOT affect how games launch (BR-9).
+pub fn resolve_art_app_id(profile: &GameProfile) -> &str {
+    let steam = profile.steam.app_id.trim();
+    if !steam.is_empty() {
+        return steam;
+    }
+    profile.runtime.steam_app_id.trim()
+}
+
+/// Validates a Steam App ID string.
+///
+/// Accepts: pure ASCII decimal digits, 1–12 characters.
+/// Accepts: empty string (means "not set").
+/// Rejects: non-digit characters, strings longer than 12 digits.
+pub fn validate_steam_app_id(value: &str) -> Result<(), String> {
+    if value.is_empty() {
+        return Ok(());
+    }
+    if value.len() > 12 {
+        return Err(format!(
+            "Steam App ID must be at most 12 digits, got {}",
+            value.len()
+        ));
+    }
+    if !value.chars().all(|c| c.is_ascii_digit()) {
+        return Err("Steam App ID must contain only numeric digits (0-9)".to_string());
+    }
+    Ok(())
+}
+
 fn derive_launch_method_from_legacy(value: &LegacyProfileData) -> String {
     if value.use_steam_mode {
         return "steam_applaunch".to_string();
@@ -552,6 +653,8 @@ mod tests {
                 name: "Test Game".to_string(),
                 executable_path: "/games/test.exe".to_string(),
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: TrainerSection::default(),
             injection: InjectionSection::default(),
@@ -810,7 +913,10 @@ type = "fling"
         let serialized = toml::to_string_pretty(&profile).expect("serialize");
         assert!(serialized.contains("[launch.trainer_gamescope]"));
         let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
-        assert_eq!(parsed.launch.trainer_gamescope, profile.launch.trainer_gamescope);
+        assert_eq!(
+            parsed.launch.trainer_gamescope,
+            profile.launch.trainer_gamescope
+        );
     }
 
     #[test]
@@ -840,5 +946,191 @@ type = "fling"
         let serialized = toml::to_string_pretty(&profile).expect("serialize");
         let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
         assert_eq!(parsed.launch.mangohud, profile.launch.mangohud);
+    }
+
+    // --- RuntimeSection::steam_app_id ---
+
+    #[test]
+    fn runtime_section_is_empty_returns_false_when_only_steam_app_id_set() {
+        let section = RuntimeSection {
+            steam_app_id: "1245620".to_string(),
+            ..RuntimeSection::default()
+        };
+        assert!(
+            !section.is_empty(),
+            "is_empty() must return false when steam_app_id is set"
+        );
+    }
+
+    #[test]
+    fn runtime_section_is_empty_returns_true_when_all_fields_empty() {
+        assert!(RuntimeSection::default().is_empty());
+    }
+
+    #[test]
+    fn runtime_steam_app_id_roundtrips_through_toml() {
+        let mut profile = sample_profile();
+        profile.runtime.steam_app_id = "1245620".to_string();
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(
+            serialized.contains("steam_app_id"),
+            "serialized TOML must contain steam_app_id: {serialized}"
+        );
+        let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+        assert_eq!(parsed.runtime.steam_app_id, "1245620");
+    }
+
+    #[test]
+    fn runtime_steam_app_id_empty_omitted_from_toml() {
+        let profile = sample_profile();
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(
+            !serialized.contains("steam_app_id"),
+            "empty steam_app_id must be omitted from TOML: {serialized}"
+        );
+    }
+
+    // --- resolve_art_app_id ---
+
+    #[test]
+    fn resolve_art_app_id_prefers_steam_app_id_when_both_set() {
+        let mut profile = sample_profile();
+        profile.steam.app_id = "111111".to_string();
+        profile.runtime.steam_app_id = "222222".to_string();
+        assert_eq!(resolve_art_app_id(&profile), "111111");
+    }
+
+    #[test]
+    fn resolve_art_app_id_falls_back_to_runtime_when_steam_empty() {
+        let mut profile = sample_profile();
+        profile.steam.app_id = String::new();
+        profile.runtime.steam_app_id = "1245620".to_string();
+        assert_eq!(resolve_art_app_id(&profile), "1245620");
+    }
+
+    #[test]
+    fn resolve_art_app_id_returns_empty_when_neither_set() {
+        let profile = sample_profile();
+        assert_eq!(resolve_art_app_id(&profile), "");
+    }
+
+    #[test]
+    fn resolve_art_app_id_trims_whitespace() {
+        let mut profile = sample_profile();
+        profile.steam.app_id = "  ".to_string();
+        profile.runtime.steam_app_id = " 1245620 ".to_string();
+        assert_eq!(resolve_art_app_id(&profile), "1245620");
+    }
+
+    // --- validate_steam_app_id ---
+
+    #[test]
+    fn validate_steam_app_id_accepts_empty_string() {
+        assert!(validate_steam_app_id("").is_ok());
+    }
+
+    #[test]
+    fn validate_steam_app_id_accepts_valid_ids() {
+        assert!(validate_steam_app_id("1245620").is_ok());
+        assert!(validate_steam_app_id("570").is_ok());
+        assert!(validate_steam_app_id("730").is_ok());
+        assert!(validate_steam_app_id("123456789012").is_ok()); // 12 digits — max
+    }
+
+    #[test]
+    fn validate_steam_app_id_rejects_non_numeric() {
+        assert!(validate_steam_app_id("abc").is_err());
+        assert!(validate_steam_app_id("123abc").is_err());
+        assert!(validate_steam_app_id("12.3").is_err());
+        assert!(validate_steam_app_id("12 3").is_err());
+    }
+
+    #[test]
+    fn validate_steam_app_id_rejects_more_than_12_digits() {
+        assert!(validate_steam_app_id("1234567890123").is_err()); // 13 digits
+    }
+
+    #[test]
+    fn validate_steam_app_id_accepts_exactly_12_digits() {
+        assert!(validate_steam_app_id("123456789012").is_ok());
+    }
+
+    // --- Tri-art fields (Task 2.1) ---
+
+    #[test]
+    fn local_override_game_section_not_empty_when_portrait_art_set() {
+        let section = LocalOverrideGameSection {
+            custom_portrait_art_path: "/art/portrait.png".to_string(),
+            ..LocalOverrideGameSection::default()
+        };
+        assert!(!section.is_empty());
+    }
+
+    #[test]
+    fn local_override_game_section_not_empty_when_background_art_set() {
+        let section = LocalOverrideGameSection {
+            custom_background_art_path: "/art/bg.png".to_string(),
+            ..LocalOverrideGameSection::default()
+        };
+        assert!(!section.is_empty());
+    }
+
+    #[test]
+    fn storage_profile_moves_portrait_and_background_to_local_override() {
+        let mut profile = sample_profile();
+        profile.game.custom_portrait_art_path = "/art/portrait.png".to_string();
+        profile.game.custom_background_art_path = "/art/bg.png".to_string();
+
+        let storage = profile.storage_profile();
+        assert!(storage.game.custom_portrait_art_path.is_empty());
+        assert!(storage.game.custom_background_art_path.is_empty());
+        assert_eq!(
+            storage.local_override.game.custom_portrait_art_path,
+            "/art/portrait.png"
+        );
+        assert_eq!(
+            storage.local_override.game.custom_background_art_path,
+            "/art/bg.png"
+        );
+    }
+
+    #[test]
+    fn effective_profile_merges_portrait_and_background_from_local_override() {
+        let mut profile = sample_profile();
+        profile.local_override.game.custom_portrait_art_path = "/override/portrait.png".to_string();
+        profile.local_override.game.custom_background_art_path = "/override/bg.png".to_string();
+
+        let effective = profile.effective_profile();
+        assert_eq!(
+            effective.game.custom_portrait_art_path,
+            "/override/portrait.png"
+        );
+        assert_eq!(
+            effective.game.custom_background_art_path,
+            "/override/bg.png"
+        );
+    }
+
+    #[test]
+    fn portrait_and_background_art_paths_roundtrip_through_toml() {
+        let mut profile = sample_profile();
+        profile.game.custom_portrait_art_path = "/art/portrait.png".to_string();
+        profile.game.custom_background_art_path = "/art/bg.png".to_string();
+
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(serialized.contains("custom_portrait_art_path"));
+        assert!(serialized.contains("custom_background_art_path"));
+
+        let parsed: GameProfile = toml::from_str(&serialized).expect("deserialize");
+        assert_eq!(parsed.game.custom_portrait_art_path, "/art/portrait.png");
+        assert_eq!(parsed.game.custom_background_art_path, "/art/bg.png");
+    }
+
+    #[test]
+    fn empty_portrait_and_background_art_paths_omitted_from_toml() {
+        let profile = sample_profile();
+        let serialized = toml::to_string_pretty(&profile).expect("serialize");
+        assert!(!serialized.contains("custom_portrait_art_path"));
+        assert!(!serialized.contains("custom_background_art_path"));
     }
 }

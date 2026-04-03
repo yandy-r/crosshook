@@ -94,6 +94,8 @@ export interface GameProfile {
     name: string;
     executable_path: string;
     custom_cover_art_path?: string;
+    custom_portrait_art_path?: string;
+    custom_background_art_path?: string;
   };
   trainer: {
     path: string;
@@ -120,6 +122,7 @@ export interface GameProfile {
     prefix_path: string;
     proton_path: string;
     working_directory: string;
+    steam_app_id?: string;
   };
   launch: {
     method: LaunchMethod;
@@ -137,6 +140,8 @@ export interface GameProfile {
     game: {
       executable_path: string;
       custom_cover_art_path?: string;
+      custom_portrait_art_path?: string;
+      custom_background_art_path?: string;
     };
     trainer: {
       path: string;

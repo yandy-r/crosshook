@@ -100,6 +100,7 @@
   --crosshook-autosave-error-border: rgba(255, 117, 143, 0.3);
 
   --crosshook-profile-cover-art-aspect: 460 / 215;
+  --crosshook-media-slot-preview-radius: 6px;
   --crosshook-skeleton-duration: 1.8s;
   --crosshook-skeleton-color-from: var(--crosshook-color-surface);
   --crosshook-skeleton-color-to: var(--crosshook-color-bg-elevated);

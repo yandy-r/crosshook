@@ -564,6 +564,8 @@ mod tests {
                 name: "Elden Ring".to_string(),
                 executable_path: "/games/elden-ring/eldenring.exe".to_string(),
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: crate::profile::TrainerSection {
                 path: "/trainers/elden-ring.exe".to_string(),
@@ -589,6 +591,7 @@ mod tests {
                 prefix_path: String::new(),
                 proton_path: String::new(),
                 working_directory: String::new(),
+                steam_app_id: String::new(),
             },
             launch: crate::profile::LaunchSection {
                 method: "steam_applaunch".to_string(),

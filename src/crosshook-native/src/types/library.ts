@@ -5,5 +5,6 @@ export interface LibraryCardData {
   gameName: string;
   steamAppId: string;
   customCoverArtPath?: string;
+  customPortraitArtPath?: string;
   isFavorite: boolean;
 }

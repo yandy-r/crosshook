@@ -1100,12 +1100,9 @@ mod tests {
         );
         let content = build_trainer_script_content(&request, "Test Game");
         assert!(content.contains("_GAMESCOPE_ARGS=("));
-        assert!(content.contains(
-            r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$staged_trainer_windows_path""#
-        ));
-        assert!(!content.contains(
-            "exec \"$PROTON\" run \"$staged_trainer_windows_path\""
-        ));
+        assert!(content
+            .contains(r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$staged_trainer_windows_path""#));
+        assert!(!content.contains("exec \"$PROTON\" run \"$staged_trainer_windows_path\""));
     }
 
     #[test]

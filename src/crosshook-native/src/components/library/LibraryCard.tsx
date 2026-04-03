@@ -45,7 +45,7 @@ export function LibraryCard({
 
   const { coverArtUrl, loading } = useGameCoverArt(
     visible ? profile.steamAppId : undefined,
-    profile.customCoverArtPath,
+    profile.customPortraitArtPath,
     'portrait',
   );
 

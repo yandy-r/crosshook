@@ -15,9 +15,9 @@ use crosshook_core::launch::{
     LaunchValidationIssue, ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN,
     METHOD_STEAM_APPLAUNCH,
 };
-use crosshook_core::profile::GamescopeConfig;
 use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file, MetadataStore};
 use crosshook_core::offline::readiness::MIN_OFFLINE_READINESS_SCORE;
+use crosshook_core::profile::GamescopeConfig;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::steam::discover_steam_root_candidates;
 use crosshook_core::steam::libraries::discover_steam_libraries;

@@ -10,7 +10,8 @@ export interface AppSettingsData {
   community_taps: CommunityTapSubscription[];
   onboarding_completed?: boolean;
   offline_mode?: boolean;
-  steamgriddb_api_key?: string | null;
+  /** True when a SteamGridDB API key is stored on the backend. The raw key is never sent to the frontend. */
+  has_steamgriddb_api_key: boolean;
 }
 
 export interface RecentFilesData {
