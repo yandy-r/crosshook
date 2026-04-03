@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
+use crate::launch::runtime_helpers::resolve_umu_run_path;
 use crate::onboarding::ReadinessCheckResult;
 use crate::profile::health::{HealthIssue, HealthIssueSeverity};
 use crate::steam::{discover_compat_tools, discover_steam_root_candidates, ProtonInstall};
@@ -17,7 +18,8 @@ fn home_to_tilde(path_str: &str) -> String {
 
 /// Run all system-level first-run readiness checks synchronously.
 ///
-/// Checks: Steam installed, Proton available, game launched once, trainer available.
+/// Checks: Steam installed, Proton available, game launched once, trainer available,
+/// umu-run available.
 /// Path strings in the returned `HealthIssue` values have the home directory
 /// replaced with `~` for display safety.
 pub fn check_system_readiness() -> ReadinessCheckResult {
@@ -120,6 +122,32 @@ fn evaluate_checks(
         severity: HealthIssueSeverity::Info,
     });
 
+    // Check 5: umu-run optional launcher
+    {
+        let umu_path = resolve_umu_run_path();
+        match umu_path {
+            Some(ref p) => {
+                let path_display = home_to_tilde(p);
+                checks.push(HealthIssue {
+                    field: "umu_run_available".to_string(),
+                    path: path_display,
+                    message: "umu-run found; CrossHook will use it as the preferred Proton launcher.".to_string(),
+                    remediation: String::new(),
+                    severity: HealthIssueSeverity::Info,
+                });
+            }
+            None => {
+                checks.push(HealthIssue {
+                    field: "umu_run_available".to_string(),
+                    path: String::new(),
+                    message: "umu-run not found; CrossHook will use Proton directly. Install umu-launcher for improved runtime bootstrapping.".to_string(),
+                    remediation: String::new(),
+                    severity: HealthIssueSeverity::Info,
+                });
+            }
+        }
+    }
+
     let critical_failures = checks
         .iter()
         .filter(|c| matches!(c.severity, HealthIssueSeverity::Error))
@@ -200,7 +228,7 @@ mod tests {
         );
         assert_eq!(result.critical_failures, 0);
         assert_eq!(result.warnings, 0);
-        assert_eq!(result.checks.len(), 4);
+        assert_eq!(result.checks.len(), 5);
     }
 
     #[test]

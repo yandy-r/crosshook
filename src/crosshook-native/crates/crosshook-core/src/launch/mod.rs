@@ -30,3 +30,4 @@ pub use request::{
     RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest, ValidationError,
     ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
+pub use runtime_helpers::resolve_umu_run_path;

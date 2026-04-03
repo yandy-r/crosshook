@@ -80,6 +80,10 @@ pub struct RuntimeLaunchConfig {
     pub proton_path: String,
     #[serde(default)]
     pub working_directory: String,
+    /// Steam App ID used as `GAMEID` when launching via `umu-run`.
+    /// Falls back to `"0"` when empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub steam_app_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -1124,6 +1128,7 @@ mod tests {
             prefix_path: request.steam.compatdata_path.clone(),
             proton_path: request.steam.proton_path.clone(),
             working_directory: String::new(),
+            steam_app_id: String::new(),
         };
         request.steam = SteamLaunchConfig::default();
         (temp_dir, request)

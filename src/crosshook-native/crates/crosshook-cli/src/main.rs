@@ -733,6 +733,7 @@ fn launch_request_from_profile(
                 prefix_path: profile.runtime.prefix_path.clone(),
                 proton_path: profile.runtime.proton_path.clone(),
                 working_directory: profile.runtime.working_directory.clone(),
+                steam_app_id: profile.runtime.steam_app_id.clone(),
             },
             METHOD_NATIVE => RuntimeLaunchConfig {
                 working_directory: profile.runtime.working_directory.clone(),

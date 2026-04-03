@@ -11,7 +11,8 @@ use super::{
         apply_custom_env_vars, apply_host_environment, apply_optimization_and_custom_environment,
         apply_runtime_proton_environment, apply_working_directory, attach_log_stdio,
         build_gamescope_args, new_direct_proton_command_with_wrappers,
-        new_proton_command_with_gamescope, resolve_wine_prefix_path,
+        new_proton_command_with_gamescope, new_umu_run_command,
+        new_umu_run_command_with_gamescope, resolve_umu_run_path, resolve_wine_prefix_path,
     },
     LaunchRequest, ValidationError,
 };
@@ -161,7 +162,25 @@ pub fn build_proton_game_command(
     let directives = resolve_launch_directives(request).map_err(validation_error_to_io_error)?;
     let gamescope_active = request.gamescope.enabled && !should_skip_gamescope(&request.gamescope);
     let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
-    let mut command = if gamescope_active {
+    let umu_run_path = resolve_umu_run_path();
+    let mut command = if let Some(ref umu) = umu_run_path {
+        if gamescope_active {
+            let (gamescope_args, filtered_wrappers) =
+                prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
+            new_umu_run_command_with_gamescope(
+                umu,
+                request.runtime.proton_path.trim(),
+                &filtered_wrappers,
+                &gamescope_args,
+            )
+        } else {
+            new_umu_run_command(
+                umu,
+                request.runtime.proton_path.trim(),
+                &directives.wrappers,
+            )
+        }
+    } else if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
             prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
         new_proton_command_with_gamescope(
@@ -187,6 +206,7 @@ pub fn build_proton_game_command(
         &directives.env,
         &request.custom_env_vars,
     );
+    command.env("GAMEID", resolved_umu_game_id_for_env(request));
     apply_mangohud_config_env(
         &mut command,
         request,
@@ -218,7 +238,25 @@ pub fn build_proton_trainer_command(
     let trainer_gamescope = request.effective_trainer_gamescope();
     let gamescope_active = trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope);
     let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
-    let mut command = if gamescope_active {
+    let umu_run_path = resolve_umu_run_path();
+    let mut command = if let Some(ref umu) = umu_run_path {
+        if gamescope_active {
+            let (gamescope_args, filtered_wrappers) =
+                prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
+            new_umu_run_command_with_gamescope(
+                umu,
+                request.runtime.proton_path.trim(),
+                &filtered_wrappers,
+                &gamescope_args,
+            )
+        } else {
+            new_umu_run_command(
+                umu,
+                request.runtime.proton_path.trim(),
+                &directives.wrappers,
+            )
+        }
+    } else if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
             prepare_gamescope_launch(trainer_gamescope, &directives.wrappers);
         new_proton_command_with_gamescope(
@@ -244,6 +282,7 @@ pub fn build_proton_trainer_command(
         &directives.env,
         &request.custom_env_vars,
     );
+    command.env("GAMEID", resolved_umu_game_id_for_env(request));
     apply_mangohud_config_env(
         &mut command,
         request,
@@ -344,6 +383,11 @@ fn helper_arguments(request: &LaunchRequest, log_path: &Path) -> Vec<OsString> {
         arguments.push("--game-only".into());
     }
 
+    if let Some(umu_path) = resolve_umu_run_path() {
+        arguments.push("--umu-run-path".into());
+        arguments.push(umu_path.into());
+    }
+
     arguments
 }
 
@@ -355,6 +399,8 @@ fn trainer_arguments(request: &LaunchRequest, log_path: &Path) -> Vec<OsString> 
         request.steam.proton_path.clone().into(),
         "--steam-client".into(),
         request.steam.steam_client_install_path.clone().into(),
+        "--steam-app-id".into(),
+        request.steam.app_id.clone().into(),
         "--trainer-path".into(),
         request.trainer_path.clone().into(),
         "--trainer-host-path".into(),
@@ -372,6 +418,9 @@ fn trainer_arguments(request: &LaunchRequest, log_path: &Path) -> Vec<OsString> 
             arguments.push("--gamescope-arg".into());
             arguments.push(arg.into());
         }
+    if let Some(umu_path) = resolve_umu_run_path() {
+        arguments.push("--umu-run-path".into());
+        arguments.push(umu_path.into());
     }
 
     arguments
@@ -491,11 +540,50 @@ fn validation_error_to_io_error(error: ValidationError) -> std::io::Error {
     io_error(&error.to_string())
 }
 
+/// Returns the best available Steam App ID for umu-run's `GAMEID`.
+/// Prefers `steam.app_id`, falls back to `runtime.steam_app_id`, then `""`.
+fn resolve_steam_app_id_for_umu(request: &LaunchRequest) -> &str {
+    let steam_id = request.steam.app_id.trim();
+    if !steam_id.is_empty() {
+        return steam_id;
+    }
+    let runtime_id = request.runtime.steam_app_id.trim();
+    if !runtime_id.is_empty() {
+        return runtime_id;
+    }
+    ""
+}
+
+fn resolved_umu_game_id_for_env(request: &LaunchRequest) -> String {
+    let trimmed = resolve_steam_app_id_for_umu(request).trim();
+    if trimmed.is_empty() {
+        "0".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+    use crate::launch::runtime_helpers::{disable_test_umu_run, enable_test_umu_run};
+
+    /// RAII guard that disables umu-run detection for the scope of a test.
+    /// Uses an atomic counter so parallel tests don't interfere.
+    struct DisableUmuRun;
+    impl DisableUmuRun {
+        fn new() -> Self {
+            disable_test_umu_run();
+            Self
+        }
+    }
+    impl Drop for DisableUmuRun {
+        fn drop(&mut self) {
+            enable_test_umu_run();
+        }
+    }
 
     fn write_executable_file(path: &Path) {
         fs::write(path, b"test").expect("write file");
@@ -545,6 +633,7 @@ mod tests {
 
     #[test]
     fn proton_game_command_applies_optimization_wrappers_and_env() {
+        let _guard = DisableUmuRun::new();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let wrapper_dir = temp_dir.path().join("wrappers");
         let prefix_path = temp_dir.path().join("prefix");
@@ -581,6 +670,7 @@ mod tests {
                 prefix_path: prefix_path.to_string_lossy().into_owned(),
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: workspace_dir.to_string_lossy().into_owned(),
+                steam_app_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest {
                 enabled_option_ids: vec![
@@ -632,10 +722,12 @@ mod tests {
             command_env_value(&command, "WINEPREFIX"),
             Some(prefix_path.to_string_lossy().into_owned())
         );
+        assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
     }
 
     #[test]
     fn proton_game_custom_env_overrides_duplicate_optimization_key() {
+        let _guard = DisableUmuRun::new();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("prefix");
         let proton_path = temp_dir.path().join("proton");
@@ -668,6 +760,7 @@ mod tests {
                 prefix_path: prefix_path.to_string_lossy().into_owned(),
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: workspace_dir.to_string_lossy().into_owned(),
+                steam_app_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest {
                 enabled_option_ids: vec!["enable_dxvk_async".to_string()],
@@ -684,6 +777,7 @@ mod tests {
             command_env_value(&command, "DXVK_ASYNC"),
             Some("0".to_string())
         );
+        assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
     }
 
     #[test]
@@ -718,6 +812,7 @@ mod tests {
 
     #[test]
     fn proton_trainer_command_applies_optimization_wrappers_and_env() {
+        let _guard = DisableUmuRun::new();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let wrapper_dir = temp_dir.path().join("wrappers");
         let prefix_path = temp_dir.path().join("prefix");
@@ -761,6 +856,7 @@ mod tests {
                 prefix_path: prefix_path.to_string_lossy().into_owned(),
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: workspace_dir.to_string_lossy().into_owned(),
+                steam_app_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest {
                 enabled_option_ids: vec![
@@ -812,6 +908,7 @@ mod tests {
             command_env_value(&command, "WINEPREFIX"),
             Some(wine_prefix_path.to_string_lossy().into_owned())
         );
+        assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
         assert!(wine_prefix_path
             .join("drive_c/CrossHook/StagedTrainers/sample/sample.ini")
             .exists());
@@ -819,6 +916,7 @@ mod tests {
 
     #[test]
     fn helper_command_includes_expected_script_arguments() {
+        let _guard = DisableUmuRun::new();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let script_path = temp_dir.path().join("script.sh");
         let log_path = temp_dir.path().join("log.txt");
@@ -866,7 +964,48 @@ mod tests {
     }
 
     #[test]
+    fn trainer_command_includes_steam_app_id_and_trainer_arguments() {
+        let _guard = DisableUmuRun::new();
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let script_path = temp_dir.path().join("steam-launch-trainer.sh");
+        let log_path = temp_dir.path().join("trainer.log");
+        let request = steam_request();
+
+        let command = build_trainer_command(&request, &script_path, &log_path);
+
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args,
+            vec![
+                script_path.to_string_lossy().into_owned(),
+                "--compatdata".to_string(),
+                "/tmp/compat".to_string(),
+                "--proton".to_string(),
+                "/tmp/proton".to_string(),
+                "--steam-client".to_string(),
+                "/tmp/steam".to_string(),
+                "--steam-app-id".to_string(),
+                "12345".to_string(),
+                "--trainer-path".to_string(),
+                "/trainers/trainer.exe".to_string(),
+                "--trainer-host-path".to_string(),
+                "/trainers/trainer.exe".to_string(),
+                "--trainer-loading-mode".to_string(),
+                "source_directory".to_string(),
+                "--log-file".to_string(),
+                log_path.to_string_lossy().into_owned(),
+            ]
+        );
+    }
+
+    #[test]
     fn proton_trainer_command_stages_support_files_into_prefix() {
+        let _guard = DisableUmuRun::new();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("pfx");
         let trainer_source_dir = temp_dir.path().join("trainer");
@@ -896,6 +1035,7 @@ mod tests {
                 prefix_path: prefix_path.to_string_lossy().into_owned(),
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
+                steam_app_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -928,6 +1068,7 @@ mod tests {
 
     #[test]
     fn proton_trainer_command_uses_source_directory_without_staging() {
+        let _guard = DisableUmuRun::new();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("prefix");
         let proton_path = temp_dir.path().join("proton");
@@ -955,6 +1096,7 @@ mod tests {
                 prefix_path: prefix_path.to_string_lossy().into_owned(),
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
+                steam_app_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -1078,6 +1220,7 @@ mod tests {
 
     #[test]
     fn proton_game_command_sets_compat_data_path_for_standalone_prefixes() {
+        let _guard = DisableUmuRun::new();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("standalone-prefix");
         let proton_path = temp_dir.path().join("proton");
@@ -1106,6 +1249,7 @@ mod tests {
                 prefix_path: prefix_path.to_string_lossy().into_owned(),
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
+                steam_app_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: false,
@@ -1141,6 +1285,7 @@ mod tests {
 
     #[test]
     fn proton_trainer_command_uses_pfx_child_when_prefix_path_is_compatdata_root() {
+        let _guard = DisableUmuRun::new();
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let compatdata_root = temp_dir.path().join("compatdata-root");
         let wine_prefix_path = compatdata_root.join("pfx");
@@ -1169,6 +1314,7 @@ mod tests {
                 prefix_path: compatdata_root.to_string_lossy().into_owned(),
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
+                steam_app_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,

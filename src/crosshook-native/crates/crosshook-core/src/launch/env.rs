@@ -25,7 +25,7 @@ pub const WINE_ENV_VARS_TO_CLEAR: &[&str] = &[
     "GST_PLUGIN_SYSTEM_PATH_1_0",
     "SteamGameId",
     "SteamAppId",
-    "GAMEID",
+    "GAMEID", // Cleared for direct Proton; set per-command when umu-run is active
     "PROTON_LOG",
     "PROTON_DUMP_DEBUG_COMMANDS",
     "PROTON_USE_WINED3D",
