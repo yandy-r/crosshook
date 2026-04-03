@@ -3,6 +3,8 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use std::fs;
+
 use crosshook_core::launch::{
     analyze, build_launch_preview,
     build_steam_launch_options_command as build_steam_launch_options_command_core,
@@ -69,6 +71,70 @@ pub fn build_steam_launch_options_command(
 #[tauri::command]
 pub fn check_gamescope_session() -> bool {
     crosshook_core::launch::is_inside_gamescope_session()
+}
+
+/// Checks whether a process whose name matches `exe_name` is currently running.
+///
+/// Scans `/proc/<pid>/comm` for exact matches, handling both the original name
+/// (e.g. `game.exe`) and the name without the `.exe` suffix (`game`).
+/// When `comm` is exactly 15 characters (the Linux `TASK_COMM_LEN` truncation
+/// boundary), falls back to `/proc/<pid>/cmdline` for the full argv\[0\] basename.
+fn is_process_running(exe_name: &str) -> bool {
+    let name = exe_name.trim();
+    if name.is_empty() {
+        return false;
+    }
+
+    let without_exe = name.strip_suffix(".exe").or_else(|| name.strip_suffix(".EXE"));
+    let candidates: Vec<&str> = match without_exe {
+        Some(stripped) => vec![name, stripped],
+        None => vec![name],
+    };
+
+    let Ok(proc_dir) = fs::read_dir("/proc") else {
+        return false;
+    };
+
+    for entry in proc_dir.flatten() {
+        let dir_name = entry.file_name();
+        let dir_name_str = dir_name.to_string_lossy();
+
+        if !dir_name_str.chars().all(|c| c.is_ascii_digit()) {
+            continue;
+        }
+
+        let pid_path = entry.path();
+
+        if let Ok(comm) = fs::read_to_string(pid_path.join("comm")) {
+            let comm = comm.trim_end_matches('\n');
+            if candidates.iter().any(|c| *c == comm) {
+                return true;
+            }
+
+            // comm is truncated at 15 chars; check cmdline for the full name.
+            if comm.len() == 15 {
+                if let Ok(cmdline) = fs::read_to_string(pid_path.join("cmdline")) {
+                    let argv0 = cmdline.split('\0').next().unwrap_or("");
+                    let basename = argv0.rsplit('/').next().unwrap_or(argv0);
+                    let basename = basename.rsplit('\\').next().unwrap_or(basename);
+                    if candidates.iter().any(|c| *c == basename) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    false
+}
+
+#[tauri::command]
+pub fn check_game_running(exe_name: String) -> bool {
+    let name = exe_name.trim();
+    if name.is_empty() {
+        return false;
+    }
+    is_process_running(name)
 }
 
 /// Non-blocking offline readiness advisory when the profile has a trainer configured.

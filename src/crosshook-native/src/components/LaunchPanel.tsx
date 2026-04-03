@@ -604,13 +604,13 @@ export function LaunchPanel({
 }: LaunchPanelProps) {
   const profileSelect = profileSelectSlot ?? beforeActions;
   const {
-    actionLabel,
     canLaunchGame,
     canLaunchTrainer,
     feedback,
     helperLogPath,
     hintText,
     isBusy,
+    isGameRunning,
     launchGame,
     launchTrainer,
     phase,
@@ -666,8 +666,6 @@ export function LaunchPanel({
 
   const isWaitingForTrainer = phase === LaunchPhase.WaitingForTrainer;
   const isSessionActive = phase === LaunchPhase.SessionActive;
-  const canLaunch = isWaitingForTrainer ? canLaunchTrainer : canLaunchGame;
-  const primaryAction = isWaitingForTrainer ? launchTrainer : launchGame;
   const validationFeedback = feedback?.kind === 'validation' ? feedback.issue : null;
   const diagnosticFeedback = feedback?.kind === 'diagnostic' ? feedback.report : null;
   const runtimeFeedback = feedback?.kind === 'runtime' ? feedback.message : null;
@@ -849,11 +847,25 @@ export function LaunchPanel({
                 type="button"
                 className="crosshook-button crosshook-launch-panel__action"
                 style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
-                onClick={primaryAction}
-                disabled={!canLaunch || isBusy}
+                onClick={launchGame}
+                disabled={!canLaunchGame}
                 aria-describedby={launchGuidanceText ? launchGuidanceId : undefined}
               >
-                {actionLabel}
+                {isGameRunning
+                  ? 'Game Running'
+                  : isBusy && phase === LaunchPhase.GameLaunching
+                    ? 'Launching\u2026'
+                    : 'Launch Game'}
+              </button>
+              <button
+                type="button"
+                className="crosshook-button crosshook-launch-panel__action"
+                style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
+                onClick={launchTrainer}
+                disabled={!canLaunchTrainer}
+                aria-describedby={launchGuidanceText ? launchGuidanceId : undefined}
+              >
+                {isBusy && phase === LaunchPhase.TrainerLaunching ? 'Launching\u2026' : 'Launch Trainer'}
               </button>
               <button
                 type="button"
@@ -878,7 +890,7 @@ export function LaunchPanel({
           <div className="crosshook-launch-panel__runner-stack">
             <div
               className="crosshook-launch-panel__indicator"
-              data-state={isSessionActive ? 'active' : isWaitingForTrainer ? 'waiting' : 'idle'}
+              data-state={isSessionActive ? 'active' : isWaitingForTrainer ? 'waiting' : isGameRunning ? 'running' : 'idle'}
             >
               <div className="crosshook-launch-panel__indicator-row">
                 <span className="crosshook-launch-panel__indicator-dot" aria-hidden="true" />
