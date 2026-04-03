@@ -138,6 +138,7 @@ async function validateLaunchRequest(request: LaunchRequest): Promise<LaunchVali
 
 export function useLaunchState({ profileId, profileName, method, request }: UseLaunchStateArgs) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [isGameRunning, setIsGameRunning] = useState(false);
   const [offlineReadiness, setOfflineReadiness] = useState<OfflineReadinessReport | null>(null);
   const [offlineReadinessLoading, setOfflineReadinessLoading] = useState(false);
   const [offlineReadinessError, setOfflineReadinessError] = useState<string | null>(null);
@@ -149,6 +150,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   useEffect(() => {
     activeHelperLogPathRef.current = null;
     dispatch({ type: 'reset' });
+    setIsGameRunning(false);
     setOfflineReadiness(null);
     setOfflineReadinessError(null);
     setLaunchPathWarnings([]);
@@ -191,6 +193,34 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   useEffect(() => {
     activeHelperLogPathRef.current = state.helperLogPath;
   }, [state.helperLogPath]);
+
+  useEffect(() => {
+    const gamePath = request?.game_path?.trim() ?? '';
+    const exeName = gamePath ? gamePath.split(/[\\/]/).pop() ?? '' : '';
+
+    if (!exeName) {
+      setIsGameRunning(false);
+      return;
+    }
+
+    let cancelled = false;
+    const check = () => {
+      void invoke<boolean>('check_game_running', { exeName })
+        .then((running) => {
+          if (!cancelled) setIsGameRunning(running);
+        })
+        .catch(() => {
+          // IPC failure — keep previous state; next tick will retry.
+        });
+    };
+
+    check();
+    const intervalId = window.setInterval(check, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [request?.game_path]);
 
   useEffect(() => {
     let active = true;
@@ -275,6 +305,8 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       return;
     }
 
+    const trainerFallbackPhase =
+      state.phase === LaunchPhase.WaitingForTrainer ? LaunchPhase.WaitingForTrainer : LaunchPhase.Idle;
     const launchRequest = buildLaunchRequest(request, LaunchPhase.TrainerLaunching);
     activeHelperLogPathRef.current = null;
     dispatch({ type: 'trainer-start' });
@@ -300,7 +332,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
                   severity: 'fatal',
                 },
               },
-              fallbackPhase: LaunchPhase.WaitingForTrainer,
+              fallbackPhase: trainerFallbackPhase,
             });
             return;
           }
@@ -319,7 +351,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
             kind: 'validation',
             issue: validationIssue,
           },
-          fallbackPhase: LaunchPhase.WaitingForTrainer,
+          fallbackPhase: trainerFallbackPhase,
         });
         return;
       }
@@ -340,13 +372,14 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
           kind: 'runtime',
           message: normalizeRuntimeError(error),
         },
-        fallbackPhase: LaunchPhase.WaitingForTrainer,
+        fallbackPhase: trainerFallbackPhase,
       });
     }
   }
 
   function reset() {
     dispatch({ type: 'reset' });
+    setIsGameRunning(false);
     setOfflineReadiness(null);
     setOfflineReadinessError(null);
     setLaunchPathWarnings([]);
@@ -363,6 +396,12 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
         default:
           return 'Select a Linux-native game executable to enable launch.';
       }
+    }
+
+    if (isGameRunning && state.phase === LaunchPhase.Idle) {
+      return method === 'native'
+        ? 'Native game detected. Trainer unavailable.'
+        : 'Game process detected. Launch Trainer when ready.';
     }
 
     switch (state.phase) {
@@ -395,6 +434,12 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       }
     }
 
+    if (isGameRunning && state.phase === LaunchPhase.Idle) {
+      return method === 'native'
+        ? 'The game is already running. Native launch does not support the trainer flow.'
+        : 'The game is already running. You can launch the trainer directly.';
+    }
+
     if (state.phase === LaunchPhase.WaitingForTrainer) {
       return method === 'steam_applaunch'
         ? 'Wait for the game to reach the main menu, then click Launch Trainer.'
@@ -412,26 +457,26 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       : 'The game starts first. The trainer is launched in the second step.';
   })();
 
-  const actionLabel = state.phase === LaunchPhase.WaitingForTrainer ? 'Launch Trainer' : 'Launch Game';
-
   const isBusy = state.phase === LaunchPhase.GameLaunching || state.phase === LaunchPhase.TrainerLaunching;
 
-  const canLaunchGame = hasLaunchRequest && state.phase === LaunchPhase.Idle && !isBusy;
+  const canLaunchGame = hasLaunchRequest && state.phase === LaunchPhase.Idle && !isBusy && !isGameRunning;
   const canLaunchTrainer =
-    hasLaunchRequest && isTwoStepLaunch && state.phase === LaunchPhase.WaitingForTrainer && !isBusy;
+    hasLaunchRequest &&
+    isTwoStepLaunch &&
+    (state.phase === LaunchPhase.Idle || state.phase === LaunchPhase.WaitingForTrainer);
 
   const offlineWarning =
     offlineReadiness !== null &&
     (offlineReadiness.score < MIN_OFFLINE_READINESS_SCORE || (offlineReadiness.blocking_reasons?.length ?? 0) > 0);
 
   return {
-    actionLabel,
     canLaunchGame,
     canLaunchTrainer,
     diagnosticReport: state.diagnosticReport,
     hintText,
     helperLogPath: state.helperLogPath,
     isBusy,
+    isGameRunning,
     launchGame,
     launchTrainer,
     launchPathWarnings,
