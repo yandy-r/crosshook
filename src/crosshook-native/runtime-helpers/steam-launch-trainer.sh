@@ -10,7 +10,6 @@ trainer_loading_mode="source_directory"
 log_file=""
 gamescope_enabled="0"
 gamescope_args=()
-umu_run_path=""
 steam_app_id=""
 
 log() {
@@ -80,8 +79,6 @@ while (($# > 0)); do
       ;;
     --gamescope-arg)
       gamescope_args+=("${2:-}")
-    --umu-run-path)
-      umu_run_path="${2:-}"
       shift 2
       ;;
     --steam-app-id)
@@ -148,10 +145,6 @@ if runner_pid="$(
     done
   fi
 
-  umu_args=()
-  if [[ -n "$umu_run_path" ]]; then
-    umu_args+=(--umu-run-path "$umu_run_path")
-  fi
   setsid env -i \
     HOME="${HOME:-}" \
     USER="${USER:-}" \
@@ -171,7 +164,6 @@ if runner_pid="$(
       --trainer-path "$trainer_path" \
       --trainer-host-path "$trainer_host_path" \
       --trainer-loading-mode "$trainer_loading_mode" \
-      "${umu_args[@]}" \
       --log-file "$log_file" \
       </dev/null >/dev/null 2>&1 &
   printf '%s' "$!"

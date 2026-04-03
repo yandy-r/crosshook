@@ -12,7 +12,6 @@ staged_trainer_host_path=""
 staged_trainer_windows_path=""
 gamescope_enabled="0"
 gamescope_args=()
-umu_run_path=""
 steam_app_id=""
 
 log() {
@@ -193,8 +192,6 @@ while (($# > 0)); do
       ;;
     --gamescope-arg)
       gamescope_args+=("${2:-}")
-    --umu-run-path)
-      umu_run_path="${2:-}"
       shift 2
       ;;
     --steam-app-id)
@@ -275,19 +272,6 @@ else
 fi
 
 log_runtime_context
-
-if [[ -n "$umu_run_path" ]]; then
-  log "Launching trainer via umu-run: $umu_run_path"
-  if GAMEID="${steam_app_id:-0}" PROTONPATH="$(dirname "$proton")" \
-     "$umu_run_path" "$trainer_path"; then
-    log "Trainer umu-run exited successfully."
-    exit 0
-  else
-    exit_code=$?
-    log "Trainer umu-run exited with code $exit_code"
-    exit "$exit_code"
-  fi
-fi
 
 log "Launching trainer with direct proton run."
 if [[ "$gamescope_enabled" == "1" ]]; then
