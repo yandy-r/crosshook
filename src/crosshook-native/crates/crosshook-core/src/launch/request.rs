@@ -52,6 +52,8 @@ pub struct LaunchRequest {
     pub custom_env_vars: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
     pub gamescope: GamescopeConfig,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trainer_gamescope: Option<GamescopeConfig>,
     #[serde(default, skip_serializing_if = "MangoHudConfig::is_default")]
     pub mangohud: MangoHudConfig,
 }
@@ -95,6 +97,21 @@ pub struct LaunchOptimizationsRequest {
 }
 
 impl LaunchRequest {
+    pub fn effective_trainer_gamescope(&self) -> &GamescopeConfig {
+        self.trainer_gamescope
+            .as_ref()
+            .filter(|config| config.enabled)
+            .unwrap_or(&self.gamescope)
+    }
+
+    pub fn effective_gamescope_config(&self) -> &GamescopeConfig {
+        if self.launch_trainer_only {
+            self.effective_trainer_gamescope()
+        } else {
+            &self.gamescope
+        }
+    }
+
     pub fn resolved_method(&self) -> &str {
         match self.method.trim() {
             METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
@@ -633,7 +650,11 @@ fn collect_custom_env_issues(request: &LaunchRequest, issues: &mut Vec<LaunchVal
     }
 }
 
-fn collect_gamescope_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidationIssue>) {
+fn collect_gamescope_issues(
+    request: &LaunchRequest,
+    config: &GamescopeConfig,
+    issues: &mut Vec<LaunchValidationIssue>,
+) {
     let method = request.resolved_method();
     if method != METHOD_PROTON_RUN && method != METHOD_STEAM_APPLAUNCH {
         issues.push(ValidationError::GamescopeNotSupportedForMethod(method.to_string()).issue());
@@ -644,9 +665,7 @@ fn collect_gamescope_issues(request: &LaunchRequest, issues: &mut Vec<LaunchVali
         issues.push(ValidationError::GamescopeBinaryMissing.issue());
     }
 
-    let cfg = &request.gamescope;
-
-    if cfg.internal_width.is_some() != cfg.internal_height.is_some() {
+    if config.internal_width.is_some() != config.internal_height.is_some() {
         issues.push(
             ValidationError::GamescopeResolutionPairIncomplete {
                 pair: "internal".into(),
@@ -655,7 +674,7 @@ fn collect_gamescope_issues(request: &LaunchRequest, issues: &mut Vec<LaunchVali
         );
     }
 
-    if cfg.output_width.is_some() != cfg.output_height.is_some() {
+    if config.output_width.is_some() != config.output_height.is_some() {
         issues.push(
             ValidationError::GamescopeResolutionPairIncomplete {
                 pair: "output".into(),
@@ -664,17 +683,17 @@ fn collect_gamescope_issues(request: &LaunchRequest, issues: &mut Vec<LaunchVali
         );
     }
 
-    if let Some(v) = cfg.fsr_sharpness {
+    if let Some(v) = config.fsr_sharpness {
         if v > 20 {
             issues.push(ValidationError::GamescopeFsrSharpnessOutOfRange(v).issue());
         }
     }
 
-    if cfg.fullscreen && cfg.borderless {
+    if config.fullscreen && config.borderless {
         issues.push(ValidationError::GamescopeFullscreenBorderlessConflict.issue());
     }
 
-    if is_inside_gamescope_session() && !cfg.allow_nested {
+    if is_inside_gamescope_session() && !config.allow_nested {
         issues.push(ValidationError::GamescopeNestedSession.issue());
     }
 }
@@ -697,8 +716,9 @@ pub fn validate_all(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
         METHOD_NATIVE => collect_native_issues(request, &mut issues),
         other => issues.push(ValidationError::UnsupportedMethod(other.to_string()).issue()),
     }
-    if request.gamescope.enabled {
-        collect_gamescope_issues(request, &mut issues);
+    let gamescope_config = request.effective_gamescope_config();
+    if gamescope_config.enabled {
+        collect_gamescope_issues(request, gamescope_config, &mut issues);
     }
     issues
 }
@@ -1528,6 +1548,28 @@ mod tests {
         assert!(
             gamescope_method_issue,
             "native method should emit GamescopeNotSupportedForMethod"
+        );
+    }
+
+    #[test]
+    fn trainer_only_validation_uses_trainer_gamescope_before_main_gamescope() {
+        let (_td, mut request) = proton_request();
+        request.launch_trainer_only = true;
+        request.launch_game_only = false;
+        request.gamescope = crate::profile::GamescopeConfig::default();
+        request.trainer_gamescope = Some(crate::profile::GamescopeConfig {
+            enabled: true,
+            internal_width: Some(1920),
+            internal_height: None,
+            ..Default::default()
+        });
+
+        let issues = validate_all(&request);
+        assert!(
+            issues
+                .iter()
+                .any(|issue| issue.message.contains("Both width and height must be set for internal resolution.")),
+            "expected trainer gamescope validation issue in: {issues:?}"
         );
     }
 }

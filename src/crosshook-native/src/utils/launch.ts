@@ -46,6 +46,7 @@ export function buildProfileLaunchRequest(
     profile_name: profileName || undefined,
     custom_env_vars: { ...profile.launch.custom_env_vars },
     gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
+    trainer_gamescope: profile.launch.trainer_gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
     mangohud: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
   };
 }
