@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Duration as ChronoDuration, NaiveDateTime, Utc};
 use infer::Infer;
+use reqwest::redirect::Policy;
 
 use crate::metadata::{sha256_hex, MetadataStore};
 
@@ -19,11 +20,27 @@ const ALLOWED_IMAGE_MIMES: &[&str] = &["image/jpeg", "image/png", "image/webp"];
 const CACHE_TTL_HOURS: i64 = 24;
 const REQUEST_TIMEOUT_SECS: u64 = 15;
 
+/// Hosts to which the HTTP client is allowed to follow redirects (S-01, S-06).
+///
+/// Only `https://` redirects to these domains are followed; all others are
+/// stopped to prevent SSRF and HTTP-downgrade attacks.
+const ALLOWED_REDIRECT_HOSTS: &[&str] = &[
+    "cdn.cloudflare.steamstatic.com",
+    "steamcdn-a.akamaihd.net",
+    "www.steamgriddb.com",
+    "cdn2.steamgriddb.com",
+];
+
 static GAME_IMAGES_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 // ---------------------------------------------------------------------------
 // HTTP client singleton
 // ---------------------------------------------------------------------------
+
+/// Returns true if the given host is in the redirect allow-list.
+pub fn is_allowed_redirect_host(host: &str) -> bool {
+    ALLOWED_REDIRECT_HOSTS.iter().any(|&h| h == host)
+}
 
 pub(super) fn http_client() -> Result<&'static reqwest::Client, GameImageError> {
     if let Some(client) = GAME_IMAGES_HTTP_CLIENT.get() {
@@ -33,6 +50,18 @@ pub(super) fn http_client() -> Result<&'static reqwest::Client, GameImageError> 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
         .user_agent(format!("CrossHook/{}", env!("CARGO_PKG_VERSION")))
+        .redirect(Policy::custom(|attempt| {
+            let url = attempt.url();
+            if url.scheme() != "https" {
+                return attempt.stop();
+            }
+            if let Some(host) = url.host_str() {
+                if is_allowed_redirect_host(host) {
+                    return attempt.follow();
+                }
+            }
+            attempt.stop()
+        }))
         .build()
         .map_err(GameImageError::ClientBuild)?;
 
@@ -199,8 +228,41 @@ pub async fn download_and_cache_image(
     let (bytes, source) = if let Some(key) = api_key.filter(|k| !k.trim().is_empty()) {
         match fetch_steamgriddb_image(key, app_id, &image_type).await {
             Ok(b) => {
-                tracing::debug!(app_id, image_type = image_type_str, "SteamGridDB image fetched");
+                tracing::debug!(
+                    app_id,
+                    image_type = image_type_str,
+                    "SteamGridDB image fetched"
+                );
                 (b, GameImageSource::SteamGridDb)
+            }
+            Err(GameImageError::AuthFailure { status, .. }) => {
+                tracing::warn!(
+                    "SteamGridDB auth failed (status {status}). Falling back to Steam CDN. Check your API key."
+                );
+                // Fall through to CDN download below
+                if image_type == GameImageType::Portrait {
+                    match try_portrait_candidates(app_id).await {
+                        Ok(b) => (b, GameImageSource::SteamCdn),
+                        Err(err) => {
+                            tracing::warn!(app_id, image_type = image_type_str, %err, "all portrait CDN candidates failed");
+                            return Ok(stale_fallback_path(store, app_id, &image_type_str));
+                        }
+                    }
+                } else {
+                    let cdn_url = build_download_url(app_id, image_type);
+                    match download_image_bytes(&cdn_url).await {
+                        Ok(b) => (b, GameImageSource::SteamCdn),
+                        Err(cdn_error) => {
+                            tracing::warn!(
+                                app_id,
+                                image_type = image_type_str,
+                                %cdn_error,
+                                "Steam CDN fallback also failed"
+                            );
+                            return Ok(stale_fallback_path(store, app_id, &image_type_str));
+                        }
+                    }
+                }
             }
             Err(error) => {
                 tracing::warn!(
@@ -307,9 +369,9 @@ pub async fn download_and_cache_image(
     let source_str = source.to_string();
     let download_url = match source {
         GameImageSource::SteamCdn => build_download_url(app_id, image_type),
-        GameImageSource::SteamGridDb => format!(
-            "https://www.steamgriddb.com/api/v2/grids/steam/{app_id}"
-        ),
+        GameImageSource::SteamGridDb => {
+            format!("https://www.steamgriddb.com/api/v2/grids/steam/{app_id}")
+        }
     };
     let content_hash = sha256_hex(&bytes);
     let file_size = bytes.len() as i64;
@@ -354,14 +416,10 @@ pub async fn download_and_cache_image(
 fn build_download_url(app_id: &str, image_type: GameImageType) -> String {
     match image_type {
         GameImageType::Cover => {
-            format!(
-                "https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/header.jpg"
-            )
+            format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/header.jpg")
         }
         GameImageType::Hero => {
-            format!(
-                "https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_hero.jpg"
-            )
+            format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_hero.jpg")
         }
         GameImageType::Capsule => {
             format!(
@@ -373,12 +431,18 @@ fn build_download_url(app_id: &str, image_type: GameImageType) -> String {
                 "https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900_2x.jpg"
             )
         }
+        // Background uses same CDN file as Hero (library_hero.jpg, 3840x1240)
+        GameImageType::Background => {
+            format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_hero.jpg")
+        }
     }
 }
 
 fn portrait_candidate_urls(app_id: &str) -> Vec<String> {
     vec![
-        format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900_2x.jpg"),
+        format!(
+            "https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900_2x.jpg"
+        ),
         format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/library_600x900.jpg"),
         format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/header.jpg"),
     ]
@@ -394,6 +458,7 @@ fn filename_for(image_type: GameImageType, source: GameImageSource, extension: &
         GameImageType::Hero => "hero",
         GameImageType::Capsule => "capsule",
         GameImageType::Portrait => "portrait",
+        GameImageType::Background => "background",
     };
     format!("{type_prefix}_{source_suffix}.{extension}")
 }
@@ -464,7 +529,10 @@ fn stale_fallback_path(
     app_id: &str,
     image_type_str: &str,
 ) -> Option<String> {
-    let row = store.get_game_image(app_id, image_type_str).ok().flatten()?;
+    let row = store
+        .get_game_image(app_id, image_type_str)
+        .ok()
+        .flatten()?;
     let cached_path = PathBuf::from(&row.file_path);
     if cached_path.exists() {
         tracing::debug!(
@@ -543,10 +611,7 @@ mod tests {
     #[test]
     fn empty_app_id_is_rejected() {
         let app_id = "";
-        assert!(
-            app_id.is_empty(),
-            "empty app_id must fail the empty check"
-        );
+        assert!(app_id.is_empty(), "empty app_id must fail the empty check");
     }
 
     // -----------------------------------------------------------------------
@@ -569,8 +634,9 @@ mod tests {
     #[test]
     fn png_magic_bytes_are_accepted() {
         // PNG signature: 8 bytes
-        let png_bytes: Vec<u8> =
-            vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D];
+        let png_bytes: Vec<u8> = vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+        ];
         assert!(
             validate_image_bytes(&png_bytes).is_ok(),
             "PNG magic bytes must be accepted"
@@ -580,7 +646,8 @@ mod tests {
     #[test]
     fn svg_is_rejected() {
         // SVG is XML text — no magic bytes; infer will return None → octet-stream
-        let svg_bytes = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";
+        let svg_bytes =
+            b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";
         let result = validate_image_bytes(svg_bytes);
         assert!(
             result.is_err(),
@@ -631,8 +698,29 @@ mod tests {
             "portrait_steam_cdn.jpg"
         );
         assert_eq!(
-            filename_for(GameImageType::Portrait, GameImageSource::SteamGridDb, "webp"),
+            filename_for(
+                GameImageType::Portrait,
+                GameImageSource::SteamGridDb,
+                "webp"
+            ),
             "portrait_steamgriddb.webp"
+        );
+    }
+
+    #[test]
+    fn build_download_url_background_uses_library_hero() {
+        let url = build_download_url("1245620", GameImageType::Background);
+        assert_eq!(
+            url,
+            "https://cdn.cloudflare.steamstatic.com/steam/apps/1245620/library_hero.jpg"
+        );
+    }
+
+    #[test]
+    fn filename_for_background_type() {
+        assert_eq!(
+            filename_for(GameImageType::Background, GameImageSource::SteamCdn, "jpg"),
+            "background_steam_cdn.jpg"
         );
     }
 
@@ -746,6 +834,55 @@ mod tests {
         assert_eq!(row.steam_app_id, "440");
         assert_eq!(row.image_type, "cover");
         assert_eq!(row.content_hash, "deadbeef");
+    }
+
+    // -----------------------------------------------------------------------
+    // is_allowed_redirect_host
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn allowed_redirect_hosts_are_accepted() {
+        assert!(
+            is_allowed_redirect_host("cdn.cloudflare.steamstatic.com"),
+            "cdn.cloudflare.steamstatic.com must be allowed"
+        );
+        assert!(
+            is_allowed_redirect_host("steamcdn-a.akamaihd.net"),
+            "steamcdn-a.akamaihd.net must be allowed"
+        );
+        assert!(
+            is_allowed_redirect_host("www.steamgriddb.com"),
+            "www.steamgriddb.com must be allowed"
+        );
+        assert!(
+            is_allowed_redirect_host("cdn2.steamgriddb.com"),
+            "cdn2.steamgriddb.com must be allowed"
+        );
+    }
+
+    #[test]
+    fn disallowed_redirect_hosts_are_rejected() {
+        assert!(
+            !is_allowed_redirect_host("evil.com"),
+            "evil.com must be rejected"
+        );
+        assert!(
+            !is_allowed_redirect_host("cdn.cloudflare.steamstatic.com.evil.com"),
+            "subdomain-spoofing of allowed host must be rejected"
+        );
+        assert!(
+            !is_allowed_redirect_host("127.0.0.1"),
+            "loopback address must be rejected"
+        );
+        assert!(
+            !is_allowed_redirect_host("192.168.1.1"),
+            "private network address must be rejected"
+        );
+        assert!(!is_allowed_redirect_host(""), "empty host must be rejected");
+        assert!(
+            !is_allowed_redirect_host("steamgriddb.com"),
+            "bare steamgriddb.com without www. prefix must be rejected"
+        );
     }
 
     // -----------------------------------------------------------------------

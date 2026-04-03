@@ -1,11 +1,14 @@
-use crosshook_core::game_images::{import_custom_cover_art, is_in_managed_media_dir};
+use crosshook_core::game_images::{
+    import_custom_art, import_custom_cover_art, is_in_managed_media_dir, GameImageType,
+};
 use crosshook_core::metadata::{
     sha256_hex, BundledOptimizationPresetRow, ConfigRevisionSource, MetadataStore,
     MetadataStoreError, ProfileLaunchPresetOrigin, SyncSource, MAX_HISTORY_LIST_LIMIT,
 };
 use crosshook_core::profile::{
-    bundled_optimization_preset_toml_key, DuplicateProfileResult, GameProfile, GamescopeConfig,
-    MangoHudConfig, ProfileStore, ProfileStoreError,
+    bundled_optimization_preset_toml_key, resolve_art_app_id, validate_steam_app_id,
+    DuplicateProfileResult, GameProfile, GamescopeConfig, MangoHudConfig, ProfileStore,
+    ProfileStoreError,
 };
 use crosshook_core::settings::SettingsStore;
 use serde::{Deserialize, Serialize};
@@ -236,10 +239,13 @@ pub struct ProfileSummary {
     pub game_name: String,
     pub steam_app_id: String,
     pub custom_cover_art_path: Option<String>,
+    pub custom_portrait_art_path: Option<String>,
 }
 
 #[tauri::command]
-pub fn profile_list_summaries(store: State<'_, ProfileStore>) -> Result<Vec<ProfileSummary>, String> {
+pub fn profile_list_summaries(
+    store: State<'_, ProfileStore>,
+) -> Result<Vec<ProfileSummary>, String> {
     let names = store.list().map_err(map_error)?;
     let mut summaries = Vec::with_capacity(names.len());
     for name in names {
@@ -247,14 +253,20 @@ pub fn profile_list_summaries(store: State<'_, ProfileStore>) -> Result<Vec<Prof
             Ok(profile) => {
                 let effective = profile.effective_profile();
                 let cover_art = effective.game.custom_cover_art_path.trim();
+                let portrait_art = effective.game.custom_portrait_art_path.trim();
                 summaries.push(ProfileSummary {
                     name,
                     game_name: effective.game.name.clone(),
-                    steam_app_id: effective.steam.app_id.clone(),
+                    steam_app_id: resolve_art_app_id(&effective).to_string(),
                     custom_cover_art_path: if cover_art.is_empty() {
                         None
                     } else {
                         Some(cover_art.to_string())
+                    },
+                    custom_portrait_art_path: if portrait_art.is_empty() {
+                        None
+                    } else {
+                        Some(portrait_art.to_string())
                     },
                 });
             }
@@ -274,6 +286,11 @@ pub fn profile_save(
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
+    // Validate runtime.steam_app_id before writing to disk (BR-4).
+    if let Err(e) = validate_steam_app_id(data.runtime.steam_app_id.trim()) {
+        return Err(format!("Invalid Steam App ID in runtime section: {e}"));
+    }
+
     // Auto-import custom cover art into the managed media directory when the
     // source path points outside it (e.g. a user-typed filesystem path).
     let cover = data.game.custom_cover_art_path.trim().to_string();
@@ -282,6 +299,26 @@ pub fn profile_save(
             Ok(imported) => data.game.custom_cover_art_path = imported,
             Err(e) => {
                 tracing::warn!(profile_name = %name, %e, "failed to import custom cover art; keeping original path");
+            }
+        }
+    }
+    // Portrait auto-import
+    let portrait = data.game.custom_portrait_art_path.trim().to_string();
+    if !portrait.is_empty() && !is_in_managed_media_dir(&portrait) {
+        match import_custom_art(&portrait, GameImageType::Portrait) {
+            Ok(imported) => data.game.custom_portrait_art_path = imported,
+            Err(e) => {
+                tracing::warn!(profile_name = %name, %e, "failed to auto-import portrait art; keeping original path")
+            }
+        }
+    }
+    // Background auto-import
+    let background = data.game.custom_background_art_path.trim().to_string();
+    if !background.is_empty() && !is_in_managed_media_dir(&background) {
+        match import_custom_art(&background, GameImageType::Background) {
+            Ok(imported) => data.game.custom_background_art_path = imported,
+            Err(e) => {
+                tracing::warn!(profile_name = %name, %e, "failed to auto-import background art; keeping original path")
             }
         }
     }

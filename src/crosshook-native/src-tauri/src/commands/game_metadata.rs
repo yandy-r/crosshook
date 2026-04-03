@@ -1,5 +1,6 @@
 use crosshook_core::game_images::{
-    download_and_cache_image, import_custom_cover_art as core_import_cover_art, GameImageType,
+    download_and_cache_image, import_custom_art as core_import_art,
+    import_custom_cover_art as core_import_cover_art, GameImageType,
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::settings::SettingsStore;
@@ -25,10 +26,15 @@ pub async fn fetch_game_cover_art(
 ) -> Result<Option<String>, String> {
     let store = metadata_store.inner().clone();
     let image_type = match image_type.as_deref().unwrap_or("cover") {
+        "cover" => GameImageType::Cover,
         "hero" => GameImageType::Hero,
         "capsule" => GameImageType::Capsule,
         "portrait" => GameImageType::Portrait,
-        _ => GameImageType::Cover,
+        "background" => GameImageType::Background,
+        other => {
+            tracing::warn!("Unknown image_type requested: {other}");
+            return Err(format!("Unknown image type: {other}"));
+        }
     };
 
     // Read the SteamGridDB API key from settings (non-fatal on error).
@@ -45,4 +51,15 @@ pub async fn fetch_game_cover_art(
 #[tauri::command]
 pub fn import_custom_cover_art(source_path: String) -> Result<String, String> {
     core_import_cover_art(&source_path)
+}
+
+#[tauri::command]
+pub fn import_custom_art(source_path: String, art_type: Option<String>) -> Result<String, String> {
+    let image_type = match art_type.as_deref().unwrap_or("cover") {
+        "cover" => GameImageType::Cover,
+        "portrait" => GameImageType::Portrait,
+        "background" => GameImageType::Background,
+        other => return Err(format!("Unknown art type: {other}")),
+    };
+    core_import_art(&source_path, image_type)
 }

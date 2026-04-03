@@ -260,6 +260,15 @@ fn sanitize_profile_for_community_export(profile: &GameProfile) -> GameProfile {
     out.steam.launcher.icon_path.clear();
     out.runtime.proton_path.clear();
     out.runtime.working_directory.clear();
+
+    // Guard against local file paths leaking through the base game section.
+    // portable_profile() already clears local_override via Default::default(), but these
+    // explicit clears ensure no machine-local art path survives export even if a path was
+    // written directly into the base section.
+    out.game.custom_cover_art_path.clear();
+    out.game.custom_portrait_art_path.clear();
+    out.game.custom_background_art_path.clear();
+
     out
 }
 
@@ -454,6 +463,8 @@ mod tests {
                 name: "Elden Ring".to_string(),
                 executable_path: "/games/elden-ring/eldenring.exe".to_string(),
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: crate::profile::TrainerSection {
                 path: "/trainers/elden-ring.exe".to_string(),
@@ -479,6 +490,7 @@ mod tests {
                 prefix_path: String::new(),
                 proton_path: String::new(),
                 working_directory: String::new(),
+                steam_app_id: String::new(),
             },
             launch: crate::profile::LaunchSection {
                 method: "steam_applaunch".to_string(),
@@ -613,5 +625,47 @@ mod tests {
             error,
             CommunityExchangeError::InvalidManifest { .. }
         ));
+    }
+
+    #[test]
+    fn export_clears_all_custom_art_paths_and_preserves_steam_app_id() {
+        let temp_dir = tempdir().unwrap();
+        let profiles_dir = temp_dir.path().join("profiles");
+        let export_path = temp_dir.path().join("exports").join("elden-ring.json");
+        let store = ProfileStore::with_base_path(profiles_dir.clone());
+
+        let mut profile = sample_profile();
+        profile.game.custom_cover_art_path = "/home/user/.local/cover.png".to_string();
+        profile.game.custom_portrait_art_path = "/home/user/.local/portrait.png".to_string();
+        profile.game.custom_background_art_path = "/home/user/.local/background.png".to_string();
+        profile.local_override.game.custom_cover_art_path =
+            "/home/user/.local/cover-override.png".to_string();
+        profile.local_override.game.custom_portrait_art_path =
+            "/home/user/.local/portrait-override.png".to_string();
+        profile.local_override.game.custom_background_art_path =
+            "/home/user/.local/background-override.png".to_string();
+
+        store.save("elden-ring", &profile).unwrap();
+
+        let exported = export_community_profile(&profiles_dir, "elden-ring", &export_path).unwrap();
+        let exported_profile = &exported.manifest.profile;
+
+        assert!(
+            exported_profile.game.custom_cover_art_path.is_empty(),
+            "custom_cover_art_path must be cleared on export"
+        );
+        assert!(
+            exported_profile.game.custom_portrait_art_path.is_empty(),
+            "custom_portrait_art_path must be cleared on export"
+        );
+        assert!(
+            exported_profile.game.custom_background_art_path.is_empty(),
+            "custom_background_art_path must be cleared on export"
+        );
+
+        assert_eq!(
+            exported_profile.steam.app_id, "1245620",
+            "steam.app_id must survive community export"
+        );
     }
 }

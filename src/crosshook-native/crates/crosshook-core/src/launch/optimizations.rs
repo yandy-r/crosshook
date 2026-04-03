@@ -449,7 +449,8 @@ mod tests {
     fn steam_launch_options_trims_custom_env_keys() {
         // Empty optimization IDs — short-circuits before catalog access
         let custom = BTreeMap::from([(" DXVK_ASYNC ".to_string(), "1".to_string())]);
-        let command = build_steam_launch_options_command(&[], &custom, None).expect("steam command");
+        let command =
+            build_steam_launch_options_command(&[], &custom, None).expect("steam command");
         assert_eq!(command, "DXVK_ASYNC=1 %command%");
     }
 
@@ -457,7 +458,8 @@ mod tests {
     fn steam_launch_options_escapes_custom_values_with_shell_sensitive_chars() {
         // Empty optimization IDs — short-circuits before catalog access
         let custom = BTreeMap::from([("FOO".to_string(), "a b".to_string())]);
-        let command = build_steam_launch_options_command(&[], &custom, None).expect("steam command");
+        let command =
+            build_steam_launch_options_command(&[], &custom, None).expect("steam command");
         assert_eq!(command, "FOO=\"a b\" %command%");
     }
 

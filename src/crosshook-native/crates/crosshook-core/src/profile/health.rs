@@ -580,6 +580,8 @@ mod tests {
                 name: "Test Game".to_string(),
                 executable_path: game_exe.to_string_lossy().to_string(),
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: trainer.to_string_lossy().to_string(),
@@ -806,6 +808,8 @@ mod tests {
                 name: "Proton Game".to_string(),
                 executable_path: game_exe.to_string_lossy().to_string(),
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: TrainerSection::default(),
             injection: InjectionSection::default(),
@@ -814,6 +818,7 @@ mod tests {
                 prefix_path: prefix.to_string_lossy().to_string(),
                 proton_path: proton.to_string_lossy().to_string(),
                 working_directory: String::new(),
+                steam_app_id: String::new(),
             },
             launch: LaunchSection {
                 method: "proton_run".to_string(),

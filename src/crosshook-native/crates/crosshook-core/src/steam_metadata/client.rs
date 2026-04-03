@@ -9,8 +9,8 @@ use rusqlite::{params, OptionalExtension};
 use serde::Deserialize;
 
 use super::models::{
-    cache_key_for_app_id, normalize_app_id, SteamAppDetails, SteamGenre,
-    SteamMetadataLookupResult, SteamMetadataLookupState,
+    cache_key_for_app_id, normalize_app_id, SteamAppDetails, SteamGenre, SteamMetadataLookupResult,
+    SteamMetadataLookupState,
 };
 use crate::metadata::{MetadataStore, MetadataStoreError};
 
@@ -86,8 +86,8 @@ pub async fn lookup_steam_metadata(
         return SteamMetadataLookupResult::default();
     };
 
-    let cache_key = cache_key_for_app_id(&app_id)
-        .expect("normalized app id must always produce a cache key");
+    let cache_key =
+        cache_key_for_app_id(&app_id).expect("normalized app id must always produce a cache key");
     if !force_refresh {
         if let Some(valid_cache) = load_cached_lookup_row(store, &cache_key, false) {
             if let Some(result) = cached_result_from_row(&app_id, valid_cache, false) {
@@ -203,7 +203,10 @@ fn persist_lookup_result(
     result: &SteamMetadataLookupResult,
 ) {
     let Ok(payload) = serde_json::to_string(result) else {
-        tracing::warn!(cache_key, "failed to serialize Steam metadata cache payload");
+        tracing::warn!(
+            cache_key,
+            "failed to serialize Steam metadata cache payload"
+        );
         return;
     };
 
@@ -278,8 +281,7 @@ fn cached_result_from_row(
         return None;
     }
 
-    let mut result =
-        serde_json::from_str::<SteamMetadataLookupResult>(&row.payload_json).ok()?;
+    let mut result = serde_json::from_str::<SteamMetadataLookupResult>(&row.payload_json).ok()?;
 
     result.app_id = app_id.to_string();
     result.state = if is_stale {

@@ -5,6 +5,7 @@ import { FieldRow, LauncherMetadataFields, OptionalSection, ProtonPathField } fr
 import type { ProtonInstallOption } from '../ProfileFormSections';
 import { chooseDirectory, chooseFile } from '../../utils/dialog';
 import { deriveSteamClientInstallPath } from '../../utils/steam';
+import { validateSteamAppId } from '../../utils/art';
 import type { GameProfile, LaunchMethod } from '../../types';
 
 export interface RuntimeSectionProps {
@@ -180,14 +181,19 @@ export function RuntimeSection({
 
             <FieldRow
               label="Steam App ID"
-              value={profile.steam.app_id}
+              value={profile.runtime?.steam_app_id ?? ''}
               onChange={(value) =>
                 onUpdateProfile((current) => ({
                   ...current,
-                  steam: { ...current.steam, app_id: value },
+                  runtime: { ...current.runtime, steam_app_id: value },
                 }))
               }
-              placeholder="Optional for ProtonDB lookup"
+              placeholder="Optional — used for art and metadata lookup"
+              error={
+                !validateSteamAppId(profile.runtime?.steam_app_id ?? '')
+                  ? 'App ID must contain digits only'
+                  : null
+              }
             />
 
             {showLauncherMetadata ? (

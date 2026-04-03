@@ -954,6 +954,8 @@ mod tests {
                 name: "Test Game".to_string(),
                 executable_path: String::new(),
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: "/mnt/trainers/test.exe".to_string(),
@@ -1008,6 +1010,8 @@ mod tests {
                 name: "Test Game".to_string(),
                 executable_path: String::new(),
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: "/mnt/trainers/test.exe".to_string(),
@@ -1054,6 +1058,8 @@ mod tests {
                 name: "Legacy Steam Game".to_string(),
                 executable_path: "/games/legacy/launcher.exe".to_string(),
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: "/mnt/trainers/legacy.exe".to_string(),
@@ -1075,6 +1081,7 @@ mod tests {
                 prefix_path: "/wrong/runtime/prefix".to_string(),
                 proton_path: "/wrong/runtime/proton".to_string(),
                 working_directory: String::new(),
+                steam_app_id: String::new(),
             },
             launch: LaunchSection {
                 method: String::new(),

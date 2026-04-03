@@ -105,6 +105,8 @@ impl InstallGameRequest {
                 name: self.resolved_display_name().to_string(),
                 executable_path: String::new(),
                 custom_cover_art_path: self.custom_cover_art_path.trim().to_string(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: self.trainer_path.trim().to_string(),
@@ -118,6 +120,7 @@ impl InstallGameRequest {
                 prefix_path: prefix_path.to_string_lossy().into_owned(),
                 proton_path: self.proton_path.trim().to_string(),
                 working_directory: String::new(),
+                steam_app_id: String::new(),
             },
             launch: LaunchSection {
                 method: "proton_run".to_string(),

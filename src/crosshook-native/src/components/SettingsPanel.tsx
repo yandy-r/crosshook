@@ -24,7 +24,8 @@ export interface SettingsPanelProps {
   recentFilesLimit?: number;
   targetHomePath: string;
   steamClientInstallPath: string;
-  steamGridDbApiKey?: string | null;
+  /** True when a SteamGridDB API key is currently stored on the backend. */
+  hasSteamgriddbApiKey: boolean;
   onAutoLoadLastProfileChange: (enabled: boolean) => void;
   onProfilesDirectoryPathChange?: (path: string) => void;
   onRefreshRecentFiles?: () => void;
@@ -346,20 +347,17 @@ function DiagnosticExportSection() {
 }
 
 function SteamGridDbSection({
-  apiKey,
+  hasApiKey,
   onApiKeyChange,
 }: {
-  apiKey?: string | null;
+  hasApiKey: boolean;
   onApiKeyChange?: (key: string) => Promise<void>;
 }) {
-  const [localKey, setLocalKey] = useState(apiKey ?? '');
+  const [localKey, setLocalKey] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    setLocalKey(apiKey ?? '');
-  }, [apiKey]);
+  const [lastAction, setLastAction] = useState<'save' | 'clear' | null>(null);
 
   async function handleSave() {
     if (!onApiKeyChange) {
@@ -370,7 +368,28 @@ function SteamGridDbSection({
     setSaved(false);
     try {
       await onApiKeyChange(localKey);
+      setLocalKey('');
       setSaved(true);
+      setLastAction('save');
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleClear() {
+    if (!onApiKeyChange) {
+      return;
+    }
+    setIsSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await onApiKeyChange('');
+      setLocalKey('');
+      setSaved(true);
+      setLastAction('clear');
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -391,8 +410,19 @@ function SteamGridDbSection({
       </p>
 
       <div className="crosshook-settings-field-row">
+        <span className="crosshook-label">Key status</span>
+        {hasApiKey ? (
+          <span className="crosshook-muted crosshook-settings-note" style={{ color: 'var(--crosshook-success, #4caf50)' }}>
+            Key is set
+          </span>
+        ) : (
+          <span className="crosshook-muted crosshook-settings-note">No key configured</span>
+        )}
+      </div>
+
+      <div className="crosshook-settings-field-row">
         <label className="crosshook-label" htmlFor="steamgriddb-api-key">
-          API Key
+          {hasApiKey ? 'Replace API Key' : 'API Key'}
         </label>
         <div className="crosshook-settings-input-row">
           <input
@@ -404,14 +434,14 @@ function SteamGridDbSection({
               setLocalKey(event.target.value);
               setSaved(false);
             }}
-            placeholder="Enter your SteamGridDB API key"
-            autoComplete="off"
+            placeholder={hasApiKey ? 'Enter new key to replace the existing one' : 'Enter your SteamGridDB API key'}
+            autoComplete="new-password"
           />
           {onApiKeyChange ? (
             <button
               type="button"
               className="crosshook-button crosshook-button--secondary"
-              disabled={isSaving}
+              disabled={isSaving || localKey.trim().length === 0}
               onClick={() => void handleSave()}
             >
               {isSaving ? 'Saving...' : 'Save'}
@@ -420,9 +450,22 @@ function SteamGridDbSection({
         </div>
       </div>
 
+      {hasApiKey && onApiKeyChange ? (
+        <div className="crosshook-settings-clear-row">
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--ghost"
+            disabled={isSaving}
+            onClick={() => void handleClear()}
+          >
+            Clear API key
+          </button>
+        </div>
+      ) : null}
+
       {saved ? (
         <p className="crosshook-muted crosshook-settings-note" style={{ color: 'var(--crosshook-success, #4caf50)' }}>
-          API key saved.
+          {lastAction === 'clear' ? 'API key cleared.' : 'API key saved.'}
         </p>
       ) : null}
 
@@ -433,8 +476,8 @@ function SteamGridDbSection({
       ) : null}
 
       <p className="crosshook-muted crosshook-settings-note">
-        The key is stored in plaintext in <code>~/.config/crosshook/settings.toml</code>. Avoid syncing this file to
-        public repositories.
+        The key is stored in <code>~/.config/crosshook/settings.toml</code>. Avoid syncing this file to public
+        repositories.
       </p>
 
       <div className="crosshook-settings-clear-row">
@@ -459,7 +502,7 @@ export function SettingsPanel({
   recentFilesLimit = 10,
   targetHomePath,
   steamClientInstallPath,
-  steamGridDbApiKey,
+  hasSteamgriddbApiKey,
   onAutoLoadLastProfileChange,
   onProfilesDirectoryPathChange,
   onRefreshRecentFiles,
@@ -582,7 +625,7 @@ export function SettingsPanel({
 
           <DiagnosticExportSection />
 
-          <SteamGridDbSection apiKey={steamGridDbApiKey} onApiKeyChange={onSteamGridDbApiKeyChange} />
+	  <SteamGridDbSection hasApiKey={hasSteamgriddbApiKey} onApiKeyChange={onSteamGridDbApiKeyChange} />
         </div>
 
         <section className="crosshook-settings-recent-column" aria-label="Recent files">
