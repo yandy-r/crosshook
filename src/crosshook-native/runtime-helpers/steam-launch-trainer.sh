@@ -8,6 +8,8 @@ trainer_path=""
 trainer_host_path=""
 trainer_loading_mode="source_directory"
 log_file=""
+umu_run_path=""
+steam_app_id=""
 
 log() {
   printf '[steam-trainer-launcher] %s\n' "$*"
@@ -70,6 +72,14 @@ while (($# > 0)); do
       log_file="${2:-}"
       shift 2
       ;;
+    --umu-run-path)
+      umu_run_path="${2:-}"
+      shift 2
+      ;;
+    --steam-app-id)
+      steam_app_id="${2:-}"
+      shift 2
+      ;;
     *)
       fail "Unknown argument: $1"
       ;;
@@ -113,6 +123,10 @@ log "Launching detached host runner."
 
 runner_pid=""
 if runner_pid="$(
+  umu_args=()
+  if [[ -n "$umu_run_path" ]]; then
+    umu_args+=(--umu-run-path "$umu_run_path")
+  fi
   setsid env -i \
     HOME="${HOME:-}" \
     USER="${USER:-}" \
@@ -127,9 +141,11 @@ if runner_pid="$(
       --compatdata "$compatdata" \
       --proton "$proton" \
       --steam-client "$steam_client" \
+      --steam-app-id "$steam_app_id" \
       --trainer-path "$trainer_path" \
       --trainer-host-path "$trainer_host_path" \
       --trainer-loading-mode "$trainer_loading_mode" \
+      "${umu_args[@]}" \
       --log-file "$log_file" \
       </dev/null >/dev/null 2>&1 &
   printf '%s' "$!"

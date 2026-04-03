@@ -96,6 +96,7 @@ export interface ProtonSetup {
   compat_data_path: string;
   steam_client_install_path: string;
   proton_executable: string;
+  umu_run_path: string | null;
 }
 
 export interface PreviewTrainerInfo {

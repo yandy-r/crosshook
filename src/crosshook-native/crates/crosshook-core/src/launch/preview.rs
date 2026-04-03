@@ -14,7 +14,7 @@ use super::request::{
 };
 use super::runtime_helpers::{
     build_gamescope_args, env_value, resolve_proton_paths, resolve_steam_client_install_path,
-    DEFAULT_HOST_PATH,
+    resolve_umu_run_path, DEFAULT_HOST_PATH,
 };
 use crate::profile::TrainerLoadingMode;
 
@@ -76,6 +76,8 @@ pub struct ProtonSetup {
     pub compat_data_path: String,
     pub steam_client_install_path: String,
     pub proton_executable: String,
+    /// Path to `umu-run` if it will be used for this launch, otherwise `None`.
+    pub umu_run_path: Option<String>,
 }
 
 /// Trainer configuration details for the preview.
@@ -213,6 +215,9 @@ impl LaunchPreview {
                 "steam_client_install_path = \"{}\"",
                 setup.steam_client_install_path
             ));
+            if let Some(ref umu) = setup.umu_run_path {
+                lines.push(format!("umu_run = \"{umu}\""));
+            }
             lines.push(String::new());
         }
 
@@ -685,6 +690,7 @@ fn build_proton_setup(request: &LaunchRequest, method: &str) -> Option<ProtonSet
                     .into_owned(),
                 steam_client_install_path: steam_client,
                 proton_executable: request.runtime.proton_path.trim().to_string(),
+                umu_run_path: resolve_umu_run_path(),
             })
         }
         METHOD_STEAM_APPLAUNCH => {
@@ -702,6 +708,7 @@ fn build_proton_setup(request: &LaunchRequest, method: &str) -> Option<ProtonSet
                     .trim()
                     .to_string(),
                 proton_executable: request.steam.proton_path.trim().to_string(),
+                umu_run_path: resolve_umu_run_path(),
             })
         }
         _ => None,
@@ -891,6 +898,7 @@ mod tests {
             prefix_path: request.steam.compatdata_path.clone(),
             proton_path: request.steam.proton_path.clone(),
             working_directory: String::new(),
+            steam_app_id: String::new(),
         };
         request.steam = SteamLaunchConfig::default();
         (temp_dir, request)
