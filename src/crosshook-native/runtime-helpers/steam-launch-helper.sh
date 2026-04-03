@@ -17,6 +17,7 @@ trainer_only="0"
 game_only="0"
 staged_trainer_host_path=""
 staged_trainer_windows_path=""
+umu_run_path=""
 
 log() {
   printf '[steam-helper] %s\n' "$*"
@@ -219,6 +220,10 @@ while (($# > 0)); do
       game_only="1"
       shift 1
       ;;
+    --umu-run-path)
+      umu_run_path="${2:-}"
+      shift 2
+      ;;
     *)
       fail "Unknown argument: $1"
       ;;
@@ -376,6 +381,18 @@ run_proton_with_clean_env() {
   if [[ -n "$target_working_directory" ]]; then
     cd "$target_working_directory"
     log "Changed trainer working directory to $target_working_directory"
+  fi
+
+  if [[ -n "$umu_run_path" ]]; then
+    log "Launching trainer via umu-run: $umu_run_path"
+    if GAMEID="${appid:-0}" PROTONPATH="$(dirname "$proton")" \
+       setsid "$umu_run_path" "$target_path"; then
+      log "Trainer umu-run exited successfully."
+      return 0
+    fi
+    local exit_code=$?
+    log "Trainer umu-run exited with code $exit_code"
+    return "$exit_code"
   fi
 
   log "Launching trainer with direct proton run."

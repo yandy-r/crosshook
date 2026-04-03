@@ -8,6 +8,7 @@ trainer_path=""
 trainer_host_path=""
 trainer_loading_mode="source_directory"
 log_file=""
+umu_run_path=""
 
 log() {
   printf '[steam-trainer-launcher] %s\n' "$*"
@@ -70,6 +71,10 @@ while (($# > 0)); do
       log_file="${2:-}"
       shift 2
       ;;
+    --umu-run-path)
+      umu_run_path="${2:-}"
+      shift 2
+      ;;
     *)
       fail "Unknown argument: $1"
       ;;
@@ -130,6 +135,7 @@ if runner_pid="$(
       --trainer-path "$trainer_path" \
       --trainer-host-path "$trainer_host_path" \
       --trainer-loading-mode "$trainer_loading_mode" \
+      --umu-run-path "$umu_run_path" \
       --log-file "$log_file" \
       </dev/null >/dev/null 2>&1 &
   printf '%s' "$!"

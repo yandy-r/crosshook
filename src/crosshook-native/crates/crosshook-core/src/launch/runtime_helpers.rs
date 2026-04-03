@@ -100,6 +100,78 @@ pub fn build_gamescope_args(config: &GamescopeConfig) -> Vec<String> {
     args
 }
 
+/// Builds a `Command` that invokes `umu-run` instead of the Proton binary directly.
+///
+/// Sets `GAMEID` and `PROTONPATH` as command-level environment variables.
+/// `PROTONPATH` is the parent directory of `proton_path` (umu-run convention).
+/// `GAMEID` uses `steam_app_id` when provided, otherwise `"0"`.
+/// `env_clear()` is called, so the caller must apply host/optimization env afterward.
+pub fn new_umu_run_command(
+    umu_run_path: &str,
+    proton_path: &str,
+    steam_app_id: &str,
+    wrappers: &[String],
+) -> Command {
+    let proton_dir = resolve_proton_dir(proton_path);
+    let game_id = resolve_game_id(steam_app_id);
+
+    let mut command = if wrappers.is_empty() {
+        Command::new(umu_run_path.trim())
+    } else {
+        let mut cmd = Command::new(wrappers[0].trim());
+        for wrapper in wrappers.iter().skip(1) {
+            cmd.arg(wrapper.trim());
+        }
+        cmd.arg(umu_run_path.trim());
+        cmd
+    };
+    command.env_clear();
+    command.env("GAMEID", &game_id);
+    command.env("PROTONPATH", &proton_dir);
+    command
+}
+
+pub fn new_umu_run_command_with_gamescope(
+    umu_run_path: &str,
+    proton_path: &str,
+    steam_app_id: &str,
+    wrappers: &[String],
+    gamescope_args: &[String],
+) -> Command {
+    let proton_dir = resolve_proton_dir(proton_path);
+    let game_id = resolve_game_id(steam_app_id);
+
+    let mut command = Command::new("gamescope");
+    for arg in gamescope_args {
+        command.arg(arg.trim());
+    }
+    command.arg("--");
+    for wrapper in wrappers {
+        command.arg(wrapper.trim());
+    }
+    command.arg(umu_run_path.trim());
+    command.env_clear();
+    command.env("GAMEID", &game_id);
+    command.env("PROTONPATH", &proton_dir);
+    command
+}
+
+fn resolve_proton_dir(proton_path: &str) -> String {
+    Path::new(proton_path.trim())
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+fn resolve_game_id(steam_app_id: &str) -> String {
+    let trimmed = steam_app_id.trim();
+    if trimmed.is_empty() {
+        "0".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 pub fn new_proton_command_with_gamescope(
     proton_path: &str,
     wrappers: &[String],
@@ -296,6 +368,66 @@ pub fn resolve_steam_client_install_path(configured_path: &str) -> Option<String
 
 pub(crate) fn env_value(key: &str, default: &str) -> String {
     env::var(key).unwrap_or_else(|_| default.to_string())
+}
+
+/// Returns the absolute path to `umu-run` if found on `PATH`, otherwise `None`.
+///
+/// In test builds, returns `None` when `disable_test_umu_run` is active to
+/// avoid coupling test assertions to the host system's `umu-run` installation.
+pub fn resolve_umu_run_path() -> Option<String> {
+    #[cfg(test)]
+    {
+        if test_umu_run_disable_count().load(std::sync::atomic::Ordering::SeqCst) > 0 {
+            return None;
+        }
+    }
+
+    let path_value =
+        env::var_os("PATH").unwrap_or_else(|| std::ffi::OsString::from(DEFAULT_HOST_PATH));
+    for directory in env::split_paths(&path_value) {
+        let candidate = directory.join("umu-run");
+        if is_executable_file(&candidate) {
+            return Some(candidate.to_string_lossy().into_owned());
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+fn test_umu_run_disable_count() -> &'static std::sync::atomic::AtomicUsize {
+    use std::sync::OnceLock;
+    static COUNT: OnceLock<std::sync::atomic::AtomicUsize> = OnceLock::new();
+    COUNT.get_or_init(|| std::sync::atomic::AtomicUsize::new(0))
+}
+
+/// Increment the disable counter (thread-safe). While > 0, `resolve_umu_run_path` returns `None`.
+#[cfg(test)]
+pub(crate) fn disable_test_umu_run() {
+    test_umu_run_disable_count().fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Decrement the disable counter.
+#[cfg(test)]
+pub(crate) fn enable_test_umu_run() {
+    test_umu_run_disable_count().fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+fn is_executable_file(path: &Path) -> bool {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(_) => return false,
+    };
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+    }
+
+    #[cfg(not(unix))]
+    {
+        metadata.is_file()
+    }
 }
 
 fn set_env(command: &mut Command, key: &str, value: impl AsRef<str>) {

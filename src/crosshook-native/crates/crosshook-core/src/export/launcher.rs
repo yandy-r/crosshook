@@ -387,6 +387,7 @@ cd "$trainer_host_dir"
             content.push_str(&build_exec_line(
                 request.gamescope.enabled,
                 "\"$trainer_host_path\"",
+                &request.steam_app_id,
             ));
         }
         TrainerLoadingMode::CopyToPrefix => {
@@ -464,6 +465,7 @@ stage_trainer_support_files "$trainer_source_dir" "$staged_trainer_dir" "$traine
             content.push_str(&build_exec_line(
                 request.gamescope.enabled,
                 "\"$staged_trainer_windows_path\"",
+                &request.steam_app_id,
             ));
         }
     }
@@ -505,12 +507,43 @@ fi
     block
 }
 
-fn build_exec_line(gamescope_enabled: bool, target_path: &str) -> String {
+fn build_exec_line(gamescope_enabled: bool, target_path: &str, steam_app_id: &str) -> String {
+    let game_id = {
+        let trimmed = steam_app_id.trim();
+        if trimmed.is_empty() { "0" } else { trimmed }
+    };
+
+    // When gamescope wraps the command, env var assignments like `GAMEID=x cmd`
+    // are parsed as command names by gamescope's reaper (everything after `--` is
+    // the child argv). Use `env` to set them in the gamescope case. For the
+    // non-gamescope case, `exec KEY=VALUE cmd` is a valid bash construct.
+    let umu_env = format!(
+        "GAMEID={game_id} PROTONPATH=\"$(dirname \"$PROTON\")\""
+    );
+
+    let mut block = String::new();
+    block.push_str("if command -v umu-run >/dev/null 2>&1; then\n");
     if gamescope_enabled {
-        format!("exec \"${{_GS_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n")
+        block.push_str(&format!(
+            "  exec \"${{_GS_PREFIX[@]}}\" env {umu_env} umu-run {target_path}\n"
+        ));
     } else {
-        format!("exec \"$PROTON\" run {target_path}\n")
+        block.push_str(&format!(
+            "  exec {umu_env} umu-run {target_path}\n"
+        ));
     }
+    block.push_str("else\n");
+    if gamescope_enabled {
+        block.push_str(&format!(
+            "  exec \"${{_GS_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n"
+        ));
+    } else {
+        block.push_str(&format!(
+            "  exec \"$PROTON\" run {target_path}\n"
+        ));
+    }
+    block.push_str("fi\n");
+    block
 }
 
 pub(crate) fn build_desktop_entry_content(
@@ -833,7 +866,10 @@ mod tests {
         assert!(script_content
             .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(script_content.contains("staged_trainer_windows_path=\"C:\\\\CrossHook\\\\StagedTrainers\\\\$trainer_base_name\\\\$trainer_file_name\""));
+        assert!(script_content.contains("if command -v umu-run >/dev/null 2>&1; then"));
+        assert!(script_content.contains("umu-run \"$staged_trainer_windows_path\""));
         assert!(script_content.contains("exec \"$PROTON\" run \"$staged_trainer_windows_path\""));
+        assert!(script_content.contains("fi\n"));
 
         let desktop_content = fs::read_to_string(&result.desktop_entry_path).expect("desktop");
         assert!(desktop_content.contains("Name=Elden Ring Deluxe - Trainer"));
@@ -955,7 +991,10 @@ mod tests {
         assert!(script_content.contains("PREFIX_ROOT='/games/prefixes/the-witcher-3'"));
         assert!(script_content.contains("elif [[ -d \"$PREFIX_ROOT/pfx\" ]]; then"));
         assert!(script_content.contains("trainer_host_path=\"$(realpath \"$TRAINER_HOST_PATH\")\""));
+        assert!(script_content.contains("if command -v umu-run >/dev/null 2>&1; then"));
+        assert!(script_content.contains("umu-run \"$trainer_host_path\""));
         assert!(script_content.contains("exec \"$PROTON\" run \"$trainer_host_path\""));
+        assert!(script_content.contains("fi\n"));
         assert!(!script_content
             .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(!script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH="));
@@ -1063,7 +1102,10 @@ mod tests {
         assert!(!content.contains("_GAMESCOPE_ARGS"));
         assert!(!content.contains("_GS_PREFIX"));
         assert!(!content.contains("gamescope"));
+        assert!(content.contains("if command -v umu-run >/dev/null 2>&1; then"));
+        assert!(content.contains("umu-run \"$trainer_host_path\""));
         assert!(content.contains("exec \"$PROTON\" run \"$trainer_host_path\""));
+        assert!(content.contains("fi\n"));
     }
 
     #[test]
@@ -1084,8 +1126,10 @@ mod tests {
         assert!(content.contains("'-w' '800'"));
         assert!(content.contains("'-h' '400'"));
         assert!(content.contains("GAMESCOPE_WAYLAND_DISPLAY"));
+        assert!(content.contains("if command -v umu-run >/dev/null 2>&1; then"));
+        assert!(content.contains(r#"exec "${_GS_PREFIX[@]}" env GAMEID=0 PROTONPATH="$(dirname "$PROTON")" umu-run "$trainer_host_path""#));
         assert!(content.contains(r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$trainer_host_path""#));
-        assert!(!content.contains("exec \"$PROTON\" run \"$trainer_host_path\""));
+        assert!(content.contains("fi\n"));
     }
 
     #[test]
@@ -1100,9 +1144,11 @@ mod tests {
         );
         let content = build_trainer_script_content(&request, "Test Game");
         assert!(content.contains("_GAMESCOPE_ARGS=("));
+        assert!(content.contains("if command -v umu-run >/dev/null 2>&1; then"));
+        assert!(content.contains(r#"exec "${_GS_PREFIX[@]}" env GAMEID=0 PROTONPATH="$(dirname "$PROTON")" umu-run "$staged_trainer_windows_path""#));
         assert!(content
             .contains(r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$staged_trainer_windows_path""#));
-        assert!(!content.contains("exec \"$PROTON\" run \"$staged_trainer_windows_path\""));
+        assert!(content.contains("fi\n"));
     }
 
     #[test]
