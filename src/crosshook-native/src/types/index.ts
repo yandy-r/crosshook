@@ -15,3 +15,4 @@ export * from './offline';
 export * from './protondb';
 export * from './proton';
 export * from './prefix-deps';
+export * from './prefix-storage';

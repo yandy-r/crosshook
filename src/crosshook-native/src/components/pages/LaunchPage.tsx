@@ -12,6 +12,7 @@ import { useLaunchStateContext } from '../../context/LaunchStateContext';
 import type { ProtonDbRecommendationGroup } from '../../types/protondb';
 import type { PrefixDependencyStatus } from '../../types/prefix-deps';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
+import { resolveArtAppId } from '../../utils/art';
 import { buildProfileLaunchRequest } from '../../utils/launch';
 import { mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../../utils/protondb';
 
@@ -97,11 +98,12 @@ export function LaunchPage() {
     };
   }, []);
 
+  const resolvedSteamAppId = resolveArtAppId(profile);
   useEffect(() => {
     setPendingProtonDbOverwrite(null);
     setApplyingProtonDbGroupId(null);
     setProtonDbStatusMessage(null);
-  }, [profileState.profileName, profile.steam.app_id, profileState.launchMethod]);
+  }, [profileState.profileName, resolvedSteamAppId, profileState.launchMethod]);
 
   // Dep gate: listen for prefix-dep-complete while installing
   useEffect(() => {
@@ -307,7 +309,7 @@ export function LaunchPage() {
           tabsSlot={
             <LaunchSubTabs
               launchMethod={profileState.launchMethod}
-              steamAppId={profile.steam.app_id}
+              steamAppId={resolveArtAppId(profile)}
               customCoverArtPath={profile.game.custom_cover_art_path}
               gamescopeConfig={profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG}
               onGamescopeChange={(gamescope) => {

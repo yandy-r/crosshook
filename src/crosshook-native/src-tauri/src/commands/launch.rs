@@ -21,6 +21,7 @@ use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file, Me
 use crosshook_core::offline::readiness::MIN_OFFLINE_READINESS_SCORE;
 use crosshook_core::profile::GamescopeConfig;
 use crosshook_core::profile::ProfileStore;
+use crosshook_core::storage::{check_low_disk_warning, DEFAULT_LOW_DISK_WARNING_MB};
 use crosshook_core::steam::discover_steam_root_candidates;
 use crosshook_core::steam::libraries::discover_steam_libraries;
 use crosshook_core::steam::manifest::parse_manifest_full;
@@ -139,19 +140,21 @@ pub fn check_game_running(exe_name: String) -> bool {
 
 /// Non-blocking offline readiness advisory when the profile has a trainer configured.
 async fn collect_offline_launch_warnings(
+    request: &LaunchRequest,
     profile_name: Option<String>,
     profile_store: ProfileStore,
     metadata_store: MetadataStore,
 ) -> Vec<LaunchValidationIssue> {
+    let mut warnings = collect_low_disk_warning(request).await;
     let Some(name) = profile_name.filter(|n| !n.trim().is_empty()) else {
-        return Vec::new();
+        return warnings;
     };
     if !metadata_store.is_available() {
-        return Vec::new();
+        return warnings;
     }
     let ps = profile_store;
     let ms = metadata_store;
-    tauri::async_runtime::spawn_blocking(move || {
+    let mut offline_warnings = tauri::async_runtime::spawn_blocking(move || {
         let profile = match ps.load(&name) {
             Ok(p) => p,
             Err(_) => return Vec::new(),
@@ -177,7 +180,48 @@ async fn collect_offline_launch_warnings(
         .issue()]
     })
     .await
-    .unwrap_or_default()
+    .unwrap_or_default();
+    warnings.append(&mut offline_warnings);
+    warnings
+}
+
+async fn collect_low_disk_warning(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
+    let raw_prefix_path = if request.resolved_method() == METHOD_STEAM_APPLAUNCH {
+        request.steam.compatdata_path.trim()
+    } else {
+        request.runtime.prefix_path.trim()
+    };
+    if raw_prefix_path.is_empty() {
+        return Vec::new();
+    }
+
+    let prefix_path = PathBuf::from(raw_prefix_path);
+    let check_result = tauri::async_runtime::spawn_blocking(move || {
+        check_low_disk_warning(&prefix_path, DEFAULT_LOW_DISK_WARNING_MB)
+    })
+    .await;
+
+    let warning = match check_result {
+        Ok(Ok(value)) => value,
+        Ok(Err(error)) => {
+            tracing::warn!(path = raw_prefix_path, %error, "low-disk check failed");
+            None
+        }
+        Err(error) => {
+            tracing::warn!(path = raw_prefix_path, %error, "low-disk check task failed");
+            None
+        }
+    };
+
+    match warning {
+        Some(value) => vec![ValidationError::LowDiskSpaceAdvisory {
+            available_mb: value.available_bytes / (1024 * 1024),
+            threshold_mb: value.threshold_bytes / (1024 * 1024),
+            mount_path: value.mount_path,
+        }
+        .issue()],
+        None => Vec::new(),
+    }
 }
 
 #[tauri::command]
@@ -193,6 +237,7 @@ pub async fn launch_game(
     let profile_store = profile_store.inner().clone();
     let metadata_store = app.state::<MetadataStore>().inner().clone();
     let warnings = collect_offline_launch_warnings(
+        &request,
         request.profile_name.clone(),
         profile_store,
         metadata_store.clone(),
@@ -277,6 +322,7 @@ pub async fn launch_trainer(
     let profile_store = profile_store.inner().clone();
     let metadata_store = app.state::<MetadataStore>().inner().clone();
     let warnings = collect_offline_launch_warnings(
+        &request,
         request.profile_name.clone(),
         profile_store,
         metadata_store.clone(),

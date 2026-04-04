@@ -401,6 +401,32 @@ impl ConfigRevisionSource {
     }
 }
 
+/// Maps to a row in the `prefix_storage_snapshots` table.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrefixStorageSnapshotRow {
+    pub id: String,
+    pub resolved_prefix_path: String,
+    pub total_bytes: i64,
+    pub staged_trainers_bytes: i64,
+    pub is_orphan: bool,
+    pub referenced_profiles_json: String,
+    pub stale_staged_count: i64,
+    pub scanned_at: String,
+}
+
+/// Maps to a row in the `prefix_storage_cleanup_audit` table.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrefixStorageCleanupAuditRow {
+    pub id: String,
+    pub target_kind: String,
+    pub resolved_prefix_path: String,
+    pub target_path: String,
+    pub result: String,
+    pub reason: Option<String>,
+    pub reclaimed_bytes: i64,
+    pub created_at: String,
+}
+
 /// Maps to a row in the `prefix_dependency_state` table.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PrefixDependencyStateRow {
