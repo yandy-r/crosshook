@@ -151,6 +151,12 @@ pub struct AppSettingsData {
     pub recent_files_limit: u32,
     /// Override profiles directory; empty = default under config. Restart required to apply.
     pub profiles_directory: String,
+    /// Path override for winetricks/protontricks binary; empty = auto-detect from PATH.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub protontricks_binary_path: String,
+    /// When true, auto-install missing prefix deps on first launch.
+    #[serde(default)]
+    pub auto_install_prefix_deps: bool,
 }
 
 impl Default for AppSettingsData {
@@ -170,6 +176,8 @@ impl Default for AppSettingsData {
             console_drawer_collapsed_default: true,
             recent_files_limit: default_recent_files_limit(),
             profiles_directory: String::new(),
+            protontricks_binary_path: String::new(),
+            auto_install_prefix_deps: false,
         }
     }
 }
@@ -207,6 +215,8 @@ impl fmt::Debug for AppSettingsData {
             )
             .field("recent_files_limit", &self.recent_files_limit)
             .field("profiles_directory", &self.profiles_directory)
+            .field("protontricks_binary_path", &self.protontricks_binary_path)
+            .field("auto_install_prefix_deps", &self.auto_install_prefix_deps)
             .finish()
     }
 }
@@ -419,5 +429,33 @@ mod tests {
         };
         let p = resolve_profiles_directory_from_config(&s, &cfg).unwrap();
         assert_eq!(p, PathBuf::from(s.profiles_directory));
+    }
+
+    #[test]
+    fn settings_roundtrip_with_protontricks_fields() {
+        let temp_dir = tempdir().unwrap();
+        let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+        let settings = AppSettingsData {
+            protontricks_binary_path: "/usr/bin/protontricks".to_string(),
+            auto_install_prefix_deps: true,
+            ..Default::default()
+        };
+        store.save(&settings).unwrap();
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.protontricks_binary_path, "/usr/bin/protontricks");
+        assert!(loaded.auto_install_prefix_deps);
+    }
+
+    #[test]
+    fn settings_backward_compat_without_protontricks_fields() {
+        let temp_dir = tempdir().unwrap();
+        let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+        // Save settings without the new fields (simulate old config)
+        let old_toml = "auto_load_last_profile = false\nlast_used_profile = \"\"\n";
+        std::fs::create_dir_all(store.settings_path().parent().unwrap()).unwrap();
+        std::fs::write(store.settings_path(), old_toml).unwrap();
+        let loaded = store.load().unwrap();
+        assert!(loaded.protontricks_binary_path.is_empty());
+        assert!(!loaded.auto_install_prefix_deps);
     }
 }

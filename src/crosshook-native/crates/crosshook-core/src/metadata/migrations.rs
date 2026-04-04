@@ -135,6 +135,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 15 {
+        migrate_14_to_15(conn)?;
+        conn.pragma_update(None, "user_version", 15_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 15",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -639,6 +648,35 @@ fn migrate_11_to_12(conn: &Connection) -> Result<(), MetadataStoreError> {
     Ok(())
 }
 
+fn migrate_14_to_15(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS prefix_dependency_state (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id       TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            package_name     TEXT NOT NULL,
+            prefix_path      TEXT NOT NULL,
+            state            TEXT NOT NULL DEFAULT 'unknown',
+            checked_at       TEXT,
+            installed_at     TEXT,
+            last_error       TEXT,
+            created_at       TEXT NOT NULL,
+            updated_at       TEXT NOT NULL
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_prefix_dep_state_profile_package_prefix
+            ON prefix_dependency_state(profile_id, package_name, prefix_path);
+
+        CREATE INDEX IF NOT EXISTS idx_prefix_dep_state_profile_id
+            ON prefix_dependency_state(profile_id);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "create prefix_dependency_state table (migration 14→15)",
+        source,
+    })
+}
+
 fn migrate_13_to_14(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(
         "
@@ -745,5 +783,59 @@ mod tests {
             )
             .unwrap();
         assert_eq!(expires_idx, 1, "missing index idx_game_image_cache_expires");
+    }
+
+    #[test]
+    fn migration_14_to_15_creates_prefix_dependency_state_table() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        // Verify schema version
+        let version: u32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 15);
+
+        // Verify table exists
+        let table_exists: bool = conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='prefix_dependency_state'")
+            .unwrap()
+            .exists([])
+            .unwrap();
+        assert!(table_exists, "prefix_dependency_state table should exist");
+
+        // Verify unique index exists
+        let idx_exists: bool = conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_prefix_dep_state_profile_package_prefix'")
+            .unwrap()
+            .exists([])
+            .unwrap();
+        assert!(idx_exists, "unique index should exist");
+
+        // Verify FK cascade: insert profile, insert dep state, delete profile, verify cascade
+        conn.execute(
+            "INSERT INTO profiles (profile_id, current_filename, current_path, game_name, created_at, updated_at)
+             VALUES ('test-prof', 'test.toml', '/tmp/test.toml', 'Test', datetime('now'), datetime('now'))",
+            [],
+        ).unwrap();
+
+        conn.execute(
+            "INSERT INTO prefix_dependency_state (profile_id, package_name, prefix_path, state, created_at, updated_at)
+             VALUES ('test-prof', 'vcrun2019', '/tmp/pfx', 'installed', datetime('now'), datetime('now'))",
+            [],
+        ).unwrap();
+
+        // Delete profile
+        conn.execute("DELETE FROM profiles WHERE profile_id = 'test-prof'", []).unwrap();
+
+        // Verify cascade deleted the dep state
+        let dep_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM prefix_dependency_state WHERE profile_id = 'test-prof'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(dep_count, 0, "dep state should be cascade-deleted with profile");
     }
 }

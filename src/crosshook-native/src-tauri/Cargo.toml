@@ -21,7 +21,8 @@ tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
-tokio = { version = "1", features = ["fs", "process", "time"] }
+chrono = "0.4"
+tokio = { version = "1", features = ["fs", "io-util", "process", "time"] }
 tracing = "0.1"
 
 [build-dependencies]

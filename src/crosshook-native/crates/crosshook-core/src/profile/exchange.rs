@@ -90,6 +90,7 @@ pub struct CommunityImportPreview {
     pub source_path: PathBuf,
     pub profile: GameProfile,
     pub manifest: CommunityProfileManifest,
+    pub required_prefix_deps: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,6 +146,7 @@ pub fn preview_community_profile_import(
     validate_schema_version(manifest.schema_version)?;
 
     let profile_name = derive_import_name(&manifest, json_path);
+    let required_prefix_deps = manifest.profile.trainer.required_protontricks.clone();
     let hydrated_profile = hydrate_imported_profile(&manifest.profile);
 
     Ok(CommunityImportPreview {
@@ -152,6 +154,7 @@ pub fn preview_community_profile_import(
         source_path: json_path.to_path_buf(),
         profile: hydrated_profile,
         manifest,
+        required_prefix_deps,
     })
 }
 
@@ -471,6 +474,7 @@ mod tests {
                 kind: "fling".to_string(),
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
+                required_protontricks: Vec::new(),
             },
             injection: crate::profile::InjectionSection {
                 dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],

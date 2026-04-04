@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useLauncherManagement } from '../hooks/useLauncherManagement';
-import { chooseDirectory } from '../utils/dialog';
+import { chooseDirectory, chooseFile } from '../utils/dialog';
 import { SettingsArt } from './layout/PageBanner';
 import { PanelRouteDecor } from './layout/PanelRouteDecor';
 import { CollapsibleSection } from './ui/CollapsibleSection';
@@ -505,6 +505,20 @@ export function SettingsPanel({
     ? 'Custom path is saved in settings.toml. Restart CrossHook to use it as the active profile store.'
     : 'Leave empty to use the default directory under your CrossHook config folder.';
 
+  const [binaryDetection, setBinaryDetection] = useState<{ found: boolean; binary_name: string; source: string } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void invoke<{ found: boolean; binary_name: string; source: string }>('detect_protontricks_binary')
+      .then((result) => {
+        if (active) setBinaryDetection(result);
+      })
+      .catch(() => {
+        if (active) setBinaryDetection(null);
+      });
+    return () => { active = false; };
+  }, [settings.protontricks_binary_path]);
+
   return (
     <section className="crosshook-card crosshook-card--with-route-decor crosshook-settings-panel" aria-label="Settings">
       <PanelRouteDecor illustration={<SettingsArt />} />
@@ -715,6 +729,78 @@ export function SettingsPanel({
                 }}
               />
             </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Prefix Dependencies"
+            defaultOpen={false}
+            className="crosshook-panel crosshook-settings-section"
+            meta={<span className="crosshook-muted">Winetricks / Protontricks</span>}
+          >
+            <div className="crosshook-settings-field-row">
+              <label className="crosshook-label" htmlFor="protontricks-binary-path">
+                Winetricks/Protontricks Binary Path
+              </label>
+              <div className="crosshook-settings-input-row">
+                <input
+                  id="protontricks-binary-path"
+                  key={`ptbp-${settings.protontricks_binary_path}`}
+                  className="crosshook-input"
+                  defaultValue={settings.protontricks_binary_path}
+                  placeholder="/usr/bin/protontricks"
+                  onBlur={(event) => {
+                    const v = event.target.value.trim();
+                    if (v !== settings.protontricks_binary_path.trim()) {
+                      void onPersistSettings({ protontricks_binary_path: v });
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--secondary"
+                  onClick={() => {
+                    void (async () => {
+                      const path = await chooseFile('Select winetricks or protontricks binary');
+                      if (path) void onPersistSettings({ protontricks_binary_path: path });
+                    })();
+                  }}
+                >
+                  Browse…
+                </button>
+              </div>
+            </div>
+            <p className="crosshook-muted crosshook-settings-note">
+              If left empty, CrossHook will auto-detect winetricks/protontricks from PATH.
+            </p>
+            {binaryDetection ? (
+              <p
+                className={binaryDetection.found ? 'crosshook-success' : 'crosshook-warning'}
+                style={{ fontSize: '0.85rem', margin: '4px 0 0' }}
+                aria-live="polite"
+              >
+                {binaryDetection.found
+                  ? `Binary found: ${binaryDetection.binary_name} (source: ${binaryDetection.source})`
+                  : 'No winetricks or protontricks binary found'}
+              </p>
+            ) : null}
+
+            <label className="crosshook-settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.auto_install_prefix_deps}
+                onChange={(event) =>
+                  void onPersistSettings({ auto_install_prefix_deps: event.target.checked })
+                }
+                className="crosshook-settings-checkbox"
+              />
+              <span>
+                <span className="crosshook-label">Auto-install prefix dependencies on first launch</span>
+                <p className="crosshook-muted crosshook-settings-note">
+                  When enabled, CrossHook will automatically install any required winetricks/protontricks
+                  dependencies into the Wine prefix before launching for the first time.
+                </p>
+              </span>
+            </label>
           </CollapsibleSection>
 
           <CollapsibleSection

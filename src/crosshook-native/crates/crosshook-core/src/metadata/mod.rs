@@ -11,6 +11,7 @@ mod migrations;
 mod models;
 pub(crate) mod offline_store;
 mod optimization_catalog_store;
+mod prefix_deps_store;
 mod preset_store;
 pub mod profile_sync;
 mod version_store;
@@ -20,10 +21,10 @@ pub use health_store::HealthSnapshotRow;
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
     CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
-    LaunchOutcome, MetadataStoreError, ProfileLaunchPresetOrigin, SyncReport, SyncSource,
-    VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
-    MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT,
-    MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
+    LaunchOutcome, MetadataStoreError, PrefixDependencyStateRow, ProfileLaunchPresetOrigin,
+    SyncReport, SyncSource, VersionCorrelationStatus, VersionSnapshotRow,
+    MAX_CACHE_PAYLOAD_BYTES, MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES,
+    MAX_HISTORY_LIST_LIMIT, MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
 pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow};
 pub use profile_sync::sha256_hex;
@@ -1289,6 +1290,61 @@ impl MetadataStore {
             optimization_catalog_store::persist_optimization_catalog(conn, entries, catalog_version)
         })
     }
+
+    // -------------------------------------------------------------------------
+    // Prefix dependency state persistence
+    // -------------------------------------------------------------------------
+
+    pub fn upsert_prefix_dep_state(
+        &self,
+        profile_id: &str,
+        package_name: &str,
+        prefix_path: &str,
+        state: &str,
+        error: Option<&str>,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("upsert prefix dep state", |conn| {
+            prefix_deps_store::upsert_dependency_state(conn, profile_id, package_name, prefix_path, state, error)
+        })
+    }
+
+    pub fn load_prefix_dep_states(
+        &self,
+        profile_id: &str,
+    ) -> Result<Vec<PrefixDependencyStateRow>, MetadataStoreError> {
+        self.with_conn("load prefix dep states", |conn| {
+            prefix_deps_store::load_dependency_states(conn, profile_id)
+        })
+    }
+
+    pub fn load_prefix_dep_state(
+        &self,
+        profile_id: &str,
+        package_name: &str,
+        prefix_path: &str,
+    ) -> Result<Option<PrefixDependencyStateRow>, MetadataStoreError> {
+        self.with_conn("load prefix dep state", |conn| {
+            prefix_deps_store::load_dependency_state(conn, profile_id, package_name, prefix_path)
+        })
+    }
+
+    pub fn clear_prefix_dep_states(
+        &self,
+        profile_id: &str,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("clear prefix dep states", |conn| {
+            prefix_deps_store::clear_dependency_states(conn, profile_id)
+        })
+    }
+
+    pub fn clear_stale_prefix_dep_states(
+        &self,
+        ttl_hours: i64,
+    ) -> Result<u64, MetadataStoreError> {
+        self.with_conn_mut("clear stale prefix dep states", |conn| {
+            prefix_deps_store::clear_stale_states(conn, ttl_hours)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -1331,6 +1387,7 @@ mod tests {
                 kind: "fling".to_string(),
                 loading_mode: TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
+                required_protontricks: Vec::new(),
             },
             injection: InjectionSection {
                 dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],

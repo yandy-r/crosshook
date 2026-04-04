@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 import LaunchPanel from '../LaunchPanel';
 import { LaunchSubTabs } from '../LaunchSubTabs';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
+import { usePreferencesContext } from '../../context/PreferencesContext';
+import { useLaunchStateContext } from '../../context/LaunchStateContext';
 import type { ProtonDbRecommendationGroup } from '../../types/protondb';
+import type { PrefixDependencyStatus } from '../../types/prefix-deps';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
 import { buildProfileLaunchRequest } from '../../utils/launch';
 import { mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../../utils/protondb';
@@ -14,6 +18,8 @@ import { mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../../u
 export function LaunchPage() {
   const profileState = useProfileContext();
   const { healthByName } = useProfileHealthContext();
+  const { settings } = usePreferencesContext();
+  const { launchGame, launchTrainer } = useLaunchStateContext();
   const profile = profileState.profile;
   const selectedName = profileState.selectedProfile || '';
   const launchRequest = buildProfileLaunchRequest(
@@ -64,6 +70,12 @@ export function LaunchPage() {
   const [pendingProtonDbOverwrite, setPendingProtonDbOverwrite] = useState<PendingProtonDbOverwrite | null>(null);
   const [applyingProtonDbGroupId, setApplyingProtonDbGroupId] = useState<string | null>(null);
   const [protonDbStatusMessage, setProtonDbStatusMessage] = useState<string | null>(null);
+
+  // Dep gate modal state
+  const [depGatePackages, setDepGatePackages] = useState<string[] | null>(null);
+  const [depGatePendingAction, setDepGatePendingAction] = useState<'game' | 'trainer' | null>(null);
+  const [depGateInstalling, setDepGateInstalling] = useState(false);
+
   const environmentAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistProfileDraftRef = useRef(profileState.persistProfileDraft);
   const latestProfileRef = useRef(profileState.profile);
@@ -90,6 +102,92 @@ export function LaunchPage() {
     setApplyingProtonDbGroupId(null);
     setProtonDbStatusMessage(null);
   }, [profileState.profileName, profile.steam.app_id, profileState.launchMethod]);
+
+  // Dep gate: listen for prefix-dep-complete while installing
+  useEffect(() => {
+    if (!depGateInstalling) return;
+
+    const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
+
+    const unlistenPromise = listen<{
+      profile_name: string;
+      prefix_path: string;
+      succeeded: boolean;
+    }>('prefix-dep-complete', (event) => {
+      if (event.payload.profile_name !== selectedName || event.payload.prefix_path !== prefixPath) return;
+
+      setDepGateInstalling(false);
+      if (event.payload.succeeded) {
+        const action = depGatePendingAction;
+        setDepGatePackages(null);
+        setDepGatePendingAction(null);
+        if (action === 'game') {
+          launchGame();
+        } else if (action === 'trainer') {
+          launchTrainer();
+        }
+      } else {
+        setDepGatePackages(null);
+        setDepGatePendingAction(null);
+      }
+    });
+
+    return () => {
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, [depGateInstalling, selectedName, profile, depGatePendingAction, launchGame, launchTrainer]);
+
+  const handleBeforeLaunch = useCallback(
+    async (action: 'game' | 'trainer'): Promise<boolean> => {
+      const requiredPackages = profile.trainer?.required_protontricks;
+      if (!requiredPackages || requiredPackages.length === 0) return true;
+
+      const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
+      if (!prefixPath) return true;
+
+      try {
+        const statuses = await invoke<PrefixDependencyStatus[]>('get_dependency_status', {
+          profileName: selectedName,
+          prefixPath,
+        });
+
+        const missing = requiredPackages.filter((pkg) => {
+          const status = statuses.find((s) => s.package_name === pkg);
+          return !status || status.state === 'missing' || status.state === 'install_failed' || status.state === 'unknown';
+        });
+
+        if (missing.length === 0) return true;
+
+        if (settings.auto_install_prefix_deps) {
+          // Auto-install: invoke and wait for the prefix-dep-complete event
+          setDepGatePackages(missing);
+          setDepGatePendingAction(action);
+          setDepGateInstalling(true);
+          try {
+            await invoke('install_prefix_dependency', {
+              profileName: selectedName,
+              prefixPath,
+              packages: missing,
+            });
+          } catch {
+            setDepGateInstalling(false);
+            setDepGatePackages(null);
+            setDepGatePendingAction(null);
+          }
+          return false;
+        }
+
+        // Show gate modal
+        setDepGatePackages(missing);
+        setDepGatePendingAction(action);
+        return false;
+      } catch {
+        // Cannot check — allow launch
+        return true;
+      }
+    },
+    [profile, selectedName, settings.auto_install_prefix_deps]
+  );
 
   const applyProtonDbGroup = useCallback(
     (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
@@ -269,8 +367,82 @@ export function LaunchPage() {
               mangoHudAutoSaveStatus={profileState.mangoHudAutoSaveStatus}
             />
           }
+          onBeforeLaunch={handleBeforeLaunch}
         />
       </div>
+
+      {depGatePackages !== null && (
+        <div className="crosshook-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dep-gate-title">
+          <div className="crosshook-modal crosshook-prefix-deps__confirm">
+            <h3 id="dep-gate-title">Missing Prefix Dependencies</h3>
+            <p>
+              This profile requires WINE prefix dependencies that are not installed. You can install them now or skip
+              and launch anyway.
+            </p>
+            <ul>
+              {depGatePackages.map((pkg) => (
+                <li key={pkg}>
+                  <code>{pkg}</code>
+                </li>
+              ))}
+            </ul>
+            {depGateInstalling ? <p className="crosshook-muted">Installing dependencies...</p> : null}
+            <div className="crosshook-modal__actions">
+              <button
+                type="button"
+                className="crosshook-button"
+                disabled={depGateInstalling}
+                onClick={() => {
+                  void (async () => {
+                    const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
+                    setDepGateInstalling(true);
+                    try {
+                      await invoke('install_prefix_dependency', {
+                        profileName: selectedName,
+                        prefixPath,
+                        packages: depGatePackages,
+                      });
+                    } catch {
+                      setDepGateInstalling(false);
+                    }
+                  })();
+                }}
+              >
+                Install + Launch
+              </button>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--secondary"
+                disabled={depGateInstalling}
+                onClick={() => {
+                  const action = depGatePendingAction;
+                  setDepGatePackages(null);
+                  setDepGatePendingAction(null);
+                  if (action === 'game') {
+                    launchGame();
+                  } else if (action === 'trainer') {
+                    launchTrainer();
+                  }
+                }}
+              >
+                Skip and Launch
+              </button>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--secondary"
+                disabled={depGateInstalling}
+                onClick={() => {
+                  setDepGatePackages(null);
+                  setDepGatePendingAction(null);
+                  setDepGateInstalling(false);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

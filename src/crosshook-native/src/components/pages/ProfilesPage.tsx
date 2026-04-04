@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 import ConfigHistoryPanel from '../ConfigHistoryPanel';
+import { PrefixDepsPanel } from '../PrefixDepsPanel';
 import ProfileActions from '../ProfileActions';
 import { OnboardingWizard } from '../OnboardingWizard';
 import ProfilePreviewModal from '../ProfilePreviewModal';
@@ -694,6 +695,17 @@ export function ProfilesPage() {
             </div>
           );
         })()}
+
+        {/* Prefix Dependencies — shown when the selected profile has required_protontricks */}
+        {profile.trainer?.required_protontricks && profile.trainer.required_protontricks.length > 0 ? (
+          <CollapsibleSection title="Prefix Dependencies" className="crosshook-panel">
+            <PrefixDepsPanel
+              profileName={profileName}
+              prefixPath={profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? ''}
+              requiredPackages={profile.trainer.required_protontricks}
+            />
+          </CollapsibleSection>
+        ) : null}
 
         {/* Profile sub-tabs — stable height; scroll inside active tab */}
         <div className="crosshook-profiles-editor-host">
