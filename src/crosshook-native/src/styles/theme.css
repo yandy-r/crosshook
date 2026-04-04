@@ -739,6 +739,31 @@ textarea {
   justify-content: flex-end;
 }
 
+.crosshook-settings-storage-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.crosshook-settings-storage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.crosshook-settings-storage-outcome {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.crosshook-settings-storage-targets {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
 .crosshook-settings-grid .crosshook-panel {
   min-width: 0;
 }

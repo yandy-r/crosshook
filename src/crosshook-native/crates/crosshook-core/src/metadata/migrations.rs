@@ -144,6 +144,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 16 {
+        migrate_15_to_16(conn)?;
+        conn.pragma_update(None, "user_version", 16_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 16",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -712,6 +721,46 @@ fn migrate_13_to_14(conn: &Connection) -> Result<(), MetadataStoreError> {
     Ok(())
 }
 
+fn migrate_15_to_16(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS prefix_storage_snapshots (
+            id                      TEXT PRIMARY KEY,
+            resolved_prefix_path    TEXT NOT NULL,
+            total_bytes             INTEGER NOT NULL,
+            staged_trainers_bytes   INTEGER NOT NULL,
+            is_orphan               INTEGER NOT NULL,
+            referenced_profiles_json TEXT NOT NULL,
+            stale_staged_count      INTEGER NOT NULL,
+            scanned_at              TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_prefix_storage_snapshots_prefix_path_scanned_at
+            ON prefix_storage_snapshots(resolved_prefix_path, scanned_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_prefix_storage_snapshots_scanned_at
+            ON prefix_storage_snapshots(scanned_at DESC);
+
+        CREATE TABLE IF NOT EXISTS prefix_storage_cleanup_audit (
+            id                      TEXT PRIMARY KEY,
+            target_kind             TEXT NOT NULL,
+            resolved_prefix_path    TEXT NOT NULL,
+            target_path             TEXT NOT NULL,
+            result                  TEXT NOT NULL,
+            reason                  TEXT,
+            reclaimed_bytes         INTEGER NOT NULL,
+            created_at              TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_prefix_storage_cleanup_audit_created_at
+            ON prefix_storage_cleanup_audit(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_prefix_storage_cleanup_audit_prefix_path
+            ON prefix_storage_cleanup_audit(resolved_prefix_path);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "create prefix storage persistence tables (migration 15→16)",
+        source,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -790,11 +839,11 @@ mod tests {
         let conn = db::open_in_memory().unwrap();
         run_migrations(&conn).unwrap();
 
-        // Verify schema version
+        // Verify schema version (latest after all migrations)
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 15);
+        assert!(version >= 15, "schema version should be at least 15, got {version}");
 
         // Verify table exists
         let table_exists: bool = conn
@@ -837,5 +886,42 @@ mod tests {
             )
             .unwrap();
         assert_eq!(dep_count, 0, "dep state should be cascade-deleted with profile");
+    }
+
+    #[test]
+    fn migration_15_to_16_creates_prefix_storage_tables() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let version: u32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 16);
+
+        for table in [
+            "prefix_storage_snapshots",
+            "prefix_storage_cleanup_audit",
+        ] {
+            let exists: bool = conn
+                .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1")
+                .unwrap()
+                .exists([table])
+                .unwrap();
+            assert!(exists, "missing table {table}");
+        }
+
+        for idx in [
+            "idx_prefix_storage_snapshots_prefix_path_scanned_at",
+            "idx_prefix_storage_snapshots_scanned_at",
+            "idx_prefix_storage_cleanup_audit_created_at",
+            "idx_prefix_storage_cleanup_audit_prefix_path",
+        ] {
+            let exists: bool = conn
+                .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?1")
+                .unwrap()
+                .exists([idx])
+                .unwrap();
+            assert!(exists, "missing index {idx}");
+        }
     }
 }

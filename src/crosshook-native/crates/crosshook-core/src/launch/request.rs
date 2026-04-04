@@ -266,6 +266,12 @@ pub enum ValidationError {
         score: u8,
         reasons: Vec<String>,
     },
+    /// Available disk space at the launch prefix mount is below warning threshold.
+    LowDiskSpaceAdvisory {
+        available_mb: u64,
+        threshold_mb: u64,
+        mount_path: String,
+    },
 }
 
 impl ValidationError {
@@ -406,6 +412,13 @@ impl ValidationError {
                     "Offline readiness score is {score}/100 (below 60).{detail}"
                 )
             }
+            Self::LowDiskSpaceAdvisory {
+                available_mb,
+                threshold_mb,
+                ..
+            } => format!(
+                "Low disk space detected: {available_mb} MiB available (recommended minimum {threshold_mb} MiB)."
+            ),
         }
     }
 
@@ -581,12 +594,19 @@ impl ValidationError {
                 "Review trainer files, game paths, and Proton prefix in the profile. This warning is informational; you can still launch."
                     .to_string()
             }
+            Self::LowDiskSpaceAdvisory { mount_path, .. } => {
+                format!(
+                    "Free up space on the filesystem backing '{mount_path}' before launching to reduce crash and staging failures. This warning is informational."
+                )
+            }
         }
     }
 
     pub fn severity(&self) -> ValidationSeverity {
         match self {
-            Self::GamescopeNestedSession | Self::OfflineReadinessInsufficient { .. } => {
+            Self::GamescopeNestedSession
+            | Self::OfflineReadinessInsufficient { .. }
+            | Self::LowDiskSpaceAdvisory { .. } => {
                 ValidationSeverity::Warning
             }
             _ => ValidationSeverity::Fatal,
@@ -1511,6 +1531,20 @@ mod tests {
         let issue = err.issue();
         assert_eq!(issue.severity, ValidationSeverity::Warning);
         assert!(issue.message.contains("40"));
+    }
+
+    #[test]
+    fn low_disk_space_advisory_is_warning_severity() {
+        let err = ValidationError::LowDiskSpaceAdvisory {
+            available_mb: 512,
+            threshold_mb: 2048,
+            mount_path: "/home/test".to_string(),
+        };
+        assert_eq!(err.severity(), ValidationSeverity::Warning);
+        let issue = err.issue();
+        assert_eq!(issue.severity, ValidationSeverity::Warning);
+        assert!(issue.message.contains("512"));
+        assert!(issue.help.contains("/home/test"));
     }
 
     #[test]

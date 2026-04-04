@@ -12,6 +12,7 @@ mod models;
 pub(crate) mod offline_store;
 mod optimization_catalog_store;
 mod prefix_deps_store;
+mod prefix_storage_store;
 mod preset_store;
 pub mod profile_sync;
 mod version_store;
@@ -21,7 +22,8 @@ pub use health_store::HealthSnapshotRow;
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
     CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
-    LaunchOutcome, MetadataStoreError, PrefixDependencyStateRow, ProfileLaunchPresetOrigin,
+    LaunchOutcome, MetadataStoreError, PrefixDependencyStateRow,
+    PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow, ProfileLaunchPresetOrigin,
     SyncReport, SyncSource, VersionCorrelationStatus, VersionSnapshotRow,
     MAX_CACHE_PAYLOAD_BYTES, MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES,
     MAX_HISTORY_LIST_LIMIT, MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
@@ -1343,6 +1345,46 @@ impl MetadataStore {
     ) -> Result<u64, MetadataStoreError> {
         self.with_conn_mut("clear stale prefix dep states", |conn| {
             prefix_deps_store::clear_stale_states(conn, ttl_hours)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Prefix storage snapshot & cleanup audit persistence
+    // -------------------------------------------------------------------------
+
+    pub fn insert_prefix_storage_snapshot(
+        &self,
+        row: &PrefixStorageSnapshotRow,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("insert prefix storage snapshot", |conn| {
+            prefix_storage_store::insert_snapshot(conn, row)
+        })
+    }
+
+    pub fn list_latest_prefix_storage_snapshots(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<PrefixStorageSnapshotRow>, MetadataStoreError> {
+        self.with_conn("list prefix storage snapshots", |conn| {
+            prefix_storage_store::list_latest_snapshots(conn, limit)
+        })
+    }
+
+    pub fn insert_prefix_storage_cleanup_audit(
+        &self,
+        row: &PrefixStorageCleanupAuditRow,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("insert prefix storage cleanup audit", |conn| {
+            prefix_storage_store::insert_cleanup_audit(conn, row)
+        })
+    }
+
+    pub fn list_prefix_storage_cleanup_audit(
+        &self,
+        limit: usize,
+    ) -> Result<Vec<PrefixStorageCleanupAuditRow>, MetadataStoreError> {
+        self.with_conn("list prefix storage cleanup audit", |conn| {
+            prefix_storage_store::list_cleanup_audit(conn, limit)
         })
     }
 }
