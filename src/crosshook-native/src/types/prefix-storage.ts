@@ -28,6 +28,7 @@ export interface PrefixStorageScanResult {
   prefixes: PrefixStorageEntry[];
   orphan_targets: PrefixCleanupTarget[];
   stale_staged_targets: PrefixCleanupTarget[];
+  inventory_incomplete: boolean;
 }
 
 export interface PrefixCleanupSkipped {
@@ -39,5 +40,33 @@ export interface PrefixCleanupResult {
   deleted: PrefixCleanupTarget[];
   skipped: PrefixCleanupSkipped[];
   reclaimed_bytes: number;
+}
+
+export interface PrefixStorageSnapshotRow {
+  id: string;
+  resolved_prefix_path: string;
+  total_bytes: number;
+  staged_trainers_bytes: number;
+  is_orphan: boolean;
+  referenced_profiles_json: string;
+  stale_staged_count: number;
+  scanned_at: string;
+}
+
+export interface PrefixStorageCleanupAuditRow {
+  id: string;
+  target_kind: string;
+  resolved_prefix_path: string;
+  target_path: string;
+  result: string;
+  reason: string | null;
+  reclaimed_bytes: number;
+  created_at: string;
+}
+
+export interface PrefixStorageHistoryResponse {
+  available: boolean;
+  snapshots: PrefixStorageSnapshotRow[];
+  audit: PrefixStorageCleanupAuditRow[];
 }
 

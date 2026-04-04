@@ -24,6 +24,7 @@ tauri-plugin-shell = "2"
 chrono = "0.4"
 tokio = { version = "1", features = ["fs", "io-util", "process", "time"] }
 tracing = "0.1"
+uuid = { version = "1", features = ["v4"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

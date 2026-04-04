@@ -11,9 +11,11 @@ import type { AppSettingsData, DiagnosticBundleResult } from '../types';
 import type {
   PrefixCleanupResult,
   PrefixCleanupTargetKind,
+  PrefixStorageCleanupAuditRow,
   PrefixStorageEntry,
   StaleStagedTrainerEntry,
 } from '../types/prefix-storage';
+import type { ScanSource } from '../hooks/usePrefixStorageManagement';
 
 interface RecentFilesState {
   gamePaths: string[];
@@ -246,17 +248,24 @@ function PrefixStorageSummary({
   prefixCount,
   orphanCount,
   staleCount,
+  scanSource,
 }: {
   scannedAt: string;
   prefixCount: number;
   orphanCount: number;
   staleCount: number;
+  scanSource?: ScanSource;
 }) {
   return (
     <div className="crosshook-settings-storage-summary">
       <span className="crosshook-status-chip">
         <strong>Last scan:</strong>
         <span>{formatTimestamp(scannedAt)}</span>
+        {scanSource ? (
+          <span className={`crosshook-health-chip crosshook-health-chip--${scanSource === 'live' ? 'healthy' : 'warning'}`}>
+            {scanSource === 'live' ? 'Live' : 'Cached'}
+          </span>
+        ) : null}
       </span>
       <span className="crosshook-status-chip">
         <strong>Prefixes:</strong>
@@ -406,11 +415,50 @@ function PrefixStorageList({ entries }: { entries: PrefixStorageEntry[] }) {
   );
 }
 
+function PrefixStorageCleanupHistory({ entries }: { entries: PrefixStorageCleanupAuditRow[] }) {
+  const displayEntries = entries.filter((e) => e.target_kind !== 'summary');
+  if (displayEntries.length === 0) {
+    return <p className="crosshook-muted crosshook-settings-note">No cleanup history recorded yet.</p>;
+  }
+  return (
+    <ul className="crosshook-list crosshook-list--compact">
+      {displayEntries.map((entry) => (
+        <li key={entry.id} className="crosshook-list-item">
+          <div className="crosshook-list-item-content">
+            <span
+              className={`crosshook-health-chip crosshook-health-chip--${entry.result === 'deleted' ? 'healthy' : 'warning'}`}
+            >
+              {entry.result}
+            </span>
+            <span className="crosshook-muted" style={{ fontSize: '0.85em' }}>
+              {entry.target_kind === 'orphan_prefix' ? 'Orphan prefix' : 'Stale staged trainer'}
+            </span>
+            <span className="crosshook-truncate" title={entry.target_path} style={{ maxWidth: '300px' }}>
+              {entry.target_path}
+            </span>
+            {entry.reason ? <span className="crosshook-muted">({entry.reason})</span> : null}
+            <span className="crosshook-muted" style={{ marginLeft: 'auto', fontSize: '0.85em' }}>
+              {formatTimestamp(entry.created_at)}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function PrefixStorageHealthSection() {
-  const { scanResult, scanLoading, cleanupLoading, error, scanStorage, cleanupStorage } = usePrefixStorageManagement();
+  const {
+    scanResult, scanLoading, cleanupLoading, error, scanStorage, cleanupStorage,
+    scanSource, persistenceAvailable, auditEntries, loadHistory,
+  } = usePrefixStorageManagement();
   const [confirmAction, setConfirmAction] = useState<PrefixCleanupTargetKind | null>(null);
   const [cleanupResult, setCleanupResult] = useState<PrefixCleanupResult | null>(null);
   const [cleanupError, setCleanupError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
 
   const orphanTargets = scanResult?.orphan_targets ?? [];
   const staleTargets = scanResult?.stale_staged_targets ?? [];
@@ -462,6 +510,11 @@ function PrefixStorageHealthSection() {
         Scans are local-only. Cleanup is always manual, confirmation-gated, and limited to CrossHook-managed prefix
         paths.
       </p>
+      {!persistenceAvailable ? (
+        <p className="crosshook-muted crosshook-settings-note" style={{ fontStyle: 'italic' }}>
+          Scan history is unavailable (metadata database offline). Scanning and cleanup still work normally.
+        </p>
+      ) : null}
       <div className="crosshook-settings-clear-row">
         <button
           type="button"
@@ -487,6 +540,7 @@ function PrefixStorageHealthSection() {
             prefixCount={allPrefixes.length}
             orphanCount={orphanTargets.length}
             staleCount={staleTargets.length}
+            scanSource={scanSource}
           />
           <PrefixCleanupActionRow
             kind="orphan_prefix"
@@ -511,6 +565,16 @@ function PrefixStorageHealthSection() {
       ) : (
         <p className="crosshook-muted crosshook-settings-note">Run a scan to view prefix size and cleanup targets.</p>
       )}
+
+      {persistenceAvailable && auditEntries.length > 0 ? (
+        <CollapsibleSection
+          title="Cleanup History"
+          defaultOpen={false}
+          className="crosshook-settings-subsection"
+        >
+          <PrefixStorageCleanupHistory entries={auditEntries} />
+        </CollapsibleSection>
+      ) : null}
     </CollapsibleSection>
   );
 }

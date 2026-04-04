@@ -263,6 +263,7 @@ pub fn run() {
             commands::settings::settings_save_steamgriddb_key,
             commands::storage::scan_prefix_storage,
             commands::storage::cleanup_prefix_storage,
+            commands::storage::get_prefix_storage_history,
             commands::steam::auto_populate_steam,
             commands::steam::default_steam_client_install_path,
             commands::steam::list_proton_installs,

@@ -48,6 +48,7 @@ pub struct PrefixStorageScanResult {
     pub prefixes: Vec<PrefixStorageEntry>,
     pub orphan_targets: Vec<PrefixCleanupTarget>,
     pub stale_staged_targets: Vec<PrefixCleanupTarget>,
+    pub inventory_incomplete: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -84,17 +85,25 @@ pub struct LowDiskWarning {
     pub threshold_bytes: u64,
 }
 
-pub fn collect_profile_prefix_references(store: &ProfileStore) -> Result<Vec<PrefixReference>, String> {
+#[derive(Debug, Clone)]
+pub struct ProfilePrefixReferences {
+    pub references: Vec<PrefixReference>,
+    pub profiles_load_failed: bool,
+}
+
+pub fn collect_profile_prefix_references(store: &ProfileStore) -> Result<ProfilePrefixReferences, String> {
     let names = store
         .list()
         .map_err(|error| format!("failed to list profiles for prefix scan: {error}"))?;
 
     let mut references = Vec::new();
+    let mut profiles_load_failed = false;
     for name in names {
         let profile = match store.load(&name) {
             Ok(value) => value,
             Err(error) => {
                 tracing::warn!(profile = %name, %error, "skipping profile during prefix scan");
+                profiles_load_failed = true;
                 continue;
             }
         };
@@ -112,12 +121,16 @@ pub fn collect_profile_prefix_references(store: &ProfileStore) -> Result<Vec<Pre
         });
     }
 
-    Ok(references)
+    Ok(ProfilePrefixReferences {
+        references,
+        profiles_load_failed,
+    })
 }
 
 pub fn scan_prefix_storage(
     references: &[PrefixReference],
     stale_days: u64,
+    inventory_incomplete: bool,
 ) -> Result<PrefixStorageScanResult, String> {
     let now = SystemTime::now();
     let stale_threshold = now
@@ -146,7 +159,7 @@ pub fn scan_prefix_storage(
             .cloned()
             .unwrap_or_default();
         let is_crosshook_managed = has_crosshook_managed_marker(&prefix_path);
-        let is_orphan = referenced_profiles.is_empty() && is_crosshook_managed;
+        let is_orphan = !inventory_incomplete && referenced_profiles.is_empty() && is_crosshook_managed;
         let total_bytes = dir_size_bytes(&prefix_path);
         let (staged_trainers_bytes, stale_staged_trainers) =
             staged_trainers_health(&prefix_path, stale_threshold);
@@ -186,6 +199,7 @@ pub fn scan_prefix_storage(
         prefixes: entries,
         orphan_targets,
         stale_staged_targets: stale_targets,
+        inventory_incomplete,
     })
 }
 
@@ -212,11 +226,20 @@ pub fn cleanup_prefix_storage(
 
 pub fn check_low_disk_warning(prefix_path: &Path, threshold_mb: u64) -> Result<Option<LowDiskWarning>, String> {
     let resolved_prefix = resolve_wine_prefix_path(prefix_path);
-    if !resolved_prefix.exists() {
-        return Ok(None);
-    }
+    let statvfs_target = if resolved_prefix.exists() {
+        resolved_prefix.clone()
+    } else {
+        let mut ancestor = resolved_prefix.as_path();
+        loop {
+            match ancestor.parent() {
+                Some(parent) if parent.exists() => break parent.to_path_buf(),
+                Some(parent) => ancestor = parent,
+                None => return Ok(None),
+            }
+        }
+    };
 
-    let stats = statvfs(&resolved_prefix)
+    let stats = statvfs(&statvfs_target)
         .map_err(|error| format!("failed to query disk usage for {}: {error}", resolved_prefix.display()))?;
     let available_bytes = stats.fragment_size().saturating_mul(stats.blocks_available());
     let threshold_bytes = threshold_mb.saturating_mul(1024 * 1024);
@@ -280,7 +303,11 @@ fn discover_prefixes_in_directory(directory: &Path) -> Vec<String> {
 
     for entry in entries.flatten() {
         let path = entry.path();
-        if !path.is_dir() {
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
             continue;
         }
         if path.join(DRIVE_C_RELATIVE).is_dir() {
@@ -300,7 +327,11 @@ fn discover_prefixes_in_compatdata_root(compatdata_root: &Path) -> Vec<String> {
 
     for entry in entries.flatten() {
         let path = entry.path();
-        if !path.is_dir() {
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
             continue;
         }
         let pfx_path = path.join("pfx");

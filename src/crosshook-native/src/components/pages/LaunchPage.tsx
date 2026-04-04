@@ -98,11 +98,12 @@ export function LaunchPage() {
     };
   }, []);
 
+  const resolvedSteamAppId = resolveArtAppId(profile);
   useEffect(() => {
     setPendingProtonDbOverwrite(null);
     setApplyingProtonDbGroupId(null);
     setProtonDbStatusMessage(null);
-  }, [profileState.profileName, profile.steam.app_id, profileState.launchMethod]);
+  }, [profileState.profileName, resolvedSteamAppId, profileState.launchMethod]);
 
   // Dep gate: listen for prefix-dep-complete while installing
   useEffect(() => {
