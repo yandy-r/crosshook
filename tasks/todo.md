@@ -1,5 +1,57 @@
 # Task Plan
 
+## 2026-04-04 - game-profile IPC normalization hardening
+
+- [x] Model sparse backend profile payloads explicitly in the frontend type surface.
+- [x] Normalize `profile_load` and other profile-returning IPC results before they hit UI/editor state.
+- [x] Run focused frontend verification for the IPC normalization hardening.
+
+### Review
+
+- The backend intentionally omits empty `runtime` and `local_override` sections from profile IPC payloads.
+- Added a dedicated serialized-profile type plus `normalizeSerializedGameProfile()` so the frontend treats IPC profiles as sparse on the wire but uses a fully-shaped `GameProfile` internally.
+- Switched the direct `profile_load`/profile-returning hooks to normalize backend payloads before rendering or editor-state updates.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
+## 2026-04-04 - game-details modal sparse-profile crash
+
+- [x] Patch the game details modal to tolerate profiles that omit nested `runtime` fields.
+- [x] Run focused frontend verification for the sparse-profile crash fix.
+
+### Review
+
+- The modal was directly reading `profile.runtime.prefix_path`, which crashes for sparse or legacy profiles whose IPC payload omits `runtime`.
+- The paths section now formats game, trainer, and prefix values through a shared guard so missing nested objects fall back to `Not set` instead of blanking the app.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
+## 2026-04-04 - game-details modal sizing follow-up
+
+- [x] Match the library game details modal shell dimensions to the shared New Profile wizard modal.
+- [x] Run focused frontend verification for the sizing follow-up.
+- [ ] Manual visual pass in the native shell is still pending locally.
+
+### Review
+
+- Removed the game details modal's custom narrow size override so it now inherits the shared `crosshook-modal__surface` width and height contract used by the onboarding wizard.
+- Kept the existing modal header, summary, body, and footer styling intact so the larger shell stays consistent with the rest of the app.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
+## 2026-04-04 - game-details-modal implementation
+
+- [x] Implement library game details modal per `docs/plans/game-details-modal/parallel-plan.md` (shell, card hitbox, profile/metadata/ProtonDB/health sections, quick actions).
+- [x] `npm run build` in `src/crosshook-native` (tsc + vite build) passed.
+- [ ] Manual checklist in `docs/plans/game-details-modal/manual-checklist.md` (GUI / Deck / gamepad) still pending locally.
+- [x] Follow-ups captured in `docs/plans/game-details-modal/follow-up-issues.md`.
+
+### Review
+
+- Modal reuses `crosshook-modal` portal, focus trap, backdrop dismiss, Escape, and `data-crosshook-modal-close` for gamepad back compatibility.
+- Card body uses a dedicated hitbox; footer actions unchanged with `stopPropagation`.
+- `useGameDetailsRequestGuards` + ref counting prevents stale `profile_load` results when switching profiles quickly.
+
 ## 2026-04-04 - game-details-modal planning workflow
 
 - [x] Run plan-workflow state detection for `game-details-modal`.
