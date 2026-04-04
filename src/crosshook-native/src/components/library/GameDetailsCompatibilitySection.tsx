@@ -23,7 +23,10 @@ export function GameDetailsCompatibilitySection({ steamAppId }: GameDetailsCompa
   }
 
   return (
-    <section className="crosshook-game-details-modal__section" aria-labelledby="crosshook-game-details-proton-heading">
+    <section
+      className="crosshook-game-details-modal__section crosshook-game-details-modal__section--card"
+      aria-labelledby="crosshook-game-details-proton-heading"
+    >
       <h3 id="crosshook-game-details-proton-heading" className="crosshook-game-details-modal__section-title">
         ProtonDB compatibility
       </h3>

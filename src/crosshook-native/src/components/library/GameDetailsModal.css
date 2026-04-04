@@ -1,20 +1,131 @@
-.crosshook-game-details-modal__body {
-  overscroll-behavior: contain;
+/* Body: full-bleed hero, padded content below (overrides modal body padding for this surface only). */
+.crosshook-game-details-modal.crosshook-modal__surface .crosshook-game-details-modal__body.crosshook-modal__body {
+  --crosshook-game-details-hero-height: min(240px, 28vh);
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 0;
+  min-height: 0;
+  position: relative;
+  isolation: isolate;
 }
 
+.crosshook-game-details-modal__body {
+  overscroll-behavior: contain;
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.crosshook-game-details-modal__hero {
+  position: sticky;
+  top: 0;
+  z-index: 0;
+  height: var(--crosshook-game-details-hero-height);
+  min-height: 160px;
+  margin-bottom: calc(-1 * var(--crosshook-game-details-hero-height));
+  overflow: hidden;
+  pointer-events: none;
+  background: linear-gradient(135deg, var(--crosshook-color-surface-strong), var(--crosshook-color-bg-elevated));
+}
+
+.crosshook-game-details-modal__hero-skeleton {
+  position: absolute;
+  inset: 0;
+}
+
+.crosshook-game-details-modal__hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.crosshook-game-details-modal__hero-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(4, 8, 16, 0.2) 0%,
+    rgba(8, 14, 26, 0.58) 42%,
+    rgba(8, 14, 26, 0.9) 76%,
+    rgba(8, 14, 26, 0.96) 100%
+  );
+  pointer-events: none;
+}
+
+/* ── Below hero: rail + main ─────────────────────────────────────────── */
+.crosshook-game-details-modal__below-hero {
+  position: relative;
+  z-index: 1;
+  padding: 10px 24px 24px;
+  flex: 1;
+  min-height: 0;
+}
+
+.crosshook-game-details-modal__layout {
+  display: grid;
+  grid-template-columns: minmax(120px, 168px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.crosshook-game-details-modal__media-rail {
+  position: sticky;
+  top: 10px;
+}
+
+.crosshook-game-details-modal__portrait-wrap {
+  border-radius: var(--crosshook-radius-md);
+  overflow: hidden;
+  border: 1px solid var(--crosshook-color-border);
+  box-shadow: var(--crosshook-shadow-soft);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.crosshook-game-details-modal__portrait {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.crosshook-game-details-modal__portrait--skeleton {
+  aspect-ratio: 3 / 4;
+  min-height: 168px;
+}
+
+.crosshook-game-details-modal__portrait-fallback {
+  aspect-ratio: 3 / 4;
+  min-height: 168px;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--crosshook-color-text-muted);
+  background: linear-gradient(145deg, var(--crosshook-color-surface-strong), var(--crosshook-color-surface));
+}
+
+.crosshook-game-details-modal__main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ── Sections ─────────────────────────────────────────────────────────── */
 .crosshook-game-details-modal__section {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.crosshook-game-details-modal__section:last-child {
-  border-bottom: none;
+.crosshook-game-details-modal__section--card {
+  padding: 16px 18px;
+  border-radius: var(--crosshook-radius-md);
+  border: 1px solid var(--crosshook-color-border);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .crosshook-game-details-modal__section-title {
@@ -84,34 +195,20 @@
   font-size: 0.88rem;
 }
 
-.crosshook-game-details-modal__cover-wrap {
-  max-width: 200px;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.crosshook-game-details-modal__genre-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.crosshook-game-details-modal__cover {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 3 / 4;
-  object-fit: cover;
-}
-
-.crosshook-game-details-modal__cover--skeleton {
-  aspect-ratio: 3 / 4;
-  min-height: 200px;
-}
-
-.crosshook-game-details-modal__cover-fallback {
-  aspect-ratio: 3 / 4;
-  display: grid;
-  place-items: center;
-  font-size: 1.75rem;
-  font-weight: 800;
+.crosshook-game-details-modal__genre-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--crosshook-color-text-muted);
-  background: rgba(255, 255, 255, 0.06);
 }
 
 .crosshook-game-details-modal__proton-summary {
@@ -144,4 +241,24 @@
   font-weight: 700;
   text-transform: uppercase;
   color: var(--crosshook-color-text-subtle);
+}
+
+@media (max-width: 720px) {
+  .crosshook-game-details-modal.crosshook-modal__surface .crosshook-game-details-modal__body.crosshook-modal__body {
+    --crosshook-game-details-hero-height: min(180px, 24vh);
+  }
+
+  .crosshook-game-details-modal__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .crosshook-game-details-modal__media-rail {
+    position: static;
+    justify-self: center;
+    width: min(200px, 55vw);
+  }
+
+  .crosshook-game-details-modal__below-hero {
+    padding: 8px 16px 20px;
+  }
 }

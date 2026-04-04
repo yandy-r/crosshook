@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import {
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
@@ -12,7 +13,10 @@ import type { LibraryCardData } from '../../types/library';
 import type { EnrichedProfileHealthReport } from '../../types/health';
 import type { OfflineReadinessReport } from '../../types';
 import { useGameDetailsProfile } from '../../hooks/useGameDetailsProfile';
+import { useGameCoverArt } from '../../hooks/useGameCoverArt';
+import { useGameMetadata } from '../../hooks/useGameMetadata';
 import { resolveLaunchMethod } from '../../utils/launch';
+import { effectiveGameArtPath } from '../../utils/profile-art';
 import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from './game-details-actions';
 import { GameDetailsCompatibilitySection } from './GameDetailsCompatibilitySection';
 import { GameDetailsHealthSection } from './GameDetailsHealthSection';
@@ -47,6 +51,41 @@ function focusElement(element: HTMLElement | null) {
 function displayPath(value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : 'Not set';
+}
+
+/**
+ * Hero precedence: custom background → SteamGridDB background → SteamGridDB hero → Steam header_image → none.
+ */
+function resolveGameDetailsHero(args: {
+  customBgPath?: string;
+  bg: { url: string | null; loading: boolean };
+  hero: { url: string | null; loading: boolean };
+  headerImage: string | null;
+  metaLoading: boolean;
+}): { url: string | null; showSkeleton: boolean } {
+  const custom = args.customBgPath?.trim();
+  if (custom) {
+    return { url: args.bg.url, showSkeleton: args.bg.loading };
+  }
+  if (args.bg.loading) {
+    return { url: null, showSkeleton: true };
+  }
+  if (args.bg.url) {
+    return { url: args.bg.url, showSkeleton: false };
+  }
+  if (args.hero.loading) {
+    return { url: null, showSkeleton: true };
+  }
+  if (args.hero.url) {
+    return { url: args.hero.url, showSkeleton: false };
+  }
+  if (args.metaLoading) {
+    return { url: null, showSkeleton: true };
+  }
+  if (args.headerImage) {
+    return { url: args.headerImage, showSkeleton: false };
+  }
+  return { url: null, showSkeleton: false };
 }
 
 export interface GameDetailsModalProps {
@@ -89,6 +128,56 @@ export function GameDetailsModal({
 
   const profileName = summary?.name ?? null;
   const { loadState, profile, errorMessage } = useGameDetailsProfile(profileName, open && summary !== null);
+
+  const steamAppIdForHooks = summary?.steamAppId?.trim() ?? '';
+  const hasNumericAppId = /^\d+$/.test(steamAppIdForHooks);
+  const appIdForArt = hasNumericAppId ? steamAppIdForHooks : undefined;
+
+  const customBgPath = effectiveGameArtPath(profile, 'custom_background_art_path');
+  const customPortraitPath =
+    loadState === 'ready' && profile
+      ? effectiveGameArtPath(profile, 'custom_portrait_art_path') ?? summary?.customPortraitArtPath
+      : summary?.customPortraitArtPath;
+
+  const meta = useGameMetadata(appIdForArt);
+  const backgroundArt = useGameCoverArt(appIdForArt, customBgPath, 'background');
+  const heroGridArt = useGameCoverArt(appIdForArt, undefined, 'hero');
+  const portraitArt = useGameCoverArt(appIdForArt, customPortraitPath, 'portrait');
+
+  const headerImage = meta.appDetails?.header_image?.trim() || null;
+  const metaLoading =
+    Boolean(hasNumericAppId) && (meta.loading || meta.state === 'idle' || meta.state === 'loading');
+
+  const heroResolved = useMemo(
+    () =>
+      resolveGameDetailsHero({
+        customBgPath,
+        bg: { url: backgroundArt.coverArtUrl, loading: backgroundArt.loading },
+        hero: { url: heroGridArt.coverArtUrl, loading: heroGridArt.loading },
+        headerImage,
+        metaLoading,
+      }),
+    [
+      customBgPath,
+      backgroundArt.coverArtUrl,
+      backgroundArt.loading,
+      heroGridArt.coverArtUrl,
+      heroGridArt.loading,
+      headerImage,
+      metaLoading,
+    ],
+  );
+
+  const [heroImgBroken, setHeroImgBroken] = useState(false);
+  const [portraitImgBroken, setPortraitImgBroken] = useState(false);
+
+  useEffect(() => {
+    setHeroImgBroken(false);
+  }, [heroResolved.url]);
+
+  useEffect(() => {
+    setPortraitImgBroken(false);
+  }, [portraitArt.coverArtUrl]);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -209,7 +298,7 @@ export function GameDetailsModal({
   }
 
   const displayName = summary.gameName || summary.name;
-  const steamAppId = summary.steamAppId?.trim() ?? '';
+  const steamAppId = steamAppIdForHooks;
   const methodLabel = profile ? resolveLaunchMethod(profile) : null;
   const healthReport = healthByName[summary.name];
   const offlineReport = offlineReportFor(summary.name);
@@ -279,43 +368,85 @@ export function GameDetailsModal({
         </section>
 
         <div className="crosshook-modal__body crosshook-game-details-modal__body">
-          {loadState === 'loading' ? (
-            <p className="crosshook-game-details-modal__muted">Loading profile details…</p>
-          ) : null}
-          {loadState === 'error' ? (
-            <p className="crosshook-game-details-modal__warn">{errorMessage ?? 'Failed to load profile.'}</p>
-          ) : null}
-          {profile && loadState === 'ready' ? (
-            <section className="crosshook-game-details-modal__section" aria-label="Executable paths">
-              <h3 className="crosshook-game-details-modal__section-title">Paths</h3>
-              <p className="crosshook-game-details-modal__text">
-                <span className="crosshook-game-details-modal__label">Game: </span>
-                <span className="crosshook-game-details-modal__mono">{gamePath}</span>
-              </p>
-              <p className="crosshook-game-details-modal__text">
-                <span className="crosshook-game-details-modal__label">Trainer: </span>
-                <span className="crosshook-game-details-modal__mono">{trainerPath}</span>
-              </p>
-              <p className="crosshook-game-details-modal__text">
-                <span className="crosshook-game-details-modal__label">Prefix: </span>
-                <span className="crosshook-game-details-modal__mono">{prefixPath}</span>
-              </p>
-            </section>
-          ) : null}
+          <div className="crosshook-game-details-modal__hero" aria-hidden="true">
+            {heroResolved.showSkeleton ? (
+              <div className="crosshook-game-details-modal__hero-skeleton crosshook-skeleton" />
+            ) : null}
+            {heroResolved.url && !heroImgBroken && !heroResolved.showSkeleton ? (
+              <img
+                className="crosshook-game-details-modal__hero-img"
+                src={heroResolved.url}
+                alt=""
+                onError={() => setHeroImgBroken(true)}
+              />
+            ) : null}
+            <div className="crosshook-game-details-modal__hero-gradient" />
+          </div>
 
-          <GameDetailsMetadataSection
-            steamAppId={steamAppId}
-            customPortraitPath={summary.customPortraitArtPath}
-            displayName={displayName}
-          />
-          <GameDetailsCompatibilitySection steamAppId={steamAppId} />
-          <GameDetailsHealthSection
-            profileName={summary.name}
-            healthReport={healthReport}
-            healthLoading={healthLoading}
-            offlineReport={offlineReport}
-            offlineError={offlineError}
-          />
+          <div className="crosshook-game-details-modal__below-hero">
+            <div className="crosshook-game-details-modal__layout">
+              <aside className="crosshook-game-details-modal__media-rail" aria-label="Portrait artwork">
+                <div className="crosshook-game-details-modal__portrait-wrap">
+                  {portraitArt.loading ? (
+                    <div
+                      className="crosshook-game-details-modal__portrait crosshook-game-details-modal__portrait--skeleton crosshook-skeleton"
+                      aria-hidden
+                    />
+                  ) : portraitArt.coverArtUrl && !portraitImgBroken ? (
+                    <img
+                      className="crosshook-game-details-modal__portrait"
+                      src={portraitArt.coverArtUrl}
+                      alt={`${displayName} portrait art`}
+                      onError={() => setPortraitImgBroken(true)}
+                    />
+                  ) : (
+                    <div className="crosshook-game-details-modal__portrait-fallback" aria-hidden>
+                      {displayName.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              </aside>
+
+              <div className="crosshook-game-details-modal__main">
+                {loadState === 'loading' ? (
+                  <p className="crosshook-game-details-modal__muted">Loading profile details…</p>
+                ) : null}
+                {loadState === 'error' ? (
+                  <p className="crosshook-game-details-modal__warn">{errorMessage ?? 'Failed to load profile.'}</p>
+                ) : null}
+                {profile && loadState === 'ready' ? (
+                  <section
+                    className="crosshook-game-details-modal__section crosshook-game-details-modal__section--card"
+                    aria-label="Executable paths"
+                  >
+                    <h3 className="crosshook-game-details-modal__section-title">Paths</h3>
+                    <p className="crosshook-game-details-modal__text">
+                      <span className="crosshook-game-details-modal__label">Game: </span>
+                      <span className="crosshook-game-details-modal__mono">{gamePath}</span>
+                    </p>
+                    <p className="crosshook-game-details-modal__text">
+                      <span className="crosshook-game-details-modal__label">Trainer: </span>
+                      <span className="crosshook-game-details-modal__mono">{trainerPath}</span>
+                    </p>
+                    <p className="crosshook-game-details-modal__text">
+                      <span className="crosshook-game-details-modal__label">Prefix: </span>
+                      <span className="crosshook-game-details-modal__mono">{prefixPath}</span>
+                    </p>
+                  </section>
+                ) : null}
+
+                <GameDetailsMetadataSection steamAppId={steamAppId} meta={meta} />
+                <GameDetailsCompatibilitySection steamAppId={steamAppId} />
+                <GameDetailsHealthSection
+                  profileName={summary.name}
+                  healthReport={healthReport}
+                  healthLoading={healthLoading}
+                  offlineReport={offlineReport}
+                  offlineError={offlineError}
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         <footer className="crosshook-modal__footer">

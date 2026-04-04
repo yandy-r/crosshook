@@ -21,7 +21,10 @@ export function GameDetailsHealthSection({
   offlineError,
 }: GameDetailsHealthSectionProps) {
   return (
-    <section className="crosshook-game-details-modal__section" aria-labelledby="crosshook-game-details-health-heading">
+    <section
+      className="crosshook-game-details-modal__section crosshook-game-details-modal__section--card"
+      aria-labelledby="crosshook-game-details-health-heading"
+    >
       <h3 id="crosshook-game-details-health-heading" className="crosshook-game-details-modal__section-title">
         Health and offline readiness
       </h3>

@@ -1,11 +1,10 @@
-import { useGameCoverArt } from '../../hooks/useGameCoverArt';
-import { useGameMetadata } from '../../hooks/useGameMetadata';
+import type { UseGameMetadataResult } from '../../hooks/useGameMetadata';
 import type { GameDetailsSectionState } from '../../types/game-details-modal';
+import type { SteamGenre } from '../../types/game-metadata';
 
 export interface GameDetailsMetadataSectionProps {
   steamAppId: string;
-  customPortraitPath?: string;
-  displayName: string;
+  meta: UseGameMetadataResult;
 }
 
 function sectionStateFromMetadata(
@@ -26,27 +25,20 @@ function sectionStateFromMetadata(
   return 'ready';
 }
 
-export function GameDetailsMetadataSection({
-  steamAppId,
-  customPortraitPath,
-  displayName,
-}: GameDetailsMetadataSectionProps) {
+export function GameDetailsMetadataSection({ steamAppId, meta }: GameDetailsMetadataSectionProps) {
   const trimmedId = steamAppId.trim();
   const hasAppId = /^\d+$/.test(trimmedId);
-
-  const meta = useGameMetadata(hasAppId ? trimmedId : undefined);
-  const { coverArtUrl, loading: coverLoading } = useGameCoverArt(
-    hasAppId ? trimmedId : undefined,
-    customPortraitPath,
-    'portrait',
-  );
 
   const metaState = sectionStateFromMetadata(hasAppId, meta.loading, meta.isUnavailable, meta.state);
   const shortDesc = meta.appDetails?.short_description?.trim() ?? '';
   const steamName = meta.appDetails?.name?.trim() ?? '';
+  const genres: SteamGenre[] = meta.appDetails?.genres ?? [];
 
   return (
-    <section className="crosshook-game-details-modal__section" aria-labelledby="crosshook-game-details-metadata-heading">
+    <section
+      className="crosshook-game-details-modal__section crosshook-game-details-modal__section--card"
+      aria-labelledby="crosshook-game-details-metadata-heading"
+    >
       <h3 id="crosshook-game-details-metadata-heading" className="crosshook-game-details-modal__section-title">
         Store metadata
       </h3>
@@ -68,20 +60,18 @@ export function GameDetailsMetadataSection({
           {steamName}
         </p>
       ) : null}
+      {hasAppId && metaState === 'ready' && genres.length > 0 ? (
+        <div className="crosshook-game-details-modal__genre-row" aria-label="Genres">
+          {genres.map((genre) => (
+            <span key={genre.id} className="crosshook-game-details-modal__genre-chip">
+              {genre.description}
+            </span>
+          ))}
+        </div>
+      ) : null}
       {hasAppId && metaState === 'ready' && shortDesc ? (
         <p className="crosshook-game-details-modal__text crosshook-game-details-modal__text--desc">{shortDesc}</p>
       ) : null}
-      <div className="crosshook-game-details-modal__cover-wrap" aria-label="Cover preview">
-        {coverLoading ? (
-          <div className="crosshook-game-details-modal__cover crosshook-game-details-modal__cover--skeleton crosshook-skeleton" />
-        ) : coverArtUrl ? (
-          <img className="crosshook-game-details-modal__cover" src={coverArtUrl} alt={`${displayName} cover art`} />
-        ) : (
-          <div className="crosshook-game-details-modal__cover-fallback" aria-hidden="true">
-            {displayName.slice(0, 2).toUpperCase()}
-          </div>
-        )}
-      </div>
     </section>
   );
 }
