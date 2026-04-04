@@ -3,6 +3,31 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+## [v0.2.7] - 2026-04-04
+
+
+### Bug Fixes
+
+- **launch:** Revert umu-run preference, use direct proton for all launch paths ([`7894353`](https://github.com/yandy-r/crosshook/commit/78943537733b389c7406cb91e0aec802308fe86a))
+
+
+### Features
+
+- **launch:** Enable gamescope for steam_applaunch and trainer exports ([#145](https://github.com/yandy-r/crosshook/issues/145)) ([`e5362c4`](https://github.com/yandy-r/crosshook/commit/e5362c48772df3529b0871cddca1bd6e98f86d3b))
+
+- **profiles:** Add Proton App ID and tri-art system ([#146](https://github.com/yandy-r/crosshook/issues/146)) ([`cd37b3a`](https://github.com/yandy-r/crosshook/commit/cd37b3aa35a977c5a231f880795ae5037e2dbfd9))
+
+- **launch:** Move environment config to launch with autosave ([#147](https://github.com/yandy-r/crosshook/issues/147)) ([`3f9e2c5`](https://github.com/yandy-r/crosshook/commit/3f9e2c5e3ad67c5f25fd9aa9a9d61ab77f6e3e24))
+
+- **launch:** Prefer umu-run for proton helper flows ([#148](https://github.com/yandy-r/crosshook/issues/148)) ([`e31264f`](https://github.com/yandy-r/crosshook/commit/e31264fb08fe102f671e199f05f80ee0bc05e4a0))
+
+- **launch:** Detect running game processes and split launch buttons ([#149](https://github.com/yandy-r/crosshook/issues/149)) ([`9003fab`](https://github.com/yandy-r/crosshook/commit/9003fab31a956975cc369572c6b900ce3055ed41))
+
+- **settings:** Expand app settings with profile defaults, log filter, and UI preferences ([#150](https://github.com/yandy-r/crosshook/issues/150)) ([`fee9b36`](https://github.com/yandy-r/crosshook/commit/fee9b36513a1b0a232c7a18a9d1b9836addbcadb))
+
+- **launch:** Protontricks/winetricks integration for prefix dependencies ([#151](https://github.com/yandy-r/crosshook/issues/151)) ([`5049761`](https://github.com/yandy-r/crosshook/commit/50497618c291dde40fe4a9022686bcbed925e860))
+
+
 ## [v0.2.6] - 2026-04-02
 
 
