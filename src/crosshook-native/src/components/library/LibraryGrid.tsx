@@ -1,11 +1,12 @@
 import type { LibraryCardData } from '../../types/library';
 import type { AppRoute } from '../layout/Sidebar';
+import type { LibraryOpenDetailsHandler } from './library-card-interactions';
 import { LibraryCard } from './LibraryCard';
 
 interface LibraryGridProps {
   profiles: LibraryCardData[];
   selectedName?: string;
-  onSelect?: (name: string) => void;
+  onOpenDetails: LibraryOpenDetailsHandler;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
@@ -16,7 +17,7 @@ interface LibraryGridProps {
 export function LibraryGrid({
   profiles,
   selectedName,
-  onSelect,
+  onOpenDetails,
   onLaunch,
   onEdit,
   onToggleFavorite,
@@ -45,7 +46,7 @@ export function LibraryGrid({
           key={profile.name}
           profile={profile}
           isSelected={selectedName === profile.name}
-          onSelect={onSelect}
+          onOpenDetails={onOpenDetails}
           onLaunch={onLaunch}
           onEdit={onEdit}
           onToggleFavorite={onToggleFavorite}

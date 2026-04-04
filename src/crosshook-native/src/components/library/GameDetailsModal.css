@@ -1,0 +1,147 @@
+.crosshook-game-details-modal__body {
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.crosshook-game-details-modal__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.crosshook-game-details-modal__section:last-child {
+  border-bottom: none;
+}
+
+.crosshook-game-details-modal__section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-game-details-modal__subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-game-details-modal__subsection-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-game-details-modal__text {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.crosshook-game-details-modal__text--desc {
+  font-size: 0.92rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-game-details-modal__text--small {
+  font-size: 0.82rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-game-details-modal__label {
+  color: var(--crosshook-color-text-muted);
+  font-weight: 600;
+}
+
+.crosshook-game-details-modal__muted {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.crosshook-game-details-modal__warn {
+  margin: 0;
+  color: var(--crosshook-color-warning, #fbbf24);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.crosshook-game-details-modal__stale {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-game-details-modal__mono {
+  font-family: var(--crosshook-font-mono);
+  font-size: 0.88rem;
+}
+
+.crosshook-game-details-modal__cover-wrap {
+  max-width: 200px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.crosshook-game-details-modal__cover {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.crosshook-game-details-modal__cover--skeleton {
+  aspect-ratio: 3 / 4;
+  min-height: 200px;
+}
+
+.crosshook-game-details-modal__cover-fallback {
+  aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--crosshook-color-text-muted);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.crosshook-game-details-modal__proton-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crosshook-game-details-modal__health-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crosshook-game-details-modal__issue-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.88rem;
+}
+
+.crosshook-game-details-modal__issue {
+  margin-bottom: 4px;
+}
+
+.crosshook-game-details-modal__issue-severity {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--crosshook-color-text-subtle);
+}

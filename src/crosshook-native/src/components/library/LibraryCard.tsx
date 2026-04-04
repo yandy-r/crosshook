@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { LibraryCardData } from '../../types/library';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
+import type { LibraryOpenDetailsHandler } from './library-card-interactions';
 
 interface LibraryCardProps {
   profile: LibraryCardData;
   isSelected?: boolean;
-  onSelect?: (name: string) => void;
+  onOpenDetails: LibraryOpenDetailsHandler;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
@@ -20,7 +21,7 @@ function getInitials(gameName: string, name: string): string {
 export function LibraryCard({
   profile,
   isSelected,
-  onSelect,
+  onOpenDetails,
   onLaunch,
   onEdit,
   onToggleFavorite,
@@ -52,7 +53,6 @@ export function LibraryCard({
   const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => setImgFailed(false), [coverArtUrl]);
 
-  const displayName = profile.gameName || profile.name;
   const hasMedia = !!(coverArtUrl && !imgFailed);
   const showTitle = !hasMedia && !loading;
 
@@ -61,13 +61,28 @@ export function LibraryCard({
     isSelected && 'crosshook-library-card--selected',
   ].filter(Boolean).join(' ');
 
+  const displayName = profile.gameName || profile.name;
+
+  function handleOpenDetailsClick() {
+    onOpenDetails(profile.name);
+  }
+
+  function handleDetailsHitboxKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onOpenDetails(profile.name);
+    }
+  }
+
   return (
-    <div
-      ref={cardRef}
-      className={cardClass}
-      role="listitem"
-      onClick={() => onSelect?.(profile.name)}
-    >
+    <div ref={cardRef} className={cardClass} role="listitem">
+      <button
+        type="button"
+        className="crosshook-library-card__details-hitbox"
+        aria-label={`View details for ${displayName}`}
+        onClick={handleOpenDetailsClick}
+        onKeyDown={handleDetailsHitboxKeyDown}
+      />
       {/* Cover image / skeleton / fallback */}
       {loading ? (
         <div className="crosshook-library-card__image crosshook-skeleton" />
