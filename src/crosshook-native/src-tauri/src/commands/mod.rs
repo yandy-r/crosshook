@@ -10,6 +10,7 @@ pub mod launch;
 pub mod migration;
 pub mod offline;
 pub mod onboarding;
+pub mod prefix_deps;
 pub mod profile;
 pub mod protondb;
 pub mod settings;

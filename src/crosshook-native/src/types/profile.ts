@@ -103,6 +103,8 @@ export interface GameProfile {
     /** Catalog id (`standalone`, `aurora`, …); omitted in TOML when `unknown`. */
     trainer_type?: string;
     loading_mode: TrainerLoadingMode;
+    /** Winetricks/protontricks verbs required by this trainer. */
+    required_protontricks?: string[];
   };
   injection: {
     dll_paths: string[];
@@ -145,6 +147,7 @@ export interface GameProfile {
     };
     trainer: {
       path: string;
+      extra_protontricks?: string[];
     };
     steam: {
       compatdata_path: string;

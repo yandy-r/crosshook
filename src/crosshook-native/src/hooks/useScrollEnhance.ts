@@ -6,7 +6,7 @@ const WHEEL_MULTIPLIER = 2;
 const SMOOTH_FACTOR = 0.18;
 const ARROW_SCROLL_PX = 80;
 const SCROLLABLE =
-  '.crosshook-route-card-scroll, .crosshook-page-scroll-body, .crosshook-subtab-content__inner--scroll, .crosshook-console-drawer__body, .crosshook-modal__body';
+  '.crosshook-route-card-scroll, .crosshook-page-scroll-body, .crosshook-subtab-content__inner--scroll, .crosshook-console-drawer__body, .crosshook-modal__body, .crosshook-prefix-deps__log-output';
 const RESET_SCROLL_MOMENTUM_EVENT = 'crosshook:reset-scroll-momentum';
 
 const INTERACTIVE_ROLES = new Set([

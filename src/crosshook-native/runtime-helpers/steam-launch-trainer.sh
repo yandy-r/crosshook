@@ -133,6 +133,7 @@ if runner_pid="$(
       --compatdata "$compatdata"
       --proton "$proton"
       --steam-client "$steam_client"
+      --steam-app-id "$steam_app_id"
       --trainer-path "$trainer_path"
       --trainer-host-path "$trainer_host_path"
       --trainer-loading-mode "$trainer_loading_mode"
@@ -156,15 +157,6 @@ if runner_pid="$(
     XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
     DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
     "${runner_command[@]}" \
-    /bin/bash "$runner_script" \
-      --compatdata "$compatdata" \
-      --proton "$proton" \
-      --steam-client "$steam_client" \
-      --steam-app-id "$steam_app_id" \
-      --trainer-path "$trainer_path" \
-      --trainer-host-path "$trainer_host_path" \
-      --trainer-loading-mode "$trainer_loading_mode" \
-      --log-file "$log_file" \
       </dev/null >/dev/null 2>&1 &
   printf '%s' "$!"
 )"; then

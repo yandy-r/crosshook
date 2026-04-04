@@ -73,6 +73,7 @@ export interface CommunityImportPreview {
   source_path: string;
   profile: GameProfile;
   manifest: CommunityProfileManifest;
+  required_prefix_deps: string[];
 }
 
 export interface CommunityExportResult {

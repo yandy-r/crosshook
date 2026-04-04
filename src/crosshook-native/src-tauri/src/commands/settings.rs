@@ -40,6 +40,8 @@ pub struct AppSettingsIpcData {
     pub resolved_profiles_directory: String,
     pub active_profiles_directory: String,
     pub profiles_directory_requires_restart: bool,
+    pub protontricks_binary_path: String,
+    pub auto_install_prefix_deps: bool,
 }
 
 impl AppSettingsIpcData {
@@ -74,6 +76,8 @@ impl AppSettingsIpcData {
             resolved_profiles_directory,
             active_profiles_directory,
             profiles_directory_requires_restart,
+            protontricks_binary_path: data.protontricks_binary_path,
+            auto_install_prefix_deps: data.auto_install_prefix_deps,
         }
     }
 }
@@ -106,6 +110,8 @@ pub struct SettingsSaveRequest {
     pub console_drawer_collapsed_default: bool,
     pub recent_files_limit: u32,
     pub profiles_directory: String,
+    pub protontricks_binary_path: String,
+    pub auto_install_prefix_deps: bool,
 }
 
 fn merge_settings_from_request(data: SettingsSaveRequest, current: AppSettingsData) -> AppSettingsData {
@@ -131,6 +137,8 @@ fn merge_settings_from_request(data: SettingsSaveRequest, current: AppSettingsDa
         console_drawer_collapsed_default: data.console_drawer_collapsed_default,
         recent_files_limit,
         profiles_directory: data.profiles_directory,
+        protontricks_binary_path: data.protontricks_binary_path,
+        auto_install_prefix_deps: data.auto_install_prefix_deps,
     }
 }
 

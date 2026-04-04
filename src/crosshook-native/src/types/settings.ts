@@ -19,6 +19,8 @@ export interface SettingsSaveRequest {
   console_drawer_collapsed_default: boolean;
   recent_files_limit: number;
   profiles_directory: string;
+  protontricks_binary_path: string;
+  auto_install_prefix_deps: boolean;
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {
@@ -45,6 +47,8 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     console_drawer_collapsed_default: s.console_drawer_collapsed_default,
     recent_files_limit: s.recent_files_limit,
     profiles_directory: s.profiles_directory,
+    protontricks_binary_path: s.protontricks_binary_path,
+    auto_install_prefix_deps: s.auto_install_prefix_deps,
   };
 }
 
@@ -66,6 +70,8 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   resolved_profiles_directory: '',
   active_profiles_directory: '',
   profiles_directory_requires_restart: false,
+  protontricks_binary_path: '',
+  auto_install_prefix_deps: false,
 };
 
 export interface RecentFilesData {

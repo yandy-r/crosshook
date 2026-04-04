@@ -231,6 +231,8 @@ pub struct TrainerSection {
         skip_serializing_if = "is_default_trainer_type"
     )]
     pub trainer_type: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_protontricks: Vec<String>,
 }
 
 impl Default for TrainerSection {
@@ -240,6 +242,7 @@ impl Default for TrainerSection {
             kind: String::new(),
             loading_mode: TrainerLoadingMode::default(),
             trainer_type: default_trainer_type(),
+            required_protontricks: Vec::new(),
         }
     }
 }
@@ -400,11 +403,13 @@ impl LocalOverrideGameSection {
 pub struct LocalOverrideTrainerSection {
     #[serde(default)]
     pub path: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_protontricks: Vec<String>,
 }
 
 impl LocalOverrideTrainerSection {
     pub fn is_empty(&self) -> bool {
-        self.path.trim().is_empty()
+        self.path.trim().is_empty() && self.extra_protontricks.is_empty()
     }
 }
 
@@ -477,6 +482,12 @@ impl GameProfile {
         }
         if !self.local_override.trainer.path.trim().is_empty() {
             merged.trainer.path = self.local_override.trainer.path.clone();
+        }
+        if !self.local_override.trainer.extra_protontricks.is_empty() {
+            merged
+                .trainer
+                .required_protontricks
+                .extend(self.local_override.trainer.extra_protontricks.clone());
         }
         if !self.local_override.steam.compatdata_path.trim().is_empty() {
             merged.steam.compatdata_path = self.local_override.steam.compatdata_path.clone();
@@ -551,6 +562,7 @@ impl From<LegacyProfileData> for GameProfile {
                 kind: String::default(),
                 loading_mode: TrainerLoadingMode::default(),
                 trainer_type: default_trainer_type(),
+                required_protontricks: Vec::new(),
             },
             injection: InjectionSection {
                 dll_paths: vec![value.dll1_path, value.dll2_path],
@@ -1132,5 +1144,56 @@ type = "fling"
         let serialized = toml::to_string_pretty(&profile).expect("serialize");
         assert!(!serialized.contains("custom_portrait_art_path"));
         assert!(!serialized.contains("custom_background_art_path"));
+    }
+
+    // --- required_protontricks / extra_protontricks (Task 1.2) ---
+
+    #[test]
+    fn trainer_section_roundtrip_with_required_protontricks() {
+        let section = TrainerSection {
+            required_protontricks: vec!["vcrun2019".to_string(), "dotnet48".to_string()],
+            ..Default::default()
+        };
+        let toml_str = toml::to_string_pretty(&section).unwrap();
+        let deserialized: TrainerSection = toml::from_str(&toml_str).unwrap();
+        assert_eq!(deserialized.required_protontricks, section.required_protontricks);
+    }
+
+    #[test]
+    fn trainer_section_roundtrip_without_required_protontricks() {
+        let section = TrainerSection::default();
+        let toml_str = toml::to_string_pretty(&section).unwrap();
+        assert!(!toml_str.contains("required_protontricks"), "empty vec should be skipped in serialization");
+        let deserialized: TrainerSection = toml::from_str(&toml_str).unwrap();
+        assert!(deserialized.required_protontricks.is_empty());
+    }
+
+    #[test]
+    fn trainer_section_deserialize_without_field() {
+        // Simulate existing TOML that doesn't have the field (backward compatibility)
+        let toml_str = r#"
+path = "/some/path"
+type = "fling"
+loading_mode = "source_directory"
+"#;
+        let section: TrainerSection = toml::from_str(toml_str).unwrap();
+        assert!(section.required_protontricks.is_empty());
+    }
+
+    #[test]
+    fn local_override_trainer_section_with_extra_protontricks() {
+        let section = LocalOverrideTrainerSection {
+            path: String::new(),
+            extra_protontricks: vec!["xact".to_string()],
+        };
+        assert!(!section.is_empty());
+        let toml_str = toml::to_string_pretty(&section).unwrap();
+        assert!(toml_str.contains("extra_protontricks"));
+    }
+
+    #[test]
+    fn local_override_trainer_section_empty_when_both_empty() {
+        let section = LocalOverrideTrainerSection::default();
+        assert!(section.is_empty());
     }
 }

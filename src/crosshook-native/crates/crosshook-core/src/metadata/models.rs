@@ -401,6 +401,21 @@ impl ConfigRevisionSource {
     }
 }
 
+/// Maps to a row in the `prefix_dependency_state` table.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PrefixDependencyStateRow {
+    pub id: i64,
+    pub profile_id: String,
+    pub package_name: String,
+    pub prefix_path: String,
+    pub state: String,
+    pub checked_at: Option<String>,
+    pub installed_at: Option<String>,
+    pub last_error: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// Maps to a row in the `config_revisions` append-only history table.
 #[derive(Debug, Clone)]
 pub struct ConfigRevisionRow {
