@@ -11,6 +11,7 @@ pub mod prefix_deps;
 pub mod profile;
 pub mod protondb;
 pub mod settings;
+pub mod storage;
 pub mod steam;
 pub mod steam_metadata;
 pub mod update;
