@@ -4,9 +4,13 @@ import type { AppRoute } from '../layout/Sidebar';
 import type { LibraryViewMode } from '../../types/library';
 import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
+import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
 import { useProfileContext } from '../../context/ProfileContext';
+import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { LibraryToolbar } from '../library/LibraryToolbar';
 import { LibraryGrid } from '../library/LibraryGrid';
+import { GameDetailsModal } from '../library/GameDetailsModal';
+import { useGameDetailsModalState } from '../library/useGameDetailsModalState';
 
 const VIEW_MODE_KEY = 'crosshook.library.viewMode';
 
@@ -24,6 +28,9 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     useProfileContext();
 
   const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles);
+  const { healthByName, loading: healthLoading } = useProfileHealthContext();
+  const offlineReadiness = useOfflineReadiness();
+  const gameDetailsModal = useGameDetailsModalState();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<LibraryViewMode>(loadViewMode);
   const [launchingName, setLaunchingName] = useState<string | undefined>();
@@ -66,6 +73,18 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   );
 
   // Favorite handler: optimistic update
+  const handleOpenGameDetails = useCallback(
+    async (name: string) => {
+      const card = summaries.find((s) => s.name === name);
+      if (!card) {
+        return;
+      }
+      gameDetailsModal.openForCard(card);
+      await selectProfile(name);
+    },
+    [gameDetailsModal, selectProfile, summaries],
+  );
+
   const handleToggleFavorite = useCallback(
     (name: string, current: boolean) => {
       // Optimistic: immediately update local state
@@ -82,6 +101,11 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     },
     [setSummaries, toggleFavorite],
   );
+
+  const activeGameDetailsSummary =
+    gameDetailsModal.summary == null
+      ? null
+      : summaries.find((summary) => summary.name === gameDetailsModal.summary?.name) ?? gameDetailsModal.summary;
 
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--library">
@@ -101,7 +125,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
                 <LibraryGrid
                   profiles={filtered}
                   selectedName={selectedProfile}
-                  onSelect={selectProfile}
+                  onOpenDetails={handleOpenGameDetails}
                   onLaunch={handleLaunch}
                   onEdit={handleEdit}
                   onToggleFavorite={handleToggleFavorite}
@@ -113,6 +137,19 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
           </div>
         </div>
       </div>
+      <GameDetailsModal
+        open={gameDetailsModal.open}
+        summary={activeGameDetailsSummary}
+        onClose={gameDetailsModal.close}
+        healthByName={healthByName}
+        healthLoading={healthLoading}
+        offlineReportFor={offlineReadiness.reportForProfile}
+        offlineError={offlineReadiness.error}
+        onLaunch={handleLaunch}
+        onEdit={handleEdit}
+        onToggleFavorite={handleToggleFavorite}
+        launchingName={launchingName}
+      />
     </div>
   );
 }
