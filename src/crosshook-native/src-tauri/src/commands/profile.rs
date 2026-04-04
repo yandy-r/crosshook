@@ -6,9 +6,9 @@ use crosshook_core::metadata::{
     MetadataStoreError, ProfileLaunchPresetOrigin, SyncSource, MAX_HISTORY_LIST_LIMIT,
 };
 use crosshook_core::profile::{
-    bundled_optimization_preset_toml_key, resolve_art_app_id, validate_steam_app_id,
-    DuplicateProfileResult, GameProfile, GamescopeConfig, MangoHudConfig, ProfileStore,
-    ProfileStoreError,
+    apply_profile_creation_defaults_from_settings, bundled_optimization_preset_toml_key,
+    resolve_art_app_id, validate_steam_app_id, DuplicateProfileResult, GameProfile,
+    GamescopeConfig, LaunchOptimizationsSection, MangoHudConfig, ProfileStore, ProfileStoreError,
 };
 use crosshook_core::settings::SettingsStore;
 use serde::{Deserialize, Serialize};
@@ -284,11 +284,54 @@ pub fn profile_save(
     mut data: GameProfile,
     app: AppHandle,
     store: State<'_, ProfileStore>,
+    settings_store: State<'_, SettingsStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
     // Validate runtime.steam_app_id before writing to disk (BR-4).
     if let Err(e) = validate_steam_app_id(data.runtime.steam_app_id.trim()) {
         return Err(format!("Invalid Steam App ID in runtime section: {e}"));
+    }
+
+    let is_new = !store.profile_exists(&name);
+    if is_new {
+        let app_settings = settings_store
+            .load()
+            .map_err(|e| e.to_string())?;
+        apply_profile_creation_defaults_from_settings(&mut data, &app_settings);
+
+        let pid = app_settings
+            .default_bundled_optimization_preset_id
+            .trim();
+        if !pid.is_empty() && metadata_store.is_available() {
+            match metadata_store.get_bundled_optimization_preset(pid) {
+                Ok(Some(row)) => {
+                    let enabled_option_ids: Vec<String> =
+                        serde_json::from_str(&row.option_ids_json).unwrap_or_default();
+                    let toml_key = bundled_optimization_preset_toml_key(pid);
+                    data.launch.presets.insert(
+                        toml_key.clone(),
+                        LaunchOptimizationsSection {
+                            enabled_option_ids: enabled_option_ids.clone(),
+                        },
+                    );
+                    data.launch.active_preset = toml_key;
+                    data.launch.optimizations = LaunchOptimizationsSection { enabled_option_ids };
+                }
+                Ok(None) => {
+                    tracing::debug!(
+                        preset_id = %pid,
+                        "default bundled optimization preset not found in metadata; skipping"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        %e,
+                        preset_id = %pid,
+                        "failed to read default bundled optimization preset from metadata"
+                    );
+                }
+            }
+        }
     }
 
     // Auto-import custom cover art into the managed media directory when the
@@ -1259,6 +1302,8 @@ mod tests {
                 name: "Test Game".to_string(),
                 executable_path: String::new(),
                 custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
             },
             trainer: TrainerSection {
                 path: "/tmp/trainers/test.exe".to_string(),

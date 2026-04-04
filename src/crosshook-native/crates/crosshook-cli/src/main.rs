@@ -537,7 +537,7 @@ async fn handle_status_command(global: &GlobalOptions) -> Result<(), CliError> {
     let mut diagnostics: Vec<String> = Vec::new();
 
     // Profiles
-    let (profile_names, profiles_dir) = match ProfileStore::try_new() {
+    let (profile_names, profiles_dir) = match profile_store(None) {
         Err(error) => {
             diagnostics.push(format!("profile store: {error}"));
             (Vec::new(), None)
@@ -697,8 +697,16 @@ async fn handle_status_command(global: &GlobalOptions) -> Result<(), CliError> {
 fn profile_store(profile_dir: Option<PathBuf>) -> Result<ProfileStore, CliError> {
     match profile_dir {
         Some(path) => Ok(ProfileStore::with_base_path(path)),
-        None => ProfileStore::try_new()
-            .map_err(|e| CliError::General(format!("failed to initialize profile store: {e}"))),
+        None => {
+            let settings_store = SettingsStore::try_new()
+                .map_err(|e| CliError::General(format!("settings store: {e}")))?;
+            let settings = settings_store
+                .load()
+                .map_err(|e| CliError::General(format!("settings load: {e}")))?;
+            ProfileStore::try_new_with_settings_data(&settings, &settings_store.base_path).map_err(
+                |e| CliError::General(format!("failed to initialize profile store: {e}")),
+            )
+        }
     }
 }
 
@@ -749,6 +757,11 @@ fn launch_request_from_profile(
         profile_name: Some(profile_name.to_string()),
         custom_env_vars: profile.launch.custom_env_vars.clone(),
         gamescope: profile.launch.gamescope.clone(),
+        trainer_gamescope: if profile.launch.trainer_gamescope.is_default() {
+            None
+        } else {
+            Some(profile.launch.trainer_gamescope.clone())
+        },
         mangohud: profile.launch.mangohud.clone(),
     })
 }

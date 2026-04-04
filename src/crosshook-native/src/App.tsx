@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
 import { listen } from '@tauri-apps/api/event';
@@ -10,7 +10,7 @@ import Sidebar, { type AppRoute } from './components/layout/Sidebar';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import type { OnboardingCheckPayload } from './types/onboarding';
 import { LaunchStateProvider } from './context/LaunchStateContext';
-import { PreferencesProvider } from './context/PreferencesContext';
+import { PreferencesProvider, usePreferencesContext } from './context/PreferencesContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
 import { ProfileHealthProvider } from './context/ProfileHealthContext';
 import { useGamepadNav } from './hooks/useGamepadNav';
@@ -39,16 +39,27 @@ function handleGamepadBack(): void {
   closeButton?.click();
 }
 
+function ConsoleDock({ panelRef }: { panelRef: RefObject<PanelImperativeHandle | null> }) {
+  const { settings } = usePreferencesContext();
+  const defaultCollapsed = settings.console_drawer_collapsed_default;
+
+  useEffect(() => {
+    if (defaultCollapsed) {
+      panelRef.current?.collapse();
+    } else {
+      panelRef.current?.expand();
+    }
+  }, [defaultCollapsed, panelRef]);
+
+  return <ConsoleDrawer panelRef={panelRef} defaultCollapsed={defaultCollapsed} />;
+}
+
 function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const { profileName, selectedProfile } = useProfileContext();
   const [route, setRoute] = useState<AppRoute>('library');
   const lastProfile = profileName.trim() || selectedProfile;
   const consolePanelRef = useRef<PanelImperativeHandle>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
-
-  useLayoutEffect(() => {
-    consolePanelRef.current?.collapse();
-  }, []);
 
   useEffect(() => {
     const p = listen<OnboardingCheckPayload>('onboarding-check', (event) => {
@@ -100,10 +111,10 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
                     collapsible
                     collapsedSize="40px"
                     defaultSize="60%"
-                    minSize="15%"
+                    minSize="25%"
                     maxSize="75%"
                   >
-                    <ConsoleDrawer panelRef={consolePanelRef} />
+                    <ConsoleDock panelRef={consolePanelRef} />
                   </Panel>
                 </Group>
               </Panel>

@@ -20,12 +20,18 @@ function formatLineCount(count: number): string {
 
 interface ConsoleDrawerProps {
   panelRef: RefObject<PanelImperativeHandle | null>;
+  /** When true (default), the drawer starts collapsed until logs arrive. */
+  defaultCollapsed?: boolean;
 }
 
-export function ConsoleDrawer({ panelRef }: ConsoleDrawerProps) {
-  const [collapsed, setCollapsed] = useState(true);
+export function ConsoleDrawer({ panelRef, defaultCollapsed = true }: ConsoleDrawerProps) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [lineCount, setLineCount] = useState(0);
   const bodyId = useId();
+
+  useEffect(() => {
+    setCollapsed(defaultCollapsed);
+  }, [defaultCollapsed]);
 
   const collapse = () => {
     setCollapsed(true);

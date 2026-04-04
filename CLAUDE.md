@@ -27,7 +27,7 @@ Normative guidelines for AI agents in this repository. For stack overview, direc
 ## SHOULD (implementation)
 
 - **Rust**: `snake_case`; modules as directories with `mod.rs`; errors via `Result` with `anyhow` or project error types.
-- **React / TypeScript**: `PascalCase` components, `camelCase` hooks/functions; respect strict TS; wrap `invoke()` in hooks for stateful UI; CSS variables in `src/crosshook-native/src/styles/variables.css`; BEM-like `crosshook-*` classes.
+- **React / TypeScript**: `PascalCase` components, `camelCase` hooks/functions; respect strict TS; wrap `invoke()` in hooks for stateful UI; CSS variables in `src/crosshook-native/src/styles/variables.css`; BEM-like `crosshook-*` classes. **Scroll containers**: WebKitGTK scroll is managed by `useScrollEnhance`. Any new `overflow-y: auto` container **must** be added to the `SCROLLABLE` selector in `src/crosshook-native/src/hooks/useScrollEnhance.ts`, or the enhanced scroll will target a parent container instead, causing dual-scroll jank. Inner scroll containers should also use `overscroll-behavior: contain`.
 - **Verification**: After substantive Rust changes, run `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`. There is **no** configured frontend test framework—use dev/build scripts when UI behavior matters.
 - **Environment**: Repo may use `direnv` / `.envrc` and `dotenvx` for local secrets; do not bypass secret-handling conventions.
 
