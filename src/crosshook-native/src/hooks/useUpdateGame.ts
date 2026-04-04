@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
-import type { GameProfile } from '../types/profile';
+import type { SerializedGameProfile } from '../types/profile';
+import { normalizeSerializedGameProfile } from '../types/profile';
 import type { UpdateGameRequest, UpdateGameResult, UpdateGameStage, UpdateGameValidationState } from '../types';
 import { UPDATE_GAME_VALIDATION_MESSAGES, UPDATE_GAME_VALIDATION_FIELD } from '../types';
 import type { UpdateGameValidationError } from '../types/update';
@@ -117,7 +118,7 @@ export function useUpdateGame(): UseUpdateGameResult {
 
       for (const name of allNames) {
         try {
-          const profile = await invoke<GameProfile>('profile_load', { name });
+          const profile = normalizeSerializedGameProfile(await invoke<SerializedGameProfile>('profile_load', { name }));
           if (profile.launch.method === 'proton_run') {
             protonRunNames.push(name);
           }
@@ -144,7 +145,7 @@ export function useUpdateGame(): UseUpdateGameResult {
 
   const populateFromProfile = useCallback(async (name: string) => {
     try {
-      const profile = await invoke<GameProfile>('profile_load', { name });
+      const profile = normalizeSerializedGameProfile(await invoke<SerializedGameProfile>('profile_load', { name }));
 
       setRequest((current) => ({
         ...current,

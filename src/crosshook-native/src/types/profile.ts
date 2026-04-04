@@ -160,6 +160,117 @@ export interface GameProfile {
   };
 }
 
+export interface SerializedLocalOverrideSection {
+  game?: Partial<NonNullable<GameProfile['local_override']>['game']>;
+  trainer?: Partial<NonNullable<GameProfile['local_override']>['trainer']>;
+  steam?: Partial<NonNullable<GameProfile['local_override']>['steam']>;
+  runtime?: Partial<NonNullable<GameProfile['local_override']>['runtime']>;
+}
+
+export interface SerializedGameProfile extends Omit<GameProfile, 'runtime' | 'local_override'> {
+  runtime?: Partial<GameProfile['runtime']>;
+  local_override?: SerializedLocalOverrideSection;
+}
+
+const DEFAULT_RUNTIME_SECTION: GameProfile['runtime'] = {
+  prefix_path: '',
+  proton_path: '',
+  working_directory: '',
+  steam_app_id: '',
+};
+
+const DEFAULT_LOCAL_OVERRIDE_SECTION: NonNullable<GameProfile['local_override']> = {
+  game: {
+    executable_path: '',
+    custom_cover_art_path: '',
+    custom_portrait_art_path: '',
+    custom_background_art_path: '',
+  },
+  trainer: {
+    path: '',
+    extra_protontricks: [],
+  },
+  steam: {
+    compatdata_path: '',
+    proton_path: '',
+  },
+  runtime: {
+    prefix_path: '',
+    proton_path: '',
+  },
+};
+
+const DEFAULT_LAUNCH_SECTION: GameProfile['launch'] = {
+  method: '',
+  optimizations: {
+    enabled_option_ids: [],
+  },
+  presets: {},
+  active_preset: '',
+  custom_env_vars: {},
+};
+
+export function normalizeSerializedGameProfile(profile: SerializedGameProfile): GameProfile {
+  return {
+    ...profile,
+    game: {
+      ...profile.game,
+      custom_cover_art_path: profile.game.custom_cover_art_path ?? '',
+      custom_portrait_art_path: profile.game.custom_portrait_art_path ?? '',
+      custom_background_art_path: profile.game.custom_background_art_path ?? '',
+    },
+    trainer: {
+      ...profile.trainer,
+      trainer_type: profile.trainer.trainer_type ?? 'unknown',
+      required_protontricks: [...(profile.trainer.required_protontricks ?? [])],
+    },
+    injection: {
+      ...profile.injection,
+      dll_paths: [...profile.injection.dll_paths],
+      inject_on_launch: [...profile.injection.inject_on_launch],
+    },
+    steam: {
+      ...profile.steam,
+      launcher: {
+        icon_path: profile.steam.launcher?.icon_path ?? '',
+        display_name: profile.steam.launcher?.display_name ?? '',
+      },
+    },
+    runtime: {
+      ...DEFAULT_RUNTIME_SECTION,
+      ...(profile.runtime ?? {}),
+    },
+    launch: {
+      ...DEFAULT_LAUNCH_SECTION,
+      ...profile.launch,
+      optimizations: {
+        enabled_option_ids: [...(profile.launch.optimizations?.enabled_option_ids ?? [])],
+      },
+      presets: { ...(profile.launch.presets ?? {}) },
+      custom_env_vars: { ...(profile.launch.custom_env_vars ?? {}) },
+    },
+    local_override: {
+      game: {
+        ...DEFAULT_LOCAL_OVERRIDE_SECTION.game,
+        ...(profile.local_override?.game ?? {}),
+      },
+      trainer: {
+        ...DEFAULT_LOCAL_OVERRIDE_SECTION.trainer,
+        ...(profile.local_override?.trainer ?? {}),
+        extra_protontricks: [...(profile.local_override?.trainer?.extra_protontricks ?? [])],
+      },
+      steam: {
+        ...DEFAULT_LOCAL_OVERRIDE_SECTION.steam,
+        ...(profile.local_override?.steam ?? {}),
+      },
+      runtime: {
+        ...DEFAULT_LOCAL_OVERRIDE_SECTION.runtime,
+        ...(profile.local_override?.runtime ?? {}),
+      },
+    },
+  };
+}
+
 /**
  * IPC result from the `profile_duplicate` Tauri command.
  *
@@ -172,4 +283,8 @@ export interface DuplicateProfileResult {
   name: string;
   /** Full clone of the source profile's data. */
   profile: GameProfile;
+}
+
+export interface SerializedDuplicateProfileResult extends Omit<DuplicateProfileResult, 'profile'> {
+  profile: SerializedGameProfile;
 }

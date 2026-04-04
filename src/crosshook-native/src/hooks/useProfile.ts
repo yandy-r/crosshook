@@ -7,13 +7,15 @@ import type {
   ConfigDiffResult,
   ConfigRevisionSummary,
   ConfigRollbackResult,
-  DuplicateProfileResult,
   GameProfile,
   LaunchAutoSaveStatus,
   LauncherInfo,
   RecentFilesData,
+  SerializedDuplicateProfileResult,
+  SerializedGameProfile,
 } from '../types';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
+import { normalizeSerializedGameProfile } from '../types/profile';
 import {
   getConflictingLaunchOptimizationIds,
   type LaunchOptimizationId,
@@ -315,33 +317,35 @@ function normalizeLaunchPresetsSection(
   return { presets, active_preset };
 }
 
-function normalizeProfileForEdit(profile: GameProfile, optionsById: Record<string, OptimizationEntry>): GameProfile {
-  const method = resolveLaunchMethod(profile);
-  const runtime = profile.runtime ?? {
-    prefix_path: '',
-    proton_path: '',
-    working_directory: '',
-    steam_app_id: '',
-  };
-  const { presets, active_preset } = normalizeLaunchPresetsSection(profile, optionsById);
-  let enabledOptionIds = normalizeLaunchOptimizationIds(profile.launch.optimizations?.enabled_option_ids, optionsById);
+function normalizeProfileForEdit(
+  profile: SerializedGameProfile | GameProfile,
+  optionsById: Record<string, OptimizationEntry>
+): GameProfile {
+  const normalizedProfile = normalizeSerializedGameProfile(profile);
+  const method = resolveLaunchMethod(normalizedProfile);
+  const runtime = normalizedProfile.runtime;
+  const { presets, active_preset } = normalizeLaunchPresetsSection(normalizedProfile, optionsById);
+  let enabledOptionIds = normalizeLaunchOptimizationIds(
+    normalizedProfile.launch.optimizations?.enabled_option_ids,
+    optionsById
+  );
   if (active_preset && presets[active_preset]) {
     enabledOptionIds = presets[active_preset].enabled_option_ids;
   }
 
   return {
-    ...profile,
+    ...normalizedProfile,
     trainer: {
-      ...profile.trainer,
-      type: profile.trainer.type.trim(),
-      loading_mode: profile.trainer.loading_mode ?? 'source_directory',
+      ...normalizedProfile.trainer,
+      type: normalizedProfile.trainer.type.trim(),
+      loading_mode: normalizedProfile.trainer.loading_mode ?? 'source_directory',
     },
     steam: {
-      ...profile.steam,
+      ...normalizedProfile.steam,
       enabled: method === 'steam_applaunch',
       launcher: {
-        ...profile.steam.launcher,
-        display_name: stripAutomaticLauncherSuffix(profile.steam.launcher.display_name),
+        ...normalizedProfile.steam.launcher,
+        display_name: stripAutomaticLauncherSuffix(normalizedProfile.steam.launcher.display_name),
       },
     },
     runtime: {
@@ -351,14 +355,14 @@ function normalizeProfileForEdit(profile: GameProfile, optionsById: Record<strin
       working_directory: runtime.working_directory.trim(),
     },
     launch: {
-      ...profile.launch,
+      ...normalizedProfile.launch,
       method,
       presets,
       active_preset,
       optimizations: {
         enabled_option_ids: enabledOptionIds,
       },
-      custom_env_vars: { ...(profile.launch.custom_env_vars ?? {}) },
+      custom_env_vars: { ...(normalizedProfile.launch.custom_env_vars ?? {}) },
     },
   };
 }
@@ -560,7 +564,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       const formatLoadError = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
       try {
-        const loaded = await invoke<GameProfile>('profile_load', { name: trimmed });
+        const loaded = await invoke<SerializedGameProfile>('profile_load', { name: trimmed });
         const normalized = normalizeProfileForEdit(loaded, optionsById);
         setSelectedProfile(trimmed);
         setProfileName(trimmed);
@@ -905,7 +909,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
       try {
         const updated = await enqueueLaunchProfileWrite(() =>
-          invoke<GameProfile>('profile_apply_bundled_optimization_preset', {
+          invoke<SerializedGameProfile>('profile_apply_bundled_optimization_preset', {
             name: trimmedName,
             presetId: pid,
           })
@@ -988,7 +992,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
       try {
         const updated = await enqueueLaunchProfileWrite(() =>
-          invoke<GameProfile>('profile_save_manual_optimization_preset', {
+          invoke<SerializedGameProfile>('profile_save_manual_optimization_preset', {
             name: trimmedName,
             presetName: key,
             enabledOptionIds: ids,
@@ -1075,7 +1079,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setDuplicating(true);
       setError(null);
       try {
-        const result = await invoke<DuplicateProfileResult>('profile_duplicate', {
+        const result = await invoke<SerializedDuplicateProfileResult>('profile_duplicate', {
           name: sourceName,
         });
         await refreshProfiles();

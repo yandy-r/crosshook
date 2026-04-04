@@ -1,5 +1,103 @@
 # Task Plan
 
+## 2026-04-04 - verify game-details modal review comments
+
+- [x] Confirm each cited game-details review comment against the current code and docs.
+- [x] Patch only the findings that still require changes across the modal/docs/library surfaces.
+- [x] Run focused frontend verification and record the outcome.
+
+### Review
+
+- Fixed the still-valid findings in the docs and frontend: added the missing manual checklist acceptance item, added a persistence/usability section to the research note, replaced deprecated `word-break: break-word`, tightened modal body locking, opened the modal before awaiting profile selection, kept the modal summary synced after favorite toggles, made ProtonDB status messaging mutually exclusive, improved cover-art accessibility, removed redundant hitbox keyboard handling, removed the unreachable `useGameDetailsProfile` load-state variant, and extracted the library-card footer offset into a shared CSS variable.
+- Kept the current quick-action scope unchanged after verification. The existing plan and implementation handoff lock v1 to minimal modal quick actions, so the requested `Export launcher` / `Copy Steam launch` buttons were not added.
+- Did not add a new invoke wrapper for `GameDetailsModal` because the component already delegates async profile loading to `useGameDetailsProfile` and contains no inline `invoke()` calls.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
+## 2026-04-04 - game-profile IPC normalization hardening
+
+- [x] Model sparse backend profile payloads explicitly in the frontend type surface.
+- [x] Normalize `profile_load` and other profile-returning IPC results before they hit UI/editor state.
+- [x] Run focused frontend verification for the IPC normalization hardening.
+
+### Review
+
+- The backend intentionally omits empty `runtime` and `local_override` sections from profile IPC payloads.
+- Added a dedicated serialized-profile type plus `normalizeSerializedGameProfile()` so the frontend treats IPC profiles as sparse on the wire but uses a fully-shaped `GameProfile` internally.
+- Switched the direct `profile_load`/profile-returning hooks to normalize backend payloads before rendering or editor-state updates.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
+## 2026-04-04 - game-details modal sparse-profile crash
+
+- [x] Patch the game details modal to tolerate profiles that omit nested `runtime` fields.
+- [x] Run focused frontend verification for the sparse-profile crash fix.
+
+### Review
+
+- The modal was directly reading `profile.runtime.prefix_path`, which crashes for sparse or legacy profiles whose IPC payload omits `runtime`.
+- The paths section now formats game, trainer, and prefix values through a shared guard so missing nested objects fall back to `Not set` instead of blanking the app.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
+## 2026-04-04 - game-details modal sizing follow-up
+
+- [x] Match the library game details modal shell dimensions to the shared New Profile wizard modal.
+- [x] Run focused frontend verification for the sizing follow-up.
+- [ ] Manual visual pass in the native shell is still pending locally.
+
+### Review
+
+- Removed the game details modal's custom narrow size override so it now inherits the shared `crosshook-modal__surface` width and height contract used by the onboarding wizard.
+- Kept the existing modal header, summary, body, and footer styling intact so the larger shell stays consistent with the rest of the app.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
+## 2026-04-04 - game-details-modal implementation
+
+- [x] Implement library game details modal per `docs/plans/game-details-modal/parallel-plan.md` (shell, card hitbox, profile/metadata/ProtonDB/health sections, quick actions).
+- [x] `npm run build` in `src/crosshook-native` (tsc + vite build) passed.
+- [ ] Manual checklist in `docs/plans/game-details-modal/manual-checklist.md` (GUI / Deck / gamepad) still pending locally.
+- [x] Follow-ups captured in `docs/plans/game-details-modal/follow-up-issues.md`.
+
+### Review
+
+- Modal reuses `crosshook-modal` portal, focus trap, backdrop dismiss, Escape, and `data-crosshook-modal-close` for gamepad back compatibility.
+- Card body uses a dedicated hitbox; footer actions unchanged with `stopPropagation`.
+- `useGameDetailsRequestGuards` + ref counting prevents stale `profile_load` results when switching profiles quickly.
+
+## 2026-04-04 - game-details-modal planning workflow
+
+- [x] Run plan-workflow state detection for `game-details-modal`.
+- [x] Generate standardized research artifacts:
+  - `docs/plans/game-details-modal/research-architecture.md`
+  - `docs/plans/game-details-modal/research-patterns.md`
+  - `docs/plans/game-details-modal/research-integration.md`
+  - `docs/plans/game-details-modal/research-docs.md`
+  - `docs/plans/game-details-modal/research-security.md`
+  - `docs/plans/game-details-modal/research-practices.md`
+- [x] Synthesize and validate `docs/plans/game-details-modal/shared.md`.
+- [x] Generate analysis artifacts:
+  - `docs/plans/game-details-modal/analysis-context.md`
+  - `docs/plans/game-details-modal/analysis-code.md`
+  - `docs/plans/game-details-modal/analysis-tasks.md`
+- [x] Generate and validate `docs/plans/game-details-modal/parallel-plan.md`.
+- [x] Run parallel-plan validation pass (paths, dependencies, task completeness).
+- [x] Add final planning review summary and implementation-ready next steps.
+
+### Review
+
+- `shared.md` and `parallel-plan.md` were generated for `game-details-modal` and validated by workflow scripts.
+- Standardized workflow artifacts were added: six `research-*.md` files and three `analysis-*.md` files.
+- Parallel-plan validation findings (dependency ordering clarity, must-read coverage, gamepad/summary wiring references) were folded back into `parallel-plan.md`.
+- Final plan stats:
+  - 4 phases
+  - 12 tasks
+  - 3 independent tasks
+- Validation outcome:
+  - `validate-shared.sh`: passed (script emits an internal warning while still returning success)
+  - `validate-workflow-plan.sh`: passed with zero warnings
+
 ## 2026-04-01 - verify install/update review comments
 
 - [x] Confirm each cited review comment is still valid in current code.

@@ -1,5 +1,9 @@
 # Lessons
 
+## 2026-04-04
+
+- When rendering profile data loaded over IPC, do not trust frontend-required nested objects like `profile.runtime` to exist on every saved profile. Guard nested reads in the UI, because legacy or sparse TOML profiles can deserialize without those sections and crash render paths that dereference them directly.
+
 ## 2026-03-31
 
 - When porting a JavaScript hash or checksum routine that relies on 32-bit overflow semantics, do not translate it with normal Rust arithmetic in debug builds. Use explicit `wrapping_*` operations so the code matches the upstream behavior and does not panic under real UI-triggered inputs.
