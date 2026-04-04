@@ -62,12 +62,13 @@ pub fn validate_protontricks_verbs(verbs: &[String]) -> Result<(), PrefixDepsErr
     let mut invalid: Vec<String> = Vec::new();
 
     for verb in verbs {
+        let escaped = verb.escape_default().to_string();
         if verb.starts_with('-') {
-            invalid.push(format!("'{verb}' starts with '-' (flag injection)"));
+            invalid.push(format!("'{escaped}' starts with '-' (flag injection)"));
             continue;
         }
         if !is_valid_verb_structure(verb) {
-            invalid.push(format!("'{verb}' fails structural validation"));
+            invalid.push(format!("'{escaped}' fails structural validation"));
         }
     }
 

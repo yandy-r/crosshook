@@ -29,34 +29,34 @@ These 4 open decisions from the feature spec must be resolved before any code is
 
 ### Must Read Before Any Code
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/protontricks-integration/feature-spec.md`: Authoritative spec — all data models, 4 IPC command contracts, 14 business rules, security table, 5-phase plan
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/protontricks-integration/research-security.md`: 7 CRITICAL + 14 WARNING findings — must all be addressed before ship
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/protontricks-integration/research-practices.md`: Exact reusable file inventory with line numbers — prevents reimplementing existing utilities
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/protontricks-integration/analysis-tasks.md`: Full 17-task breakdown with dependency graph, file-to-task mapping, and critical path
+- `docs/plans/protontricks-integration/feature-spec.md`: Authoritative spec — all data models, 4 IPC command contracts, 14 business rules, security table, 5-phase plan
+- `docs/plans/protontricks-integration/research-security.md`: 7 CRITICAL + 14 WARNING findings — must all be addressed before ship
+- `docs/plans/protontricks-integration/research-practices.md`: Exact reusable file inventory with line numbers — prevents reimplementing existing utilities
+- `docs/plans/protontricks-integration/analysis-tasks.md`: Full 17-task breakdown with dependency graph, file-to-task mapping, and critical path
 
 ### Core Patterns to Reuse
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/launch/runtime_helpers.rs`: `resolve_umu_run_path()` at line 302 (PATH walk binary detection), `apply_host_environment()`, `is_executable_file()`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`: `attach_log_stdio()` — canonical subprocess spawn + log stdio pattern
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`: Sequential `if version < N` migration runner; add `migrate_14_to_15()` here
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/health_store.rs`: Template for new `metadata/prefix_deps_store.rs` — `upsert_*`/`load_*` taking bare `&Connection`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/community/taps.rs`: `validate_branch_name` — security template for CLI arg validation (mirrors required `validate_protontricks_verbs()`)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/update.rs`: `Mutex<Option<u32>>` concurrent-install lock pattern; for prefix deps, lock should hold `String` (prefix_path being installed) rather than PID
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/launch.rs`: Async spawn + `app.emit()` streaming pattern; log streaming at line 350
+- `src/crosshook-native/crates/crosshook-core/src/launch/runtime_helpers.rs`: `resolve_umu_run_path()` at line 302 (PATH walk binary detection), `apply_host_environment()`, `is_executable_file()`
+- `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`: `attach_log_stdio()` — canonical subprocess spawn + log stdio pattern
+- `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`: Sequential `if version < N` migration runner; add `migrate_14_to_15()` here
+- `src/crosshook-native/crates/crosshook-core/src/metadata/health_store.rs`: Template for new `metadata/prefix_deps_store.rs` — `upsert_*`/`load_*` taking bare `&Connection`
+- `src/crosshook-native/crates/crosshook-core/src/community/taps.rs`: `validate_branch_name` — security template for CLI arg validation (mirrors required `validate_protontricks_verbs()`)
+- `src/crosshook-native/src-tauri/src/commands/update.rs`: `Mutex<Option<u32>>` concurrent-install lock pattern; for prefix deps, lock should hold `String` (prefix_path being installed) rather than PID
+- `src/crosshook-native/src-tauri/src/commands/launch.rs`: Async spawn + `app.emit()` streaming pattern; log streaming at line 350
 
 ### Files to Modify
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/lib.rs`: Add `pub mod prefix_deps;` (Task 1.1)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/models.rs`: Add `required_protontricks: Vec<String>` to `TrainerSection`, `extra_protontricks: Vec<String>` to `LocalOverrideTrainerSection` (Task 1.2)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/community_schema.rs`: Add `required_protontricks` to community manifest (Task 1.2)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/settings/mod.rs`: Add `protontricks_binary_path: String` + `auto_install_prefix_deps: bool` to `AppSettingsData` (Task 1.3)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`: Add `migrate_14_to_15()` (Task 2.1)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs`: Add `pub mod prefix_deps_store;` and expose store methods (Task 2.2)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/health.rs`: Extend `ProfileHealthReport` with `dependency_issues`; synchronous SQLite reads only — no subprocess in health path (Task 4.1)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/health.rs`: Extend `build_enriched_health_summary()` with dependency enrichment (Task 4.2)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/lib.rs`: Register 4 commands + manage `PrefixDepsInstallState` (Task 5a.2)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useScrollEnhance.ts`: Add `PrefixDepsPanel` scroll container to `SCROLLABLE` selector — required by CLAUDE.md scroll rule (Task 5b.4)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/exchange.rs`: Add `required_prefix_deps` to `CommunityImportPreview` — Rust-side change, part of Task 5b.4
+- `src/crosshook-native/crates/crosshook-core/src/lib.rs`: Add `pub mod prefix_deps;` (Task 1.1)
+- `src/crosshook-native/crates/crosshook-core/src/profile/models.rs`: Add `required_protontricks: Vec<String>` to `TrainerSection`, `extra_protontricks: Vec<String>` to `LocalOverrideTrainerSection` (Task 1.2)
+- `src/crosshook-native/crates/crosshook-core/src/profile/community_schema.rs`: Add `required_protontricks` to community manifest (Task 1.2)
+- `src/crosshook-native/crates/crosshook-core/src/settings/mod.rs`: Add `protontricks_binary_path: String` + `auto_install_prefix_deps: bool` to `AppSettingsData` (Task 1.3)
+- `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`: Add `migrate_14_to_15()` (Task 2.1)
+- `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs`: Add `pub mod prefix_deps_store;` and expose store methods (Task 2.2)
+- `src/crosshook-native/crates/crosshook-core/src/profile/health.rs`: Extend `ProfileHealthReport` with `dependency_issues`; synchronous SQLite reads only — no subprocess in health path (Task 4.1)
+- `src/crosshook-native/src-tauri/src/commands/health.rs`: Extend `build_enriched_health_summary()` with dependency enrichment (Task 4.2)
+- `src/crosshook-native/src-tauri/src/lib.rs`: Register 4 commands + manage `PrefixDepsInstallState` (Task 5a.2)
+- `src/crosshook-native/src/hooks/useScrollEnhance.ts`: Add `PrefixDepsPanel` scroll container to `SCROLLABLE` selector — required by CLAUDE.md scroll rule (Task 5b.4)
+- `src/crosshook-native/crates/crosshook-core/src/profile/exchange.rs`: Add `required_prefix_deps` to `CommunityImportPreview` — Rust-side change, part of Task 5b.4
 
 ---
 
@@ -109,7 +109,7 @@ Phase 1 (Foundation) ──→ Phase 2 (Storage) ──→ Phase 3 (Runner) ─�
 - Phase 3: Tasks 3.1 (validation), 3.2 (runner), 3.3 (lock) are independent modules sharing only `PrefixDepsError` from Phase 1
 - Phase 5a/5b split: Task 5b.1 (TypeScript types + hook stub) can be written from IPC signatures in `feature-spec.md` without waiting for 5a.1 to merge; synchronization point is Task 5b.2 onward (needs callable commands)
 
-**Full 17-task breakdown**: See `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/protontricks-integration/analysis-tasks.md`
+**Full 17-task breakdown**: See `docs/plans/protontricks-integration/analysis-tasks.md`
 
 ---
 

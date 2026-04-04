@@ -41,6 +41,7 @@
   --crosshook-content-width: 1440px;
   --crosshook-touch-target-min: 48px;
   --crosshook-touch-target-compact: 36px;
+  --crosshook-button-height-compact: 28px;
   --crosshook-layout-main-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
   --crosshook-subtab-min-height: 40px;
   --crosshook-subtab-padding-inline: 16px;

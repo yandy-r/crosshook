@@ -80,20 +80,20 @@ When `required_protontricks` is non-empty and packages are `missing` or `uncheck
 
 Skipping a prompt marks the packages as `user_skipped` in SQLite. The prompt does not recur on subsequent launches for those packages unless the user requests a fresh check or the TTL expires and a re-check finds them missing again. The health indicator remains amber while `user_skipped`.
 
-**BR-8: One active install at a time per prefix path**
-Only one dependency install operation may run at a time for a given prefix path. Attempting a second install while one is in progress (including a concurrent game launch that triggers auto-install) is rejected with a clear "Installation already in progress for this prefix" error. Multiple prefixes may have concurrent installs.
+**BR-8: One active dependency install at a time globally**
+Only one dependency install operation may run at a time across the entire app instance. Attempting a second install while one is in progress (including a concurrent game launch that triggers auto-install) is rejected with a clear "Installation already in progress" error until the active install completes. Multiple prefix-level concurrent installs are not supported by the current implementation.
 
 **BR-9: Concurrent launch-while-installing is blocked at UI level**
 When a dependency install is running for a profile, the launch button for that profile is disabled. If two profiles share the same prefix and one has an install running, the other profile's launch button is also disabled until the install completes. This is enforced by the frontend using the per-prefix active install state (runtime-only).
 
 **BR-10: Installation is atomic per package list**
-All packages in a single install request are passed to winetricks in one invocation. If the invocation fails, all packages in that batch are marked `install_failed`. The error output is captured and stored in `install_error` in SQLite for display in the dependency panel. Re-running an already-installed verb is safe (winetricks skips it by default) so retrying a failed batch that partially succeeded is not destructive.
+All packages in a single install request are passed to winetricks in one invocation. If the invocation fails, all packages in that batch are marked `install_failed`. Full raw process output is kept in internal logs only; the dependency panel shows a sanitized templated message (for example: "Package install failed — check logs for details" plus a short normalized reason code). Re-running an already-installed verb is safe (winetricks skips it by default) so retrying a failed batch that partially succeeded is not destructive.
 
 **BR-11: Dependency state persists across restarts**
 Check results and install outcomes are persisted in SQLite (`prefix_dependency_states` table, new). The last-checked timestamp and install status survive app restarts and are surfaced in the UI without re-checking every time.
 
 **BR-12: Active installation progress is runtime-only**
-While an install is running, live progress (stdout/stderr stream) is held in memory only and emitted to the frontend via Tauri events. It is not persisted in SQLite.
+While an install is running, live progress is held in memory only and emitted to the frontend via Tauri events in sanitized form. Raw stderr/stdout remains logs-only and is not persisted in SQLite.
 
 **BR-13: Community profile schema version bump**
 Adding `required_protontricks` to `CommunityProfileManifest` bumps `COMMUNITY_PROFILE_SCHEMA_VERSION` to 2. Old clients (schema v1) silently ignore the new field because TOML unknown fields are dropped on deserialization; new clients treat a missing field as an empty list. Users on old CrossHook versions simply won't have dependencies installed — the profile still loads and launches. The upgrade path note is included in the changelog.
@@ -133,10 +133,10 @@ Some verbs open Wine's own dialogs. CrossHook must run installs with the host `D
 If a community profile with `required_protontricks` is imported and the user has not yet set a prefix path, the dependency panel displays the declared dependencies as "cannot check — prefix not configured" and all install buttons are disabled until the prefix is set.
 
 **EC-6: Offline mode / no internet during install**
-CrossHook's offline mode flag does not restrict dependency install (the feature works against the local prefix). However, winetricks itself requires an internet connection to download packages. If the internet is unavailable when winetricks runs, it will fail with an error that is captured and shown in the dependency panel. No special CrossHook handling beyond surfacing the error output is required.
+CrossHook's offline mode flag does not restrict dependency install (the feature works against the local prefix). However, winetricks itself requires an internet connection to download packages. If the internet is unavailable when winetricks runs, the operation fails and the dependency panel shows a sanitized templated failure message while full diagnostics stay in internal logs.
 
 **EC-7: Package install fails mid-list**
-If `winetricks` exits non-zero, all packages in the batch are marked `install_failed`. The error output is captured and shown in the dependency panel. The user can retry. Because winetricks is idempotent, retrying a partially-completed batch is safe.
+If `winetricks` exits non-zero, all packages in the batch are marked `install_failed`. The dependency panel shows sanitized templated failure text (not raw stderr/stdout), and users can retry. Because winetricks is idempotent, retrying a partially-completed batch is safe.
 
 **EC-8: Two profiles share the same prefix path**
 Dependency states are per-profile, not per-prefix. One profile's install completing does not automatically update the other profile's SQLite state. Each profile independently checks and installs its own declared packages. The UI warns the user when a profile's prefix path is shared with another profile, since installing packages for one profile may affect the other.
@@ -174,9 +174,9 @@ Long-running installs must not appear hung. The UI must show continuous progress
    c. Acquire per-prefix install lock (reject if already locked — see BR-8).
    d. Emit install_started event to frontend.
    e. Spawn winetricks (or protontricks) with all missing packages as separate arguments.
-   f. Stream stdout/stderr to frontend via Tauri events (runtime-only state).
+   f. Stream sanitized progress lines to frontend via Tauri events (runtime-only state); keep full raw stdout/stderr in internal logs only.
    g. On success: release lock, re-read winetricks.log, update SQLite to installed, emit install_completed.
-   h. On failure: release lock, update SQLite to install_failed, emit install_failed with error output.
+   h. On failure: release lock, update SQLite to install_failed, emit install_failed with templated/sanitized error payload.
 7. User proceeds to launch (or CrossHook auto-launches if triggered from launch path).
 ```
 
@@ -235,7 +235,7 @@ User is directed to Settings > Protontricks. A "Locate binary" file picker allow
 CrossHook shows "Run a launch first to initialize the prefix, then retry dependency installation."
 
 **Install failed (network error or winetricks failure):**
-Error output is shown inline. User can copy the output, retry, or open a terminal to debug manually. CrossHook logs the failure to the standard log path for the operation. Because winetricks is idempotent, retrying is always safe.
+Sanitized templated error text is shown inline (for example: "Package install failed — check logs for details"). User can retry and open logs for diagnostics; raw subprocess output is not embedded in the UI. CrossHook logs the full failure output to the standard log path for the operation. Because winetricks is idempotent, retrying is always safe.
 
 **Concurrent install blocked:**
 User sees "Installation already in progress for this prefix. Wait for it to complete before launching." Launch button remains disabled for all profiles sharing that prefix path.

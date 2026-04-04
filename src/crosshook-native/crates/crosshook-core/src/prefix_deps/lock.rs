@@ -1,6 +1,6 @@
 use super::PrefixDepsError;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::Mutex;
 
 /// Global lock preventing concurrent prefix dependency installs.
 ///
@@ -22,7 +22,7 @@ impl PrefixDepsInstallLock {
     /// Returns a guard that releases the lock on drop.
     /// Returns `PrefixDepsError::AlreadyInstalling` if another install is in progress.
     pub async fn try_acquire(&self, prefix_path: String) -> Result<PrefixDepsLockGuard, PrefixDepsError> {
-        let mut guard = self.active.lock().await;
+        let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(ref existing) = *guard {
             return Err(PrefixDepsError::AlreadyInstalling {
                 prefix_path: existing.clone(),
@@ -36,12 +36,18 @@ impl PrefixDepsInstallLock {
 
     /// Check if any install is currently active.
     pub async fn is_locked(&self) -> bool {
-        self.active.lock().await.is_some()
+        self.active
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_some()
     }
 
     /// Return the prefix path being installed, if any.
     pub async fn active_prefix(&self) -> Option<String> {
-        self.active.lock().await.clone()
+        self.active
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 }
 
@@ -53,13 +59,8 @@ pub struct PrefixDepsLockGuard {
 
 impl Drop for PrefixDepsLockGuard {
     fn drop(&mut self) {
-        // Use try_lock since Drop is sync. If the mutex is already held,
-        // the lock will be released when the other holder finishes.
-        // In practice this always succeeds because the guard owner is the
-        // only one that should be dropping while holding it.
-        if let Ok(mut guard) = self.active.try_lock() {
-            *guard = None;
-        }
+        let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = None;
     }
 }
 

@@ -483,6 +483,12 @@ impl GameProfile {
         if !self.local_override.trainer.path.trim().is_empty() {
             merged.trainer.path = self.local_override.trainer.path.clone();
         }
+        if !self.local_override.trainer.extra_protontricks.is_empty() {
+            merged
+                .trainer
+                .required_protontricks
+                .extend(self.local_override.trainer.extra_protontricks.clone());
+        }
         if !self.local_override.steam.compatdata_path.trim().is_empty() {
             merged.steam.compatdata_path = self.local_override.steam.compatdata_path.clone();
         }

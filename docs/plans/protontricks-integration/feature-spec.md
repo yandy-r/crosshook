@@ -141,7 +141,7 @@ src-tauri/src/commands/prefix_deps.rs       ← thin IPC layer
   ▼
 crosshook-core/src/prefix_deps/             ← all business logic
   ├── mod.rs                                ← public re-exports, path resolution
-  ���── runner.rs                             ← ProtontricksRunner trait, Command building
+  ├── runner.rs                             ← ProtontricksRunner trait, Command building
   ├── store.rs                              ← SQLite state helpers (or inline in metadata/)
   └── validation.rs                         ← validate_protontricks_verbs()
   │
@@ -161,7 +161,6 @@ CREATE TABLE IF NOT EXISTS prefix_dependency_state (
     profile_id       TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
     package_name     TEXT NOT NULL,
     prefix_path      TEXT NOT NULL,
-    source           TEXT NOT NULL DEFAULT 'declared',
     state            TEXT NOT NULL DEFAULT 'unknown',
     checked_at       TEXT,
     installed_at     TEXT,
@@ -218,23 +217,31 @@ pub enum DependencyState {
     Missing,
     InstallFailed,
     CheckFailed,
+    UserSkipped,
 }
 
-pub struct BinaryInvocation {
-    pub program: String,
-    pub leading_args: Vec<String>,
-    pub binary_name: String,         // "winetricks" | "protontricks"
-    pub source: String,              // "settings" | "path" | "flatpak" | "not_found"
+pub struct BinaryDetectionResult {
+    pub found: bool,
+    pub binary_path: Option<String>,
+    pub binary_name: String,
+    pub tool_type: Option<PrefixDepsTool>,  // Winetricks or Protontricks
+    pub source: String,                     // "settings" | "path" | "not_found"
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixDepsTool {
+    Winetricks,
+    Protontricks,
 }
 
 pub enum PrefixDepsError {
-    BinaryNotFound { searched_path: String },
-    InvalidPackageName { package: String },
-    PrefixPathMissing,
-    DisplayRequired,
-    SpawnFailed { message: String },
-    InstallFailed { exit_code: Option<i32> },
-    AlreadyInstalling,
+    BinaryNotFound { tool: String },
+    PrefixNotInitialized { path: String },
+    ValidationError(String),
+    ProcessFailed { exit_code: Option<i32>, stderr: String },
+    Timeout { seconds: u64 },
+    AlreadyInstalling { prefix_path: String },
     Database { action: &'static str, source: rusqlite::Error },
 }
 ```
@@ -243,19 +250,19 @@ pub enum PrefixDepsError {
 
 #### `detect_protontricks_binary` (sync)
 
-Returns `DetectBinaryResult { found, binary_path, binary_name, source }`. Detection: settings → PATH winetricks → PATH protontricks → Flatpak protontricks → not found.
+Returns `BinaryDetectionResult { found, binary_path, binary_name, tool_type, source }`. Detection: settings → PATH winetricks → PATH protontricks → Flatpak protontricks → not found.
 
 #### `check_prefix_dependencies` (async)
 
-Validates inputs, resolves binary, runs `winetricks list-installed` against prefix, diffs against declared packages, upserts state to SQLite, returns `CheckPrefixDepsResult { states, all_installed, missing_packages }`. 30-second timeout per check.
+Validates inputs, resolves binary, runs `winetricks list-installed` against prefix, diffs against declared packages, upserts state to SQLite, returns `CheckPrefixDepsResult { states, all_installed, missing_packages }`. 30-second timeout per check. **Note**: also injects `ProfileStore` state for profile name to profile ID resolution.
 
 #### `install_prefix_dependency` (async)
 
-Validates, acquires global install lock, builds `Command` (env_clear → apply_host_environment → WINEPREFIX/STEAM_COMPAT_DATA_PATH → `--` separator → verbs), spawns with `attach_log_stdio`, streams `prefix-dep-log` events, emits `prefix-dep-complete` on exit, upserts SQLite state. 300-second timeout.
+Validates, acquires global install lock, builds `Command` (apply_host_environment → WINEPREFIX/STEAM_COMPAT_DATA_PATH → `--` separator → verbs), spawns with `attach_log_stdio`, streams `prefix-dep-log` events, emits `prefix-dep-complete` on exit, upserts SQLite state. 300-second timeout. **Note**: also injects `ProfileStore` state for profile name to profile ID resolution.
 
 #### `get_dependency_status` (sync)
 
-Pure SQLite read — returns cached `Vec<PackageDependencyState>` for a profile. No process spawning.
+Pure SQLite read — returns cached `Vec<PrefixDependencyStatus>` for a profile filtered by prefix path. Params: `profile_name: String`, `prefix_path: String`. No process spawning.
 
 ### Command Construction Pattern
 
@@ -263,9 +270,9 @@ Follows the established three-step pattern from `install/service.rs:108-112`:
 
 ```rust
 let mut cmd = Command::new(binary_path);
-cmd.env_clear();                              // Step 1: clean slate
-apply_host_environment(&mut cmd);             // Step 2: restore HOME, PATH, DISPLAY, etc.
-cmd.env("WINEPREFIX", resolved_prefix);       // Step 3: set prefix-specific vars
+// NOTE: Do NOT use env_clear() — winetricks/protontricks need HOME, USER, PATH, XDG_RUNTIME_DIR
+apply_host_environment(&mut cmd);             // Restore POSIX env vars needed by winetricks
+cmd.env("WINEPREFIX", resolved_prefix);       // Step 2: set prefix-specific vars
 cmd.env("STEAM_COMPAT_DATA_PATH", compat_data_path);
 cmd.arg("-q");                                // unattended
 cmd.arg("--");                                // flag injection prevention (S-06)
@@ -425,7 +432,7 @@ All user-facing messages are **templated strings** — raw subprocess output nev
 | Finding                                | Risk                             | Mitigation                                                         |
 | -------------------------------------- | -------------------------------- | ------------------------------------------------------------------ |
 | S-04: Steam App ID from community TOML | Spoofed App ID                   | App ID must be `u32`, nonzero, from internal game record only      |
-| S-07: Environment variable leakage     | Sensitive data in subprocess env | `env_clear()` + `apply_host_environment()` (minimal restoration)   |
+| S-07: Environment variable leakage     | Sensitive data in subprocess env | `apply_host_environment()` passes only required POSIX vars; no additional app secrets added |
 | S-08: `--force` / checksum bypass      | Skip integrity verification      | Never pass `--force`; checksum failures surface as explicit errors |
 | S-10: Concurrent prefix access         | Wine registry corruption         | Per-prefix async Mutex                                             |
 | S-11: Raw stderr in UI                 | Path/secret disclosure           | Stderr to tracing log only; templated error messages to UI         |
@@ -469,7 +476,7 @@ All user-facing messages are **templated strings** — raw subprocess output nev
 
 - `ProtontricksRunner` trait with `RealRunner` / `FakeRunner`
 - `validation.rs` with `validate_protontricks_verbs()` — structural regex + known-verb advisory
-- Command construction with `env_clear()` → `apply_host_environment()` → `--` separator
+- Command construction with `apply_host_environment()` → `--` separator (no `env_clear()` — winetricks requires full POSIX env)
 - `winetricks list-installed` pre-check for installed package detection
 - Prefix initialization guard (check `pfx/` subdirectory)
 - 300-second `tokio::time::timeout` on install operations
@@ -486,6 +493,7 @@ All user-facing messages are **templated strings** — raw subprocess output nev
 - Dependency enrichment closure for `batch_check_health_with_enrich`
 - `ProfileHealthReport` gains dependency status (synchronous SQLite reads only)
 - Shared-prefix detection with `Info`-severity warning
+- Health helper: `build_dependency_health_issues(dep_states: &[PrefixDependencyStateRow], required_verbs: &[String], active_prefix: &str) -> Vec<HealthIssue>`
 
 ### Phase 5: IPC + UI
 

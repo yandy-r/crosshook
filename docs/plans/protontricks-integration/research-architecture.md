@@ -6,30 +6,30 @@ CrossHook is a native Linux desktop application built with Tauri v2 (Rust backen
 
 ## Relevant Components
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/lib.rs`: Module registry for the core library; new `prefix_deps` module must be declared here
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/launch/runtime_helpers.rs`: Contains `resolve_umu_run_path()` (PATH walk pattern to reuse for binary discovery), proton path resolution, and subprocess environment setup
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`: Subprocess spawn patterns using `tokio::process::Command` — the exact pattern for winetricks/protontricks invocation
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/models.rs`: `GameProfile`, `RuntimeSection`, `LaunchSection` — `required_protontricks` field goes into a new or existing profile section
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/community_schema.rs`: `CommunityProfileManifest` wraps `GameProfile`; community profiles declare `required_protontricks` via the same profile TOML extension
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/health.rs`: `ProfileHealthReport`, `HealthIssue`, `HealthStatus` — extend to surface missing-dependency health issues
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/settings/mod.rs`: `AppSettingsData` — add `winetricks_path` / `protontricks_path` optional fields here
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`: Sequential migration runner at schema v14; v15 migration adds `prefix_dep_cache` table
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/db.rs`: SQLite connection factory (WAL, FK enforcement, 0o600 permissions) — used unchanged by new store
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs`: `MetadataStore` facade; new dep-cache methods attach here
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/lib.rs`: Tauri builder with `.manage()` state injection and `invoke_handler!` macro; new commands registered here
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/launch.rs`: Existing `#[tauri::command]` pattern to follow for new prefix-deps commands
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/types/profile.ts`: `GameProfile` TypeScript mirror — needs `required_protontricks?: string[]` field
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/types/settings.ts`: `AppSettingsData` TypeScript mirror — needs `winetricks_path` / `protontricks_path` fields
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/components/pages/ProfilesPage.tsx`: Profile detail view; `PrefixDepsPanel` will be embedded here under a collapsible section
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/components/SettingsPanel.tsx`: Settings UI; binary path fields for winetricks/protontricks go here
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useProfile.ts`: Main profile state hook; prefix-deps interaction may trigger profile refresh or status update
+- `src/crosshook-native/crates/crosshook-core/src/lib.rs`: Module registry for the core library; new `prefix_deps` module must be declared here
+- `src/crosshook-native/crates/crosshook-core/src/launch/runtime_helpers.rs`: Contains `resolve_umu_run_path()` (PATH walk pattern to reuse for binary discovery), proton path resolution, and subprocess environment setup
+- `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`: Subprocess spawn patterns using `tokio::process::Command` — the exact pattern for winetricks/protontricks invocation
+- `src/crosshook-native/crates/crosshook-core/src/profile/models.rs`: `GameProfile`, `RuntimeSection`, `LaunchSection` — `required_protontricks` field goes into a new or existing profile section
+- `src/crosshook-native/crates/crosshook-core/src/profile/community_schema.rs`: `CommunityProfileManifest` wraps `GameProfile`; community profiles declare `required_protontricks` via the same profile TOML extension
+- `src/crosshook-native/crates/crosshook-core/src/profile/health.rs`: `ProfileHealthReport`, `HealthIssue`, `HealthStatus` — extend to surface missing-dependency health issues
+- `src/crosshook-native/crates/crosshook-core/src/settings/mod.rs`: `AppSettingsData` — add `protontricks_binary_path` optional field here
+- `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`: Sequential migration runner at schema v14; v15 migration adds `prefix_dependency_state` table
+- `src/crosshook-native/crates/crosshook-core/src/metadata/db.rs`: SQLite connection factory (WAL, FK enforcement, 0o600 permissions) — used unchanged by new store
+- `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs`: `MetadataStore` facade; new dependency-state methods attach here
+- `src/crosshook-native/src-tauri/src/lib.rs`: Tauri builder with `.manage()` state injection and `invoke_handler!` macro; new commands registered here
+- `src/crosshook-native/src-tauri/src/commands/launch.rs`: Existing `#[tauri::command]` pattern to follow for new prefix-deps commands
+- `src/crosshook-native/src/types/profile.ts`: `GameProfile` TypeScript mirror — needs `required_protontricks?: string[]` field
+- `src/crosshook-native/src/types/settings.ts`: `AppSettingsData` TypeScript mirror — needs dependency settings fields
+- `src/crosshook-native/src/components/pages/ProfilesPage.tsx`: Profile detail view; `PrefixDepsPanel` will be embedded here under a collapsible section
+- `src/crosshook-native/src/components/SettingsPanel.tsx`: Settings UI; binary path fields for winetricks/protontricks go here
+- `src/crosshook-native/src/hooks/useProfile.ts`: Main profile state hook; prefix-deps interaction may trigger profile refresh or status update
 
 ## Data Flow
 
 **Dependency check flow:**
 
 1. Frontend calls `invoke('check_prefix_deps', { profile_name, prefix_path })` → `src-tauri/commands/prefix_deps.rs` → `crosshook_core::prefix_deps::check(prefix_path, verbs)` → spawns `WINEPREFIX=<path> winetricks list-installed` as `tokio::process::Command` (env_clear + apply_host_environment pattern) → parses stdout → returns `Vec<DepStatus>`.
-2. Results cached in SQLite `prefix_dep_cache` table via `MetadataStore`; TTL 24 hours per `feature-spec.md` BR-5.
+2. Results cached in SQLite `prefix_dependency_state` table via `MetadataStore`; TTL 24 hours per `feature-spec.md` BR-5.
 
 **Dependency install flow:**
 
@@ -52,7 +52,7 @@ CrossHook is a native Linux desktop application built with Tauri v2 (Rust backen
 | `crosshook-core/src/profile/models.rs`      | Add `required_protontricks: Vec<String>` to `GameProfile` or `TrainerSection` with `#[serde(default, skip_serializing_if = "Vec::is_empty")]` |
 | `crosshook-core/src/settings/mod.rs`        | Add `winetricks_path: String` / `protontricks_path: String` to `AppSettingsData` with `#[serde(default)]`                                     |
 | `crosshook-core/src/profile/health.rs`      | Extend `check_profile_health()` to emit amber `HealthIssue` when declared deps are unchecked or missing                                       |
-| `crosshook-core/src/metadata/migrations.rs` | Add `migrate_14_to_15()` for `prefix_dep_cache` table; increment guard to `< 15`                                                              |
+| `crosshook-core/src/metadata/migrations.rs` | Add `migrate_14_to_15()` for `prefix_dependency_state` table; increment guard to `< 15`                                                       |
 | `crosshook-core/src/metadata/mod.rs`        | Add `check_dep_cache()`, `upsert_dep_cache()`, `invalidate_dep_cache()` methods to `MetadataStore`                                            |
 | `src-tauri/src/commands/`                   | New `prefix_deps.rs` file with `check_prefix_deps`, `install_prefix_deps`, `detect_winetricks_binary`, `get_prefix_dep_status` commands       |
 | `src-tauri/src/lib.rs`                      | Register new commands in `invoke_handler!` macro                                                                                              |

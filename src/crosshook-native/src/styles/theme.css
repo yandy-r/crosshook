@@ -5073,7 +5073,7 @@ textarea {
 .crosshook-button--small {
   padding: 3px 10px;
   font-size: 0.8rem;
-  min-height: unset;
+  min-height: var(--crosshook-button-height-compact);
 }
 
 /* ── Prefix Dependencies Panel ── */
@@ -5099,15 +5099,15 @@ textarea {
 
 .crosshook-prefix-deps__log {
   margin-top: 12px;
-  border: 1px solid var(--crosshook-border, #333);
+  border: 1px solid var(--crosshook-color-border-strong);
   border-radius: 4px;
   overflow: hidden;
 }
 
 .crosshook-prefix-deps__log-header {
   padding: 6px 10px;
-  background: var(--crosshook-surface-elevated, #1a1a2e);
-  border-bottom: 1px solid var(--crosshook-border, #333);
+  background: var(--crosshook-color-bg-elevated);
+  border-bottom: 1px solid var(--crosshook-color-border-strong);
 }
 
 .crosshook-prefix-deps__log-output {
@@ -5120,7 +5120,7 @@ textarea {
   line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-all;
-  background: var(--crosshook-surface, #0f0f1a);
+  background: var(--crosshook-color-surface-strong);
 }
 
 .crosshook-prefix-deps__confirm {
@@ -5150,6 +5150,35 @@ textarea {
   margin: 0 0 12px 1.2em;
   padding: 0;
   font-size: 0.92rem;
+}
+
+/* ── Prefix deps trust disclosure (community import wizard) ── */
+.crosshook-prefix-deps-trust {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--crosshook-color-warning, #d97706);
+  border-radius: var(--crosshook-radius-md, 6px);
+  background: color-mix(in srgb, var(--crosshook-color-warning, #d97706) 8%, transparent);
+}
+
+.crosshook-prefix-deps-trust__title {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--crosshook-color-warning, #d97706);
+}
+
+.crosshook-prefix-deps-trust__list {
+  margin: 8px 0 0 1.2em;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.crosshook-prefix-deps-trust__list code {
+  font-family: var(--crosshook-font-mono, monospace);
+  background: var(--crosshook-color-surface-strong, rgba(255, 255, 255, 0.06));
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 
 .crosshook-modal__actions {

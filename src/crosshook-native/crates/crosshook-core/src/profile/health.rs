@@ -545,6 +545,7 @@ pub fn batch_check_health(store: &ProfileStore) -> HealthCheckSummary {
 pub fn build_dependency_health_issues(
     dep_states: &[PrefixDependencyStateRow],
     required_verbs: &[String],
+    active_prefix: &str,
 ) -> Vec<HealthIssue> {
     if required_verbs.is_empty() {
         return Vec::new();
@@ -567,7 +568,7 @@ pub fn build_dependency_health_issues(
     for verb in required_verbs {
         let state = dep_states
             .iter()
-            .find(|row| row.package_name == *verb)
+            .find(|row| row.package_name == *verb && row.prefix_path == active_prefix)
             .map(|row| row.state.as_str());
 
         match state {
@@ -947,7 +948,7 @@ mod tests {
             make_dep_row("dotnet48", "installed"),
         ];
         let required = vec!["vcrun2019".to_string(), "dotnet48".to_string()];
-        let issues = build_dependency_health_issues(&deps, &required);
+        let issues = build_dependency_health_issues(&deps, &required, "/tmp/pfx");
         assert!(issues.is_empty());
     }
 
@@ -955,7 +956,7 @@ mod tests {
     fn missing_verb_produces_warning() {
         let deps = vec![make_dep_row("vcrun2019", "missing")];
         let required = vec!["vcrun2019".to_string()];
-        let issues = build_dependency_health_issues(&deps, &required);
+        let issues = build_dependency_health_issues(&deps, &required, "/tmp/pfx");
         assert_eq!(issues.len(), 1);
         assert!(matches!(issues[0].severity, HealthIssueSeverity::Warning));
         assert!(issues[0].message.contains("not installed"));
@@ -965,7 +966,7 @@ mod tests {
     fn unknown_state_produces_warning() {
         let deps = vec![];
         let required = vec!["vcrun2019".to_string()];
-        let issues = build_dependency_health_issues(&deps, &required);
+        let issues = build_dependency_health_issues(&deps, &required, "/tmp/pfx");
         // Empty dep_states with required verbs → "not been checked" warning
         assert_eq!(issues.len(), 1);
         assert!(issues[0].message.contains("not been checked"));
@@ -975,7 +976,7 @@ mod tests {
     fn skipped_verb_produces_info() {
         let deps = vec![make_dep_row("vcrun2019", "user_skipped")];
         let required = vec!["vcrun2019".to_string()];
-        let issues = build_dependency_health_issues(&deps, &required);
+        let issues = build_dependency_health_issues(&deps, &required, "/tmp/pfx");
         assert_eq!(issues.len(), 1);
         assert!(matches!(issues[0].severity, HealthIssueSeverity::Info));
         assert!(issues[0].message.contains("skipped"));
@@ -985,7 +986,7 @@ mod tests {
     fn empty_required_verbs_produce_no_issues() {
         let deps = vec![make_dep_row("vcrun2019", "installed")];
         let required: Vec<String> = vec![];
-        let issues = build_dependency_health_issues(&deps, &required);
+        let issues = build_dependency_health_issues(&deps, &required, "/tmp/pfx");
         assert!(issues.is_empty());
     }
 }

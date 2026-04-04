@@ -39,7 +39,7 @@ export function usePrefixDeps(
       try {
         const result = await invoke<PrefixDependencyStatus[]>(
           'get_dependency_status',
-          { profileName },
+          { profileName, prefixPath },
         );
 
         if (!active) return;
@@ -59,7 +59,7 @@ export function usePrefixDeps(
     return () => {
       active = false;
     };
-  }, [profileName, reloadVersion]);
+  }, [profileName, prefixPath, reloadVersion]);
 
   const checkDeps = useCallback(
     async (packages: string[]) => {
@@ -92,6 +92,7 @@ export function usePrefixDeps(
         // Reload status after a short delay to pick up any immediate changes.
       } catch (err) {
         setError(normalizeError(err));
+        throw err;
       }
     },
     [profileName, prefixPath],

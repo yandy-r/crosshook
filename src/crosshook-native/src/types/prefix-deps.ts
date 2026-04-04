@@ -12,6 +12,7 @@ export interface BinaryDetectionResult {
   found: boolean;
   binary_path: string | null;
   binary_name: string;
+  tool_type: 'winetricks' | 'protontricks' | null;
   source: string;
 }
 

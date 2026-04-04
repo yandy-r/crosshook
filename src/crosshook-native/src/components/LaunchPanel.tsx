@@ -583,6 +583,11 @@ interface LaunchPanelProps {
   infoSlot?: ReactNode;
   /** Slot rendered between the controls card and the actions card (e.g. tabbed config panels). */
   tabsSlot?: ReactNode;
+  /**
+   * Optional pre-launch gate. Called before launchGame/launchTrainer.
+   * Return true to proceed, false to abort (e.g. show a modal first).
+   */
+  onBeforeLaunch?: (action: 'game' | 'trainer') => Promise<boolean>;
 }
 
 function buildGameOnlyRequest(request: LaunchRequest): LaunchRequest {
@@ -601,6 +606,7 @@ export function LaunchPanel({
   beforeActions,
   infoSlot,
   tabsSlot,
+  onBeforeLaunch,
 }: LaunchPanelProps) {
   const profileSelect = profileSelectSlot ?? beforeActions;
   const {
@@ -689,7 +695,13 @@ export function LaunchPanel({
     if (isGameRunning) return;
     setShowPreview(false);
     clearPreview();
-    launchGame();
+    void (async () => {
+      if (onBeforeLaunch) {
+        const proceed = await onBeforeLaunch('game');
+        if (!proceed) return;
+      }
+      launchGame();
+    })();
   }
 
   async function handleCopyDiagnosticReport() {
@@ -848,7 +860,15 @@ export function LaunchPanel({
                 type="button"
                 className="crosshook-button crosshook-launch-panel__action"
                 style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
-                onClick={launchGame}
+                onClick={() => {
+                  void (async () => {
+                    if (onBeforeLaunch) {
+                      const proceed = await onBeforeLaunch('game');
+                      if (!proceed) return;
+                    }
+                    launchGame();
+                  })();
+                }}
                 disabled={!canLaunchGame}
                 aria-describedby={launchGuidanceText ? launchGuidanceId : undefined}
               >
@@ -862,7 +882,15 @@ export function LaunchPanel({
                 type="button"
                 className="crosshook-button crosshook-launch-panel__action"
                 style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
-                onClick={launchTrainer}
+                onClick={() => {
+                  void (async () => {
+                    if (onBeforeLaunch) {
+                      const proceed = await onBeforeLaunch('trainer');
+                      if (!proceed) return;
+                    }
+                    launchTrainer();
+                  })();
+                }}
                 disabled={!canLaunchTrainer}
                 aria-describedby={launchGuidanceText ? launchGuidanceId : undefined}
               >

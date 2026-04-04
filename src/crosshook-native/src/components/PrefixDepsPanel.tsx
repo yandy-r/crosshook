@@ -37,6 +37,8 @@ function DependencyStatusBadge({ dep }: { dep: PrefixDependencyStatus }) {
     <span
       className={`crosshook-status-chip crosshook-status-chip--${stateModifier(dep.state)}`}
       title={dep.last_error ?? undefined}
+      role="status"
+      aria-label={`${dep.package_name}: ${stateLabel(dep.state)}`}
     >
       {dep.package_name}: {stateLabel(dep.state)}
     </span>
@@ -74,36 +76,63 @@ export function PrefixDepsPanel({
 
   // Listen for install events
   useEffect(() => {
-    const unlistenLog = listen<{ line: string }>('prefix-dep-log', (event) => {
-      setLogLines((prev) => [...prev.slice(-200), event.payload.line]);
-    });
-
-    const unlistenComplete = listen<{ succeeded: boolean; exit_code: number | null }>(
-      'prefix-dep-complete',
+    const unlistenLog = listen<{ profile_name: string; prefix_path: string; line: string }>(
+      'prefix-dep-log',
       (event) => {
-        setInstalling(false);
-        if (event.payload.succeeded) {
-          reload();
+        if (
+          event.payload.profile_name !== profileName
+          || event.payload.prefix_path !== prefixPath
+        ) {
+          return;
         }
+        setLogLines((prev) => [...prev.slice(-200), event.payload.line]);
       },
     );
+
+    const unlistenComplete = listen<{
+      profile_name: string;
+      prefix_path: string;
+      succeeded: boolean;
+      exit_code: number | null;
+    }>('prefix-dep-complete', (event) => {
+      if (
+        event.payload.profile_name !== profileName
+        || event.payload.prefix_path !== prefixPath
+      ) {
+        return;
+      }
+      setInstalling(false);
+      if (event.payload.succeeded) {
+        reload();
+      }
+    });
 
     return () => {
       void unlistenLog.then((fn) => fn());
       void unlistenComplete.then((fn) => fn());
     };
-  }, [reload]);
+  }, [profileName, prefixPath, reload]);
 
   const handleCheck = useCallback(() => {
     void checkDeps(requiredPackages);
   }, [checkDeps, requiredPackages]);
 
-  const handleInstallConfirm = useCallback(() => {
+  const handleInstallConfirm = useCallback(async () => {
     if (!confirmInstall) return;
     setInstalling(true);
     setLogLines([]);
-    void installDep(confirmInstall);
-    setConfirmInstall(null);
+    let installStarted = false;
+    try {
+      await installDep(confirmInstall);
+      installStarted = true;
+    } catch (_error) {
+      // usePrefixDeps already stores a user-facing error message.
+    } finally {
+      if (!installStarted) {
+        setInstalling(false);
+      }
+      setConfirmInstall(null);
+    }
   }, [confirmInstall, installDep]);
 
   const handleInstallAll = useCallback(() => {
@@ -121,9 +150,9 @@ export function PrefixDepsPanel({
   if (requiredPackages.length === 0) return null;
 
   return (
-    <div className="crosshook-prefix-deps">
+    <section aria-label="Prefix dependencies" className="crosshook-prefix-deps">
       {/* Package list */}
-      <div className="crosshook-prefix-deps__list">
+      <div className="crosshook-prefix-deps__list" aria-live="polite">
         {packageStatuses.map((dep) => (
           <div key={dep.package_name} className="crosshook-prefix-deps__item">
             <DependencyStatusBadge dep={dep} />
@@ -147,6 +176,7 @@ export function PrefixDepsPanel({
           className="crosshook-button crosshook-button--secondary"
           onClick={handleCheck}
           disabled={loading || installing}
+          aria-disabled={loading || installing}
         >
           {loading ? 'Checking...' : 'Check Now'}
         </button>
@@ -156,6 +186,7 @@ export function PrefixDepsPanel({
             className="crosshook-button"
             onClick={handleInstallAll}
             disabled={installing}
+            aria-disabled={installing}
           >
             Install All Missing ({missingPackages.length})
           </button>
@@ -164,9 +195,14 @@ export function PrefixDepsPanel({
 
       {/* Error display */}
       {error ? (
-        <p className="crosshook-danger" style={{ margin: '8px 0 0' }}>
+        <p className="crosshook-danger" role="alert" aria-live="assertive" style={{ margin: '8px 0 0' }}>
           {error}
         </p>
+      ) : null}
+
+      {/* Install progress indicator */}
+      {installing ? (
+        <progress aria-label="Dependency installation in progress" />
       ) : null}
 
       {/* Install log output */}
@@ -175,7 +211,7 @@ export function PrefixDepsPanel({
           <div className="crosshook-prefix-deps__log-header">
             <strong>{installing ? 'Installing...' : 'Install Log'}</strong>
           </div>
-          <pre className="crosshook-prefix-deps__log-output">
+          <pre className="crosshook-prefix-deps__log-output" aria-live="polite" aria-busy={installing}>
             {logLines.join('\n') || (installing ? 'Waiting for output...' : '')}
           </pre>
         </div>
@@ -183,9 +219,9 @@ export function PrefixDepsPanel({
 
       {/* Confirmation modal */}
       {confirmInstall !== null ? (
-        <div className="crosshook-modal-overlay" role="dialog" aria-modal="true">
+        <div className="crosshook-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="prefix-deps-confirm-title">
           <div className="crosshook-modal crosshook-prefix-deps__confirm">
-            <h3>Install Prefix Dependencies</h3>
+            <h3 id="prefix-deps-confirm-title">Install Prefix Dependencies</h3>
             <p>The following packages will be installed:</p>
             <ul>
               {confirmInstall.map((pkg) => (
@@ -200,7 +236,9 @@ export function PrefixDepsPanel({
               <button
                 type="button"
                 className="crosshook-button"
-                onClick={handleInstallConfirm}
+                onClick={() => {
+                  void handleInstallConfirm();
+                }}
               >
                 Install
               </button>
@@ -215,7 +253,7 @@ export function PrefixDepsPanel({
           </div>
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }
 

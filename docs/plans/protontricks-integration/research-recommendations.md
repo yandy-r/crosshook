@@ -160,7 +160,7 @@ Build in this order — each phase is independently mergeable:
 
 **WARNING — Must address before shipping (S-04/S-05/S-07/S-08/S-10/S-11)**
 
-4. **Steam App ID never from community TOML** (S-04, High): `app_id` must be typed `u32`, nonzero, and sourced from the internal game record only — never from the community profile TOML. Protontricks secondary path only: use `0u32` for non-Steam prefixes.
+4. **Steam App ID never from community TOML** (S-04, High): `app_id` must be typed `u32`, nonzero, and sourced from the internal game record only — never from the community profile TOML. Protontricks is used only when a valid nonzero Steam App ID exists; non-Steam prefixes must use winetricks-direct.
 5. **Prefix path never from community TOML** (S-05, High): Prefix path must come from CrossHook's Steam discovery layer or stored profile data. If any boundary accepts path input, canonicalize and assert `starts_with(expected_root)`.
 6. **env_clear() + minimal restoration** (S-07, High): `cmd.env_clear()` then restore only: `HOME`, `PATH` (minimal), `STEAM_ROOT`, `STEAM_COMPAT_DATA_PATH`. Never pass `DISPLAY`/`WAYLAND_DISPLAY` env vars that could leak session context unnecessarily.
 7. **No --force / no checksum bypass** (S-08, High): Never pass `--force` or equivalent to winetricks/protontricks. Checksum failures surface as explicit errors — never silently bypassed.
@@ -247,7 +247,7 @@ Build in this order — each phase is independently mergeable:
 - `winetricks list-installed` pre-check — parse newline-delimited output; skip packages already installed
 - Prefix initialization guard (check `pfx/` subdirectory exists before invoking)
 - Per-prefix async Mutex in Tauri app state to prevent concurrent installs
-- For protontricks invocation: use `"0"` as Steam App ID for non-Steam prefixes (same fallback as `resolved_umu_game_id_for_env`); derive `WINE=` as `dirname(proton_path)/files/bin/wine`
+- For protontricks invocation: require a valid nonzero Steam App ID and invoke only in that case; for non-Steam prefixes always use winetricks-direct with `WINEPREFIX`; derive `WINE=` as `dirname(proton_path)/files/bin/wine` only when needed.
 - `attach_log_stdio()` from `runtime_helpers.rs` for log file; capture stderr to tracing log only — never forward to UI (S-11)
 - 300-second `tokio::time::timeout` wrapping the full install `child.wait()` call
 - User confirmation payload must reach the runner before subprocess is spawned (IPC layer enforces this)

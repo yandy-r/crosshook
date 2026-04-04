@@ -6,6 +6,7 @@ use tokio::process::Command;
 
 use crate::launch::runtime_helpers::{apply_host_environment, resolve_wine_prefix_path};
 use super::models::PrefixDepsError;
+use super::PrefixDepsTool;
 use super::validation::validate_protontricks_verbs;
 
 /// Default timeout for check operations (seconds).
@@ -15,7 +16,25 @@ const CHECK_TIMEOUT_SECS: u64 = 30;
 ///
 /// Replaces path-looking tokens (starting with `/home/`, `/tmp/`, `/var/`) with `<path>`.
 /// This is a simple character-scan approach -- no regex dependency required.
+fn strip_ansi_codes(raw: &str) -> String {
+    let mut result = String::with_capacity(raw.len());
+    let mut chars = raw.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            for c2 in chars.by_ref() {
+                if c2.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
 fn sanitize_stderr(raw: &str) -> String {
+    let raw = strip_ansi_codes(raw);
     let prefixes: &[&str] = &["/home/", "/tmp/", "/var/"];
     let mut result = String::with_capacity(raw.len());
     let mut i = 0;
@@ -42,12 +61,18 @@ fn sanitize_stderr(raw: &str) -> String {
             i += ch_len;
         }
     }
-    // Truncate to prevent huge error messages.
-    if result.len() > 500 {
-        format!("{}...(truncated)", &result[..500])
+    // Truncate to prevent huge error messages (character-safe).
+    if result.chars().count() > 500 {
+        let truncated: String = result.chars().take(500).collect();
+        format!("{truncated}...(truncated)")
     } else {
         result
     }
+}
+
+/// Sanitize a single runner output line for UI display.
+pub fn sanitize_output_for_ui(raw: &str) -> String {
+    sanitize_stderr(raw)
 }
 
 /// Check which packages are already installed in the given prefix.
@@ -56,10 +81,20 @@ fn sanitize_stderr(raw: &str) -> String {
 pub async fn check_installed(
     binary_path: &str,
     prefix_path: &str,
+    tool_type: PrefixDepsTool,
+    steam_app_id: Option<&str>,
 ) -> Result<Vec<String>, PrefixDepsError> {
     let resolved_prefix = resolve_wine_prefix_path(Path::new(prefix_path));
 
     let mut cmd = Command::new(binary_path);
+    if matches!(tool_type, PrefixDepsTool::Protontricks) {
+        let app_id = steam_app_id.ok_or_else(|| {
+            PrefixDepsError::ValidationError(
+                "steam app id is required when using protontricks".to_string(),
+            )
+        })?;
+        cmd.arg(app_id);
+    }
     cmd.arg("list-installed");
     cmd.env("WINEPREFIX", &resolved_prefix);
     apply_host_environment(&mut cmd);
@@ -120,6 +155,7 @@ pub async fn install_packages(
     binary_path: &str,
     prefix_path: &str,
     verbs: &[String],
+    tool_type: PrefixDepsTool,
     steam_app_id: Option<&str>,
 ) -> Result<tokio::process::Child, PrefixDepsError> {
     // Validate verbs first (security gate).
@@ -134,19 +170,16 @@ pub async fn install_packages(
         });
     }
 
-    let binary_name = Path::new(binary_path)
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let is_protontricks = binary_name.contains("protontricks");
-
     let mut cmd = Command::new(binary_path);
 
     // Protontricks takes app_id first, then -q.
-    if is_protontricks {
-        if let Some(app_id) = steam_app_id {
-            cmd.arg(app_id);
-        }
+    if matches!(tool_type, PrefixDepsTool::Protontricks) {
+        let app_id = steam_app_id.ok_or_else(|| {
+            PrefixDepsError::ValidationError(
+                "steam app id is required when using protontricks".to_string(),
+            )
+        })?;
+        cmd.arg(app_id);
     }
 
     // Quiet mode.
@@ -206,7 +239,13 @@ mod tests {
         let pfx = tmp.path().join("pfx");
         fs::create_dir_all(&pfx).unwrap();
 
-        let result = check_installed(&binary, tmp.path().to_str().unwrap()).await;
+        let result = check_installed(
+            &binary,
+            tmp.path().to_str().unwrap(),
+            PrefixDepsTool::Winetricks,
+            None,
+        )
+        .await;
         assert!(result.is_ok(), "error: {:?}", result.err());
         let packages = result.unwrap();
         assert_eq!(packages, vec!["vcrun2019", "dotnet48"]);
@@ -223,6 +262,7 @@ mod tests {
             &binary,
             tmp.path().to_str().unwrap(),
             &["-q".to_string()],
+            PrefixDepsTool::Winetricks,
             None,
         )
         .await;
@@ -245,6 +285,7 @@ mod tests {
             &binary,
             "/nonexistent/path/that/does/not/exist",
             &["vcrun2019".to_string()],
+            PrefixDepsTool::Winetricks,
             None,
         )
         .await;

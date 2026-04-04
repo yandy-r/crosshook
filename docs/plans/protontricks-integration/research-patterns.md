@@ -110,19 +110,19 @@ CrossHook follows a strict three-layer architecture: Tauri IPC commands (thin), 
 
 ## Patterns to Follow for protontricks-integration
 
-**New Rust module**: Create `crosshook-core/src/prefix_deps/` with `mod.rs`, `detection.rs`, `installer.rs`, `models.rs`. Export public API from `mod.rs`. Add `pub mod prefix_deps;` to `crosshook-core/src/lib.rs`.
+**New Rust module**: Create `crosshook-core/src/prefix_deps/` with `mod.rs`, `detection.rs`, `runner.rs`, `models.rs`. Export public API from `mod.rs`. Add `pub mod prefix_deps;` to `crosshook-core/src/lib.rs`.
 
 **New Tauri commands file**: Create `src-tauri/src/commands/prefix_deps.rs`. Add `mod prefix_deps;` to `src-tauri/src/commands/mod.rs`. Register commands in `lib.rs` `generate_handler![]` macro.
 
 **Process invocation**: Use `tokio::process::Command::new(binary_path)` with `.arg()` calls only (never shell string interpolation). Call `.env_clear()` then apply `apply_host_environment()` and add `WINEPREFIX`. Use `--` separator before verb arguments to prevent flag injection.
 
-**Streaming install output**: Follow the `spawn_log_stream` / `app.emit("prefix-deps-log", line)` pattern from `commands/launch.rs:350`. The frontend hook should listen via `listen("prefix-deps-log", ...)` and `listen("prefix-deps-complete", ...)`.
+**Streaming install output**: Follow the `spawn_log_stream` / `app.emit("prefix-dep-log", line)` pattern from `commands/launch.rs:350`. The frontend hook should listen via `listen("prefix-dep-log", ...)` and `listen("prefix-dep-complete", ...)`.
 
-**SQLite migration**: Add `migrate_14_to_15()` in `metadata/migrations.rs` following the `if version < N { migrate... }` guard pattern. Create a `prefix_deps_installs` table tracking `(profile_id, prefix_path, verb, installed_at, status)`.
+**SQLite migration**: Add `migrate_14_to_15()` in `metadata/migrations.rs` following the `if version < N { migrate... }` guard pattern. Create a `prefix_dependency_state` table tracking dependency state per profile/package/prefix.
 
 **Profile TOML schema extension**: Add `required_protontricks: Vec<String>` to `TrainerSection` in `models.rs` with `#[serde(default, skip_serializing_if = "Vec::is_empty")]`. This preserves backward compatibility with existing TOML files.
 
-**Settings for tool path override**: Add `winetricks_path: String` and `protontricks_path: String` fields to `AppSettingsData` with `#[serde(default)]` (empty = auto-detect). This follows the same pattern as `default_proton_path`.
+**Settings for tool path override**: Add `protontricks_binary_path: String` to `AppSettingsData` with `#[serde(default)]` (empty = auto-detect and PATH discovery). Keep the unified binary-path model aligned with existing `default_proton_path` style settings.
 
 **TypeScript types**: Add `PrefixDepsInstallRequest`, `PrefixDepsInstallResult`, `PrefixDepsStatus` interfaces to `src/types/prefix-deps.ts`. Mirror Rust struct field names exactly. Export from `src/types/index.ts`.
 

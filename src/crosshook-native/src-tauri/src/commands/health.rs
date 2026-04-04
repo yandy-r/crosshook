@@ -233,6 +233,7 @@ struct BatchMetadataPrefetch {
     live_build_id_by_profile: HashMap<String, Option<String>>,
     dep_states_by_profile: HashMap<String, Vec<PrefixDependencyStateRow>>,
     required_verbs_by_profile: HashMap<String, Vec<String>>,
+    active_prefix_by_profile: HashMap<String, String>,
 }
 
 fn prefetch_batch_metadata(
@@ -302,12 +303,20 @@ fn prefetch_batch_metadata(
     // Prefix dependency states for health enrichment
     let mut dep_states_by_profile: HashMap<String, Vec<PrefixDependencyStateRow>> = HashMap::new();
     let mut required_verbs_by_profile: HashMap<String, Vec<String>> = HashMap::new();
+    let mut active_prefix_by_profile: HashMap<String, String> = HashMap::new();
     for name in profile_names {
         // Load required verbs from profile
         if let Ok(profile) = profile_store.load(name) {
-            let verbs = profile.trainer.required_protontricks.clone();
+            let effective = profile.effective_profile();
+            let verbs = effective.trainer.required_protontricks.clone();
             if !verbs.is_empty() {
                 required_verbs_by_profile.insert(name.clone(), verbs);
+                let active_prefix = if !effective.runtime.prefix_path.trim().is_empty() {
+                    effective.runtime.prefix_path.clone()
+                } else {
+                    effective.steam.compatdata_path.clone()
+                };
+                active_prefix_by_profile.insert(name.clone(), active_prefix);
                 // Load cached dep states from SQLite
                 if let Some(pid) = profile_id_map.get(name) {
                     if let Ok(states) = metadata_store.load_prefix_dep_states(pid) {
@@ -331,6 +340,7 @@ fn prefetch_batch_metadata(
         live_build_id_by_profile,
         dep_states_by_profile,
         required_verbs_by_profile,
+        active_prefix_by_profile,
     }
 }
 
@@ -413,7 +423,12 @@ fn enrich_profile(
             .get(&report.name)
             .map(Vec::as_slice)
             .unwrap_or(&[]);
-        let dep_issues = build_dependency_health_issues(dep_states, required_verbs);
+        let active_prefix = prefetch
+            .active_prefix_by_profile
+            .get(&report.name)
+            .map(String::as_str)
+            .unwrap_or("");
+        let dep_issues = build_dependency_health_issues(dep_states, required_verbs, active_prefix);
         report.issues.extend(dep_issues);
     }
 
@@ -747,13 +762,19 @@ pub fn get_profile_health(
     let current_build_id = live_steam_build_id_for_profile(&profile);
 
     // Inject prefix dependency health issues
-    let required_verbs = &profile.trainer.required_protontricks;
+    let effective_profile = profile.effective_profile();
+    let required_verbs = &effective_profile.trainer.required_protontricks;
     if !required_verbs.is_empty() {
-        if let Some(ref pid) = metadata_store.lookup_profile_id(&name).ok().flatten() {
+        if let Some(ref pid) = profile_id {
             let dep_states = metadata_store
                 .load_prefix_dep_states(pid)
                 .unwrap_or_default();
-            let dep_issues = build_dependency_health_issues(&dep_states, required_verbs);
+            let active_prefix = if !effective_profile.runtime.prefix_path.trim().is_empty() {
+                effective_profile.runtime.prefix_path.as_str()
+            } else {
+                effective_profile.steam.compatdata_path.as_str()
+            };
+            let dep_issues = build_dependency_health_issues(&dep_states, required_verbs, active_prefix);
             report.issues.extend(dep_issues);
         }
     }

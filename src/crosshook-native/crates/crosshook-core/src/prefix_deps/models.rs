@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 /// State of a prefix dependency package.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum DependencyState {
+    #[default]
     Unknown,
     Installed,
     Missing,
@@ -28,7 +29,16 @@ pub struct BinaryDetectionResult {
     pub found: bool,
     pub binary_path: Option<String>,
     pub binary_name: String,
+    pub tool_type: Option<PrefixDepsTool>,
     pub source: String,
+}
+
+/// Resolved dependency tool identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrefixDepsTool {
+    Winetricks,
+    Protontricks,
 }
 
 /// Errors specific to prefix dependency operations.
@@ -51,8 +61,11 @@ impl std::fmt::Display for PrefixDepsError {
                 write!(f, "WINE prefix not initialized at {path}")
             }
             Self::ValidationError(msg) => write!(f, "validation error: {msg}"),
-            Self::ProcessFailed { exit_code, stderr } => {
-                write!(f, "process failed (exit code: {exit_code:?}): {stderr}")
+            Self::ProcessFailed { exit_code, .. } => {
+                write!(
+                    f,
+                    "process failed (exit code: {exit_code:?}): <stderr omitted>"
+                )
             }
             Self::Timeout { seconds } => write!(f, "operation timed out after {seconds}s"),
             Self::AlreadyInstalling { prefix_path } => {

@@ -9,7 +9,7 @@ CrossHook already has all the primitives needed for protontricks integration: `t
 ## Existing Reusable Code
 
 | File                                                                         | Purpose                                                                                                                                                  |
-| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | --------------- |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/crosshook-native/crates/crosshook-core/src/launch/runtime_helpers.rs`   | `tokio::process::Command` construction, env helpers, `resolve_wine_prefix_path`, `is_executable_file`, path resolution utilities — all directly reusable |
 | `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`     | Canonical pattern for building, env-seeding, and attaching log stdio to a child process                                                                  |
 | `src/crosshook-native/crates/crosshook-core/src/install/service.rs`          | Blocking install via `Handle::try_current().block_on(child.wait())` — same pattern applies to synchronous protontricks invocation                        |
@@ -31,7 +31,7 @@ CrossHook already has all the primitives needed for protontricks integration: `t
 
 ## Modularity Design
 
-- **Process construction via `runtime_helpers`**: All binary invocations start with `env_clear()`, then selectively apply `apply_host_environment` (HOME, PATH, DISPLAY, etc.) via helper functions. Protontricks needs `HOME`, `PATH`, `STEAM_COMPAT_DATA_PATH`, and `WINEPREFIX` — all available in `apply_host_environment` + `apply_runtime_proton_environment`. Do not skip `env_clear()`.
+- **Process construction via `runtime_helpers`**: winetricks/protontricks must preserve a full host POSIX environment. Do not call `env_clear()` for winetricks/protontricks — use `apply_host_environment()` without `env_clear()`, and only apply `apply_runtime_proton_environment()` when required.
 
 - **Prefix path resolution**: `resolve_wine_prefix_path` (in `runtime_helpers.rs:198`) and `resolve_proton_paths` normalize the `pfx/` sub-directory convention for Proton prefixes. Protontricks must receive the `STEAM_COMPAT_DATA_PATH` (parent of `pfx/`), not the `pfx/` path itself. Always use `resolve_proton_paths` to derive both.
 
@@ -47,7 +47,7 @@ CrossHook already has all the primitives needed for protontricks integration: `t
 
 - **Binary availability check**: `resolve_umu_run_path` in `runtime_helpers.rs:302` walks `PATH` and calls `is_executable_file`. Use the same function signature pattern to implement `resolve_protontricks_path` and `resolve_winetricks_path`.
 
-- **Event emission for long operations**: `launch.rs` emits `"launch-log"` lines from a polling loop and `"launch-complete"` / `"launch-diagnostic"` at exit. Protontricks installation should emit `"protontricks-log"` and `"protontricks-complete"` events using the same `AppHandle::emit` pattern.
+- **Event emission for long operations**: `launch.rs` emits `"launch-log"` lines from a polling loop and `"launch-complete"` / `"launch-diagnostic"` at exit. Prefix dependency installation should emit `"prefix-dep-log"` and `"prefix-dep-complete"` events using the same `AppHandle::emit` pattern.
 
 - **Error enum convention**: Error types are custom enums (not `anyhow`) with variants that carry structured context: `Database { action: &'static str, source: SqlError }`, `Io { action: &'static str, path: PathBuf, source: io::Error }`. `anyhow` is not in `crosshook-core`'s dependencies — do not add it.
 
@@ -112,7 +112,7 @@ pub fn check_dependencies_installed(
 // Types
 pub struct PrefixDepsRequest {
     pub prefix_path: String,         // raw path (run through resolve_proton_paths internally)
-    pub steam_app_id: String,        // "0" for non-Steam; passed as first arg to protontricks
+    pub steam_app_id: String,        // nonzero Steam App ID only; required for protontricks path
     pub packages: Vec<String>,       // e.g. ["vcrun2019", "dotnet48"]
     pub proton_path: String,         // needed for WINEPREFIX env population
     pub steam_client_install_path: String,
@@ -182,7 +182,7 @@ No new crates are needed. `std::process::Command` is sufficient for synchronous 
 
 ## Open Questions
 
-1. **Non-Steam prefix app ID**: Protontricks requires a Steam App ID as the first argument. For CrossHook-managed prefixes (not tied to a Steam game), the convention is unclear — `0` is commonly used but protontricks behavior varies. The `steam_app_id` field already exists on `RuntimeSection` and `LaunchRequest`; it should be plumbed through, defaulting to `"0"` (same as `resolved_umu_game_id_for_env`).
+1. **Non-Steam prefix app ID**: Protontricks requires a Steam App ID as the first argument and should only run with a valid nonzero ID. For CrossHook-managed non-Steam prefixes, use winetricks-direct (`WINEPREFIX=... winetricks ...`) instead of a synthetic app ID fallback.
 
 2. **Already-installed detection**: Protontricks has `protontricks --list` to show installed verbs, but parsing its output is fragile. The simpler approach is to track installed packages in SQLite and only skip re-installation if the user explicitly requests it — do not depend on protontricks output parsing for state.
 

@@ -438,7 +438,7 @@ Cancellation with safe prefix cleanup can be added in a future phase once the pr
 ### Must Have
 
 1. **`DependencyStatusBadge` component** with its own `DepStatus` type (`installed | missing | install_failed | check_failed | unknown | installing | user_skipped`), reusing `crosshook-status-chip` / `crosshook-compatibility-badge` CSS classes and the `STATUS_ICON` / `STATUS_LABEL` map pattern. Do **not** extend `HealthBadge` or the `HealthStatus` type — that is coupled to the Rust health IPC enum. Never show raw paths or subprocess output in UI error messages.
-2. **ConsoleDrawer integration** for protontricks output via a new `protontricks-log` Tauri event channel. Auto-expand on first output line.
+2. **ConsoleDrawer integration** for protontricks output via the canonical `prefix-dep-log` Tauri event channel. Auto-expand on first output line.
 3. **Concurrent install lock** enforced in Rust state, communicated in the UI via button disabled state (not a dialog).
 4. **"Missing dependencies" banner** on profile open when missing packages exist, with [Install] / [Skip] options. Skip persists `user_skipped` to SQLite.
 5. **Explicit install confirmation dialog** before any protontricks invocation (security requirement S-11): lists verbs with human-readable labels, flags slow installs, requires [Confirm Install] / [Cancel]. For the panel [Install Missing] path, this is a dedicated dialog. For the pre-launch gate path, the gate modal itself serves as the confirmation.

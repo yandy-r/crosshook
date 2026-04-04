@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::launch::runtime_helpers::is_executable_file;
 
-use super::models::BinaryDetectionResult;
+use super::models::{BinaryDetectionResult, PrefixDepsTool};
 
 const DEFAULT_PATH: &str = "/usr/local/bin:/usr/bin:/bin";
 
@@ -33,10 +33,16 @@ pub fn detect_binary(settings_path: &str) -> BinaryDetectionResult {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "winetricks".to_string());
+            let tool_type = if name.contains("protontricks") {
+                PrefixDepsTool::Protontricks
+            } else {
+                PrefixDepsTool::Winetricks
+            };
             return BinaryDetectionResult {
                 found: true,
                 binary_path: Some(settings_path.to_string()),
                 binary_name: name,
+                tool_type: Some(tool_type),
                 source: "settings".to_string(),
             };
         }
@@ -48,6 +54,7 @@ pub fn detect_binary(settings_path: &str) -> BinaryDetectionResult {
             found: true,
             binary_path: Some(path),
             binary_name: "winetricks".to_string(),
+            tool_type: Some(PrefixDepsTool::Winetricks),
             source: "path".to_string(),
         };
     }
@@ -58,6 +65,7 @@ pub fn detect_binary(settings_path: &str) -> BinaryDetectionResult {
             found: true,
             binary_path: Some(path),
             binary_name: "protontricks".to_string(),
+            tool_type: Some(PrefixDepsTool::Protontricks),
             source: "path".to_string(),
         };
     }
@@ -66,6 +74,7 @@ pub fn detect_binary(settings_path: &str) -> BinaryDetectionResult {
         found: false,
         binary_path: None,
         binary_name: String::new(),
+        tool_type: None,
         source: "not_found".to_string(),
     }
 }

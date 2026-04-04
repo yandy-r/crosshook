@@ -331,15 +331,15 @@ pub async fn install_prefix_dependency(
 2. Check `PrefixDepsInstallState` mutex — if `is_installing` is true, return `PrefixDepsError::AlreadyInstalling`.
 3. Set `is_installing = true`, store profile_name and package for the ongoing install.
 4. Build `Command`: `protontricks [--no-bwrap] <steam_app_id> <package>`.
-5. Spawn async child process; stream stdout/stderr lines to frontend via `app.emit("prefix-dep-install-log", line)`.
-6. On exit: emit `"prefix-dep-install-complete"` event with `{ package, succeeded, exit_code }`.
+5. Spawn async child process; stream stdout/stderr lines to frontend via `app.emit("prefix-dep-log", line)`.
+6. On exit: emit `"prefix-dep-complete"` event with `{ package, succeeded, exit_code }`.
 7. Upsert state in SQLite: `installed` on success, `install_failed` on failure.
 8. Clear `is_installing` in all exit paths (success, error, panic via Drop).
 
 **Events emitted:**
 
-- `"prefix-dep-install-log"` — `{ package: String, line: String }`
-- `"prefix-dep-install-complete"` — `{ package: String, succeeded: bool, exit_code: Option<i32> }`
+- `"prefix-dep-log"` — `{ package: String, line: String }`
+- `"prefix-dep-complete"` — `{ package: String, succeeded: bool, exit_code: Option<i32> }`
 
 ---
 

@@ -13,19 +13,19 @@ CrossHook already has a complete Tauri IPC command infrastructure, a SQLite meta
 
 ## Relevant Files
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/lib.rs` — Tauri app initialization, `invoke_handler` registration, `manage()` state calls
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/` — all existing command modules (install, launch, profile, settings, steam, update, health, onboarding)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/launch/runtime_helpers.rs` — `resolve_umu_run_path()` at line 301: the canonical pattern for binary detection (walk `$PATH`, check execute bit); `apply_host_environment()`: host env forwarding; `apply_runtime_proton_environment()`: sets `WINEPREFIX`/`STEAM_COMPAT_DATA_PATH`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs` — command construction patterns for Proton game/trainer launch
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs` — `MetadataStore` struct, `with_conn()` pattern, all store method registrations
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs` — all 14 SQLite migrations; schema v14 is the current target; next new table goes in `migrate_14_to_15`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/models.rs` — row structs, error types, constants (MAX_HISTORY_LIST_LIMIT, etc.)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/models.rs` — `GameProfile`, `TrainerSection`, `RuntimeSection`, `LaunchSection`; TOML field naming
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/settings/mod.rs` — `AppSettingsData`, `SettingsStore`; where `protontricks_binary_path` field must be added
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/install/service.rs` — `build_install_command()` pattern: `new_direct_proton_command`, `apply_host_environment`, `apply_runtime_proton_environment`, `attach_log_stdio`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/steam/proton.rs` — Proton discovery, `CompatToolMappings`, `discover_compat_tools_with_roots`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/steam.rs` — `list_proton_installs`, `auto_populate_steam` — model for new prefix-deps detection commands
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/runtime-helpers/steam-launch-helper.sh` — shell runtime helper showing full WINE env clearing pattern (`unset WINESERVER WINELOADER WINEDLLPATH ...`); `WINEPREFIX=$compatdata/pfx` convention
+- `src/crosshook-native/src-tauri/src/lib.rs` — Tauri app initialization, `invoke_handler` registration, `manage()` state calls
+- `src/crosshook-native/src-tauri/src/commands/` — all existing command modules (install, launch, profile, settings, steam, update, health, onboarding)
+- `src/crosshook-native/crates/crosshook-core/src/launch/runtime_helpers.rs` — `resolve_umu_run_path()` at line 301: the canonical pattern for binary detection (walk `$PATH`, check execute bit); `apply_host_environment()`: host env forwarding; `apply_runtime_proton_environment()`: sets `WINEPREFIX`/`STEAM_COMPAT_DATA_PATH`
+- `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs` — command construction patterns for Proton game/trainer launch
+- `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs` — `MetadataStore` struct, `with_conn()` pattern, all store method registrations
+- `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs` — all 14 SQLite migrations; schema v14 is the current target; next new table goes in `migrate_14_to_15`
+- `src/crosshook-native/crates/crosshook-core/src/metadata/models.rs` — row structs, error types, constants (MAX_HISTORY_LIST_LIMIT, etc.)
+- `src/crosshook-native/crates/crosshook-core/src/profile/models.rs` — `GameProfile`, `TrainerSection`, `RuntimeSection`, `LaunchSection`; TOML field naming
+- `src/crosshook-native/crates/crosshook-core/src/settings/mod.rs` — `AppSettingsData`, `SettingsStore`; where `protontricks_binary_path` field must be added
+- `src/crosshook-native/crates/crosshook-core/src/install/service.rs` — `build_install_command()` pattern: `new_direct_proton_command`, `apply_host_environment`, `apply_runtime_proton_environment`, `attach_log_stdio`
+- `src/crosshook-native/crates/crosshook-core/src/steam/proton.rs` — Proton discovery, `CompatToolMappings`, `discover_compat_tools_with_roots`
+- `src/crosshook-native/src-tauri/src/commands/steam.rs` — `list_proton_installs`, `auto_populate_steam` — model for new prefix-deps detection commands
+- `src/crosshook-native/runtime-helpers/steam-launch-helper.sh` — shell runtime helper showing full WINE env clearing pattern (`unset WINESERVER WINELOADER WINEDLLPATH ...`); `WINEPREFIX=$compatdata/pfx` convention
 
 ---
 
@@ -294,7 +294,7 @@ Protontricks uses `STEAM_COMPAT_DATA_PATH` (the parent of `pfx/`), not `WINEPREF
 
 ## Relevant Docs
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/protontricks-integration/research-external.md` — External API research: full protontricks/winetricks CLI reference, Tokio process patterns
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/protontricks-integration/research-technical.md` — Technical architecture design: component diagram, data models, IPC design
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/AGENTS.md` — Project architecture overview
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/CLAUDE.md` — Agent rules, IPC naming conventions, Tauri/Rust patterns
+- `docs/plans/protontricks-integration/research-external.md` — External API research: full protontricks/winetricks CLI reference, Tokio process patterns
+- `docs/plans/protontricks-integration/research-technical.md` — Technical architecture design: component diagram, data models, IPC design
+- `AGENTS.md` — Project architecture overview
+- `CLAUDE.md` — Agent rules, IPC naming conventions, Tauri/Rust patterns
