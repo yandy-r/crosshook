@@ -566,6 +566,7 @@ export function SettingsPanel({
 
           <CollapsibleSection
             title="New profile defaults"
+            defaultOpen={false}
             className="crosshook-panel crosshook-settings-section"
             meta={<span className="crosshook-muted">settings.toml</span>}
           >
@@ -645,31 +646,35 @@ export function SettingsPanel({
 
           <CollapsibleSection
             title="Logging and UI"
+            defaultOpen={false}
             className="crosshook-panel crosshook-settings-section"
             meta={<span className="crosshook-muted">settings.toml</span>}
           >
             <div className="crosshook-settings-field-row">
               <label className="crosshook-label" htmlFor="log-filter">
-                Backend log filter
+                Log detail level
               </label>
-              <input
+              <select
                 id="log-filter"
-                key={`lf-${settings.log_filter}`}
                 className="crosshook-input"
-                defaultValue={settings.log_filter}
-                placeholder="info"
-                onBlur={(event) => {
-                  const v = event.target.value.trim() || 'info';
-                  if (v !== settings.log_filter.trim()) {
+                value={settings.log_filter}
+                onChange={(event) => {
+                  const v = event.target.value;
+                  if (v !== settings.log_filter) {
                     void onPersistSettings({ log_filter: v });
                   }
                 }}
-              />
+              >
+                <option value="error">Error — critical issues only</option>
+                <option value="warn">Warning — errors and warnings</option>
+                <option value="info">Info — general activity (default)</option>
+                <option value="debug">Debug — detailed diagnostics</option>
+                <option value="trace">Trace — everything (verbose)</option>
+              </select>
             </div>
             <p className="crosshook-muted crosshook-settings-note">
-              If <code>RUST_LOG</code> is set in the environment, it overrides this value. Otherwise this filter applies
-              at startup (for example <code>info</code>, <code>debug</code>, or <code>crosshook_core=debug</code>).
-              Restart the app after changing.
+              Controls how much detail appears in the backend logs. Higher levels include more output and may affect
+              performance. Restart the app after changing.
             </p>
             <label className="crosshook-settings-checkbox-row">
               <input
@@ -714,6 +719,7 @@ export function SettingsPanel({
 
           <CollapsibleSection
             title="Profiles"
+            defaultOpen={false}
             className="crosshook-panel crosshook-settings-section"
             meta={<span className="crosshook-muted">Storage location</span>}
           >
@@ -790,6 +796,7 @@ export function SettingsPanel({
         <section className="crosshook-settings-recent-column" aria-label="Recent files">
           <CollapsibleSection
             title="Recent Files"
+            defaultOpen={false}
             className="crosshook-panel crosshook-settings-section"
             meta={<span className="crosshook-muted">Most recent paths used by the app</span>}
           >
