@@ -14,6 +14,7 @@ import type { GameProfile, LaunchMethod } from '../types';
 import type { ProtonInstallOption } from '../types/proton';
 import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { VersionCorrelationStatus } from '../types/version';
+import { resolveArtAppId } from '../utils/art';
 import { mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../utils/protondb';
 import { formatProtonInstallLabel } from '../utils/proton';
 
@@ -378,6 +379,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const profiles = profileSelector?.profiles;
   const selectedProfile = profileSelector?.selectedProfile;
   const showProtonDbLookup = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
+  const resolvedAppId = resolveArtAppId(profile);
   const reviewModeNote = reviewMode ? (
     <p className="crosshook-help-text">
       Review mode keeps launch-critical fields expanded and collapses only empty optional overrides.
@@ -388,7 +390,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     setPendingProtonDbOverwrite(null);
     setApplyingProtonDbGroupId(null);
     setProtonDbStatusMessage(null);
-  }, [profileName, profile.steam.app_id, launchMethod]);
+  }, [profileName, resolvedAppId, launchMethod]);
 
   const applyProtonDbGroup = (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
     const merge = {
@@ -456,7 +458,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const protonDbPanel = showProtonDbLookup ? (
     <div className="crosshook-protondb-panel">
       <ProtonDbLookupCard
-        appId={profile.steam.app_id}
+        appId={resolvedAppId}
         trainerVersion={trainerVersion}
         versionContext={{ version_status: versionStatus }}
         onApplyEnvVars={reviewMode ? undefined : handleApplyProtonDbEnvVars}
