@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import type { ChangeEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useLauncherManagement } from '../hooks/useLauncherManagement';
@@ -7,7 +6,7 @@ import { chooseDirectory } from '../utils/dialog';
 import { SettingsArt } from './layout/PageBanner';
 import { PanelRouteDecor } from './layout/PanelRouteDecor';
 import { CollapsibleSection } from './ui/CollapsibleSection';
-import type { DiagnosticBundleResult } from '../types';
+import type { AppSettingsData, DiagnosticBundleResult } from '../types';
 
 interface RecentFilesState {
   gamePaths: string[];
@@ -16,21 +15,16 @@ interface RecentFilesState {
 }
 
 export interface SettingsPanelProps {
-  autoLoadLastProfile: boolean;
-  lastUsedProfile: string;
-  profilesDirectoryPath: string;
-  profilesDirectoryConfigured?: boolean;
+  settings: AppSettingsData;
+  onPersistSettings: (patch: Partial<AppSettingsData>) => Promise<void>;
   recentFiles: RecentFilesState;
-  recentFilesLimit?: number;
   targetHomePath: string;
   steamClientInstallPath: string;
-  /** True when a SteamGridDB API key is currently stored on the backend. */
-  hasSteamgriddbApiKey: boolean;
   onAutoLoadLastProfileChange: (enabled: boolean) => void;
-  onProfilesDirectoryPathChange?: (path: string) => void;
   onRefreshRecentFiles?: () => void;
   onClearRecentFiles?: () => void;
   onSteamGridDbApiKeyChange?: (key: string) => Promise<void>;
+  onBrowseProfilesDirectory?: () => void;
 }
 
 function toDisplayList(paths: string[], maxItems?: number) {
@@ -494,28 +488,22 @@ function SteamGridDbSection({
 }
 
 export function SettingsPanel({
-  autoLoadLastProfile,
-  lastUsedProfile,
-  profilesDirectoryPath,
-  profilesDirectoryConfigured = true,
+  settings,
+  onPersistSettings,
   recentFiles,
-  recentFilesLimit = 10,
   targetHomePath,
   steamClientInstallPath,
-  hasSteamgriddbApiKey,
   onAutoLoadLastProfileChange,
-  onProfilesDirectoryPathChange,
   onRefreshRecentFiles,
   onClearRecentFiles,
   onSteamGridDbApiKeyChange,
+  onBrowseProfilesDirectory,
 }: SettingsPanelProps) {
-  const handleProfilesDirectoryChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onProfilesDirectoryPathChange?.(event.target.value);
-  };
+  const recentFilesLimit = settings.recent_files_limit;
 
-  const profilesDirectoryMessage = profilesDirectoryConfigured
-    ? 'CrossHook will store profiles in the configured directory below.'
-    : 'No custom directory is configured yet. CrossHook will use the default profile store until one is provided.';
+  const profilesDirectoryMessage = settings.profiles_directory.trim()
+    ? 'Custom path is saved in settings.toml. Restart CrossHook to use it as the active profile store.'
+    : 'Leave empty to use the default directory under your CrossHook config folder.';
 
   return (
     <section className="crosshook-card crosshook-card--with-route-decor crosshook-settings-panel" aria-label="Settings">
@@ -532,7 +520,7 @@ export function SettingsPanel({
       <div className="crosshook-settings-summary">
         <span className="crosshook-status-chip">
           <strong>Last profile:</strong>
-          <span>{lastUsedProfile.trim().length > 0 ? lastUsedProfile : 'none'}</span>
+          <span>{settings.last_used_profile.trim().length > 0 ? settings.last_used_profile : 'none'}</span>
         </span>
         <span className="crosshook-status-chip">
           <strong>Recent limit:</strong>
@@ -550,7 +538,7 @@ export function SettingsPanel({
             <label className="crosshook-settings-checkbox-row">
               <input
                 type="checkbox"
-                checked={autoLoadLastProfile}
+                checked={settings.auto_load_last_profile}
                 onChange={(event) => onAutoLoadLastProfileChange(event.target.checked)}
                 className="crosshook-settings-checkbox"
               />
@@ -569,7 +557,7 @@ export function SettingsPanel({
               <input
                 id="last-used-profile"
                 className="crosshook-input"
-                value={lastUsedProfile}
+                value={settings.last_used_profile}
                 readOnly
                 placeholder="No profile selected"
               />
@@ -577,23 +565,191 @@ export function SettingsPanel({
           </CollapsibleSection>
 
           <CollapsibleSection
+            title="New profile defaults"
+            defaultOpen={false}
+            className="crosshook-panel crosshook-settings-section"
+            meta={<span className="crosshook-muted">settings.toml</span>}
+          >
+            <p className="crosshook-muted crosshook-settings-help">
+              Applied when you save a profile for the first time (new name). Empty fields keep CrossHook&apos;s built-in
+              detection.
+            </p>
+            <div className="crosshook-settings-field-row">
+              <label className="crosshook-label" htmlFor="default-proton-path">
+                Default Proton path
+              </label>
+              <input
+                id="default-proton-path"
+                key={`dp-${settings.default_proton_path}`}
+                className="crosshook-input"
+                defaultValue={settings.default_proton_path}
+                placeholder="/path/to/proton"
+                onBlur={(event) => {
+                  const v = event.target.value.trim();
+                  if (v !== settings.default_proton_path.trim()) {
+                    void onPersistSettings({ default_proton_path: v });
+                  }
+                }}
+              />
+            </div>
+            <div className="crosshook-settings-field-row">
+              <label className="crosshook-label" htmlFor="default-launch-method">
+                Default launch method
+              </label>
+              <select
+                id="default-launch-method"
+                className="crosshook-input"
+                value={settings.default_launch_method}
+                onChange={(event) => void onPersistSettings({ default_launch_method: event.target.value })}
+              >
+                <option value="">Auto (from game / Steam)</option>
+                <option value="proton_run">proton_run</option>
+                <option value="steam_applaunch">steam_applaunch</option>
+                <option value="native">native</option>
+              </select>
+            </div>
+            <div className="crosshook-settings-field-row">
+              <label className="crosshook-label" htmlFor="default-trainer-mode">
+                Default trainer loading mode
+              </label>
+              <select
+                id="default-trainer-mode"
+                className="crosshook-input"
+                value={settings.default_trainer_loading_mode}
+                onChange={(event) =>
+                  void onPersistSettings({ default_trainer_loading_mode: event.target.value })
+                }
+              >
+                <option value="source_directory">source_directory</option>
+                <option value="copy_to_prefix">copy_to_prefix</option>
+              </select>
+            </div>
+            <div className="crosshook-settings-field-row">
+              <label className="crosshook-label" htmlFor="default-bundled-preset">
+                Default bundled optimization preset id
+              </label>
+              <input
+                id="default-bundled-preset"
+                key={`dbp-${settings.default_bundled_optimization_preset_id}`}
+                className="crosshook-input"
+                defaultValue={settings.default_bundled_optimization_preset_id}
+                placeholder="e.g. preset id from metadata catalog"
+                onBlur={(event) => {
+                  const v = event.target.value.trim();
+                  if (v !== settings.default_bundled_optimization_preset_id.trim()) {
+                    void onPersistSettings({ default_bundled_optimization_preset_id: v });
+                  }
+                }}
+              />
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Logging and UI"
+            defaultOpen={false}
+            className="crosshook-panel crosshook-settings-section"
+            meta={<span className="crosshook-muted">settings.toml</span>}
+          >
+            <div className="crosshook-settings-field-row">
+              <label className="crosshook-label" htmlFor="log-filter">
+                Log detail level
+              </label>
+              <select
+                id="log-filter"
+                className="crosshook-input"
+                value={settings.log_filter}
+                onChange={(event) => {
+                  const v = event.target.value;
+                  if (v !== settings.log_filter) {
+                    void onPersistSettings({ log_filter: v });
+                  }
+                }}
+              >
+                <option value="error">Error — critical issues only</option>
+                <option value="warn">Warning — errors and warnings</option>
+                <option value="info">Info — general activity (default)</option>
+                <option value="debug">Debug — detailed diagnostics</option>
+                <option value="trace">Trace — everything (verbose)</option>
+              </select>
+            </div>
+            <p className="crosshook-muted crosshook-settings-note">
+              Controls how much detail appears in the backend logs. Higher levels include more output and may affect
+              performance. Restart the app after changing.
+            </p>
+            <label className="crosshook-settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={!settings.console_drawer_collapsed_default}
+                onChange={(event) =>
+                  void onPersistSettings({ console_drawer_collapsed_default: !event.target.checked })
+                }
+                className="crosshook-settings-checkbox"
+              />
+              <span>
+                <span className="crosshook-label">Start with console drawer expanded</span>
+                <p className="crosshook-muted crosshook-settings-note">
+                  When off, the drawer starts collapsed until launch logs arrive.
+                </p>
+              </span>
+            </label>
+            <div className="crosshook-settings-field-row">
+              <label className="crosshook-label" htmlFor="recent-files-limit">
+                Recent files limit (per list)
+              </label>
+              <input
+                id="recent-files-limit"
+                type="number"
+                min={1}
+                max={100}
+                className="crosshook-input"
+                style={{ maxWidth: 120 }}
+                defaultValue={settings.recent_files_limit}
+                key={`rfl-${settings.recent_files_limit}`}
+                onBlur={(event) => {
+                  const raw = parseInt(event.target.value, 10);
+                  if (!Number.isFinite(raw)) return;
+                  const v = Math.min(100, Math.max(1, raw));
+                  if (v !== settings.recent_files_limit) {
+                    void onPersistSettings({ recent_files_limit: v });
+                  }
+                }}
+              />
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
             title="Profiles"
+            defaultOpen={false}
             className="crosshook-panel crosshook-settings-section"
             meta={<span className="crosshook-muted">Storage location</span>}
           >
             <div className="crosshook-settings-field-row">
               <label className="crosshook-label" htmlFor="profiles-directory">
-                Profiles directory
+                Profiles directory override
               </label>
               <div className="crosshook-settings-input-row">
                 <input
                   id="profiles-directory"
+                  key={`pd-${settings.profiles_directory}`}
                   className="crosshook-input"
-                  value={profilesDirectoryPath}
-                  onChange={handleProfilesDirectoryChange}
-                  placeholder="~/.config/crosshook/profiles"
-                  readOnly={!onProfilesDirectoryPathChange}
+                  defaultValue={settings.profiles_directory}
+                  placeholder="Empty = default (~/.config/crosshook/profiles)"
+                  onBlur={(event) => {
+                    const v = event.target.value.trim();
+                    if (v !== settings.profiles_directory.trim()) {
+                      void onPersistSettings({ profiles_directory: v });
+                    }
+                  }}
                 />
+                {onBrowseProfilesDirectory ? (
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--secondary"
+                    onClick={() => void onBrowseProfilesDirectory()}
+                  >
+                    Browse…
+                  </button>
+                ) : null}
                 {onRefreshRecentFiles ? (
                   <button
                     type="button"
@@ -608,9 +764,15 @@ export function SettingsPanel({
 
             <p className="crosshook-muted crosshook-settings-help">{profilesDirectoryMessage}</p>
             <p className="crosshook-muted crosshook-settings-note">
-              The native backend should resolve this to `~/.config/crosshook/profiles` by default and persist any custom
-              location through the settings store.
+              <strong>Active (this session):</strong> {settings.active_profiles_directory || '—'}
+              <br />
+              <strong>Resolved from settings:</strong> {settings.resolved_profiles_directory || '—'}
             </p>
+            {settings.profiles_directory_requires_restart ? (
+              <p className="crosshook-warning-banner crosshook-settings-help" role="status">
+                Restart CrossHook to use the resolved profiles directory as the active store.
+              </p>
+            ) : null}
 
             {onClearRecentFiles ? (
               <div className="crosshook-settings-clear-row">
@@ -625,12 +787,16 @@ export function SettingsPanel({
 
           <DiagnosticExportSection />
 
-	  <SteamGridDbSection hasApiKey={hasSteamgriddbApiKey} onApiKeyChange={onSteamGridDbApiKeyChange} />
+          <SteamGridDbSection
+            hasApiKey={settings.has_steamgriddb_api_key}
+            onApiKeyChange={onSteamGridDbApiKeyChange}
+          />
         </div>
 
         <section className="crosshook-settings-recent-column" aria-label="Recent files">
           <CollapsibleSection
             title="Recent Files"
+            defaultOpen={false}
             className="crosshook-panel crosshook-settings-section"
             meta={<span className="crosshook-muted">Most recent paths used by the app</span>}
           >

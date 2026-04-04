@@ -2,6 +2,7 @@ use super::mangohud;
 use super::models::{LaunchOptimizationsSection, LocalOverrideSection};
 use crate::launch::is_known_launch_optimization_id;
 use crate::profile::{legacy, GameProfile};
+use crate::settings::{resolve_profiles_directory_from_config, AppSettingsData};
 use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -115,11 +116,29 @@ impl Default for ProfileStore {
 
 impl ProfileStore {
     pub fn try_new() -> Result<Self, String> {
-        let base_path = BaseDirs::new()
+        let config_dir = BaseDirs::new()
             .ok_or("home directory not found — CrossHook requires a user home directory")?
             .config_dir()
-            .join("crosshook")
-            .join("profiles");
+            .join("crosshook");
+        let settings_path = config_dir.join("settings.toml");
+        let settings: AppSettingsData = if settings_path.exists() {
+            fs::read_to_string(&settings_path)
+                .ok()
+                .and_then(|s| toml::from_str(&s).ok())
+                .unwrap_or_default()
+        } else {
+            AppSettingsData::default()
+        };
+        Self::try_new_with_settings_data(&settings, &config_dir)
+    }
+
+    /// Profiles directory from `settings` relative to `crosshook_config_dir` (`~/.config/crosshook`).
+    pub fn try_new_with_settings_data(
+        settings: &AppSettingsData,
+        crosshook_config_dir: &std::path::Path,
+    ) -> Result<Self, String> {
+        let base_path = resolve_profiles_directory_from_config(settings, crosshook_config_dir)?;
+        fs::create_dir_all(&base_path).map_err(|e| format!("profiles directory: {e}"))?;
         Ok(Self { base_path })
     }
 
@@ -470,6 +489,14 @@ impl ProfileStore {
     fn profile_path(&self, name: &str) -> Result<PathBuf, ProfileStoreError> {
         validate_name(name)?;
         Ok(self.base_path.join(format!("{name}.toml")))
+    }
+
+    /// Returns whether a profile TOML already exists for `name`.
+    pub fn profile_exists(&self, name: &str) -> bool {
+        match self.profile_path(name) {
+            Ok(path) => path.exists(),
+            Err(_) => false,
+        }
     }
 }
 

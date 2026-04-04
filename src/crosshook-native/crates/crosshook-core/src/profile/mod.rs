@@ -3,9 +3,11 @@
 pub mod community_schema;
 mod exchange;
 mod legacy;
+mod creation_defaults;
 mod models;
 mod toml_store;
 
+pub use creation_defaults::apply_profile_creation_defaults_from_settings;
 pub use community_schema::{
     CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating,
     COMMUNITY_PROFILE_SCHEMA_VERSION,
