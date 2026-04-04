@@ -1,10 +1,12 @@
 use crosshook_core::metadata::{
-    DriftState, HealthSnapshotRow, MetadataStore, OfflineReadinessRow, VersionSnapshotRow,
+    DriftState, HealthSnapshotRow, MetadataStore, OfflineReadinessRow, PrefixDependencyStateRow,
+    VersionSnapshotRow,
 };
 use crosshook_core::offline::OfflineReadinessReport;
 use crosshook_core::profile::health::{
-    batch_check_health, batch_check_health_with_enrich, check_profile_health, HealthCheckSummary,
-    HealthIssue, HealthIssueSeverity, HealthStatus, ProfileHealthReport,
+    batch_check_health, batch_check_health_with_enrich, build_dependency_health_issues,
+    check_profile_health, HealthCheckSummary, HealthIssue, HealthIssueSeverity, HealthStatus,
+    ProfileHealthReport,
 };
 use crosshook_core::profile::{GameProfile, ProfileStore};
 use crosshook_core::steam::libraries::discover_steam_libraries;
@@ -229,6 +231,8 @@ struct BatchMetadataPrefetch {
     profile_source_map: HashMap<String, String>,
     version_snapshot_map: HashMap<String, VersionSnapshotRow>,
     live_build_id_by_profile: HashMap<String, Option<String>>,
+    dep_states_by_profile: HashMap<String, Vec<PrefixDependencyStateRow>>,
+    required_verbs_by_profile: HashMap<String, Vec<String>>,
 }
 
 fn prefetch_batch_metadata(
@@ -295,6 +299,25 @@ fn prefetch_batch_metadata(
 
     let live_build_id_by_profile = live_steam_build_ids_for_profiles(profile_store, profile_names);
 
+    // Prefix dependency states for health enrichment
+    let mut dep_states_by_profile: HashMap<String, Vec<PrefixDependencyStateRow>> = HashMap::new();
+    let mut required_verbs_by_profile: HashMap<String, Vec<String>> = HashMap::new();
+    for name in profile_names {
+        // Load required verbs from profile
+        if let Ok(profile) = profile_store.load(name) {
+            let verbs = profile.trainer.required_protontricks.clone();
+            if !verbs.is_empty() {
+                required_verbs_by_profile.insert(name.clone(), verbs);
+                // Load cached dep states from SQLite
+                if let Some(pid) = profile_id_map.get(name) {
+                    if let Ok(states) = metadata_store.load_prefix_dep_states(pid) {
+                        dep_states_by_profile.insert(name.clone(), states);
+                    }
+                }
+            }
+        }
+    }
+
     BatchMetadataPrefetch {
         metadata_available,
         failure_trends,
@@ -306,6 +329,8 @@ fn prefetch_batch_metadata(
         profile_source_map,
         version_snapshot_map,
         live_build_id_by_profile,
+        dep_states_by_profile,
+        required_verbs_by_profile,
     }
 }
 
@@ -379,6 +404,17 @@ fn enrich_profile(
                 severity: HealthIssueSeverity::Warning,
             });
         }
+    }
+
+    // Inject prefix dependency health issues from cached state
+    if let Some(required_verbs) = prefetch.required_verbs_by_profile.get(&report.name) {
+        let dep_states = prefetch
+            .dep_states_by_profile
+            .get(&report.name)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        let dep_issues = build_dependency_health_issues(dep_states, required_verbs);
+        report.issues.extend(dep_issues);
     }
 
     let metadata = if prefetch.metadata_available {
@@ -709,6 +745,18 @@ pub fn get_profile_health(
         .as_ref()
         .and_then(|s| s.trainer_version.clone());
     let current_build_id = live_steam_build_id_for_profile(&profile);
+
+    // Inject prefix dependency health issues
+    let required_verbs = &profile.trainer.required_protontricks;
+    if !required_verbs.is_empty() {
+        if let Some(ref pid) = metadata_store.lookup_profile_id(&name).ok().flatten() {
+            let dep_states = metadata_store
+                .load_prefix_dep_states(pid)
+                .unwrap_or_default();
+            let dep_issues = build_dependency_health_issues(&dep_states, required_verbs);
+            report.issues.extend(dep_issues);
+        }
+    }
 
     Ok(EnrichedProfileHealthReport {
         core: sanitize_report(report),

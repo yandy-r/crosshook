@@ -311,7 +311,7 @@ pub fn resolve_umu_run_path() -> Option<String> {
     None
 }
 
-fn is_executable_file(path: &Path) -> bool {
+pub(crate) fn is_executable_file(path: &Path) -> bool {
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(_) => return false,

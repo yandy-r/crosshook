@@ -599,6 +599,7 @@ mod tests {
                 kind: "fling".to_string(),
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
+                required_protontricks: Vec::new(),
             },
             injection: crate::profile::InjectionSection {
                 dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],

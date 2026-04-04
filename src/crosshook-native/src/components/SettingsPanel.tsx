@@ -718,6 +718,53 @@ export function SettingsPanel({
           </CollapsibleSection>
 
           <CollapsibleSection
+            title="Prefix Dependencies"
+            defaultOpen={false}
+            className="crosshook-panel crosshook-settings-section"
+            meta={<span className="crosshook-muted">Winetricks / Protontricks</span>}
+          >
+            <div className="crosshook-settings-field-row">
+              <label className="crosshook-label" htmlFor="protontricks-binary-path">
+                Winetricks/Protontricks Binary Path
+              </label>
+              <input
+                id="protontricks-binary-path"
+                key={`ptbp-${settings.protontricks_binary_path}`}
+                className="crosshook-input"
+                defaultValue={settings.protontricks_binary_path}
+                placeholder="/usr/bin/protontricks"
+                onBlur={(event) => {
+                  const v = event.target.value.trim();
+                  if (v !== settings.protontricks_binary_path.trim()) {
+                    void onPersistSettings({ protontricks_binary_path: v });
+                  }
+                }}
+              />
+            </div>
+            <p className="crosshook-muted crosshook-settings-note">
+              If left empty, CrossHook will auto-detect winetricks/protontricks from PATH.
+            </p>
+
+            <label className="crosshook-settings-checkbox-row">
+              <input
+                type="checkbox"
+                checked={settings.auto_install_prefix_deps}
+                onChange={(event) =>
+                  void onPersistSettings({ auto_install_prefix_deps: event.target.checked })
+                }
+                className="crosshook-settings-checkbox"
+              />
+              <span>
+                <span className="crosshook-label">Auto-install prefix dependencies on first launch</span>
+                <p className="crosshook-muted crosshook-settings-note">
+                  When enabled, CrossHook will automatically install any required winetricks/protontricks
+                  dependencies into the Wine prefix before launching for the first time.
+                </p>
+              </span>
+            </label>
+          </CollapsibleSection>
+
+          <CollapsibleSection
             title="Profiles"
             defaultOpen={false}
             className="crosshook-panel crosshook-settings-section"

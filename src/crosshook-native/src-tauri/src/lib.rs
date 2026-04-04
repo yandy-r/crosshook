@@ -202,6 +202,7 @@ pub fn run() {
         .manage(community_tap_store)
         .manage(metadata_store)
         .manage(commands::update::UpdateProcessState::new())
+        .manage(commands::prefix_deps::PrefixDepsInstallState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -302,6 +303,11 @@ pub fn run() {
             commands::offline::verify_trainer_hash,
             commands::offline::check_network_status,
             commands::offline::get_trainer_type_catalog,
+            // Prefix dependency management
+            commands::prefix_deps::detect_protontricks_binary,
+            commands::prefix_deps::check_prefix_dependencies,
+            commands::prefix_deps::install_prefix_dependency,
+            commands::prefix_deps::get_dependency_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

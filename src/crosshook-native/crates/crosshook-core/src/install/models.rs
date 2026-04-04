@@ -113,6 +113,7 @@ impl InstallGameRequest {
                 kind: String::new(),
                 loading_mode: TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
+                required_protontricks: Vec::new(),
             },
             injection: Default::default(),
             steam: SteamSection::default(),
