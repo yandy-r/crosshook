@@ -19,6 +19,7 @@ Run these in a graphical Tauri build (`./scripts/dev-native.sh` or a release App
 
 - [ ] Profile with no Steam App ID: modal opens; metadata and ProtonDB sections show unavailable copy; paths still show from loaded profile when load succeeds.
 - [ ] Offline or failed remote metadata: section shows unavailable or cached/stale messaging without crashing the modal.
+- [ ] Loading skeletons for async sections: when metadata / ProtonDB / paths are fetching, the modal displays skeleton placeholders until data resolves.
 - [ ] Rapidly open details for profile A then B: loaded paths and title match profile B (no stale overwrite).
 
 ## Scroll and narrow viewport

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { LibraryCardData } from '../../types/library';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
@@ -67,13 +67,6 @@ export function LibraryCard({
     onOpenDetails(profile.name);
   }
 
-  function handleDetailsHitboxKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onOpenDetails(profile.name);
-    }
-  }
-
   return (
     <div ref={cardRef} className={cardClass} role="listitem">
       <button
@@ -81,7 +74,6 @@ export function LibraryCard({
         className="crosshook-library-card__details-hitbox"
         aria-label={`View details for ${displayName}`}
         onClick={handleOpenDetailsClick}
-        onKeyDown={handleDetailsHitboxKeyDown}
       />
       {/* Cover image / skeleton / fallback */}
       {loading ? (

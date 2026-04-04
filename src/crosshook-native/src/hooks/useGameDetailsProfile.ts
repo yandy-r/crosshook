@@ -5,7 +5,7 @@ import type { GameProfile, SerializedGameProfile } from '../types';
 import { normalizeSerializedGameProfile } from '../types';
 import { nextGameDetailsRequestId, useGameDetailsRequestCounter } from './useGameDetailsRequestGuards';
 
-export type GameDetailsProfileLoadState = 'idle' | 'loading' | 'ready' | 'error' | 'unavailable';
+export type GameDetailsProfileLoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 export interface UseGameDetailsProfileResult {
   loadState: GameDetailsProfileLoadState;

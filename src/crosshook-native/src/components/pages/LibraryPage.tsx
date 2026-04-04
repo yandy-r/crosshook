@@ -79,8 +79,8 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
       if (!card) {
         return;
       }
-      await selectProfile(name);
       gameDetailsModal.openForCard(card);
+      await selectProfile(name);
     },
     [gameDetailsModal, selectProfile, summaries],
   );
@@ -101,6 +101,11 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     },
     [setSummaries, toggleFavorite],
   );
+
+  const activeGameDetailsSummary =
+    gameDetailsModal.summary == null
+      ? null
+      : summaries.find((summary) => summary.name === gameDetailsModal.summary?.name) ?? gameDetailsModal.summary;
 
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--library">
@@ -134,7 +139,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
       </div>
       <GameDetailsModal
         open={gameDetailsModal.open}
-        summary={gameDetailsModal.summary}
+        summary={activeGameDetailsSummary}
         onClose={gameDetailsModal.close}
         healthByName={healthByName}
         healthLoading={healthLoading}

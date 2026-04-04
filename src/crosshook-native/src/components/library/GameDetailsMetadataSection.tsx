@@ -75,9 +75,9 @@ export function GameDetailsMetadataSection({
         {coverLoading ? (
           <div className="crosshook-game-details-modal__cover crosshook-game-details-modal__cover--skeleton crosshook-skeleton" />
         ) : coverArtUrl ? (
-          <img className="crosshook-game-details-modal__cover" src={coverArtUrl} alt="" />
+          <img className="crosshook-game-details-modal__cover" src={coverArtUrl} alt={`${displayName} cover art`} />
         ) : (
-          <div className="crosshook-game-details-modal__cover-fallback" aria-hidden>
+          <div className="crosshook-game-details-modal__cover-fallback" aria-hidden="true">
             {displayName.slice(0, 2).toUpperCase()}
           </div>
         )}

@@ -8,24 +8,26 @@ export function GameDetailsCompatibilitySection({ steamAppId }: GameDetailsCompa
   const trimmed = steamAppId.trim();
   const hasAppId = /^\d+$/.test(trimmed);
   const proton = useProtonDbLookup(hasAppId ? trimmed : '');
+  let statusMessage: JSX.Element | null = null;
+
+  if (!hasAppId) {
+    statusMessage = <p className="crosshook-game-details-modal__muted">ProtonDB data needs a numeric Steam App ID.</p>;
+  } else if (proton.loading || proton.state === 'loading') {
+    statusMessage = <p className="crosshook-game-details-modal__muted">Loading ProtonDB summary…</p>;
+  } else if (proton.isUnavailable) {
+    statusMessage = (
+      <p className="crosshook-game-details-modal__muted">ProtonDB data is unavailable (offline or not cached).</p>
+    );
+  } else if (proton.isStale) {
+    statusMessage = <p className="crosshook-game-details-modal__stale">Showing cached ProtonDB data; it may be stale.</p>;
+  }
 
   return (
     <section className="crosshook-game-details-modal__section" aria-labelledby="crosshook-game-details-proton-heading">
       <h3 id="crosshook-game-details-proton-heading" className="crosshook-game-details-modal__section-title">
         ProtonDB compatibility
       </h3>
-      {!hasAppId ? (
-        <p className="crosshook-game-details-modal__muted">ProtonDB data needs a numeric Steam App ID.</p>
-      ) : null}
-      {hasAppId && (proton.loading || proton.state === 'loading') ? (
-        <p className="crosshook-game-details-modal__muted">Loading ProtonDB summary…</p>
-      ) : null}
-      {hasAppId && proton.isUnavailable && !proton.loading ? (
-        <p className="crosshook-game-details-modal__muted">ProtonDB data is unavailable (offline or not cached).</p>
-      ) : null}
-      {hasAppId && proton.isStale ? (
-        <p className="crosshook-game-details-modal__stale">Showing cached ProtonDB data; it may be stale.</p>
-      ) : null}
+      {statusMessage}
       {hasAppId && proton.snapshot && (proton.state === 'ready' || proton.state === 'stale') ? (
         <div className="crosshook-game-details-modal__proton-summary">
           <p className="crosshook-game-details-modal__text">

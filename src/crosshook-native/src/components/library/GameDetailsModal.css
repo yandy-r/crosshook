@@ -41,7 +41,7 @@
   margin: 0;
   color: var(--crosshook-color-text);
   line-height: 1.5;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .crosshook-game-details-modal__text--desc {

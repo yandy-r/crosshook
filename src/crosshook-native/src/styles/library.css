@@ -106,7 +106,7 @@
 .crosshook-library-card__details-hitbox {
   position: absolute;
   inset: 0;
-  bottom: 56px;
+  bottom: var(--crosshook-library-card-footer-height);
   z-index: 2;
   margin: 0;
   padding: 0;

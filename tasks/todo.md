@@ -1,5 +1,19 @@
 # Task Plan
 
+## 2026-04-04 - verify game-details modal review comments
+
+- [x] Confirm each cited game-details review comment against the current code and docs.
+- [x] Patch only the findings that still require changes across the modal/docs/library surfaces.
+- [x] Run focused frontend verification and record the outcome.
+
+### Review
+
+- Fixed the still-valid findings in the docs and frontend: added the missing manual checklist acceptance item, added a persistence/usability section to the research note, replaced deprecated `word-break: break-word`, tightened modal body locking, opened the modal before awaiting profile selection, kept the modal summary synced after favorite toggles, made ProtonDB status messaging mutually exclusive, improved cover-art accessibility, removed redundant hitbox keyboard handling, removed the unreachable `useGameDetailsProfile` load-state variant, and extracted the library-card footer offset into a shared CSS variable.
+- Kept the current quick-action scope unchanged after verification. The existing plan and implementation handoff lock v1 to minimal modal quick actions, so the requested `Export launcher` / `Copy Steam launch` buttons were not added.
+- Did not add a new invoke wrapper for `GameDetailsModal` because the component already delegates async profile loading to `useGameDetailsProfile` and contains no inline `invoke()` calls.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
 ## 2026-04-04 - game-profile IPC normalization hardening
 
 - [x] Model sparse backend profile payloads explicitly in the frontend type surface.

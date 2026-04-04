@@ -53,7 +53,7 @@ export interface GameDetailsModalProps {
   open: boolean;
   summary: LibraryCardData | null;
   onClose: () => void;
-  healthByName: Record<string, EnrichedProfileHealthReport>;
+  healthByName: Partial<Record<string, EnrichedProfileHealthReport>>;
   healthLoading: boolean;
   offlineReportFor: (profileName: string) => OfflineReadinessReport | undefined;
   offlineError: string | null;
@@ -107,7 +107,7 @@ export function GameDetailsModal({
   }, []);
 
   useEffect(() => {
-    if (!open || typeof document === 'undefined') {
+    if (!open || !summary || typeof document === 'undefined') {
       return;
     }
     const { body } = document;
@@ -161,7 +161,7 @@ export function GameDetailsModal({
       }
       previouslyFocusedRef.current = null;
     };
-  }, [open]);
+  }, [open, summary]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape') {

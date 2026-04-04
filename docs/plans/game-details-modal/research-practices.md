@@ -37,6 +37,15 @@ This feature has strong reuse opportunities in existing modal shells, library da
 - **Avoid new dependencies**: no additional modal/state libraries required for this scope.
 - **Only add backend API** if needed fields are unavailable through current commands and hooks.
 
+## Persistence and Usability
+
+- **TOML settings**: no new modal-owned settings keys are introduced. The modal is read-only and continues to consume existing profile data loaded through `profile_load`; anything users can edit still belongs in the Profiles / Launch flows rather than `crosshook-modal`.
+- **SQLite metadata**: no new tables or migrations are required for the current modal. `useGameMetadata`, `useProtonDbLookup`, health context data, and offline readiness already read persisted cache / metadata through existing hooks and commands, so the modal only reflects what those layers already store.
+- **Runtime-only state**: `LibraryPage`, `LibraryCard`, `useGameDetailsModalState`, and `GameDetailsModal` own transient selection, open/close state, focus trapping, and in-flight section loading. This state must reset safely on close, reload, offline failures, and upgrades; it is not user-editable after the modal closes.
+- **Migration and backward compatibility**: current implementation is a no-migration case. Upgrades must continue to tolerate missing cache entries, sparse `profile_load` payloads, and empty Steam App IDs by falling back to loading / unavailable copy instead of blocking the modal. Only a future feature that persists modal-specific preferences or introduces new cached detail data would require an explicit TOML or SQLite migration plan.
+- **Offline fallback and degraded behavior**: when Steam metadata, ProtonDB, or offline-readiness data is unavailable, the modal should keep rendering via cached or unavailable states sourced from existing hooks instead of adding ad-hoc fallbacks. Manual checks should cover offline metadata / ProtonDB messaging, stale-cache messaging, rapid A-to-B switching without stale overwrite, and focus restoring to the invoking library control after close.
+- **User visibility and editability**: users can see read-only detail aggregates from `LibraryPage` / `LibraryCard` and the library hooks, but they do not edit those values inside the modal. Any durable edits still happen through the existing profile editor, launch configuration, or settings surfaces; modal focus-locking and `crosshook-modal` restore behavior remain runtime-only UX state.
+
 ## Testability Notes
 
 - Manual UI verification is primary (no configured frontend test framework).
