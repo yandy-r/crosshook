@@ -207,7 +207,7 @@ These features have no strict ordering. Prioritize based on community feedback.
 | #53   | ProtonDB lookup                  | Done   | Medium  | #41 (version correlation) |
 | #52   | Game metadata / cover art        | Done   | Medium  | #53 (ProtonDB)            |
 | #60   | Settings expansion               | Done   | Low-Med | Any phase                 |
-| #61   | Prefix health monitoring         |        | Medium  | #38 (health dashboard)    |
+| #61   | Prefix health monitoring         | Done   | Medium  | #38 (health dashboard)    |
 | #62   | Network isolation                |        | Low     | #63 (hash verification)   |
 | #63   | Trainer hash verification        |        | Low     | #62 (network isolation)   |
 | #66   | Data-driven optimization catalog | Done   | Medium  | #58 (extended catalog)    |
