@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
 import { listen } from '@tauri-apps/api/event';
@@ -43,7 +43,7 @@ function ConsoleDock({ panelRef }: { panelRef: RefObject<PanelImperativeHandle |
   const { settings } = usePreferencesContext();
   const defaultCollapsed = settings.console_drawer_collapsed_default;
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (defaultCollapsed) {
       panelRef.current?.collapse();
     } else {
@@ -111,7 +111,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
                     collapsible
                     collapsedSize="40px"
                     defaultSize="60%"
-                    minSize="15%"
+                    minSize="25%"
                     maxSize="75%"
                   >
                     <ConsoleDock panelRef={consolePanelRef} />

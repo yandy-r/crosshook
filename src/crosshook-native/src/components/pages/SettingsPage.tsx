@@ -1,21 +1,31 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import SettingsPanel from '../SettingsPanel';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { chooseDirectory } from '../../utils/dialog';
+import { deriveTargetHomePath } from '../../utils/steam';
 
 export function SettingsPage() {
   const {
     settings,
     recentFiles,
     settingsError,
+    defaultSteamClientInstallPath,
     refreshPreferences,
     persistSettings,
     handleAutoLoadChange,
     handleSteamGridDbApiKeyChange,
     clearRecentFiles,
   } = usePreferencesContext();
-  const { targetHomePath, steamClientInstallPath } = useProfileContext();
+  const { steamClientInstallPath: profileSteamPath } = useProfileContext();
+  const effectiveSteamClientInstallPath = useMemo(
+    () => defaultSteamClientInstallPath || profileSteamPath,
+    [defaultSteamClientInstallPath, profileSteamPath]
+  );
+  const targetHomePath = useMemo(
+    () => deriveTargetHomePath(effectiveSteamClientInstallPath),
+    [effectiveSteamClientInstallPath]
+  );
 
   const handleBrowseProfilesDirectory = useCallback(async () => {
     const dir = await chooseDirectory('Select profiles directory');
@@ -45,7 +55,7 @@ export function SettingsPage() {
                   dllPaths: recentFiles.dll_paths,
                 }}
                 targetHomePath={targetHomePath}
-                steamClientInstallPath={steamClientInstallPath}
+                steamClientInstallPath={effectiveSteamClientInstallPath}
                 onAutoLoadLastProfileChange={(enabled) => {
                   void handleAutoLoadChange(enabled);
                 }}
