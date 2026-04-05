@@ -126,6 +126,7 @@ function buildLaunchRequest(profile: GameProfile, steamClientInstallPath: string
     launch_game_only: false,
     launch_trainer_only: false,
     custom_env_vars: { ...profile.launch.custom_env_vars },
+    network_isolation: profile.launch.network_isolation ?? true,
     gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
     mangohud: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
   };

@@ -20,6 +20,10 @@ pub fn is_inside_gamescope_session() -> bool {
     std::env::var("GAMESCOPE_WAYLAND_DISPLAY").is_ok()
 }
 
+fn default_network_isolation() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LaunchRequest {
     #[serde(default)]
@@ -50,6 +54,10 @@ pub struct LaunchRequest {
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub custom_env_vars: BTreeMap<String, String>,
+    /// When true, trainer processes are launched in an isolated network namespace
+    /// via `unshare --user --net`.
+    #[serde(default = "default_network_isolation")]
+    pub network_isolation: bool,
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
     pub gamescope: GamescopeConfig,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -266,6 +274,8 @@ pub enum ValidationError {
         score: u8,
         reasons: Vec<String>,
     },
+    /// `unshare --net` was requested but is not available on this system.
+    UnshareNetUnavailable,
     /// Available disk space at the launch prefix mount is below warning threshold.
     LowDiskSpaceAdvisory {
         available_mb: u64,
@@ -401,6 +411,9 @@ impl ValidationError {
             }
             Self::GamescopeFullscreenBorderlessConflict => {
                 "Fullscreen and borderless cannot both be enabled in gamescope.".to_string()
+            }
+            Self::UnshareNetUnavailable => {
+                "Network isolation (unshare --user --net) is not available on this system.".to_string()
             }
             Self::OfflineReadinessInsufficient { score, reasons } => {
                 let detail = if reasons.is_empty() {
@@ -590,6 +603,10 @@ impl ValidationError {
             Self::GamescopeFullscreenBorderlessConflict => {
                 "Choose either fullscreen or borderless, not both.".to_string()
             }
+            Self::UnshareNetUnavailable => {
+                "Unprivileged user namespaces may be disabled by kernel policy. The trainer will launch without network isolation."
+                    .to_string()
+            }
             Self::OfflineReadinessInsufficient { .. } => {
                 "Review trainer files, game paths, and Proton prefix in the profile. This warning is informational; you can still launch."
                     .to_string()
@@ -605,6 +622,7 @@ impl ValidationError {
     pub fn severity(&self) -> ValidationSeverity {
         match self {
             Self::GamescopeNestedSession
+            | Self::UnshareNetUnavailable
             | Self::OfflineReadinessInsufficient { .. }
             | Self::LowDiskSpaceAdvisory { .. } => {
                 ValidationSeverity::Warning
@@ -874,6 +892,12 @@ fn collect_steam_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidati
     ) {
         issues.push(e.issue());
     }
+
+    if request.network_isolation && !request.launch_game_only {
+        if !super::runtime_helpers::is_unshare_net_available() {
+            issues.push(ValidationError::UnshareNetUnavailable.issue());
+        }
+    }
 }
 
 fn collect_proton_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidationIssue>) {
@@ -904,6 +928,12 @@ fn collect_proton_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidat
 
     if let Err(e) = resolve_launch_directives(request) {
         issues.push(e.issue());
+    }
+
+    if request.network_isolation && !request.launch_game_only {
+        if !super::runtime_helpers::is_unshare_net_available() {
+            issues.push(ValidationError::UnshareNetUnavailable.issue());
+        }
     }
 }
 
@@ -1519,6 +1549,17 @@ mod tests {
         ]);
         let issues = validate_all(&request);
         assert_eq!(issues.len(), 2);
+    }
+
+    #[test]
+    fn unshare_net_unavailable_is_warning_severity() {
+        let err = ValidationError::UnshareNetUnavailable;
+        assert_eq!(err.severity(), ValidationSeverity::Warning);
+        let issue = err.issue();
+        assert_eq!(issue.severity, ValidationSeverity::Warning);
+        assert!(issue.message.contains("unshare"));
+        assert!(issue.help.contains("kernel policy"));
+        assert!(issue.message.contains("--user --net"));
     }
 
     #[test]

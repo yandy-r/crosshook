@@ -27,6 +27,8 @@ pub struct SteamExternalLauncherExportRequest {
     #[serde(default)]
     pub profile_name: Option<String>,
     #[serde(default)]
+    pub network_isolation: bool,
+    #[serde(default)]
     pub gamescope: GamescopeConfig,
 }
 
@@ -340,6 +342,14 @@ pub(crate) fn build_trainer_script_content(
         request.trainer_loading_mode.as_str()
     ));
     content.push_str(&format!(
+        "# Network isolation: {}\n",
+        if request.network_isolation {
+            "enabled (unshare --user --net)"
+        } else {
+            "disabled"
+        }
+    ));
+    content.push_str(&format!(
         "PREFIX_ROOT={}\n",
         shell_single_quoted(&request.prefix_path)
     ));
@@ -386,6 +396,7 @@ cd "$trainer_host_dir"
             );
             content.push_str(&build_exec_line(
                 request.gamescope.enabled,
+                request.network_isolation,
                 "\"$trainer_host_path\"",
             ));
         }
@@ -463,6 +474,7 @@ stage_trainer_support_files "$trainer_source_dir" "$staged_trainer_dir" "$traine
             );
             content.push_str(&build_exec_line(
                 request.gamescope.enabled,
+                request.network_isolation,
                 "\"$staged_trainer_windows_path\"",
             ));
         }
@@ -505,12 +517,40 @@ fi
     block
 }
 
-fn build_exec_line(gamescope_enabled: bool, target_path: &str) -> String {
-    if gamescope_enabled {
-        format!("exec \"${{_GS_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n")
-    } else {
-        format!("exec \"$PROTON\" run {target_path}\n")
+fn build_exec_line(
+    gamescope_enabled: bool,
+    network_isolation: bool,
+    target_path: &str,
+) -> String {
+    if !network_isolation {
+        return if gamescope_enabled {
+            format!("exec \"${{_GS_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n")
+        } else {
+            format!("exec \"$PROTON\" run {target_path}\n")
+        };
     }
+
+    // Runtime probe: try `unshare --net true`; fall back with a warning if it fails.
+    let mut block = String::new();
+    block.push_str(
+        r#"_NET_PREFIX=()
+if unshare --user --net true >/dev/null 2>&1; then
+  _NET_PREFIX=(unshare --user --net)
+else
+  echo "[CrossHook] WARNING: unshare --user --net unavailable — launching without network isolation" >&2
+fi
+"#,
+    );
+    if gamescope_enabled {
+        block.push_str(&format!(
+            "exec \"${{_GS_PREFIX[@]}}\" \"${{_NET_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n"
+        ));
+    } else {
+        block.push_str(&format!(
+            "exec \"${{_NET_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n"
+        ));
+    }
+    block
 }
 
 pub(crate) fn build_desktop_entry_content(
@@ -1161,5 +1201,71 @@ mod tests {
             "script should not override DISPLAY"
         );
         assert!(content.contains("gamescope"));
+    }
+
+    #[test]
+    fn network_isolation_enabled_generates_runtime_probe_and_exec() {
+        let mut request = make_gamescope_request(
+            GamescopeConfig::default(),
+            TrainerLoadingMode::SourceDirectory,
+        );
+        request.network_isolation = true;
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(
+            content.contains("# Network isolation: enabled"),
+            "script header should indicate network isolation: {content}"
+        );
+        assert!(
+            content.contains("if unshare --user --net true"),
+            "script should probe unshare availability: {content}"
+        );
+        assert!(
+            content.contains("_NET_PREFIX=(unshare --user --net)"),
+            "script should set _NET_PREFIX on success: {content}"
+        );
+        assert!(
+            content.contains("WARNING: unshare --user --net unavailable"),
+            "script should warn on failure: {content}"
+        );
+        assert!(
+            content.contains(r#"exec "${_NET_PREFIX[@]}" "$PROTON" run"#),
+            "exec line should use _NET_PREFIX array: {content}"
+        );
+    }
+
+    #[test]
+    fn network_isolation_disabled_no_unshare_in_exec() {
+        let mut request = make_gamescope_request(
+            GamescopeConfig::default(),
+            TrainerLoadingMode::SourceDirectory,
+        );
+        request.network_isolation = false;
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(
+            content.contains("# Network isolation: disabled"),
+            "script header should indicate disabled: {content}"
+        );
+        assert!(
+            !content.contains("unshare"),
+            "exec line should NOT contain unshare: {content}"
+        );
+    }
+
+    #[test]
+    fn network_isolation_with_gamescope_uses_both_prefixes() {
+        let mut request = make_gamescope_request(
+            GamescopeConfig {
+                enabled: true,
+                fullscreen: true,
+                ..Default::default()
+            },
+            TrainerLoadingMode::CopyToPrefix,
+        );
+        request.network_isolation = true;
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(
+            content.contains(r#"exec "${_GS_PREFIX[@]}" "${_NET_PREFIX[@]}" "$PROTON" run"#),
+            "gamescope should be outermost, net isolation inside: {content}"
+        );
     }
 }

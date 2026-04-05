@@ -78,6 +78,17 @@ export function SettingsIcon(props: IconProps) {
   );
 }
 
+export function InfoCircleIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <title>Info</title>
+      <circle cx="10" cy="10" r="8" />
+      <path d="M10 9v5" />
+      <circle cx="10" cy="6.5" r="0.75" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function HealthIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

@@ -134,6 +134,8 @@ export interface GameProfile {
     /** When set and present in `presets`, optimizations are kept in sync with that entry. */
     active_preset?: string;
     custom_env_vars: Record<string, string>;
+    /** When true, trainer processes are launched in an isolated network namespace via `unshare --net`. */
+    network_isolation?: boolean;
     gamescope?: GamescopeConfig;
     trainer_gamescope?: GamescopeConfig;
     mangohud?: MangoHudConfig;
@@ -208,6 +210,7 @@ const DEFAULT_LAUNCH_SECTION: GameProfile['launch'] = {
   presets: {},
   active_preset: '',
   custom_env_vars: {},
+  network_isolation: true,
 };
 
 export function normalizeSerializedGameProfile(profile: SerializedGameProfile): GameProfile {

@@ -46,6 +46,7 @@ fn build_export_request_for_profile(
         steam_client_install_path: steam_client_install_path.to_string(),
         target_home_path: target_home_path.to_string(),
         profile_name: profile_name.map(|name| name.to_string()),
+        network_isolation: profile.launch.network_isolation,
         gamescope: profile.launch.trainer_gamescope.clone(),
     })
 }
@@ -268,6 +269,7 @@ pub fn rename_launcher(
     proton_path: String,
     steam_app_id: String,
     launcher_name: String,
+    network_isolation: bool,
     gamescope: GamescopeConfig,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<LauncherRenameResult, String> {
@@ -285,6 +287,7 @@ pub fn rename_launcher(
         steam_client_install_path: steam_client_install_path.clone(),
         target_home_path: target_home_path.clone(),
         profile_name: None,
+        network_isolation,
         gamescope,
     };
     let result = crosshook_core::export::rename_launcher_files(
@@ -442,7 +445,26 @@ mod tests {
                 State<'_, ProfileStore>,
                 State<'_, MetadataStore>,
             ) -> Result<SteamExternalLauncherExportResult, String>;
+        let _ = rename_launcher
+            as fn(
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                bool,
+                GamescopeConfig,
+                State<'_, MetadataStore>,
+            ) -> Result<LauncherRenameResult, String>;
         let _ = list_launchers as fn(String, String, State<'_, ProfileStore>) -> Vec<LauncherInfo>;
+        let _ = find_orphaned_launchers as fn(Vec<String>, String, String) -> Vec<LauncherInfo>;
         let _ = preview_launcher_script
             as fn(SteamExternalLauncherExportRequest) -> Result<String, String>;
         let _ = preview_launcher_desktop

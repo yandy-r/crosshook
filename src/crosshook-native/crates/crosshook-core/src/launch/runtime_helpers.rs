@@ -3,6 +3,7 @@ use std::env;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::OnceLock;
 
 use tokio::process::Command;
 
@@ -327,6 +328,29 @@ pub(crate) fn is_executable_file(path: &Path) -> bool {
     {
         metadata.is_file()
     }
+}
+
+/// Returns `true` if `unshare --user --net` is available for the current user.
+///
+/// Probes by running `unshare --user --net true` (which immediately exits).
+/// `--user` is required because most kernels only allow unprivileged network
+/// namespace creation inside a user namespace.
+/// Returns `false` if the binary is missing or the kernel blocks the operation.
+///
+/// The result is cached for the lifetime of the process via `OnceLock` since
+/// kernel policy does not change within a single application session.
+pub fn is_unshare_net_available() -> bool {
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        std::process::Command::new("unshare")
+            .args(["--user", "--net", "true"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    })
 }
 
 fn set_env(command: &mut Command, key: &str, value: impl AsRef<str>) {

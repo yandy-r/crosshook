@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
 import { listen } from '@tauri-apps/api/event';
 
@@ -71,6 +72,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
   }, []);
 
   return (
+    <Tooltip.Provider delayDuration={200}>
     <PreferencesProvider activeProfileName={lastProfile}>
       <LaunchStateProvider>
         <Tabs.Root
@@ -131,6 +133,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
         )}
       </LaunchStateProvider>
     </PreferencesProvider>
+    </Tooltip.Provider>
   );
 }
 
