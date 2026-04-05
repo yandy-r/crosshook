@@ -14,6 +14,7 @@ mod optimization_catalog_store;
 mod prefix_deps_store;
 mod prefix_storage_store;
 mod preset_store;
+mod suggestion_store;
 pub mod profile_sync;
 mod version_store;
 

@@ -386,6 +386,7 @@ pub enum ConfigRevisionSource {
     RollbackApply,
     Import,
     Migration,
+    ProtonDbSuggestionApply,
 }
 
 impl ConfigRevisionSource {
@@ -397,6 +398,7 @@ impl ConfigRevisionSource {
             Self::RollbackApply => "rollback_apply",
             Self::Import => "import",
             Self::Migration => "migration",
+            Self::ProtonDbSuggestionApply => "protondb_suggestion_apply",
         }
     }
 }

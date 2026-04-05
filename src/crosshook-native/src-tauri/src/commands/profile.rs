@@ -124,7 +124,7 @@ fn observe_profile_write_launch_change(
 /// snapshot capture never fails a user-facing save operation.
 ///
 /// Returns the new revision id when a row is inserted, `None` on dedup, skip, or error.
-fn capture_config_revision(
+pub(crate) fn capture_config_revision(
     profile_name: &str,
     profile: &GameProfile,
     source: ConfigRevisionSource,
