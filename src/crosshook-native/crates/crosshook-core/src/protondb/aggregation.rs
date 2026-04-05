@@ -7,11 +7,21 @@ use super::models::{
     ProtonDbLaunchOptionSuggestion, ProtonDbRecommendationGroup,
 };
 
-const RESERVED_ENV_KEYS: &[&str] = &[
+pub(super) const RESERVED_ENV_KEYS: &[&str] = &[
     "WINEPREFIX",
     "STEAM_COMPAT_DATA_PATH",
     "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "LD_AUDIT",
+    "LD_DEBUG",
+    "PATH",
+    "HOME",
+    "SHELL",
+    "NODE_OPTIONS",
+    "PYTHONPATH",
 ];
+pub(super) const BLOCKED_ENV_KEY_PREFIXES: &[&str] = &["STEAM_COMPAT_", "LD_"];
 const MAX_ENV_GROUPS: usize = 3;
 const MAX_LAUNCH_GROUPS: usize = 3;
 const MAX_NOTE_GROUPS: usize = 4;
@@ -277,7 +287,7 @@ fn safe_env_var_suggestions(raw_launch: &str, source_label: &str) -> Vec<ProtonD
             continue;
         }
         if RESERVED_ENV_KEYS.contains(&normalized_key)
-            || normalized_key.starts_with("STEAM_COMPAT_")
+            || BLOCKED_ENV_KEY_PREFIXES.iter().any(|p| normalized_key.starts_with(p))
         {
             continue;
         }
@@ -297,7 +307,7 @@ fn safe_env_var_suggestions(raw_launch: &str, source_label: &str) -> Vec<ProtonD
     env_vars
 }
 
-fn is_safe_env_key(key: &str) -> bool {
+pub(crate) fn is_safe_env_key(key: &str) -> bool {
     let mut chars = key.chars();
     match chars.next() {
         Some(ch) if ch == '_' || ch.is_ascii_uppercase() => {}
@@ -307,7 +317,7 @@ fn is_safe_env_key(key: &str) -> bool {
     chars.all(|ch| ch == '_' || ch.is_ascii_uppercase() || ch.is_ascii_digit())
 }
 
-fn is_safe_env_value(value: &str) -> bool {
+pub(crate) fn is_safe_env_value(value: &str) -> bool {
     if value.contains('\0') {
         return false;
     }
