@@ -25,6 +25,7 @@ interface SteamExternalLauncherExportRequest {
   steam_client_install_path: string;
   target_home_path: string;
   profile_name?: string;
+  network_isolation: boolean;
   gamescope?: GamescopeConfig;
 }
 
@@ -108,6 +109,7 @@ function buildExportRequest(
     steam_client_install_path: steamClientInstallPath.trim(),
     target_home_path: targetHomePath.trim(),
     profile_name: profileName.trim() || undefined,
+    network_isolation: profile.launch.network_isolation ?? true,
     gamescope: profile.launch?.trainer_gamescope,
   };
 }
@@ -209,6 +211,7 @@ export function LauncherExport({
             { label: 'Steam App ID', value: safeTrim(profile.steam.app_id) || 'Not set' },
             { label: 'Compatdata Path', value: safeTrim(profile.steam.compatdata_path) || 'Not set' },
             { label: 'Proton Path', value: safeTrim(profile.steam.proton_path) || 'Not set' },
+            { label: 'Network Isolation', value: (profile.launch.network_isolation ?? true) ? 'Enabled' : 'Disabled' },
             { label: 'Trainer Gamescope', value: profile.launch?.trainer_gamescope?.enabled ? 'Enabled' : 'Disabled' },
           ]
         : [
@@ -220,6 +223,7 @@ export function LauncherExport({
             },
             { label: 'Prefix Path', value: safeTrim(profile.runtime.prefix_path) || 'Not set' },
             { label: 'Proton Path', value: safeTrim(profile.runtime.proton_path) || 'Not set' },
+            { label: 'Network Isolation', value: (profile.launch.network_isolation ?? true) ? 'Enabled' : 'Disabled' },
             { label: 'Trainer Gamescope', value: profile.launch?.trainer_gamescope?.enabled ? 'Enabled' : 'Disabled' },
             { label: 'Working Directory', value: safeTrim(profile.runtime.working_directory) || 'Not set' },
           ],

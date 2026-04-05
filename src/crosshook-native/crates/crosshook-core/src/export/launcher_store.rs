@@ -310,6 +310,7 @@ pub fn check_launcher_for_profile(
             steam_client_install_path: steam_client_install_path.to_string(),
             target_home_path: target_home_path.to_string(),
             profile_name: None,
+            network_isolation: profile.launch.network_isolation,
             gamescope: profile.launch.trainer_gamescope.clone(),
         },
     )
