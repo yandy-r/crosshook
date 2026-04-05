@@ -42,6 +42,7 @@ export interface LaunchRequest {
   launch_game_only: boolean;
   profile_name?: string;
   custom_env_vars: Record<string, string>;
+  network_isolation: boolean;
   gamescope: GamescopeConfig;
   trainer_gamescope?: GamescopeConfig;
   mangohud: MangoHudConfig;

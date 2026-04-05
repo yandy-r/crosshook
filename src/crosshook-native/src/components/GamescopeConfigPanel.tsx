@@ -1,6 +1,6 @@
 import { useId, useRef, type ChangeEvent } from 'react';
-import * as Tooltip from '@radix-ui/react-tooltip';
 import type { GamescopeConfig, GamescopeFilter } from '../types/profile';
+import { InfoTooltip } from './ui/InfoTooltip';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { ThemedSelect } from './ui/ThemedSelect';
 
@@ -87,58 +87,7 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
           />
           <span style={{ color: 'var(--crosshook-color-text)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             Enable gamescope compositor wrapper
-            {enableHint ? (
-              <Tooltip.Provider delayDuration={200}>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      aria-label="Info"
-                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-                      onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.stopPropagation(); e.preventDefault(); } }}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 18,
-                        height: 18,
-                        borderRadius: '50%',
-                        border: '1.5px solid var(--crosshook-color-text-subtle)',
-                        fontSize: '0.72em',
-                        fontWeight: 700,
-                        color: 'var(--crosshook-color-text-subtle)',
-                        cursor: 'help',
-                        flexShrink: 0,
-                      }}
-                    >
-                      i
-                    </span>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content
-                      side="top"
-                      sideOffset={6}
-                      style={{
-                        maxWidth: 320,
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        fontSize: '0.85rem',
-                        lineHeight: 1.4,
-                        color: 'var(--crosshook-color-text)',
-                        background: 'var(--crosshook-color-surface-raised, #2a2a2e)',
-                        border: '1px solid var(--crosshook-color-border-strong)',
-                        boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                        zIndex: 9999,
-                      }}
-                    >
-                      {enableHint}
-                      <Tooltip.Arrow style={{ fill: 'var(--crosshook-color-surface-raised, #2a2a2e)' }} />
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-            ) : null}
+            {enableHint ? <InfoTooltip content={enableHint} /> : null}
           </span>
         </label>
       </div>

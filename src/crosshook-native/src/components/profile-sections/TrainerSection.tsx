@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 
 import { FieldRow, OptionalSection, TrainerVersionSetField } from '../ProfileFormSections';
 import { OfflineTrainerInfoModal, type TrainerInfoModalKey } from '../OfflineTrainerInfoModal';
+import { InfoTooltip } from '../ui/InfoTooltip';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { chooseFile } from '../../utils/dialog';
 import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
@@ -53,6 +54,8 @@ export function TrainerSection({
 
   const currentTrainerTypeId = profile.trainer.trainer_type?.trim() || 'unknown';
   const selectedTrainerTypeEntry = trainerTypeCatalog.find((e) => e.id === currentTrainerTypeId);
+  const trainerRequiresNetwork = selectedTrainerTypeEntry?.requires_network === true;
+  const networkIsolation = profile.launch.network_isolation ?? true;
   const trainerCollapsed = reviewMode && profile.trainer.path.trim().length === 0;
 
   return (
@@ -161,6 +164,34 @@ export function TrainerSection({
               Use the original trainer location by default so stateful bundles like Aurora keep one shared install.
               Switch to copy mode only when a trainer requires prefix-local files.
             </p>
+          </div>
+
+          <div className="crosshook-field">
+            <label className="crosshook-settings-checkbox-row">
+              <input
+                id={`${sectionId}-network-isolation`}
+                type="checkbox"
+                checked={trainerRequiresNetwork ? false : networkIsolation}
+                disabled={trainerRequiresNetwork}
+                onChange={(event) =>
+                  onUpdateProfile((current) => ({
+                    ...current,
+                    launch: { ...current.launch, network_isolation: event.target.checked },
+                  }))
+                }
+                className="crosshook-settings-checkbox"
+              />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                Network isolation
+                <InfoTooltip
+                  content={
+                    trainerRequiresNetwork
+                      ? `Disabled \u2014 ${selectedTrainerTypeEntry?.display_name ?? 'This trainer type'} requires network access.`
+                      : 'Isolates the trainer in a network namespace via unshare --user --net, blocking outbound connections like telemetry and update checks.'
+                  }
+                />
+              </span>
+            </label>
           </div>
 
           {trainerVersion ? (

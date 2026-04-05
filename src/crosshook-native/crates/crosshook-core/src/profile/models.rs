@@ -210,6 +210,14 @@ pub struct GameSection {
     pub custom_background_art_path: String,
 }
 
+fn default_network_isolation() -> bool {
+    true
+}
+
+fn is_default_network_isolation(v: &bool) -> bool {
+    *v
+}
+
 fn default_trainer_type() -> String {
     "unknown".to_string()
 }
@@ -304,7 +312,7 @@ impl RuntimeSection {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LaunchSection {
     #[serde(default)]
     pub method: String,
@@ -327,6 +335,13 @@ pub struct LaunchSection {
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub custom_env_vars: BTreeMap<String, String>,
+    /// When true, trainer processes are launched in an isolated network namespace
+    /// via `unshare --net`, preventing outbound connections.
+    #[serde(
+        default = "default_network_isolation",
+        skip_serializing_if = "is_default_network_isolation"
+    )]
+    pub network_isolation: bool,
     /// Per-profile gamescope compositor wrapper configuration.
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
     pub gamescope: GamescopeConfig,
@@ -338,6 +353,22 @@ pub struct LaunchSection {
     /// Per-profile MangoHud overlay configuration.
     #[serde(default, skip_serializing_if = "MangoHudConfig::is_default")]
     pub mangohud: MangoHudConfig,
+}
+
+impl Default for LaunchSection {
+    fn default() -> Self {
+        Self {
+            method: String::new(),
+            optimizations: LaunchOptimizationsSection::default(),
+            presets: BTreeMap::new(),
+            active_preset: String::new(),
+            custom_env_vars: BTreeMap::new(),
+            network_isolation: true,
+            gamescope: GamescopeConfig::default(),
+            trainer_gamescope: GamescopeConfig::default(),
+            mangohud: MangoHudConfig::default(),
+        }
+    }
 }
 
 impl LaunchSection {
@@ -1178,6 +1209,50 @@ loading_mode = "source_directory"
 "#;
         let section: TrainerSection = toml::from_str(toml_str).unwrap();
         assert!(section.required_protontricks.is_empty());
+    }
+
+    // --- network_isolation ---
+
+    #[test]
+    fn network_isolation_defaults_true_when_absent_from_toml() {
+        let toml = r#"
+[game]
+executable_path = "/games/x.exe"
+[trainer]
+path = "/t/y.exe"
+type = "fling"
+[launch]
+method = "proton_run"
+"#;
+        let p: GameProfile = toml::from_str(toml).expect("deserialize");
+        assert!(p.launch.network_isolation);
+    }
+
+    #[test]
+    fn network_isolation_false_roundtrips_through_toml() {
+        let mut p = sample_profile();
+        p.launch.network_isolation = false;
+        let s = toml::to_string_pretty(&p).expect("serialize");
+        assert!(s.contains("network_isolation = false"));
+        let back: GameProfile = toml::from_str(&s).expect("deserialize");
+        assert!(!back.launch.network_isolation);
+    }
+
+    #[test]
+    fn network_isolation_true_omitted_from_toml() {
+        let mut p = sample_profile();
+        p.launch.network_isolation = true;
+        let s = toml::to_string_pretty(&p).expect("serialize");
+        assert!(
+            !s.contains("network_isolation"),
+            "true (default) should be omitted: {s}"
+        );
+    }
+
+    #[test]
+    fn launch_section_default_has_network_isolation_true() {
+        let launch = LaunchSection::default();
+        assert!(launch.network_isolation);
     }
 
     #[test]

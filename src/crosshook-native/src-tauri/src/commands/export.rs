@@ -46,6 +46,7 @@ fn build_export_request_for_profile(
         steam_client_install_path: steam_client_install_path.to_string(),
         target_home_path: target_home_path.to_string(),
         profile_name: profile_name.map(|name| name.to_string()),
+        network_isolation: profile.launch.network_isolation,
         gamescope: profile.launch.trainer_gamescope.clone(),
     })
 }
@@ -268,6 +269,7 @@ pub fn rename_launcher(
     proton_path: String,
     steam_app_id: String,
     launcher_name: String,
+    network_isolation: bool,
     gamescope: GamescopeConfig,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<LauncherRenameResult, String> {
@@ -285,6 +287,7 @@ pub fn rename_launcher(
         steam_client_install_path: steam_client_install_path.clone(),
         target_home_path: target_home_path.clone(),
         profile_name: None,
+        network_isolation,
         gamescope,
     };
     let result = crosshook_core::export::rename_launcher_files(

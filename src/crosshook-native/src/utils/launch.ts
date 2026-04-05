@@ -45,6 +45,7 @@ export function buildProfileLaunchRequest(
     launch_game_only: false,
     profile_name: profileName || undefined,
     custom_env_vars: { ...profile.launch.custom_env_vars },
+    network_isolation: profile.launch.network_isolation ?? true,
     gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
     trainer_gamescope: profile.launch.trainer_gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
     mangohud: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
