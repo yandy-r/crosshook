@@ -20,6 +20,10 @@ pub fn is_inside_gamescope_session() -> bool {
     std::env::var("GAMESCOPE_WAYLAND_DISPLAY").is_ok()
 }
 
+fn default_network_isolation() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LaunchRequest {
     #[serde(default)]
@@ -51,8 +55,8 @@ pub struct LaunchRequest {
     )]
     pub custom_env_vars: BTreeMap<String, String>,
     /// When true, trainer processes are launched in an isolated network namespace
-    /// via `unshare --net`.
-    #[serde(default)]
+    /// via `unshare --user --net`.
+    #[serde(default = "default_network_isolation")]
     pub network_isolation: bool,
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
     pub gamescope: GamescopeConfig,

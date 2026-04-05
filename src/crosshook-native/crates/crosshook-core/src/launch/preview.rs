@@ -295,6 +295,18 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     // Environment and command depend on successful directive resolution.
     let (environment, wrappers, effective_command) = match &directives {
         Some(directives) => {
+            // Compute effective wrappers: prepend unshare for trainer-only + isolation.
+            let effective_wrappers = if request.launch_trainer_only
+                && request.network_isolation
+                && super::runtime_helpers::is_unshare_net_available()
+            {
+                let mut w = vec!["unshare".to_string(), "--user".to_string(), "--net".to_string()];
+                w.extend(directives.wrappers.iter().cloned());
+                w
+            } else {
+                directives.wrappers.clone()
+            };
+
             let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
             let mut env = Vec::new();
             collect_host_environment(&mut env);
@@ -320,7 +332,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
             let effective_command = match build_effective_command_string(
                 request,
                 resolved_method,
-                directives,
+                &effective_wrappers,
                 gamescope_config,
                 gamescope_active,
             ) {
@@ -332,7 +344,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
             };
             (
                 Some(env),
-                Some(directives.wrappers.clone()),
+                Some(effective_wrappers),
                 effective_command,
             )
         }
@@ -614,25 +626,13 @@ fn inject_mangohud_config_preview_env(
 fn build_effective_command_string(
     request: &LaunchRequest,
     method: ResolvedLaunchMethod,
-    directives: &LaunchDirectives,
+    effective_wrappers: &[String],
     gamescope_config: &crate::profile::GamescopeConfig,
     gamescope_active: bool,
 ) -> Result<String, String> {
     match method {
         ResolvedLaunchMethod::ProtonRun => {
             let mut parts: Vec<String> = Vec::new();
-
-            // Build effective wrappers: prepend unshare --net for trainer-only when isolation is on.
-            let effective_wrappers = if request.launch_trainer_only
-                && request.network_isolation
-                && super::runtime_helpers::is_unshare_net_available()
-            {
-                let mut w = vec!["unshare".to_string(), "--user".to_string(), "--net".to_string()];
-                w.extend(directives.wrappers.iter().cloned());
-                w
-            } else {
-                directives.wrappers.clone()
-            };
 
             if gamescope_active {
                 // Apply MangoHud → mangoapp swap: if wrappers contain "mangohud", remove it and
@@ -655,8 +655,8 @@ fn build_effective_command_string(
                     parts.push(wrapper.clone());
                 }
             } else {
-                for wrapper in &effective_wrappers {
-                    parts.push(wrapper.clone());
+                for wrapper in effective_wrappers {
+                    parts.push(wrapper.to_string());
                 }
             }
 

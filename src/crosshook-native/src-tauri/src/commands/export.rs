@@ -445,7 +445,26 @@ mod tests {
                 State<'_, ProfileStore>,
                 State<'_, MetadataStore>,
             ) -> Result<SteamExternalLauncherExportResult, String>;
+        let _ = rename_launcher
+            as fn(
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                bool,
+                GamescopeConfig,
+                State<'_, MetadataStore>,
+            ) -> Result<LauncherRenameResult, String>;
         let _ = list_launchers as fn(String, String, State<'_, ProfileStore>) -> Vec<LauncherInfo>;
+        let _ = find_orphaned_launchers as fn(Vec<String>, String, String) -> Vec<LauncherInfo>;
         let _ = preview_launcher_script
             as fn(SteamExternalLauncherExportRequest) -> Result<String, String>;
         let _ = preview_launcher_desktop

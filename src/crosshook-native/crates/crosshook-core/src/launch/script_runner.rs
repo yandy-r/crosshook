@@ -133,7 +133,19 @@ pub fn build_helper_command(
     script_path: &Path,
     log_path: &Path,
 ) -> Command {
-    let mut command = build_base_command(script_path);
+    let mut command = if request.network_isolation
+        && !request.launch_game_only
+        && super::runtime_helpers::is_unshare_net_available()
+    {
+        let mut cmd = Command::new("unshare");
+        cmd.args(["--user", "--net"]);
+        cmd.arg(BASH_EXECUTABLE);
+        cmd.arg(script_path);
+        cmd.env_clear();
+        cmd
+    } else {
+        build_base_command(script_path)
+    };
     apply_host_environment(&mut command);
     apply_steam_proton_environment(&mut command, request);
     apply_custom_env_vars(&mut command, &request.custom_env_vars);

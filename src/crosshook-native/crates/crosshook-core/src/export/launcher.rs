@@ -543,7 +543,7 @@ fi
     );
     if gamescope_enabled {
         block.push_str(&format!(
-            "exec \"${{_NET_PREFIX[@]}}\" \"${{_GS_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n"
+            "exec \"${{_GS_PREFIX[@]}}\" \"${{_NET_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n"
         ));
     } else {
         block.push_str(&format!(
@@ -1264,8 +1264,8 @@ mod tests {
         request.network_isolation = true;
         let content = build_trainer_script_content(&request, "Test Game");
         assert!(
-            content.contains(r#"exec "${_NET_PREFIX[@]}" "${_GS_PREFIX[@]}" "$PROTON" run"#),
-            "gamescope + net isolation exec line: {content}"
+            content.contains(r#"exec "${_GS_PREFIX[@]}" "${_NET_PREFIX[@]}" "$PROTON" run"#),
+            "gamescope should be outermost, net isolation inside: {content}"
         );
     }
 }
