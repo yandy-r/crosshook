@@ -447,8 +447,11 @@ fn report_feed_id(
     counts_timestamp: i64,
     page_selector: i64,
 ) -> i64 {
+    // ProtonDB's JS calls a 5-param hash function with only 4 args.
+    // JS coerces the missing 5th arg to the literal string "undefined"
+    // during concatenation — this is load-bearing for the hash output.
     hash_text(format!(
-        "p{}*vRT{}",
+        "p{}*vRT{}undefined",
         compose_hash_part(app_id, reports_count, counts_timestamp),
         compose_hash_part(page_selector, app_id, counts_timestamp)
     ))
