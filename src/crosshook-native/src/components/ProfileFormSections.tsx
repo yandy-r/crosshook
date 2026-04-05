@@ -12,10 +12,12 @@ import { RuntimeSection } from './profile-sections/RuntimeSection';
 import { useSetTrainerVersion } from '../hooks/useSetTrainerVersion';
 import type { GameProfile, LaunchMethod } from '../types';
 import type { ProtonInstallOption } from '../types/proton';
-import type { ProtonDbRecommendationGroup } from '../types/protondb';
+import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../types/protondb';
 import type { VersionCorrelationStatus } from '../types/version';
+import { useProtonDbSuggestions } from '../hooks/useProtonDbSuggestions';
 import { resolveArtAppId } from '../utils/art';
-import { mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../utils/protondb';
+import { applyProtonDbGroupToProfile, mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../utils/protondb';
+import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
 import { formatProtonInstallLabel } from '../utils/proton';
 
 export type ProfileFormSectionsProfileSelector = {
@@ -39,6 +41,7 @@ type ProfileFormSectionsBaseProps = {
   onVersionSet?: () => void;
   onProfileNameChange: (value: string) => void;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
+  catalog?: OptimizationCatalogPayload | null;
 };
 
 export type ProfileFormSectionsProps =
@@ -369,17 +372,23 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     onVersionSet,
     onProfileNameChange,
     onUpdateProfile,
+    catalog = null,
   } = props;
   const profileSelector = 'profileSelector' in props ? props.profileSelector : undefined;
   const profileNamesListId = useId();
   const [pendingProtonDbOverwrite, setPendingProtonDbOverwrite] = useState<PendingProtonDbOverwrite | null>(null);
   const [applyingProtonDbGroupId, setApplyingProtonDbGroupId] = useState<string | null>(null);
   const [protonDbStatusMessage, setProtonDbStatusMessage] = useState<string | null>(null);
+  const resolvedAppId = resolveArtAppId(profile);
+  const suggestions = useProtonDbSuggestions(resolvedAppId, profileName);
+
+  const handleAcceptSuggestion = async (request: AcceptSuggestionRequest): Promise<void> => {
+    await suggestions.acceptSuggestion(request);
+  };
 
   const profiles = profileSelector?.profiles;
   const selectedProfile = profileSelector?.selectedProfile;
   const showProtonDbLookup = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
-  const resolvedAppId = resolveArtAppId(profile);
   const reviewModeNote = reviewMode ? (
     <p className="crosshook-help-text">
       Review mode keeps launch-critical fields expanded and collapses only empty optional overrides.
@@ -393,33 +402,30 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   }, [profileName, resolvedAppId, launchMethod]);
 
   const applyProtonDbGroup = (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
-    const merge = {
-      appliedKeys: [] as string[],
-      unchangedKeys: [] as string[],
-    };
+    const result = { appliedKeys: [] as string[], unchangedKeys: [] as string[], toggledOptionIds: [] as string[] };
     onUpdateProfile((current) => {
-      const nextMerge = mergeProtonDbEnvVarGroup(current.launch.custom_env_vars, group, overwriteKeys);
-      merge.appliedKeys = nextMerge.appliedKeys;
-      merge.unchangedKeys = nextMerge.unchangedKeys;
-      return {
-        ...current,
-        launch: {
-          ...current.launch,
-          custom_env_vars: nextMerge.mergedEnvVars,
-        },
-      };
+      const applyResult = applyProtonDbGroupToProfile(current, group, overwriteKeys, catalog ?? null);
+      result.appliedKeys = applyResult.appliedKeys;
+      result.unchangedKeys = applyResult.unchangedKeys;
+      result.toggledOptionIds = applyResult.toggledOptionIds;
+      return applyResult.nextProfile;
     });
     setApplyingProtonDbGroupId(null);
     setPendingProtonDbOverwrite(null);
 
-    const appliedCount = merge.appliedKeys.length;
-    const unchangedCount = merge.unchangedKeys.length;
-    if (appliedCount > 0) {
+    const appliedCount = result.appliedKeys.length;
+    const unchangedCount = result.unchangedKeys.length;
+    const toggledCount = result.toggledOptionIds.length;
+    if (appliedCount > 0 || toggledCount > 0) {
+      const parts: string[] = [];
+      if (toggledCount > 0) parts.push(`${toggledCount} optimization${toggledCount === 1 ? '' : 's'}`);
+      if (appliedCount - toggledCount > 0) {
+        const envCount = appliedCount - toggledCount;
+        parts.push(`${envCount} env var${envCount === 1 ? '' : 's'}`);
+      }
       setProtonDbStatusMessage(
-        `Applied ${appliedCount} ProtonDB environment variable${appliedCount === 1 ? '' : 's'}${
-          unchangedCount > 0
-            ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged`
-            : ''
+        `Applied ${parts.join(' and ')}${
+          unchangedCount > 0 ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged` : ''
         }.`
       );
       return;
@@ -463,6 +469,9 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
         versionContext={{ version_status: versionStatus }}
         onApplyEnvVars={reviewMode ? undefined : handleApplyProtonDbEnvVars}
         applyingGroupId={applyingProtonDbGroupId}
+        suggestionSet={reviewMode ? undefined : suggestions.suggestionSet}
+        onAcceptSuggestion={reviewMode ? undefined : handleAcceptSuggestion}
+        onDismissSuggestion={reviewMode ? undefined : suggestions.dismissSuggestion}
       />
 
       {protonDbStatusMessage ? (

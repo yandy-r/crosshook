@@ -1,4 +1,6 @@
 import type { ProtonDbRecommendationGroup } from '../types/protondb';
+import type { GameProfile } from '../types/profile';
+import type { OptimizationCatalogPayload } from './optimization-catalog';
 
 export interface ProtonDbEnvVarConflict {
   key: string;
@@ -73,5 +75,66 @@ export function mergeProtonDbEnvVarGroup(
     conflicts,
     appliedKeys,
     unchangedKeys,
+  };
+}
+
+export interface ProtonDbApplyResult {
+  nextProfile: GameProfile;
+  appliedKeys: string[];
+  unchangedKeys: string[];
+  toggledOptionIds: string[];
+}
+
+export function applyProtonDbGroupToProfile(
+  current: GameProfile,
+  group: ProtonDbRecommendationGroup,
+  overwriteKeys: readonly string[],
+  catalog: OptimizationCatalogPayload | null,
+): ProtonDbApplyResult {
+  const nextMerge = mergeProtonDbEnvVarGroup(current.launch.custom_env_vars, group, overwriteKeys);
+
+  // Build catalog env index: "key=value" -> entry id
+  const catalogIndex = new Map<string, string>();
+  if (catalog?.entries) {
+    for (const entry of catalog.entries) {
+      for (const [k, v] of entry.env) {
+        catalogIndex.set(`${k}=${v}`, entry.id);
+      }
+    }
+  }
+
+  // Route applied keys through catalog matching
+  const customEnvVars = { ...nextMerge.mergedEnvVars };
+  const enabledOptionIds = [...(current.launch.optimizations?.enabled_option_ids ?? [])];
+  const toggledOptionIds: string[] = [];
+
+  for (const key of nextMerge.appliedKeys) {
+    const value = customEnvVars[key];
+    if (value === undefined) continue;
+    const entryId = catalogIndex.get(`${key}=${value}`);
+    if (entryId && !enabledOptionIds.includes(entryId)) {
+      enabledOptionIds.push(entryId);
+      toggledOptionIds.push(entryId);
+      delete customEnvVars[key]; // Catalog-matched: remove from custom_env_vars
+    }
+  }
+
+  const nextProfile: GameProfile = {
+    ...current,
+    launch: {
+      ...current.launch,
+      custom_env_vars: customEnvVars,
+      optimizations: {
+        ...current.launch.optimizations,
+        enabled_option_ids: enabledOptionIds,
+      },
+    },
+  };
+
+  return {
+    nextProfile,
+    appliedKeys: nextMerge.appliedKeys,
+    unchangedKeys: nextMerge.unchangedKeys,
+    toggledOptionIds,
   };
 }
