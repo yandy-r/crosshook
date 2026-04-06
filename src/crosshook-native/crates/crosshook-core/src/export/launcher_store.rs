@@ -964,6 +964,7 @@ mod tests {
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
                 required_protontricks: Vec::new(),
+                community_trainer_sha256: String::new(),
             },
             steam: SteamSection {
                 app_id: "12345".to_string(),
@@ -1021,6 +1022,7 @@ mod tests {
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
                 required_protontricks: Vec::new(),
+                community_trainer_sha256: String::new(),
             },
             steam: SteamSection {
                 app_id: "12345".to_string(),
@@ -1070,6 +1072,7 @@ mod tests {
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
                 required_protontricks: Vec::new(),
+                community_trainer_sha256: String::new(),
             },
             steam: SteamSection {
                 enabled: true,

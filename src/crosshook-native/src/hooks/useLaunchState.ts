@@ -4,6 +4,7 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 
 import type {
   DiagnosticReport,
+  HashVerifyResult,
   LaunchFeedback,
   LaunchMethod,
   LaunchRequest,
@@ -143,6 +144,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   const [offlineReadinessLoading, setOfflineReadinessLoading] = useState(false);
   const [offlineReadinessError, setOfflineReadinessError] = useState<string | null>(null);
   const [launchPathWarnings, setLaunchPathWarnings] = useState<LaunchValidationIssue[]>([]);
+  const [trainerHashUpdateBusy, setTrainerHashUpdateBusy] = useState(false);
   const activeHelperLogPathRef = useRef<string | null>(null);
   const hasLaunchRequest = request !== null;
   const isTwoStepLaunch = method !== 'native';
@@ -154,6 +156,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     setOfflineReadiness(null);
     setOfflineReadinessError(null);
     setLaunchPathWarnings([]);
+    setTrainerHashUpdateBusy(false);
   }, [method, profileId, profileName]);
 
   useEffect(() => {
@@ -377,12 +380,30 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     }
   }
 
+  async function updateStoredTrainerHash(): Promise<void> {
+    if (!profileName.trim()) {
+      return;
+    }
+    setTrainerHashUpdateBusy(true);
+    try {
+      await invoke<HashVerifyResult>('verify_trainer_hash', { name: profileName });
+      setLaunchPathWarnings((prev) => prev.filter((i) => i.code !== 'trainer_hash_mismatch'));
+    } finally {
+      setTrainerHashUpdateBusy(false);
+    }
+  }
+
+  function dismissTrainerHashCommunityWarning(): void {
+    setLaunchPathWarnings((prev) => prev.filter((i) => i.code !== 'trainer_hash_community_mismatch'));
+  }
+
   function reset() {
     dispatch({ type: 'reset' });
     setIsGameRunning(false);
     setOfflineReadiness(null);
     setOfflineReadinessError(null);
     setLaunchPathWarnings([]);
+    setTrainerHashUpdateBusy(false);
   }
 
   const statusText = (() => {
@@ -480,6 +501,9 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     launchGame,
     launchTrainer,
     launchPathWarnings,
+    trainerHashUpdateBusy,
+    updateStoredTrainerHash,
+    dismissTrainerHashCommunityWarning,
     offlineReadiness,
     offlineReadinessError,
     offlineReadinessLoading,

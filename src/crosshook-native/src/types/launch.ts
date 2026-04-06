@@ -54,6 +54,12 @@ export interface LaunchValidationIssue {
   message: string;
   help: string;
   severity: LaunchValidationSeverity;
+  /** Machine-readable kind: `trainer_hash_mismatch`, `trainer_hash_community_mismatch`, etc. */
+  code?: string;
+  trainer_hash_stored?: string;
+  trainer_hash_current?: string;
+  /** Community manifest expected digest when `code` is `trainer_hash_community_mismatch`. */
+  trainer_sha256_community?: string;
 }
 
 export type LaunchFeedback =
@@ -68,11 +74,29 @@ export function isLaunchValidationIssue(value: unknown): value is LaunchValidati
 
   const candidate = value as Partial<LaunchValidationIssue>;
 
-  return (
-    typeof candidate.message === 'string' &&
-    typeof candidate.help === 'string' &&
-    (candidate.severity === 'fatal' || candidate.severity === 'warning' || candidate.severity === 'info')
-  );
+  if (
+    typeof candidate.message !== 'string' ||
+    typeof candidate.help !== 'string' ||
+    (candidate.severity !== 'fatal' && candidate.severity !== 'warning' && candidate.severity !== 'info')
+  ) {
+    return false;
+  }
+  if (candidate.code !== undefined && typeof candidate.code !== 'string') {
+    return false;
+  }
+  if (candidate.trainer_hash_stored !== undefined && typeof candidate.trainer_hash_stored !== 'string') {
+    return false;
+  }
+  if (candidate.trainer_hash_current !== undefined && typeof candidate.trainer_hash_current !== 'string') {
+    return false;
+  }
+  if (
+    candidate.trainer_sha256_community !== undefined &&
+    typeof candidate.trainer_sha256_community !== 'string'
+  ) {
+    return false;
+  }
+  return true;
 }
 
 export interface LaunchResult {

@@ -241,6 +241,13 @@ pub struct TrainerSection {
     pub trainer_type: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub required_protontricks: Vec<String>,
+    /// Optional SHA-256 from a community profile manifest (advisory comparison at launch).
+    #[serde(
+        rename = "community_trainer_sha256",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub community_trainer_sha256: String,
 }
 
 impl Default for TrainerSection {
@@ -251,6 +258,7 @@ impl Default for TrainerSection {
             loading_mode: TrainerLoadingMode::default(),
             trainer_type: default_trainer_type(),
             required_protontricks: Vec::new(),
+            community_trainer_sha256: String::new(),
         }
     }
 }
@@ -594,6 +602,7 @@ impl From<LegacyProfileData> for GameProfile {
                 loading_mode: TrainerLoadingMode::default(),
                 trainer_type: default_trainer_type(),
                 required_protontricks: Vec::new(),
+                community_trainer_sha256: String::new(),
             },
             injection: InjectionSection {
                 dll_paths: vec![value.dll1_path, value.dll2_path],

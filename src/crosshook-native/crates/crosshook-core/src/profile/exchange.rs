@@ -2,6 +2,7 @@ use super::community_schema::{
     CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating,
     COMMUNITY_PROFILE_SCHEMA_VERSION,
 };
+use crate::metadata::hash_trainer_file;
 use crate::profile::{GameProfile, ProfileStore, ProfileStoreError};
 use crate::steam::proton::resolve_proton_path;
 use crate::steam::{
@@ -106,8 +107,14 @@ pub fn import_community_profile(
 ) -> Result<CommunityImportResult, CommunityExchangeError> {
     let preview = preview_community_profile_import(json_path)?;
     let profile_name = preview.profile_name.clone();
-    let profile = preview.profile.clone();
     let manifest = preview.manifest.clone();
+    let mut profile = preview.profile.clone();
+    if let Some(ref h) = manifest.metadata.trainer_sha256 {
+        let t = h.trim();
+        if !t.is_empty() {
+            profile.trainer.community_trainer_sha256 = t.to_string();
+        }
+    }
 
     let store = ProfileStore::with_base_path(profiles_dir.to_path_buf());
     store.save(&profile_name, &profile)?;
@@ -352,6 +359,23 @@ fn hydrate_from_steam_app_id(profile: &mut GameProfile) {
 }
 
 fn build_metadata(profile: &GameProfile) -> CommunityProfileMetadata {
+    let trainer_sha256 = {
+        let p = profile.trainer.path.trim();
+        if !p.is_empty() {
+            hash_trainer_file(Path::new(p))
+        } else {
+            None
+        }
+    }
+    .or_else(|| {
+        let c = profile.trainer.community_trainer_sha256.trim();
+        if c.is_empty() {
+            None
+        } else {
+            Some(c.to_string())
+        }
+    });
+
     CommunityProfileMetadata {
         game_name: profile.game.name.clone(),
         game_version: String::new(),
@@ -362,6 +386,7 @@ fn build_metadata(profile: &GameProfile) -> CommunityProfileMetadata {
         compatibility_rating: CompatibilityRating::Unknown,
         author: String::new(),
         description: String::new(),
+        trainer_sha256,
     }
 }
 
@@ -475,6 +500,7 @@ mod tests {
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
                 required_protontricks: Vec::new(),
+                community_trainer_sha256: String::new(),
             },
             injection: crate::profile::InjectionSection {
                 dll_paths: vec!["/dlls/a.dll".to_string(), "/dlls/b.dll".to_string()],

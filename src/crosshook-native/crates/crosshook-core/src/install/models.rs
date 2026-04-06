@@ -114,6 +114,7 @@ impl InstallGameRequest {
                 loading_mode: TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
                 required_protontricks: Vec::new(),
+                community_trainer_sha256: String::new(),
             },
             injection: Default::default(),
             steam: SteamSection::default(),
