@@ -675,6 +675,7 @@ mod tests {
                 loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
                 required_protontricks: Vec::new(),
+                community_trainer_sha256: String::new(),
             },
             injection: InjectionSection {
                 dll_paths: vec![dll.to_string_lossy().to_string()],

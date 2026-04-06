@@ -105,6 +105,8 @@ export interface GameProfile {
     loading_mode: TrainerLoadingMode;
     /** Winetricks/protontricks verbs required by this trainer. */
     required_protontricks?: string[];
+    /** Optional digest from community profile manifest (advisory at launch). */
+    community_trainer_sha256?: string;
   };
   injection: {
     dll_paths: string[];
@@ -226,6 +228,7 @@ export function normalizeSerializedGameProfile(profile: SerializedGameProfile): 
       ...profile.trainer,
       trainer_type: profile.trainer.trainer_type ?? 'unknown',
       required_protontricks: [...(profile.trainer.required_protontricks ?? [])],
+      community_trainer_sha256: profile.trainer.community_trainer_sha256 ?? '',
     },
     injection: {
       ...profile.injection,

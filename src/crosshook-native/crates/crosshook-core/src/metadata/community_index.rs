@@ -400,6 +400,7 @@ mod tests {
                     compatibility_rating: CompatibilityRating::Unknown,
                     author: String::new(),
                     description: String::new(),
+                    trainer_sha256: None,
                 },
                 GameProfile::default(),
             ),

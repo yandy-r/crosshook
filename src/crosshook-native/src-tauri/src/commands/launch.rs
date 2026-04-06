@@ -8,6 +8,7 @@ use std::fs;
 use crosshook_core::launch::{
     analyze, build_launch_preview,
     build_steam_launch_options_command as build_steam_launch_options_command_core,
+    collect_trainer_hash_launch_warnings,
     diagnostics::FailureMode,
     script_runner::{
         build_helper_command, build_native_game_command, build_proton_game_command,
@@ -185,6 +186,35 @@ async fn collect_offline_launch_warnings(
     warnings
 }
 
+/// SHA-256 baseline / community digest advisory (non-blocking).
+async fn collect_trainer_hash_launch_warnings_ipc(
+    profile_name: Option<String>,
+    profile_store: ProfileStore,
+    metadata_store: MetadataStore,
+) -> Vec<LaunchValidationIssue> {
+    let Some(name) = profile_name.filter(|n| !n.trim().is_empty()) else {
+        return Vec::new();
+    };
+    if !metadata_store.is_available() {
+        return Vec::new();
+    }
+    let ps = profile_store;
+    let ms = metadata_store;
+    tauri::async_runtime::spawn_blocking(move || {
+        let profile = match ps.load(&name) {
+            Ok(p) => p,
+            Err(_) => return Vec::new(),
+        };
+        let profile_id = match ms.lookup_profile_id(&name) {
+            Ok(Some(id)) => id,
+            Ok(None) | Err(_) => return Vec::new(),
+        };
+        collect_trainer_hash_launch_warnings(&ms, &profile_id, &profile)
+    })
+    .await
+    .unwrap_or_default()
+}
+
 async fn collect_low_disk_warning(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
     let raw_prefix_path = if request.resolved_method() == METHOD_STEAM_APPLAUNCH {
         request.steam.compatdata_path.trim()
@@ -236,13 +266,21 @@ pub async fn launch_game(
     validate(&request).map_err(|error| error.to_string())?;
     let profile_store = profile_store.inner().clone();
     let metadata_store = app.state::<MetadataStore>().inner().clone();
-    let warnings = collect_offline_launch_warnings(
+    let mut warnings = collect_offline_launch_warnings(
         &request,
         request.profile_name.clone(),
-        profile_store,
+        profile_store.clone(),
         metadata_store.clone(),
     )
     .await;
+    warnings.append(
+        &mut collect_trainer_hash_launch_warnings_ipc(
+            request.profile_name.clone(),
+            profile_store,
+            metadata_store.clone(),
+        )
+        .await,
+    );
     let method: &'static str = match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
         METHOD_PROTON_RUN => METHOD_PROTON_RUN,
@@ -321,13 +359,21 @@ pub async fn launch_trainer(
     validate(&request).map_err(|error| error.to_string())?;
     let profile_store = profile_store.inner().clone();
     let metadata_store = app.state::<MetadataStore>().inner().clone();
-    let warnings = collect_offline_launch_warnings(
+    let mut warnings = collect_offline_launch_warnings(
         &request,
         request.profile_name.clone(),
-        profile_store,
+        profile_store.clone(),
         metadata_store.clone(),
     )
     .await;
+    warnings.append(
+        &mut collect_trainer_hash_launch_warnings_ipc(
+            request.profile_name.clone(),
+            profile_store,
+            metadata_store.clone(),
+        )
+        .await,
+    );
     let method: &'static str = match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
         METHOD_PROTON_RUN => METHOD_PROTON_RUN,
