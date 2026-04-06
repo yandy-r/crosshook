@@ -9,6 +9,7 @@ pub mod preview;
 pub mod request;
 pub mod runtime_helpers;
 pub mod script_runner;
+pub mod trainer_hash;
 #[cfg(test)]
 pub(crate) mod test_support;
 
@@ -29,4 +30,7 @@ pub use request::{
     is_inside_gamescope_session, validate, validate_all, LaunchRequest, LaunchValidationIssue,
     RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest, ValidationError,
     ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+};
+pub use trainer_hash::{
+    collect_trainer_hash_launch_warnings, launch_issues_from_trainer_hash_outcome,
 };

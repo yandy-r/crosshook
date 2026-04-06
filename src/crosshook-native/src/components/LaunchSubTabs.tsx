@@ -212,6 +212,9 @@ export function LaunchSubTabs({
     offlineReadinessLoading,
     offlineWarning,
     launchPathWarnings,
+    trainerHashUpdateBusy,
+    updateStoredTrainerHash,
+    dismissTrainerHashCommunityWarning,
   } = useLaunchStateContext();
 
   const hasOfflineConcern =
@@ -353,6 +356,35 @@ export function LaunchSubTabs({
                         <p className="crosshook-launch-panel__feedback-title">{issue.message}</p>
                       </div>
                       <p className="crosshook-launch-panel__feedback-help">{issue.help}</p>
+                      {issue.code === 'trainer_hash_mismatch' ? (
+                        <div
+                          className="crosshook-launch-panel__feedback-actions"
+                          style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}
+                        >
+                          <button
+                            type="button"
+                            className="crosshook-button crosshook-button--secondary"
+                            disabled={trainerHashUpdateBusy}
+                            onClick={() => void updateStoredTrainerHash()}
+                          >
+                            {trainerHashUpdateBusy ? 'Updating…' : 'Update stored hash'}
+                          </button>
+                        </div>
+                      ) : null}
+                      {issue.code === 'trainer_hash_community_mismatch' ? (
+                        <div
+                          className="crosshook-launch-panel__feedback-actions"
+                          style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}
+                        >
+                          <button
+                            type="button"
+                            className="crosshook-button crosshook-button--secondary"
+                            onClick={dismissTrainerHashCommunityWarning}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

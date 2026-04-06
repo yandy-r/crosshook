@@ -216,6 +216,7 @@ mod tests {
                 compatibility_rating: CompatibilityRating::Working,
                 author: "CrossHook".to_string(),
                 description: "Test profile".to_string(),
+                trainer_sha256: None,
             },
             GameProfile::default(),
         );
@@ -254,6 +255,7 @@ mod tests {
                 compatibility_rating: CompatibilityRating::Unknown,
                 author: String::new(),
                 description: String::new(),
+                trainer_sha256: None,
             },
             GameProfile::default(),
         );

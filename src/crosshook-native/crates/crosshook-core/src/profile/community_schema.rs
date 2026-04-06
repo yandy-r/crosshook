@@ -39,6 +39,9 @@ pub struct CommunityProfileMetadata {
     pub author: String,
     #[serde(default)]
     pub description: String,
+    /// Optional SHA-256 of the trainer executable (community-known digest).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trainer_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,6 +87,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn metadata_deserializes_without_trainer_sha256() {
+        let json = r#"{"game_name":"","game_version":"","trainer_name":"","trainer_version":"","proton_version":"","platform_tags":[],"compatibility_rating":"unknown","author":"","description":""}"#;
+        let m: CommunityProfileMetadata = serde_json::from_str(json).unwrap();
+        assert!(m.trainer_sha256.is_none());
+    }
+
+    #[test]
+    fn metadata_round_trips_trainer_sha256() {
+        let m = CommunityProfileMetadata {
+            trainer_sha256: Some("ab".repeat(32)),
+            ..CommunityProfileMetadata::default()
+        };
+        let v = serde_json::to_value(&m).unwrap();
+        let back: CommunityProfileMetadata = serde_json::from_value(v).unwrap();
+        assert_eq!(back.trainer_sha256, m.trainer_sha256);
+    }
+
+    #[test]
     fn defaults_to_current_schema_version() {
         let manifest = CommunityProfileManifest::default();
 
@@ -105,6 +126,7 @@ mod tests {
                 compatibility_rating: CompatibilityRating::Platinum,
                 author: "crosshook".to_string(),
                 description: "Known-good launch profile".to_string(),
+                trainer_sha256: None,
             },
             GameProfile::default(),
         );

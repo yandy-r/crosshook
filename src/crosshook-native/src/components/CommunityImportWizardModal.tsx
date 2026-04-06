@@ -153,7 +153,15 @@ function isStrictLaunchValidationIssue(value: unknown): value is LaunchValidatio
     return false;
   }
 
-  const allowedKeys = new Set(['message', 'help', 'severity']);
+  const allowedKeys = new Set([
+    'message',
+    'help',
+    'severity',
+    'code',
+    'trainer_hash_stored',
+    'trainer_hash_current',
+    'trainer_sha256_community',
+  ]);
   return Object.keys(value).every((key) => allowedKeys.has(key));
 }
 

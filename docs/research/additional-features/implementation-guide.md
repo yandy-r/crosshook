@@ -209,7 +209,7 @@ These features have no strict ordering. Prioritize based on community feedback.
 | #60   | Settings expansion               | Done   | Low-Med | Any phase                 |
 | #61   | Prefix health monitoring         | Done   | Medium  | #38 (health dashboard)    |
 | #62   | Network isolation                | Done   | Low     | #63 (hash verification)   |
-| #63   | Trainer hash verification        |        | Low     | #62 (network isolation)   |
+| #63   | Trainer hash verification        | Done   | Low     | #62 (network isolation)   |
 | #66   | Data-driven optimization catalog | Done   | Medium  | #58 (extended catalog)    |
 
 **Natural groupings for PRs**:
@@ -369,8 +369,8 @@ Phase 6 (Polish) ── pick based on demand ───────────�
 | Phase 3: Profiles      | 7      | Done    | 2-3 weeks       | ~6 weeks   |
 | Phase 4: Version Intel | 3      | Done    | 2-3 weeks       | ~9 weeks   |
 | Phase 5: CLI           | 2      | Done    | 1-2 weeks       | ~11 weeks  |
-| Phase 6: Polish        | 17     | Partial | Pick & choose   | Ongoing    |
-| Phase 7: Future        | 11     |         | Not scheduled   | Backlog    |
+| Phase 6: Polish        | 17     | Done    | Pick & choose   | Ongoing    |
+| Phase 7: Future        | 11     | Partial | Not scheduled   | Backlog    |
 
 ---
 

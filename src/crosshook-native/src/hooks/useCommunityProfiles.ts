@@ -22,6 +22,8 @@ export interface CommunityProfileMetadata {
   compatibility_rating: CommunityCompatibilityRating;
   author: string;
   description: string;
+  /** Optional SHA-256 of trainer executable (from manifest). */
+  trainer_sha256?: string | null;
 }
 
 export interface CommunityProfileManifest {
