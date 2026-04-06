@@ -1,8 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { invoke } from '@tauri-apps/api/core';
 import { useTrainerDiscovery } from '../hooks/useTrainerDiscovery';
+import { useExternalTrainerSearch } from '../hooks/useExternalTrainerSearch';
 import { usePreferencesContext } from '../context/PreferencesContext';
+import { ExternalResultsSection } from './ExternalResultsSection';
 import type { TrainerSearchResult } from '../types/discovery';
 
 export interface TrainerDiscoveryPanelProps {
@@ -71,6 +73,8 @@ interface TrainerResultCardProps {
 function TrainerResultCard({ result, onImport, importing }: TrainerResultCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<number | null>(null);
+  const isMountedRef = useRef(true);
 
   const handleOpenSource = useCallback(() => {
     void shellOpen(result.sourceUrl);
@@ -80,11 +84,30 @@ function TrainerResultCard({ result, onImport, importing }: TrainerResultCardPro
     setExpanded((prev) => !prev);
   }, []);
 
+  useEffect(() => () => {
+    isMountedRef.current = false;
+    if (copyTimeoutRef.current !== null) {
+      clearTimeout(copyTimeoutRef.current);
+    }
+  }, []);
+
   const handleCopySha = useCallback(() => {
     if (!result.sha256) return;
     void navigator.clipboard.writeText(result.sha256).then(() => {
+      if (!isMountedRef.current) {
+        return;
+      }
+      if (copyTimeoutRef.current !== null) {
+        clearTimeout(copyTimeoutRef.current);
+      }
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyTimeoutRef.current = window.setTimeout(() => {
+        if (!isMountedRef.current) {
+          return;
+        }
+        setCopied(false);
+        copyTimeoutRef.current = null;
+      }, 2000);
     });
   }, [result.sha256]);
 
@@ -185,6 +208,9 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
   const [pendingConsent, setPendingConsent] = useState(false);
 
   const { data, loading, error } = useTrainerDiscovery(
+    settings.discovery_enabled ? query : '',
+  );
+  const externalSearch = useExternalTrainerSearch(
     settings.discovery_enabled ? query : '',
   );
 
@@ -308,13 +334,10 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
             )}
             {!loading && !error && query.trim() && totalCount === 0 && (
               <div className="crosshook-discovery-panel__empty">
-                <p className="crosshook-muted">No trainers found for &ldquo;{query.trim()}&rdquo;</p>
+                <p className="crosshook-muted">No local trainers found for &ldquo;{query.trim()}&rdquo;</p>
                 <p className="crosshook-muted crosshook-discovery-panel__empty-hint">
-                  Trainer Discovery searches your subscribed community taps for{' '}
-                  <code>trainer-sources.json</code> manifests. If your taps don&apos;t include trainer
-                  source metadata yet, no results will appear. Tap maintainers can add a{' '}
-                  <code>trainer-sources.json</code> alongside each <code>community-profile.json</code>{' '}
-                  to make trainers discoverable.
+                  Check the online results below, or add community taps with{' '}
+                  <code>trainer-sources.json</code> manifests for local discovery.
                 </p>
               </div>
             )}
@@ -336,6 +359,13 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
               ))}
             </div>
           )}
+
+          <ExternalResultsSection
+            data={externalSearch.data}
+            loading={externalSearch.loading}
+            error={externalSearch.error}
+            onRetry={() => { void externalSearch.search(true); }}
+          />
         </>
       )}
     </section>
