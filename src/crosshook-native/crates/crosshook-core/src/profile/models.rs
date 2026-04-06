@@ -1196,14 +1196,20 @@ type = "fling"
         };
         let toml_str = toml::to_string_pretty(&section).unwrap();
         let deserialized: TrainerSection = toml::from_str(&toml_str).unwrap();
-        assert_eq!(deserialized.required_protontricks, section.required_protontricks);
+        assert_eq!(
+            deserialized.required_protontricks,
+            section.required_protontricks
+        );
     }
 
     #[test]
     fn trainer_section_roundtrip_without_required_protontricks() {
         let section = TrainerSection::default();
         let toml_str = toml::to_string_pretty(&section).unwrap();
-        assert!(!toml_str.contains("required_protontricks"), "empty vec should be skipped in serialization");
+        assert!(
+            !toml_str.contains("required_protontricks"),
+            "empty vec should be skipped in serialization"
+        );
         let deserialized: TrainerSection = toml::from_str(&toml_str).unwrap();
         assert!(deserialized.required_protontricks.is_empty());
     }

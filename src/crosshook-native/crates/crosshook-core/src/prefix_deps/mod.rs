@@ -39,7 +39,11 @@ mod integration_tests {
 
         // Simulate a check result: some packages installed, one missing
         let known_installed = vec!["vcrun2019".to_string(), "dotnet48".to_string()];
-        let required = vec!["vcrun2019".to_string(), "dotnet48".to_string(), "d3dx9".to_string()];
+        let required = vec![
+            "vcrun2019".to_string(),
+            "dotnet48".to_string(),
+            "d3dx9".to_string(),
+        ];
 
         // Upsert states based on simulated check
         for verb in &required {
@@ -123,10 +127,16 @@ mod integration_tests {
         // Attempt to validate bad verbs
         let bad_verbs = vec!["-q".to_string()];
         let result = validate_protontricks_verbs(&bad_verbs);
-        assert!(result.is_err(), "validation should reject flag-injection verbs");
+        assert!(
+            result.is_err(),
+            "validation should reject flag-injection verbs"
+        );
 
         // Verify nothing was stored (since validation failed before any DB operation)
         let rows = store.load_prefix_dep_states("integ-prof").unwrap();
-        assert!(rows.is_empty(), "no rows should be stored when validation fails");
+        assert!(
+            rows.is_empty(),
+            "no rows should be stored when validation fails"
+        );
     }
 }

@@ -1,6 +1,6 @@
+use super::models::{TrainerSearchResponse, TrainerSearchResult};
 use crate::metadata::MetadataStoreError;
 use rusqlite::{params, Connection};
-use super::models::{TrainerSearchResponse, TrainerSearchResult};
 
 /// Search `trainer_sources` rows using LIKE matching against `game_name`, `source_name`,
 /// and `notes`.

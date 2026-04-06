@@ -915,11 +915,16 @@ mod tests {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert!(version >= 15, "schema version should be at least 15, got {version}");
+        assert!(
+            version >= 15,
+            "schema version should be at least 15, got {version}"
+        );
 
         // Verify table exists
         let table_exists: bool = conn
-            .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='prefix_dependency_state'")
+            .prepare(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='prefix_dependency_state'",
+            )
             .unwrap()
             .exists([])
             .unwrap();
@@ -947,7 +952,8 @@ mod tests {
         ).unwrap();
 
         // Delete profile
-        conn.execute("DELETE FROM profiles WHERE profile_id = 'test-prof'", []).unwrap();
+        conn.execute("DELETE FROM profiles WHERE profile_id = 'test-prof'", [])
+            .unwrap();
 
         // Verify cascade deleted the dep state
         let dep_count: i64 = conn
@@ -957,7 +963,10 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(dep_count, 0, "dep state should be cascade-deleted with profile");
+        assert_eq!(
+            dep_count, 0,
+            "dep state should be cascade-deleted with profile"
+        );
     }
 
     #[test]
@@ -968,12 +977,12 @@ mod tests {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert!(version >= 16, "schema version should be at least 16, got {version}");
+        assert!(
+            version >= 16,
+            "schema version should be at least 16, got {version}"
+        );
 
-        for table in [
-            "prefix_storage_snapshots",
-            "prefix_storage_cleanup_audit",
-        ] {
+        for table in ["prefix_storage_snapshots", "prefix_storage_cleanup_audit"] {
             let exists: bool = conn
                 .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1")
                 .unwrap()
@@ -1005,10 +1014,15 @@ mod tests {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert!(version >= 17, "schema version should be at least 17, got {version}");
+        assert!(
+            version >= 17,
+            "schema version should be at least 17, got {version}"
+        );
 
         let table_exists: bool = conn
-            .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='suggestion_dismissals'")
+            .prepare(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='suggestion_dismissals'",
+            )
             .unwrap()
             .exists([])
             .unwrap();
@@ -1019,7 +1033,10 @@ mod tests {
             .unwrap()
             .exists([])
             .unwrap();
-        assert!(idx_exists, "unique index idx_suggestion_dismissals_unique should exist");
+        assert!(
+            idx_exists,
+            "unique index idx_suggestion_dismissals_unique should exist"
+        );
     }
 
     #[test]
@@ -1044,13 +1061,19 @@ mod tests {
             .unwrap()
             .exists([])
             .unwrap();
-        assert!(game_idx_exists, "index idx_trainer_sources_game should exist");
+        assert!(
+            game_idx_exists,
+            "index idx_trainer_sources_game should exist"
+        );
 
         let app_id_idx_exists: bool = conn
             .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_trainer_sources_app_id'")
             .unwrap()
             .exists([])
             .unwrap();
-        assert!(app_id_idx_exists, "index idx_trainer_sources_app_id should exist");
+        assert!(
+            app_id_idx_exists,
+            "index idx_trainer_sources_app_id should exist"
+        );
     }
 }

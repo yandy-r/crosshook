@@ -10,7 +10,9 @@ use crate::offline::{
 use crate::profile::GameProfile;
 
 /// Maps a launch-time hash outcome to UI-facing validation issues (warnings only).
-pub fn launch_issues_from_trainer_hash_outcome(outcome: TrainerHashLaunchOutcome) -> Vec<LaunchValidationIssue> {
+pub fn launch_issues_from_trainer_hash_outcome(
+    outcome: TrainerHashLaunchOutcome,
+) -> Vec<LaunchValidationIssue> {
     let mut issues = Vec::new();
     if let TrainerHashBaselineResult::Mismatch {
         stored_hash,

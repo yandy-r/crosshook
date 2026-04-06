@@ -1,17 +1,17 @@
 //! Profile data models and profile persistence helpers.
 
 pub mod community_schema;
+mod creation_defaults;
 mod exchange;
 mod legacy;
-mod creation_defaults;
 mod models;
 mod toml_store;
 
-pub use creation_defaults::apply_profile_creation_defaults_from_settings;
 pub use community_schema::{
     CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating,
     COMMUNITY_PROFILE_SCHEMA_VERSION,
 };
+pub use creation_defaults::apply_profile_creation_defaults_from_settings;
 pub use exchange::{
     export_community_profile, import_community_profile, preview_community_profile_import,
     CommunityExchangeError, CommunityExportResult, CommunityImportPreview, CommunityImportResult,

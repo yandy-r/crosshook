@@ -8,9 +8,8 @@ use super::aggregation::{
     ProtonDbReportResponses,
 };
 use super::models::{
-    cache_key_for_app_id, ProtonDbCacheState, ProtonDbEnvVarSuggestion,
-    ProtonDbLookupResult, ProtonDbLookupState, ProtonDbRecommendationGroup, ProtonDbSnapshot,
-    ProtonDbTier,
+    cache_key_for_app_id, ProtonDbCacheState, ProtonDbEnvVarSuggestion, ProtonDbLookupResult,
+    ProtonDbLookupState, ProtonDbRecommendationGroup, ProtonDbSnapshot, ProtonDbTier,
 };
 use super::suggestions::{derive_suggestions, SuggestionStatus};
 use crate::launch::catalog::OptimizationEntry;
@@ -149,7 +148,10 @@ fn path_is_rejected_as_env_suggestion() {
         .map(|e| e.key.as_str())
         .collect();
     assert!(!keys.contains(&"PATH"), "PATH must be blocked");
-    assert!(keys.contains(&"PROTON_USE_WINED3D"), "safe key must pass through");
+    assert!(
+        keys.contains(&"PROTON_USE_WINED3D"),
+        "safe key must pass through"
+    );
 }
 
 #[test]
@@ -167,8 +169,14 @@ fn ld_prefix_keys_are_rejected() {
         .flat_map(|g| g.env_vars.iter())
         .map(|e| e.key.as_str())
         .collect();
-    assert!(!keys.contains(&"LD_LIBRARY_PATH"), "LD_LIBRARY_PATH must be blocked via prefix");
-    assert!(!keys.contains(&"LD_AUDIT"), "LD_AUDIT must be blocked via prefix");
+    assert!(
+        !keys.contains(&"LD_LIBRARY_PATH"),
+        "LD_LIBRARY_PATH must be blocked via prefix"
+    );
+    assert!(
+        !keys.contains(&"LD_AUDIT"),
+        "LD_AUDIT must be blocked via prefix"
+    );
     assert!(keys.contains(&"DXVK_ASYNC"), "safe key must pass through");
 }
 
@@ -263,7 +271,10 @@ fn catalog_match_maps_known_optimization() {
     let result = derive_suggestions(&lookup, &profile, &catalog, &dismissed);
 
     assert_eq!(result.catalog_suggestions.len(), 1);
-    assert_eq!(result.catalog_suggestions[0].catalog_entry_id, "enable_dxvk_async");
+    assert_eq!(
+        result.catalog_suggestions[0].catalog_entry_id,
+        "enable_dxvk_async"
+    );
     assert_eq!(result.env_var_suggestions.len(), 0);
 }
 
@@ -315,7 +326,10 @@ fn already_applied_when_key_matches_profile() {
     let lookup = test_lookup_with_env_vars(vec![("PROTON_NO_ESYNC", "1", 40)]);
     let result = derive_suggestions(&lookup, &profile, &[], &HashSet::new());
 
-    assert_eq!(result.env_var_suggestions[0].status, SuggestionStatus::AlreadyApplied);
+    assert_eq!(
+        result.env_var_suggestions[0].status,
+        SuggestionStatus::AlreadyApplied
+    );
 }
 
 #[test]
@@ -329,7 +343,10 @@ fn conflict_when_key_present_with_different_value() {
     let lookup = test_lookup_with_env_vars(vec![("PROTON_NO_ESYNC", "1", 40)]);
     let result = derive_suggestions(&lookup, &profile, &[], &HashSet::new());
 
-    assert_eq!(result.env_var_suggestions[0].status, SuggestionStatus::Conflict);
+    assert_eq!(
+        result.env_var_suggestions[0].status,
+        SuggestionStatus::Conflict
+    );
 }
 
 #[test]
@@ -350,7 +367,10 @@ fn dismissed_status_overrides() {
 
     let result = derive_suggestions(&lookup, &profile, &[], &dismissed);
 
-    assert_eq!(result.env_var_suggestions[0].status, SuggestionStatus::Dismissed);
+    assert_eq!(
+        result.env_var_suggestions[0].status,
+        SuggestionStatus::Dismissed
+    );
 }
 
 // --- Sorting test ---
@@ -370,5 +390,9 @@ fn suggestions_sorted_by_report_count_descending() {
         .iter()
         .map(|s| s.supporting_report_count)
         .collect();
-    assert_eq!(counts, vec![50, 30, 10], "suggestions must be sorted by report count descending");
+    assert_eq!(
+        counts,
+        vec![50, 30, 10],
+        "suggestions must be sorted by report count descending"
+    );
 }

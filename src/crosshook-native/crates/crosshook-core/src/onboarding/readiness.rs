@@ -131,7 +131,9 @@ fn evaluate_checks(
                 checks.push(HealthIssue {
                     field: "umu_run_available".to_string(),
                     path: path_display,
-                    message: "umu-run found; CrossHook will use it as the preferred Proton launcher.".to_string(),
+                    message:
+                        "umu-run found; CrossHook will use it as the preferred Proton launcher."
+                            .to_string(),
                     remediation: String::new(),
                     severity: HealthIssueSeverity::Info,
                 });

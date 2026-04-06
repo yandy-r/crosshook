@@ -19,7 +19,8 @@ pub fn apply_profile_creation_defaults_from_settings(
     }
 
     let mode = parse_trainer_loading_mode(&settings.default_trainer_loading_mode);
-    if profile.trainer.loading_mode == TrainerLoadingMode::default() && mode != TrainerLoadingMode::default()
+    if profile.trainer.loading_mode == TrainerLoadingMode::default()
+        && mode != TrainerLoadingMode::default()
     {
         profile.trainer.loading_mode = mode;
     }

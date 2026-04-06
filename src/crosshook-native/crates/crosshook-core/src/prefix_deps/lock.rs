@@ -21,7 +21,10 @@ impl PrefixDepsInstallLock {
     ///
     /// Returns a guard that releases the lock on drop.
     /// Returns `PrefixDepsError::AlreadyInstalling` if another install is in progress.
-    pub async fn try_acquire(&self, prefix_path: String) -> Result<PrefixDepsLockGuard, PrefixDepsError> {
+    pub async fn try_acquire(
+        &self,
+        prefix_path: String,
+    ) -> Result<PrefixDepsLockGuard, PrefixDepsError> {
         let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(ref existing) = *guard {
             return Err(PrefixDepsError::AlreadyInstalling {

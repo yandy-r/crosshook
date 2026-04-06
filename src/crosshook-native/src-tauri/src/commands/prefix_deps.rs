@@ -56,7 +56,10 @@ fn parse_nonzero_steam_app_id(raw: &str) -> Option<String> {
     Some(parsed.to_string())
 }
 
-fn resolve_profile_steam_app_id(profile_store: &ProfileStore, profile_name: &str) -> Option<String> {
+fn resolve_profile_steam_app_id(
+    profile_store: &ProfileStore,
+    profile_name: &str,
+) -> Option<String> {
     let profile = profile_store.load(profile_name).ok()?;
     let effective = profile.effective_profile();
     parse_nonzero_steam_app_id(&effective.steam.app_id)
@@ -116,8 +119,8 @@ pub async fn check_prefix_dependencies(
         tool_type,
         steam_app_id.as_deref(),
     )
-        .await
-        .map_err(|e| e.to_string())?;
+    .await
+    .map_err(|e| e.to_string())?;
 
     // Build status for each requested package, upsert to SQLite
     let profile_id = metadata_store
@@ -140,13 +143,9 @@ pub async fn check_prefix_dependencies(
         };
 
         // Upsert to SQLite (fail-soft)
-        if let Err(e) = metadata_store.upsert_prefix_dep_state(
-            &profile_id,
-            pkg,
-            &prefix_path,
-            state_str,
-            None,
-        ) {
+        if let Err(e) =
+            metadata_store.upsert_prefix_dep_state(&profile_id, pkg, &prefix_path, state_str, None)
+        {
             tracing::warn!(%e, pkg, "failed to persist prefix dep state");
         }
 
@@ -288,14 +287,22 @@ pub async fn install_prefix_dependency(
         };
 
         // Update dep states in SQLite
-        let state_str = if succeeded { "installed" } else { "install_failed" };
+        let state_str = if succeeded {
+            "installed"
+        } else {
+            "install_failed"
+        };
         for pkg in &pkgs_clone {
             if let Err(e) = ms_clone.upsert_prefix_dep_state(
                 &profile_id,
                 pkg,
                 &pfx_clone,
                 state_str,
-                if succeeded { None } else { Some("install process failed") },
+                if succeeded {
+                    None
+                } else {
+                    Some("install process failed")
+                },
             ) {
                 tracing::warn!(%e, pkg, "failed to persist prefix dep state after install");
             }

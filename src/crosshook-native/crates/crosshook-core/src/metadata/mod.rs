@@ -14,8 +14,8 @@ mod optimization_catalog_store;
 mod prefix_deps_store;
 mod prefix_storage_store;
 mod preset_store;
-mod suggestion_store;
 pub mod profile_sync;
+mod suggestion_store;
 mod version_store;
 
 pub use game_image_store::GameImageCacheRow;
@@ -23,11 +23,11 @@ pub use health_store::HealthSnapshotRow;
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
     CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
-    LaunchOutcome, MetadataStoreError, PrefixDependencyStateRow,
-    PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow, ProfileLaunchPresetOrigin,
-    SyncReport, SyncSource, VersionCorrelationStatus, VersionSnapshotRow,
-    MAX_CACHE_PAYLOAD_BYTES, MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES,
-    MAX_HISTORY_LIST_LIMIT, MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
+    LaunchOutcome, MetadataStoreError, PrefixDependencyStateRow, PrefixStorageCleanupAuditRow,
+    PrefixStorageSnapshotRow, ProfileLaunchPresetOrigin, SyncReport, SyncSource,
+    VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
+    MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT,
+    MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };
 pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow};
 pub use profile_sync::sha256_hex;
@@ -1350,7 +1350,14 @@ impl MetadataStore {
         error: Option<&str>,
     ) -> Result<(), MetadataStoreError> {
         self.with_conn_mut("upsert prefix dep state", |conn| {
-            prefix_deps_store::upsert_dependency_state(conn, profile_id, package_name, prefix_path, state, error)
+            prefix_deps_store::upsert_dependency_state(
+                conn,
+                profile_id,
+                package_name,
+                prefix_path,
+                state,
+                error,
+            )
         })
     }
 
@@ -1374,19 +1381,13 @@ impl MetadataStore {
         })
     }
 
-    pub fn clear_prefix_dep_states(
-        &self,
-        profile_id: &str,
-    ) -> Result<(), MetadataStoreError> {
+    pub fn clear_prefix_dep_states(&self, profile_id: &str) -> Result<(), MetadataStoreError> {
         self.with_conn_mut("clear prefix dep states", |conn| {
             prefix_deps_store::clear_dependency_states(conn, profile_id)
         })
     }
 
-    pub fn clear_stale_prefix_dep_states(
-        &self,
-        ttl_hours: i64,
-    ) -> Result<u64, MetadataStoreError> {
+    pub fn clear_stale_prefix_dep_states(&self, ttl_hours: i64) -> Result<u64, MetadataStoreError> {
         self.with_conn_mut("clear stale prefix dep states", |conn| {
             prefix_deps_store::clear_stale_states(conn, ttl_hours)
         })

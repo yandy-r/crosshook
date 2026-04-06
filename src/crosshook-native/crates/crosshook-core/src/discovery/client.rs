@@ -1,8 +1,9 @@
-//! FLiNG search HTTP client for external trainer discovery (Phase B).
+//! Data-driven external trainer discovery client (Phase B).
 //!
-//! Uses FLiNG's WordPress search RSS endpoint (`?s={query}&feed=rss2`) for
-//! full-catalog search. Follows the `protondb/client.rs` OnceLock + 3-stage
-//! cache→live→stale-fallback pattern with per-query cache keys.
+//! Searches configured external sources (stored in TOML settings) using a
+//! 3-stage cache→live→stale-fallback pattern via `external_cache_entries`.
+//! Source subscriptions drive the URL, parser, cache key, and display name —
+//! nothing is hardcoded to a specific provider.
 
 use std::fmt;
 use std::sync::OnceLock;
@@ -10,21 +11,23 @@ use std::time::Duration;
 
 use chrono::{Duration as ChronoDuration, Utc};
 use rusqlite::{params, OptionalExtension};
+use tokio::task::JoinSet;
 
 use super::matching;
 use super::models::{
     ExternalTrainerResult, ExternalTrainerSearchQuery, ExternalTrainerSearchResponse,
+    ExternalTrainerSourceSubscription,
 };
 use crate::metadata::{MetadataStore, MetadataStoreError};
 
-const FLING_SEARCH_BASE: &str = "https://flingtrainer.com/";
 const CACHE_TTL_HOURS: i64 = 1;
 const REQUEST_TIMEOUT_SECS: u64 = 10;
+const MAX_SOURCE_CONCURRENCY: usize = 4;
 const CACHE_NAMESPACE: &str = "trainer:source:v1";
 const MAX_CACHED_ITEMS: usize = 50;
 const MAX_RESPONSE_BYTES: usize = 1_048_576; // 1 MB
 
-static FLING_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 #[derive(Debug)]
 pub(crate) enum DiscoveryError {
@@ -48,7 +51,7 @@ struct CachedRssRow {
     _expires_at: Option<String>,
 }
 
-/// Raw RSS item parsed from the FLiNG search feed.
+/// Raw RSS item parsed from a WordPress search feed.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct RssItem {
     title: String,
@@ -56,24 +59,25 @@ struct RssItem {
     pub_date: Option<String>,
 }
 
-/// Builds a per-query cache key: `trainer:source:v1:fling_search:{normalized_query}`.
-fn cache_key_for_query(game_name: &str) -> String {
+/// Builds a per-source, per-query cache key.
+/// Format: `trainer:source:v1:{source_id}:{normalized_query}`
+fn cache_key_for_source_query(source_id: &str, game_name: &str) -> String {
     let normalized = game_name.trim().to_lowercase().replace(' ', "_");
-    format!("{CACHE_NAMESPACE}:fling_search:{normalized}")
+    format!("{CACHE_NAMESPACE}:{source_id}:{normalized}")
 }
 
-/// Builds the FLiNG WordPress search RSS URL for a query.
-fn search_url(game_name: &str) -> String {
-    let mut url = reqwest::Url::parse(FLING_SEARCH_BASE)
-        .expect("FLING_SEARCH_BASE must be a valid absolute URL");
+/// Builds a WordPress search RSS URL from a source's base URL and query.
+fn wordpress_rss_search_url(base_url: &str, game_name: &str) -> Result<String, DiscoveryError> {
+    let mut url = reqwest::Url::parse(base_url)
+        .map_err(|e| DiscoveryError::ParseError(format!("invalid base_url {base_url:?}: {e}")))?;
     url.query_pairs_mut()
         .append_pair("s", game_name.trim())
         .append_pair("feed", "rss2");
-    url.into()
+    Ok(url.into())
 }
 
-fn fling_http_client() -> Result<&'static reqwest::Client, DiscoveryError> {
-    if let Some(client) = FLING_HTTP_CLIENT.get() {
+fn http_client() -> Result<&'static reqwest::Client, DiscoveryError> {
+    if let Some(client) = HTTP_CLIENT.get() {
         return Ok(client);
     }
 
@@ -83,27 +87,27 @@ fn fling_http_client() -> Result<&'static reqwest::Client, DiscoveryError> {
         .build()
         .map_err(DiscoveryError::Network)?;
 
-    let _ = FLING_HTTP_CLIENT.set(client);
-    Ok(FLING_HTTP_CLIENT
+    let _ = HTTP_CLIENT.set(client);
+    Ok(HTTP_CLIENT
         .get()
-        .expect("FLiNG HTTP client should be initialized before use"))
+        .expect("HTTP client should be initialized before use"))
 }
 
-/// Searches FLiNG's full trainer catalog via WordPress search RSS.
+/// Searches all enabled external sources for trainers matching the query.
 ///
-/// Uses a 3-stage cache-first flow per query:
-/// 1. Return valid per-query cache if present
-/// 2. Fetch live search RSS, parse, cache, return
-/// 3. On failure: return stale cache or offline response
+/// Each source runs the 3-stage cache-first flow in parallel, up to a bounded
+/// concurrency limit.
+/// Results from all sources are merged and sorted by relevance.
 pub async fn search_external_trainers(
     metadata_store: &MetadataStore,
+    sources: &[ExternalTrainerSourceSubscription],
     query: &ExternalTrainerSearchQuery,
 ) -> ExternalTrainerSearchResponse {
     let game_name = query.game_name.trim();
     if game_name.is_empty() {
         return ExternalTrainerSearchResponse {
             results: vec![],
-            source: "fling_rss".into(),
+            source: String::new(),
             cached: false,
             cache_age_secs: None,
             is_stale: false,
@@ -111,42 +115,193 @@ pub async fn search_external_trainers(
         };
     }
 
-    let key = cache_key_for_query(game_name);
+    let enabled: Vec<ExternalTrainerSourceSubscription> =
+        sources.iter().filter(|s| s.enabled).cloned().collect();
+
+    if enabled.is_empty() {
+        return ExternalTrainerSearchResponse {
+            results: vec![],
+            source: String::new(),
+            cached: false,
+            cache_age_secs: None,
+            is_stale: false,
+            offline: false,
+        };
+    }
+
     let force_refresh = query.force_refresh.unwrap_or(false);
+    let mut all_results: Vec<ExternalTrainerResult> = Vec::new();
+    let mut any_offline = false;
+    let mut all_offline = true;
+    let mut any_cached = false;
+    let mut any_stale = false;
+    let mut first_cache_age: Option<i64> = None;
+
+    let mut join_set: JoinSet<ExternalTrainerSearchResponse> = JoinSet::new();
+    let mut in_flight = 0usize;
+    let game_name_owned = game_name.to_string();
+
+    for source in enabled.iter().cloned() {
+        while in_flight >= MAX_SOURCE_CONCURRENCY {
+            if let Some(joined) = join_set.join_next().await {
+                in_flight -= 1;
+                let response = match joined {
+                    Ok(response) => response,
+                    Err(error) => {
+                        tracing::warn!(%error, "source search task failed");
+                        continue;
+                    }
+                };
+                if response.offline {
+                    any_offline = true;
+                } else {
+                    all_offline = false;
+                }
+                if response.cached {
+                    any_cached = true;
+                    if first_cache_age.is_none() {
+                        first_cache_age = response.cache_age_secs;
+                    }
+                }
+                if response.is_stale {
+                    any_stale = true;
+                }
+                all_results.extend(response.results);
+            }
+        }
+
+        let metadata_store = metadata_store.clone();
+        let game_name = game_name_owned.clone();
+        join_set.spawn(async move {
+            fetch_source(&metadata_store, &source, &game_name, force_refresh).await
+        });
+        in_flight += 1;
+    }
+
+    while let Some(joined) = join_set.join_next().await {
+        let response = match joined {
+            Ok(response) => response,
+            Err(error) => {
+                tracing::warn!(%error, "source search task failed");
+                continue;
+            }
+        };
+        if response.offline {
+            any_offline = true;
+        } else {
+            all_offline = false;
+        }
+        if response.cached {
+            any_cached = true;
+            if first_cache_age.is_none() {
+                first_cache_age = response.cache_age_secs;
+            }
+        }
+        if response.is_stale {
+            any_stale = true;
+        }
+        all_results.extend(response.results);
+    }
+
+    all_results.sort_by(|a, b| {
+        b.relevance_score
+            .partial_cmp(&a.relevance_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.source.cmp(&b.source))
+            .then_with(|| a.game_name.cmp(&b.game_name))
+            .then_with(|| a.source_url.cmp(&b.source_url))
+    });
+
+    let source_label = if enabled.len() == 1 {
+        enabled[0].source_id.clone()
+    } else {
+        "multi".to_string()
+    };
+
+    ExternalTrainerSearchResponse {
+        results: all_results,
+        source: source_label,
+        cached: any_cached,
+        cache_age_secs: first_cache_age,
+        is_stale: any_stale,
+        offline: all_offline && any_offline,
+    }
+}
+
+/// Runs the 3-stage cache→live→stale flow for a single source.
+async fn fetch_source(
+    metadata_store: &MetadataStore,
+    source: &ExternalTrainerSourceSubscription,
+    game_name: &str,
+    force_refresh: bool,
+) -> ExternalTrainerSearchResponse {
+    let key = cache_key_for_source_query(&source.source_id, game_name);
 
     // Stage 1: Check for valid (non-expired) per-query cache.
     if !force_refresh {
         if let Some(cached) = load_cached_rss_row(metadata_store, &key, false) {
-            if let Some(response) = build_response_from_cache(&cached, game_name, false) {
+            if let Some(response) = build_response_from_cache(&cached, source, game_name, false) {
                 return response;
             }
         }
     }
 
-    // Stage 2: HTTP GET the search RSS feed.
-    let url = search_url(game_name);
-    match fetch_and_cache_search(metadata_store, &url, &key).await {
-        Ok(items) => build_response_from_items(&items, game_name, false, false),
+    // Stage 2: Build URL and fetch live.
+    let url = match build_fetch_url(source, game_name) {
+        Ok(url) => url,
         Err(error) => {
-            tracing::warn!(%error, query = game_name, "FLiNG search fetch failed");
+            tracing::warn!(
+                source_id = source.source_id,
+                %error,
+                "failed to build search URL"
+            );
+            return offline_response(source);
+        }
+    };
+
+    match fetch_and_cache_search(metadata_store, &url, &key).await {
+        Ok(items) => build_response_from_items(&items, source, game_name, false, false),
+        Err(error) => {
+            tracing::warn!(
+                source_id = source.source_id,
+                %error,
+                "external search fetch failed"
+            );
 
             // Stage 3: Stale fallback.
             if let Some(stale) = load_cached_rss_row(metadata_store, &key, true) {
-                if let Some(response) = build_response_from_cache(&stale, game_name, true) {
+                if let Some(response) = build_response_from_cache(&stale, source, game_name, true) {
                     return response;
                 }
             }
 
-            // Stage 4: Total failure — offline.
-            ExternalTrainerSearchResponse {
-                results: vec![],
-                source: "fling_rss".into(),
-                cached: false,
-                cache_age_secs: None,
-                is_stale: false,
-                offline: true,
-            }
+            // Stage 4: Total failure.
+            offline_response(source)
         }
+    }
+}
+
+/// Dispatches URL construction based on source_type.
+fn build_fetch_url(
+    source: &ExternalTrainerSourceSubscription,
+    game_name: &str,
+) -> Result<String, DiscoveryError> {
+    match source.source_type.as_str() {
+        "wordpress_rss" => wordpress_rss_search_url(&source.base_url, game_name),
+        other => Err(DiscoveryError::ParseError(format!(
+            "unsupported source_type: {other}"
+        ))),
+    }
+}
+
+fn offline_response(source: &ExternalTrainerSourceSubscription) -> ExternalTrainerSearchResponse {
+    ExternalTrainerSearchResponse {
+        results: vec![],
+        source: source.source_id.clone(),
+        cached: false,
+        cache_age_secs: None,
+        is_stale: false,
+        offline: true,
     }
 }
 
@@ -155,7 +310,7 @@ async fn fetch_and_cache_search(
     url: &str,
     cache_key: &str,
 ) -> Result<Vec<RssItem>, DiscoveryError> {
-    let client = fling_http_client()?;
+    let client = http_client()?;
 
     let response = client
         .get(url)
@@ -206,11 +361,11 @@ async fn fetch_and_cache_search(
             if let Err(error) =
                 metadata_store.put_cache_entry(url, cache_key, &payload, Some(&expires_at))
             {
-                tracing::warn!(cache_key = %cache_key, %error, "failed to persist FLiNG search cache");
+                tracing::warn!(cache_key = %cache_key, %error, "failed to persist search cache");
             }
         }
         Err(error) => {
-            tracing::warn!(cache_key = %cache_key, %error, "failed to serialize FLiNG search results");
+            tracing::warn!(cache_key = %cache_key, %error, "failed to serialize search results");
         }
     }
 
@@ -294,9 +449,9 @@ fn load_cached_rss_row(
 
     let now = Utc::now().to_rfc3339();
     let action = if allow_expired {
-        "load a cached FLiNG search row"
+        "load a cached external search row"
     } else {
-        "load a valid cached FLiNG search row"
+        "load a valid cached external search row"
     };
 
     metadata_store
@@ -325,7 +480,7 @@ fn load_cached_rss_row(
             })
             .optional()
             .map_err(|source| MetadataStoreError::Database {
-                action: "query a FLiNG search cache row",
+                action: "query an external search cache row",
                 source,
             })
         })
@@ -335,6 +490,7 @@ fn load_cached_rss_row(
 
 fn build_response_from_cache(
     row: &CachedRssRow,
+    source: &ExternalTrainerSourceSubscription,
     game_name: &str,
     is_stale: bool,
 ) -> Option<ExternalTrainerSearchResponse> {
@@ -347,14 +503,18 @@ fn build_response_from_cache(
         .ok()
         .map(|fetched| (Utc::now() - fetched.with_timezone(&Utc)).num_seconds());
 
-    Some(build_response_from_items(&items, game_name, true, is_stale).with_cache_info(cache_age_secs))
+    Some(
+        build_response_from_items(&items, source, game_name, true, is_stale)
+            .with_cache_info(cache_age_secs),
+    )
 }
 
-/// Converts parsed RSS items to the IPC response. FLiNG's search already
-/// filters by relevance, so we strip the "Trainer" suffix, score lightly
-/// for ordering, and return all results the search returned.
+/// Converts parsed RSS items to the IPC response. The search endpoint already
+/// filters by relevance, so we strip the "Trainer" suffix, score lightly for
+/// ordering, and return all results.
 fn build_response_from_items(
     items: &[RssItem],
+    source: &ExternalTrainerSourceSubscription,
     game_name: &str,
     cached: bool,
     is_stale: bool,
@@ -366,10 +526,10 @@ fn build_response_from_items(
             let score = matching::score_fling_result(game_name, &stripped);
             ExternalTrainerResult {
                 game_name: stripped,
-                source_name: "FLiNG".to_string(),
+                source_name: source.display_name.clone(),
                 source_url: item.link.clone(),
                 pub_date: item.pub_date.clone(),
-                source: "fling_rss".to_string(),
+                source: source.source_id.clone(),
                 relevance_score: score,
             }
         })
@@ -383,7 +543,7 @@ fn build_response_from_items(
 
     ExternalTrainerSearchResponse {
         results,
-        source: "fling_rss".into(),
+        source: source.source_id.clone(),
         cached,
         cache_age_secs: None,
         is_stale,
@@ -401,31 +561,39 @@ impl ExternalTrainerSearchResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::discovery::models::fling_default_source;
 
     fn test_store() -> MetadataStore {
         MetadataStore::open_in_memory().expect("in-memory store")
     }
 
+    fn fling() -> ExternalTrainerSourceSubscription {
+        fling_default_source()
+    }
+
     #[test]
-    fn cache_key_is_per_query() {
+    fn cache_key_includes_source_id() {
         assert_eq!(
-            cache_key_for_query("Ghost of Tsushima"),
-            "trainer:source:v1:fling_search:ghost_of_tsushima"
+            cache_key_for_source_query("fling", "Ghost of Tsushima"),
+            "trainer:source:v1:fling:ghost_of_tsushima"
         );
         assert_eq!(
-            cache_key_for_query("Elden Ring"),
-            "trainer:source:v1:fling_search:elden_ring"
-        );
-        // Different queries get different keys.
-        assert_ne!(
-            cache_key_for_query("Ghost of Tsushima"),
-            cache_key_for_query("Elden Ring"),
+            cache_key_for_source_query("other_site", "Elden Ring"),
+            "trainer:source:v1:other_site:elden_ring"
         );
     }
 
     #[test]
-    fn search_url_encodes_spaces() {
-        let url = search_url("Ghost of Tsushima");
+    fn different_sources_get_different_keys() {
+        let key_a = cache_key_for_source_query("fling", "Elden Ring");
+        let key_b = cache_key_for_source_query("other", "Elden Ring");
+        assert_ne!(key_a, key_b);
+    }
+
+    #[test]
+    fn wordpress_rss_search_url_encodes_query() {
+        let url =
+            wordpress_rss_search_url("https://flingtrainer.com/", "Ghost of Tsushima").unwrap();
         assert_eq!(
             url,
             "https://flingtrainer.com/?s=Ghost+of+Tsushima&feed=rss2"
@@ -433,8 +601,9 @@ mod tests {
     }
 
     #[test]
-    fn search_url_percent_encodes_reserved_chars() {
-        let url = search_url("Doom & Quake=1#tag");
+    fn wordpress_rss_search_url_percent_encodes_reserved() {
+        let url =
+            wordpress_rss_search_url("https://flingtrainer.com/", "Doom & Quake=1#tag").unwrap();
         assert_eq!(
             url,
             "https://flingtrainer.com/?s=Doom+%26+Quake%3D1%23tag&feed=rss2"
@@ -469,43 +638,33 @@ mod tests {
     }
 
     #[test]
-    fn build_response_includes_all_search_results() {
-        // FLiNG search already filters — we include everything it returns.
-        let items = vec![
-            RssItem {
-                title: "Ghost of Tsushima Trainer".into(),
-                link: "https://flingtrainer.com/trainer/ghost-of-tsushima-trainer/".into(),
-                pub_date: None,
-            },
-            RssItem {
-                title: "Ghost of Tsushima DIRECTOR'S CUT Trainer".into(),
-                link: "https://flingtrainer.com/trainer/ghost-of-tsushima-dc/".into(),
-                pub_date: None,
-            },
-        ];
-
-        let response = build_response_from_items(&items, "Ghost of Tsushima", false, false);
-        assert_eq!(response.results.len(), 2);
-        assert_eq!(response.results[0].game_name, "Ghost of Tsushima");
-    }
-
-    #[test]
-    fn empty_query_returns_empty() {
+    fn build_response_uses_source_fields() {
+        let source = ExternalTrainerSourceSubscription {
+            source_id: "my_source".to_string(),
+            display_name: "My Source".to_string(),
+            base_url: "https://example.com/".to_string(),
+            source_type: "wordpress_rss".to_string(),
+            enabled: true,
+        };
         let items = vec![RssItem {
-            title: "Ghost of Tsushima Trainer".into(),
-            link: "https://example.com".into(),
+            title: "Elden Ring Trainer".into(),
+            link: "https://example.com/elden".into(),
             pub_date: None,
         }];
 
-        let response = build_response_from_items(&items, "", false, false);
-        // Even with items, empty game_name means no scoring context — still return them.
+        let response = build_response_from_items(&items, &source, "Elden Ring", false, false);
         assert_eq!(response.results.len(), 1);
+        assert_eq!(response.results[0].source_name, "My Source");
+        assert_eq!(response.results[0].source, "my_source");
+        assert_eq!(response.source, "my_source");
     }
 
     #[tokio::test]
     async fn cache_hit_returns_without_http_fetch() {
         let store = test_store();
-        let key = cache_key_for_query("Ghost of Tsushima");
+        let source = fling();
+        let key = cache_key_for_source_query(&source.source_id, "Ghost of Tsushima");
+        let url = wordpress_rss_search_url(&source.base_url, "Ghost of Tsushima").unwrap();
 
         let items = vec![RssItem {
             title: "Ghost of Tsushima Trainer".into(),
@@ -514,7 +673,6 @@ mod tests {
         }];
         let payload = serde_json::to_string(&items).unwrap();
         let expires = (Utc::now() + ChronoDuration::hours(1)).to_rfc3339();
-        let url = search_url("Ghost of Tsushima");
 
         store
             .put_cache_entry(&url, &key, &payload, Some(&expires))
@@ -526,18 +684,20 @@ mod tests {
             force_refresh: None,
         };
 
-        let result = search_external_trainers(&store, &query).await;
+        let result = search_external_trainers(&store, &[source], &query).await;
         assert!(result.cached);
         assert!(!result.is_stale);
         assert!(!result.offline);
         assert_eq!(result.results.len(), 1);
         assert_eq!(result.results[0].game_name, "Ghost of Tsushima");
+        assert_eq!(result.results[0].source_name, "FLiNG");
+        assert_eq!(result.results[0].source, "fling");
     }
 
     #[test]
     fn disabled_store_returns_no_cached_row() {
         let store = MetadataStore::disabled();
-        let key = cache_key_for_query("test");
+        let key = cache_key_for_source_query("fling", "test");
         assert!(load_cached_rss_row(&store, &key, false).is_none());
         assert!(load_cached_rss_row(&store, &key, true).is_none());
     }
@@ -545,8 +705,9 @@ mod tests {
     #[test]
     fn stale_cache_row_returns_stale_response() {
         let store = test_store();
-        let key = cache_key_for_query("Elden Ring");
-        let url = search_url("Elden Ring");
+        let source = fling();
+        let key = cache_key_for_source_query(&source.source_id, "Elden Ring");
+        let url = wordpress_rss_search_url(&source.base_url, "Elden Ring").unwrap();
 
         let items = vec![RssItem {
             title: "Elden Ring Trainer".into(),
@@ -560,19 +721,46 @@ mod tests {
             .put_cache_entry(&url, &key, &payload, Some(&expired))
             .expect("put cache");
 
-        // Valid lookup should miss.
         assert!(load_cached_rss_row(&store, &key, false).is_none());
 
-        // Stale lookup should hit.
         let stale_row = load_cached_rss_row(&store, &key, true);
         assert!(stale_row.is_some());
 
-        let response = build_response_from_cache(&stale_row.unwrap(), "Elden Ring", true);
+        let response = build_response_from_cache(&stale_row.unwrap(), &source, "Elden Ring", true);
         assert!(response.is_some());
         let response = response.unwrap();
         assert!(response.is_stale);
         assert!(response.cached);
         assert_eq!(response.results.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn empty_sources_returns_empty() {
+        let store = test_store();
+        let query = ExternalTrainerSearchQuery {
+            game_name: "Elden Ring".into(),
+            steam_app_id: None,
+            force_refresh: None,
+        };
+        let result = search_external_trainers(&store, &[], &query).await;
+        assert!(result.results.is_empty());
+        assert!(!result.offline);
+    }
+
+    #[tokio::test]
+    async fn disabled_source_is_skipped() {
+        let store = test_store();
+        let mut source = fling();
+        source.enabled = false;
+
+        let query = ExternalTrainerSearchQuery {
+            game_name: "Elden Ring".into(),
+            steam_app_id: None,
+            force_refresh: None,
+        };
+        let result = search_external_trainers(&store, &[source], &query).await;
+        assert!(result.results.is_empty());
+        assert!(!result.offline);
     }
 
     #[test]

@@ -44,13 +44,27 @@ pub enum PrefixDepsTool {
 /// Errors specific to prefix dependency operations.
 #[derive(Debug)]
 pub enum PrefixDepsError {
-    BinaryNotFound { tool: String },
-    PrefixNotInitialized { path: String },
+    BinaryNotFound {
+        tool: String,
+    },
+    PrefixNotInitialized {
+        path: String,
+    },
     ValidationError(String),
-    ProcessFailed { exit_code: Option<i32>, stderr: String },
-    Timeout { seconds: u64 },
-    AlreadyInstalling { prefix_path: String },
-    Database { action: &'static str, source: rusqlite::Error },
+    ProcessFailed {
+        exit_code: Option<i32>,
+        stderr: String,
+    },
+    Timeout {
+        seconds: u64,
+    },
+    AlreadyInstalling {
+        prefix_path: String,
+    },
+    Database {
+        action: &'static str,
+        source: rusqlite::Error,
+    },
 }
 
 impl std::fmt::Display for PrefixDepsError {
@@ -69,7 +83,10 @@ impl std::fmt::Display for PrefixDepsError {
             }
             Self::Timeout { seconds } => write!(f, "operation timed out after {seconds}s"),
             Self::AlreadyInstalling { prefix_path } => {
-                write!(f, "installation already in progress for prefix: {prefix_path}")
+                write!(
+                    f,
+                    "installation already in progress for prefix: {prefix_path}"
+                )
             }
             Self::Database { action, source } => {
                 write!(f, "database error during {action}: {source}")
