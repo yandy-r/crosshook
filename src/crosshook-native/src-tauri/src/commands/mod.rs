@@ -14,6 +14,7 @@ pub mod onboarding;
 pub mod prefix_deps;
 pub mod profile;
 pub mod protondb;
+pub mod protonup;
 pub mod settings;
 mod shared;
 pub mod steam;

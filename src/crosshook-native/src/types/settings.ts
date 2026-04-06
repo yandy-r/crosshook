@@ -27,6 +27,10 @@ export interface SettingsSaveRequest {
   auto_install_prefix_deps: boolean;
   discovery_enabled: boolean;
   external_trainer_sources?: ExternalTrainerSourceSubscription[];
+  /** When true, show ProtonUp runtime suggestions for community profiles. */
+  protonup_auto_suggest?: boolean;
+  /** Optional path override for the ProtonUp binary; empty = auto-detect. */
+  protonup_binary_path?: string;
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {
@@ -57,6 +61,8 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     auto_install_prefix_deps: s.auto_install_prefix_deps,
     discovery_enabled: s.discovery_enabled,
     external_trainer_sources: s.external_trainer_sources,
+    protonup_auto_suggest: s.protonup_auto_suggest,
+    protonup_binary_path: s.protonup_binary_path,
   };
 }
 
@@ -82,6 +88,8 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   auto_install_prefix_deps: false,
   discovery_enabled: false,
   external_trainer_sources: [],
+  protonup_auto_suggest: true,
+  protonup_binary_path: '',
 };
 
 export interface RecentFilesData {

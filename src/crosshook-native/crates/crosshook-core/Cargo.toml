@@ -20,12 +20,12 @@ tracing-subscriber = { version = "0.3", features = [
 ] }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 quick-xml = "0.39.2"
-reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls"] }
+futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls", "stream"] }
 sha2 = "0.11.0"
 uuid = { version = "1", features = ["v4", "serde"] }
 infer = "~0.19.0"
 nix = { version = "0.31.2", features = ["fs"] }
-libprotonup = "0.11.0"
 
 [dev-dependencies]
 tempfile = "3"

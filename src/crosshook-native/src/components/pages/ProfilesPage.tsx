@@ -17,13 +17,21 @@ import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
+import { useProtonUp } from '../../hooks/useProtonUp';
 import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
 import type { ProtonInstallOption } from '../../types/proton';
+import type { ProtonUpSuggestion } from '../../types/protonup';
 import { chooseSaveFile } from '../../utils/dialog';
 import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../../utils/launchPanelActionButtonStyle';
 import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
+
+/** Minimal shape of a row returned by `community_list_indexed_profiles`. */
+interface CommunityIndexedProfileRow {
+  game_name: string | null;
+  proton_version: string | null;
+}
 
 function suggestedCommunityExportFilename(profileName: string): string {
   const base = profileName
@@ -143,6 +151,13 @@ export function ProfilesPage() {
     () => deriveTargetHomePath(effectiveSteamClientInstallPath),
     [effectiveSteamClientInstallPath]
   );
+
+  const protonUp = useProtonUp({
+    steamClientInstallPath: effectiveSteamClientInstallPath,
+  });
+  const [suggestion, setSuggestion] = useState<ProtonUpSuggestion | null>(null);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
+  const [suggestionInstallError, setSuggestionInstallError] = useState<string | null>(null);
   const canSave =
     profileName.trim().length > 0 && profile.game.executable_path.trim().length > 0 && !saving && !deleting && !loading;
   const canDelete = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
@@ -192,6 +207,54 @@ export function ProfilesPage() {
       active = false;
     };
   }, [effectiveSteamClientInstallPath]);
+
+  useEffect(() => {
+    setSuggestionDismissed(false);
+    setSuggestion(null);
+    setSuggestionInstallError(null);
+
+    const gameName = profile.game.name.trim();
+    if (!gameName || !selectedProfile) {
+      return;
+    }
+
+    let active = true;
+
+    async function fetchSuggestion() {
+      try {
+        const rows = await invoke<CommunityIndexedProfileRow[]>('community_list_indexed_profiles');
+        if (!active) {
+          return;
+        }
+
+        const normalizedGame = gameName.toLowerCase();
+        const match = rows.find(
+          (row) =>
+            typeof row.game_name === 'string' &&
+            row.game_name.trim().toLowerCase() === normalizedGame &&
+            typeof row.proton_version === 'string' &&
+            row.proton_version.trim().length > 0,
+        );
+
+        if (!match || !match.proton_version) {
+          return;
+        }
+
+        const result = await protonUp.getSuggestion(match.proton_version);
+        if (active) {
+          setSuggestion(result);
+        }
+      } catch {
+        // Advisory-only: silently ignore errors; no suggestion shown on failure
+      }
+    }
+
+    void fetchSuggestion();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedProfile, profile.game.name, protonUp.getSuggestion]);
 
   useEffect(() => {
     if (pendingRename !== null) {
@@ -705,6 +768,80 @@ export function ProfilesPage() {
               requiredPackages={profile.trainer.required_protontricks}
             />
           </CollapsibleSection>
+        ) : null}
+
+        {/* ProtonUp recommendation — advisory only, never blocks launch */}
+        {suggestion !== null && suggestion.status === 'missing' && !suggestionDismissed ? (
+          <div className="crosshook-panel crosshook-protonup-recommendation" role="status">
+            <div className="crosshook-protonup-recommendation__content">
+              <span className="crosshook-protonup-recommendation__icon" aria-hidden="true">&#9888;</span>
+              <div className="crosshook-protonup-recommendation__text">
+                <strong>Runtime suggestion</strong>
+                <p className="crosshook-help-text" style={{ margin: '4px 0 0' }}>
+                  This community profile recommends{' '}
+                  <strong>{suggestion.community_version}</strong>, which is not currently
+                  installed. You can still launch with your current runtime.
+                </p>
+              </div>
+            </div>
+            <div className="crosshook-protonup-recommendation__actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--small crosshook-button--primary"
+                onClick={() => {
+                  if (!suggestion.recommended_version) {
+                    return;
+                  }
+                  const targetRoot = effectiveSteamClientInstallPath
+                    ? `${effectiveSteamClientInstallPath}/compatibilitytools.d`
+                    : '';
+                  setSuggestionInstallError(null);
+                  void protonUp
+                    .installVersion({
+                      provider: 'ge-proton',
+                      version: suggestion.recommended_version,
+                      target_root: targetRoot,
+                    })
+                    .then((result) => {
+                      if (!result.success) {
+                        setSuggestionInstallError(
+                          result.error_message ?? result.error_kind ?? 'Install failed',
+                        );
+                        return;
+                      }
+                      void invoke<ProtonInstallOption[]>('list_proton_installs', {
+                        steamClientInstallPath:
+                          effectiveSteamClientInstallPath.trim().length > 0
+                            ? effectiveSteamClientInstallPath
+                            : undefined,
+                      }).then((installs) => {
+                        setProtonInstalls(sortProtonInstalls(installs));
+                      });
+                      setSuggestionDismissed(true);
+                    });
+                }}
+                disabled={
+                  protonUp.installing ||
+                  !suggestion.recommended_version ||
+                  !effectiveSteamClientInstallPath
+                }
+              >
+                {protonUp.installing ? 'Installing\u2026' : 'Install recommended'}
+              </button>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--small crosshook-button--ghost"
+                onClick={() => setSuggestionDismissed(true)}
+              >
+                Dismiss
+              </button>
+            </div>
+            {suggestionInstallError ? (
+              <p className="crosshook-danger" role="alert" style={{ margin: '8px 0 0' }}>
+                {suggestionInstallError}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         {/* Profile sub-tabs — stable height; scroll inside active tab */}
