@@ -209,7 +209,7 @@ These features have no strict ordering. Prioritize based on community feedback.
 | #60   | Settings expansion               | Done   | Low-Med | Any phase                 |
 | #61   | Prefix health monitoring         | Done   | Medium  | #38 (health dashboard)    |
 | #62   | Network isolation                | Done   | Low     | #63 (hash verification)   |
-| #63   | Trainer hash verification        |        | Low     | #62 (network isolation)   |
+| #63   | Trainer hash verification        | Done   | Low     | #62 (network isolation)   |
 | #66   | Data-driven optimization catalog | Done   | Medium  | #58 (extended catalog)    |
 
 **Natural groupings for PRs**:
