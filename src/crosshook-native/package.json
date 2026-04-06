@@ -2,6 +2,7 @@
   "name": "crosshook-native",
   "private": true,
   "type": "module",
+  "x-tauri-deps-versioning": "caret ^2.x on all @tauri-apps/* packages for semver-aligned minor/patch updates with the Tauri 2.x stack (Rust: tauri 2 in src-tauri/Cargo.toml).",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -13,9 +14,9 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-dialog": "^2.0.0",
-    "@tauri-apps/plugin-fs": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.7.0",
+    "@tauri-apps/plugin-fs": "^2.5.0",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-resizable-panels": "^4.7.6"

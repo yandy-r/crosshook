@@ -30,3 +30,4 @@ nix = { version = "0.31.2", features = ["fs"] }
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt"] }
+wiremock = "0.6"
