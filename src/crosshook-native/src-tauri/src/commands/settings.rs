@@ -1,4 +1,5 @@
 use crosshook_core::community::CommunityTapSubscription;
+use crosshook_core::discovery::ExternalTrainerSourceSubscription;
 use crosshook_core::settings::{
     clamp_recent_files_limit, resolve_profiles_directory_from_config, AppSettingsData,
     RecentFilesData, RecentFilesStore, RecentFilesStoreError, SettingsStore, SettingsStoreError,
@@ -43,14 +44,11 @@ pub struct AppSettingsIpcData {
     pub protontricks_binary_path: String,
     pub auto_install_prefix_deps: bool,
     pub discovery_enabled: bool,
+    pub external_trainer_sources: Vec<ExternalTrainerSourceSubscription>,
 }
 
 impl AppSettingsIpcData {
-    fn from_parts(
-        data: AppSettingsData,
-        resolved_profiles: &Path,
-        active_profiles: &Path,
-    ) -> Self {
+    fn from_parts(data: AppSettingsData, resolved_profiles: &Path, active_profiles: &Path) -> Self {
         let resolved_profiles_directory = resolved_profiles.display().to_string();
         let active_profiles_directory = active_profiles.display().to_string();
         let profiles_directory_requires_restart =
@@ -80,6 +78,7 @@ impl AppSettingsIpcData {
             protontricks_binary_path: data.protontricks_binary_path,
             auto_install_prefix_deps: data.auto_install_prefix_deps,
             discovery_enabled: data.discovery_enabled,
+            external_trainer_sources: data.external_trainer_sources,
         }
     }
 }
@@ -115,9 +114,13 @@ pub struct SettingsSaveRequest {
     pub protontricks_binary_path: String,
     pub auto_install_prefix_deps: bool,
     pub discovery_enabled: bool,
+    pub external_trainer_sources: Option<Vec<ExternalTrainerSourceSubscription>>,
 }
 
-fn merge_settings_from_request(data: SettingsSaveRequest, current: AppSettingsData) -> AppSettingsData {
+fn merge_settings_from_request(
+    data: SettingsSaveRequest,
+    current: AppSettingsData,
+) -> AppSettingsData {
     let recent_files_limit = clamp_recent_files_limit(data.recent_files_limit);
     let log_filter = data.log_filter.trim();
     let log_filter = if log_filter.is_empty() {
@@ -143,6 +146,11 @@ fn merge_settings_from_request(data: SettingsSaveRequest, current: AppSettingsDa
         protontricks_binary_path: data.protontricks_binary_path,
         auto_install_prefix_deps: data.auto_install_prefix_deps,
         discovery_enabled: data.discovery_enabled,
+        // Preserve current sources only when the field is omitted.
+        // An explicit empty list means "save no sources".
+        external_trainer_sources: data
+            .external_trainer_sources
+            .unwrap_or(current.external_trainer_sources),
     }
 }
 
@@ -219,20 +227,26 @@ mod tests {
 
     #[test]
     fn command_names_match_expected_ipc_contract() {
-        let _ = settings_load as fn(
-            State<'_, SettingsStore>,
-            State<'_, crosshook_core::profile::ProfileStore>,
-        ) -> Result<AppSettingsIpcData, String>;
-        let _ = settings_save as fn(SettingsSaveRequest, State<'_, SettingsStore>) -> Result<(), String>;
+        let _ = settings_load
+            as fn(
+                State<'_, SettingsStore>,
+                State<'_, crosshook_core::profile::ProfileStore>,
+            ) -> Result<AppSettingsIpcData, String>;
+        let _ = settings_save
+            as fn(SettingsSaveRequest, State<'_, SettingsStore>) -> Result<(), String>;
         let _ = settings_save_steamgriddb_key
             as fn(Option<String>, State<'_, SettingsStore>) -> Result<(), String>;
         let _ = recent_files_load
-            as fn(State<'_, SettingsStore>, State<'_, RecentFilesStore>) -> Result<RecentFilesData, String>;
-        let _ = recent_files_save as fn(
-            RecentFilesData,
-            State<'_, SettingsStore>,
-            State<'_, RecentFilesStore>,
-        ) -> Result<(), String>;
+            as fn(
+                State<'_, SettingsStore>,
+                State<'_, RecentFilesStore>,
+            ) -> Result<RecentFilesData, String>;
+        let _ = recent_files_save
+            as fn(
+                RecentFilesData,
+                State<'_, SettingsStore>,
+                State<'_, RecentFilesStore>,
+            ) -> Result<(), String>;
     }
 
     #[test]

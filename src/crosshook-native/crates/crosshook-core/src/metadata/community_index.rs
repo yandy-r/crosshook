@@ -564,7 +564,10 @@ mod tests {
         }
     }
 
-    fn make_manifest_with_entry(game_name: &str, entry: TrainerSourceEntry) -> TrainerSourcesManifest {
+    fn make_manifest_with_entry(
+        game_name: &str,
+        entry: TrainerSourceEntry,
+    ) -> TrainerSourcesManifest {
         TrainerSourcesManifest {
             schema_version: 1,
             game_name: game_name.to_string(),
@@ -690,11 +693,7 @@ mod tests {
         migrations::run_migrations(&conn).unwrap();
         let tap_id = insert_test_tap(&conn);
 
-        let entry = make_trainer_source_entry(
-            "Malicious Source",
-            "javascript:alert(1)",
-            None,
-        );
+        let entry = make_trainer_source_entry("Malicious Source", "javascript:alert(1)", None);
         let manifest = make_manifest_with_entry("Some Game", entry);
         let sources = vec![("sources/some-game".to_string(), manifest)];
 
@@ -738,11 +737,8 @@ mod tests {
         let tap_id = insert_test_tap(&conn);
 
         let oversized_game_name = "a".repeat(MAX_GAME_NAME_BYTES + 1);
-        let entry = make_trainer_source_entry(
-            "Valid Source",
-            "https://example.com/trainer.exe",
-            None,
-        );
+        let entry =
+            make_trainer_source_entry("Valid Source", "https://example.com/trainer.exe", None);
         let manifest = make_manifest_with_entry(&oversized_game_name, entry);
         let sources = vec![("sources/some-game".to_string(), manifest)];
 
@@ -758,11 +754,8 @@ mod tests {
         let tap_id = insert_test_tap(&conn);
 
         let oversized_name = "a".repeat(MAX_SOURCE_NAME_BYTES + 1);
-        let entry = make_trainer_source_entry(
-            &oversized_name,
-            "https://example.com/trainer.exe",
-            None,
-        );
+        let entry =
+            make_trainer_source_entry(&oversized_name, "https://example.com/trainer.exe", None);
         let manifest = make_manifest_with_entry("Some Game", entry);
         let sources = vec![("sources/some-game".to_string(), manifest)];
 
@@ -829,7 +822,10 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        assert_eq!(old_count, 0, "stale Elden Ring entry should have been deleted");
+        assert_eq!(
+            old_count, 0,
+            "stale Elden Ring entry should have been deleted"
+        );
 
         // New Cyberpunk entry must be present.
         let new_count: i64 = conn

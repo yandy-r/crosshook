@@ -774,7 +774,8 @@ pub fn get_profile_health(
             } else {
                 effective_profile.steam.compatdata_path.as_str()
             };
-            let dep_issues = build_dependency_health_issues(&dep_states, required_verbs, active_prefix);
+            let dep_issues =
+                build_dependency_health_issues(&dep_states, required_verbs, active_prefix);
             report.issues.extend(dep_issues);
         }
     }

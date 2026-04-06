@@ -157,9 +157,7 @@ pub fn derive_suggestions(
             let value = &env_var.value;
             let report_count = env_var.supporting_report_count.unwrap_or(1);
 
-            if let Some(catalog_entry_id) =
-                catalog_env_index.get(&(key.clone(), value.clone()))
-            {
+            if let Some(catalog_entry_id) = catalog_env_index.get(&(key.clone(), value.clone())) {
                 // Already seen this catalog entry — skip duplicates, keep highest count (first).
                 if seen_catalog_entry_ids.contains(catalog_entry_id) {
                     continue;
@@ -217,10 +215,8 @@ pub fn derive_suggestions(
         }
     }
 
-    catalog_suggestions
-        .sort_by(|a, b| b.supporting_report_count.cmp(&a.supporting_report_count));
-    env_var_suggestions
-        .sort_by(|a, b| b.supporting_report_count.cmp(&a.supporting_report_count));
+    catalog_suggestions.sort_by(|a, b| b.supporting_report_count.cmp(&a.supporting_report_count));
+    env_var_suggestions.sort_by(|a, b| b.supporting_report_count.cmp(&a.supporting_report_count));
     launch_option_suggestions
         .sort_by(|a, b| b.supporting_report_count.cmp(&a.supporting_report_count));
 

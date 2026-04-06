@@ -1,3 +1,7 @@
+import type { ExternalTrainerSourceSubscription } from './discovery';
+
+export type { ExternalTrainerSourceSubscription } from './discovery';
+
 export interface CommunityTapSubscription {
   url: string;
   branch?: string;
@@ -22,6 +26,7 @@ export interface SettingsSaveRequest {
   protontricks_binary_path: string;
   auto_install_prefix_deps: boolean;
   discovery_enabled: boolean;
+  external_trainer_sources?: ExternalTrainerSourceSubscription[];
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {
@@ -51,6 +56,7 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     protontricks_binary_path: s.protontricks_binary_path,
     auto_install_prefix_deps: s.auto_install_prefix_deps,
     discovery_enabled: s.discovery_enabled,
+    external_trainer_sources: s.external_trainer_sources,
   };
 }
 
@@ -75,6 +81,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   protontricks_binary_path: '',
   auto_install_prefix_deps: false,
   discovery_enabled: false,
+  external_trainer_sources: [],
 };
 
 export interface RecentFilesData {

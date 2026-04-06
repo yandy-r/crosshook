@@ -6,12 +6,13 @@ import {
   LaunchIcon,
   InstallIcon,
   BrowseIcon,
+  DiscoverIcon,
   CompatibilityIcon,
   SettingsIcon,
   HealthIcon,
 } from '../icons/SidebarIcons';
 
-export type AppRoute = 'library' | 'profiles' | 'launch' | 'install' | 'community' | 'compatibility' | 'settings' | 'health';
+export type AppRoute = 'library' | 'profiles' | 'launch' | 'install' | 'community' | 'discover' | 'compatibility' | 'settings' | 'health';
 
 export interface SidebarProps {
   activeRoute: AppRoute;
@@ -52,6 +53,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     label: 'Community',
     items: [
       { route: 'community', label: 'Browse', icon: BrowseIcon },
+      { route: 'discover', label: 'Discover', icon: DiscoverIcon },
       { route: 'compatibility', label: 'Compatibility', icon: CompatibilityIcon },
     ],
   },
@@ -63,6 +65,7 @@ const ROUTE_LABELS: Record<AppRoute, string> = {
   launch: 'Launch',
   install: 'Install Game',
   community: 'Browse',
+  discover: 'Discover',
   compatibility: 'Compatibility',
   settings: 'Settings',
   health: 'Health',

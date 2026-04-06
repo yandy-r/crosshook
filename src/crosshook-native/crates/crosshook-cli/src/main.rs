@@ -703,9 +703,8 @@ fn profile_store(profile_dir: Option<PathBuf>) -> Result<ProfileStore, CliError>
             let settings = settings_store
                 .load()
                 .map_err(|e| CliError::General(format!("settings load: {e}")))?;
-            ProfileStore::try_new_with_settings_data(&settings, &settings_store.base_path).map_err(
-                |e| CliError::General(format!("failed to initialize profile store: {e}")),
-            )
+            ProfileStore::try_new_with_settings_data(&settings, &settings_store.base_path)
+                .map_err(|e| CliError::General(format!("failed to initialize profile store: {e}")))
         }
     }
 }

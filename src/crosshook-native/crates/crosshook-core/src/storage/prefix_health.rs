@@ -91,7 +91,9 @@ pub struct ProfilePrefixReferences {
     pub profiles_load_failed: bool,
 }
 
-pub fn collect_profile_prefix_references(store: &ProfileStore) -> Result<ProfilePrefixReferences, String> {
+pub fn collect_profile_prefix_references(
+    store: &ProfileStore,
+) -> Result<ProfilePrefixReferences, String> {
     let names = store
         .list()
         .map_err(|error| format!("failed to list profiles for prefix scan: {error}"))?;
@@ -138,7 +140,8 @@ pub fn scan_prefix_storage(
         .unwrap_or(SystemTime::UNIX_EPOCH);
 
     let referenced_by_prefix = collect_referenced_profiles(references);
-    let discovered_prefixes = discover_candidate_prefixes(&referenced_by_prefix.keys().cloned().collect::<Vec<_>>());
+    let discovered_prefixes =
+        discover_candidate_prefixes(&referenced_by_prefix.keys().cloned().collect::<Vec<_>>());
 
     let mut all_prefixes = BTreeSet::new();
     all_prefixes.extend(referenced_by_prefix.keys().cloned());
@@ -159,7 +162,8 @@ pub fn scan_prefix_storage(
             .cloned()
             .unwrap_or_default();
         let is_crosshook_managed = has_crosshook_managed_marker(&prefix_path);
-        let is_orphan = !inventory_incomplete && referenced_profiles.is_empty() && is_crosshook_managed;
+        let is_orphan =
+            !inventory_incomplete && referenced_profiles.is_empty() && is_crosshook_managed;
         let total_bytes = dir_size_bytes(&prefix_path);
         let (staged_trainers_bytes, stale_staged_trainers) =
             staged_trainers_health(&prefix_path, stale_threshold);
@@ -224,7 +228,10 @@ pub fn cleanup_prefix_storage(
     result
 }
 
-pub fn check_low_disk_warning(prefix_path: &Path, threshold_mb: u64) -> Result<Option<LowDiskWarning>, String> {
+pub fn check_low_disk_warning(
+    prefix_path: &Path,
+    threshold_mb: u64,
+) -> Result<Option<LowDiskWarning>, String> {
     let resolved_prefix = resolve_wine_prefix_path(prefix_path);
     let statvfs_target = if resolved_prefix.exists() {
         resolved_prefix.clone()
@@ -239,9 +246,15 @@ pub fn check_low_disk_warning(prefix_path: &Path, threshold_mb: u64) -> Result<O
         }
     };
 
-    let stats = statvfs(&statvfs_target)
-        .map_err(|error| format!("failed to query disk usage for {}: {error}", resolved_prefix.display()))?;
-    let available_bytes = stats.fragment_size().saturating_mul(stats.blocks_available());
+    let stats = statvfs(&statvfs_target).map_err(|error| {
+        format!(
+            "failed to query disk usage for {}: {error}",
+            resolved_prefix.display()
+        )
+    })?;
+    let available_bytes = stats
+        .fragment_size()
+        .saturating_mul(stats.blocks_available());
     let threshold_bytes = threshold_mb.saturating_mul(1024 * 1024);
 
     if available_bytes >= threshold_bytes {
@@ -262,7 +275,9 @@ fn collect_referenced_profiles(references: &[PrefixReference]) -> BTreeMap<Strin
         if key.is_empty() {
             continue;
         }
-        map.entry(key).or_default().push(reference.profile_name.clone());
+        map.entry(key)
+            .or_default()
+            .push(reference.profile_name.clone());
     }
 
     for profile_names in map.values_mut() {
@@ -377,8 +392,12 @@ fn staged_trainers_health(
         let bytes = file_or_dir_size_bytes(&path);
         total_bytes = total_bytes.saturating_add(bytes);
 
-        let modified_at = fs::metadata(&path).ok().and_then(|meta| meta.modified().ok());
-        let is_stale = modified_at.map(|time| time <= stale_threshold).unwrap_or(false);
+        let modified_at = fs::metadata(&path)
+            .ok()
+            .and_then(|meta| meta.modified().ok());
+        let is_stale = modified_at
+            .map(|time| time <= stale_threshold)
+            .unwrap_or(false);
         if !is_stale {
             continue;
         }
@@ -604,4 +623,3 @@ fn system_time_to_rfc3339(time: SystemTime) -> String {
 fn has_crosshook_managed_marker(prefix_path: &Path) -> bool {
     prefix_path.join("drive_c/CrossHook").is_dir()
 }
-

@@ -22,10 +22,10 @@ use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file, Me
 use crosshook_core::offline::readiness::MIN_OFFLINE_READINESS_SCORE;
 use crosshook_core::profile::GamescopeConfig;
 use crosshook_core::profile::ProfileStore;
-use crosshook_core::storage::{check_low_disk_warning, DEFAULT_LOW_DISK_WARNING_MB};
 use crosshook_core::steam::discover_steam_root_candidates;
 use crosshook_core::steam::libraries::discover_steam_libraries;
 use crosshook_core::steam::manifest::parse_manifest_full;
+use crosshook_core::storage::{check_low_disk_warning, DEFAULT_LOW_DISK_WARNING_MB};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
@@ -87,7 +87,9 @@ fn is_process_running(exe_name: &str) -> bool {
         return false;
     }
 
-    let without_exe = name.strip_suffix(".exe").or_else(|| name.strip_suffix(".EXE"));
+    let without_exe = name
+        .strip_suffix(".exe")
+        .or_else(|| name.strip_suffix(".EXE"));
     let candidates: Vec<&str> = match without_exe {
         Some(stripped) => vec![name, stripped],
         None => vec![name],

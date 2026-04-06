@@ -9,9 +9,9 @@ pub mod preview;
 pub mod request;
 pub mod runtime_helpers;
 pub mod script_runner;
-pub mod trainer_hash;
 #[cfg(test)]
 pub(crate) mod test_support;
+pub mod trainer_hash;
 
 pub use catalog::{
     global_catalog, initialize_catalog, load_catalog, OptimizationCatalog, OptimizationEntry,

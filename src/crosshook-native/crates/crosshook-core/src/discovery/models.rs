@@ -1,3 +1,4 @@
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 /// Deserializes a `trainer-sources.json` manifest file from a community tap.
@@ -164,4 +165,89 @@ pub struct VersionMatchResult {
     pub installed_game_version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
+// External trainer source subscriptions (data-driven, stored in TOML settings)
+// ---------------------------------------------------------------------------
+
+fn default_true() -> bool {
+    true
+}
+
+/// A user-managed subscription to an external trainer discovery source.
+/// Stored in `settings.toml` under `[[external_trainer_sources]]`.
+/// Analogous to `CommunityTapSubscription` for community taps.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalTrainerSourceSubscription {
+    /// Stable machine identifier (e.g. `"fling"`). Used in cache keys and IPC.
+    pub source_id: String,
+    /// Human-readable display name (e.g. `"FLiNG"`). Shown in UI badges.
+    pub display_name: String,
+    /// Base URL for the search endpoint (e.g. `"https://flingtrainer.com/"`).
+    /// Must be HTTPS.
+    pub base_url: String,
+    /// Parser/protocol variant. Currently only `"wordpress_rss"`.
+    pub source_type: String,
+    /// Whether this source participates in searches.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+/// Known source types that have a parser implementation.
+const KNOWN_SOURCE_TYPES: &[&str] = &["wordpress_rss"];
+
+/// Returns the built-in FLiNG default source subscription.
+pub fn fling_default_source() -> ExternalTrainerSourceSubscription {
+    ExternalTrainerSourceSubscription {
+        source_id: "fling".to_string(),
+        display_name: "FLiNG".to_string(),
+        base_url: "https://flingtrainer.com/".to_string(),
+        source_type: "wordpress_rss".to_string(),
+        enabled: true,
+    }
+}
+
+/// Returns the default external trainer sources list (FLiNG only).
+pub fn default_external_trainer_sources() -> Vec<ExternalTrainerSourceSubscription> {
+    vec![fling_default_source()]
+}
+
+/// Validates an external source subscription before persisting.
+pub fn validate_external_source(source: &ExternalTrainerSourceSubscription) -> Result<(), String> {
+    if source.source_id.is_empty() {
+        return Err("source_id is required".to_string());
+    }
+    if source.source_id.len() > 64 {
+        return Err("source_id must be 64 characters or fewer".to_string());
+    }
+    if !source
+        .source_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(
+            "source_id must contain only alphanumeric characters, underscores, or hyphens"
+                .to_string(),
+        );
+    }
+    if source.display_name.trim().is_empty() {
+        return Err("display_name is required".to_string());
+    }
+    if source.display_name.len() > 128 {
+        return Err("display_name must be 128 characters or fewer".to_string());
+    }
+    let base_url = Url::parse(&source.base_url)
+        .map_err(|_| "base_url must be a valid HTTPS URL with a host".to_string())?;
+    if base_url.scheme() != "https" || base_url.host_str().is_none() {
+        return Err("base_url must be a valid HTTPS URL with a host".to_string());
+    }
+    if !KNOWN_SOURCE_TYPES.contains(&source.source_type.as_str()) {
+        return Err(format!(
+            "unknown source_type {:?}; known types: {:?}",
+            source.source_type, KNOWN_SOURCE_TYPES
+        ));
+    }
+    Ok(())
 }

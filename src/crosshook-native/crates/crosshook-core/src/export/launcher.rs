@@ -517,11 +517,7 @@ fi
     block
 }
 
-fn build_exec_line(
-    gamescope_enabled: bool,
-    network_isolation: bool,
-    target_path: &str,
-) -> String {
+fn build_exec_line(gamescope_enabled: bool, network_isolation: bool, target_path: &str) -> String {
     if !network_isolation {
         return if gamescope_enabled {
             format!("exec \"${{_GS_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n")
@@ -873,8 +869,7 @@ mod tests {
         assert!(script_content
             .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(script_content.contains("staged_trainer_windows_path=\"C:\\\\CrossHook\\\\StagedTrainers\\\\$trainer_base_name\\\\$trainer_file_name\""));
-        assert!(script_content
-            .contains(r#"exec "$PROTON" run "$staged_trainer_windows_path""#));
+        assert!(script_content.contains(r#"exec "$PROTON" run "$staged_trainer_windows_path""#));
 
         let desktop_content = fs::read_to_string(&result.desktop_entry_path).expect("desktop");
         assert!(desktop_content.contains("Name=Elden Ring Deluxe - Trainer"));
@@ -1125,8 +1120,7 @@ mod tests {
         assert!(content.contains("'-w' '800'"));
         assert!(content.contains("'-h' '400'"));
         assert!(content.contains("GAMESCOPE_WAYLAND_DISPLAY"));
-        assert!(content
-            .contains(r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$trainer_host_path""#));
+        assert!(content.contains(r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$trainer_host_path""#));
     }
 
     #[test]
@@ -1141,9 +1135,8 @@ mod tests {
         );
         let content = build_trainer_script_content(&request, "Test Game");
         assert!(content.contains("_GAMESCOPE_ARGS=("));
-        assert!(content.contains(
-            r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$staged_trainer_windows_path""#
-        ));
+        assert!(content
+            .contains(r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$staged_trainer_windows_path""#));
     }
 
     #[test]

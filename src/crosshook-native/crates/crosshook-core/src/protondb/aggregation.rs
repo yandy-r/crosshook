@@ -287,7 +287,9 @@ fn safe_env_var_suggestions(raw_launch: &str, source_label: &str) -> Vec<ProtonD
             continue;
         }
         if RESERVED_ENV_KEYS.contains(&normalized_key)
-            || BLOCKED_ENV_KEY_PREFIXES.iter().any(|p| normalized_key.starts_with(p))
+            || BLOCKED_ENV_KEY_PREFIXES
+                .iter()
+                .any(|p| normalized_key.starts_with(p))
         {
             continue;
         }

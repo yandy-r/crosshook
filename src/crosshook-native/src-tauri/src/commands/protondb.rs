@@ -2,8 +2,8 @@ use crosshook_core::launch::catalog::global_catalog;
 use crosshook_core::metadata::{ConfigRevisionSource, MetadataStore, SyncSource};
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::protondb::{
-    lookup_protondb, AcceptSuggestionRequest, AcceptSuggestionResult, ProtonDbLookupResult,
-    ProtonDbSuggestionSet, derive_suggestions, validate_env_suggestion,
+    derive_suggestions, lookup_protondb, validate_env_suggestion, AcceptSuggestionRequest,
+    AcceptSuggestionResult, ProtonDbLookupResult, ProtonDbSuggestionSet,
 };
 use tauri::State;
 
@@ -20,9 +20,7 @@ fn observe_suggestion_apply(
     profile_store: &ProfileStore,
     metadata_store: &MetadataStore,
 ) {
-    let profile_path = profile_store
-        .base_path
-        .join(format!("{profile_name}.toml"));
+    let profile_path = profile_store.base_path.join(format!("{profile_name}.toml"));
     if let Err(e) = metadata_store.observe_profile_write(
         profile_name,
         profile,
@@ -66,8 +64,12 @@ pub async fn protondb_get_suggestions(
 ) -> Result<ProtonDbSuggestionSet, String> {
     let metadata_store_inner = metadata_store.inner().clone();
 
-    let lookup_result =
-        lookup_protondb(&metadata_store_inner, &app_id, force_refresh.unwrap_or(false)).await;
+    let lookup_result = lookup_protondb(
+        &metadata_store_inner,
+        &app_id,
+        force_refresh.unwrap_or(false),
+    )
+    .await;
 
     let profile = profile_store
         .load(&profile_name)
@@ -241,7 +243,12 @@ pub fn protondb_dismiss_suggestion(
         })?;
 
     metadata_store
-        .dismiss_suggestion(&profile_id, &app_id, &suggestion_key, SUGGESTION_DISMISSAL_RETENTION_DAYS)
+        .dismiss_suggestion(
+            &profile_id,
+            &app_id,
+            &suggestion_key,
+            SUGGESTION_DISMISSAL_RETENTION_DAYS,
+        )
         .map_err(|e| e.to_string())?;
 
     Ok(())

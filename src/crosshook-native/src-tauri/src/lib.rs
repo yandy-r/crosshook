@@ -29,14 +29,12 @@ pub fn run() {
     let initial_settings: AppSettingsData = settings_store
         .load()
         .unwrap_or_else(|_| AppSettingsData::default());
-    let profile_store = ProfileStore::try_new_with_settings_data(
-        &initial_settings,
-        &settings_store.base_path,
-    )
-    .unwrap_or_else(|error| {
-        eprintln!("CrossHook: failed to initialize profile store: {error}");
-        std::process::exit(1);
-    });
+    let profile_store =
+        ProfileStore::try_new_with_settings_data(&initial_settings, &settings_store.base_path)
+            .unwrap_or_else(|error| {
+                eprintln!("CrossHook: failed to initialize profile store: {error}");
+                std::process::exit(1);
+            });
     let recent_files_store = RecentFilesStore::try_new().unwrap_or_else(|error| {
         eprintln!("CrossHook: failed to initialize recent files store: {error}");
         std::process::exit(1);
@@ -318,6 +316,9 @@ pub fn run() {
             commands::discovery::discovery_search_trainers,
             commands::discovery::discovery_search_external,
             commands::discovery::discovery_check_version_compatibility,
+            commands::discovery::discovery_list_external_sources,
+            commands::discovery::discovery_add_external_source,
+            commands::discovery::discovery_remove_external_source,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

@@ -294,14 +294,10 @@ pub fn profile_save(
 
     let is_new = !store.profile_exists(&name);
     if is_new {
-        let app_settings = settings_store
-            .load()
-            .map_err(|e| e.to_string())?;
+        let app_settings = settings_store.load().map_err(|e| e.to_string())?;
         apply_profile_creation_defaults_from_settings(&mut data, &app_settings);
 
-        let pid = app_settings
-            .default_bundled_optimization_preset_id
-            .trim();
+        let pid = app_settings.default_bundled_optimization_preset_id.trim();
         if !pid.is_empty() && metadata_store.is_available() {
             match metadata_store.get_bundled_optimization_preset(pid) {
                 Ok(Some(row)) => {
