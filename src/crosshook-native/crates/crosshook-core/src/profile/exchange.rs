@@ -3,6 +3,7 @@ use super::community_schema::{
     COMMUNITY_PROFILE_SCHEMA_VERSION,
 };
 use crate::metadata::hash_trainer_file;
+use crate::offline::normalize_sha256_hex;
 use crate::profile::{GameProfile, ProfileStore, ProfileStoreError};
 use crate::steam::proton::resolve_proton_path;
 use crate::steam::{
@@ -372,7 +373,7 @@ fn build_metadata(profile: &GameProfile) -> CommunityProfileMetadata {
         if c.is_empty() {
             None
         } else {
-            Some(c.to_string())
+            normalize_sha256_hex(c)
         }
     });
 

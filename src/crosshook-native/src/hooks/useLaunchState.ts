@@ -387,7 +387,23 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     setTrainerHashUpdateBusy(true);
     try {
       await invoke<HashVerifyResult>('verify_trainer_hash', { name: profileName });
-      setLaunchPathWarnings((prev) => prev.filter((i) => i.code !== 'trainer_hash_mismatch'));
+      setLaunchPathWarnings((prev) =>
+        prev.filter((i) => i.code !== 'trainer_hash_mismatch' && i.code !== 'trainer_hash_verify_failed')
+      );
+    } catch (error) {
+      const message = normalizeRuntimeError(error);
+      setLaunchPathWarnings((prev) => {
+        const rest = prev.filter((i) => i.code !== 'trainer_hash_verify_failed');
+        return [
+          ...rest,
+          {
+            message: `Could not update stored trainer hash: ${message}`,
+            help: 'Check that the trainer file exists, the profile is saved, and try again.',
+            severity: 'warning' as const,
+            code: 'trainer_hash_verify_failed',
+          },
+        ];
+      });
     } finally {
       setTrainerHashUpdateBusy(false);
     }
