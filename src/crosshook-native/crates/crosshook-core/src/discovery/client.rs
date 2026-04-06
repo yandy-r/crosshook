@@ -398,7 +398,7 @@ fn parse_rss_items(xml: &str) -> Result<Vec<RssItem>, DiscoveryError> {
                 }
             }
             Ok(Event::Text(ref e)) if in_item => {
-                let text = e.unescape().unwrap_or_default().to_string();
+                let text = e.decode().unwrap_or_default().to_string();
                 match current_tag.as_str() {
                     "title" => title.push_str(&text),
                     "link" => link.push_str(&text),
