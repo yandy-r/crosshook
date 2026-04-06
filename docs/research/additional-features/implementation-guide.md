@@ -369,8 +369,8 @@ Phase 6 (Polish) ── pick based on demand ───────────�
 | Phase 3: Profiles      | 7      | Done    | 2-3 weeks       | ~6 weeks   |
 | Phase 4: Version Intel | 3      | Done    | 2-3 weeks       | ~9 weeks   |
 | Phase 5: CLI           | 2      | Done    | 1-2 weeks       | ~11 weeks  |
-| Phase 6: Polish        | 17     | Done    | Pick & choose   | Ongoing    |
-| Phase 7: Future        | 11     | Partial | Not scheduled   | Backlog    |
+| Phase 6: Polish        | 17     | Done    | Pick & choose   | ~12 weeks  |
+| Phase 7: Future        | 11     | Partial | 0-1 weeks       | ~12 weeks  |
 
 ---
 
