@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use chrono::{Duration as ChronoDuration, Utc};
 use rusqlite::{params, OptionalExtension};
+use tokio::task::JoinSet;
 
 use super::matching;
 use super::models::{
@@ -21,6 +22,7 @@ use crate::metadata::{MetadataStore, MetadataStoreError};
 
 const CACHE_TTL_HOURS: i64 = 1;
 const REQUEST_TIMEOUT_SECS: u64 = 10;
+const MAX_SOURCE_CONCURRENCY: usize = 4;
 const CACHE_NAMESPACE: &str = "trainer:source:v1";
 const MAX_CACHED_ITEMS: usize = 50;
 const MAX_RESPONSE_BYTES: usize = 1_048_576; // 1 MB
@@ -65,13 +67,9 @@ fn cache_key_for_source_query(source_id: &str, game_name: &str) -> String {
 }
 
 /// Builds a WordPress search RSS URL from a source's base URL and query.
-fn wordpress_rss_search_url(
-    base_url: &str,
-    game_name: &str,
-) -> Result<String, DiscoveryError> {
-    let mut url = reqwest::Url::parse(base_url).map_err(|e| {
-        DiscoveryError::ParseError(format!("invalid base_url {base_url:?}: {e}"))
-    })?;
+fn wordpress_rss_search_url(base_url: &str, game_name: &str) -> Result<String, DiscoveryError> {
+    let mut url = reqwest::Url::parse(base_url)
+        .map_err(|e| DiscoveryError::ParseError(format!("invalid base_url {base_url:?}: {e}")))?;
     url.query_pairs_mut()
         .append_pair("s", game_name.trim())
         .append_pair("feed", "rss2");
@@ -97,7 +95,8 @@ fn http_client() -> Result<&'static reqwest::Client, DiscoveryError> {
 
 /// Searches all enabled external sources for trainers matching the query.
 ///
-/// Each source is searched sequentially through a 3-stage cache-first flow.
+/// Each source runs the 3-stage cache-first flow in parallel, up to a bounded
+/// concurrency limit.
 /// Results from all sources are merged and sorted by relevance.
 pub async fn search_external_trainers(
     metadata_store: &MetadataStore,
@@ -116,8 +115,8 @@ pub async fn search_external_trainers(
         };
     }
 
-    let enabled: Vec<&ExternalTrainerSourceSubscription> =
-        sources.iter().filter(|s| s.enabled).collect();
+    let enabled: Vec<ExternalTrainerSourceSubscription> =
+        sources.iter().filter(|s| s.enabled).cloned().collect();
 
     if enabled.is_empty() {
         return ExternalTrainerSearchResponse {
@@ -138,8 +137,55 @@ pub async fn search_external_trainers(
     let mut any_stale = false;
     let mut first_cache_age: Option<i64> = None;
 
-    for source in &enabled {
-        let response = fetch_source(metadata_store, source, game_name, force_refresh).await;
+    let mut join_set: JoinSet<ExternalTrainerSearchResponse> = JoinSet::new();
+    let mut in_flight = 0usize;
+    let game_name_owned = game_name.to_string();
+
+    for source in enabled.iter().cloned() {
+        while in_flight >= MAX_SOURCE_CONCURRENCY {
+            if let Some(joined) = join_set.join_next().await {
+                in_flight -= 1;
+                let response = match joined {
+                    Ok(response) => response,
+                    Err(error) => {
+                        tracing::warn!(%error, "source search task failed");
+                        continue;
+                    }
+                };
+                if response.offline {
+                    any_offline = true;
+                } else {
+                    all_offline = false;
+                }
+                if response.cached {
+                    any_cached = true;
+                    if first_cache_age.is_none() {
+                        first_cache_age = response.cache_age_secs;
+                    }
+                }
+                if response.is_stale {
+                    any_stale = true;
+                }
+                all_results.extend(response.results);
+            }
+        }
+
+        let metadata_store = metadata_store.clone();
+        let game_name = game_name_owned.clone();
+        join_set.spawn(async move {
+            fetch_source(&metadata_store, &source, &game_name, force_refresh).await
+        });
+        in_flight += 1;
+    }
+
+    while let Some(joined) = join_set.join_next().await {
+        let response = match joined {
+            Ok(response) => response,
+            Err(error) => {
+                tracing::warn!(%error, "source search task failed");
+                continue;
+            }
+        };
         if response.offline {
             any_offline = true;
         } else {
@@ -161,6 +207,9 @@ pub async fn search_external_trainers(
         b.relevance_score
             .partial_cmp(&a.relevance_score)
             .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.source.cmp(&b.source))
+            .then_with(|| a.game_name.cmp(&b.game_name))
+            .then_with(|| a.source_url.cmp(&b.source_url))
     });
 
     let source_label = if enabled.len() == 1 {
@@ -221,8 +270,7 @@ async fn fetch_source(
 
             // Stage 3: Stale fallback.
             if let Some(stale) = load_cached_rss_row(metadata_store, &key, true) {
-                if let Some(response) = build_response_from_cache(&stale, source, game_name, true)
-                {
+                if let Some(response) = build_response_from_cache(&stale, source, game_name, true) {
                     return response;
                 }
             }

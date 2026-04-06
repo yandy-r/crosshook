@@ -4,6 +4,7 @@ use directories::BaseDirs;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use crate::community::CommunityTapSubscription;
 use crate::discovery::models::{
@@ -124,6 +125,7 @@ fn expand_path_with_tilde(raw: &str) -> Result<PathBuf, String> {
 #[derive(Debug, Clone)]
 pub struct SettingsStore {
     pub base_path: PathBuf,
+    io_lock: Arc<Mutex<()>>,
 }
 
 #[derive(Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -284,7 +286,10 @@ impl SettingsStore {
             .ok_or("home directory not found — CrossHook requires a user home directory")?
             .config_dir()
             .join("crosshook");
-        Ok(Self { base_path })
+        Ok(Self {
+            base_path,
+            io_lock: Arc::new(Mutex::new(())),
+        })
     }
 
     pub fn new() -> Self {
@@ -292,35 +297,78 @@ impl SettingsStore {
     }
 
     pub fn with_base_path(base_path: PathBuf) -> Self {
-        Self { base_path }
+        Self {
+            base_path,
+            io_lock: Arc::new(Mutex::new(())),
+        }
     }
 
-    pub fn load(&self) -> Result<AppSettingsData, SettingsStoreError> {
-        fs::create_dir_all(&self.base_path)?;
-
+    fn load_unlocked(&self) -> Result<AppSettingsData, SettingsStoreError> {
         let path = self.settings_path();
         if !path.exists() {
             return Ok(AppSettingsData::default());
         }
 
         let content = fs::read_to_string(&path)?;
-        let settings: AppSettingsData = toml::from_str(&content)?;
+        toml::from_str(&content).map_err(Into::into)
+    }
 
-        // Backfill: if the TOML is missing new fields, serde fills defaults
-        // in memory. Write the complete struct back so users can see and edit
-        // all fields (e.g. external_trainer_sources added after first install).
-        let reserialized = toml::to_string_pretty(&settings)?;
-        if reserialized != content {
-            let _ = fs::write(&path, &reserialized);
-        }
+    fn save_unlocked(&self, settings: &AppSettingsData) -> Result<(), SettingsStoreError> {
+        fs::write(self.settings_path(), toml::to_string_pretty(settings)?)?;
+        Ok(())
+    }
 
-        Ok(settings)
+    pub fn load(&self) -> Result<AppSettingsData, SettingsStoreError> {
+        let _guard = self.io_lock.lock().expect("settings mutex poisoned");
+        fs::create_dir_all(&self.base_path)?;
+        self.load_unlocked()
     }
 
     pub fn save(&self, settings: &AppSettingsData) -> Result<(), SettingsStoreError> {
+        let _guard = self.io_lock.lock().expect("settings mutex poisoned");
         fs::create_dir_all(&self.base_path)?;
-        fs::write(self.settings_path(), toml::to_string_pretty(settings)?)?;
-        Ok(())
+        self.save_unlocked(settings)
+    }
+
+    /// Explicitly writes normalized settings to disk for callers that opt-in
+    /// to backfilling newly added fields. Returns true if the file changed.
+    pub fn migrate_or_save_settings(
+        &self,
+        settings: &AppSettingsData,
+    ) -> Result<bool, SettingsStoreError> {
+        let _guard = self.io_lock.lock().expect("settings mutex poisoned");
+        fs::create_dir_all(&self.base_path)?;
+
+        let path = self.settings_path();
+        let serialized = toml::to_string_pretty(settings)?;
+        let should_write = match fs::read_to_string(&path) {
+            Ok(content) => content != serialized,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+            Err(error) => return Err(SettingsStoreError::Io(error)),
+        };
+
+        if should_write {
+            fs::write(path, serialized)?;
+        }
+
+        Ok(should_write)
+    }
+
+    /// Atomically load-mutate-save settings under a single process-local lock.
+    /// The file is only written if `mutator` returns `Ok(_)`.
+    pub fn update<F, T, E>(&self, mutator: F) -> Result<Result<T, E>, SettingsStoreError>
+    where
+        F: FnOnce(&mut AppSettingsData) -> Result<T, E>,
+    {
+        let _guard = self.io_lock.lock().expect("settings mutex poisoned");
+        fs::create_dir_all(&self.base_path)?;
+
+        let mut settings = self.load_unlocked()?;
+        let result = mutator(&mut settings);
+        if result.is_ok() {
+            self.save_unlocked(&settings)?;
+        }
+        Ok(result)
     }
 
     pub fn settings_path(&self) -> PathBuf {

@@ -1,15 +1,11 @@
+import type { ExternalTrainerSourceSubscription } from './discovery';
+
+export type { ExternalTrainerSourceSubscription } from './discovery';
+
 export interface CommunityTapSubscription {
   url: string;
   branch?: string;
   pinned_commit?: string;
-}
-
-export interface ExternalTrainerSourceSubscription {
-  sourceId: string;
-  displayName: string;
-  baseUrl: string;
-  sourceType: string;
-  enabled: boolean;
 }
 
 /** Payload for `settings_save` (matches Rust `SettingsSaveRequest`). */
@@ -30,7 +26,7 @@ export interface SettingsSaveRequest {
   protontricks_binary_path: string;
   auto_install_prefix_deps: boolean;
   discovery_enabled: boolean;
-  external_trainer_sources: ExternalTrainerSourceSubscription[];
+  external_trainer_sources?: ExternalTrainerSourceSubscription[];
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {

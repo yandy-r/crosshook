@@ -1,3 +1,4 @@
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 /// Deserializes a `trainer-sources.json` manifest file from a community tap.
@@ -214,9 +215,7 @@ pub fn default_external_trainer_sources() -> Vec<ExternalTrainerSourceSubscripti
 }
 
 /// Validates an external source subscription before persisting.
-pub fn validate_external_source(
-    source: &ExternalTrainerSourceSubscription,
-) -> Result<(), String> {
+pub fn validate_external_source(source: &ExternalTrainerSourceSubscription) -> Result<(), String> {
     if source.source_id.is_empty() {
         return Err("source_id is required".to_string());
     }
@@ -239,8 +238,10 @@ pub fn validate_external_source(
     if source.display_name.len() > 128 {
         return Err("display_name must be 128 characters or fewer".to_string());
     }
-    if !source.base_url.starts_with("https://") {
-        return Err("base_url must use HTTPS".to_string());
+    let base_url = Url::parse(&source.base_url)
+        .map_err(|_| "base_url must be a valid HTTPS URL with a host".to_string())?;
+    if base_url.scheme() != "https" || base_url.host_str().is_none() {
+        return Err("base_url must be a valid HTTPS URL with a host".to_string());
     }
     if !KNOWN_SOURCE_TYPES.contains(&source.source_type.as_str()) {
         return Err(format!(

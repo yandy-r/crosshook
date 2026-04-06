@@ -83,12 +83,16 @@ export function useExternalTrainerSearch(
   );
 
   // Auto-fire with debounce when gameName changes.
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>();
-
-  useEffect(() => {
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearDebounceTimer = useCallback(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
+  }, []);
+
+  useEffect(() => {
+    clearDebounceTimer();
 
     const trimmed = gameName.trim();
     if (!trimmed) {
@@ -101,21 +105,21 @@ export function useExternalTrainerSearch(
 
     // Longer debounce than local search (600ms) since this hits the network.
     debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
       void fetchResults(false);
     }, 600);
 
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+      clearDebounceTimer();
     };
-  }, [gameName, fetchResults]);
+  }, [gameName, fetchResults, clearDebounceTimer]);
 
   const search = useCallback(
     async (forceRefresh = false): Promise<void> => {
+      clearDebounceTimer();
       await fetchResults(forceRefresh);
     },
-    [fetchResults],
+    [fetchResults, clearDebounceTimer],
   );
 
   return { data, loading, error, search };
