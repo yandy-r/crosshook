@@ -480,10 +480,15 @@ fn validate_branch_name(branch: &str) -> Result<(), CommunityTapError> {
 /// - `https://...`
 /// - `ssh://git@...`
 /// - SCP-style `git@host:path` (the default SSH clone URL on GitHub/GitLab)
+/// - Bare absolute paths (`/home/…`) for local development taps
 ///
-/// Rejects `file://`, `git://`, bare paths, and any other scheme not explicitly permitted.
+/// Rejects `file://`, `git://`, relative paths, and any other scheme not explicitly permitted.
 fn validate_tap_url(url: &str) -> Result<(), CommunityTapError> {
-    if url.starts_with("https://") || url.starts_with("ssh://git@") || url.starts_with("git@") {
+    if url.starts_with("https://")
+        || url.starts_with("ssh://git@")
+        || url.starts_with("git@")
+        || url.starts_with('/')
+    {
         Ok(())
     } else {
         Err(CommunityTapError::InvalidTapUrl(url.to_string()))
@@ -947,9 +952,15 @@ mod tests {
     }
 
     #[test]
-    fn validate_tap_url_rejects_bare_paths() {
+    fn validate_tap_url_accepts_absolute_paths() {
+        assert!(validate_tap_url("/tmp/local-repo").is_ok());
+        assert!(validate_tap_url("/home/user/crosshook-test-tap").is_ok());
+    }
+
+    #[test]
+    fn validate_tap_url_rejects_relative_paths() {
         assert!(matches!(
-            validate_tap_url("/tmp/local-repo"),
+            validate_tap_url("../relative-repo"),
             Err(CommunityTapError::InvalidTapUrl(_))
         ));
     }
