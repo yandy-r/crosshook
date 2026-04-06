@@ -112,10 +112,12 @@ export function applyProtonDbGroupToProfile(
     const value = customEnvVars[key];
     if (value === undefined) continue;
     const entryId = catalogIndex.get(`${key}=${value}`);
-    if (entryId && !enabledOptionIds.includes(entryId)) {
-      enabledOptionIds.push(entryId);
-      toggledOptionIds.push(entryId);
-      delete customEnvVars[key]; // Catalog-matched: remove from custom_env_vars
+    if (entryId) {
+      delete customEnvVars[key]; // Catalog-matched: always remove from custom_env_vars
+      if (!enabledOptionIds.includes(entryId)) {
+        enabledOptionIds.push(entryId);
+        toggledOptionIds.push(entryId);
+      }
     }
   }
 

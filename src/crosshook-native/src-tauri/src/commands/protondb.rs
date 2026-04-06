@@ -9,6 +9,43 @@ use tauri::State;
 
 use super::profile::capture_config_revision;
 
+/// Number of days a dismissed suggestion is retained before automatic eviction.
+const SUGGESTION_DISMISSAL_RETENTION_DAYS: u32 = 30;
+
+/// Observes a profile write for metadata sync and captures a config revision after
+/// a ProtonDB suggestion is applied. Shared by both Catalog and EnvVar accept branches.
+fn observe_suggestion_apply(
+    profile_name: &str,
+    profile: &crosshook_core::profile::GameProfile,
+    profile_store: &ProfileStore,
+    metadata_store: &MetadataStore,
+) {
+    let profile_path = profile_store
+        .base_path
+        .join(format!("{profile_name}.toml"));
+    if let Err(e) = metadata_store.observe_profile_write(
+        profile_name,
+        profile,
+        &profile_path,
+        SyncSource::AppWrite,
+        None,
+    ) {
+        tracing::warn!(
+            %e,
+            profile_name = %profile_name,
+            "metadata sync after protondb_accept_suggestion failed"
+        );
+    }
+
+    capture_config_revision(
+        profile_name,
+        profile,
+        ConfigRevisionSource::ProtonDbSuggestionApply,
+        None,
+        metadata_store,
+    );
+}
+
 #[tauri::command]
 pub async fn protondb_lookup(
     app_id: String,
@@ -120,30 +157,7 @@ pub fn protondb_accept_suggestion(
                 .save(&profile_name, &profile)
                 .map_err(|e| e.to_string())?;
 
-            let profile_path = profile_store
-                .base_path
-                .join(format!("{profile_name}.toml"));
-            if let Err(e) = metadata_store.observe_profile_write(
-                &profile_name,
-                &profile,
-                &profile_path,
-                SyncSource::AppWrite,
-                None,
-            ) {
-                tracing::warn!(
-                    %e,
-                    profile_name = %profile_name,
-                    "metadata sync after protondb_accept_suggestion (catalog) failed"
-                );
-            }
-
-            capture_config_revision(
-                &profile_name,
-                &profile,
-                ConfigRevisionSource::ProtonDbSuggestionApply,
-                None,
-                &metadata_store,
-            );
+            observe_suggestion_apply(&profile_name, &profile, &profile_store, &metadata_store);
 
             let applied_keys: Vec<String> = entry.env.iter().map(|p| p[0].clone()).collect();
             let toggled_option_ids = if already_present {
@@ -189,30 +203,7 @@ pub fn protondb_accept_suggestion(
                 .save(&profile_name, &profile)
                 .map_err(|e| e.to_string())?;
 
-            let profile_path = profile_store
-                .base_path
-                .join(format!("{profile_name}.toml"));
-            if let Err(e) = metadata_store.observe_profile_write(
-                &profile_name,
-                &profile,
-                &profile_path,
-                SyncSource::AppWrite,
-                None,
-            ) {
-                tracing::warn!(
-                    %e,
-                    profile_name = %profile_name,
-                    "metadata sync after protondb_accept_suggestion (env_var) failed"
-                );
-            }
-
-            capture_config_revision(
-                &profile_name,
-                &profile,
-                ConfigRevisionSource::ProtonDbSuggestionApply,
-                None,
-                &metadata_store,
-            );
+            observe_suggestion_apply(&profile_name, &profile, &profile_store, &metadata_store);
 
             Ok(AcceptSuggestionResult {
                 updated_profile: profile,
@@ -250,7 +241,7 @@ pub fn protondb_dismiss_suggestion(
         })?;
 
     metadata_store
-        .dismiss_suggestion(&profile_id, &app_id, &suggestion_key, 30)
+        .dismiss_suggestion(&profile_id, &app_id, &suggestion_key, SUGGESTION_DISMISSAL_RETENTION_DAYS)
         .map_err(|e| e.to_string())?;
 
     Ok(())

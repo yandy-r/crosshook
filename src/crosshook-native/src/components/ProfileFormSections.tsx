@@ -383,7 +383,8 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
   const suggestions = useProtonDbSuggestions(resolvedAppId, profileName);
 
   const handleAcceptSuggestion = async (request: AcceptSuggestionRequest): Promise<void> => {
-    await suggestions.acceptSuggestion(request);
+    const result = await suggestions.acceptSuggestion(request);
+    onUpdateProfile(() => result.updatedProfile);
   };
 
   const profiles = profileSelector?.profiles;

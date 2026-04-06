@@ -91,7 +91,9 @@ export function useProtonDbSuggestions(
 
   const dismissSuggestion = useCallback(
     (suggestionKey: string): void => {
-      invoke('protondb_dismiss_suggestion', { profileName, appId, suggestionKey }).catch(() => {});
+      invoke('protondb_dismiss_suggestion', { profileName, appId, suggestionKey }).catch((err) => {
+        console.warn('[protondb] dismiss failed', { profileName, appId, suggestionKey }, err);
+      });
 
       setSuggestionSet((prev) => {
         if (!prev) return prev;

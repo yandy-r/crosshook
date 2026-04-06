@@ -171,7 +171,7 @@ pub fn derive_suggestions(
                     None => continue,
                 };
 
-                let status = if dismissed_keys.contains(key) {
+                let status = if dismissed_keys.contains(catalog_entry_id) {
                     SuggestionStatus::Dismissed
                 } else if enabled_option_ids.contains(catalog_entry_id) {
                     SuggestionStatus::AlreadyApplied

@@ -69,8 +69,11 @@ impl MetadataStore {
                     action: "query dismissed keys",
                     source,
                 })?
-                .filter_map(|r| r.ok())
-                .collect();
+                .collect::<Result<HashSet<String>, _>>()
+                .map_err(|source| MetadataStoreError::Database {
+                    action: "decode dismissed key row",
+                    source,
+                })?;
 
             Ok(keys)
         })
