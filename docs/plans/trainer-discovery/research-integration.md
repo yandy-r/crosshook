@@ -1,193 +1,407 @@
-# Trainer Discovery: Integration Research
+# Integration Research: Trainer Discovery Phase B
 
 ## Overview
 
-This document captures the actual integration points in the CrossHook codebase relevant to implementing
-trainer-discovery. SQLite **`PRAGMA user_version`** is advanced by `metadata::run_migrations()` in `migrations.rs` and **ends at 17 in-tree today** (successive `if version < N` blocks through `N = 17`). Trainer-discovery adds **`migrate_17_to_18`** for **`trainer_sources`** per `feature-spec.md` (Option B). _Note:_ `AGENTS.md` “Current schema version: 13” describes the documented table-inventory snapshot, not `user_version` — **use `migrations.rs` for migration numbering.** Trainer SHA-256 verification (#156) and ProtonDB suggestions (#155) remain reference patterns.
+Phase A is fully implemented: `trainer_sources` table (schema v18), `discovery_search_trainers` sync IPC command, `useTrainerDiscovery` hook, and `TrainerDiscoveryPanel`. Phase B adds FLiNG RSS HTTP fetch, `external_cache_entries` caching, PCGamingWiki name normalization, async `discovery_search_external` IPC command, `useExternalTrainerSearch` hook, and progressive loading in the panel. All infrastructure (reqwest, SQLite cache, OnceLock HTTP client singleton, async Tauri command pattern) is already present — Phase B adds a new client module and frontend hook following existing patterns exactly.
 
 ---
 
-## Relevant Files
+## External APIs
 
-### Tauri IPC Layer
+### FLiNG RSS Feed
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/lib.rs` — App setup, all `State<>` managed stores registered here, `invoke_handler!` macro registers all IPC commands
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/mod.rs` — Module declarations for all command files
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/community.rs` — Community tap commands: `community_sync`, `community_list_indexed_profiles`, `community_import_profile`, etc.
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/protondb.rs` — ProtonDB commands: `protondb_lookup`, `protondb_get_suggestions`, `protondb_accept_suggestion`, `protondb_dismiss_suggestion` (template for async external API commands)
+- **URL**: `https://flingtrainer.com/category/trainer/feed/`
+- **Format**: WordPress RSS 2.0 — standard `application/rss+xml` response
+- **Direct HTTP access**: Returns 403 when fetched without a real browser user-agent. Must use a proper `User-Agent` header (e.g. `CrossHook/{version}`) — the existing ProtonDB client already sets this via `reqwest::Client::builder().user_agent(...)`.
+- **XML structure** (standard WordPress RSS 2.0):
 
-### Database Schema and Migrations
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>FLiNG Trainer - PC Game Cheats and Mods</title>
+    <link>https://flingtrainer.com</link>
+    <description>...</description>
+    <item>
+      <title>Elden Ring Trainer</title>
+      <link>https://flingtrainer.com/trainer/elden-ring-trainer/</link>
+      <pubDate>Sat, 04 Apr 2026 00:00:00 +0000</pubDate>
+      <description><![CDATA[Short summary...]]></description>
+      <content:encoded><![CDATA[Full HTML content...]]></content:encoded>
+      <dc:creator>FLiNG</dc:creator>
+      <guid isPermaLink="true">https://flingtrainer.com/trainer/elden-ring-trainer/</guid>
+      <category>Trainer</category>
+    </item>
+  </channel>
+</rss>
+```
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs` — `run_migrations()`; **`user_version` 17** after the last in-tree guard; trainer-discovery extends with **v18** (`trainer_sources`)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs` — `MetadataStore` struct, `with_sqlite_conn()` helper, all public store methods
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/models.rs` — All model types: `CommunityProfileRow`, `VersionSnapshotRow`, `MetadataStoreError`, `MAX_CACHE_PAYLOAD_BYTES` (512 KiB)
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs` — `index_community_tap_result()`, `list_community_tap_profiles()`; A6 field length validation constants
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/cache_store.rs` — `get_cache_entry()`, `put_cache_entry()`, `evict_expired_cache_entries()` — the cache pattern
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/version_store.rs` — `upsert_version_snapshot()`, `lookup_latest_version_snapshot()`, `compute_correlation_status()`
+- **Key fields per item**:
+  - `<title>` — Game name + " Trainer" suffix (strip suffix to get normalized game name)
+  - `<link>` — Trainer page URL (this is what CrossHook links to — not a direct download)
+  - `<pubDate>` — RFC 822 date string; parse with `chrono` for recency scoring
+  - `<description>` / `<content:encoded>` — HTML content; skip for Phase B (don't parse HTML)
+  - `<guid>` — Same as `<link>` on this site; use as dedup key
+- **Rate limit**: Self-imposed ≥10s between requests. The feed is cached for 1h TTL (see Cache Settings below), so rate limiting is handled implicitly — only one live fetch per cache window.
+- **Parsing approach**: Use `quick-xml` crate (already available via transitive deps in `reqwest`) **or** add `quick-xml = "0.36"` to `crosshook-core/Cargo.toml`. No `scraper` crate needed — HTML body parsing is out of scope for Phase B.
+- **Result shape**: Each RSS item maps to an `ExternalTrainerResult` — `game_name` (stripped title), `source_name: "FLiNG"`, `source_url` (item link), `pub_date` (parsed or raw string), `source: "fling_rss"`.
+- **CrossHook policy**: Links to trainer PAGES only. Never links to direct download URLs. The RSS `<link>` field is exactly the trainer page — this is what `TrainerResultCard` should open via `shellOpen()`.
 
-### External Service Integration (ProtonDB Pattern)
+### PCGamingWiki Cargo API
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/client.rs` — Complete reference for: `OnceLock` HTTP client singleton, cache → live → stale-fallback pattern, `load_cached_lookup_row()`, `persist_lookup_result()`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/mod.rs` — Re-exports for the protondb module
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/steam_metadata/client.rs` — `lookup_steam_metadata()` with same pattern as ProtonDB
+- **URL pattern**: `https://www.pcgamingwiki.com/w/api.php?action=cargoquery&tables=Infobox_game&fields=Infobox_game.pageName%3Dpage_name%2CInfobox_game.Steam_AppID%3Dsteam_appid&where=Infobox_game.Steam_AppID+HOLDS+%22{appid}%22&format=json&limit=1`
+  - Note: `_pageName` is invalid (underscore prefix rejected). Use `Infobox_game.pageName` aliased as `page_name`.
+- **Use case**: Cross-reference only. Given a Steam App ID, resolve the canonical game title for fuzzy-matching against FLiNG RSS titles. NOT a trainer source.
+- **Response structure** (successful query):
 
-### File System Operations (Steam/Manifest)
+```json
+{
+  "cargoquery": [
+    {
+      "title": {
+        "page_name": "Terraria",
+        "steam_appid": "105600"
+      }
+    }
+  ]
+}
+```
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/steam/manifest.rs` — `parse_manifest_full()`, `find_game_match()`, `compatdata_path_for_match()`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/steam/libraries.rs` — `find_steam_libraries()` — locates all Steam library paths
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/steam/vdf.rs` — `parse_vdf()` — hand-rolled VDF/KeyValue parser
-
-### Security / Hash Verification
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/offline/hash.rs` — `verify_and_cache_trainer_hash()`, `normalize_sha256_hex()` (must be 64 hex chars), `trainer_hash_launch_check()`, `TrainerHashLaunchOutcome`
-
-### Community Profile Schema
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/profile/community_schema.rs` — `CommunityProfileManifest`, `CommunityProfileMetadata`, `CompatibilityRating`, `COMMUNITY_PROFILE_SCHEMA_VERSION = 1`
-
-### Frontend Hooks (Templates)
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useProtonDbSuggestions.ts` — Request-ID cancellation pattern (`requestIdRef.current`) for stale request protection
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useCommunityProfiles.ts` — Community profile data hook
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/types/` — Directory of all TypeScript type definitions; discovery types file goes here
+- **Response on no match**: `{"cargoquery": []}` — empty array.
+- **Error response**: JSON with `"error"` key (e.g., invalid field alias returns `cargoquery-invalidfieldalias`).
+- **Cache key**: `trainer:pcgw:game:{steam_app_id}` — cache for 24h (game titles rarely change).
+- **Phase B scope**: Optional enrichment path. If the FLiNG RSS title does not fuzzy-match the profile's game name directly, query PCGamingWiki with the profile's Steam App ID to get the canonical title, then retry the fuzzy match. Skip if PCGamingWiki is unavailable — it is not a hard dependency.
 
 ---
 
-## Architectural Patterns
+## Database Schema
 
-### Tauri IPC Command Registration
+### `external_cache_entries` (existing — migration v4)
 
-All IPC commands follow this exact structure:
+Used by ProtonDB, Steam metadata, and Phase B trainer discovery. Schema defined in `migrate_3_to_4` in `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs:264-274`.
 
-1. Define a `#[tauri::command]` function in `src-tauri/src/commands/<module>.rs`
-2. Declare the module in `src-tauri/src/commands/mod.rs`
-3. Register the command in the `invoke_handler!` macro in `src-tauri/src/lib.rs`
-4. Access managed state via `State<'_, T>` parameters (stores are registered via `.manage()` in `run()`)
+| Column         | Type             | Constraints | Notes                                                    |
+| -------------- | ---------------- | ----------- | -------------------------------------------------------- |
+| `cache_id`     | TEXT PRIMARY KEY | —           | UUID (via `db::new_id()`)                                |
+| `source_url`   | TEXT NOT NULL    | —           | Origin URL of the fetched resource                       |
+| `cache_key`    | TEXT NOT NULL    | UNIQUE      | Namespace-prefixed lookup key (see Cache Settings)       |
+| `payload_json` | TEXT             | nullable    | JSON payload; NULL if payload exceeds 512 KiB            |
+| `payload_size` | INTEGER NOT NULL | DEFAULT 0   | Byte count of the original payload (even if NULL-stored) |
+| `fetched_at`   | TEXT NOT NULL    | —           | RFC3339 timestamp of the fetch                           |
+| `expires_at`   | TEXT             | nullable    | RFC3339 TTL boundary; NULL means never expires           |
+| `created_at`   | TEXT NOT NULL    | —           | RFC3339                                                  |
+| `updated_at`   | TEXT NOT NULL    | —           | RFC3339                                                  |
 
-**Sync vs async**: Most commands are `pub fn` (synchronous). Commands that perform network I/O use `pub async fn` and call `.inner().clone()` on the `State<>` to move it across the await. See `protondb_lookup` in `commands/protondb.rs:50-57` for the exact pattern.
+- **Upsert semantics**: `put_cache_entry()` uses `ON CONFLICT(cache_key) DO UPDATE SET ...` — safe to call repeatedly; updates `updated_at`, `payload_json`, `payload_size`, `fetched_at`, `expires_at`.
+- **Size cap**: `MAX_CACHE_PAYLOAD_BYTES = 524_288` (512 KiB) enforced in `cache_store.rs:37-46`. Oversized payloads are stored as NULL with a `tracing::warn!`. FLiNG RSS feed is expected to be well under this limit.
+- **Public API**: `MetadataStore::get_cache_entry(cache_key)` and `MetadataStore::put_cache_entry(source_url, cache_key, payload, expires_at)` in `metadata/mod.rs:523-539`.
+- **Implementation file**: `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/cache_store.rs`
 
-**Error convention**: All commands return `Result<T, String>`. Errors are converted with a local `map_error` helper or `.map_err(|e| e.to_string())`. Never use `unwrap()`.
+### `version_snapshots` (existing — migration v8→v9)
 
-**Managed stores in scope for discovery**:
+Schema defined in `migrate_8_to_9` in `migrations.rs:481-506`.
 
-- `MetadataStore` — SQLite database access (required for all discovery DB operations)
-- `ProfileStore` — TOML profile file access (required for version matching)
-- `SettingsStore` — App settings including community tap subscriptions
-- `CommunityTapStore` — Git-based tap workspace management
+| Column              | Type          | Notes                                          |
+| ------------------- | ------------- | ---------------------------------------------- | ------- | ------------ | --------------- | ------------ | ------- | ------------------- |
+| `id`                | INTEGER PK    | Auto-increment                                 |
+| `profile_id`        | TEXT NOT NULL | FK → `profiles(profile_id)` ON DELETE CASCADE  |
+| `steam_app_id`      | TEXT NOT NULL | DEFAULT `''`                                   |
+| `steam_build_id`    | TEXT          | Nullable; from `.acf` manifest                 |
+| `trainer_version`   | TEXT          | Nullable; from community profile or manual set |
+| `trainer_file_hash` | TEXT          | Nullable; SHA-256 of trainer executable        |
+| `human_game_ver`    | TEXT          | Nullable; display label (e.g., "1.12.3")       |
+| `status`            | TEXT NOT NULL | `untracked\|matched\|game_updated\|trainer_changed\|both_changed\|unknown\|update_in_progress` |
+| `checked_at`        | TEXT NOT NULL | RFC3339                                        |
 
-### Database Schema (`user_version` 17 today) — Relevant Tables
+- **Max rows**: `MAX_VERSION_SNAPSHOTS_PER_PROFILE = 20` — older rows pruned in same transaction as each insert.
+- **Indexes**: `idx_version_snapshots_profile_checked` on `(profile_id, checked_at DESC)` and `idx_version_snapshots_steam_app_id` on `(steam_app_id)`.
+- **Key function**: `lookup_latest_version_snapshot(conn, profile_id)` in `version_store.rs:75-111` — returns `Option<VersionSnapshotRow>` with the most recent row.
+- **Version compatibility check for Phase B**: Compare `VersionSnapshotRow.steam_build_id` (current game build) against the game version string from a FLiNG RSS item title or `ExternalTrainerResult.game_version`. This is a string equality check (or fuzzy match) — not a semver comparison. The pure comparison function `compute_correlation_status()` in `version_store.rs:185` handles build_id vs snapshot comparisons; adapt it for FLiNG-sourced version strings.
+- **Implementation file**: `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/version_store.rs`
 
-The database lives at `~/.local/share/crosshook/metadata.db` (resolved via `directories::BaseDirs::data_local_dir()`).
+### `trainer_sources` (Phase A — existing — migration v17→v18)
 
-#### `community_profiles` (migration v4, rebuilt v5)
+Schema defined in `migrate_17_to_18` in `migrations.rs:782-811`. Added in Phase A; Phase B reads from this table but does not modify the schema.
 
-Indexed community profile rows from `community-profile.json`. Under **Option B**, this is **not** the primary table for discovery **search** (see **`trainer_sources`** below). Columns are mostly `TEXT` with `NULL` meaning absent/unknown.
+| Column            | Type          | Constraints                                     | Notes                                      |
+| ----------------- | ------------- | ----------------------------------------------- | ------------------------------------------ |
+| `id`              | INTEGER PK    | AUTOINCREMENT                                   | —                                          |
+| `tap_id`          | TEXT NOT NULL | FK → `community_taps(tap_id)` ON DELETE CASCADE | —                                          |
+| `game_name`       | TEXT NOT NULL | —                                               | Searchable; matched against FLiNG titles   |
+| `steam_app_id`    | INTEGER       | nullable                                        | Used for PCGamingWiki cross-reference      |
+| `source_name`     | TEXT NOT NULL | —                                               | e.g., "FLiNG Trainer"                      |
+| `source_url`      | TEXT NOT NULL | —                                               | Trainer page URL                           |
+| `trainer_version` | TEXT          | nullable                                        | Optional version label                     |
+| `game_version`    | TEXT          | nullable                                        | Optional game version this trainer targets |
+| `notes`           | TEXT          | nullable                                        | Free-text notes                            |
+| `sha256`          | TEXT          | nullable                                        | SHA-256 of the trainer binary (optional)   |
+| `relative_path`   | TEXT NOT NULL | —                                               | Path within the tap workspace              |
+| `created_at`      | TEXT NOT NULL | —                                               | RFC3339                                    |
 
-| Column                 | Type       | Notes                                                 |
-| ---------------------- | ---------- | ----------------------------------------------------- |
-| `id`                   | INTEGER PK | Auto-increment                                        |
-| `tap_id`               | TEXT FK    | References `community_taps(tap_id)` ON DELETE CASCADE |
-| `relative_path`        | TEXT       | Path within tap workspace                             |
-| `manifest_path`        | TEXT       | Absolute path on disk                                 |
-| `game_name`            | TEXT       | Searchable; max 512 bytes (A6 bound)                  |
-| `game_version`         | TEXT       | For version matching; max 256 bytes                   |
-| `trainer_name`         | TEXT       | Searchable; max 512 bytes                             |
-| `trainer_version`      | TEXT       | For version matching; max 256 bytes                   |
-| `proton_version`       | TEXT       | Filter criterion; max 256 bytes                       |
-| `compatibility_rating` | TEXT       | `unknown\|broken\|partial\|working\|platinum`         |
-| `author`               | TEXT       | Searchable; max 512 bytes                             |
-| `description`          | TEXT       | Searchable; max 4096 bytes                            |
-| `platform_tags`        | TEXT       | Space-joined list; max 2048 bytes                     |
-| `schema_version`       | INTEGER    | Must equal 1                                          |
-| `created_at`           | TEXT       | RFC3339                                               |
+- UNIQUE constraint on `(tap_id, relative_path, source_url)`.
+- Indexes: `idx_trainer_sources_game` on `(game_name)` and `idx_trainer_sources_app_id` on `(steam_app_id)`.
+- Phase B does not add new tables. External results from FLiNG RSS are returned as in-memory `ExternalTrainerResult` structs and cached in `external_cache_entries` as serialized JSON — they are NOT written to `trainer_sources`.
 
-UNIQUE index on `(tap_id, relative_path)`.
+---
 
-**Trainer-discovery (v17→v18)**: Do **not** add `source_url` / `source_name` here. Add new table **`trainer_sources`** (`CREATE TABLE` + indexes) as specified in `feature-spec.md`.
+## IPC Layer
 
-#### `trainer_sources` (planned — `migrate_17_to_18`)
+### Existing Sync Command (Phase A)
 
-New relational table populated from **`trainer-sources.json`** during tap sync. Phase A **LIKE** search targets this table (joined to `community_taps`). See `feature-spec.md` for full DDL and indexing strategy. Phase C may add an **FTS5 virtual table** (`migrate_18_to_19`) referencing these rows — not a second copy of business data when using SQLite content-sync FTS.
-
-#### `community_taps` (migration v4)
-
-| Column             | Type            | Notes                                 |
-| ------------------ | --------------- | ------------------------------------- |
-| `tap_id`           | TEXT PK         | UUID                                  |
-| `tap_url`          | TEXT            | Git remote URL                        |
-| `tap_branch`       | TEXT DEFAULT '' | Branch name                           |
-| `local_path`       | TEXT            | On-disk workspace path                |
-| `last_head_commit` | TEXT            | Watermark: skip re-index if unchanged |
-| `profile_count`    | INTEGER         | Cached count                          |
-| `last_indexed_at`  | TEXT            | RFC3339                               |
-
-UNIQUE on `(tap_url, tap_branch)`.
-
-#### `external_cache_entries` (migration v4)
-
-Used for all external API responses (ProtonDB, Steam metadata, and future discovery sources).
-
-| Column         | Type        | Notes                                  |
-| -------------- | ----------- | -------------------------------------- |
-| `cache_id`     | TEXT PK     | UUID                                   |
-| `source_url`   | TEXT        | Origin URL                             |
-| `cache_key`    | TEXT UNIQUE | Namespace-prefixed key                 |
-| `payload_json` | TEXT        | JSON payload, NULL if > 512 KiB        |
-| `payload_size` | INTEGER     | Byte count                             |
-| `fetched_at`   | TEXT        | RFC3339                                |
-| `expires_at`   | TEXT        | TTL boundary; NULL means never expires |
-
-`put_cache_entry()` uses UPSERT on `cache_key`. The 512 KiB cap (`MAX_CACHE_PAYLOAD_BYTES = 524_288`) is enforced in `cache_store.rs` — payloads over the limit are stored as NULL.
-
-#### `version_snapshots` (migration v8→v9)
-
-Stores game version history per profile for version correlation.
-
-| Column              | Type       | Notes                                                                                          |
-| ------------------- | ---------- | ---------------------------------------------------------------------------------------------- |
-| `id`                | INTEGER PK | Auto-increment                                                                                 |
-| `profile_id`        | TEXT FK    | References `profiles(profile_id)`                                                              |
-| `steam_app_id`      | TEXT       | Steam App ID                                                                                   |
-| `steam_build_id`    | TEXT       | From `.acf` manifest (numeric string)                                                          |
-| `trainer_version`   | TEXT       | From community profile or manual set                                                           |
-| `trainer_file_hash` | TEXT       | SHA-256 of trainer executable                                                                  |
-| `human_game_ver`    | TEXT       | Display label (e.g., "1.12.3")                                                                 |
-| `status`            | TEXT       | `untracked\|matched\|game_updated\|trainer_changed\|both_changed\|unknown\|update_in_progress` |
-| `checked_at`        | TEXT       | RFC3339                                                                                        |
-
-Max 50 rows per profile (`MAX_VERSION_SNAPSHOTS_PER_PROFILE`). `compute_correlation_status()` in `version_store.rs:185` is the pure function for version comparison — adapt it, do not duplicate.
-
-#### `trainer_hash_cache` (migration v12→v13)
-
-SHA-256 cache keyed by `(profile_id, file_path)`:
-
-| Column                     | Key Fields           |
-| -------------------------- | -------------------- |
-| `profile_id` + `file_path` | UNIQUE index         |
-| `sha256_hash`              | Hex string, 64 chars |
-| `file_size`                | i64                  |
-| `file_modified_at`         | RFC3339 mtime        |
-
-Used by `verify_and_cache_trainer_hash()` in `offline/hash.rs` — stat + compare → rehash only when stale.
-
-### External Service Integration (ProtonDB Pattern)
-
-Every external API call in crosshook-core follows a 5-step pattern (see `protondb/client.rs`):
-
-1. **Normalize input** — validate/normalize the lookup key (e.g., `normalize_app_id()`)
-2. **Fresh cache check** — `load_cached_lookup_row(allow_expired=false)` → return immediately if valid
-3. **Live fetch** — `fetch_live_lookup()` using the `OnceLock<reqwest::Client>` singleton
-4. **Persist** — `persist_lookup_result()` via `metadata_store.put_cache_entry()`
-5. **Stale fallback** — on network failure: `load_cached_lookup_row(allow_expired=true)` → return stale result with `is_stale=true`
-
-**HTTP client singleton** (copy this exactly for new modules):
+**`discovery_search_trainers`** — registered in `lib.rs:318`.
 
 ```rust
-const REQUEST_TIMEOUT_SECS: u64 = 6;
-static TRAINER_DISCOVERY_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+// src-tauri/src/commands/discovery.rs
+#[tauri::command]
+pub fn discovery_search_trainers(
+    query: TrainerSearchQuery,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<TrainerSearchResponse, String> { ... }
+```
 
-fn trainer_discovery_http_client() -> Result<&'static reqwest::Client, TrainerDiscoveryError> {
-    if let Some(client) = TRAINER_DISCOVERY_HTTP_CLIENT.get() {
+- Synchronous (`pub fn`, not `async fn`).
+- Searches `trainer_sources` joined with `community_taps` via LIKE matching on `game_name`, `source_name`, `notes`.
+- Input: `TrainerSearchQuery { query, compatibility_filter, platform_filter, limit, offset }`.
+- Output: `TrainerSearchResponse { results: Vec<TrainerSearchResult>, total_count }`.
+- Limit capped at 50 in `search.rs:35`.
+
+### New Async Commands (Phase B)
+
+**`discovery_search_external`** — new command to add.
+
+```rust
+// src-tauri/src/commands/discovery.rs (add here)
+#[tauri::command]
+pub async fn discovery_search_external(
+    query: ExternalTrainerSearchQuery,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<ExternalTrainerSearchResponse, String> {
+    let metadata_store = metadata_store.inner().clone(); // required for async
+    crosshook_core::discovery::search_external(&metadata_store, &query.game_name, query.steam_app_id.as_deref())
+        .await
+        .map_err(|e| e.to_string())
+}
+```
+
+- Must be `async fn` — performs HTTP fetch.
+- Must call `metadata_store.inner().clone()` before the first `.await` (same pattern as `protondb_lookup` in `commands/protondb.rs:55`).
+- Input: `ExternalTrainerSearchQuery { game_name: String, steam_app_id: Option<String> }`.
+- Output: `ExternalTrainerSearchResponse { results: Vec<ExternalTrainerResult>, source: String, cached: bool, cache_age_secs: Option<i64> }`.
+
+**`discovery_check_version_compatibility`** — new command to add (optional Phase B).
+
+```rust
+#[tauri::command]
+pub fn discovery_check_version_compatibility(
+    profile_name: String,
+    trainer_game_version: Option<String>,
+    metadata_store: State<'_, MetadataStore>,
+    profile_store: State<'_, ProfileStore>,
+) -> Result<VersionMatchResult, String> { ... }
+```
+
+- Synchronous — reads from SQLite only.
+- Looks up `version_snapshots` for the profile, compares against the provided `trainer_game_version` string.
+- Returns existing `VersionMatchResult` type from `discovery/models.rs`.
+
+### Command Registration
+
+Both new commands must be added to `tauri::generate_handler![]` in `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/lib.rs` in the `// Trainer discovery` block (currently line 317-319):
+
+```rust
+// Trainer discovery
+commands::discovery::discovery_search_trainers,
+commands::discovery::discovery_search_external,        // Phase B
+commands::discovery::discovery_check_version_compatibility, // Phase B
+```
+
+No new entries needed in `commands/mod.rs` — `discovery` module is already declared at line 5.
+
+---
+
+## Frontend Integration
+
+### Existing Hook (Phase A)
+
+**`useTrainerDiscovery`** — `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useTrainerDiscovery.ts`
+
+- Wraps `discovery_search_trainers` (sync IPC, fast, local-only).
+- Debounces query input at 300ms.
+- Uses `requestIdRef.current` pattern for stale request cancellation.
+- Returns `{ data: TrainerSearchResponse | null, loading, error, refresh }`.
+- Phase B does NOT modify this hook — it remains the local-results source.
+
+### New Hook (Phase B)
+
+**`useExternalTrainerSearch`** — create at `src/crosshook-native/src/hooks/useExternalTrainerSearch.ts`.
+
+Pattern to follow exactly from `useTrainerDiscovery.ts`:
+
+```typescript
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import type { ExternalTrainerSearchResponse } from '../types/discovery';
+
+export interface UseExternalTrainerSearchReturn {
+  data: ExternalTrainerSearchResponse | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+}
+
+export function useExternalTrainerSearch(gameName: string, steamAppId?: string): UseExternalTrainerSearchReturn {
+  // requestIdRef pattern for stale cancellation
+  // invoke('discovery_search_external', { query: { gameName, steamAppId } })
+  // No debounce needed — triggered manually or on game context change
+}
+```
+
+- Returns `ExternalTrainerSearchResponse` with `results`, `source` (e.g., `"fling_rss"`), `cached`, `cacheAgeSecs`.
+- Does NOT auto-fire on every keystroke — triggered by explicit user action ("Search Online") or once per game context load.
+- Loading state is independent from `useTrainerDiscovery` loading state.
+
+### Component Updates — TrainerDiscoveryPanel
+
+**File**: `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/components/TrainerDiscoveryPanel.tsx`
+
+Progressive loading strategy:
+
+1. Local results (from `useTrainerDiscovery`) render immediately as the user types.
+2. External results (from `useExternalTrainerSearch`) load when the user clicks "Search Online" or after local results are displayed.
+3. Local and external results are rendered in separate sections — local first, then external below with a "From FLiNG (external)" label.
+4. External section shows a spinner while `useExternalTrainerSearch.loading` is true — does NOT block local results display.
+5. External results use the same `TrainerResultCard` component — `result.sourceUrl` opens the FLiNG trainer page via `shellOpen()`.
+
+New UI elements needed in `TrainerDiscoveryPanel`:
+
+- "Search Online" button (only visible when `settings.discovery_enabled` and a query is entered).
+- External results section with `crosshook-discovery-badge--external` badge on result cards.
+- Cache age indicator (e.g., "Results from cache, 23 min ago") when `data.cached === true`.
+
+### TypeScript Types (Phase B additions)
+
+Add to `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/types/discovery.ts`:
+
+```typescript
+export interface ExternalTrainerSearchQuery {
+  gameName: string;
+  steamAppId?: string;
+}
+
+export interface ExternalTrainerResult {
+  gameName: string;
+  sourceName: string; // e.g., "FLiNG"
+  sourceUrl: string; // Trainer page URL (never a direct download)
+  pubDate?: string; // ISO8601 or raw RFC822 string
+  source: string; // e.g., "fling_rss"
+}
+
+export interface ExternalTrainerSearchResponse {
+  results: ExternalTrainerResult[];
+  source: string; // e.g., "fling_rss"
+  cached: boolean;
+  cacheAgeSecs?: number;
+}
+```
+
+---
+
+## Configuration
+
+### Cache Settings
+
+| Key                     | Namespace                            | TTL      | Notes                                         |
+| ----------------------- | ------------------------------------ | -------- | --------------------------------------------- |
+| FLiNG RSS feed index    | `trainer:source:v1:fling_rss_index`  | 1 hour   | Single cached entry for the full feed         |
+| Per-game FLiNG lookup   | `trainer:source:v1:{normalized_key}` | 6 hours  | Where `normalized_key` is from `normalize_game_slug()` |
+| PCGamingWiki game title | `trainer:pcgw:game:{steam_app_id}`   | 24 hours | Game titles are stable; long TTL is safe      |
+
+**Namespace format**: `trainer:source:v1:{normalized_game_key}` as specified in the task brief. The `v1` segment allows future namespace bumps without manual cache invalidation.
+
+**Normalized game key**: Produced by `normalize_game_slug(name)` — lowercase, whitespace collapsed to hyphens (e.g., "Elden Ring" → `elden-ring`). See "Cache Key Normalization Helper" in Architectural Patterns below.
+
+**TTL implementation**: Compute `expires_at` as RFC3339 string:
+
+```rust
+use chrono::{Duration as ChronoDuration, Utc};
+let expires_at = (Utc::now() + ChronoDuration::hours(1)).to_rfc3339();
+metadata_store.put_cache_entry(source_url, cache_key, &payload, Some(&expires_at))?;
+```
+
+### Rate Limiting
+
+- Self-imposed 10s minimum between FLiNG RSS requests.
+- The 1h cache TTL makes this implicit: a cache hit skips the HTTP fetch entirely.
+- On cache miss: make one HTTP request, cache result, return. The rate limit is only relevant if cache is bypassed (e.g., `force_refresh=true`).
+- Implement as a tokio `Mutex`-guarded `Instant` stored in a `OnceLock<Mutex<Instant>>` — or simply rely on the TTL cache and not implement an explicit rate limiter in Phase B.
+
+---
+
+## Dependencies
+
+### reqwest (already present)
+
+`crosshook-core/Cargo.toml` line 22:
+
+```toml
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+```
+
+This is sufficient for Phase B HTTP fetches. The FLiNG RSS response body is text/XML, not JSON. Use `response.text().await?` instead of `.json()`. The `rustls-tls` feature handles HTTPS.
+
+### XML Parsing
+
+`quick-xml` is NOT currently in `crosshook-core/Cargo.toml`. Add it for RSS parsing:
+
+```toml
+quick-xml = { version = "0.36", features = ["serialize"] }
+```
+
+Alternative approach: parse the RSS `<title>` and `<link>` fields with simple string extraction using the existing `serde` + string operations if the feed structure is predictable. However, `quick-xml` is the correct, robust choice.
+
+`scraper` is NOT needed. Phase B does not parse HTML content from trainer pages.
+
+### serde, chrono, uuid (already present)
+
+All present in `crosshook-core/Cargo.toml`:
+
+- `serde = { version = "1", features = ["derive"] }` — for `ExternalTrainerResult` serialization
+- `chrono = "0.4"` — for `pubDate` parsing and `expires_at` TTL calculation
+- `uuid = { version = "1", features = ["v4", "serde"] }` — for `cache_id` generation via `db::new_id()`
+
+---
+
+## Relevant Files (Phase B touch points)
+
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/discovery/mod.rs` — Add `pub mod client;` and re-export `search_external`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/discovery/models.rs` — Add `ExternalTrainerResult`, `ExternalTrainerSearchResponse`, `ExternalTrainerSearchQuery` structs
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/client.rs` — Reference implementation for `OnceLock` HTTP client, 3-stage cache pattern, `put_cache_entry` persistence
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/cache_store.rs` — `get_cache_entry`, `put_cache_entry`, `evict_expired_cache_entries`; **add `get_cache_entry_allow_stale()` for Phase B stale fallback**
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/version_store.rs` — `lookup_latest_version_snapshot`, `compute_correlation_status`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/Cargo.toml` — Add `quick-xml`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/discovery.rs` — Add `discovery_search_external`, `discovery_check_version_compatibility`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/lib.rs` — Register new commands in `generate_handler![]`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useTrainerDiscovery.ts` — No changes; Phase A hook remains
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/types/discovery.ts` — Add Phase B TypeScript types
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/components/TrainerDiscoveryPanel.tsx` — Progressive loading, external results section, "Search Online" button
+
+---
+
+## Architectural Patterns (Phase B)
+
+### HTTP Client Singleton (copy from ProtonDB)
+
+```rust
+// discovery/client.rs
+use std::sync::OnceLock;
+use std::time::Duration;
+
+const REQUEST_TIMEOUT_SECS: u64 = 10; // FLiNG may be slower than ProtonDB
+static FLING_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn fling_http_client() -> Result<&'static reqwest::Client, TrainerDiscoveryError> {
+    if let Some(client) = FLING_HTTP_CLIENT.get() {
         return Ok(client);
     }
     let client = reqwest::Client::builder()
@@ -195,177 +409,91 @@ fn trainer_discovery_http_client() -> Result<&'static reqwest::Client, TrainerDi
         .user_agent(format!("CrossHook/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(TrainerDiscoveryError::Network)?;
-    let _ = TRAINER_DISCOVERY_HTTP_CLIENT.set(client);
-    Ok(TRAINER_DISCOVERY_HTTP_CLIENT.get().expect("initialized"))
+    let _ = FLING_HTTP_CLIENT.set(client);
+    Ok(FLING_HTTP_CLIENT.get().expect("initialized"))
 }
 ```
 
-**Cache key convention**: Namespace-prefixed, colon-delimited. ProtonDB uses `protondb::{app_id}`. Discovery should use:
+### 3-Stage Cache Pattern (copy from ProtonDB)
 
-- `trainer_discovery:game:{steam_app_id}` for per-game source lookups
-- `trainer_discovery:fling_index` for the FLiNG RSS feed index (1h TTL)
-
-**CACHE_TTL**: ProtonDB uses 6 hours. Steam metadata uses 24 hours. Discovery: 1h for RSS feed index, 6h for individual trainer source data.
-
-### Community Profile Indexing Pipeline
-
-The full pipeline when a tap is synced via `community_sync`:
-
-1. `CommunityTapStore::sync_many()` → fetches/pulls git repos
-2. `metadata_store.index_community_tap_result(result)` → calls `community_index::index_community_tap_result()`
-3. Inside: watermark check (skip if HEAD SHA unchanged), transactional DELETE+INSERT for all `community_profiles` rows
-4. A6 field length validation (`check_a6_bounds()`) skips oversized entries with `tracing::warn!`
-5. `profile_count` updated to actual inserted count
-
-**Adding `source_url`/`source_name` to Phase 1**: Three touch points:
-
-1. `CommunityProfileMetadata` struct in `profile/community_schema.rs` (add optional fields)
-2. `index_community_tap_result()` in `metadata/community_index.rs` (persist new fields)
-3. `CommunityProfileRow` struct in `metadata/models.rs` (include in row mapping)
-4. Migration v17→v18 SQL: `ALTER TABLE community_profiles ADD COLUMN source_url TEXT; ALTER TABLE community_profiles ADD COLUMN source_name TEXT;`
-
-### File System Operations
-
-**Steam `.acf` manifest parsing** — fully implemented, no new code needed:
-
-- `steam/libraries.rs::find_steam_libraries()` — enumerates all Steam library paths
-- `steam/manifest.rs::find_game_match(game_path, libraries, &mut diagnostics)` — scans all `.acf` manifests to find which one contains the game exe path; returns `SteamGameMatchSelection` with `.matched.app_id` and `.matched.manifest_path`
-- `steam/manifest.rs::parse_manifest_full(manifest_path)` — returns `ManifestData { build_id, install_dir, state_flags, last_updated }`; rejects non-numeric `build_id`
-
-**Gotcha**: `build_id` in `.acf` files is validated to be numeric-only (`build_id.chars().all(|c| c.is_ascii_digit())`). Non-numeric build IDs return `Err`. Empty build ID is allowed and returns `""`.
-
-**Community tap workspace paths** — resolved via `CommunityTapStore::resolve_workspace()`. Each tap workspace is a local git clone whose path is stored in `community_taps.local_path`. The workspace path is the root for all `relative_path` entries in `community_profiles`.
-
-### Process Management (Launch)
-
-Trainer launch is handled in `src-tauri/src/commands/launch.rs`. The trainer-discovery feature does not need to modify the launch pipeline — it provides discovery metadata that links to the existing import (`community_import_profile`) and launch commands.
-
-**Trainer hash verification at launch** (`launch/trainer_hash.rs`):
-
-- `trainer_hash_launch_check(conn, profile_id, trainer_path, community_trainer_sha256)` runs on every launch
-- Cross-checks on-disk hash vs `trainer_hash_cache` (baseline check) and vs community manifest `trainer_sha256` (advisory check)
-- Returns `TrainerHashLaunchOutcome { baseline, community_advisory }`
-
-The `community_trainer_sha256` parameter is read from `profile.trainer.sha256` in the TOML profile — which community manifests can populate via `CommunityProfileMetadata.trainer_sha256`. Discovery should propagate this SHA-256 from tap manifests through to imported profiles.
-
-### Frontend Integration Pattern
-
-All frontend IPC calls use `invoke()` from `@tauri-apps/api/core`:
-
-```typescript
-import { invoke } from '@tauri-apps/api/core';
-
-const result = await invoke<TrainerSearchResponse>('discovery_search_trainers', { query, installedAppId });
+```
+1. get_cache_entry(cache_key) → return immediately if valid (not expired)
+2. HTTP fetch from FLiNG RSS → parse XML → build ExternalTrainerSearchResponse
+3. put_cache_entry(source_url, cache_key, payload, expires_at) → persist
+4. On HTTP error: stale fallback (see below)
+5. On total failure: return ExternalTrainerSearchResponse { results: [], source: "fling_rss", cached: false }
 ```
 
-**Stale request cancellation** (`useProtonDbSuggestions.ts:27`):
+**Stale cache fallback design decision**: The public `MetadataStore::get_cache_entry(key)` always filters `expires_at > now` — it cannot return stale (expired) rows. Two options for the stale fallback path:
 
-```typescript
-const requestIdRef = useRef(0);
-const id = ++requestIdRef.current;
-// ... after await:
-if (requestIdRef.current !== id) return; // discard stale response
+- **(a) Direct `with_sqlite_conn` query** — bypass the public API and query `external_cache_entries` directly inside a `metadata_store.with_sqlite_conn(|conn| { ... })` closure, the same approach used in `protondb/client.rs:346-394`. Requires raw SQL in the caller.
+- **(b) Add `get_cache_entry_allow_stale()` public method** (**preferred**) — add to `cache_store.rs` a function that omits the `expires_at > now` filter and returns a `CachedEntryRow { payload_json, fetched_at, expires_at }`. This keeps the raw SQL in `cache_store.rs` where it belongs, and the returned `fetched_at` field enables computing `cache_age_secs` for the `ExternalTrainerSearchResponse` without a second query.
+
+Option (b) is cleaner: the raw SQL stays in `cache_store.rs`, the caller receives a typed struct, and `fetched_at` is available for the cache age indicator in the frontend.
+
+### Cache Key Normalization Helper
+
+The cache key for per-game lookups must be produced by a named helper function — never inlined — so the key is identical on every cache write and cache read path.
+
+Add to `discovery/client.rs` (or a shared `discovery/models.rs` location):
+
+```rust
+pub fn normalize_game_slug(name: &str) -> String {
+    name.trim()
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("-")
+}
 ```
 
-Copy this pattern verbatim into `useTrainerDiscovery.ts`.
+Usage:
 
-**Hook return shape** — follows the same `{ data, loading, error, refresh }` pattern across all existing hooks.
+```rust
+let cache_key = format!("trainer:source:v1:{}", normalize_game_slug(&game_name));
+```
 
-**Type file location**: `src/crosshook-native/src/types/` — create `discovery.ts` here; re-export from `src/types/index.ts`.
+This mirrors the pattern of `cache_key_for_app_id()` in `protondb/models.rs`, which centralizes ProtonDB key construction. Phase B must follow the same convention.
 
----
+### Async Tauri Command Pattern (copy from ProtonDB)
 
-## Database Schema — Complete Current State (v17)
+```rust
+// CRITICAL: call .inner().clone() before the first .await
+pub async fn protondb_lookup(
+    app_id: String,
+    force_refresh: Option<bool>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<ProtonDbLookupResult, String> {
+    let metadata_store = metadata_store.inner().clone(); // <-- this
+    Ok(lookup_protondb(&metadata_store, &app_id, force_refresh.unwrap_or(false)).await)
+}
+```
 
-18 tables exist at v17. Relevant to discovery:
-
-| Table                    | Migration | Purpose                                                                                   |
-| ------------------------ | --------- | ----------------------------------------------------------------------------------------- |
-| `community_taps`         | v4        | Git tap subscriptions                                                                     |
-| `community_profiles`     | v4/v5     | Indexed community profiles (trainer metadata)                                             |
-| `external_cache_entries` | v4        | External API response cache (ProtonDB, Steam, future trainer sources)                     |
-| `version_snapshots`      | v9        | Game/trainer version history per profile                                                  |
-| `trainer_hash_cache`     | v13       | SHA-256 hash cache for trainer files                                                      |
-| `suggestion_dismissals`  | v17       | Per-profile suggestion dismissal tracking (ProtonDB pattern; same approach for discovery) |
-
----
-
-## External Service Integration
-
-### What Already Exists (No New Code)
-
-| Service                       | Implementation                                                             |
-| ----------------------------- | -------------------------------------------------------------------------- |
-| Steam `.acf` manifest parsing | `steam/manifest.rs`                                                        |
-| Steam appdetails API          | `steam_metadata/client.rs::lookup_steam_metadata()`                        |
-| ProtonDB summary + reports    | `protondb/client.rs::lookup_protondb()`                                    |
-| HTTP client (reqwest)         | `reqwest` with `json` + `rustls-tls` features, no additional crates needed |
-| SQLite cache                  | `metadata/cache_store.rs`                                                  |
-
-### What Needs to Be Built (Phase 1 → Phase 2)
-
-| Capability                                       | Phase | New Code                                     |
-| ------------------------------------------------ | ----- | -------------------------------------------- |
-| `source_url`/`source_name` on community profiles | 1     | Small schema + struct additions              |
-| `discovery_search_trainers` IPC (LIKE-based)     | 1     | New command module + search query            |
-| FTS5 virtual table + triggers                    | 2     | New migration + index module                 |
-| External trainer source HTTP client              | 2     | New `discovery/client.rs` mirroring protondb |
-| FLiNG RSS fetch + XML parse                      | 2     | New `discovery/client.rs` + parse function   |
-| Version matching algorithm                       | 2     | New `discovery/version_match.rs`             |
-
-**No new crate dependencies required for Phase 1**. Phase 2 may need `scraper` for HTML parsing if FLiNG RSS is unavailable; all other infrastructure is already present.
-
----
-
-## Configuration
-
-**MetadataStore path**: `~/.local/share/crosshook/metadata.db`
-
-**Community tap workspaces**: stored in `~/.local/share/crosshook/community/` (resolved via `CommunityTapStore`)
-
-**Settings file** (TOML): `community_taps` list in `AppSettingsData` — this is the source-of-truth for which taps are subscribed. Modified by `community_add_tap` command.
-
-**MAX_CACHE_PAYLOAD_BYTES**: `524_288` (512 KiB) — enforced in `cache_store.rs::put_cache_entry()`. Payloads exceeding this are stored as NULL. FLiNG RSS feed and individual trainer page payloads are expected to be well under this limit.
+Without `.inner().clone()`, the `State<>` reference cannot be held across await points.
 
 ---
 
 ## Gotchas and Edge Cases
 
-- **`with_sqlite_conn` is the only safe DB access path**: All SQLite operations go through `metadata_store.with_sqlite_conn(action_label, |conn| {...})`. Direct `Connection` access is only available in unit tests via `db::open_in_memory()`. Never hold the mutex lock across an await point.
-
-- **Async commands need `.inner().clone()`**: The `MetadataStore` wraps a `Arc<Mutex<Connection>>`. Async Tauri commands must call `metadata_store.inner().clone()` to move the store across the await boundary (see `commands/protondb.rs:55`).
-
-- **Watermark skip is opaque**: If `last_head_commit` in `community_taps` matches the current HEAD, `index_community_tap_result()` returns `Ok(())` silently without updating any profiles. Phase 2 FTS trigger-based sync is only safe if the source table is updated — the watermark skip means FTS is also implicitly skipped correctly.
-
-- **`CommunityProfileRow` is the query result type, not `CommunityProfileMetadata`**: The metadata struct is for manifest deserialization. The row struct is for DB query results. They have different shapes (row has `tap_url`, `id`, `tap_id`; metadata does not).
-
-- **Community profile imports must be in-workspace**: `validate_import_path_in_workspace()` in `commands/community.rs:230` enforces that `community_import_profile` only accepts files from known tap workspaces. Discovery search results can link to `manifest_path` which IS a workspace path, so they will pass this validation.
-
-- **`COMMUNITY_PROFILE_SCHEMA_VERSION` is 1**: Adding optional fields (`source_url`, `source_name`) to `CommunityProfileMetadata` is backward-compatible; old manifests without these fields continue to deserialize with `None`. The version should stay at 1 unless breaking changes require enforcement.
-
-- **`normalize_sha256_hex` is strict**: Strips `0x`/`0X` prefix, then validates 64 hex characters. Returns `None` for any deviation. Always call this before comparing community-supplied SHA-256 values.
-
-- **TrainerHashBaselineResult::Mismatch does NOT update cache**: On content change vs baseline, the hash cache is NOT updated. The user must confirm via the `verify_trainer_hash` IPC command. Discovery should document this behavior when surfacing SHA-256 mismatch warnings.
-
-- **`suggestion_dismissals` TTL pattern**: The ProtonDB suggestion dismissal mechanism uses a 30-day retention TTL stored in `suggestion_dismissals`. If discovery wants per-profile dismissal of trainer suggestions, the same table/pattern can be reused (it's generic by `suggestion_key`).
+- **FLiNG RSS title parsing**: Titles follow the pattern `"{Game Name} Trainer"`. Strip `Trainer` suffix (case-insensitive) to get the game name. Some titles may include version info: `"Elden Ring v1.12 Trainer"` — strip from the last `v` or `Trainer` occurrence.
+- **403 on FLiNG RSS without User-Agent**: The feed blocks requests without a real User-Agent. The existing ProtonDB HTTP client already sets `CrossHook/{version}` — FLiNG HTTP client must do the same.
+- **PCGamingWiki field alias restriction**: `_pageName` is rejected (underscore prefix not allowed as alias). Use `Infobox_game.pageName` with alias `page_name` (no leading underscore). The query string must URL-encode field aliases: `fields=Infobox_game.pageName%3Dpage_name`.
+- **PCGamingWiki `HOLDS` operator**: Steam App IDs are stored as a multi-value field. Use `WHERE Infobox_game.Steam_AppID HOLDS "{appid}"` (not `=`) to handle games with multiple App IDs.
+- **Mutex not across await**: `MetadataStore` uses `Arc<Mutex<Connection>>`. Never hold the mutex lock across an `.await`. The `with_sqlite_conn` method acquires and releases the lock synchronously per call — this is safe. Any pre-fetch cache read must complete (releasing the lock) before the async HTTP fetch begins.
+- **Oversized RSS payload → NULL cache**: If the FLiNG RSS response exceeds 512 KiB (`MAX_CACHE_PAYLOAD_BYTES`), `put_cache_entry()` stores NULL and logs a warning. Subsequent `get_cache_entry()` returns `None` for a NULL payload (see `cache_store.rs:26`: `Ok(row.flatten())`). This means a very large RSS feed would cause a cache miss on every request despite an entry existing. Mitigation: truncate to the top N items before serializing to JSON.
+- **Stale cache not accessible via public API**: `MetadataStore::get_cache_entry()` filters `expires_at > now` and returns `None` for expired rows. The stale fallback path CANNOT use this method — it must either call `with_sqlite_conn` directly (ProtonDB approach) or use the new `get_cache_entry_allow_stale()` method (preferred). Do not add `allow_expired: bool` to the existing `get_cache_entry()` signature — add a separate method.
+- **Cache key reproducibility**: The cache key MUST be produced by `normalize_game_slug()` on every read and write path. Never inline the normalization logic. A mismatch between the write-path slug and the read-path slug causes a permanent cache miss, forcing a live HTTP fetch on every call.
+- **Schema version**: The DB is at v18 after Phase A. Phase B adds NO new migrations — it reuses `external_cache_entries` (v4) and `version_snapshots` (v9).
+- **`quick-xml` not in Cargo.toml**: Must be added before Phase B can compile. No other missing dependencies.
+- **FLiNG RSS `<link>` vs `<guid>`**: On FLiNG's WordPress site, `<link>` and `<guid isPermaLink="true">` are the same URL. Use `<link>` as the canonical `source_url`. Do not use any URL from `<description>` or `<content:encoded>` — those contain HTML with relative or direct download links that CrossHook must not surface.
 
 ---
 
-## Findings for Teammate Agents
+## Relevant Docs
 
-### For architecture-researcher
-
-- `MetadataStore` is passed as managed Tauri state. It is `Clone` (wraps `Arc<Mutex<Connection>>`). The DB connection is single-writer; all writes serialize through the `Mutex`.
-- The `community_profiles` table is owned by the community tap sync pipeline. Discovery search reads from it without modification in Phase 1. Phase 2 FTS table is a content-sync virtual table that shadows `community_profiles` — no duplication of base data.
-- All IPC commands are registered in a single flat `invoke_handler!` macro. There is no dynamic registration.
-
-### For patterns-researcher
-
-- The 3-stage cache pattern (valid cache → live → stale) is used identically in `protondb/client.rs` and `steam_metadata/client.rs`. Any new external source client must implement all three stages.
-- Community tap indexing uses watermark-based skip (HEAD commit SHA), transactional DELETE+INSERT, and A6 field length validation. These are all co-located in `community_index.rs`.
-- Frontend hooks use `requestIdRef.current` increment for stale request cancellation — this is the project's established pattern for async IPC hooks.
-
-### For docs-researcher
-
-- Tauri IPC command naming convention: `snake_case`, matching the Rust function name exactly. Frontend `invoke('discovery_search_trainers', ...)` maps to `#[tauri::command] pub fn discovery_search_trainers(...)`.
-- The Rust `#[serde(rename_all = "camelCase")]` attribute on structs means frontend receives camelCase fields while backend uses snake_case. This is the established convention for all Serde types crossing the IPC boundary.
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/trainer-discovery/feature-spec.md` — Full Phase B feature specification and acceptance criteria
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/trainer-discovery/research-architecture.md` — System architecture and component boundaries
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/docs/plans/trainer-discovery/research-patterns.md` — Code patterns and conventions
+- [PCGamingWiki Cargo API docs](https://www.pcgamingwiki.com/wiki/PCGamingWiki:API) — MediaWiki Cargo extension query syntax
+- [WordPress RSS 2.0 feed format](https://wordpress.com/support/feeds/) — Standard feed structure reference
+- [quick-xml crate docs](https://docs.rs/quick-xml/latest/quick_xml/) — Rust XML parsing

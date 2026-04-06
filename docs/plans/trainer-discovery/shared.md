@@ -1,96 +1,85 @@
-# Trainer Discovery
+# Trainer Discovery Phase B — External Source Lookup
 
-CrossHook's trainer-discovery feature adds search and cataloging for game trainers across community taps, building on the existing community tap sync pipeline and a new SQLite **`trainer_sources`** table populated from per-game **`trainer-sources.json`** manifests (see [`feature-spec.md`](./feature-spec.md) Decision 1, Option B). Phase A (MVP) adds **`migrate_17_to_18`** in `metadata/migrations.rs` (`CREATE TABLE trainer_sources`), extends tap indexing to parse `trainer-sources.json`, exposes LIKE-based search over **`trainer_sources`** (not new columns on `community_profiles`), and surfaces results in **`TrainerDiscoveryPanel`**. **`CommunityProfileMetadata` / `CommunityProfileRow` are not extended** with `source_url` / `source_name` for this feature. Phase B adds external source HTTP clients (FLiNG RSS, etc.) following `protondb/client.rs`, `external_cache_entries` caching, and token scoring. Phase C adds FTS5 (see `feature-spec.md`) via `rusqlite` `bundled-full` and a follow-on migration for an FTS virtual table over indexed discovery text. The feature integrates with trainer hash verification (#156), version snapshots, and the community import flow — no launch pipeline changes.
+Phase B extends the fully-implemented Phase A trainer discovery (LIKE search over `trainer_sources`, sync IPC, `TrainerDiscoveryPanel`) with an async FLiNG RSS HTTP client (`discovery/client.rs`) following the `protondb/client.rs` OnceLock singleton + cache→live→stale-fallback pattern, token-based relevance scoring (`discovery/matching.rs` adapting `install/discovery.rs:tokenize()`), advisory version matching via `version_store.rs`, and progressive frontend loading where local tap results render immediately while external results load asynchronously. All cache writes use the existing `external_cache_entries` table with a `trainer:source:v1:{key}` namespace — no new migration needed (schema stays at v18). The only new crate dependency is `quick-xml` for RSS parsing.
 
-> **Planning vs code:** Files in this folder describe the intended design. SQLite **`user_version`** after `run_migrations()` is **17** in-tree today (`migrations.rs`); trainer-discovery implementation adds **18** for `trainer_sources`. `AGENTS.md` “Current schema version: 13” refers to the documented table-inventory snapshot, not `user_version`.
+> **Planning vs code:** Phase A code is in-tree and working. This document describes Phase B design. `feature-spec.md` Decisions section (line 634+) is authoritative when conflicts arise.
 
 ## Relevant Files
 
 ### Rust — crosshook-core (business logic)
 
-- `src/crosshook-native/crates/crosshook-core/src/lib.rs`: Crate root re-exporting all domain modules; add `pub mod discovery;` here
-- `src/crosshook-native/crates/crosshook-core/src/profile/community_schema.rs`: `CommunityProfileMetadata` — **no discovery-specific `source_url` / `source_name` changes** under Option B
-- `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs`: `MetadataStore` facade — wraps `Arc<Mutex<Connection>>`, exposes `with_conn`/`with_conn_mut`/`with_sqlite_conn`; add trainer-source search/count helpers delegating to `discovery::search`
-- `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`: After the existing `version < 17` block, add **`migrate_17_to_18`** — `CREATE TABLE trainer_sources` + indexes (SQL in `feature-spec.md`). Optional later: **`migrate_18_to_19`** for FTS5 virtual table (Phase C)
-- `src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs`: Add `index_trainer_sources()` — transactional DELETE+INSERT (or equivalent) for rows keyed by `tap_id`, A6 bounds, HTTPS-only URL validation; call from the same tap sync path as `index_community_tap_result()`
-- `src/crosshook-native/crates/crosshook-core/src/community/index.rs`: Walk tap workspaces for **`trainer-sources.json`** alongside `community-profile.json`
-- `src/crosshook-native/crates/crosshook-core/src/metadata/models.rs`: `CommunityProfileRow`, `MetadataStoreError` — row type unchanged for Option B; discovery row types live under `discovery/models.rs`
-- `src/crosshook-native/crates/crosshook-core/src/metadata/cache_store.rs`: `get_cache_entry()`/`put_cache_entry()` — reuse for Phase B external metadata (`external_cache_entries`)
-- `src/crosshook-native/crates/crosshook-core/src/metadata/version_store.rs`: `compute_correlation_status()` — version matching for Phase B
-- `src/crosshook-native/crates/crosshook-core/src/protondb/client.rs`: Reference HTTP client — `OnceLock<reqwest::Client>`, cache→live→stale-fallback; clone for `discovery/client.rs` in Phase B
-- `src/crosshook-native/crates/crosshook-core/src/protondb/models.rs`: Reference for Serde conventions — `#[serde(rename_all = "camelCase")]` on IPC types, `#[serde(rename_all = "snake_case")]` on state enums, cache key namespace pattern
-- `src/crosshook-native/crates/crosshook-core/src/protondb/suggestions.rs`: Reference for pure-function derivation
-- `src/crosshook-native/crates/crosshook-core/src/install/discovery.rs`: `tokenize()` / `token_hits()` for Phase B ranking (optional lift to `text_utils` — see `research-practices.md` resolved decisions)
-- `src/crosshook-native/crates/crosshook-core/src/offline/hash.rs`: Existing trainer hash verification; discovery surfaces optional `sha256` from `trainer-sources.json` only as metadata
-- `src/crosshook-native/crates/crosshook-core/Cargo.toml`: Phase A keeps `rusqlite = { features = ["bundled"] }`; Phase C adds `bundled-full` (or equivalent) for FTS5
+- `src/crosshook-native/crates/crosshook-core/src/discovery/mod.rs`: Phase A module root; Phase B adds `pub mod client; pub mod matching;` and re-exports
+- `src/crosshook-native/crates/crosshook-core/src/discovery/models.rs`: Phase A types + Phase B additions (`ExternalTrainerResult`, `ExternalTrainerSearchResponse`, `ExternalTrainerSearchQuery`, `DiscoveryCacheState`)
+- `src/crosshook-native/crates/crosshook-core/src/discovery/search.rs`: Phase A LIKE search; untouched by Phase B
+- `src/crosshook-native/crates/crosshook-core/src/protondb/client.rs`: **PRIMARY Phase B reference** — OnceLock HTTP singleton (line 26), cache-first flow (lines 85–130), stale fallback (line 111), `persist_lookup_result` (line 318), `load_cached_lookup_row` (line 346)
+- `src/crosshook-native/crates/crosshook-core/src/protondb/models.rs`: Serde conventions — `#[serde(rename_all = "camelCase")]` on structs, `#[serde(rename_all = "snake_case")]` on enums, cache key namespace pattern
+- `src/crosshook-native/crates/crosshook-core/src/metadata/cache_store.rs`: `get_cache_entry()`, `put_cache_entry()`, `evict_expired_cache_entries()` — Phase B cache read/write API
+- `src/crosshook-native/crates/crosshook-core/src/metadata/version_store.rs`: `compute_correlation_status()` (line 185, pure fn) and `lookup_latest_version_snapshot()` (line 75) — Phase B version check
+- `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs`: `MetadataStore` facade — `with_conn`/`with_sqlite_conn` accessors; add Phase B cache and version-check facade methods
+- `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`: `external_cache_entries` schema (v4, line 264); `trainer_sources` (v18, line 782) — no new migration for Phase B
+- `src/crosshook-native/crates/crosshook-core/src/install/discovery.rs`: `tokenize()` (line 292) and `token_hits()` (line 272) — scoring primitives for `matching.rs`
+- `src/crosshook-native/crates/crosshook-core/Cargo.toml`: Add `quick-xml` for RSS parsing; `reqwest` already has `json` + `rustls-tls`
+- `src/crosshook-native/crates/crosshook-core/src/lib.rs`: `pub mod discovery;` already declared (Phase A)
 
 ### Tauri IPC Layer
 
-- `src/crosshook-native/src-tauri/src/lib.rs`: App entry point — registers managed state and `invoke_handler!`; add discovery commands here
-- `src/crosshook-native/src-tauri/src/commands/mod.rs`: Command module registry — add `pub mod discovery;`
-- `src/crosshook-native/src-tauri/src/commands/community.rs`: Reference sync IPC commands — `community_sync`, `community_import_profile`; IPC contract test block (`#[cfg(test)]` at lines 311–353)
-- `src/crosshook-native/src-tauri/src/commands/protondb.rs`: Reference async IPC — `.inner().clone()` before `await`
+- `src/crosshook-native/src-tauri/src/commands/discovery.rs`: Phase A sync `discovery_search_trainers`; Phase B adds async `discovery_search_external` + sync `discovery_check_version_compatibility`
+- `src/crosshook-native/src-tauri/src/commands/protondb.rs`: **Async IPC reference** — `.inner().clone()` before `await` (line 55), `map_err(|e| e.to_string())` at boundary
+- `src/crosshook-native/src-tauri/src/commands/mod.rs`: `pub mod discovery;` already declared (Phase A)
+- `src/crosshook-native/src-tauri/src/lib.rs`: `tauri::generate_handler![]` — register Phase B commands in the `// Trainer discovery` block (line ~318)
 
 ### Frontend — React/TypeScript
 
-- `src/crosshook-native/src/hooks/useCommunityProfiles.ts`: Reference for community profile types (import path from discovery)
-- `src/crosshook-native/src/hooks/useProtonDbSuggestions.ts`: Reference hook — `requestIdRef` race guard, loading/error state
-- `src/crosshook-native/src/components/CommunityBrowser.tsx`: Reference — `matchesQuery()` pattern
-- `src/crosshook-native/src/components/pages/CommunityPage.tsx`: Host page — discovery panel as sibling/nested tab
-- `src/crosshook-native/src/hooks/useScrollEnhance.ts`: CRITICAL — register new scroll containers in `SCROLLABLE`
-- `src/crosshook-native/src/types/index.ts`: Barrel — add `export * from './discovery'`
-- `src/crosshook-native/src/styles/variables.css`: CSS custom properties
+- `src/crosshook-native/src/hooks/useTrainerDiscovery.ts`: Phase A hook (untouched by Phase B) — debounced local search
+- `src/crosshook-native/src/hooks/useProtonDbSuggestions.ts`: **Hook reference** — `requestIdRef` race guard (line 37), cache state from payload, `{ data, loading, error, refresh }` shape
+- `src/crosshook-native/src/types/discovery.ts`: Phase A types; Phase B adds `ExternalTrainerResult`, `ExternalTrainerSearchResponse`, `ExternalTrainerSearchQuery`
+- `src/crosshook-native/src/components/TrainerDiscoveryPanel.tsx`: Phase A panel; Phase B adds "Search Online" button, external results section, trust badges, offline banner
+- `src/crosshook-native/src/hooks/useScrollEnhance.ts`: **CRITICAL** — register any new scroll containers in `SCROLLABLE` selector
+- `src/crosshook-native/src/styles/variables.css`: CSS custom properties for badges/banners
 
 ## Relevant Tables
 
-- **`trainer_sources`**: Phase A search target — one row per source entry from `trainer-sources.json`; LIKE on `game_name`, `source_name`, `notes`; **`migrate_17_to_18`**
-- **`community_profiles`**: Unchanged for Option B — still indexed from `community-profile.json`; used for **Import Profile** correlation, not primary discovery search
-- **`community_taps`**: JOIN for `tap_url`; watermark skip unchanged
-- **`external_cache_entries`**: Phase B — keys such as `trainer:source:v1:{normalized_game_key}` (see `feature-spec.md` / `research-architecture.md`)
-- **`version_snapshots`**: Phase B version matching via `version_store.rs`
-- **`trainer_hash_cache`**: Launch-time verification; discovery does not substitute this
+- **`external_cache_entries`** (existing, v4): Phase B cache target — keys `trainer:source:v1:{key}`; 512 KiB payload cap; TTL via `expires_at`; `ON CONFLICT(cache_key) DO UPDATE SET` upsert
+- **`version_snapshots`** (existing, v9): Phase B version check — `lookup_latest_version_snapshot(profile_id)` returns latest `steam_build_id`, `human_game_ver`, `trainer_version`
+- **`trainer_sources`** (existing, v18): Phase A search target — Phase B reads but does not modify; external results are NOT written here
+- **`community_taps`** (existing): JOIN for tap URL/local_path in search; unchanged
 
 ## Relevant Patterns
 
-**MetadataStore Facade**: All SQLite access through `MetadataStore` wrapper methods. See `metadata/mod.rs` and `metadata/community_index.rs`.
+**OnceLock HTTP Client Singleton**: Each HTTP client domain gets its own `static OnceLock<reqwest::Client>`. Builder sets timeout + `CrossHook/{version}` user-agent. Lazy init, race-safe. See `protondb/client.rs:26,175-190`.
 
-**Thin IPC Command Handlers**: `commands/protondb.rs` (async) and `commands/community.rs` (sync).
+**Cache-First Fetch (3-stage)**: (1) Check `external_cache_entries` for valid row → return on hit, (2) HTTP fetch live → parse → persist → return, (3) On error: load stale row (allow_expired=true) → return with `is_stale=true`, (4) No row at all → return `Unavailable`. See `protondb/client.rs:85-130`.
 
-**IPC Contract Tests**: Mandatory `#[cfg(test)]` function-pointer assertions per command file.
+**Domain Error Types**: Private `enum DiscoveryError` with `Network(reqwest::Error)`, `ParseError(String)`, etc. Manual `fmt::Display` impl. Never exposed at IPC boundary. See `protondb/client.rs:29-53`.
 
-**Cache-First Fetch**: `protondb/client.rs:85–130`.
+**Async IPC Command**: `pub async fn`, `metadata_store.inner().clone()` before first `.await`, `map_err(|e| e.to_string())`. See `commands/protondb.rs:49-57`.
 
-**Watermark-Skip Indexing**: `community_index.rs` — extend so trainer source index respects the same tap HEAD semantics as profiles.
+**IPC Contract Test**: `#[cfg(test)]` function-pointer cast block in every commands file. Compile-time signature verification. See `commands/discovery.rs:19-31`.
 
-**Domain Module Layout**: Mirror `protondb/`: `discovery/mod.rs`, `models.rs`, `search.rs`, `client.rs` (Phase B), optional `version_match.rs`.
+**Token Scoring**: `tokenize()` splits on non-alphanumeric, lowercases, filters ≥2 chars; `token_hits()` counts substring matches. See `install/discovery.rs:272-303`.
 
-**Serde on IPC Boundary**: `camelCase` / `snake_case` conventions as in existing commands.
+**MetadataStore Facade**: `with_conn` (returns `T::default()` when unavailable) for optional reads; `with_sqlite_conn` (returns `Err`) when unavailability must be surfaced. See `metadata/mod.rs:98-160`.
 
-**Frontend Hook Pattern**: `useProtonDbSuggestions.ts`-style `requestIdRef` + `{ data, loading, error, refresh }`.
+**Serde IPC Boundary**: `#[serde(rename_all = "camelCase")]` on result structs; `#[serde(rename_all = "snake_case")]` on state enums; `#[serde(default, skip_serializing_if = "Option::is_none")]` on optional fields. See `discovery/models.rs`.
+
+**Frontend Hook Race Guard**: `requestIdRef.current` increment before invoke; discard responses where ref has advanced. See `useTrainerDiscovery.ts:38-51`.
 
 ## Relevant Docs
 
-**docs/plans/trainer-discovery/feature-spec.md**: Authoritative decisions, SQL, IPC names, phases.
+**docs/plans/trainer-discovery/feature-spec.md**: You _must_ read this for Phase B task list (lines 602–616), Decision 3 (FLiNG RSS only, line 640), IPC command signatures (lines 389–401), external dependency details (lines 23–53), and security findings (lines 555–577).
 
-**AGENTS.md**: Architecture rules, Tauri IPC, scroll containers, persistence classification.
+**docs/plans/trainer-discovery/research-external.md**: You _must_ read this for FLiNG RSS endpoint details, HTTP client code patterns, cache key conventions, and three-stage fetch implementation. All Phase B network code derives from this.
 
-**docs/plans/trainer-discovery/research-practices.md**: Resolved design decisions, FTS/LIKE notes, testing guidance.
+**docs/plans/trainer-discovery/research-security.md**: You _must_ read this for S3 (cache poisoning mitigation), S5 (URL rendering in WebKitGTK), S9 (SHA-256 integration), and S10 (trust indicators for external results).
 
-**docs/plans/trainer-discovery/research-technical.md**: Technical depth, migration and module layout (aligned to Option B + FTS virtual table in Phase C).
+**docs/plans/trainer-discovery/research-practices.md**: You _must_ read this for resolved design decisions: FTS5 unavailable, IPC command split, `tokenize()` lifting plan, testability patterns.
 
-**docs/plans/trainer-discovery/research-security.md**: URL validation, DMCA, WebKitGTK.
+**docs/plans/trainer-discovery/research-ux.md**: You _must_ read this for trust badge design, version badge two-stage render, offline banner patterns, progressive loading, and existing component reuse.
 
-**docs/plans/trainer-discovery/research-ux.md**: UX flows and a11y.
+**AGENTS.md**: You _must_ read this for architecture rules (business logic in crosshook-core), Tauri IPC conventions (snake_case, Serde), scroll container rules, and persistence classification.
 
-**docs/features/steam-proton-trainer-launch.doc.md**: Profile import and launch integration.
+**docs/plans/trainer-discovery/research-architecture.md**: Reference for Phase B data flow diagrams, cache infrastructure details, and version store integration.
 
-## Critical Constraints
+**docs/plans/trainer-discovery/research-patterns.md**: Reference for detailed code pattern examples with line numbers.
 
-- **Phase A/B search**: LIKE on `trainer_sources` until Phase C enables FTS5.
-- **DMCA §1201**: Opt-in — `discovery_enabled = false` default; consent on first enable (`feature-spec.md` Decision 2).
-- **`useScrollEnhance`**: Register every new `overflow-y: auto` discovery container.
-- **No frontend test framework**: Prefer `cargo test -p crosshook-core` with `MetadataStore::open_in_memory()`.
-- **Sync vs async IPC**: `discovery_search_trainers` stays sync; external calls are separate async commands.
-- **Import**: Use existing `community_import_profile` only.
-- **Trainer versions**: Not semver — display strings as provided.
-- **MetadataStore::disabled()**: Empty results, no panic.
+**docs/plans/trainer-discovery/research-integration.md**: Reference for FLiNG RSS XML structure, PCGamingWiki API format, external_cache_entries schema, and frontend integration plan.

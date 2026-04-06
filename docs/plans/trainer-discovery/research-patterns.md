@@ -1,189 +1,518 @@
-# Pattern Research: trainer-discovery
+# Pattern Research: Trainer Discovery Phase B
 
-Concrete coding patterns and conventions in the CrossHook codebase that apply directly to implementing trainer discovery. Each section cites the actual source files.
+Concrete coding patterns and conventions in the CrossHook codebase that apply directly to implementing Phase B of trainer discovery. Each section cites the actual source file and line numbers observed during research.
+
+---
+
+## HTTP Client Singleton Pattern
+
+**Source**: `src/crosshook-native/crates/crosshook-core/src/protondb/client.rs`
+
+A `static OnceLock<reqwest::Client>` holds the singleton. A private helper function initializes it lazily on first call and returns a `&'static` reference. The `OnceLock::set` result is intentionally discarded (`let _ = ...`) because a concurrent race to initialize is benign — `OnceLock::get()` always returns the winner.
+
+```
+// client.rs:26
+static PROTONDB_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+// client.rs:175–190 — the init helper
+fn protondb_http_client() -> Result<&'static reqwest::Client, ProtonDbError> {
+    if let Some(client) = PROTONDB_HTTP_CLIENT.get() {
+        return Ok(client);
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+        .user_agent(format!("CrossHook/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(ProtonDbError::Network)?;
+
+    let _ = PROTONDB_HTTP_CLIENT.set(client);
+    Ok(PROTONDB_HTTP_CLIENT
+        .get()
+        .expect("HTTP client should be initialized before use"))
+}
+```
+
+Key decisions:
+
+- `timeout` is set at build time via a named constant (`REQUEST_TIMEOUT_SECS: u64 = 6`).
+- `user_agent` includes the crate version via `env!("CARGO_PKG_VERSION")`.
+- Build failure maps to the domain error type via `.map_err(ProtonDbError::Network)`.
+- The `.get().expect(...)` after `set` is the only `expect` in the path — it is safe because `set` either succeeded or raced with another successful set.
+
+For `discovery/client.rs`, clone this pattern exactly with a `DISCOVERY_HTTP_CLIENT: OnceLock<reqwest::Client>` static and a `discovery_http_client()` private helper. Use a separate timeout constant (`DISCOVERY_REQUEST_TIMEOUT_SECS`).
+
+---
+
+## Cache-First Fetch Pattern
+
+**Source**: `src/crosshook-native/crates/crosshook-core/src/protondb/client.rs:85–130`
+
+The `lookup_protondb` public function is the canonical template. The flow has four branches:
+
+1. **Validate input** — `normalize_app_id` returns `None` for whitespace-only inputs; returns `Default` immediately.
+2. **Check valid cache** — `load_cached_lookup_row(store, key, allow_expired=false)` returns the cache row only if `expires_at > now`.
+3. **Fetch live** — `fetch_live_lookup(app_id).await` is called only on cache miss or `force_refresh=true`. On success, `attach_cache_state` sets `from_cache=false` and `persist_lookup_result` writes to `external_cache_entries`.
+4. **Stale fallback** — On live fetch error, `load_cached_lookup_row(store, key, allow_expired=true)` ignores `expires_at`. If a stale row exists, it is returned with `state = Stale` and `is_offline = true`. If no row exists at all, `state = Unavailable` is returned.
+
+Error on live fetch is logged with `tracing::warn!(app_id, %error, "message")` before falling back — never silenced.
+
+The `external_cache_entries` table is used for all remote data cache. Cache keys follow `namespace:identifier` format (e.g. `protondb:1245620`). For discovery, use `trainer_discovery:fling:{slug}`.
+
+Relevant files:
+
+- `protondb/client.rs:85–130` — `lookup_protondb` function body
+- `protondb/client.rs:318–344` — `persist_lookup_result` (serializes to JSON, calls `metadata_store.put_cache_entry`)
+- `protondb/client.rs:346–394` — `load_cached_lookup_row` (uses `with_sqlite_conn`, handles `allow_expired` flag)
+- `metadata/cache_store.rs:29–88` — `put_cache_entry` uses `ON CONFLICT(cache_key) DO UPDATE SET ...`
+
+---
+
+## Domain Error Types
+
+**Source**: `src/crosshook-native/crates/crosshook-core/src/protondb/client.rs:29–53`
+
+Private error enums are used inside client modules for internal error categorization. They are never exposed at the IPC boundary.
+
+```rust
+#[derive(Debug)]
+enum ProtonDbError {
+    NotFound,
+    HashResolutionFailed,
+    Network(reqwest::Error),
+    InvalidAppId(String),
+    InvalidTimestamp(i64),
+}
+
+impl fmt::Display for ProtonDbError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotFound => write!(f, "ProtonDB summary not found for this Steam App ID"),
+            Self::HashResolutionFailed => write!(f, "ProtonDB report feed hash could not be resolved"),
+            Self::Network(error) => write!(f, "network error: {error}"),
+            Self::InvalidAppId(id) => write!(f, "app ID {id:?} cannot be used for a report feed lookup"),
+            Self::InvalidTimestamp(ts) => write!(f, "ProtonDB counts timestamp {ts} is not positive"),
+        }
+    }
+}
+```
+
+For `discovery/client.rs`, define a private `DiscoveryError` enum with at minimum:
+
+- `Network(reqwest::Error)` — HTTP transport errors
+- `ParseError(String)` — RSS/XML parsing failures
+- `RateLimited` — HTTP 429 response
+- `NotFound` — resource absent at expected URL
+
+Do **not** use `anyhow` in library (`crosshook-core`) code. Do **not** derive `thiserror` — implement `fmt::Display` manually to match the existing style.
+
+---
+
+## Serde Conventions
+
+**Source**: `src/crosshook-native/crates/crosshook-core/src/protondb/models.rs` and `src/crosshook-native/crates/crosshook-core/src/discovery/models.rs`
+
+**IPC result structs** (sent to frontend):
+
+- `#[derive(Debug, Clone, Serialize, Deserialize)]`
+- `#[serde(rename_all = "camelCase")]` — frontend receives camelCase
+- Optional fields: `#[serde(default, skip_serializing_if = "Option::is_none")]`
+- Empty string fields: `#[serde(default, skip_serializing_if = "String::is_empty")]`
+- Vec fields: `#[serde(default, skip_serializing_if = "Vec::is_empty")]`
+- Bool fields with `#[serde(default)]` — no `skip_serializing_if` (booleans are always serialized)
+
+**State enums** (e.g. `ProtonDbLookupState`, `VersionMatchStatus`):
+
+- `#[serde(rename_all = "snake_case")]`
+- `#[default]` on the idle/unknown variant
+- Example: `protondb/models.rs:114–123`, `discovery/models.rs:100–108`
+
+**Custom Deserialize for string-enum types**: When remote APIs return string values not matching Rust enum variants, use a custom `Visitor` impl (see `ProtonDbTier` at `protondb/models.rs:79–111`). For discovery, FLiNG version strings are plain strings and don't need custom visitors — store them as `Option<String>`.
+
+**Internal-only structs** (never serialized to IPC boundary):
+
+- No `Serialize` / `Deserialize` derives — e.g. `TrainerSourceRow` at `discovery/models.rs:32–48`
+- These are row-mapping types for SQLite results only
+
+**Cache key format** (from `protondb/models.rs:9–21`):
+
+```rust
+pub const PROTONDB_CACHE_NAMESPACE: &str = "protondb";
+pub fn cache_key_for_app_id(app_id: &str) -> String {
+    format!("{PROTONDB_CACHE_NAMESPACE}:{}", app_id.trim())
+}
+```
+
+Discovery cache keys should follow `trainer_discovery:fling:{slug}` or `trainer_discovery:rss:{feed_url_hash}`.
+
+**TypeScript side** (`src/crosshook-native/src/types/discovery.ts`):
+
+- Field names are camelCase, matching the Rust `rename_all = "camelCase"` output
+- `VersionMatchStatus` is a string literal union: `'exact' | 'compatible' | 'newer_available' | 'outdated' | 'unknown'`
+- Internal row types (`TrainerSourceRow`) have no TypeScript counterpart — they never cross IPC
+
+---
+
+## Async IPC Command Pattern
+
+**Source**: `src/crosshook-native/src-tauri/src/commands/protondb.rs:49–57`
+
+The canonical async command pattern:
+
+```rust
+#[tauri::command]
+pub async fn protondb_lookup(
+    app_id: String,
+    force_refresh: Option<bool>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<ProtonDbLookupResult, String> {
+    let metadata_store = metadata_store.inner().clone();
+    Ok(lookup_protondb(&metadata_store, &app_id, force_refresh.unwrap_or(false)).await)
+}
+```
+
+Critical: `metadata_store.inner().clone()` extracts the `MetadataStore` from the `State` wrapper **before** the `await`. `State<'_, T>` is not `Send` and cannot cross `await` points. The clone is cheap because `MetadataStore` holds an `Arc<Mutex<Connection>>` internally.
+
+For `discovery_search_external` (Phase B async command):
+
+```rust
+#[tauri::command]
+pub async fn discovery_search_external(
+    query: String,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<ExternalTrainerSearchResponse, String> {
+    let metadata_store = metadata_store.inner().clone();
+    discovery::fetch_external_results(&metadata_store, &query)
+        .await
+        .map_err(|e| e.to_string())
+}
+```
+
+For sync commands (no `await`), the `inner().clone()` is not needed — `State<'_, T>` can be used directly in sync context. See `commands/discovery.rs:5–17` for the existing sync command.
+
+---
+
+## Contract Test Pattern
+
+**Source**: `src/crosshook-native/src-tauri/src/commands/community.rs:310–353` and `src/crosshook-native/src-tauri/src/commands/discovery.rs:19–31`
+
+Every commands file ends with a `#[cfg(test)]` block that casts each `#[tauri::command]` function to its exact function-pointer type. This is a **compile-time IPC contract test** — it verifies the Tauri command signature matches what the frontend invokes, without running a Tauri instance.
+
+Minimal example from `discovery.rs`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_names_match_expected_ipc_contract() {
+        let _ = discovery_search_trainers
+            as fn(
+                TrainerSearchQuery,
+                State<'_, MetadataStore>,
+            ) -> Result<TrainerSearchResponse, String>;
+    }
+}
+```
+
+For Phase B, two new commands must be added to this block:
+
+```rust
+let _ = discovery_search_external
+    as fn(
+        String,
+        State<'_, MetadataStore>,
+    ) -> Result<ExternalTrainerSearchResponse, String>;
+
+let _ = discovery_check_version_compatibility
+    as fn(
+        VersionCompatibilityQuery,
+        State<'_, MetadataStore>,
+    ) -> Result<VersionMatchResult, String>;
+```
+
+Async commands use the same cast syntax — Rust's type system treats `async fn` as returning `impl Future`, which satisfies the function pointer type when the signature matches.
+
+---
+
+## Token Scoring Pattern
+
+**Source**: `src/crosshook-native/crates/crosshook-core/src/install/discovery.rs:272–303`
+
+Two small pure functions perform all text matching:
+
+```rust
+fn tokenize(value: &str) -> Vec<String> {
+    value
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter_map(|token| {
+            let token = token.trim().to_lowercase();
+            if token.len() >= 2 {
+                Some(token)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn token_hits(value: &str, target_tokens: &[String]) -> usize {
+    target_tokens
+        .iter()
+        .filter(|token| value.contains(token.as_str()))
+        .count()
+}
+```
+
+`tokenize` splits on any non-ASCII-alphanumeric character, lowercases, and drops tokens shorter than 2 chars. `token_hits` counts how many target tokens appear as substrings of the candidate string.
+
+These functions are currently private to `install/discovery.rs`. For Phase B matching (`discovery/matching.rs`), they should be **lifted to a shared location** or duplicated with attribution rather than made `pub(crate)` from the install module (which would create a cross-domain dependency). Options:
+
+1. Duplicate to `discovery/matching.rs` (preferred — no cross-domain coupling)
+2. Extract to `crosshook-core/src/text_utils.rs` as `pub(crate)` (only if three or more modules need them)
+
+The scoring heuristic in `score_candidate` (`install/discovery.rs:214–270`) shows the weight structure:
+
+- Stem token hit: `+40 + (hits * 12)`
+- Path segment token hits: `+(hits * 4)`
+- Suspicious file terms: `-120`
+- Installer hint match: `-150`
+
+For trainer name matching in Phase B, adapt the same approach: assign positive weight to query token hits against `game_name`/`source_name`, and filter results scoring below a threshold.
+
+---
+
+## Version Comparison Pattern
+
+**Source**: `src/crosshook-native/crates/crosshook-core/src/metadata/version_store.rs:178–211`
+
+`compute_correlation_status` is a pure function — no I/O, no database calls, fully testable in isolation:
+
+```rust
+pub fn compute_correlation_status(
+    current_build_id: &str,
+    snapshot_build_id: Option<&str>,
+    current_trainer_hash: Option<&str>,
+    snapshot_trainer_hash: Option<&str>,
+    state_flags: Option<u32>,
+) -> VersionCorrelationStatus {
+    if let Some(flags) = state_flags {
+        if flags != 4 {
+            return VersionCorrelationStatus::UpdateInProgress;
+        }
+    }
+
+    let Some(snapshot_build) = snapshot_build_id else {
+        return VersionCorrelationStatus::Untracked;
+    };
+
+    let build_changed = current_build_id != snapshot_build;
+    let trainer_changed = current_trainer_hash != snapshot_trainer_hash;
+
+    match (build_changed, trainer_changed) {
+        (true, true) => VersionCorrelationStatus::BothChanged,
+        (true, false) => VersionCorrelationStatus::GameUpdated,
+        (false, true) => VersionCorrelationStatus::TrainerChanged,
+        (false, false) => VersionCorrelationStatus::Matched,
+    }
+}
+```
+
+For Phase B `discovery/matching.rs`, the advisory version matching function follows this exact template:
+
+- Pure function, takes `Option<&str>` for all optional inputs
+- Returns a `VersionMatchStatus` enum variant (already defined at `discovery/models.rs:99–108`)
+- No network or database calls — those happen in the caller
+- The function compares the trainer's `game_version` field (from FLiNG RSS/manifest) against the installed game's Steam build ID or known version string
+
+Example signature to implement:
+
+```rust
+pub fn match_trainer_version(
+    trainer_game_version: Option<&str>,
+    installed_build_id: Option<&str>,
+    installed_human_version: Option<&str>,
+) -> VersionMatchResult
+```
+
+---
+
+## MetadataStore Facade Pattern
+
+**Source**: `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs:98–160`
+
+Three accessor methods exist on `MetadataStore`, each wrapping `Arc<Mutex<Connection>>`:
+
+| Method             | Visibility     | Return constraint     | Use when                                                                      |
+| ------------------ | -------------- | --------------------- | ----------------------------------------------------------------------------- |
+| `with_conn`        | `fn` (private) | `T: Default`          | Standard read/write — returns `T::default()` when DB unavailable              |
+| `with_conn_mut`    | `fn` (private) | `T: Default`          | Write operations needing `&mut Connection` for transactions                   |
+| `with_sqlite_conn` | `pub fn`       | No `Default` required | External callers (tests, other modules) that cannot afford a default fallback |
+
+The difference between `with_conn` and `with_sqlite_conn`:
+
+- `with_conn` silently returns `T::default()` when the store is `!available` — appropriate for optional metadata reads
+- `with_sqlite_conn` returns `Err(MetadataStoreError::Corrupt("unavailable"))` when `!available` — appropriate when unavailability must be surfaced to the caller
+
+All public `MetadataStore` methods are thin wrappers:
+
+```rust
+pub fn search_trainer_sources(
+    &self,
+    query: &str,
+    limit: i64,
+    offset: i64,
+) -> Result<TrainerSearchResponse, MetadataStoreError> {
+    self.with_conn("search trainer sources", |conn| {
+        crate::discovery::search_trainer_sources(conn, query, limit, offset)
+    })
+}
+```
+
+The `action` string passed to `with_conn` is a human-readable description used in the error message: `"failed to {action}: {source}"`.
+
+For Phase B, add these public methods to `MetadataStore`:
+
+- `pub fn get_discovery_cache_entry(key: &str)` → delegates to `cache_store::get_cache_entry`
+- `pub fn put_discovery_cache_entry(...)` → delegates to `cache_store::put_cache_entry`
+- `pub fn search_external_trainer_results(query: &str, limit: i64, offset: i64)` → delegates to `discovery::search_external_results`
+
+Use `with_conn` (not `with_sqlite_conn`) for these — they return types implementing `Default` (`Option<String>`, `TrainerSearchResponse`).
+
+---
+
+## Frontend Hook Patterns
+
+**Source**: `src/crosshook-native/src/hooks/useProtonDbSuggestions.ts` and `src/crosshook-native/src/hooks/useTrainerDiscovery.ts`
+
+**State shape** (standard across all async hooks):
+
+```typescript
+const [data, setData] = useState<T | null>(null);
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
+const requestIdRef = useRef(0);
+```
+
+**Request ID guard** (prevents stale responses from overwriting newer ones):
+
+```typescript
+const id = ++requestIdRef.current;
+// ... await invoke(...)
+if (requestIdRef.current !== id) {
+  return; // stale — a newer request superseded this one
+}
+```
+
+**Return shape** (exported interface alongside the hook):
+
+```typescript
+export interface UseExternalTrainerSearchReturn {
+  data: ExternalTrainerSearchResponse | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+}
+```
+
+**Debounce** (`useTrainerDiscovery.ts:26` and `:72–95`):
+
+```typescript
+const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>();
+// In useEffect:
+debounceTimerRef.current = setTimeout(() => {
+  void fetchResults(query);
+}, 300);
+return () => clearTimeout(debounceTimerRef.current);
+```
+
+**Cache state tracking**: `useProtonDbSuggestions.ts` does not track cache state in the hook — that data comes back in the result payload. The hook returns the full typed response and lets components inspect `result.cache.isStale`. Phase B external search hook should follow the same convention.
+
+**IPC invocation** (from `useProtonDbSuggestions.ts:42–46`):
+
+```typescript
+const result = await invoke<ExternalTrainerSearchResponse>('discovery_search_external', {
+  query,
+  limit: options?.limit,
+  offset: options?.offset,
+});
+```
+
+**Early return guard**:
+
+```typescript
+if (!query.trim()) {
+  requestIdRef.current += 1; // invalidate any in-flight request
+  setData(null);
+  setLoading(false);
+  setError(null);
+  return;
+}
+```
+
+**Error narrowing** (TypeScript):
+
+```typescript
+} catch (err) {
+  setError(err instanceof Error ? err.message : String(err));
+  setData(null);
+}
+```
+
+**Offline banner / progressive loading**: For Phase B the hook should expose an additional field `isOffline: boolean` derived from `data?.cacheState?.isOffline ?? false`. This lets the UI show the offline banner without parsing the payload itself.
 
 ---
 
 ## Architectural Patterns
 
-**Domain module layout (`mod.rs` + focused subfiles)**: Every domain in `crosshook-core` uses a directory with `mod.rs` for public re-exports and private child modules for implementation.
+**Domain module layout**: Every domain in `crosshook-core` uses `mod.rs` for public re-exports only; implementation is in private child files. `discovery/mod.rs` already exists at `crates/crosshook-core/src/discovery/mod.rs` with `pub mod models; pub mod search;` and re-exports.
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/mod.rs` — public re-exports only; `client`, `models`, `aggregation`, `suggestions` are private
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/lib.rs` — declares each domain module as `pub mod`; discovery needs `pub mod discovery;` added here
+**Thin IPC command handlers**: Command files in `src-tauri/src/commands/` are `~30–100 lines` total. No business logic — delegate to `crosshook-core`, map errors. New Phase B commands go in the existing `commands/discovery.rs`.
 
-**`MetadataStore` wrapper pattern**: All SQLite access goes through `MetadataStore::with_conn` or `with_conn_mut` (immutable/mutable lock) or `with_sqlite_conn` (when the return type does not implement `Default`). No module holds a raw `Connection`.
+**Tauri `invoke` name → Rust function name**: They must match exactly. `protondb_lookup` in Rust ↔ `invoke('protondb_lookup', ...)` in TypeScript. For Phase B: `discovery_search_external` ↔ `invoke('discovery_search_external', ...)`.
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs:97–159` — the three wrapper methods
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs:22–165` — `index_community_tap_result` called as a free function, passed `&mut Connection` by the wrapper
+**`tracing::warn!` for non-fatal failures**: When an operation can degrade gracefully, log and continue:
 
-**Thin IPC command handlers (~50–100 lines)**: Command files in `src-tauri/src/commands/` contain only `#[tauri::command]` functions. They receive `State<'_, T>` values, delegate to `crosshook-core`, and map errors with `.map_err(|e| e.to_string())`. No business logic.
+```rust
+if let Err(e) = some_optional_step() {
+    tracing::warn!(%e, field = %value, "description of what failed and why it is non-fatal");
+}
+```
 
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/protondb.rs:49–57` — `protondb_lookup` is the canonical minimal async command
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/community.rs:263–299` — `community_sync` with fan-out loop and `tracing::warn!` fallback
-
-**IPC command signature contract test**: Every commands file ends with a `#[cfg(test)]` block that casts each function to its expected function-pointer type. This verifies the IPC contract compiles without spinning up a Tauri app.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/community.rs:311–353` — definitive example; `discovery.rs` must include an equivalent block
-
-**Cache-first fetch with stale fallback**: `lookup_protondb` in `client.rs` is the reference implementation. Check `external_cache_entries` → attempt live fetch → on failure, return stale row from `external_cache_entries` → on cache miss, return `Unavailable` state. Uses `OnceLock<reqwest::Client>` for the HTTP client singleton.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/client.rs:85–130` — `lookup_protondb`; the full cache-first/stale-fallback flow
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/client.rs:175–190` — `protondb_http_client()` — the `OnceLock` init pattern to clone for `DISCOVERY_HTTP_CLIENT`
-
-**Watermark-skip indexing with transactional DELETE+INSERT**: `index_community_tap_result` compares `last_head_commit` before re-indexing a tap. If unchanged, returns early. Otherwise runs `DELETE FROM community_profiles WHERE tap_id = ?` then batch `INSERT` inside an `Immediate` transaction.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs:22–165`
-
-**Pure-function derivation (no I/O, directly testable)**: `derive_suggestions` in `protondb/suggestions.rs` takes typed values, returns typed values, has no database or network calls. Discovery version matching and name-scoring must follow this pattern.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/suggestions.rs:1–80` — see `SuggestionStatus`, `ProtonDbSuggestionSet`, and the struct definitions that flow into `derive_suggestions`
-
-**Scored candidate ranking with denylist filtering**: `discover_game_executable_candidates` in `install/discovery.rs` uses a `Candidate` struct with `score: i32` and `depth: usize`, denylist term arrays (`SUSPICIOUS_FILE_TERMS`, `SUSPICIOUS_PATH_TERMS`, `SKIP_DIRECTORY_TERMS`), and a bounded scan (`MAX_SCANNED_FILES`, `MAX_RETURNED_CANDIDATES`). The tokenize/token_hits functions from this module are directly reusable for trainer name matching.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/install/discovery.rs:1–80` — candidate struct and denylist constants
+Do not use `eprintln!` or `println!` anywhere in library or command code.
 
 ---
 
-## Code Conventions
+## Patterns to Follow (Phase B Task Mapping)
 
-**Rust naming**: `snake_case` for all functions, modules, variables, fields. `PascalCase` for types, enums, structs. `SCREAMING_SNAKE_CASE` for `const` and `static`. Module files as directories with `mod.rs`. Tauri command names match frontend `invoke()` strings exactly (e.g. `protondb_lookup` ↔ `invoke('protondb_lookup', ...)`).
+| Phase B Task                                 | Pattern to Use                                                           |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
+| `discovery/client.rs` — HTTP client          | HTTP Client Singleton Pattern (OnceLock)                                 |
+| `discovery/client.rs` — FLiNG RSS fetch      | Cache-First Fetch Pattern                                                |
+| `discovery/client.rs` — error handling       | Domain Error Types (private enum + Display)                              |
+| `discovery/models.rs` — Phase B types        | Serde Conventions (camelCase structs, snake_case enums)                  |
+| `commands/discovery.rs` — new async commands | Async IPC Command Pattern (.inner().clone() before await)                |
+| `commands/discovery.rs` — contract test      | Contract Test Pattern (function-pointer cast block)                      |
+| `discovery/matching.rs` — name scoring       | Token Scoring Pattern (tokenize + token_hits)                            |
+| `discovery/matching.rs` — version advisory   | Version Comparison Pattern (pure function, Option<&str> inputs)          |
+| `MetadataStore` — cache read/write           | MetadataStore Facade Pattern (with_conn wrapper)                         |
+| `useExternalTrainerSearch.ts` hook           | Frontend Hook Patterns (requestIdRef, { data, loading, error, refresh }) |
 
-**Serde conventions on IPC boundary types**:
+**Relevant Files (all absolute paths)**:
 
-- Top-level result structs: `#[derive(Debug, Clone, Serialize, Deserialize)]` + `#[serde(rename_all = "camelCase")]` (frontend receives camelCase)
-- Optional fields: `#[serde(default, skip_serializing_if = "Option::is_none")]`
-- State enums: `#[serde(rename_all = "snake_case")]` with `#[default]` on the idle/unknown variant
-- Tagged enum requests (like `AcceptSuggestionRequest`): `#[serde(tag = "kind", rename_all = "snake_case")]`
-
-Example reference: `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/models.rs:114–149` — `ProtonDbLookupState`, `ProtonDbCacheState`
-
-**Cache key namespacing**: Cache keys in `external_cache_entries` use `namespace:identifier` format. ProtonDB uses `protondb:{app_id}`. Discovery should use `trainer_discovery:game:{steam_app_id}` and `trainer_discovery:search:{query_slug}`.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/models.rs:9–21` — `PROTONDB_CACHE_NAMESPACE`, `cache_key_for_app_id`, `normalize_app_id`
-
-**Module public API pattern**: `mod.rs` re-exports only what external callers need. Internal submodules are `mod subname;` (private). Only exported symbols are `pub use subname::Symbol;`.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/mod.rs` — reference for the discovery `mod.rs` structure
-
-**TypeScript type organization**: Types live in `src/types/` as domain-specific files (`protondb.ts`, `community_schema.ts`). All are barrel-exported from `src/types/index.ts`. New discovery types go in `src/types/discovery.ts` and must be added to `index.ts`.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/types/index.ts`
-
-**TypeScript IPC invocation**: Always `invoke<ReturnType>('command_name', { paramName })` where param names are camelCase (Tauri converts from the Rust snake_case). Never call `invoke` without a typed return.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useProtonDbSuggestions.ts:42–46` — canonical form
-
-**`nullable_text` helper**: Before inserting to SQLite, empty strings are stored as `NULL` via `nullable_text(value)` which trims and returns `None` for empty.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs:330–337`
-
-**A6 field-length validation before INSERT**: Every string field from external data is byte-checked against named constants (`MAX_GAME_NAME_BYTES`, etc.) in `check_a6_bounds` before insertion. New fields added to `community_profiles` (e.g. `source_url`, `source_name`) must be added to `check_a6_bounds` with their own constants.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs:9–16` — constants
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs:259–328` — `check_a6_bounds`
-
----
-
-## Error Handling
-
-**`MetadataStoreError` typed error**: All database errors are wrapped in `MetadataStoreError::Database { action: &'static str, source: SqlError }`. The `action` field is a human-readable past-tense description of what failed. Display is `"failed to {action}: {source}"`.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/models.rs:8–63`
-
-**IPC error conversion**: Command handlers map all errors to `String` via `.map_err(|e| e.to_string())`. Never return structured error types across the IPC boundary.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/community.rs:12–14` — `fn map_error(error: impl ToString) -> String`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/protondb.rs:54–57` — inline `.map_err(|e| e.to_string())`
-
-**`tracing::warn!` for non-fatal failures in fan-out loops**: When looping over results and a single failure should not abort the whole operation (e.g. indexing multiple taps), use `tracing::warn!(%e, field = %value, "description")` and continue.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/community.rs:273–280` — canonical `if let Err(e)` + `tracing::warn!` pattern
-
-**Private module-level error enums**: When a module needs internal error categorization (not exposed via IPC), define a private `enum ModuleError` with `impl fmt::Display`. Do not use `anyhow` in library code.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/client.rs:29–53` — `ProtonDbError`
-
-**Frontend error pattern**: In hooks, catch errors as `unknown`, narrow with `instanceof Error`, and store as `string | null` in state. Never re-throw unless the caller explicitly needs to handle it.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useProtonDbSuggestions.ts:53–59` — `catch (err)` block
-
----
-
-## Testing Approach
-
-**Unit tests in `#[cfg(test)]` at bottom of each file**: Tests live adjacent to the code they test. No separate test modules directory. Test helpers are `fn make_entry(...)` factory functions (not fixtures).
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs:371–445` — full test block with factory `make_entry` and boundary tests for `check_a6_bounds`
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/models.rs:243–288` — unit tests for serialization round-trips and pure logic
-
-**In-memory SQLite for store tests**: `MetadataStore::open_in_memory()` is available in `#[cfg(test)]` to test any store function without touching disk.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs:70–73` — `open_in_memory` method
-
-**IPC contract tests (compile-time only)**: Each commands file has a `fn command_names_match_expected_ipc_contract()` test that casts each handler to its explicit function-pointer type. This catches parameter renames and type mismatches at compile time.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/community.rs:315–353` — complete reference; discovery commands must replicate this pattern
-
-**Test naming convention**: `snake_case` function names that describe the scenario. Format: `{verb}_{subject}_{condition}` — e.g. `rejects_oversized_game_version`, `accepts_exactly_256_byte_version_strings`.
-
-- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/community_index.rs:411–445`
-
-**Pure-function tests without I/O**: Functions like `check_a6_bounds`, `derive_suggestions`, and `tokenize` are tested directly — never through the IPC boundary or database.
-
-**No frontend test framework**: The repo has no configured Jest/Vitest. Do not add one. Test pure TypeScript utilities (e.g. from `useCommunityProfiles.ts`) if they are extracted to standalone functions, but hooks themselves are not tested.
-
----
-
-## Patterns to Follow
-
-**For `crosshook-core/src/discovery/` module directory:**
-
-1. `mod.rs` — public re-exports only; mirrors `protondb/mod.rs` structure
-2. `models.rs` — all `#[derive(Debug, Clone, Serialize, Deserialize)]` structs + `#[serde(rename_all = "camelCase")]` for IPC types; state enum with `#[serde(rename_all = "snake_case")]` and `#[default]`
-3. `search.rs` — SQLite LIKE query builder for Phase 1; pure, testable, no IPC dependency
-4. `version_match.rs` (Phase 2) — pure function taking `Option<&str>` inputs, returning a `VersionMatchStatus` enum; tested without I/O
-
-**For `src-tauri/src/commands/discovery.rs`:**
-
-- Follow `commands/protondb.rs` for async pattern (`lookup_protondb` returns `Ok(result)` without `map_err` since the function never errors — returns `Unavailable` state instead)
-- Follow `commands/community.rs` for sync pattern with `map_error` helper
-- Add `pub mod discovery;` to `commands/mod.rs`
-- End the file with the IPC contract test block
-
-**For the MetadataStore integration:**
-
-- Add public methods on `MetadataStore` that delegate to private free functions (e.g. `pub fn search_community_profiles_for_trainer(...)` → `community_index::search_by_query(conn, ...)`)
-- New methods use `self.with_conn("verb a noun", |conn| community_index::function(conn, ...))` pattern
-- Add any new public types to the `pub use` list in `metadata/mod.rs`
-
-**For `src/hooks/useTrainerDiscovery.ts`:**
-
-- Mirror `useProtonDbSuggestions.ts` exactly: `useState<T | null>`, `useState<boolean>`, `useState<string | null>`, `useRef(0)` for request ID guard
-- Guard on early return when required inputs (`gameName`) are missing
-- Expose `refresh: () => Promise<void>` that forces `forceRefresh = true`
-- Typed return interface exported alongside the hook function
-
-**For `src/types/discovery.ts`:**
-
-- `interface TrainerSearchQuery` with all optional filter fields
-- `interface TrainerSearchResult` mirroring the Rust struct field-for-field (camelCase)
-- `interface TrainerSearchResponse` with `results`, `totalCount`, `query`
-- Add `export * from './discovery';` to `src/types/index.ts`
-
-**For SQL queries:**
-
-- All queries are parameterized with `?1`, `?2`, ... positional binds — never string interpolation
-- `LIKE '%' || ?1 || '%'` for substring search (the `%` wrapping stays in the SQL template, not in the user's input)
-- Queries end with `LIMIT ?N OFFSET ?M` and use a `MAX_DISCOVERY_RESULTS_PER_PAGE: usize = 50` constant enforced in Rust before binding
-- JOIN `community_profiles cp JOIN community_taps ct ON cp.tap_id = ct.tap_id` to get `tap_url` in results
-
-**For scroll containers in new React components:**
-
-- Any new `overflow-y: auto` container must be added to the `SCROLLABLE` selector in `src/crosshook-native/src/hooks/useScrollEnhance.ts` or it will cause dual-scroll jank
-- Inner scroll containers use `overscroll-behavior: contain`
-
-**Validation before any INSERT of external data:**
-
-- URL fields: `https://` prefix only (follow `community::taps::validate_tap_url` pattern)
-- Query strings: trim and cap at 512 bytes before passing to SQL
-- All string fields: add to `check_a6_bounds` with named byte-limit constants before any `INSERT INTO community_profiles`
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/client.rs` — HTTP singleton + cache-first template
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/protondb/models.rs` — Serde conventions reference
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/discovery/models.rs` — Phase A/B model types (already defined)
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/discovery/mod.rs` — existing discovery module
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/discovery/search.rs` — Phase A search impl
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/install/discovery.rs` — tokenize + token_hits source
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/version_store.rs` — compute_correlation_status pure function
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs` — with_conn / with_sqlite_conn accessors
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/crates/crosshook-core/src/metadata/cache_store.rs` — put_cache_entry / get_cache_entry
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/protondb.rs` — async IPC command reference
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/community.rs` — sync IPC command + contract test reference
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src-tauri/src/commands/discovery.rs` — existing Phase A command + contract test
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useProtonDbSuggestions.ts` — hook state pattern reference
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useTrainerDiscovery.ts` — Phase A hook (debounce + requestIdRef)
+- `/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/types/discovery.ts` — existing frontend types (VersionMatchResult already defined)
