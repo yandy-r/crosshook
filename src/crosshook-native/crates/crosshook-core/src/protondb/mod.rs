@@ -13,9 +13,9 @@ pub use models::{
     ProtonDbTier, PROTONDB_CACHE_NAMESPACE,
 };
 pub use suggestions::{
-    AcceptSuggestionRequest, AcceptSuggestionResult, CatalogSuggestionItem,
-    EnvVarSuggestionItem, LaunchOptionSuggestionItem, ProtonDbSuggestionSet,
-    SuggestionStatus, derive_suggestions, validate_env_suggestion,
+    derive_suggestions, validate_env_suggestion, AcceptSuggestionRequest, AcceptSuggestionResult,
+    CatalogSuggestionItem, EnvVarSuggestionItem, LaunchOptionSuggestionItem, ProtonDbSuggestionSet,
+    SuggestionStatus,
 };
 
 #[cfg(test)]

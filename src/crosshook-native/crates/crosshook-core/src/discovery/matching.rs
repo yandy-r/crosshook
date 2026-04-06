@@ -180,8 +180,7 @@ pub fn match_trainer_version(
     trainer_game_version: Option<&str>,
     installed_human_game_ver: Option<&str>,
 ) -> VersionMatchResult {
-    let (Some(trainer_ver), Some(installed_ver)) =
-        (trainer_game_version, installed_human_game_ver)
+    let (Some(trainer_ver), Some(installed_ver)) = (trainer_game_version, installed_human_game_ver)
     else {
         return VersionMatchResult {
             status: VersionMatchStatus::Unknown,
@@ -283,7 +282,10 @@ mod tests {
 
     #[test]
     fn strip_version_and_trainer_suffix() {
-        assert_eq!(strip_trainer_suffix("Elden Ring v1.12 Trainer"), "Elden Ring");
+        assert_eq!(
+            strip_trainer_suffix("Elden Ring v1.12 Trainer"),
+            "Elden Ring"
+        );
     }
 
     #[test]

@@ -163,10 +163,7 @@ pub fn clear_dependency_states(
     Ok(())
 }
 
-pub fn clear_stale_states(
-    conn: &Connection,
-    ttl_hours: i64,
-) -> Result<u64, MetadataStoreError> {
+pub fn clear_stale_states(conn: &Connection, ttl_hours: i64) -> Result<u64, MetadataStoreError> {
     let cutoff = (Utc::now() - chrono::Duration::hours(ttl_hours)).to_rfc3339();
     let count = conn
         .execute(
@@ -200,7 +197,8 @@ mod tests {
     #[test]
     fn upsert_and_load_round_trip() {
         let conn = setup_db_with_profile("prof-1");
-        upsert_dependency_state(&conn, "prof-1", "vcrun2019", "/tmp/pfx", "installed", None).unwrap();
+        upsert_dependency_state(&conn, "prof-1", "vcrun2019", "/tmp/pfx", "installed", None)
+            .unwrap();
         let rows = load_dependency_states(&conn, "prof-1").unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].package_name, "vcrun2019");
@@ -212,7 +210,8 @@ mod tests {
     fn upsert_overwrites_existing() {
         let conn = setup_db_with_profile("prof-2");
         upsert_dependency_state(&conn, "prof-2", "vcrun2019", "/tmp/pfx", "missing", None).unwrap();
-        upsert_dependency_state(&conn, "prof-2", "vcrun2019", "/tmp/pfx", "installed", None).unwrap();
+        upsert_dependency_state(&conn, "prof-2", "vcrun2019", "/tmp/pfx", "installed", None)
+            .unwrap();
         let rows = load_dependency_states(&conn, "prof-2").unwrap();
         assert_eq!(rows.len(), 1, "should have exactly one row after upsert");
         assert_eq!(rows[0].state, "installed");
@@ -228,7 +227,8 @@ mod tests {
              (profile_id, package_name, prefix_path, state, checked_at, created_at, updated_at)
              VALUES ('prof-3', 'dotnet48', '/tmp/pfx', 'installed', ?1, ?1, ?1)",
             params![old_time],
-        ).unwrap();
+        )
+        .unwrap();
 
         let deleted = clear_stale_states(&conn, 24).unwrap();
         assert_eq!(deleted, 1);
@@ -239,8 +239,10 @@ mod tests {
     #[test]
     fn cascade_delete_on_profile_removal() {
         let conn = setup_db_with_profile("prof-4");
-        upsert_dependency_state(&conn, "prof-4", "vcrun2019", "/tmp/pfx", "installed", None).unwrap();
-        conn.execute("DELETE FROM profiles WHERE profile_id = 'prof-4'", []).unwrap();
+        upsert_dependency_state(&conn, "prof-4", "vcrun2019", "/tmp/pfx", "installed", None)
+            .unwrap();
+        conn.execute("DELETE FROM profiles WHERE profile_id = 'prof-4'", [])
+            .unwrap();
         let rows = load_dependency_states(&conn, "prof-4").unwrap();
         assert!(rows.is_empty(), "dep states should be cascade-deleted");
     }
@@ -248,8 +250,17 @@ mod tests {
     #[test]
     fn load_single_dependency_state() {
         let conn = setup_db_with_profile("prof-5");
-        upsert_dependency_state(&conn, "prof-5", "vcrun2019", "/tmp/pfx", "installed", None).unwrap();
-        upsert_dependency_state(&conn, "prof-5", "dotnet48", "/tmp/pfx", "missing", Some("download failed")).unwrap();
+        upsert_dependency_state(&conn, "prof-5", "vcrun2019", "/tmp/pfx", "installed", None)
+            .unwrap();
+        upsert_dependency_state(
+            &conn,
+            "prof-5",
+            "dotnet48",
+            "/tmp/pfx",
+            "missing",
+            Some("download failed"),
+        )
+        .unwrap();
         let row = load_dependency_state(&conn, "prof-5", "dotnet48", "/tmp/pfx").unwrap();
         assert!(row.is_some());
         let row = row.unwrap();

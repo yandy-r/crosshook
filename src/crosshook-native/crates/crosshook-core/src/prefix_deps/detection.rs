@@ -9,8 +9,7 @@ const DEFAULT_PATH: &str = "/usr/local/bin:/usr/bin:/bin";
 
 /// Walk PATH for the given binary name, returning its absolute path if found.
 fn resolve_binary_on_path(name: &str) -> Option<String> {
-    let path_value =
-        env::var_os("PATH").unwrap_or_else(|| std::ffi::OsString::from(DEFAULT_PATH));
+    let path_value = env::var_os("PATH").unwrap_or_else(|| std::ffi::OsString::from(DEFAULT_PATH));
     for directory in env::split_paths(&path_value) {
         let candidate = directory.join(name);
         if is_executable_file(&candidate) {
@@ -170,7 +169,10 @@ mod tests {
             let original = env::var_os("PATH");
             // SAFETY: single-threaded access is guaranteed by the mutex.
             unsafe { env::set_var("PATH", path) };
-            Self { original, _guard: guard }
+            Self {
+                original,
+                _guard: guard,
+            }
         }
     }
 

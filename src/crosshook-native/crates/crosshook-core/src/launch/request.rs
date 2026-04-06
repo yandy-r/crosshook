@@ -664,9 +664,7 @@ impl ValidationError {
             Self::GamescopeNestedSession
             | Self::UnshareNetUnavailable
             | Self::OfflineReadinessInsufficient { .. }
-            | Self::LowDiskSpaceAdvisory { .. } => {
-                ValidationSeverity::Warning
-            }
+            | Self::LowDiskSpaceAdvisory { .. } => ValidationSeverity::Warning,
             _ => ValidationSeverity::Fatal,
         }
     }
@@ -1685,9 +1683,9 @@ mod tests {
 
         let issues = validate_all(&request);
         assert!(
-            issues
-                .iter()
-                .any(|issue| issue.message.contains("Both width and height must be set for internal resolution.")),
+            issues.iter().any(|issue| issue
+                .message
+                .contains("Both width and height must be set for internal resolution.")),
             "expected trainer gamescope validation issue in: {issues:?}"
         );
     }

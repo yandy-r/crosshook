@@ -158,18 +158,17 @@ pub fn build_trainer_command(
     script_path: &Path,
     log_path: &Path,
 ) -> Command {
-    let mut command = if request.network_isolation
-        && super::runtime_helpers::is_unshare_net_available()
-    {
-        let mut cmd = Command::new("unshare");
-        cmd.args(["--user", "--net"]);
-        cmd.arg(BASH_EXECUTABLE);
-        cmd.arg(script_path);
-        cmd.env_clear();
-        cmd
-    } else {
-        build_base_command(script_path)
-    };
+    let mut command =
+        if request.network_isolation && super::runtime_helpers::is_unshare_net_available() {
+            let mut cmd = Command::new("unshare");
+            cmd.args(["--user", "--net"]);
+            cmd.arg(BASH_EXECUTABLE);
+            cmd.arg(script_path);
+            cmd.env_clear();
+            cmd
+        } else {
+            build_base_command(script_path)
+        };
     apply_host_environment(&mut command);
     apply_steam_proton_environment(&mut command, request);
     apply_custom_env_vars(&mut command, &request.custom_env_vars);
@@ -239,15 +238,18 @@ pub fn build_proton_trainer_command(
         )?,
     };
 
-    let effective_wrappers = if request.network_isolation
-        && super::runtime_helpers::is_unshare_net_available()
-    {
-        let mut w = vec!["unshare".to_string(), "--user".to_string(), "--net".to_string()];
-        w.extend(directives.wrappers.iter().cloned());
-        w
-    } else {
-        directives.wrappers.clone()
-    };
+    let effective_wrappers =
+        if request.network_isolation && super::runtime_helpers::is_unshare_net_available() {
+            let mut w = vec![
+                "unshare".to_string(),
+                "--user".to_string(),
+                "--net".to_string(),
+            ];
+            w.extend(directives.wrappers.iter().cloned());
+            w
+        } else {
+            directives.wrappers.clone()
+        };
 
     let trainer_gamescope = request.effective_trainer_gamescope();
     let gamescope_active = trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope);
@@ -605,7 +607,6 @@ mod tests {
 
     #[test]
     fn proton_game_command_applies_optimization_wrappers_and_env() {
-
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let wrapper_dir = temp_dir.path().join("wrappers");
         let prefix_path = temp_dir.path().join("prefix");
@@ -699,7 +700,6 @@ mod tests {
 
     #[test]
     fn proton_game_custom_env_overrides_duplicate_optimization_key() {
-
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("prefix");
         let proton_path = temp_dir.path().join("proton");
@@ -784,7 +784,6 @@ mod tests {
 
     #[test]
     fn proton_trainer_command_applies_optimization_wrappers_and_env() {
-
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let wrapper_dir = temp_dir.path().join("wrappers");
         let prefix_path = temp_dir.path().join("prefix");
@@ -888,7 +887,6 @@ mod tests {
 
     #[test]
     fn helper_command_includes_expected_script_arguments() {
-
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let script_path = temp_dir.path().join("script.sh");
         let log_path = temp_dir.path().join("log.txt");
@@ -937,7 +935,6 @@ mod tests {
 
     #[test]
     fn trainer_command_includes_steam_app_id_and_trainer_arguments() {
-
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let script_path = temp_dir.path().join("steam-launch-trainer.sh");
         let log_path = temp_dir.path().join("trainer.log");
@@ -977,7 +974,6 @@ mod tests {
 
     #[test]
     fn proton_trainer_command_stages_support_files_into_prefix() {
-
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("pfx");
         let trainer_source_dir = temp_dir.path().join("trainer");
@@ -1040,7 +1036,6 @@ mod tests {
 
     #[test]
     fn proton_trainer_command_uses_source_directory_without_staging() {
-
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("prefix");
         let proton_path = temp_dir.path().join("proton");
@@ -1155,7 +1150,10 @@ mod tests {
             .map(|arg| arg.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
 
-        assert_eq!(command.as_std().get_program().to_string_lossy(), "gamescope");
+        assert_eq!(
+            command.as_std().get_program().to_string_lossy(),
+            "gamescope"
+        );
         assert!(args.contains(&"-w".to_string()));
         assert!(args.contains(&"1280".to_string()));
         assert!(args.contains(&"-h".to_string()));
@@ -1193,7 +1191,6 @@ mod tests {
 
     #[test]
     fn proton_game_command_sets_compat_data_path_for_standalone_prefixes() {
-
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("standalone-prefix");
         let proton_path = temp_dir.path().join("proton");
@@ -1258,7 +1255,6 @@ mod tests {
 
     #[test]
     fn proton_trainer_command_uses_pfx_child_when_prefix_path_is_compatdata_root() {
-
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let compatdata_root = temp_dir.path().join("compatdata-root");
         let wine_prefix_path = compatdata_root.join("pfx");
@@ -1456,7 +1452,11 @@ mod tests {
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
-        let program = command.as_std().get_program().to_string_lossy().into_owned();
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
         assert_ne!(
             program, "unshare",
             "should NOT use unshare when network_isolation is false"
@@ -1504,7 +1504,11 @@ mod tests {
         };
 
         let command = build_proton_game_command(&request, &log_path).expect("game command");
-        let program = command.as_std().get_program().to_string_lossy().into_owned();
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
         assert_ne!(
             program, "unshare",
             "game command must NEVER use unshare --net"

@@ -269,8 +269,8 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     let validation_issues = validate_all(request);
     let gamescope_config = request.effective_gamescope_config();
 
-    let gamescope_active =
-        gamescope_config.enabled && (gamescope_config.allow_nested || !is_inside_gamescope_session());
+    let gamescope_active = gamescope_config.enabled
+        && (gamescope_config.allow_nested || !is_inside_gamescope_session());
 
     // Resolve launch directives (wrappers + optimization env).
     // `steam_applaunch` uses the same optimization catalog as `proton_run` for Steam Launch Options,
@@ -300,7 +300,11 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                 && request.network_isolation
                 && super::runtime_helpers::is_unshare_net_available()
             {
-                let mut w = vec!["unshare".to_string(), "--user".to_string(), "--net".to_string()];
+                let mut w = vec![
+                    "unshare".to_string(),
+                    "--user".to_string(),
+                    "--net".to_string(),
+                ];
                 w.extend(directives.wrappers.iter().cloned());
                 w
             } else {
@@ -342,11 +346,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                     None
                 }
             };
-            (
-                Some(env),
-                Some(effective_wrappers),
-                effective_command,
-            )
+            (Some(env), Some(effective_wrappers), effective_command)
         }
         None => (None, None, None),
     };
@@ -703,7 +703,10 @@ fn resolve_trainer_launch_path_for_preview(request: &LaunchRequest) -> String {
             if file_stem.is_empty() || file_name.is_empty() {
                 request.trainer_host_path.trim().to_string()
             } else {
-                format!("C:\\CrossHook\\StagedTrainers\\{}\\{}", file_stem, file_name)
+                format!(
+                    "C:\\CrossHook\\StagedTrainers\\{}\\{}",
+                    file_stem, file_name
+                )
             }
         }
     }
@@ -1371,7 +1374,10 @@ mod tests {
             .effective_command
             .as_deref()
             .expect("effective command");
-        assert!(command.starts_with("gamescope"), "expected gamescope in: {command}");
+        assert!(
+            command.starts_with("gamescope"),
+            "expected gamescope in: {command}"
+        );
         assert!(
             command.contains(request.trainer_host_path.as_str()),
             "expected trainer host path in: {command}"
@@ -1395,6 +1401,9 @@ mod tests {
         request.trainer_gamescope = Some(crate::profile::GamescopeConfig::default());
 
         let preview = build_launch_preview(&request).expect("preview");
-        assert!(preview.gamescope_active, "expected fallback gamescope to be active");
+        assert!(
+            preview.gamescope_active,
+            "expected fallback gamescope to be active"
+        );
     }
 }

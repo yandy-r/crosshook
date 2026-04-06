@@ -16,18 +16,27 @@ fn is_valid_verb_structure(verb: &str) -> bool {
         return false;
     }
     // Rest: lowercase letters, digits, underscores, hyphens
-    bytes[1..].iter().all(|&b| {
-        b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-'
-    })
+    bytes[1..]
+        .iter()
+        .all(|&b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
 }
 
 /// Known winetricks verbs commonly used for game trainers.
 /// This is advisory only -- unknown verbs that pass structural validation are allowed.
 static KNOWN_VERBS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     [
-        "vcrun2019", "vcrun2022", "dotnet48", "dotnet40", "dotnet35",
-        "d3dx9", "d3dcompiler_47", "dxvk", "xact", "xinput",
-        "corefonts", "allfonts",
+        "vcrun2019",
+        "vcrun2022",
+        "dotnet48",
+        "dotnet40",
+        "dotnet35",
+        "d3dx9",
+        "d3dcompiler_47",
+        "dxvk",
+        "xact",
+        "xinput",
+        "corefonts",
+        "allfonts",
     ]
     .into_iter()
     .collect()

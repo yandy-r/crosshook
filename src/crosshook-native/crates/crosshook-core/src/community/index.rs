@@ -69,7 +69,9 @@ pub fn index_taps(
         let workspace_index = index_tap(workspace)?;
         index.entries.extend(workspace_index.entries);
         index.diagnostics.extend(workspace_index.diagnostics);
-        index.trainer_sources.extend(workspace_index.trainer_sources);
+        index
+            .trainer_sources
+            .extend(workspace_index.trainer_sources);
     }
 
     sort_entries(&mut index.entries);
@@ -134,18 +136,17 @@ fn collect_manifests(
         let file_name = path.file_name().and_then(|value| value.to_str());
 
         if file_name == Some("trainer-sources.json") {
-            let content =
-                match fs::read_to_string(&path) {
-                    Ok(c) => c,
-                    Err(err) => {
-                        tracing::warn!(
-                            path = %path.display(),
-                            error = %err,
-                            "failed to read trainer-sources.json — skipping"
-                        );
-                        continue;
-                    }
-                };
+            let content = match fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(err) => {
+                    tracing::warn!(
+                        path = %path.display(),
+                        error = %err,
+                        "failed to read trainer-sources.json — skipping"
+                    );
+                    continue;
+                }
+            };
             let manifest: TrainerSourcesManifest = match serde_json::from_str(&content) {
                 Ok(m) => m,
                 Err(err) => {

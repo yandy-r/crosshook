@@ -4,10 +4,10 @@ use std::time::Duration;
 
 use tokio::process::Command;
 
-use crate::launch::runtime_helpers::{apply_host_environment, resolve_wine_prefix_path};
 use super::models::PrefixDepsError;
-use super::PrefixDepsTool;
 use super::validation::validate_protontricks_verbs;
+use super::PrefixDepsTool;
+use crate::launch::runtime_helpers::{apply_host_environment, resolve_wine_prefix_path};
 
 /// Default timeout for check operations (seconds).
 const CHECK_TIMEOUT_SECS: u64 = 30;
@@ -302,7 +302,10 @@ mod tests {
     fn sanitize_stderr_replaces_home_paths() {
         let raw = "error: failed to open /home/user/.wine/drive_c/file.dll: no such file";
         let sanitized = sanitize_stderr(raw);
-        assert!(!sanitized.contains("/home/"), "still contains path: {sanitized}");
+        assert!(
+            !sanitized.contains("/home/"),
+            "still contains path: {sanitized}"
+        );
         assert!(sanitized.contains("<path>"), "no replacement: {sanitized}");
     }
 
