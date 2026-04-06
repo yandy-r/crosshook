@@ -4,8 +4,12 @@ import { open as openUrl } from '@tauri-apps/plugin-shell';
 
 import { useProtonDbLookup } from '../hooks/useProtonDbLookup';
 import type {
+  AcceptSuggestionRequest,
+  CatalogSuggestionItem,
+  EnvVarSuggestionItem,
   ProtonDbLookupState,
   ProtonDbRecommendationGroup,
+  ProtonDbSuggestionSet,
   ProtonDbTier,
   ProtonDbVersionContext,
 } from '../types/protondb';
@@ -19,6 +23,9 @@ export interface ProtonDbLookupCardProps {
   versionContext?: ProtonDbVersionContext | null;
   onApplyEnvVars?: (group: ProtonDbRecommendationGroup) => void;
   applyingGroupId?: string | null;
+  suggestionSet?: ProtonDbSuggestionSet | null;
+  onAcceptSuggestion?: (request: AcceptSuggestionRequest) => Promise<void>;
+  onDismissSuggestion?: (suggestionKey: string) => void;
 }
 
 const STATE_LABELS: Record<Exclude<ProtonDbLookupState, 'ready'>, string> = {
@@ -64,6 +71,9 @@ export function ProtonDbLookupCard({
   versionContext = null,
   onApplyEnvVars,
   applyingGroupId = null,
+  suggestionSet = null,
+  onAcceptSuggestion,
+  onDismissSuggestion,
 }: ProtonDbLookupCardProps) {
   const titleId = useId();
   const [copyLabels, setCopyLabels] = useState<Record<string, string>>({});
@@ -384,6 +394,97 @@ export function ProtonDbLookupCard({
           )}
         </div>
       ) : null}
+
+      {(() => {
+        if (!snapshot || !suggestionSet) return null;
+        const visibleCatalog = suggestionSet.catalogSuggestions.filter((s) => s.status !== 'dismissed');
+        const visibleEnvVar = suggestionSet.envVarSuggestions.filter((s) => s.status !== 'dismissed');
+        if (visibleCatalog.length === 0 && visibleEnvVar.length === 0) return null;
+
+        return (
+          <div className="crosshook-protondb-card__suggestions">
+            <h3 className="crosshook-protondb-card__community-title">Smart Suggestions</h3>
+
+            {suggestionSet.isStale ? (
+              <div className="crosshook-protondb-card__banner crosshook-protondb-card__banner--stale">
+                <p className="crosshook-protondb-card__banner-copy">
+                  Suggestions are based on cached ProtonDB data and may be outdated.
+                </p>
+              </div>
+            ) : null}
+
+            {visibleCatalog.map((item: CatalogSuggestionItem) => (
+              <div key={item.catalogEntryId} className="crosshook-protondb-card__recommendation-item">
+                <div className="crosshook-protondb-card__recommendation-label">
+                  <strong>{item.label}</strong>
+                  {item.status === 'already_applied' ? (
+                    <span className="crosshook-protondb-card__status-badge crosshook-protondb-card__status-badge--applied">&#10003; Applied</span>
+                  ) : null}
+                </div>
+                <p className="crosshook-protondb-card__recommendation-note">
+                  {item.description} &bull; {item.supportingReportCount} report{item.supportingReportCount === 1 ? '' : 's'}
+                </p>
+                <div className="crosshook-protondb-card__actions">
+                  {item.status === 'new' && onAcceptSuggestion ? (
+                    <button
+                      type="button"
+                      className="crosshook-button"
+                      onClick={() => void onAcceptSuggestion({ kind: 'catalog', profileName: '', catalogEntryId: item.catalogEntryId })}
+                    >
+                      Enable
+                    </button>
+                  ) : null}
+                  {onDismissSuggestion ? (
+                    <button
+                      type="button"
+                      className="crosshook-button crosshook-button--secondary"
+                      onClick={() => onDismissSuggestion(item.catalogEntryId)}
+                    >
+                      Dismiss
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+
+            {visibleEnvVar.map((item: EnvVarSuggestionItem) => (
+              <div key={item.key} className="crosshook-protondb-card__recommendation-item">
+                <p className="crosshook-protondb-card__recommendation-label">
+                  <code>{item.key}={item.value}</code>
+                  {item.status === 'already_applied' ? (
+                    <span className="crosshook-protondb-card__status-badge crosshook-protondb-card__status-badge--applied">&#10003; Applied</span>
+                  ) : item.status === 'conflict' ? (
+                    <span className="crosshook-protondb-card__status-badge crosshook-protondb-card__status-badge--conflict">&#9888; Conflict</span>
+                  ) : null}
+                </p>
+                <p className="crosshook-protondb-card__recommendation-note">
+                  {item.supportingReportCount} report{item.supportingReportCount === 1 ? '' : 's'}
+                </p>
+                <div className="crosshook-protondb-card__actions">
+                  {(item.status === 'new' || item.status === 'conflict') && onAcceptSuggestion ? (
+                    <button
+                      type="button"
+                      className="crosshook-button"
+                      onClick={() => void onAcceptSuggestion({ kind: 'env_var', profileName: '', envKey: item.key, envValue: item.value })}
+                    >
+                      {item.status === 'conflict' ? 'Overwrite' : 'Apply'}
+                    </button>
+                  ) : null}
+                  {onDismissSuggestion ? (
+                    <button
+                      type="button"
+                      className="crosshook-button crosshook-button--secondary"
+                      onClick={() => onDismissSuggestion(item.key)}
+                    >
+                      Dismiss
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </section>
   );
 }

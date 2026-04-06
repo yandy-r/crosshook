@@ -3,6 +3,7 @@
 mod aggregation;
 mod client;
 pub mod models;
+pub mod suggestions;
 
 pub use client::lookup_protondb;
 pub use models::{
@@ -10,6 +11,11 @@ pub use models::{
     ProtonDbCacheState, ProtonDbEnvVarSuggestion, ProtonDbLaunchOptionSuggestion,
     ProtonDbLookupResult, ProtonDbLookupState, ProtonDbRecommendationGroup, ProtonDbSnapshot,
     ProtonDbTier, PROTONDB_CACHE_NAMESPACE,
+};
+pub use suggestions::{
+    AcceptSuggestionRequest, AcceptSuggestionResult, CatalogSuggestionItem,
+    EnvVarSuggestionItem, LaunchOptionSuggestionItem, ProtonDbSuggestionSet,
+    SuggestionStatus, derive_suggestions, validate_env_suggestion,
 };
 
 #[cfg(test)]

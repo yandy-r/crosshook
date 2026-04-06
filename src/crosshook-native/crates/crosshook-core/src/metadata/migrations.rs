@@ -153,6 +153,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 17 {
+        migrate_16_to_17(conn)?;
+        conn.pragma_update(None, "user_version", 17_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 17",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -761,6 +770,29 @@ fn migrate_15_to_16(conn: &Connection) -> Result<(), MetadataStoreError> {
     })
 }
 
+fn migrate_16_to_17(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS suggestion_dismissals (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id     TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            app_id         TEXT NOT NULL,
+            suggestion_key TEXT NOT NULL,
+            dismissed_at   TEXT NOT NULL,
+            expires_at     TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_suggestion_dismissals_unique
+            ON suggestion_dismissals(profile_id, app_id, suggestion_key);
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 16 to 17",
+        source,
+    })?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -896,7 +928,7 @@ mod tests {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 16);
+        assert!(version >= 16, "schema version should be at least 16, got {version}");
 
         for table in [
             "prefix_storage_snapshots",
@@ -923,5 +955,30 @@ mod tests {
                 .unwrap();
             assert!(exists, "missing index {idx}");
         }
+    }
+
+    #[test]
+    fn migration_16_to_17_creates_suggestion_dismissals_table() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let version: u32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 17);
+
+        let table_exists: bool = conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='suggestion_dismissals'")
+            .unwrap()
+            .exists([])
+            .unwrap();
+        assert!(table_exists, "suggestion_dismissals table should exist");
+
+        let idx_exists: bool = conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_suggestion_dismissals_unique'")
+            .unwrap()
+            .exists([])
+            .unwrap();
+        assert!(idx_exists, "unique index idx_suggestion_dismissals_unique should exist");
     }
 }

@@ -315,7 +315,7 @@ These are tracked but not scheduled. Revisit after Phases 1-6 based on community
 | #74 -- Pipeline visualization   |        | When the profile editor feels too complex for new users                          |
 | #75 -- Accessibility            |        | When accessibility feedback is received or before a public launch milestone      |
 | #76 -- macOS port               |        | When GPTK2 trainer viability is confirmed by community testing                   |
-| #77 -- ML configuration         |        | After #53 (ProtonDB) is live and generating data for pattern extraction          |
+| #77 -- Community Suggestions    | Done   | After #53 (ProtonDB) is live and generating data for pattern extraction          |
 
 ---
 

@@ -1,3 +1,4 @@
+import type { GameProfile } from './profile';
 import type { VersionCorrelationStatus } from './version';
 
 export type ProtonDbTier = 'platinum' | 'gold' | 'silver' | 'bronze' | 'borked' | 'native' | 'unknown' | (string & {});
@@ -65,4 +66,48 @@ export interface ProtonDbLookupResult {
 
 export interface ProtonDbVersionContext {
   version_status: VersionCorrelationStatus | null;
+}
+
+// ── Community-driven config suggestion types ────────────────────────
+
+export type SuggestionStatus = 'new' | 'already_applied' | 'conflict' | 'dismissed';
+
+export interface CatalogSuggestionItem {
+  catalogEntryId: string;
+  label: string;
+  description: string;
+  envPairs: [string, string][];
+  status: SuggestionStatus;
+  supportingReportCount: number;
+}
+
+export interface EnvVarSuggestionItem {
+  key: string;
+  value: string;
+  status: SuggestionStatus;
+  supportingReportCount: number;
+}
+
+export interface LaunchOptionSuggestionItem {
+  rawText: string;
+  supportingReportCount: number;
+}
+
+export interface ProtonDbSuggestionSet {
+  catalogSuggestions: CatalogSuggestionItem[];
+  envVarSuggestions: EnvVarSuggestionItem[];
+  launchOptionSuggestions: LaunchOptionSuggestionItem[];
+  tier: ProtonDbTier;
+  totalReports: number;
+  isStale: boolean;
+}
+
+export type AcceptSuggestionRequest =
+  | { kind: 'catalog'; profileName: string; catalogEntryId: string }
+  | { kind: 'env_var'; profileName: string; envKey: string; envValue: string };
+
+export interface AcceptSuggestionResult {
+  updatedProfile: GameProfile;
+  appliedKeys: string[];
+  toggledOptionIds: string[];
 }
