@@ -35,3 +35,29 @@ export interface VersionMatchResult {
   installedGameVersion?: string;
   detail?: string;
 }
+
+// Phase B: External trainer search types
+
+export interface ExternalTrainerSearchQuery {
+  gameName: string;
+  steamAppId?: string;
+  forceRefresh?: boolean;
+}
+
+export interface ExternalTrainerResult {
+  gameName: string;
+  sourceName: string;
+  sourceUrl: string;
+  pubDate?: string;
+  source: string;
+  relevanceScore: number;
+}
+
+export interface ExternalTrainerSearchResponse {
+  results: ExternalTrainerResult[];
+  source: string;
+  cached: boolean;
+  cacheAgeSecs?: number;
+  isStale: boolean;
+  offline: boolean;
+}

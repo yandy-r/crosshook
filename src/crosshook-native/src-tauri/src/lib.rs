@@ -316,6 +316,8 @@ pub fn run() {
             commands::prefix_deps::get_dependency_status,
             // Trainer discovery
             commands::discovery::discovery_search_trainers,
+            commands::discovery::discovery_search_external,
+            commands::discovery::discovery_check_version_compatibility,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

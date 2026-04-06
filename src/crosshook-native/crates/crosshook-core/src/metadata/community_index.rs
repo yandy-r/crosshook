@@ -201,6 +201,16 @@ pub fn index_trainer_sources(
     let mut inserted: usize = 0;
 
     for (relative_path, manifest) in sources {
+        if manifest.game_name.len() > MAX_GAME_NAME_BYTES {
+            tracing::warn!(
+                game_name_len = manifest.game_name.len(),
+                max = MAX_GAME_NAME_BYTES,
+                relative_path = %relative_path,
+                "skipping trainer source manifest: game_name exceeds {} bytes", MAX_GAME_NAME_BYTES
+            );
+            continue;
+        }
+
         for entry in &manifest.sources {
             if !entry.source_url.starts_with("https://") {
                 tracing::warn!(
@@ -719,6 +729,26 @@ mod tests {
         let mut conn = conn;
         let inserted = index_trainer_sources(&mut conn, &tap_id, &sources).unwrap();
         assert_eq!(inserted, 0, "oversized source_url must be rejected");
+    }
+
+    #[test]
+    fn index_trainer_sources_enforces_a6_bounds_on_game_name() {
+        let conn = db::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let tap_id = insert_test_tap(&conn);
+
+        let oversized_game_name = "a".repeat(MAX_GAME_NAME_BYTES + 1);
+        let entry = make_trainer_source_entry(
+            "Valid Source",
+            "https://example.com/trainer.exe",
+            None,
+        );
+        let manifest = make_manifest_with_entry(&oversized_game_name, entry);
+        let sources = vec![("sources/some-game".to_string(), manifest)];
+
+        let mut conn = conn;
+        let inserted = index_trainer_sources(&mut conn, &tap_id, &sources).unwrap();
+        assert_eq!(inserted, 0, "oversized game_name must be rejected");
     }
 
     #[test]

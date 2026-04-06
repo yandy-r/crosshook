@@ -5367,6 +5367,52 @@ textarea {
   border: 1px solid rgba(0, 120, 212, 0.3);
 }
 
+.crosshook-discovery-badge--external {
+  color: var(--crosshook-color-text-muted);
+  background: var(--crosshook-color-surface);
+  border: 1px solid var(--crosshook-color-border);
+}
+
+.crosshook-discovery-external-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--crosshook-color-border);
+}
+
+.crosshook-discovery-external-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.crosshook-discovery-external-section__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--crosshook-color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.crosshook-discovery-offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: var(--crosshook-color-surface);
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-sm);
+  font-size: 0.85rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-discovery-cache-indicator {
+  font-size: 0.8rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
 .crosshook-discovery-card__expand-toggle {
   background: none;
   border: none;
