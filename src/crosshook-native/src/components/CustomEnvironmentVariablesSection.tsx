@@ -2,8 +2,30 @@ import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 
 import type { GameProfile } from '../types';
 
-/** Mirrors `RESERVED_CUSTOM_ENV_KEYS` in crosshook-core `launch/request.rs`. */
-const RESERVED_CUSTOM_ENV_KEYS = new Set(['WINEPREFIX', 'STEAM_COMPAT_DATA_PATH', 'STEAM_COMPAT_CLIENT_INSTALL_PATH']);
+/** Mirrors `RESERVED_ENV_KEYS` and `BLOCKED_ENV_KEY_PREFIXES` in crosshook-core `protondb/aggregation.rs`. */
+const RESERVED_CUSTOM_ENV_KEYS = new Set([
+  'WINEPREFIX',
+  'STEAM_COMPAT_DATA_PATH',
+  'STEAM_COMPAT_CLIENT_INSTALL_PATH',
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'LD_AUDIT',
+  'LD_DEBUG',
+  'PATH',
+  'HOME',
+  'SHELL',
+  'NODE_OPTIONS',
+  'PYTHONPATH',
+]);
+
+/** Blocked env key prefixes — mirrors `BLOCKED_ENV_KEY_PREFIXES` in crosshook-core `protondb/aggregation.rs`. */
+const BLOCKED_ENV_KEY_PREFIXES = ['STEAM_COMPAT_', 'LD_'];
+
+/** Check whether an env key is reserved (exact match or prefix match). */
+export function isReservedEnvKey(key: string): boolean {
+  const normalized = key.trim().toUpperCase();
+  return RESERVED_CUSTOM_ENV_KEYS.has(normalized) || BLOCKED_ENV_KEY_PREFIXES.some((p) => normalized.startsWith(p));
+}
 
 type CustomEnvVarRow = { id: string; key: string; value: string };
 
@@ -42,7 +64,7 @@ function customEnvKeyFieldError(key: string): string | null {
   if (key.includes('\0')) {
     return 'Key cannot contain NUL characters.';
   }
-  if (RESERVED_CUSTOM_ENV_KEYS.has(trimmed)) {
+  if (isReservedEnvKey(trimmed)) {
     return 'This key is managed by CrossHook runtime and cannot be overridden.';
   }
   return null;

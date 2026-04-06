@@ -16,7 +16,7 @@ import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
 import { LAUNCH_OPTIMIZATION_APPLICABLE_METHODS } from '../types/launch-optimizations';
 import type { BundledOptimizationPreset, GameProfile, LaunchAutoSaveStatus, LaunchMethod } from '../types';
-import type { ProtonDbRecommendationGroup } from '../types/protondb';
+import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup, ProtonDbSuggestionSet } from '../types/protondb';
 import type { GamescopeConfig, MangoHudConfig } from '../types/profile';
 import type { LaunchOptimizationsPanelStatus } from './LaunchOptimizationsPanel';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
@@ -91,6 +91,9 @@ export interface LaunchSubTabsProps {
   onConfirmProtonDbOverwrite: (overwriteKeys: readonly string[]) => void;
   onCancelProtonDbOverwrite: () => void;
   onUpdateProtonDbResolution: (key: string, resolution: 'keep_current' | 'use_suggestion') => void;
+  suggestionSet?: ProtonDbSuggestionSet | null;
+  onAcceptSuggestion?: (request: AcceptSuggestionRequest) => Promise<void>;
+  onDismissSuggestion?: (suggestionKey: string) => void;
 
   // Auto-save status indicators
   gamescopeAutoSaveStatus?: LaunchAutoSaveStatus;
@@ -131,6 +134,9 @@ export function LaunchSubTabs({
   onConfirmProtonDbOverwrite,
   onCancelProtonDbOverwrite,
   onUpdateProtonDbResolution,
+  suggestionSet,
+  onAcceptSuggestion,
+  onDismissSuggestion,
   gamescopeAutoSaveStatus,
   mangoHudAutoSaveStatus,
 }: LaunchSubTabsProps) {
@@ -459,6 +465,9 @@ export function LaunchSubTabs({
                     versionContext={null}
                     onApplyEnvVars={onApplyProtonDbEnvVars}
                     applyingGroupId={applyingProtonDbGroupId}
+                    suggestionSet={suggestionSet}
+                    onAcceptSuggestion={onAcceptSuggestion}
+                    onDismissSuggestion={onDismissSuggestion}
                   />
 
                   {protonDbStatusMessage ? (

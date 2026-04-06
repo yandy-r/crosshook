@@ -434,6 +434,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
               reviewMode
               onProfileNameChange={handleProfileReviewNameChange}
               onUpdateProfile={handleProfileReviewUpdate}
+              catalog={null}
             />
 
             {reviewFinalExecutableMissing ? (

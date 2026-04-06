@@ -9,12 +9,13 @@ import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useLaunchStateContext } from '../../context/LaunchStateContext';
-import type { ProtonDbRecommendationGroup } from '../../types/protondb';
+import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../../types/protondb';
 import type { PrefixDependencyStatus } from '../../types/prefix-deps';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
+import { useProtonDbSuggestions } from '../../hooks/useProtonDbSuggestions';
 import { resolveArtAppId } from '../../utils/art';
 import { buildProfileLaunchRequest } from '../../utils/launch';
-import { mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../../utils/protondb';
+import { applyProtonDbGroupToProfile, mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../../utils/protondb';
 
 export function LaunchPage() {
   const profileState = useProfileContext();
@@ -71,6 +72,17 @@ export function LaunchPage() {
   const [pendingProtonDbOverwrite, setPendingProtonDbOverwrite] = useState<PendingProtonDbOverwrite | null>(null);
   const [applyingProtonDbGroupId, setApplyingProtonDbGroupId] = useState<string | null>(null);
   const [protonDbStatusMessage, setProtonDbStatusMessage] = useState<string | null>(null);
+  const suggestions = useProtonDbSuggestions(resolveArtAppId(profile), selectedName);
+
+  const handleAcceptSuggestion = useCallback(
+    async (request: AcceptSuggestionRequest): Promise<void> => {
+      const result = await suggestions.acceptSuggestion(request);
+      if (result.appliedKeys.length > 0 || result.toggledOptionIds.length > 0) {
+        void profileState.selectProfile(selectedName);
+      }
+    },
+    [suggestions.acceptSuggestion, profileState.selectProfile, selectedName],
+  );
 
   // Dep gate modal state
   const [depGatePackages, setDepGatePackages] = useState<string[] | null>(null);
@@ -193,33 +205,30 @@ export function LaunchPage() {
 
   const applyProtonDbGroup = useCallback(
     (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
-      const merge = {
-        appliedKeys: [] as string[],
-        unchangedKeys: [] as string[],
-      };
+      const result = { appliedKeys: [] as string[], unchangedKeys: [] as string[], toggledOptionIds: [] as string[] };
       profileState.updateProfile((current) => {
-        const nextMerge = mergeProtonDbEnvVarGroup(current.launch.custom_env_vars, group, overwriteKeys);
-        merge.appliedKeys = nextMerge.appliedKeys;
-        merge.unchangedKeys = nextMerge.unchangedKeys;
-        return {
-          ...current,
-          launch: {
-            ...current.launch,
-            custom_env_vars: nextMerge.mergedEnvVars,
-          },
-        };
+        const applyResult = applyProtonDbGroupToProfile(current, group, overwriteKeys, profileState.catalog);
+        result.appliedKeys = applyResult.appliedKeys;
+        result.unchangedKeys = applyResult.unchangedKeys;
+        result.toggledOptionIds = applyResult.toggledOptionIds;
+        return applyResult.nextProfile;
       });
       setApplyingProtonDbGroupId(null);
       setPendingProtonDbOverwrite(null);
 
-      const appliedCount = merge.appliedKeys.length;
-      const unchangedCount = merge.unchangedKeys.length;
-      if (appliedCount > 0) {
+      const appliedCount = result.appliedKeys.length;
+      const unchangedCount = result.unchangedKeys.length;
+      const toggledCount = result.toggledOptionIds.length;
+      if (appliedCount > 0 || toggledCount > 0) {
+        const parts: string[] = [];
+        if (toggledCount > 0) parts.push(`${toggledCount} optimization${toggledCount === 1 ? '' : 's'}`);
+        if (appliedCount - toggledCount > 0) {
+          const envCount = appliedCount - toggledCount;
+          parts.push(`${envCount} env var${envCount === 1 ? '' : 's'}`);
+        }
         setProtonDbStatusMessage(
-          `Applied ${appliedCount} ProtonDB environment variable${appliedCount === 1 ? '' : 's'}${
-            unchangedCount > 0
-              ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged`
-              : ''
+          `Applied ${parts.join(' and ')}${
+            unchangedCount > 0 ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged` : ''
           }.`
         );
         return;
@@ -232,7 +241,7 @@ export function LaunchPage() {
 
       setProtonDbStatusMessage('No ProtonDB environment-variable changes were applied.');
     },
-    [profileState.updateProfile]
+    [profileState.updateProfile, profileState.catalog]
   );
 
   const handleApplyProtonDbEnvVars = useCallback(
@@ -365,6 +374,9 @@ export function LaunchPage() {
                   current == null ? current : { ...current, resolutions: { ...current.resolutions, [key]: resolution } }
                 )
               }
+              suggestionSet={suggestions.suggestionSet}
+              onAcceptSuggestion={handleAcceptSuggestion}
+              onDismissSuggestion={suggestions.dismissSuggestion}
               gamescopeAutoSaveStatus={profileState.gamescopeAutoSaveStatus}
               mangoHudAutoSaveStatus={profileState.mangoHudAutoSaveStatus}
             />
