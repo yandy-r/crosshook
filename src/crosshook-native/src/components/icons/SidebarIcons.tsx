@@ -89,6 +89,15 @@ export function InfoCircleIcon(props: IconProps) {
   );
 }
 
+export function DiscoverIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props}>
+      <circle cx="10" cy="10" r="7.5" />
+      <path d="M13.5 6.5 11 11l-4.5 2.5L9 9z" />
+    </svg>
+  );
+}
+
 export function HealthIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props}>

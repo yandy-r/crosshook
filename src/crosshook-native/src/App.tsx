@@ -23,6 +23,7 @@ const VALID_APP_ROUTES: Record<AppRoute, true> = {
   launch: true,
   install: true,
   community: true,
+  discover: true,
   compatibility: true,
   settings: true,
   health: true,
