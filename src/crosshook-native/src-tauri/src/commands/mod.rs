@@ -2,6 +2,7 @@ pub mod catalog;
 pub mod collections;
 pub mod community;
 pub mod diagnostics;
+pub mod discovery;
 pub mod export;
 pub mod game_metadata;
 pub mod health;

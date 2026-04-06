@@ -5,12 +5,16 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::{CommunityProfileManifest, COMMUNITY_PROFILE_SCHEMA_VERSION};
+use crate::discovery::models::TrainerSourcesManifest;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct CommunityProfileIndex {
     pub entries: Vec<CommunityProfileIndexEntry>,
     pub diagnostics: Vec<String>,
+    /// Trainer source manifests discovered alongside community profiles.
+    /// Each tuple is `(relative_path, manifest)` relative to the tap workspace root.
+    pub trainer_sources: Vec<(String, TrainerSourcesManifest)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,6 +69,7 @@ pub fn index_taps(
         let workspace_index = index_tap(workspace)?;
         index.entries.extend(workspace_index.entries);
         index.diagnostics.extend(workspace_index.diagnostics);
+        index.trainer_sources.extend(workspace_index.trainer_sources);
     }
 
     sort_entries(&mut index.entries);
@@ -126,7 +131,44 @@ fn collect_manifests(
             continue;
         }
 
-        if path.file_name().and_then(|value| value.to_str()) != Some("community-profile.json") {
+        let file_name = path.file_name().and_then(|value| value.to_str());
+
+        if file_name == Some("trainer-sources.json") {
+            let content =
+                match fs::read_to_string(&path) {
+                    Ok(c) => c,
+                    Err(err) => {
+                        tracing::warn!(
+                            path = %path.display(),
+                            error = %err,
+                            "failed to read trainer-sources.json — skipping"
+                        );
+                        continue;
+                    }
+                };
+            let manifest: TrainerSourcesManifest = match serde_json::from_str(&content) {
+                Ok(m) => m,
+                Err(err) => {
+                    tracing::warn!(
+                        path = %path.display(),
+                        error = %err,
+                        "failed to parse trainer-sources.json — skipping"
+                    );
+                    continue;
+                }
+            };
+            let dir_relative = path
+                .parent()
+                .unwrap_or(current_dir)
+                .strip_prefix(root)
+                .unwrap_or_else(|_| path.parent().unwrap_or(current_dir))
+                .to_string_lossy()
+                .to_string();
+            index.trainer_sources.push((dir_relative, manifest));
+            continue;
+        }
+
+        if file_name != Some("community-profile.json") {
             continue;
         }
 

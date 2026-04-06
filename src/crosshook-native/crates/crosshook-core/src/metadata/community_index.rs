@@ -1,6 +1,7 @@
 use super::{db, MetadataStoreError};
 use crate::community::index::CommunityProfileIndexEntry;
 use crate::community::taps::CommunityTapSyncResult;
+use crate::discovery::models::TrainerSourcesManifest;
 use crate::metadata::models::CommunityProfileRow;
 use crate::profile::community_schema::CompatibilityRating;
 use chrono::Utc;
@@ -162,6 +163,123 @@ pub fn index_community_tap_result(
         source,
     })?;
     Ok(())
+}
+
+/// A6 string length bounds for trainer source entries.
+const MAX_SOURCE_URL_BYTES: usize = 2_048;
+const MAX_SOURCE_NAME_BYTES: usize = 512;
+const MAX_NOTES_BYTES: usize = 4_096;
+
+/// Index trainer source manifests for a single tap into the `trainer_sources` table.
+///
+/// Performs a transactional DELETE+INSERT: all existing rows for the given `tap_id` are
+/// removed and replaced with the entries from `sources`. Entries that fail A6 field-length
+/// validation or have a non-HTTPS `source_url` are logged with `tracing::warn!` and skipped.
+///
+/// Returns the number of rows inserted.
+pub fn index_trainer_sources(
+    conn: &mut Connection,
+    tap_id: &str,
+    sources: &[(String, TrainerSourcesManifest)],
+) -> Result<usize, MetadataStoreError> {
+    let tx = Transaction::new(conn, TransactionBehavior::Immediate).map_err(|source| {
+        MetadataStoreError::Database {
+            action: "start a trainer sources re-index transaction",
+            source,
+        }
+    })?;
+
+    tx.execute(
+        "DELETE FROM trainer_sources WHERE tap_id = ?1",
+        params![tap_id],
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "delete stale trainer_sources rows for tap",
+        source,
+    })?;
+
+    let mut inserted: usize = 0;
+
+    for (relative_path, manifest) in sources {
+        for entry in &manifest.sources {
+            if !entry.source_url.starts_with("https://") {
+                tracing::warn!(
+                    source_url = %entry.source_url,
+                    game_name = %manifest.game_name,
+                    relative_path = %relative_path,
+                    "skipping trainer source entry with non-HTTPS source_url"
+                );
+                continue;
+            }
+
+            if entry.source_url.len() > MAX_SOURCE_URL_BYTES {
+                tracing::warn!(
+                    source_url_len = entry.source_url.len(),
+                    max = MAX_SOURCE_URL_BYTES,
+                    game_name = %manifest.game_name,
+                    relative_path = %relative_path,
+                    "skipping trainer source entry: source_url exceeds {} bytes", MAX_SOURCE_URL_BYTES
+                );
+                continue;
+            }
+
+            if entry.source_name.len() > MAX_SOURCE_NAME_BYTES {
+                tracing::warn!(
+                    source_name_len = entry.source_name.len(),
+                    max = MAX_SOURCE_NAME_BYTES,
+                    game_name = %manifest.game_name,
+                    relative_path = %relative_path,
+                    "skipping trainer source entry: source_name exceeds {} bytes", MAX_SOURCE_NAME_BYTES
+                );
+                continue;
+            }
+
+            if let Some(notes) = &entry.notes {
+                if notes.len() > MAX_NOTES_BYTES {
+                    tracing::warn!(
+                        notes_len = notes.len(),
+                        max = MAX_NOTES_BYTES,
+                        game_name = %manifest.game_name,
+                        relative_path = %relative_path,
+                        "skipping trainer source entry: notes exceeds {} bytes", MAX_NOTES_BYTES
+                    );
+                    continue;
+                }
+            }
+
+            tx.execute(
+                "INSERT INTO trainer_sources (
+                    tap_id, game_name, steam_app_id, source_name, source_url,
+                    trainer_version, game_version, notes, sha256, relative_path, created_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, datetime('now'))",
+                params![
+                    tap_id,
+                    manifest.game_name,
+                    manifest.steam_app_id,
+                    entry.source_name,
+                    entry.source_url,
+                    entry.trainer_version,
+                    entry.game_version,
+                    entry.notes,
+                    entry.sha256,
+                    relative_path,
+                ],
+            )
+            .map_err(|source| MetadataStoreError::Database {
+                action: "insert a trainer_sources row",
+                source,
+            })?;
+
+            inserted += 1;
+        }
+    }
+
+    tx.commit().map_err(|source| MetadataStoreError::Database {
+        action: "commit the trainer sources re-index transaction",
+        source,
+    })?;
+
+    Ok(inserted)
 }
 
 /// List community profile rows, optionally filtered by tap URL.
@@ -375,8 +493,121 @@ mod tests {
     use crate::community::{
         CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating,
     };
+    use crate::discovery::models::{TrainerSourceEntry, TrainerSourcesManifest};
+    use crate::metadata::migrations;
     use crate::profile::GameProfile;
     use std::path::PathBuf;
+
+    /// Insert a minimal `community_taps` row and return its `tap_id`.
+    fn insert_test_tap(conn: &Connection) -> String {
+        let tap_id = db::new_id();
+        conn.execute(
+            "INSERT INTO community_taps (
+                tap_id, tap_url, tap_branch, local_path,
+                last_head_commit, profile_count, last_indexed_at,
+                created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                tap_id,
+                "https://example.invalid/tap.git",
+                "main",
+                "/tmp/tap",
+                "abc1234",
+                0i64,
+                "2024-01-01T00:00:00Z",
+                "2024-01-01T00:00:00Z",
+                "2024-01-01T00:00:00Z",
+            ],
+        )
+        .unwrap();
+        tap_id
+    }
+
+    fn make_manifest(game_name: &str, source_url: &str) -> TrainerSourcesManifest {
+        TrainerSourcesManifest {
+            schema_version: 1,
+            game_name: game_name.to_string(),
+            steam_app_id: None,
+            sources: vec![TrainerSourceEntry {
+                source_name: "Test Source".to_string(),
+                source_url: source_url.to_string(),
+                trainer_version: None,
+                game_version: None,
+                notes: None,
+                sha256: None,
+            }],
+        }
+    }
+
+    fn make_trainer_source_entry(
+        name: &str,
+        url: &str,
+        notes: Option<String>,
+    ) -> TrainerSourceEntry {
+        TrainerSourceEntry {
+            source_name: name.to_string(),
+            source_url: url.to_string(),
+            trainer_version: None,
+            game_version: None,
+            notes,
+            sha256: None,
+        }
+    }
+
+    fn make_manifest_with_entry(game_name: &str, entry: TrainerSourceEntry) -> TrainerSourcesManifest {
+        TrainerSourcesManifest {
+            schema_version: 1,
+            game_name: game_name.to_string(),
+            steam_app_id: None,
+            sources: vec![entry],
+        }
+    }
+
+    #[test]
+    fn index_trainer_sources_inserts_entries() {
+        let conn = db::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let tap_id = insert_test_tap(&conn);
+
+        let manifest = make_manifest("Elden Ring", "https://example.com/trainer.exe");
+        let sources = vec![("sources/elden-ring".to_string(), manifest)];
+
+        let mut conn = conn;
+        let inserted = index_trainer_sources(&mut conn, &tap_id, &sources).unwrap();
+        assert_eq!(inserted, 1);
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM trainer_sources WHERE tap_id = ?1",
+                params![tap_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn index_trainer_sources_rejects_http_url() {
+        let conn = db::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let tap_id = insert_test_tap(&conn);
+
+        let manifest = make_manifest("Elden Ring", "http://example.com/trainer.exe");
+        let sources = vec![("sources/elden-ring".to_string(), manifest)];
+
+        let mut conn = conn;
+        let inserted = index_trainer_sources(&mut conn, &tap_id, &sources).unwrap();
+        assert_eq!(inserted, 0);
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM trainer_sources WHERE tap_id = ?1",
+                params![tap_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
 
     fn make_entry(
         game_version: String,
@@ -441,5 +672,143 @@ mod tests {
     fn accepts_exactly_256_byte_version_strings() {
         let entry = make_entry("a".repeat(256), "a".repeat(256), "a".repeat(256));
         assert!(check_a6_bounds(&entry).is_ok());
+    }
+
+    #[test]
+    fn index_trainer_sources_rejects_javascript_url() {
+        let conn = db::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let tap_id = insert_test_tap(&conn);
+
+        let entry = make_trainer_source_entry(
+            "Malicious Source",
+            "javascript:alert(1)",
+            None,
+        );
+        let manifest = make_manifest_with_entry("Some Game", entry);
+        let sources = vec![("sources/some-game".to_string(), manifest)];
+
+        let mut conn = conn;
+        let inserted = index_trainer_sources(&mut conn, &tap_id, &sources).unwrap();
+        assert_eq!(inserted, 0, "javascript: URL must be rejected");
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM trainer_sources WHERE tap_id = ?1",
+                params![tap_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn index_trainer_sources_enforces_a6_bounds_on_source_url() {
+        let conn = db::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let tap_id = insert_test_tap(&conn);
+
+        // 2049 bytes: starts with "https://" (8 bytes) + 2041 'a' bytes = 2049 total.
+        let oversized_url = format!("https://{}", "a".repeat(MAX_SOURCE_URL_BYTES - 7));
+        assert!(oversized_url.len() > MAX_SOURCE_URL_BYTES);
+
+        let entry = make_trainer_source_entry("Long URL Source", &oversized_url, None);
+        let manifest = make_manifest_with_entry("Some Game", entry);
+        let sources = vec![("sources/some-game".to_string(), manifest)];
+
+        let mut conn = conn;
+        let inserted = index_trainer_sources(&mut conn, &tap_id, &sources).unwrap();
+        assert_eq!(inserted, 0, "oversized source_url must be rejected");
+    }
+
+    #[test]
+    fn index_trainer_sources_enforces_a6_bounds_on_source_name() {
+        let conn = db::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let tap_id = insert_test_tap(&conn);
+
+        let oversized_name = "a".repeat(MAX_SOURCE_NAME_BYTES + 1);
+        let entry = make_trainer_source_entry(
+            &oversized_name,
+            "https://example.com/trainer.exe",
+            None,
+        );
+        let manifest = make_manifest_with_entry("Some Game", entry);
+        let sources = vec![("sources/some-game".to_string(), manifest)];
+
+        let mut conn = conn;
+        let inserted = index_trainer_sources(&mut conn, &tap_id, &sources).unwrap();
+        assert_eq!(inserted, 0, "oversized source_name must be rejected");
+    }
+
+    #[test]
+    fn index_trainer_sources_enforces_a6_bounds_on_notes() {
+        let conn = db::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let tap_id = insert_test_tap(&conn);
+
+        let oversized_notes = "a".repeat(MAX_NOTES_BYTES + 1);
+        let entry = make_trainer_source_entry(
+            "Valid Source",
+            "https://example.com/trainer.exe",
+            Some(oversized_notes),
+        );
+        let manifest = make_manifest_with_entry("Some Game", entry);
+        let sources = vec![("sources/some-game".to_string(), manifest)];
+
+        let mut conn = conn;
+        let inserted = index_trainer_sources(&mut conn, &tap_id, &sources).unwrap();
+        assert_eq!(inserted, 0, "oversized notes must be rejected");
+    }
+
+    #[test]
+    fn index_trainer_sources_deletes_and_reinserts_on_reindex() {
+        let conn = db::open_in_memory().unwrap();
+        migrations::run_migrations(&conn).unwrap();
+        let tap_id = insert_test_tap(&conn);
+
+        // First index: Elden Ring.
+        let first_manifest = make_manifest("Elden Ring", "https://example.com/elden.exe");
+        let first_sources = vec![("sources/elden-ring".to_string(), first_manifest)];
+
+        let mut conn = conn;
+        let inserted = index_trainer_sources(&mut conn, &tap_id, &first_sources).unwrap();
+        assert_eq!(inserted, 1);
+
+        // Verify first entry exists.
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM trainer_sources WHERE tap_id = ?1 AND game_name = 'Elden Ring'",
+                params![tap_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        // Second index with different data: Cyberpunk 2077.
+        let second_manifest = make_manifest("Cyberpunk 2077", "https://example.com/cyberpunk.exe");
+        let second_sources = vec![("sources/cyberpunk".to_string(), second_manifest)];
+        let inserted = index_trainer_sources(&mut conn, &tap_id, &second_sources).unwrap();
+        assert_eq!(inserted, 1);
+
+        // Old Elden Ring entry must be gone.
+        let old_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM trainer_sources WHERE tap_id = ?1 AND game_name = 'Elden Ring'",
+                params![tap_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(old_count, 0, "stale Elden Ring entry should have been deleted");
+
+        // New Cyberpunk entry must be present.
+        let new_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM trainer_sources WHERE tap_id = ?1 AND game_name = 'Cyberpunk 2077'",
+                params![tap_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(new_count, 1, "new Cyberpunk 2077 entry should be present");
     }
 }

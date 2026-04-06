@@ -21,6 +21,7 @@ export interface SettingsSaveRequest {
   profiles_directory: string;
   protontricks_binary_path: string;
   auto_install_prefix_deps: boolean;
+  discovery_enabled: boolean;
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {
@@ -49,6 +50,7 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     profiles_directory: s.profiles_directory,
     protontricks_binary_path: s.protontricks_binary_path,
     auto_install_prefix_deps: s.auto_install_prefix_deps,
+    discovery_enabled: s.discovery_enabled,
   };
 }
 
@@ -72,6 +74,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   profiles_directory_requires_restart: false,
   protontricks_binary_path: '',
   auto_install_prefix_deps: false,
+  discovery_enabled: false,
 };
 
 export interface RecentFilesData {

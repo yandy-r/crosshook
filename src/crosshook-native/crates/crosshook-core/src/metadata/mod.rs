@@ -34,6 +34,7 @@ pub use profile_sync::sha256_hex;
 pub use version_store::{compute_correlation_status, hash_trainer_file};
 
 use crate::community::taps::CommunityTapSyncResult;
+use crate::discovery::TrainerSearchResponse;
 use crate::launch::diagnostics::models::DiagnosticReport;
 use crate::profile::{GameProfile, ProfileStore};
 use chrono::Utc;
@@ -336,7 +337,38 @@ impl MetadataStore {
         result: &CommunityTapSyncResult,
     ) -> Result<(), MetadataStoreError> {
         self.with_conn_mut("index a community tap", |conn| {
-            community_index::index_community_tap_result(conn, result)
+            community_index::index_community_tap_result(conn, result)?;
+
+            // Index trainer sources for this tap after the profiles are committed.
+            if !result.index.trainer_sources.is_empty() {
+                let tap_url = &result.workspace.subscription.url;
+                let tap_branch = result
+                    .workspace
+                    .subscription
+                    .branch
+                    .as_deref()
+                    .unwrap_or("");
+                if let Some(tap_id) = conn
+                    .query_row(
+                        "SELECT tap_id FROM community_taps WHERE tap_url = ?1 AND tap_branch = ?2",
+                        params![tap_url, tap_branch],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()
+                    .map_err(|source| MetadataStoreError::Database {
+                        action: "look up tap_id for trainer sources indexing",
+                        source,
+                    })?
+                {
+                    community_index::index_trainer_sources(
+                        conn,
+                        &tap_id,
+                        &result.index.trainer_sources,
+                    )?;
+                }
+            }
+
+            Ok(())
         })
     }
 
@@ -399,6 +431,17 @@ impl MetadataStore {
     ) -> Result<Vec<CommunityProfileRow>, MetadataStoreError> {
         self.with_conn("list community tap profiles", |conn| {
             community_index::list_community_tap_profiles(conn, tap_url)
+        })
+    }
+
+    pub fn search_trainer_sources(
+        &self,
+        query: &str,
+        limit: i64,
+        offset: i64,
+    ) -> Result<TrainerSearchResponse, MetadataStoreError> {
+        self.with_conn("search trainer sources", |conn| {
+            crate::discovery::search_trainer_sources(conn, query, limit, offset)
         })
     }
 
@@ -2128,6 +2171,7 @@ mod tests {
             index: CommunityProfileIndex {
                 entries,
                 diagnostics: vec![],
+                trainer_sources: vec![],
             },
             from_cache: false,
             last_sync_at: None,
