@@ -4,6 +4,14 @@ export interface CommunityTapSubscription {
   pinned_commit?: string;
 }
 
+export interface ExternalTrainerSourceSubscription {
+  sourceId: string;
+  displayName: string;
+  baseUrl: string;
+  sourceType: string;
+  enabled: boolean;
+}
+
 /** Payload for `settings_save` (matches Rust `SettingsSaveRequest`). */
 export interface SettingsSaveRequest {
   auto_load_last_profile: boolean;
@@ -22,6 +30,7 @@ export interface SettingsSaveRequest {
   protontricks_binary_path: string;
   auto_install_prefix_deps: boolean;
   discovery_enabled: boolean;
+  external_trainer_sources: ExternalTrainerSourceSubscription[];
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {
@@ -51,6 +60,7 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     protontricks_binary_path: s.protontricks_binary_path,
     auto_install_prefix_deps: s.auto_install_prefix_deps,
     discovery_enabled: s.discovery_enabled,
+    external_trainer_sources: s.external_trainer_sources,
   };
 }
 
@@ -75,6 +85,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   protontricks_binary_path: '',
   auto_install_prefix_deps: false,
   discovery_enabled: false,
+  external_trainer_sources: [],
 };
 
 export interface RecentFilesData {

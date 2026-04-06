@@ -318,6 +318,9 @@ pub fn run() {
             commands::discovery::discovery_search_trainers,
             commands::discovery::discovery_search_external,
             commands::discovery::discovery_check_version_compatibility,
+            commands::discovery::discovery_list_external_sources,
+            commands::discovery::discovery_add_external_source,
+            commands::discovery::discovery_remove_external_source,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

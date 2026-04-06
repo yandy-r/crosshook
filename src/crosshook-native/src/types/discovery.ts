@@ -61,3 +61,11 @@ export interface ExternalTrainerSearchResponse {
   isStale: boolean;
   offline: boolean;
 }
+
+export interface ExternalTrainerSourceSubscription {
+  sourceId: string;
+  displayName: string;
+  baseUrl: string;
+  sourceType: string;
+  enabled: boolean;
+}

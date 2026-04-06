@@ -1,9 +1,11 @@
 use crosshook_core::discovery::{
-    ExternalTrainerSearchQuery, ExternalTrainerSearchResponse, TrainerSearchQuery,
-    TrainerSearchResponse, VersionMatchResult,
+    ExternalTrainerSearchQuery, ExternalTrainerSearchResponse, ExternalTrainerSourceSubscription,
+    TrainerSearchQuery, TrainerSearchResponse, VersionMatchResult,
 };
 use crosshook_core::discovery::matching;
+use crosshook_core::discovery::models::validate_external_source;
 use crosshook_core::metadata::MetadataStore;
+use crosshook_core::settings::SettingsStore;
 use tauri::State;
 
 #[tauri::command]
@@ -24,9 +26,18 @@ pub fn discovery_search_trainers(
 pub async fn discovery_search_external(
     query: ExternalTrainerSearchQuery,
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<ExternalTrainerSearchResponse, String> {
+    let settings = settings_store.load().map_err(|e| e.to_string())?;
     let metadata_store = metadata_store.inner().clone();
-    Ok(crosshook_core::discovery::search_external_trainers(&metadata_store, &query).await)
+    Ok(
+        crosshook_core::discovery::search_external_trainers(
+            &metadata_store,
+            &settings.external_trainer_sources,
+            &query,
+        )
+        .await,
+    )
 }
 
 #[tauri::command]
@@ -54,6 +65,63 @@ pub fn discovery_check_version_compatibility(
     ))
 }
 
+#[tauri::command]
+pub fn discovery_list_external_sources(
+    settings_store: State<'_, SettingsStore>,
+) -> Result<Vec<ExternalTrainerSourceSubscription>, String> {
+    let settings = settings_store.load().map_err(|e| e.to_string())?;
+    Ok(settings.external_trainer_sources)
+}
+
+#[tauri::command]
+pub fn discovery_add_external_source(
+    source: ExternalTrainerSourceSubscription,
+    settings_store: State<'_, SettingsStore>,
+) -> Result<Vec<ExternalTrainerSourceSubscription>, String> {
+    validate_external_source(&source)?;
+
+    let mut settings = settings_store.load().map_err(|e| e.to_string())?;
+
+    if settings
+        .external_trainer_sources
+        .iter()
+        .any(|s| s.source_id == source.source_id)
+    {
+        return Err(format!(
+            "source with id {:?} already exists",
+            source.source_id
+        ));
+    }
+
+    settings.external_trainer_sources.push(source);
+    settings_store
+        .save(&settings)
+        .map_err(|e| e.to_string())?;
+    Ok(settings.external_trainer_sources)
+}
+
+#[tauri::command]
+pub fn discovery_remove_external_source(
+    source_id: String,
+    settings_store: State<'_, SettingsStore>,
+) -> Result<Vec<ExternalTrainerSourceSubscription>, String> {
+    let mut settings = settings_store.load().map_err(|e| e.to_string())?;
+
+    let before = settings.external_trainer_sources.len();
+    settings
+        .external_trainer_sources
+        .retain(|s| s.source_id != source_id);
+
+    if settings.external_trainer_sources.len() == before {
+        return Err(format!("no source with id {:?} found", source_id));
+    }
+
+    settings_store
+        .save(&settings)
+        .map_err(|e| e.to_string())?;
+    Ok(settings.external_trainer_sources)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,9 +143,25 @@ mod tests {
                 State<'_, MetadataStore>,
             ) -> Result<VersionMatchResult, String>;
 
-        // Phase B: async external search — verify it exists and compiles.
-        // Async fn can't be cast to a regular fn pointer, so we reference it
-        // to ensure the symbol exists and the signature compiles.
+        // Phase B: async external search (can't cast async fn to fn pointer)
         let _async_exists = discovery_search_external;
+
+        // Source management
+        let _ = discovery_list_external_sources
+            as fn(
+                State<'_, SettingsStore>,
+            ) -> Result<Vec<ExternalTrainerSourceSubscription>, String>;
+
+        let _ = discovery_add_external_source
+            as fn(
+                ExternalTrainerSourceSubscription,
+                State<'_, SettingsStore>,
+            ) -> Result<Vec<ExternalTrainerSourceSubscription>, String>;
+
+        let _ = discovery_remove_external_source
+            as fn(
+                String,
+                State<'_, SettingsStore>,
+            ) -> Result<Vec<ExternalTrainerSourceSubscription>, String>;
     }
 }

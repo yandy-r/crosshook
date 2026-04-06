@@ -6,6 +6,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::community::CommunityTapSubscription;
+use crate::discovery::models::{
+    default_external_trainer_sources, ExternalTrainerSourceSubscription,
+};
 
 pub mod recent;
 
@@ -160,6 +163,10 @@ pub struct AppSettingsData {
     /// User opt-in for trainer discovery feature (external links to third-party sources).
     #[serde(default)]
     pub discovery_enabled: bool,
+    /// User-managed list of external trainer discovery source subscriptions.
+    /// FLiNG ships as the built-in default via `default_external_trainer_sources()`.
+    #[serde(default = "default_external_trainer_sources")]
+    pub external_trainer_sources: Vec<ExternalTrainerSourceSubscription>,
 }
 
 impl Default for AppSettingsData {
@@ -182,6 +189,7 @@ impl Default for AppSettingsData {
             protontricks_binary_path: String::new(),
             auto_install_prefix_deps: false,
             discovery_enabled: false,
+            external_trainer_sources: default_external_trainer_sources(),
         }
     }
 }
@@ -222,6 +230,7 @@ impl fmt::Debug for AppSettingsData {
             .field("protontricks_binary_path", &self.protontricks_binary_path)
             .field("auto_install_prefix_deps", &self.auto_install_prefix_deps)
             .field("discovery_enabled", &self.discovery_enabled)
+            .field("external_trainer_sources", &self.external_trainer_sources)
             .finish()
     }
 }
@@ -294,8 +303,18 @@ impl SettingsStore {
             return Ok(AppSettingsData::default());
         }
 
-        let content = fs::read_to_string(path)?;
-        Ok(toml::from_str(&content)?)
+        let content = fs::read_to_string(&path)?;
+        let settings: AppSettingsData = toml::from_str(&content)?;
+
+        // Backfill: if the TOML is missing new fields, serde fills defaults
+        // in memory. Write the complete struct back so users can see and edit
+        // all fields (e.g. external_trainer_sources added after first install).
+        let reserialized = toml::to_string_pretty(&settings)?;
+        if reserialized != content {
+            let _ = fs::write(&path, &reserialized);
+        }
+
+        Ok(settings)
     }
 
     pub fn save(&self, settings: &AppSettingsData) -> Result<(), SettingsStoreError> {

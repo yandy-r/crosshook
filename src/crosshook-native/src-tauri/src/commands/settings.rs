@@ -1,4 +1,5 @@
 use crosshook_core::community::CommunityTapSubscription;
+use crosshook_core::discovery::ExternalTrainerSourceSubscription;
 use crosshook_core::settings::{
     clamp_recent_files_limit, resolve_profiles_directory_from_config, AppSettingsData,
     RecentFilesData, RecentFilesStore, RecentFilesStoreError, SettingsStore, SettingsStoreError,
@@ -43,6 +44,7 @@ pub struct AppSettingsIpcData {
     pub protontricks_binary_path: String,
     pub auto_install_prefix_deps: bool,
     pub discovery_enabled: bool,
+    pub external_trainer_sources: Vec<ExternalTrainerSourceSubscription>,
 }
 
 impl AppSettingsIpcData {
@@ -80,6 +82,7 @@ impl AppSettingsIpcData {
             protontricks_binary_path: data.protontricks_binary_path,
             auto_install_prefix_deps: data.auto_install_prefix_deps,
             discovery_enabled: data.discovery_enabled,
+            external_trainer_sources: data.external_trainer_sources,
         }
     }
 }
@@ -115,6 +118,8 @@ pub struct SettingsSaveRequest {
     pub protontricks_binary_path: String,
     pub auto_install_prefix_deps: bool,
     pub discovery_enabled: bool,
+    #[serde(default)]
+    pub external_trainer_sources: Vec<ExternalTrainerSourceSubscription>,
 }
 
 fn merge_settings_from_request(data: SettingsSaveRequest, current: AppSettingsData) -> AppSettingsData {
@@ -143,6 +148,13 @@ fn merge_settings_from_request(data: SettingsSaveRequest, current: AppSettingsDa
         protontricks_binary_path: data.protontricks_binary_path,
         auto_install_prefix_deps: data.auto_install_prefix_deps,
         discovery_enabled: data.discovery_enabled,
+        // Preserve current sources if the request didn't include any (backward compat
+        // with frontends that don't send the field yet).
+        external_trainer_sources: if data.external_trainer_sources.is_empty() {
+            current.external_trainer_sources
+        } else {
+            data.external_trainer_sources
+        },
     }
 }
 
