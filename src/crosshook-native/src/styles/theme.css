@@ -445,6 +445,15 @@ textarea {
   box-sizing: border-box;
 }
 
+/*
+ * When the community browser shares its scroll container with the discovery panel,
+ * drop the min-height: 100% so the browser card sizes to content instead of
+ * stretching to the full viewport and pushing the discovery panel off-screen.
+ */
+.crosshook-route-card-scroll > .crosshook-community-browser:not(:only-child) {
+  min-height: auto;
+}
+
 .crosshook-panel.crosshook-install-page-tabs {
   flex: 1 1 auto;
   min-height: 0;
@@ -5210,5 +5219,243 @@ textarea {
   display: flex;
   gap: 8px;
   margin-top: 16px;
+  justify-content: flex-end;
+}
+
+/* ==========================================================================
+   Trainer Discovery Panel
+   ========================================================================== */
+
+.crosshook-discovery-panel {
+  margin-top: 20px;
+}
+
+.crosshook-discovery-panel__header {
+  margin-bottom: 20px;
+}
+
+.crosshook-discovery-panel__gate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 0;
+}
+
+.crosshook-discovery-panel__search-row {
+  margin-bottom: 12px;
+}
+
+.crosshook-discovery-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.crosshook-discovery-search .crosshook-input {
+  width: 100%;
+  padding-right: 36px;
+}
+
+.crosshook-discovery-search__clear {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--crosshook-color-text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.crosshook-discovery-search__clear:hover {
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-discovery-panel__results-meta {
+  min-height: 1.5em;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+
+.crosshook-discovery-panel__notice {
+  margin-bottom: 8px;
+}
+
+.crosshook-discovery-panel__empty {
+  padding: 16px 0;
+}
+
+.crosshook-discovery-panel__empty-hint {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  max-width: 56ch;
+}
+
+.crosshook-discovery-panel__empty-hint code {
+  font-size: 0.75rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.crosshook-discovery-panel__error {
+  color: var(--crosshook-color-danger);
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+}
+
+.crosshook-discovery-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  max-height: 480px;
+  padding-right: 4px;
+}
+
+/* Result cards */
+
+.crosshook-discovery-card {
+  background: var(--crosshook-color-bg-elevated);
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.crosshook-discovery-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.crosshook-discovery-card__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.crosshook-discovery-card__game-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-discovery-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.crosshook-discovery-badge--community {
+  color: var(--crosshook-color-accent-strong);
+  background: var(--crosshook-color-accent-soft);
+  border: 1px solid rgba(0, 120, 212, 0.3);
+}
+
+.crosshook-discovery-card__expand-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.75rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.crosshook-discovery-card__expand-toggle:hover {
+  background: var(--crosshook-color-surface);
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-discovery-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--crosshook-color-border);
+  font-size: 0.85rem;
+}
+
+.crosshook-discovery-card__meta-line {
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-discovery-card__sha-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.crosshook-discovery-card__sha {
+  font-family: var(--crosshook-font-mono, monospace);
+  font-size: 0.8rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-discovery-card__copy-error {
+  color: var(--crosshook-color-danger);
+  font-size: 0.75rem;
+  flex-basis: 100%;
+}
+
+.crosshook-discovery-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Consent dialog */
+
+.crosshook-discovery-consent {
+  background: var(--crosshook-color-surface-strong);
+  border: 1px solid var(--crosshook-color-border-strong);
+  border-radius: var(--crosshook-radius-md);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 12px 0;
+}
+
+.crosshook-discovery-consent__title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-discovery-consent__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.875rem;
+  color: var(--crosshook-color-text-muted);
+  line-height: 1.6;
+}
+
+.crosshook-discovery-consent__body p {
+  margin: 0;
+}
+
+.crosshook-discovery-consent__actions {
+  display: flex;
+  gap: 8px;
   justify-content: flex-end;
 }

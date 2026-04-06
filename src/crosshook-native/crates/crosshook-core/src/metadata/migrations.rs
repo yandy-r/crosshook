@@ -162,6 +162,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 18 {
+        migrate_17_to_18(conn)?;
+        conn.pragma_update(None, "user_version", 18_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 18",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -770,6 +779,37 @@ fn migrate_15_to_16(conn: &Connection) -> Result<(), MetadataStoreError> {
     })
 }
 
+fn migrate_17_to_18(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS trainer_sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tap_id TEXT NOT NULL REFERENCES community_taps(tap_id) ON DELETE CASCADE,
+            game_name TEXT NOT NULL,
+            steam_app_id INTEGER,
+            source_name TEXT NOT NULL,
+            source_url TEXT NOT NULL,
+            trainer_version TEXT,
+            game_version TEXT,
+            notes TEXT,
+            sha256 TEXT,
+            relative_path TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(tap_id, relative_path, source_url)
+        );
+        CREATE INDEX IF NOT EXISTS idx_trainer_sources_game ON trainer_sources(game_name);
+        CREATE INDEX IF NOT EXISTS idx_trainer_sources_app_id ON trainer_sources(steam_app_id);
+        UPDATE community_taps SET last_head_commit = NULL;
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 17 to 18",
+        source,
+    })?;
+
+    Ok(())
+}
+
 fn migrate_16_to_17(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(
         "
@@ -965,7 +1005,7 @@ mod tests {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 17);
+        assert!(version >= 17, "schema version should be at least 17, got {version}");
 
         let table_exists: bool = conn
             .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='suggestion_dismissals'")
@@ -980,5 +1020,37 @@ mod tests {
             .exists([])
             .unwrap();
         assert!(idx_exists, "unique index idx_suggestion_dismissals_unique should exist");
+    }
+
+    #[test]
+    fn migration_17_to_18_creates_trainer_sources_table() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let version: u32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 18);
+
+        let table_exists: bool = conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trainer_sources'")
+            .unwrap()
+            .exists([])
+            .unwrap();
+        assert!(table_exists, "trainer_sources table should exist");
+
+        let game_idx_exists: bool = conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_trainer_sources_game'")
+            .unwrap()
+            .exists([])
+            .unwrap();
+        assert!(game_idx_exists, "index idx_trainer_sources_game should exist");
+
+        let app_id_idx_exists: bool = conn
+            .prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_trainer_sources_app_id'")
+            .unwrap()
+            .exists([])
+            .unwrap();
+        assert!(app_id_idx_exists, "index idx_trainer_sources_app_id should exist");
     }
 }

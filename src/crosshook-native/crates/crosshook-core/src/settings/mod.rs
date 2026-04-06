@@ -157,6 +157,9 @@ pub struct AppSettingsData {
     /// When true, auto-install missing prefix deps on first launch.
     #[serde(default)]
     pub auto_install_prefix_deps: bool,
+    /// User opt-in for trainer discovery feature (external links to third-party sources).
+    #[serde(default)]
+    pub discovery_enabled: bool,
 }
 
 impl Default for AppSettingsData {
@@ -178,6 +181,7 @@ impl Default for AppSettingsData {
             profiles_directory: String::new(),
             protontricks_binary_path: String::new(),
             auto_install_prefix_deps: false,
+            discovery_enabled: false,
         }
     }
 }
@@ -217,6 +221,7 @@ impl fmt::Debug for AppSettingsData {
             .field("profiles_directory", &self.profiles_directory)
             .field("protontricks_binary_path", &self.protontricks_binary_path)
             .field("auto_install_prefix_deps", &self.auto_install_prefix_deps)
+            .field("discovery_enabled", &self.discovery_enabled)
             .finish()
     }
 }

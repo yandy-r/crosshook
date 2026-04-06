@@ -1,4 +1,5 @@
 import CommunityBrowser from '../CommunityBrowser';
+import TrainerDiscoveryPanel from '../TrainerDiscoveryPanel';
 import { useCommunityProfiles } from '../../hooks/useCommunityProfiles';
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
@@ -15,6 +16,7 @@ export function CommunityPage() {
           <div className="crosshook-route-card-host">
             <div className="crosshook-route-card-scroll">
               <CommunityBrowser profilesDirectoryPath={DEFAULT_PROFILES_DIRECTORY} state={communityState} />
+              <TrainerDiscoveryPanel />
             </div>
           </div>
         </div>
