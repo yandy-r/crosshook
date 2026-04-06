@@ -1,5 +1,24 @@
 # Task Plan
 
+## 2026-04-06 - protonup-integration plan-workflow
+
+- [x] Run plan-workflow state detection for `protonup-integration`.
+- [x] Generate standardized research artifacts:
+  - `docs/plans/protonup-integration/research-architecture.md`
+  - `docs/plans/protonup-integration/research-patterns.md`
+  - `docs/plans/protonup-integration/research-integration.md`
+  - `docs/plans/protonup-integration/research-docs.md`
+  - `docs/plans/protonup-integration/research-security.md`
+  - `docs/plans/protonup-integration/research-practices.md`
+- [x] Synthesize `docs/plans/protonup-integration/shared.md`.
+- [x] Generate analysis artifacts:
+  - `docs/plans/protonup-integration/analysis-context.md`
+  - `docs/plans/protonup-integration/analysis-code.md`
+  - `docs/plans/protonup-integration/analysis-tasks.md`
+- [x] Generate and validate `docs/plans/protonup-integration/parallel-plan.md`.
+- [x] Run parallel-plan validation pass (paths, dependency graph, task completeness) and apply fixes.
+- [x] Add final workflow summary and implementation-ready next steps.
+
 ## 2026-04-04 - verify game-details modal review comments
 
 - [x] Confirm each cited game-details review comment against the current code and docs.
