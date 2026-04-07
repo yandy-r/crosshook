@@ -2,25 +2,36 @@ import { invoke } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { GameProfile } from '../types/profile';
+import { createDefaultProfile } from '../types/profile';
 import {
-  INSTALL_GAME_VALIDATION_FIELD,
-  INSTALL_GAME_VALIDATION_MESSAGES,
   type InstallGameExecutableCandidate,
   type InstallGamePrefixPathState,
   type InstallGameRequest,
   type InstallGameResult,
   type InstallGameStage,
-  type InstallGameValidationError,
   type InstallGameValidationState,
 } from '../types/install';
+import { resolveLaunchMethod } from '../utils/launch';
+import { mergeInstallGameResultIntoDraft } from '../components/install/mergeInstallGameResultIntoDraft';
+import { buildInstallGameRequest } from './install/installRequestBuild';
+import { deriveHintText, deriveResultStage, deriveStatusText } from './install/installStatusText';
+import { mapValidationErrorToField } from './install/installValidationMapping';
 
-type PrefixPathSource = 'auto' | 'manual';
+export interface InstallerInputs {
+  installer_path: string;
+}
 
 export interface UseInstallGameResult {
-  request: InstallGameRequest;
+  profileName: string;
+  setProfileName: (value: string) => void;
+  draftProfile: GameProfile;
+  updateDraftProfile: (updater: (current: GameProfile) => GameProfile) => void;
+  installerInputs: InstallerInputs;
+  updateInstallerInputs: <Key extends keyof InstallerInputs>(key: Key, value: InstallerInputs[Key]) => void;
   validation: InstallGameValidationState;
   stage: InstallGameStage;
   result: InstallGameResult | null;
+  /** Present after a successful install — mirrors merged `draftProfile`. */
   reviewProfile: GameProfile | null;
   error: string | null;
   defaultPrefixPath: string;
@@ -37,9 +48,6 @@ export interface UseInstallGameResult {
   isReadyToSave: boolean;
   hasFailed: boolean;
   isResolvingDefaultPrefixPath: boolean;
-  setRequest: (request: InstallGameRequest) => void;
-  updateRequest: <Key extends keyof InstallGameRequest>(key: Key, value: InstallGameRequest[Key]) => void;
-  patchRequest: (patch: Partial<InstallGameRequest>) => void;
   setFieldError: <Key extends keyof InstallGameRequest>(key: Key, error: string | null) => void;
   setGeneralError: (error: string | null) => void;
   clearValidation: () => void;
@@ -49,20 +57,6 @@ export interface UseInstallGameResult {
   setInstalledExecutablePath: (path: string) => void;
   startInstall: () => Promise<void>;
   reset: () => void;
-}
-
-function createEmptyInstallGameRequest(): InstallGameRequest {
-  return {
-    profile_name: '',
-    display_name: '',
-    installer_path: '',
-    trainer_path: '',
-    proton_path: '',
-    prefix_path: '',
-    installed_game_executable_path: '',
-    launcher_icon_path: '',
-    custom_cover_art_path: '',
-  };
 }
 
 function createEmptyValidationState(): InstallGameValidationState {
@@ -87,77 +81,6 @@ function normalizeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function mapValidationErrorToField(message: string): keyof InstallGameRequest | null {
-  const variants = Object.keys(INSTALL_GAME_VALIDATION_MESSAGES) as InstallGameValidationError[];
-  for (const variant of variants) {
-    if (message === INSTALL_GAME_VALIDATION_MESSAGES[variant]) {
-      return INSTALL_GAME_VALIDATION_FIELD[variant];
-    }
-  }
-
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes('profile name') ||
-    normalized.includes('invalid profile name') ||
-    normalized.includes('invalid characters')
-  ) {
-    return 'profile_name';
-  }
-
-  if (
-    normalized.includes('installer path') ||
-    normalized.includes('windows .exe') ||
-    normalized.includes('installer media')
-  ) {
-    return 'installer_path';
-  }
-
-  if (normalized.includes('trainer path')) {
-    return 'trainer_path';
-  }
-
-  if (normalized.includes('custom cover art path')) {
-    return 'custom_cover_art_path';
-  }
-
-  if (normalized.includes('proton path')) {
-    return 'proton_path';
-  }
-
-  if (normalized.includes('prefix path')) {
-    return 'prefix_path';
-  }
-
-  if (normalized.includes('final game executable path')) {
-    return 'installed_game_executable_path';
-  }
-
-  return null;
-}
-
-function deriveReviewProfile(profile: GameProfile | null, executablePath: string): GameProfile | null {
-  if (!profile) {
-    return null;
-  }
-
-  const trimmedExecutablePath = executablePath.trim();
-
-  return {
-    ...profile,
-    game: {
-      ...profile.game,
-      executable_path: trimmedExecutablePath,
-    },
-    runtime: {
-      ...profile.runtime,
-      working_directory: trimmedExecutablePath
-        ? parentDirectory(trimmedExecutablePath)
-        : profile.runtime.working_directory,
-    },
-  };
-}
-
 function createCandidateOptions(result: InstallGameResult | null): InstallGameExecutableCandidate[] {
   if (!result) {
     return [];
@@ -170,123 +93,40 @@ function createCandidateOptions(result: InstallGameResult | null): InstallGameEx
   }));
 }
 
-function deriveResultStage(result: InstallGameResult | null): InstallGameStage {
-  if (result === null) {
-    return 'idle';
-  }
-
-  if (!result.succeeded) {
-    return 'failed';
-  }
-
-  return result.needs_executable_confirmation ? 'review_required' : 'ready_to_save';
-}
-
-function deriveStatusText(
-  stage: InstallGameStage,
-  defaultPrefixPathState: InstallGamePrefixPathState,
-  defaultPrefixPath: string,
-  result: InstallGameResult | null
-): string {
-  if (defaultPrefixPathState === 'loading') {
-    return 'Resolving the default prefix path from the current profile name.';
-  }
-
-  switch (stage) {
-    case 'preparing':
-      return 'Validating install inputs and preparing to launch the installer.';
-    case 'running_installer':
-      return 'Installer execution is in progress through Proton.';
-    case 'review_required':
-      return 'Installer finished. Confirm the final executable before the profile can be handed off.';
-    case 'ready_to_save':
-      return 'Final executable confirmed. The profile is ready for the later save handoff.';
-    case 'failed':
-      return result?.message || 'Install failed. Review the errors and try again.';
-    case 'idle':
-    default:
-      return defaultPrefixPath.trim().length > 0
-        ? 'Install fields are ready. CrossHook will use the suggested default prefix unless you override it.'
-        : 'Fill the install form to resolve a default prefix and launch the installer.';
-  }
-}
-
-function deriveHintText(
-  stage: InstallGameStage,
-  result: InstallGameResult | null,
-  defaultPrefixPath: string,
-  defaultPrefixPathError: string | null
-): string {
-  if (defaultPrefixPathError) {
-    return defaultPrefixPathError;
-  }
-
-  switch (stage) {
-    case 'preparing':
-      return 'The backend will validate the request, create the prefix if needed, and then launch the installer.';
-    case 'running_installer':
-      return 'The installer log path appears after the process completes. The resulting profile stays editable.';
-    case 'review_required':
-      return 'Pick a candidate or browse for the installed executable. The field stays editable after selection.';
-    case 'ready_to_save':
-      return 'The install result is ready to hand off to the save flow in the next task.';
-    case 'failed':
-      return 'The install request failed. Review the error message and adjust the inputs before retrying.';
-    case 'idle':
-    default:
-      return defaultPrefixPath.trim().length > 0
-        ? 'CrossHook keeps the suggested prefix path editable so you can override it before running the installer.'
-        : 'As you type the profile name, CrossHook will resolve a default prefix under your local data directory.';
-  }
-}
-
 export function useInstallGame(): UseInstallGameResult {
-  const [request, setRequestState] = useState<InstallGameRequest>(createEmptyInstallGameRequest);
+  const [profileName, setProfileNameState] = useState('');
+  const [draftProfile, setDraftProfileState] = useState<GameProfile>(createDefaultProfile);
+  const [installerInputs, setInstallerInputs] = useState<InstallerInputs>({ installer_path: '' });
   const [validation, setValidationState] = useState<InstallGameValidationState>(createEmptyValidationState);
   const [stage, setStageState] = useState<InstallGameStage>('idle');
   const [result, setResultState] = useState<InstallGameResult | null>(null);
-  const [reviewProfile, setReviewProfileState] = useState<GameProfile | null>(null);
   const [error, setErrorState] = useState<string | null>(null);
   const [defaultPrefixPath, setDefaultPrefixPath] = useState('');
   const [defaultPrefixPathState, setDefaultPrefixPathState] = useState<InstallGamePrefixPathState>('idle');
   const [defaultPrefixPathError, setDefaultPrefixPathError] = useState<string | null>(null);
-  const [prefixPathSource, setPrefixPathSource] = useState<PrefixPathSource>('auto');
   const prefixResolutionRequestIdRef = useRef(0);
+  /** Last prefix value suggested by IPC; avoids stale closures and redundant effect churn. */
+  const lastAutoSuggestedPrefixRef = useRef('');
+
+  const reviewProfile = useMemo(() => (result?.succeeded ? draftProfile : null), [result, draftProfile]);
 
   const candidateOptions = useMemo(() => createCandidateOptions(result), [result]);
   const isResolvingDefaultPrefixPath = defaultPrefixPathState === 'loading';
 
-  const setRequest = useCallback((nextRequest: InstallGameRequest) => {
-    setRequestState(nextRequest);
-    setPrefixPathSource(nextRequest.prefix_path.trim().length > 0 ? 'manual' : 'auto');
+  const setProfileName = useCallback((value: string) => {
+    setProfileNameState(value);
   }, []);
 
-  const updateRequest = useCallback(
-    <Key extends keyof InstallGameRequest>(key: Key, value: InstallGameRequest[Key]) => {
-      setRequestState((current) => ({
-        ...current,
-        [key]: value,
-      }));
+  const updateDraftProfile = useCallback((updater: (current: GameProfile) => GameProfile) => {
+    setDraftProfileState((current) => updater(current));
+  }, []);
 
-      if (key === 'prefix_path') {
-        const trimmedValue = String(value).trim();
-        setPrefixPathSource(trimmedValue.length > 0 ? 'manual' : 'auto');
-      }
+  const updateInstallerInputs = useCallback(
+    <Key extends keyof InstallerInputs>(key: Key, value: InstallerInputs[Key]) => {
+      setInstallerInputs((current) => ({ ...current, [key]: value }));
     },
     []
   );
-
-  const patchRequest = useCallback((patch: Partial<InstallGameRequest>) => {
-    setRequestState((current) => ({
-      ...current,
-      ...patch,
-    }));
-
-    if (Object.prototype.hasOwnProperty.call(patch, 'prefix_path')) {
-      const trimmedValue = patch.prefix_path?.trim() ?? '';
-      setPrefixPathSource(trimmedValue.length > 0 ? 'manual' : 'auto');
-    }
-  }, []);
 
   const setFieldError = useCallback(<Key extends keyof InstallGameRequest>(key: Key, nextError: string | null) => {
     setValidationState((current) => {
@@ -327,18 +167,13 @@ export function useInstallGame(): UseInstallGameResult {
     setResultState(nextResult);
 
     if (nextResult === null) {
-      setReviewProfileState(null);
       setStageState('idle');
       setErrorState(null);
       return;
     }
 
-    setReviewProfileState(nextResult.profile);
-    setRequestState((current) => ({
-      ...current,
-      prefix_path: nextResult.profile.runtime.prefix_path.trim() || current.prefix_path,
-      installed_game_executable_path: nextResult.profile.game.executable_path.trim(),
-    }));
+    setDraftProfileState((current) => mergeInstallGameResultIntoDraft(current, nextResult.profile));
+
     setStageState(deriveResultStage(nextResult));
     setErrorState(nextResult.succeeded ? null : nextResult.message);
   }, []);
@@ -347,28 +182,19 @@ export function useInstallGame(): UseInstallGameResult {
     (path: string) => {
       const trimmedPath = path.trim();
 
-      setRequestState((current) => ({
+      setDraftProfileState((current) => ({
         ...current,
-        installed_game_executable_path: path,
+        game: {
+          ...current.game,
+          executable_path: path,
+        },
+        runtime: {
+          ...current.runtime,
+          working_directory: trimmedPath
+            ? parentDirectory(trimmedPath)
+            : current.runtime.working_directory,
+        },
       }));
-
-      setReviewProfileState((currentReviewProfile) =>
-        currentReviewProfile === null
-          ? null
-          : {
-              ...currentReviewProfile,
-              game: {
-                ...currentReviewProfile.game,
-                executable_path: trimmedPath,
-              },
-              runtime: {
-                ...currentReviewProfile.runtime,
-                working_directory: trimmedPath
-                  ? parentDirectory(trimmedPath)
-                  : currentReviewProfile.runtime.working_directory,
-              },
-            }
-      );
 
       if (result?.succeeded) {
         setStageState(trimmedPath.length > 0 ? 'ready_to_save' : 'review_required');
@@ -377,90 +203,97 @@ export function useInstallGame(): UseInstallGameResult {
     [result]
   );
 
-  const resolveDefaultPrefixPath = useCallback(
-    async (profileName: string, requestId?: number) => {
-      const trimmedProfileName = profileName.trim();
-      if (!trimmedProfileName) {
-        setDefaultPrefixPath('');
-        setDefaultPrefixPathState('idle');
-        setDefaultPrefixPathError(null);
-        return '';
+  const resolveDefaultPrefixPath = useCallback(async (resolvedProfileName: string, requestId?: number) => {
+    const trimmedProfileName = resolvedProfileName.trim();
+    if (!trimmedProfileName) {
+      setDefaultPrefixPath('');
+      lastAutoSuggestedPrefixRef.current = '';
+      setDefaultPrefixPathState('idle');
+      setDefaultPrefixPathError(null);
+      return '';
+    }
+
+    setDefaultPrefixPathState('loading');
+    setDefaultPrefixPathError(null);
+
+    try {
+      const resolvedPrefixPath = await invoke<string>('install_default_prefix_path', {
+        profileName: trimmedProfileName,
+      });
+
+      if (requestId !== undefined && requestId !== prefixResolutionRequestIdRef.current) {
+        return resolvedPrefixPath;
       }
 
-      setDefaultPrefixPathState('loading');
-      setDefaultPrefixPathError(null);
+      const previousAutoPrefixPath = lastAutoSuggestedPrefixRef.current.trim();
+      setDefaultPrefixPath(resolvedPrefixPath);
+      lastAutoSuggestedPrefixRef.current = resolvedPrefixPath;
+      setDefaultPrefixPathState('ready');
 
-      try {
-        const resolvedPrefixPath = await invoke<string>('install_default_prefix_path', {
-          profileName: trimmedProfileName,
-        });
+      setDraftProfileState((current) => {
+        const launchMethod = resolveLaunchMethod(current);
+        const currentPrefixPath =
+          launchMethod === 'steam_applaunch'
+            ? current.steam.compatdata_path.trim()
+            : current.runtime.prefix_path.trim();
+        const shouldApplyResolvedPrefix =
+          currentPrefixPath.length === 0 ||
+          (previousAutoPrefixPath.length > 0 && currentPrefixPath === previousAutoPrefixPath);
 
-        if (requestId !== undefined && requestId !== prefixResolutionRequestIdRef.current) {
-          return resolvedPrefixPath;
+        if (!shouldApplyResolvedPrefix) {
+          return current;
         }
 
-        setDefaultPrefixPath(resolvedPrefixPath);
-        setDefaultPrefixPathState('ready');
+        if (launchMethod === 'steam_applaunch') {
+          return {
+            ...current,
+            steam: { ...current.steam, compatdata_path: resolvedPrefixPath },
+          };
+        }
 
-        setRequestState((current) => {
-          const currentPrefixPath = current.prefix_path.trim();
-          const previousAutoPrefixPath = defaultPrefixPath.trim();
-          const shouldApplyResolvedPrefix =
-            currentPrefixPath.length === 0 ||
-            (previousAutoPrefixPath.length > 0 && currentPrefixPath === previousAutoPrefixPath);
+        return {
+          ...current,
+          runtime: { ...current.runtime, prefix_path: resolvedPrefixPath },
+        };
+      });
 
-          if (shouldApplyResolvedPrefix) {
-            return {
-              ...current,
-              prefix_path: resolvedPrefixPath,
-            };
-          }
-
-          return current;
-        });
-
-        return resolvedPrefixPath;
-      } catch (invokeError) {
-        const message = normalizeErrorMessage(invokeError);
-        setDefaultPrefixPath('');
-        setDefaultPrefixPathState('failed');
-        setDefaultPrefixPathError(message);
-        return '';
-      }
-    },
-    [defaultPrefixPath]
-  );
+      return resolvedPrefixPath;
+    } catch (invokeError) {
+      const message = normalizeErrorMessage(invokeError);
+      setDefaultPrefixPath('');
+      lastAutoSuggestedPrefixRef.current = '';
+      setDefaultPrefixPathState('failed');
+      setDefaultPrefixPathError(message);
+      return '';
+    }
+  }, []);
 
   const startInstall = useCallback(async () => {
-    const profileName = request.profile_name.trim();
+    const trimmedProfileName = profileName.trim();
     clearValidation();
     setErrorState(null);
     setStageState('preparing');
 
-    let prefixPath = request.prefix_path.trim();
+    let finalRequest = buildInstallGameRequest(
+      trimmedProfileName,
+      draftProfile,
+      installerInputs.installer_path
+    );
+
+    if (finalRequest.prefix_path.trim().length === 0) {
+      const resolved = (await resolveDefaultPrefixPath(trimmedProfileName)).trim();
+      finalRequest = { ...finalRequest, prefix_path: resolved };
+    }
 
     try {
-      if (prefixPath.length === 0) {
-        prefixPath = (await resolveDefaultPrefixPath(profileName)).trim();
-      }
-
-      const installRequest: InstallGameRequest = {
-        ...request,
-        prefix_path: prefixPath,
-      };
-
       await invoke<void>('validate_install_request', {
-        request: installRequest,
+        request: finalRequest,
       });
 
-      setRequestState((current) => ({
-        ...current,
-        prefix_path: prefixPath,
-      }));
       setStageState('running_installer');
 
       const installResult = await invoke<InstallGameResult>('install_game', {
-        request: installRequest,
+        request: finalRequest,
       });
 
       setResult(installResult);
@@ -477,28 +310,40 @@ export function useInstallGame(): UseInstallGameResult {
         setFieldError(validationField, message);
       }
     }
-  }, [clearValidation, resolveDefaultPrefixPath, request, setFieldError, setGeneralError]);
+  }, [
+    clearValidation,
+    draftProfile,
+    installerInputs.installer_path,
+    profileName,
+    resolveDefaultPrefixPath,
+    setFieldError,
+    setGeneralError,
+    setResult,
+  ]);
 
   const reset = useCallback(() => {
-    setRequestState(createEmptyInstallGameRequest());
+    prefixResolutionRequestIdRef.current += 1;
+    setProfileNameState('');
+    setDraftProfileState(createDefaultProfile());
+    setInstallerInputs({ installer_path: '' });
     setValidationState(createEmptyValidationState());
     setStageState('idle');
     setResultState(null);
-    setReviewProfileState(null);
     setErrorState(null);
     setDefaultPrefixPath('');
+    lastAutoSuggestedPrefixRef.current = '';
     setDefaultPrefixPathState('idle');
     setDefaultPrefixPathError(null);
-    setPrefixPathSource('auto');
   }, []);
 
   useEffect(() => {
-    const trimmedProfileName = request.profile_name.trim();
+    const trimmedProfileName = profileName.trim();
     let active = true;
 
     if (!trimmedProfileName) {
       prefixResolutionRequestIdRef.current += 1;
       setDefaultPrefixPath('');
+      lastAutoSuggestedPrefixRef.current = '';
       setDefaultPrefixPathState('idle');
       setDefaultPrefixPathError(null);
       return () => {
@@ -519,7 +364,7 @@ export function useInstallGame(): UseInstallGameResult {
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [request.profile_name, resolveDefaultPrefixPath]);
+  }, [profileName, resolveDefaultPrefixPath]);
 
   const statusText = deriveStatusText(stage, defaultPrefixPathState, defaultPrefixPath, result);
   const hintText = deriveHintText(stage, result, defaultPrefixPath, defaultPrefixPathError);
@@ -542,7 +387,12 @@ export function useInstallGame(): UseInstallGameResult {
   })();
 
   return {
-    request,
+    profileName,
+    setProfileName,
+    draftProfile,
+    updateDraftProfile,
+    installerInputs,
+    updateInstallerInputs,
     validation,
     stage,
     result,
@@ -559,9 +409,6 @@ export function useInstallGame(): UseInstallGameResult {
     isReadyToSave: stage === 'ready_to_save',
     hasFailed: stage === 'failed',
     isResolvingDefaultPrefixPath,
-    setRequest,
-    updateRequest,
-    patchRequest,
     setFieldError,
     setGeneralError,
     clearValidation,

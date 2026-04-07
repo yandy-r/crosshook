@@ -7,14 +7,22 @@ export interface RunnerMethodSectionProps {
   profile: GameProfile;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   reviewMode?: boolean;
+  /** When true, omits Native Linux — used where Proton installer flow applies only. */
+  hideNative?: boolean;
 }
 
 /**
  * Renders the "Runner Method" section: the dropdown to select Steam AppLaunch,
  * Proton Run, or Native launch method.
  */
-export function RunnerMethodSection({ profile, onUpdateProfile }: RunnerMethodSectionProps) {
+export function RunnerMethodSection({ profile, onUpdateProfile, hideNative }: RunnerMethodSectionProps) {
   const sectionId = useId();
+
+  const options = [
+    { value: 'steam_applaunch', label: 'Steam app launch' },
+    { value: 'proton_run', label: 'Proton runtime launch' },
+    ...(hideNative ? [] : [{ value: 'native' as const, label: 'Native Linux launch' }]),
+  ];
 
   return (
     <>
@@ -36,11 +44,7 @@ export function RunnerMethodSection({ profile, onUpdateProfile }: RunnerMethodSe
               },
             }))
           }
-          options={[
-            { value: 'steam_applaunch', label: 'Steam app launch' },
-            { value: 'proton_run', label: 'Proton runtime launch' },
-            { value: 'native', label: 'Native Linux launch' },
-          ]}
+          options={options}
         />
         <p className="crosshook-help-text">
           Choose the runner explicitly so CrossHook saves the correct launch method and only shows the relevant fields.
