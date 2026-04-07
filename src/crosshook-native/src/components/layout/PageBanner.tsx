@@ -1,27 +1,49 @@
 import type { SVGProps } from 'react';
 
-/* ── Per-route decorative illustrations (used by route backdrop in ContentArea) ── */
+/* ── Per-route identity icons ──────────────────────────────────────────────
+ * Used by RouteBanner as the per-route identity icon. Mirrors the sidebar
+ * brand-art treatment: 64×64 viewBox, currentColor strokes, opacity vocabulary
+ * 0.15–0.5. Each route keeps a unique illustration.
+ */
 
 const SVG_DEFAULTS: SVGProps<SVGSVGElement> = {
-  viewBox: '0 0 200 120',
+  viewBox: '0 0 64 64',
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 1,
+  strokeWidth: 1.5,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
 };
 
+export function LibraryArt() {
+  return (
+    <svg {...SVG_DEFAULTS}>
+      {/* Shelf line */}
+      <line x1="10" y1="50" x2="54" y2="50" opacity={0.3} />
+      {/* Book spines */}
+      <rect x="12" y="18" width="6" height="32" rx="1" opacity={0.4} />
+      <rect x="20" y="14" width="6" height="36" rx="1" opacity={0.35} />
+      <rect x="28" y="20" width="6" height="30" rx="1" opacity={0.3} />
+      <rect x="36" y="16" width="6" height="34" rx="1" opacity={0.4} />
+      <rect x="44" y="22" width="6" height="28" rx="1" opacity={0.3} />
+      {/* Accent dot */}
+      <circle cx="32" cy="10" r="2" fill="currentColor" opacity={0.25} stroke="none" />
+    </svg>
+  );
+}
+
 export function ProfilesArt() {
   return (
     <svg {...SVG_DEFAULTS}>
-      <rect x="60" y="20" width="80" height="80" rx="12" strokeWidth={1.2} opacity={0.5} />
-      <circle cx="100" cy="48" r="14" opacity={0.45} />
-      <path d="M80 78a20 20 0 0 1 40 0" opacity={0.4} />
-      <rect x="48" y="28" width="80" height="80" rx="12" opacity={0.15} />
-      <rect x="72" y="12" width="80" height="80" rx="12" opacity={0.1} />
-      <circle cx="155" cy="30" r="3" fill="currentColor" opacity={0.12} stroke="none" />
-      <circle cx="40" cy="90" r="4" fill="currentColor" opacity={0.1} stroke="none" />
-      <circle cx="170" cy="85" r="2" fill="currentColor" opacity={0.15} stroke="none" />
+      {/* Layered cards */}
+      <rect x="14" y="16" width="40" height="40" rx="6" opacity={0.15} />
+      <rect x="10" y="12" width="40" height="40" rx="6" opacity={0.4} />
+      {/* Avatar head */}
+      <circle cx="30" cy="26" r="6" opacity={0.4} />
+      {/* Avatar shoulders */}
+      <path d="M20 42 a10 10 0 0 1 20 0" opacity={0.4} />
+      {/* Accent dot */}
+      <circle cx="50" cy="48" r="2" fill="currentColor" opacity={0.25} stroke="none" />
     </svg>
   );
 }
@@ -29,15 +51,16 @@ export function ProfilesArt() {
 export function LaunchArt() {
   return (
     <svg {...SVG_DEFAULTS}>
-      <path d="M65 25 L150 60 L65 95Z" strokeWidth={1.2} opacity={0.4} />
-      <line x1="40" y1="45" x2="55" y2="45" opacity={0.25} />
-      <line x1="35" y1="60" x2="55" y2="60" opacity={0.3} />
-      <line x1="40" y1="75" x2="55" y2="75" opacity={0.25} />
-      <path d="M60 40 Q45 60 60 80" opacity={0.15} strokeWidth={1.5} />
-      <path d="M50 35 Q30 60 50 85" opacity={0.08} strokeWidth={2} />
-      <circle cx="160" cy="35" r="2.5" fill="currentColor" opacity={0.15} stroke="none" />
-      <circle cx="165" cy="80" r="1.5" fill="currentColor" opacity={0.12} stroke="none" />
-      <circle cx="30" cy="30" r="3" fill="currentColor" opacity={0.08} stroke="none" />
+      {/* Outer halo ring */}
+      <circle cx="34" cy="32" r="22" opacity={0.18} />
+      {/* Play triangle */}
+      <path d="M24 16 L50 32 L24 48 Z" opacity={0.4} />
+      {/* Motion lines on left */}
+      <line x1="8" y1="22" x2="16" y2="22" opacity={0.3} />
+      <line x1="6" y1="32" x2="16" y2="32" opacity={0.35} />
+      <line x1="8" y1="42" x2="16" y2="42" opacity={0.3} />
+      {/* Center accent */}
+      <circle cx="34" cy="32" r="2" fill="currentColor" opacity={0.25} stroke="none" />
     </svg>
   );
 }
@@ -45,14 +68,17 @@ export function LaunchArt() {
 export function InstallArt() {
   return (
     <svg {...SVG_DEFAULTS}>
-      <rect x="65" y="45" width="70" height="50" rx="10" strokeWidth={1.2} opacity={0.4} />
-      <line x1="100" y1="10" x2="100" y2="55" strokeWidth={1.5} opacity={0.45} />
-      <path d="M88 43 L100 58 L112 43" strokeWidth={1.5} opacity={0.45} />
-      <path d="M65 55 Q100 40 135 55" opacity={0.2} />
-      <rect x="75" y="78" width="50" height="4" rx="2" opacity={0.2} />
-      <rect x="75" y="78" width="30" height="4" rx="2" fill="currentColor" opacity={0.15} stroke="none" />
-      <circle cx="155" cy="25" r="2" fill="currentColor" opacity={0.12} stroke="none" />
-      <circle cx="45" cy="80" r="3" fill="currentColor" opacity={0.08} stroke="none" />
+      {/* Card receiving the file */}
+      <rect x="12" y="32" width="40" height="22" rx="4" opacity={0.35} />
+      {/* Download arrow shaft */}
+      <line x1="32" y1="8" x2="32" y2="34" strokeWidth={2} opacity={0.45} />
+      {/* Arrow head */}
+      <path d="M24 26 L32 36 L40 26" strokeWidth={2} opacity={0.45} />
+      {/* Progress bar (track + filled) */}
+      <rect x="18" y="44" width="28" height="3" rx="1.5" opacity={0.2} />
+      <rect x="18" y="44" width="16" height="3" rx="1.5" fill="currentColor" opacity={0.3} stroke="none" />
+      {/* Accent dot */}
+      <circle cx="48" cy="14" r="2" fill="currentColor" opacity={0.2} stroke="none" />
     </svg>
   );
 }
@@ -60,17 +86,31 @@ export function InstallArt() {
 export function CommunityArt() {
   return (
     <svg {...SVG_DEFAULTS}>
-      <circle cx="100" cy="60" r="35" strokeWidth={1.2} opacity={0.35} />
-      <ellipse cx="100" cy="60" rx="14" ry="35" opacity={0.2} />
-      <line x1="65" y1="60" x2="135" y2="60" opacity={0.2} />
-      <ellipse cx="100" cy="45" rx="30" ry="8" opacity={0.15} />
-      <ellipse cx="100" cy="75" rx="30" ry="8" opacity={0.15} />
-      <circle cx="155" cy="30" r="6" opacity={0.2} />
-      <circle cx="45" cy="40" r="5" opacity={0.15} />
-      <circle cx="160" cy="90" r="4" opacity={0.12} />
-      <line x1="135" y1="50" x2="150" y2="34" opacity={0.1} strokeDasharray="3 3" />
-      <line x1="65" y1="55" x2="50" y2="42" opacity={0.08} strokeDasharray="3 3" />
-      <line x1="130" y1="80" x2="156" y2="88" opacity={0.08} strokeDasharray="3 3" />
+      {/* Globe */}
+      <circle cx="32" cy="32" r="20" opacity={0.4} />
+      <ellipse cx="32" cy="32" rx="8" ry="20" opacity={0.22} />
+      <line x1="12" y1="32" x2="52" y2="32" opacity={0.22} />
+      <ellipse cx="32" cy="22" rx="18" ry="4" opacity={0.18} />
+      <ellipse cx="32" cy="42" rx="18" ry="4" opacity={0.18} />
+      {/* Center accent */}
+      <circle cx="32" cy="32" r="2" fill="currentColor" opacity={0.25} stroke="none" />
+    </svg>
+  );
+}
+
+export function DiscoverArt() {
+  return (
+    <svg {...SVG_DEFAULTS}>
+      {/* Magnifier lens */}
+      <circle cx="26" cy="26" r="16" opacity={0.4} />
+      <circle cx="26" cy="26" r="8" opacity={0.18} />
+      {/* Crosshair inside lens */}
+      <line x1="18" y1="26" x2="34" y2="26" opacity={0.25} />
+      <line x1="26" y1="18" x2="26" y2="34" opacity={0.25} />
+      {/* Handle */}
+      <line x1="38" y1="38" x2="52" y2="52" strokeWidth={3} opacity={0.45} />
+      {/* Center accent */}
+      <circle cx="26" cy="26" r="1.5" fill="currentColor" opacity={0.25} stroke="none" />
     </svg>
   );
 }
@@ -78,12 +118,14 @@ export function CommunityArt() {
 export function CompatibilityArt() {
   return (
     <svg {...SVG_DEFAULTS}>
-      <path d="M100 15 L140 30 L140 65 Q140 95 100 108 Q60 95 60 65 L60 30Z" strokeWidth={1.2} opacity={0.35} />
-      <path d="M100 28 L130 38 L130 62 Q130 85 100 95 Q70 85 70 62 L70 38Z" opacity={0.12} />
-      <path d="M82 58 L95 72 L120 46" strokeWidth={2} opacity={0.45} />
-      <circle cx="155" cy="25" r="2.5" fill="currentColor" opacity={0.12} stroke="none" />
-      <circle cx="45" cy="90" r="3" fill="currentColor" opacity={0.08} stroke="none" />
-      <circle cx="160" cy="100" r="2" fill="currentColor" opacity={0.1} stroke="none" />
+      {/* Shield outer */}
+      <path d="M32 8 L48 14 L48 32 Q48 46 32 56 Q16 46 16 32 L16 14 Z" opacity={0.4} />
+      {/* Shield inner */}
+      <path d="M32 14 L42 18 L42 32 Q42 42 32 50 Q22 42 22 32 L22 18 Z" opacity={0.18} />
+      {/* Check mark */}
+      <path d="M24 31 L30 37 L42 24" strokeWidth={2} opacity={0.5} />
+      {/* Accent */}
+      <circle cx="32" cy="32" r="1.5" fill="currentColor" opacity={0.2} stroke="none" />
     </svg>
   );
 }
@@ -91,21 +133,21 @@ export function CompatibilityArt() {
 export function SettingsArt() {
   return (
     <svg {...SVG_DEFAULTS}>
-      <circle cx="100" cy="60" r="18" strokeWidth={1.2} opacity={0.35} />
-      <circle cx="100" cy="60" r="8" opacity={0.25} />
-      <line x1="100" y1="35" x2="100" y2="25" strokeWidth={3} opacity={0.25} strokeLinecap="round" />
-      <line x1="100" y1="85" x2="100" y2="95" strokeWidth={3} opacity={0.25} strokeLinecap="round" />
-      <line x1="75" y1="60" x2="65" y2="60" strokeWidth={3} opacity={0.25} strokeLinecap="round" />
-      <line x1="125" y1="60" x2="135" y2="60" strokeWidth={3} opacity={0.25} strokeLinecap="round" />
-      <line x1="82" y1="42" x2="75" y2="35" strokeWidth={3} opacity={0.2} strokeLinecap="round" />
-      <line x1="118" y1="78" x2="125" y2="85" strokeWidth={3} opacity={0.2} strokeLinecap="round" />
-      <line x1="118" y1="42" x2="125" y2="35" strokeWidth={3} opacity={0.2} strokeLinecap="round" />
-      <line x1="82" y1="78" x2="75" y2="85" strokeWidth={3} opacity={0.2} strokeLinecap="round" />
-      <circle cx="145" cy="35" r="10" opacity={0.15} />
-      <circle cx="145" cy="35" r="4" opacity={0.12} />
-      <rect x="45" y="40" width="20" height="8" rx="4" opacity={0.1} />
-      <rect x="45" y="55" width="20" height="8" rx="4" opacity={0.08} />
-      <rect x="45" y="70" width="20" height="8" rx="4" opacity={0.06} />
+      {/* Gear body */}
+      <circle cx="32" cy="32" r="14" opacity={0.4} />
+      <circle cx="32" cy="32" r="6" opacity={0.3} />
+      {/* Cardinal teeth */}
+      <line x1="32" y1="8" x2="32" y2="14" strokeWidth={3} opacity={0.35} strokeLinecap="round" />
+      <line x1="32" y1="50" x2="32" y2="56" strokeWidth={3} opacity={0.35} strokeLinecap="round" />
+      <line x1="8" y1="32" x2="14" y2="32" strokeWidth={3} opacity={0.35} strokeLinecap="round" />
+      <line x1="50" y1="32" x2="56" y2="32" strokeWidth={3} opacity={0.35} strokeLinecap="round" />
+      {/* Diagonal teeth */}
+      <line x1="14" y1="14" x2="18" y2="18" strokeWidth={3} opacity={0.3} strokeLinecap="round" />
+      <line x1="46" y1="46" x2="50" y2="50" strokeWidth={3} opacity={0.3} strokeLinecap="round" />
+      <line x1="46" y1="18" x2="50" y2="14" strokeWidth={3} opacity={0.3} strokeLinecap="round" />
+      <line x1="14" y1="50" x2="18" y2="46" strokeWidth={3} opacity={0.3} strokeLinecap="round" />
+      {/* Center accent */}
+      <circle cx="32" cy="32" r="2" fill="currentColor" opacity={0.25} stroke="none" />
     </svg>
   );
 }
@@ -113,49 +155,17 @@ export function SettingsArt() {
 export function HealthDashboardArt() {
   return (
     <svg {...SVG_DEFAULTS}>
-      <rect x="45" y="20" width="110" height="80" rx="10" strokeWidth={1.2} opacity={0.3} />
-      <path d="M55 60h18l8-20 12 40 8-20 10 0h34" strokeWidth={1.5} opacity={0.5} />
-      <rect x="55" y="30" width="22" height="18" rx="4" opacity={0.2} />
-      <rect x="82" y="30" width="22" height="18" rx="4" opacity={0.15} />
-      <rect x="109" y="30" width="22" height="18" rx="4" opacity={0.12} />
-      <rect x="136" y="30" width="14" height="18" rx="4" opacity={0.1} />
-      <circle cx="63" cy="39" r="3" fill="currentColor" opacity={0.18} stroke="none" />
-      <circle cx="90" cy="39" r="3" fill="currentColor" opacity={0.14} stroke="none" />
-      <circle cx="117" cy="39" r="3" fill="currentColor" opacity={0.1} stroke="none" />
-      <circle cx="165" cy="20" r="2.5" fill="currentColor" opacity={0.1} stroke="none" />
-      <circle cx="38" cy="90" r="3" fill="currentColor" opacity={0.08} stroke="none" />
-      <circle cx="170" cy="95" r="2" fill="currentColor" opacity={0.1} stroke="none" />
-    </svg>
-  );
-}
-
-export function LibraryArt() {
-  return (
-    <svg {...SVG_DEFAULTS}>
-      {/* Shelf rows */}
-      <line x1="35" y1="35" x2="165" y2="35" opacity={0.15} />
-      <line x1="35" y1="65" x2="165" y2="65" opacity={0.12} />
-      <line x1="35" y1="95" x2="165" y2="95" opacity={0.1} />
-      {/* Book spines — top shelf */}
-      <rect x="45" y="12" width="14" height="23" rx="2" strokeWidth={1.2} opacity={0.4} />
-      <rect x="62" y="16" width="12" height="19" rx="2" opacity={0.3} />
-      <rect x="77" y="10" width="16" height="25" rx="2" opacity={0.35} />
-      <rect x="96" y="14" width="11" height="21" rx="2" opacity={0.25} />
-      <rect x="110" y="11" width="15" height="24" rx="2" strokeWidth={1.2} opacity={0.38} />
-      <rect x="128" y="15" width="13" height="20" rx="2" opacity={0.28} />
-      {/* Book spines — middle shelf */}
-      <rect x="50" y="42" width="16" height="23" rx="2" opacity={0.3} />
-      <rect x="69" y="45" width="12" height="20" rx="2" opacity={0.22} />
-      <rect x="84" y="40" width="14" height="25" rx="2" strokeWidth={1.2} opacity={0.35} />
-      <rect x="101" y="44" width="18" height="21" rx="2" opacity={0.25} />
-      <rect x="122" y="41" width="13" height="24" rx="2" opacity={0.3} />
-      {/* Game controller accent */}
-      <circle cx="155" cy="52" r="8" opacity={0.18} />
-      <path d="M151 52h8M155 48v8" strokeWidth={1.5} opacity={0.2} />
-      {/* Floating accent dots */}
-      <circle cx="170" cy="20" r="2.5" fill="currentColor" opacity={0.12} stroke="none" />
-      <circle cx="30" cy="80" r="3" fill="currentColor" opacity={0.08} stroke="none" />
-      <circle cx="175" cy="100" r="2" fill="currentColor" opacity={0.1} stroke="none" />
+      {/* Dashboard card */}
+      <rect x="8" y="14" width="48" height="36" rx="4" opacity={0.4} />
+      {/* Top stat pills */}
+      <rect x="12" y="18" width="11" height="6" rx="2" opacity={0.28} />
+      <rect x="25" y="18" width="11" height="6" rx="2" opacity={0.22} />
+      <rect x="38" y="18" width="14" height="6" rx="2" opacity={0.18} />
+      {/* Heartbeat / chart line */}
+      <path d="M12 38 L20 38 L24 28 L28 46 L32 30 L36 38 L52 38" strokeWidth={2} opacity={0.5} />
+      {/* Accent dots */}
+      <circle cx="17" cy="21" r="1.5" fill="currentColor" opacity={0.28} stroke="none" />
+      <circle cx="56" cy="56" r="1.5" fill="currentColor" opacity={0.18} stroke="none" />
     </svg>
   );
 }

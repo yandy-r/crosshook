@@ -231,6 +231,101 @@ textarea {
 
 /* Footer chrome: .crosshook-route-footer (layout.css) */
 
+/* Shared route banner — sidebar brand rhythm: min-height, padding, text + 56px icon (see RouteBanner.tsx) */
+.crosshook-route-banner.crosshook-panel {
+  flex-shrink: 0;
+  margin-bottom: var(--crosshook-grid-gap);
+  align-self: stretch;
+  min-width: 0;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* Match .crosshook-sidebar__brand padding; wins over generic .crosshook-panel padding */
+  padding: 18px 14px;
+  /* Mirror .crosshook-sidebar__brand: radial halo on the right (where the icon sits)
+     stacked over the standard panel linear gradient. This is what gives the sidebar
+     brand its blue glow — we reproduce it here exactly. */
+  background:
+    radial-gradient(ellipse 80% 100% at 95% 50%, rgba(0, 120, 212, 0.08), transparent 60%),
+    linear-gradient(180deg, rgba(18, 23, 42, 0.96), rgba(12, 17, 32, 0.96));
+  overflow: hidden;
+}
+
+.crosshook-route-banner__inner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.crosshook-route-banner__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* No reading-width cap: the summary is a one-liner, not long-form prose.
+     Letting body fill the available width keeps the summary on a single line
+     so the banner content height stays under the 120px sidebar parity floor. */
+  max-width: none;
+}
+
+.crosshook-route-banner__eyebrow {
+  margin: 0;
+}
+
+.crosshook-route-banner__title {
+  margin: 0.2rem 0 0;
+  color: var(--crosshook-color-text);
+  font-size: clamp(1.5rem, 1.55vw, 2.05rem);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: 0.02em;
+}
+
+.crosshook-route-banner__summary {
+  margin-top: 0.45rem;
+  /* Override .crosshook-heading-copy { max-width: 64ch }: same rationale as
+     __body above — keep summary on a single line for sidebar height parity. */
+  max-width: none;
+}
+
+/* Visible route art — mirrors .crosshook-sidebar__brand-art exactly (sidebar.css:41-52) */
+.crosshook-route-banner__icon {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--crosshook-color-accent-strong);
+  opacity: 0.6;
+}
+
+.crosshook-route-banner__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-height: 820px) {
+  .crosshook-route-banner.crosshook-panel {
+    min-height: 88px;
+    padding: 10px 12px;
+  }
+
+  .crosshook-route-banner__icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Mirror .crosshook-sidebar__brand-subtitle { display: none } at the same
+     breakpoint (sidebar.css:256-258) so the route banner collapses to
+     eyebrow + title only and stays under the 88px compact-mode floor. */
+  .crosshook-route-banner__summary {
+    display: none;
+  }
+}
+
 /* Profiles route body (--fill): hero/health stay natural height; editor host absorbs remainder and scrolls inside subtabs */
 .crosshook-profiles-page__body.crosshook-route-stack__body--fill > *:not(.crosshook-profiles-editor-host) {
   flex-shrink: 0;
@@ -416,10 +511,6 @@ textarea {
   padding-top: 10px;
 }
 
-.crosshook-profiles-hero-outer .crosshook-launch-panel__title-strip-inner {
-  min-height: 2.75rem;
-}
-
 /* Launch route inner: .crosshook-route-stack + this gap (single column; was grid) */
 .crosshook-launch-page__grid {
   gap: 24px;
@@ -428,7 +519,8 @@ textarea {
 /* Install route outer: .crosshook-route-stack; body: .crosshook-route-stack__body--fill */
 
 /* Community (Browse) / Compatibility / Settings: viewport fill + single scroll inside primary card */
-.crosshook-settings-page > .crosshook-error-banner {
+.crosshook-settings-page > .crosshook-error-banner,
+.crosshook-settings-page > .crosshook-route-banner {
   flex-shrink: 0;
 }
 
@@ -438,7 +530,8 @@ textarea {
  */
 .crosshook-route-card-scroll > .crosshook-community-browser,
 .crosshook-route-card-scroll > .crosshook-compatibility-viewer,
-.crosshook-route-card-scroll > .crosshook-settings-panel {
+.crosshook-route-card-scroll > .crosshook-settings-panel,
+.crosshook-route-card-scroll > .crosshook-library-page__content {
   align-content: start;
   min-width: 0;
   min-height: 100%;
@@ -2889,8 +2982,9 @@ textarea {
   display: grid;
   align-content: start;
   box-sizing: border-box;
-  height: 100%;
-  /* Slightly tighter than stack gap: avoids double spacing with title-strip (grid gap + margin) */
+  /* Size to content; avoid filling min-height with empty space below the last row */
+  height: auto;
+  /* Slightly tighter than stack gap: avoids double spacing between stacked rows */
   gap: calc(var(--crosshook-launch-panel-gap) - 6px);
   padding: var(--crosshook-launch-panel-padding);
   border-radius: 20px;
@@ -2922,18 +3016,6 @@ textarea {
   gap: 16px;
   align-items: start;
   flex-wrap: wrap;
-}
-
-.crosshook-launch-panel__title-strip {
-  margin-bottom: 0;
-}
-
-.crosshook-launch-panel__title-strip-inner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .crosshook-launch-panel__profile-row {
@@ -3190,6 +3272,24 @@ textarea {
 .crosshook-launch-panel__runner-stack {
   display: grid;
   gap: 6px;
+}
+
+/* Launch phase pill + runner line share one row; right edge aligns with action buttons above */
+.crosshook-launch-panel__runner-primary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.crosshook-launch-panel__runner-primary-row .crosshook-launch-panel__indicator-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.crosshook-launch-panel__runner-primary-row .crosshook-launch-panel__status {
+  flex-shrink: 0;
 }
 
 .crosshook-launch-panel__indicator {
@@ -4083,9 +4183,9 @@ textarea {
 
   .crosshook-launch-panel__header,
   .crosshook-launch-panel__actions,
-  .crosshook-launch-panel__title-strip-inner,
   .crosshook-launch-panel__profile-row,
   .crosshook-launch-panel__profile-row-actions,
+  .crosshook-launch-panel__runner-primary-row,
   .crosshook-launch-panel__indicator-row {
     flex-direction: column;
     align-items: flex-start;
@@ -4387,18 +4487,6 @@ textarea {
 
   .crosshook-button:hover {
     transform: none;
-  }
-}
-
-/* Health: align first content (summary cards) with sidebar brand header top (sidebar top padding) */
-.crosshook-page-scroll-shell.crosshook-page-scroll-shell--health {
-  padding-top: var(--crosshook-page-padding);
-  box-sizing: border-box;
-}
-
-@media (max-height: 820px) {
-  .crosshook-page-scroll-shell.crosshook-page-scroll-shell--health {
-    padding-top: max(10px, var(--crosshook-page-padding));
   }
 }
 

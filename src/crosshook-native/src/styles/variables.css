@@ -56,11 +56,10 @@
   --crosshook-launch-panel-action-min-height: 52px;
   --crosshook-launch-panel-action-padding-inline: 22px;
   --crosshook-launch-panel-action-secondary-padding-inline: 20px;
-  /* Profiles hero strip + Launch controls card: same minimum inner height when switching routes */
+  /* Profiles hero + Launch controls: floor height when switching routes (no title strip; runner row is one line) */
   --crosshook-route-hero-launch-panel-min-height: calc(
-    (var(--crosshook-launch-panel-padding) - 8px) + 2.75rem + (var(--crosshook-launch-panel-gap) - 6px) +
-      var(--crosshook-launch-panel-action-min-height) + (var(--crosshook-launch-panel-gap) - 6px) + 4.5rem +
-      var(--crosshook-launch-panel-padding)
+    (var(--crosshook-launch-panel-padding) - 8px) + var(--crosshook-launch-panel-action-min-height) +
+      (var(--crosshook-launch-panel-gap) - 6px) + 3.5rem + var(--crosshook-launch-panel-padding)
   );
   --crosshook-page-header-gap: 10px;
   --crosshook-page-header-margin-bottom: 24px;

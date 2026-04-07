@@ -1,12 +1,10 @@
 /* ── Library Page ──────────────────────────────────────────────────────── */
 
 /* .crosshook-library-page sits on .crosshook-route-stack — flex layout is
-   inherited from the route-stack contract. Page-specific children below. */
-
-.crosshook-library-page__content {
-  padding: var(--crosshook-page-padding);
-  max-width: var(--crosshook-content-width);
-}
+   inherited from the route-stack contract. Page-specific children below.
+   .crosshook-library-page__content uses .crosshook-card for padding, border,
+   and boundary so it matches the other route panels (Settings, Discover, …).
+   See theme.css panel-children rule for the min-height: 100% behavior. */
 
 .crosshook-library-page__toolbar-bar {
   padding: 10px 14px;

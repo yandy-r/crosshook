@@ -12,8 +12,7 @@ import type { GameProfile } from '../../types';
 import type { InstallProfileReviewPayload } from '../../types/install';
 import type { ProfileReviewSession } from '../../types/profile-review';
 import { profilesEqual } from '../../utils/profile-compare';
-import { InstallArt } from '../layout/PageBanner';
-import { PanelRouteDecor } from '../layout/PanelRouteDecor';
+import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
 
 type InstallPageTab = 'install' | 'update';
@@ -326,11 +325,11 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--install">
       <div className="crosshook-route-stack crosshook-install-page">
         <div className="crosshook-route-stack__body--fill crosshook-install-page__body">
+          <RouteBanner route="install" />
           <div
-            className="crosshook-panel crosshook-panel--with-route-decor crosshook-install-page-tabs"
+            className="crosshook-panel crosshook-install-page-tabs"
             style={{ padding: 'var(--crosshook-card-padding)' }}
           >
-            <PanelRouteDecor illustration={<InstallArt />} />
             <Tabs.Root
               className="crosshook-install-page-tabs__root"
               value={installPageTab}

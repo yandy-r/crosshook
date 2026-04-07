@@ -11,6 +11,7 @@ import {
   SettingsIcon,
   HealthIcon,
 } from '../icons/SidebarIcons';
+import { ROUTE_NAV_LABEL } from './routeMetadata';
 
 export type AppRoute = 'library' | 'profiles' | 'launch' | 'install' | 'community' | 'discover' | 'compatibility' | 'settings' | 'health';
 
@@ -36,40 +37,28 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     label: 'Game',
     items: [
-      { route: 'library', label: 'Library', icon: LibraryIcon },
-      { route: 'profiles', label: 'Profiles', icon: ProfilesIcon },
-      { route: 'launch', label: 'Launch', icon: LaunchIcon },
+      { route: 'library', label: ROUTE_NAV_LABEL.library, icon: LibraryIcon },
+      { route: 'profiles', label: ROUTE_NAV_LABEL.profiles, icon: ProfilesIcon },
+      { route: 'launch', label: ROUTE_NAV_LABEL.launch, icon: LaunchIcon },
     ],
   },
   {
     label: 'Setup',
-    items: [{ route: 'install', label: 'Install Game', icon: InstallIcon }],
+    items: [{ route: 'install', label: ROUTE_NAV_LABEL.install, icon: InstallIcon }],
   },
   {
     label: 'Dashboards',
-    items: [{ route: 'health', label: 'Health', icon: HealthIcon }],
+    items: [{ route: 'health', label: ROUTE_NAV_LABEL.health, icon: HealthIcon }],
   },
   {
     label: 'Community',
     items: [
-      { route: 'community', label: 'Browse', icon: BrowseIcon },
-      { route: 'discover', label: 'Discover', icon: DiscoverIcon },
-      { route: 'compatibility', label: 'Compatibility', icon: CompatibilityIcon },
+      { route: 'community', label: ROUTE_NAV_LABEL.community, icon: BrowseIcon },
+      { route: 'discover', label: ROUTE_NAV_LABEL.discover, icon: DiscoverIcon },
+      { route: 'compatibility', label: ROUTE_NAV_LABEL.compatibility, icon: CompatibilityIcon },
     ],
   },
 ];
-
-const ROUTE_LABELS: Record<AppRoute, string> = {
-  library: 'Library',
-  profiles: 'Profiles',
-  launch: 'Launch',
-  install: 'Install Game',
-  community: 'Browse',
-  discover: 'Discover',
-  compatibility: 'Compatibility',
-  settings: 'Settings',
-  health: 'Health',
-};
 
 function SidebarTrigger({
   activeRoute,
@@ -166,12 +155,12 @@ export function Sidebar({ activeRoute, onNavigate, controllerMode, lastProfile }
             activeRoute={activeRoute}
             onNavigate={onNavigate}
             route="settings"
-            label={ROUTE_LABELS.settings}
+            label={ROUTE_NAV_LABEL.settings}
             icon={SettingsIcon}
           />
 
           <div className="crosshook-sidebar__status-group">
-            <StatusRow label="Current view" value={ROUTE_LABELS[activeRoute]} />
+            <StatusRow label="Current view" value={ROUTE_NAV_LABEL[activeRoute]} />
             <StatusRow label="Controller" value={controllerLabel} />
             <StatusRow label="Last profile" value={profileLabel} />
           </div>
