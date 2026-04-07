@@ -1191,7 +1191,7 @@ Implement the remaining smaller domain commands: trainer discovery, run-executab
 
 ### Phase 3: Polish (independent sub-PRs)
 
-Phase 3 adds fixture variants, debug toggles, coverage tooling, docs, and optional test automation. All 7 tasks are independent and can ship as separate small PRs. The fixture switcher (3.1) and debug toggles (3.2) build on the Phase 2 handler foundation; the rest are tooling/docs work.
+Phase 3 adds fixture variants, debug toggles, coverage tooling, docs, and test automation. All 7 tasks are independent and can ship as separate small PRs. The fixture switcher (3.1) and debug toggles (3.2) build on the Phase 2 handler foundation; the rest are tooling/docs work.
 
 #### Task 3.1: Fixture state switcher (?fixture=populated|empty|error|loading) Depends on [2.1, 2.2]
 
