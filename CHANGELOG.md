@@ -3,6 +3,35 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+## [v0.2.8] - 2026-04-07
+
+
+### Bug Fixes
+
+- **discovery:** Harden external search and trainer-source validation ([`1e304fe`](https://github.com/yandy-r/crosshook/commit/1e304feeb952b0d268387390ae200a8fcce18d9a))
+
+
+### Features
+
+- **ui:** Add library game details modal ([#152](https://github.com/yandy-r/crosshook/issues/152)) ([`ceaf6e9`](https://github.com/yandy-r/crosshook/commit/ceaf6e9a4aa7fac03faf31558f67df999160bdab))
+
+- Add prefix storage health monitoring and cleanup tools ([#153](https://github.com/yandy-r/crosshook/issues/153)) ([`b91fb4c`](https://github.com/yandy-r/crosshook/commit/b91fb4cc7ee67f50d50e55ed7c7f71763a203e14))
+
+- **security:** Network isolation for trainers via unshare --net ([#154](https://github.com/yandy-r/crosshook/issues/154)) ([`eff0a31`](https://github.com/yandy-r/crosshook/commit/eff0a310ae68f31b35599f92da14f7062200eee3))
+
+- **protondb:** Community-driven config suggestions with catalog matching ([#155](https://github.com/yandy-r/crosshook/issues/155)) ([`bfe3bd9`](https://github.com/yandy-r/crosshook/commit/bfe3bd9edc7e5f6afad2cd8c1780aa1490e6ca0a))
+
+- **security:** Trainer executable SHA-256 verification at launch ([#156](https://github.com/yandy-r/crosshook/issues/156)) ([`32d58f6`](https://github.com/yandy-r/crosshook/commit/32d58f6b4bff0bbfa12135f9c582f139d4174ad2))
+
+- **discovery:** Trainer discovery Phase A — tap-local search and UI ([#67](https://github.com/yandy-r/crosshook/issues/67)) ([`f3ae847`](https://github.com/yandy-r/crosshook/commit/f3ae847f53426a262e8e9b00d16cb3c030b60f40))
+
+- **community:** Enhance tap URL validation to accept bare absolute paths ([`c031776`](https://github.com/yandy-r/crosshook/commit/c0317761ec23831b3e7faaf7b8837e9e8aa53354))
+
+- **discovery:** Trainer discovery phases A–B ([#157](https://github.com/yandy-r/crosshook/issues/157)) ([`e66f357`](https://github.com/yandy-r/crosshook/commit/e66f35750f48024efc794783df24f2c7bbe254bb))
+
+- **protonup:** In-app Proton runtime management ([#159](https://github.com/yandy-r/crosshook/issues/159)) ([`25b9dd6`](https://github.com/yandy-r/crosshook/commit/25b9dd6622568a27ed2ff29b20748929ac2482cc))
+
+
 ## [v0.2.7] - 2026-04-04
 
 
