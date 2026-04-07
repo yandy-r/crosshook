@@ -53,6 +53,7 @@ For storage changes, plans must also:
 
 ```bash
 ./scripts/dev-native.sh
+./scripts/dev-native.sh --browser    # browser-only dev mode (no Rust toolchain), loopback only
 ./scripts/build-native.sh
 ./scripts/build-native-container.sh
 ./scripts/build-native.sh --binary-only
@@ -60,4 +61,4 @@ For storage changes, plans must also:
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ```
 
-Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`.
+Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`. See [`AGENTS.md`](AGENTS.md) § _Browser Dev Mode_ for the mock layer, loopback-only binding, and the `verify:no-mocks` CI sentinel.
