@@ -45,6 +45,8 @@ pub struct AppSettingsIpcData {
     pub auto_install_prefix_deps: bool,
     pub discovery_enabled: bool,
     pub external_trainer_sources: Vec<ExternalTrainerSourceSubscription>,
+    pub protonup_auto_suggest: bool,
+    pub protonup_binary_path: String,
 }
 
 impl AppSettingsIpcData {
@@ -79,6 +81,8 @@ impl AppSettingsIpcData {
             auto_install_prefix_deps: data.auto_install_prefix_deps,
             discovery_enabled: data.discovery_enabled,
             external_trainer_sources: data.external_trainer_sources,
+            protonup_auto_suggest: data.protonup_auto_suggest,
+            protonup_binary_path: data.protonup_binary_path,
         }
     }
 }
@@ -115,6 +119,10 @@ pub struct SettingsSaveRequest {
     pub auto_install_prefix_deps: bool,
     pub discovery_enabled: bool,
     pub external_trainer_sources: Option<Vec<ExternalTrainerSourceSubscription>>,
+    #[serde(default)]
+    pub protonup_auto_suggest: Option<bool>,
+    #[serde(default)]
+    pub protonup_binary_path: Option<String>,
 }
 
 fn merge_settings_from_request(
@@ -151,6 +159,12 @@ fn merge_settings_from_request(
         external_trainer_sources: data
             .external_trainer_sources
             .unwrap_or(current.external_trainer_sources),
+        protonup_auto_suggest: data
+            .protonup_auto_suggest
+            .unwrap_or(current.protonup_auto_suggest),
+        protonup_binary_path: data
+            .protonup_binary_path
+            .unwrap_or(current.protonup_binary_path),
     }
 }
 

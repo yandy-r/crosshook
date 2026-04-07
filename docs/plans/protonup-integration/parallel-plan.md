@@ -430,14 +430,44 @@ Add an "Orphan Detection" section or button to `ProtonVersionManager`. Call `fin
 ## Advice
 
 - **Copy, don't abstract**: `protondb/client.rs:85-130` (cache-first fetch) and `commands/prefix_deps.rs:234-320` (event streaming) should be copied verbatim and adapted. Two call sites do not warrant a shared abstraction. `research-practices.md` explicitly prohibits abstracting the cache pattern.
-- **Security mitigations are embedded, not separate tasks**: The three CRITICAL security items (path traversal, archive bomb, Cargo.lock verification) are acceptance criteria for Task 1D-1, not standalone tasks. Do not split them out -- doing so creates a window of insecure code.
-- **Pin `libprotonup` exactly**: Use `= "0.11.0"` (exact pin) in `Cargo.toml`, not `"0.11.0"` (which allows patch upgrades). After any `Cargo.toml` change, verify `Cargo.lock` shows `astral-tokio-tar 0.6.x` and no `tokio-tar`.
+- **Security mitigations are embedded, not separate tasks**: The three CRITICAL security items (path traversal, archive bomb, checksum verification) are acceptance criteria for install/catalog work, not standalone tasks. Do not split them out — doing so creates a window of insecure code.
+- **v1 uses GitHub Releases directly**: GE-Proton builds are listed and downloaded via `reqwest` against the GloriousEggroll releases API. There is no `libprotonup` crate dependency in the shipped integration; asset selection and checksum verification remain security-critical.
 - **`listen-before-invoke` race guard is non-negotiable**: The `completedBeforeInvoke` flag in `useUpdateGame.ts:227` prevents the UI from regressing to `'installing'` if the backend completes before the invoke promise resolves. Fast local installs (from SSD) can trigger this race.
 - **MetadataStore Mutex must never be held across `.await`**: The read-release-reacquire sequence from `protondb/client.rs` is the only safe pattern. Holding the `Arc<Mutex<Connection>>` during async download will deadlock.
-- **`SettingsPanel.tsx` is 49KB**: Import and place `<ProtonVersionManager />` surgically. Do not inline panel code into SettingsPanel. Keep the component self-contained.
-- **`useScrollEnhance` registration is a one-liner but ship-blocking**: Missing it causes dual-scroll jank on WebKitGTK. Must be done as soon as the component's DOM structure is finalized (Task 2B-3).
-- **File naming follows `feature-spec.md`**: Use `fetcher.rs` (not `client.rs`), `installer.rs` (not `service.rs`), `scanner.rs`, `advisor.rs`. The feature-spec naming takes precedence over older research docs.
+- **`SettingsPanel.tsx` is 49KB**: Import and place new panels surgically. Do not inline large panel code into SettingsPanel. Keep components self-contained.
+- **`useScrollEnhance` registration is a one-liner but ship-blocking**: Missing it causes dual-scroll jank on WebKitGTK. Add any new `overflow-y: auto` surface to the hook’s selector as soon as the DOM structure is finalized.
+- **Shipped module names**: The implementation uses `catalog.rs`, `install.rs`, and `matching.rs` with shared DTOs in `mod.rs` (see `feature-spec.md` Implementation Notes). Older plan names like `fetcher.rs` / `installer.rs` / `service.rs` are superseded.
 - **GE-Proton only in Phase 1**: Wine-GE is deferred to Phase 3 Task 3-3 to avoid scope creep. The `VersionChannel` enum should be defined in models.rs but only `GEProton` is implemented in Phase 1.
-- **No resume support**: `libprotonup 0.11.0` does not support HTTP range requests. Cancelled downloads restart from scratch. Document this in the UI rather than attempting a workaround.
-- **BR-1 is unconditional**: Profile launch must NEVER be gated by ProtonUp state. The feature is install/suggestion only -- it never intercepts or blocks game launching.
+- **No resume support**: Downloads do not use HTTP range requests; cancelled installs restart from scratch. Document this in the UI rather than attempting a workaround.
+- **BR-1 is unconditional**: Profile launch must NEVER be gated by ProtonUp state. The feature is install/suggestion only — it never intercepts or blocks game launching.
 - **Test the cache round-trip first**: The most important unit test is cache write/read with `MetadataStore::open_in_memory()`. This catches serialization bugs and cache key mismatches that would be painful to debug through the full Tauri stack.
+- **Provider adapter boundaries**: Finalize provider-facing interfaces before deep UI integration to avoid churn across commands/hooks.
+- **Explicit installs only**: Keep install side effects behind user actions; avoid automatic installs from recommendation state alone.
+- **Reuse `steam/proton.rs`**: For post-install refresh and a single source of truth for installed inventory.
+- **Stale/offline catalog**: Treat as first-class UX signals, not generic errors.
+- **Timeouts/cancellation**: If introduced, document and test before enabling one-click install flows broadly.
+
+## Implementation Outcomes
+
+All 12 tasks (1.1–4.3) completed successfully.
+
+### File structure deviation
+
+`protonup/service.rs` was not created. The catalog retrieval, install orchestration, and suggestion matching responsibilities were distributed across `catalog.rs`, `install.rs`, and `matching.rs` respectively, with shared DTOs in `mod.rs`. This achieved the same separation of concerns without the additional indirection layer.
+
+### Issues found and fixed during Task 4.2 verification
+
+- `AppSettingsIpcData` was missing ProtonUp fields (`protonup_auto_suggest`, `protonup_binary_path`) in the settings load response. Both fields were added to the struct and its `from_parts` constructor.
+- A silent install failure existed in the ProfilesPage recommendation banner due to missing error propagation. This was corrected so install errors surface visibly to the user.
+
+### Confirmed decisions preserved
+
+All three confirmed decisions from the spec were preserved in the implementation:
+
+1. GE-Proton only as the v1 provider scope.
+2. Advisory-by-default recommendation strictness — no launch blocking for runtime mismatches.
+3. Hybrid adapter approach — GitHub Releases API used directly for v1 (no `libprotonup` dependency required).
+
+### `version_snapshots` status
+
+The `version_snapshots` table was not used. All catalog state is stored through `external_cache_entries`. This table remains deferred and optional in v1.

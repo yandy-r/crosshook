@@ -527,3 +527,39 @@ For detailed findings, see:
 - [research-security.md](./research-security.md): Severity-leveled findings (1 CRITICAL, 4 WARNING, 5 ADVISORY)
 - [research-practices.md](./research-practices.md): Code reuse, modularity, KISS assessment, build-vs-depend
 - [research-recommendations.md](./research-recommendations.md): Phasing, alternatives, risk assessment, task breakdown
+
+## Implementation Notes
+
+These notes record concrete implementation realities that differ from the original spec assumptions. The confirmed decisions above remain unchanged.
+
+### Actual file structure
+
+The implementation created the following files under `src/crosshook-native/crates/crosshook-core/src/protonup/`:
+
+- `mod.rs` — shared DTOs and service interface (as spec'd)
+- `catalog.rs` — catalog retrieval with cache-live-stale fallback
+- `install.rs` — install orchestration with security guardrails
+- `matching.rs` — pure advisory match logic
+
+The file `protonup/service.rs` specified in the original technical spec was not created. Catalog, install, and matching responsibilities are distributed across the three module files above instead of being unified in a single service module.
+
+### Provider integration
+
+The implementation uses the GitHub Releases API directly (`https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases`) rather than the `libprotonup` library. The `libprotonup` dependency was not added to `Cargo.toml`. The spec listed `libprotonup` as the primary integration path with GitHub Releases as a fallback/direct-catalog mode; in v1 the GitHub Releases path is the sole and primary integration.
+
+### `version_snapshots` status
+
+The `version_snapshots` table is not used by the ProtonUp integration. All catalog data is stored through the existing `external_cache_entries` table in the SQLite metadata DB. `version_snapshots` remains deferred and optional in v1 — no migration or schema change was introduced.
+
+### Settings fields added
+
+Two fields were added to `AppSettingsData` in `settings/mod.rs` and exposed through `AppSettingsIpcData` in the settings command layer:
+
+- `protonup_auto_suggest` (`bool`, default `true`) — controls whether advisory recommendation banners appear in profile and compatibility views.
+- `protonup_binary_path` (`String`, default empty string) — reserved for a future provider binary override path. This field is defined and persisted but is not actively consumed in v1; it is included for forward compatibility without requiring a future migration.
+
+Both fields deserialize with defaults when absent from `settings.toml`, preserving backward compatibility with existing installations.
+
+### Dependencies added
+
+`futures-util = { version = "0.3", default-features = false, features = ["alloc"] }` was added to `crates/crosshook-core/Cargo.toml`, and `reqwest` enables the `stream` feature, to support streaming download chunks during archive installation.

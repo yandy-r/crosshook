@@ -24,6 +24,10 @@ fn default_log_filter() -> String {
     "info".to_string()
 }
 
+fn default_protonup_auto_suggest() -> bool {
+    true
+}
+
 fn default_recent_files_limit() -> u32 {
     10
 }
@@ -91,7 +95,7 @@ fn resolve_user_home(username: &str) -> Result<PathBuf, String> {
     ))
 }
 
-fn expand_path_with_tilde(raw: &str) -> Result<PathBuf, String> {
+pub(crate) fn expand_path_with_tilde(raw: &str) -> Result<PathBuf, String> {
     let t = raw.trim();
 
     // ~/path — current user's home
@@ -169,6 +173,12 @@ pub struct AppSettingsData {
     /// FLiNG ships as the built-in default via `default_external_trainer_sources()`.
     #[serde(default = "default_external_trainer_sources")]
     pub external_trainer_sources: Vec<ExternalTrainerSourceSubscription>,
+    /// When true, show ProtonUp runtime suggestions for community profiles.
+    #[serde(default = "default_protonup_auto_suggest")]
+    pub protonup_auto_suggest: bool,
+    /// Optional path override for ProtonUp binary; empty = auto-detect.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub protonup_binary_path: String,
 }
 
 impl Default for AppSettingsData {
@@ -192,6 +202,8 @@ impl Default for AppSettingsData {
             auto_install_prefix_deps: false,
             discovery_enabled: false,
             external_trainer_sources: default_external_trainer_sources(),
+            protonup_auto_suggest: default_protonup_auto_suggest(),
+            protonup_binary_path: String::new(),
         }
     }
 }
@@ -233,6 +245,8 @@ impl fmt::Debug for AppSettingsData {
             .field("auto_install_prefix_deps", &self.auto_install_prefix_deps)
             .field("discovery_enabled", &self.discovery_enabled)
             .field("external_trainer_sources", &self.external_trainer_sources)
+            .field("protonup_auto_suggest", &self.protonup_auto_suggest)
+            .field("protonup_binary_path", &self.protonup_binary_path)
             .finish()
     }
 }
@@ -529,5 +543,21 @@ mod tests {
         let loaded = store.load().unwrap();
         assert!(loaded.protontricks_binary_path.is_empty());
         assert!(!loaded.auto_install_prefix_deps);
+    }
+
+    #[test]
+    fn settings_backward_compat_without_protonup_fields() {
+        let temp_dir = tempdir().unwrap();
+        let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+        // Old TOML that has no protonup_* keys — new fields must fall back to defaults.
+        let old_toml = "auto_load_last_profile = false\nlast_used_profile = \"\"\n";
+        std::fs::create_dir_all(store.settings_path().parent().unwrap()).unwrap();
+        std::fs::write(store.settings_path(), old_toml).unwrap();
+        let loaded = store.load().unwrap();
+        assert!(loaded.protonup_auto_suggest, "protonup_auto_suggest should default to true");
+        assert!(
+            loaded.protonup_binary_path.is_empty(),
+            "protonup_binary_path should default to empty"
+        );
     }
 }
