@@ -3814,6 +3814,74 @@ textarea {
   text-align: right;
 }
 
+.crosshook-onboarding-wizard__step-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.crosshook-onboarding-wizard__review-summary {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(120, 145, 177, 0.2);
+  background: rgba(13, 20, 31, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.crosshook-onboarding-wizard__review-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.crosshook-onboarding-wizard__review-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.crosshook-onboarding-wizard__review-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  font-weight: 600;
+}
+
+.crosshook-onboarding-wizard__review-label {
+  color: #d7def0;
+}
+
+.crosshook-onboarding-wizard__required-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.crosshook-onboarding-wizard__required-badge--ok {
+  color: var(--crosshook-color-success);
+  background: color-mix(in srgb, var(--crosshook-color-success) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--crosshook-color-success) 35%, transparent);
+}
+
+.crosshook-onboarding-wizard__required-badge--missing {
+  color: var(--crosshook-color-danger);
+  background: color-mix(in srgb, var(--crosshook-color-danger) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--crosshook-color-danger) 40%, transparent);
+}
+
 .crosshook-muted {
   color: var(--crosshook-color-text-subtle);
 }

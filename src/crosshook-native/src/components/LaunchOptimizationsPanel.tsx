@@ -13,6 +13,10 @@ import {
 } from '../types/launch-optimizations';
 import type { OptimizationCatalogPayload, OptimizationEntry } from '../utils/optimization-catalog';
 import { buildOptionsById, buildConflictMatrix } from '../utils/optimization-catalog';
+import {
+  BUNDLED_PRESET_KEY_PREFIX,
+  bundledOptimizationTomlKey,
+} from '../utils/launchOptimizationPresets';
 
 /** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
 export type LaunchOptimizationsPanelStatus = LaunchAutoSaveStatus;
@@ -44,13 +48,6 @@ interface GroupedOptions {
 
 function joinClasses(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(' ');
-}
-
-const BUNDLED_PRESET_KEY_PREFIX = 'bundled/';
-
-/** TOML key under `[launch.presets]` for a catalog GPU preset; matches crosshook-core `bundled_optimization_preset_toml_key`. */
-function bundledOptimizationTomlKey(presetId: string): string {
-  return `${BUNDLED_PRESET_KEY_PREFIX}${presetId.trim()}`;
 }
 
 function formatCountLabel(count: number, singular: string, plural: string): string {
