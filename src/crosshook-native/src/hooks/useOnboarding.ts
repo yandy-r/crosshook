@@ -4,7 +4,14 @@ import { useCallback, useState } from 'react';
 import type { OnboardingWizardStage, ReadinessCheckResult } from '../types/onboarding';
 import type { VersionCheckResult } from '../types/version';
 
-const STAGE_SEQUENCE: OnboardingWizardStage[] = ['game_setup', 'trainer_setup', 'runtime_setup', 'completed'];
+const STAGE_SEQUENCE: OnboardingWizardStage[] = [
+  'identity_game',
+  'runtime',
+  'trainer',
+  'media',
+  'review',
+  'completed',
+];
 
 export interface UseOnboardingResult {
   stage: OnboardingWizardStage;
@@ -14,9 +21,11 @@ export interface UseOnboardingResult {
   statusText: string;
   hintText: string;
   actionLabel: string;
-  isGameSetup: boolean;
-  isTrainerSetup: boolean;
-  isRuntimeSetup: boolean;
+  isIdentityGame: boolean;
+  isRuntime: boolean;
+  isTrainer: boolean;
+  isMedia: boolean;
+  isReview: boolean;
   isCompleted: boolean;
   runChecks: () => Promise<void>;
   advanceOrSkip: (launchMethod: string) => void;
@@ -28,12 +37,16 @@ export interface UseOnboardingResult {
 
 function deriveStatusText(stage: OnboardingWizardStage): string {
   switch (stage) {
-    case 'game_setup':
-      return 'Set up your game identity and launch method.';
-    case 'trainer_setup':
+    case 'identity_game':
+      return 'Set up your profile identity, game, and runner method.';
+    case 'runtime':
+      return 'Configure the runtime environment for the selected runner.';
+    case 'trainer':
       return 'Configure your trainer for this game.';
-    case 'runtime_setup':
-      return 'Configure the runtime environment.';
+    case 'media':
+      return 'Pick cover, portrait, and background art for this profile.';
+    case 'review':
+      return 'Review required fields and save the profile.';
     case 'completed':
       return 'Profile saved successfully.';
   }
@@ -41,12 +54,16 @@ function deriveStatusText(stage: OnboardingWizardStage): string {
 
 function deriveHintText(stage: OnboardingWizardStage): string {
   switch (stage) {
-    case 'game_setup':
-      return 'Enter your game name, path to the game executable, and choose how to launch it.';
-    case 'trainer_setup':
+    case 'identity_game':
+      return 'Enter the profile name, game name and path, and choose how to launch it.';
+    case 'runtime':
+      return 'Set the paths and settings for your chosen launch method.';
+    case 'trainer':
       return 'Browse to your trainer executable and choose the loading mode.';
-    case 'runtime_setup':
-      return 'Set up the paths and settings for your chosen launch method.';
+    case 'media':
+      return 'Custom art overrides auto-downloaded images. Leave blank to use defaults.';
+    case 'review':
+      return 'Confirm the required fields, optionally apply a launch preset, then save.';
     case 'completed':
       return 'Your profile is ready — head to the Launch page to start your game.';
   }
@@ -54,11 +71,12 @@ function deriveHintText(stage: OnboardingWizardStage): string {
 
 function deriveActionLabel(stage: OnboardingWizardStage): string {
   switch (stage) {
-    case 'game_setup':
+    case 'identity_game':
+    case 'runtime':
+    case 'trainer':
+    case 'media':
       return 'Next';
-    case 'trainer_setup':
-      return 'Next';
-    case 'runtime_setup':
+    case 'review':
       return 'Save Profile';
     case 'completed':
       return 'Done';
@@ -70,7 +88,7 @@ function createInitialOnboardingState(): {
   readinessResult: ReadinessCheckResult | null;
 } {
   return {
-    stage: 'game_setup',
+    stage: 'identity_game',
     readinessResult: null,
   };
 }
@@ -88,9 +106,9 @@ export function useOnboarding(): UseOnboardingResult {
   // - dismiss() and skip paths only set onboarding_completed=true via dismiss_onboarding;
   //   they do NOT write any profile data to TOML.
   // - advanceOrSkip() transitions wizard stages forward with no persistent storage side effects,
-  //   skipping trainer_setup when launchMethod is 'native'.
-  // - goBack() moves backward by 1 stage, clamped at the first stage.
-  // - reset() returns all hook state to initial values (stage='game_setup', readinessResult=null).
+  //   skipping the trainer stage when launchMethod is 'native'.
+  // - goBack() moves backward by 1 stage, mirroring the forward skip for native launch method.
+  // - reset() returns all hook state to initial values (stage='identity_game', readinessResult=null).
   // - The wizard unmounts when showOnboarding=false in App.tsx, so re-opening always starts fresh.
 
   const runChecks = useCallback(async () => {
@@ -109,7 +127,7 @@ export function useOnboarding(): UseOnboardingResult {
       let nextIndex = currentIndex + 1;
       if (
         nextIndex < STAGE_SEQUENCE.length &&
-        STAGE_SEQUENCE[nextIndex] === 'trainer_setup' &&
+        STAGE_SEQUENCE[nextIndex] === 'trainer' &&
         launchMethod === 'native'
       ) {
         nextIndex += 1;
@@ -122,8 +140,8 @@ export function useOnboarding(): UseOnboardingResult {
     setStage((current) => {
       const currentIndex = STAGE_SEQUENCE.indexOf(current);
       let prevIndex = currentIndex - 1;
-      // Mirror the forward skip: skip trainer_setup in reverse for native launch method
-      if (prevIndex >= 0 && STAGE_SEQUENCE[prevIndex] === 'trainer_setup' && launchMethod === 'native') {
+      // Mirror the forward skip: skip the trainer stage in reverse for native launch method
+      if (prevIndex >= 0 && STAGE_SEQUENCE[prevIndex] === 'trainer' && launchMethod === 'native') {
         prevIndex -= 1;
       }
       return prevIndex >= 0 ? STAGE_SEQUENCE[prevIndex] : current;
@@ -165,9 +183,11 @@ export function useOnboarding(): UseOnboardingResult {
     statusText,
     hintText,
     actionLabel,
-    isGameSetup: stage === 'game_setup',
-    isTrainerSetup: stage === 'trainer_setup',
-    isRuntimeSetup: stage === 'runtime_setup',
+    isIdentityGame: stage === 'identity_game',
+    isRuntime: stage === 'runtime',
+    isTrainer: stage === 'trainer',
+    isMedia: stage === 'media',
+    isReview: stage === 'review',
     isCompleted: stage === 'completed',
     runChecks,
     advanceOrSkip,
