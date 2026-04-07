@@ -33,6 +33,8 @@ interface ThemedSelectProps {
   id?: string;
   className?: string;
   ariaLabelledby?: string;
+  /** When true, the trigger cannot be opened (non-interactive). */
+  disabled?: boolean;
 }
 
 function SelectItemNode({
@@ -92,13 +94,18 @@ export function ThemedSelect({
   id,
   className,
   ariaLabelledby,
+  disabled = false,
 }: ThemedSelectProps) {
   const allOptions = groups && groups.length > 0 ? groups.flatMap((g) => g.options) : (options ?? []);
   const radixValue = toRadix(value);
   const hasValue = allOptions.some((o) => o.value === value);
 
   return (
-    <Select.Root value={hasValue ? radixValue : undefined} onValueChange={(v) => onValueChange(fromRadix(v))}>
+    <Select.Root
+      disabled={disabled}
+      value={hasValue ? radixValue : undefined}
+      onValueChange={(v) => onValueChange(fromRadix(v))}
+    >
       <Select.Trigger
         id={id}
         aria-labelledby={ariaLabelledby}

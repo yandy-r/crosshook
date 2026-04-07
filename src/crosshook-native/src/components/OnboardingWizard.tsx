@@ -1,21 +1,35 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 
 import { invoke } from '@tauri-apps/api/core';
 import { ControllerPrompts } from './layout/ControllerPrompts';
-import { LauncherMetadataFields } from './ProfileFormSections';
-import { InstallField } from './ui/InstallField';
-import { ThemedSelect } from './ui/ThemedSelect';
-import { ProtonPathField } from './ui/ProtonPathField';
-import AutoPopulate from './AutoPopulate';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
+import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
+import { GameSection } from './profile-sections/GameSection';
+import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
+import { RuntimeSection } from './profile-sections/RuntimeSection';
+import { TrainerSection } from './profile-sections/TrainerSection';
+import { MediaSection } from './profile-sections/MediaSection';
+import { WizardPresetPicker } from './wizard/WizardPresetPicker';
+import { WizardReviewSummary } from './wizard/WizardReviewSummary';
+import { evaluateWizardRequiredFields } from './wizard/wizardValidation';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useProfileContext } from '../context/ProfileContext';
 import { usePreferencesContext } from '../context/PreferencesContext';
 import { resolveLaunchMethod } from '../utils/launch';
-import { deriveSteamClientInstallPath } from '../utils/steam';
-import type { HealthIssueSeverity } from '../types/health';
+import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
+import type { OnboardingWizardStage } from '../types/onboarding';
 import type { ProtonInstallOption } from '../types/proton';
+import type { ResolvedLaunchMethod } from '../types';
 
 export interface OnboardingWizardProps {
   open: boolean;
@@ -23,8 +37,6 @@ export interface OnboardingWizardProps {
   onComplete: () => void;
   onDismiss: () => void;
 }
-
-const TOTAL_VISIBLE_STEPS = 3;
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -48,32 +60,40 @@ function focusElement(element: HTMLElement | null): boolean {
   return document.activeElement === element;
 }
 
-function resolveCheckIcon(severity: HealthIssueSeverity): string {
-  switch (severity) {
-    case 'error':
-      return '✗';
-    case 'warning':
-      return '⚠';
-    default:
-      return '✓';
+const STAGE_TITLES: Record<OnboardingWizardStage, string> = {
+  identity_game: 'Identity & Game',
+  runtime: 'Runtime',
+  trainer: 'Trainer',
+  media: 'Media',
+  review: 'Review & Save',
+  completed: 'Setup Complete',
+};
+
+/**
+ * Resolves the visible step number shown in the header eyebrow given the
+ * current stage and launch method. The trainer stage is skipped for native
+ * profiles; Media / Review slide up by one position as a result.
+ */
+function getVisibleStepNumber(stage: OnboardingWizardStage, launchMethod: ResolvedLaunchMethod): number {
+  const skipsTrainer = launchMethod === 'native';
+  switch (stage) {
+    case 'identity_game':
+      return 1;
+    case 'runtime':
+      return 2;
+    case 'trainer':
+      return 3;
+    case 'media':
+      return skipsTrainer ? 3 : 4;
+    case 'review':
+      return skipsTrainer ? 4 : 5;
+    case 'completed':
+      return skipsTrainer ? 4 : 5;
   }
 }
 
-function resolveCheckColor(severity: HealthIssueSeverity): string {
-  switch (severity) {
-    case 'error':
-      return 'var(--crosshook-color-danger)';
-    case 'warning':
-      return 'var(--crosshook-color-warning)';
-    default:
-      return 'var(--crosshook-color-success)';
-  }
-}
-
-function getVisibleStepNumber(isGameSetup: boolean, isTrainerSetup: boolean): number {
-  if (isGameSetup) return 1;
-  if (isTrainerSetup) return 2;
-  return 3;
+function getTotalVisibleSteps(launchMethod: ResolvedLaunchMethod): number {
+  return launchMethod === 'native' ? 4 : 5;
 }
 
 export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss }: OnboardingWizardProps) {
@@ -87,11 +107,14 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
   const [isMounted, setIsMounted] = useState(false);
 
   const {
+    stage,
     readinessResult,
     checkError,
-    isGameSetup,
-    isTrainerSetup,
-    isRuntimeSetup,
+    isIdentityGame,
+    isRuntime,
+    isTrainer,
+    isMedia,
+    isReview,
     isCompleted,
     runChecks,
     advanceOrSkip,
@@ -111,6 +134,10 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     persistProfileDraft,
     selectProfile,
     steamClientInstallPath,
+    bundledOptimizationPresets,
+    applyBundledOptimizationPreset,
+    switchLaunchOptimizationPreset,
+    optimizationPresetActionBusy,
   } = useProfileContext();
 
   // Reset to blank profile when opening in create mode
@@ -222,6 +249,69 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     };
   }, [open]);
 
+  const validation = useMemo(
+    () => evaluateWizardRequiredFields({ profileName, profile, launchMethod }),
+    [profileName, profile, launchMethod]
+  );
+
+  // In create mode, the draft profile has not been persisted yet, so the
+  // backend preset IPCs (applyBundledOptimizationPreset /
+  // switchLaunchOptimizationPreset) refuse to run because
+  // hasExistingSavedProfile === false. We instead mutate the draft profile
+  // in-memory and let persistProfileDraft persist the optimizations, the
+  // [launch.presets.<key>] entry, and the active_preset in one transaction.
+  // Edit mode keeps the IPC-based path so config-revision capture and preset
+  // metadata origin tracking continue to run server-side.
+  const applyBundledPresetToDraft = useCallback(
+    async (presetId: string): Promise<void> => {
+      const preset = bundledOptimizationPresets.find((candidate) => candidate.preset_id === presetId);
+      if (!preset) return;
+      const key = bundledOptimizationTomlKey(preset.preset_id);
+      updateProfile((current) => ({
+        ...current,
+        launch: {
+          ...current.launch,
+          optimizations: {
+            ...current.launch.optimizations,
+            enabled_option_ids: [...preset.enabled_option_ids],
+          },
+          presets: {
+            ...(current.launch.presets ?? {}),
+            [key]: {
+              enabled_option_ids: [...preset.enabled_option_ids],
+            },
+          },
+          active_preset: key,
+        },
+      }));
+    },
+    [bundledOptimizationPresets, updateProfile]
+  );
+
+  const applySavedPresetToDraft = useCallback(
+    async (presetName: string): Promise<void> => {
+      const trimmed = presetName.trim();
+      if (trimmed.length === 0) return;
+      const target = profile.launch.presets?.[trimmed];
+      if (!target) return;
+      updateProfile((current) => ({
+        ...current,
+        launch: {
+          ...current.launch,
+          optimizations: {
+            ...current.launch.optimizations,
+            enabled_option_ids: [...(target.enabled_option_ids ?? [])],
+          },
+          active_preset: trimmed,
+        },
+      }));
+    },
+    [profile.launch.presets, updateProfile]
+  );
+
+  const onApplyBundledPreset = mode === 'edit' ? applyBundledOptimizationPreset : applyBundledPresetToDraft;
+  const onSelectSavedPreset = mode === 'edit' ? switchLaunchOptimizationPreset : applySavedPresetToDraft;
+
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape') {
       event.stopPropagation();
@@ -283,11 +373,28 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     goBack(launchMethod);
   }
 
+  function handleNext() {
+    advanceOrSkip(launchMethod);
+  }
+
   if (!open || !isMounted || !portalHostRef.current) {
     return null;
   }
 
-  const visibleStep = getVisibleStepNumber(isGameSetup, isTrainerSetup);
+  const visibleStep = getVisibleStepNumber(stage, launchMethod);
+  const totalVisibleSteps = getTotalVisibleSteps(launchMethod);
+  const title = STAGE_TITLES[stage];
+  const eyebrow = isCompleted ? 'Complete' : `Step ${visibleStep} of ${totalVisibleSteps}`;
+  const confirmLabel = isCompleted
+    ? 'Done'
+    : isReview
+      ? saving
+        ? 'Saving...'
+        : 'Save Profile'
+      : 'Next';
+  const saveDescribedBy = !validation.isReady && validation.firstMissingId !== null
+    ? `wizard-review-field-${validation.firstMissingId}`
+    : undefined;
 
   return createPortal(
     <div className="crosshook-modal" role="presentation">
@@ -304,14 +411,9 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
         {/* Header */}
         <header className="crosshook-modal__header">
           <div className="crosshook-modal__heading-block">
-            <div className="crosshook-heading-eyebrow">
-              {isCompleted ? 'Complete' : `Step ${visibleStep} of ${TOTAL_VISIBLE_STEPS}`}
-            </div>
+            <div className="crosshook-heading-eyebrow">{eyebrow}</div>
             <h2 ref={headingRef} id={titleId} className="crosshook-modal__title" tabIndex={-1}>
-              {isGameSetup && 'Game Setup'}
-              {isTrainerSetup && 'Trainer Setup'}
-              {isRuntimeSetup && 'Runtime Setup'}
-              {isCompleted && 'Setup Complete'}
+              {title}
             </h2>
           </div>
 
@@ -331,326 +433,80 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
 
         {/* Step content */}
         <div className="crosshook-modal__body crosshook-onboarding-wizard__body">
-          {/* Step 1: Game Setup */}
-          {isGameSetup && (
-            <section aria-label="Game setup">
-              {profileError && (
-                <p className="crosshook-danger" role="alert" style={{ marginBottom: 12 }}>
-                  {profileError}
-                </p>
-              )}
-              <div className="crosshook-install-section-title">Profile Identity</div>
-              <div className="crosshook-install-grid">
-                <div className="crosshook-field">
-                  <label className="crosshook-label">Profile Name</label>
-                  <input
-                    className="crosshook-input"
-                    value={profileName}
-                    placeholder="Enter a profile name"
-                    onChange={(event) => setProfileName(event.target.value)}
-                  />
-                </div>
-              </div>
+          {profileError && (
+            <p className="crosshook-danger" role="alert" style={{ marginBottom: 12 }}>
+              {profileError}
+            </p>
+          )}
 
-              <div className="crosshook-install-section-title">Game</div>
-              <div className="crosshook-install-grid">
-                <div className="crosshook-field">
-                  <label className="crosshook-label">Game Name</label>
-                  <input
-                    className="crosshook-input"
-                    value={profile.game.name}
-                    placeholder="God of War Ragnarok"
-                    onChange={(event) =>
-                      updateProfile((current) => ({
-                        ...current,
-                        game: { ...current.game, name: event.target.value },
-                      }))
-                    }
-                  />
-                </div>
+          {isIdentityGame && (
+            <section aria-label="Identity & Game" className="crosshook-onboarding-wizard__step-grid">
+              <ProfileIdentitySection
+                profileName={profileName}
+                profile={profile}
+                onProfileNameChange={setProfileName}
+                onUpdateProfile={updateProfile}
+                profileExists={mode === 'edit'}
+              />
+              <GameSection profile={profile} onUpdateProfile={updateProfile} launchMethod={launchMethod} />
+              <RunnerMethodSection profile={profile} onUpdateProfile={updateProfile} />
+            </section>
+          )}
 
-                <InstallField
-                  label="Game Path"
-                  value={profile.game.executable_path}
-                  onChange={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      game: { ...current.game, executable_path: value },
-                    }))
-                  }
-                  placeholder="/path/to/game.exe"
-                  browseLabel="Browse"
-                  browseFilters={
-                    launchMethod === 'native' ? undefined : [{ name: 'Windows Executable', extensions: ['exe'] }]
-                  }
-                />
+          {isRuntime && (
+            <section aria-label="Runtime" className="crosshook-onboarding-wizard__step-grid">
+              <RuntimeSection
+                profile={profile}
+                onUpdateProfile={updateProfile}
+                launchMethod={launchMethod}
+                protonInstalls={protonInstalls}
+                protonInstallsError={protonInstallsError}
+              />
+            </section>
+          )}
 
-                <LauncherMetadataFields profile={profile} onUpdateProfile={updateProfile} />
-              </div>
+          {isTrainer && (
+            <section aria-label="Trainer" className="crosshook-onboarding-wizard__step-grid">
+              <TrainerSection
+                profile={profile}
+                onUpdateProfile={updateProfile}
+                launchMethod={launchMethod}
+                profileName={profileName}
+                profileExists={mode === 'edit'}
+              />
+            </section>
+          )}
 
-              <div className="crosshook-install-section-title">Media</div>
-              <div className="crosshook-install-grid">
-                <InstallField
-                  label="Custom Cover Art"
-                  value={profile.game.custom_cover_art_path ?? ''}
-                  onChange={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      game: { ...current.game, custom_cover_art_path: value },
-                    }))
-                  }
-                  placeholder="/path/to/cover.png"
-                  browseLabel="Browse"
-                  browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]}
-                  helpText="Optional. Overrides Steam art. Used as a full-width tab backdrop (cropped to fill). Steam header is 460×215; larger landscape images with key art near the top look best."
-                />
+          {isMedia && (
+            <section aria-label="Media" className="crosshook-onboarding-wizard__step-grid">
+              <MediaSection profile={profile} onUpdateProfile={updateProfile} launchMethod={launchMethod} />
+            </section>
+          )}
 
-                {launchMethod !== 'native' ? (
-                  <InstallField
-                    label="Launcher Icon"
-                    value={profile.steam.launcher.icon_path}
-                    onChange={(value) =>
-                      updateProfile((current) => ({
-                        ...current,
-                        steam: {
-                          ...current.steam,
-                          launcher: { ...current.steam.launcher, icon_path: value },
-                        },
-                      }))
-                    }
-                    placeholder="/path/to/icon.png"
-                    browseLabel="Browse"
-                    browseFilters={[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }]}
-                  />
-                ) : null}
-              </div>
-
-              <div className="crosshook-install-section-title">Runner Method</div>
-              <div className="crosshook-field">
-                <label className="crosshook-label">Runner Method</label>
-                <ThemedSelect
-                  value={launchMethod}
-                  onValueChange={(val) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      steam: { ...current.steam, enabled: val === 'steam_applaunch' },
-                      launch: {
-                        ...current.launch,
-                        method: val as typeof current.launch.method,
-                      },
-                    }))
-                  }
-                  options={[
-                    { value: 'steam_applaunch', label: 'Steam app launch' },
-                    { value: 'proton_run', label: 'Proton runtime launch' },
-                    { value: 'native', label: 'Native Linux launch' },
-                  ]}
-                />
-              </div>
-
+          {isReview && (
+            <section aria-label="Review & Save" className="crosshook-onboarding-wizard__step-grid">
+              <WizardPresetPicker
+                bundledPresets={bundledOptimizationPresets}
+                savedPresetNames={Object.keys(profile.launch.presets ?? {})}
+                activePresetKey={profile.launch.active_preset ?? ''}
+                busy={mode === 'edit' ? optimizationPresetActionBusy : false}
+                onApplyBundled={onApplyBundledPreset}
+                onSelectSaved={onSelectSavedPreset}
+              />
               <CustomEnvironmentVariablesSection
                 profileName={profileName}
                 customEnvVars={profile.launch.custom_env_vars}
                 onUpdateProfile={updateProfile}
                 idPrefix="onboarding-wizard"
               />
+              <WizardReviewSummary
+                validation={validation}
+                readinessResult={readinessResult}
+                checkError={checkError}
+              />
             </section>
           )}
 
-          {/* Step 2: Trainer Setup */}
-          {isTrainerSetup && (
-            <section aria-label="Trainer setup">
-              <div className="crosshook-install-section-title">Trainer</div>
-              <div className="crosshook-install-grid">
-                <InstallField
-                  label="Trainer Path"
-                  value={profile.trainer.path}
-                  onChange={(value) =>
-                    updateProfile((current) => ({
-                      ...current,
-                      trainer: { ...current.trainer, path: value },
-                    }))
-                  }
-                  placeholder="/path/to/trainer.exe"
-                  browseLabel="Browse"
-                  browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
-                />
-
-                <div className="crosshook-field">
-                  <label className="crosshook-label">Trainer Loading Mode</label>
-                  <ThemedSelect
-                    value={profile.trainer.loading_mode}
-                    onValueChange={(value) =>
-                      updateProfile((current) => ({
-                        ...current,
-                        trainer: {
-                          ...current.trainer,
-                          loading_mode: value as typeof current.trainer.loading_mode,
-                        },
-                      }))
-                    }
-                    options={[
-                      { value: 'source_directory', label: 'Run from current directory' },
-                      { value: 'copy_to_prefix', label: 'Copy into prefix' },
-                    ]}
-                  />
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Step 3: Runtime Setup */}
-          {isRuntimeSetup && (
-            <section aria-label="Runtime setup">
-              {launchMethod === 'steam_applaunch' && (
-                <>
-                  <div className="crosshook-install-section-title">Steam Runtime</div>
-                  <div className="crosshook-install-grid">
-                    <div className="crosshook-field">
-                      <label className="crosshook-label">Steam App ID</label>
-                      <input
-                        className="crosshook-input"
-                        value={profile.steam.app_id}
-                        placeholder="1245620"
-                        onChange={(event) =>
-                          updateProfile((current) => ({
-                            ...current,
-                            steam: { ...current.steam, app_id: event.target.value },
-                          }))
-                        }
-                      />
-                    </div>
-
-                    <InstallField
-                      label="Prefix Path"
-                      value={profile.steam.compatdata_path}
-                      onChange={(value) =>
-                        updateProfile((current) => ({
-                          ...current,
-                          steam: { ...current.steam, compatdata_path: value },
-                        }))
-                      }
-                      placeholder="/home/user/.local/share/Steam/steamapps/compatdata/1245620"
-                      browseLabel="Browse"
-                      browseMode="directory"
-                    />
-                  </div>
-
-                  <ProtonPathField
-                    value={profile.steam.proton_path}
-                    onChange={(value) =>
-                      updateProfile((current) => ({
-                        ...current,
-                        steam: { ...current.steam, proton_path: value },
-                      }))
-                    }
-                    installs={protonInstalls}
-                    installsError={protonInstallsError}
-                    idPrefix="onboarding-steam"
-                  />
-
-                  <div style={{ display: 'grid', gap: 16, marginTop: 18 }}>
-                    <AutoPopulate
-                      gamePath={profile.game.executable_path}
-                      steamClientInstallPath={deriveSteamClientInstallPath(profile.steam.compatdata_path)}
-                      currentAppId={profile.steam.app_id}
-                      currentCompatdataPath={profile.steam.compatdata_path}
-                      currentProtonPath={profile.steam.proton_path}
-                      onApplyAppId={(value) =>
-                        updateProfile((current) => ({
-                          ...current,
-                          steam: { ...current.steam, app_id: value },
-                        }))
-                      }
-                      onApplyCompatdataPath={(value) =>
-                        updateProfile((current) => ({
-                          ...current,
-                          steam: { ...current.steam, compatdata_path: value },
-                        }))
-                      }
-                      onApplyProtonPath={(value) =>
-                        updateProfile((current) => ({
-                          ...current,
-                          steam: { ...current.steam, proton_path: value },
-                        }))
-                      }
-                    />
-                  </div>
-                </>
-              )}
-
-              {launchMethod === 'proton_run' && (
-                <>
-                  <div className="crosshook-install-section-title">Proton Runtime</div>
-                  <div className="crosshook-install-grid">
-                    <InstallField
-                      label="Prefix Path"
-                      value={profile.runtime.prefix_path}
-                      onChange={(value) =>
-                        updateProfile((current) => ({
-                          ...current,
-                          runtime: { ...current.runtime, prefix_path: value },
-                        }))
-                      }
-                      placeholder="/path/to/prefix"
-                      browseLabel="Browse"
-                      browseMode="directory"
-                    />
-
-                    <InstallField
-                      label="Working Directory"
-                      value={profile.runtime.working_directory}
-                      onChange={(value) =>
-                        updateProfile((current) => ({
-                          ...current,
-                          runtime: { ...current.runtime, working_directory: value },
-                        }))
-                      }
-                      placeholder="Optional override"
-                      browseLabel="Browse"
-                      browseMode="directory"
-                    />
-                  </div>
-
-                  <ProtonPathField
-                    value={profile.runtime.proton_path}
-                    onChange={(value) =>
-                      updateProfile((current) => ({
-                        ...current,
-                        runtime: { ...current.runtime, proton_path: value },
-                      }))
-                    }
-                    installs={protonInstalls}
-                    installsError={protonInstallsError}
-                    idPrefix="onboarding-proton"
-                  />
-                </>
-              )}
-
-              {launchMethod === 'native' && (
-                <>
-                  <div className="crosshook-install-section-title">Native Runtime</div>
-                  <div className="crosshook-install-grid">
-                    <InstallField
-                      label="Working Directory"
-                      value={profile.runtime.working_directory}
-                      onChange={(value) =>
-                        updateProfile((current) => ({
-                          ...current,
-                          runtime: { ...current.runtime, working_directory: value },
-                        }))
-                      }
-                      placeholder="Optional override"
-                      browseLabel="Browse"
-                      browseMode="directory"
-                    />
-                  </div>
-                </>
-              )}
-            </section>
-          )}
-
-          {/* Completion state */}
           {isCompleted && (
             <section aria-label="Setup complete">
               <p className="crosshook-onboarding-wizard__hint">
@@ -658,33 +514,13 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
               </p>
             </section>
           )}
-
-          {/* Readiness check results strip */}
-          {readinessResult !== null && (
-            <div className="crosshook-onboarding-wizard__checks-strip">
-              <p>
-                System checks:{' '}
-                {readinessResult.critical_failures === 0
-                  ? 'All passed'
-                  : `${readinessResult.critical_failures} issue(s)`}
-              </p>
-              <ul>
-                {readinessResult.checks.map((check) => (
-                  <li key={check.field}>
-                    <span style={{ color: resolveCheckColor(check.severity) }}>{resolveCheckIcon(check.severity)}</span>{' '}
-                    {check.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
 
         {/* Footer navigation */}
         <footer className="crosshook-modal__footer crosshook-onboarding-wizard__footer">
           <div className="crosshook-onboarding-wizard__nav">
-            {/* Left: Back button (hidden on step 1 and completed) */}
-            {!isGameSetup && !isCompleted && (
+            {/* Left: Back button (hidden on first step and completed) */}
+            {!isIdentityGame && !isCompleted && (
               <button
                 type="button"
                 className="crosshook-button crosshook-button--secondary"
@@ -708,30 +544,29 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 </button>
               )}
 
-              {/* Next — steps 1 and 2 */}
-              {(isGameSetup || isTrainerSetup) && (
+              {/* Next — steps 1–4 */}
+              {(isIdentityGame || isRuntime || isTrainer || isMedia) && (
                 <button
                   type="button"
                   className="crosshook-button"
                   style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                  onClick={() => advanceOrSkip(launchMethod)}
+                  onClick={handleNext}
                 >
-                  Next
+                  {confirmLabel}
                 </button>
               )}
 
-              {/* Save Profile — step 3 only */}
-              {isRuntimeSetup && (
+              {/* Save Profile — review step only */}
+              {isReview && (
                 <button
                   type="button"
                   className="crosshook-button"
                   style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                  disabled={
-                    saving || profileName.trim().length === 0 || profile.game.executable_path.trim().length === 0
-                  }
+                  disabled={saving || !validation.isReady}
+                  aria-describedby={saveDescribedBy}
                   onClick={() => void handleComplete()}
                 >
-                  {saving ? 'Saving...' : 'Save Profile'}
+                  {confirmLabel}
                 </button>
               )}
 
@@ -743,15 +578,15 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                   style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
                   onClick={onComplete}
                 >
-                  Done
+                  {confirmLabel}
                 </button>
               )}
             </div>
           </div>
 
           <ControllerPrompts
-            confirmLabel={isRuntimeSetup ? 'Save Profile' : isCompleted ? 'Done' : 'Next'}
-            backLabel={isGameSetup ? 'Skip Setup' : 'Back'}
+            confirmLabel={confirmLabel}
+            backLabel={isIdentityGame ? 'Skip Setup' : 'Back'}
             showBumpers={false}
           />
         </footer>
