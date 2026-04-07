@@ -2002,6 +2002,54 @@ textarea {
   align-items: center;
 }
 
+.crosshook-install-shell__actions--run-executable {
+  padding-inline: 10px;
+}
+
+.crosshook-install-shell__status-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.crosshook-install-shell__running-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--crosshook-color-border);
+  border-left: 3px solid var(--crosshook-color-warning, #d97706);
+  border-radius: var(--crosshook-radius-sm, 6px);
+  background: var(--crosshook-color-surface-subtle, rgba(255, 255, 255, 0.04));
+  color: var(--crosshook-color-text-muted, var(--crosshook-color-text));
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.crosshook-install-shell__running-warning strong {
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-install-candidate--readonly {
+  cursor: default;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.crosshook-install-candidate__path-value {
+  word-break: break-all;
+  color: var(--crosshook-color-text);
+  font-family: var(--crosshook-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.8125rem;
+}
+
+.crosshook-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
 .crosshook-install-shell__actions-guidance {
   margin-left: auto;
 }
@@ -4315,6 +4363,11 @@ textarea {
   .crosshook-install-shell__actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .crosshook-install-shell__status-badge {
+    margin-left: 0;
+    width: 100%;
   }
 
   .crosshook-install-shell__actions-guidance {

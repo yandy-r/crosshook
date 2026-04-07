@@ -46,10 +46,11 @@ export const ROUTE_METADATA: Record<AppRoute, RouteMetadataEntry> = {
     Art: LaunchArt,
   },
   install: {
-    navLabel: 'Install Game',
+    navLabel: 'Install & Run',
     sectionEyebrow: 'Setup',
-    bannerTitle: 'Install Game',
-    bannerSummary: 'Install or update games, then review and save generated profiles.',
+    bannerTitle: 'Install & Run',
+    bannerSummary:
+      'Install games, apply updates, or run an arbitrary Windows EXE or MSI without committing it to a profile.',
     Art: InstallArt,
   },
   community: {

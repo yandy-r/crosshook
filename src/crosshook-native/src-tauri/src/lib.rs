@@ -200,6 +200,7 @@ pub fn run() {
         .manage(community_tap_store)
         .manage(metadata_store)
         .manage(commands::update::UpdateProcessState::new())
+        .manage(commands::run_executable::RunExecutableProcessState::new())
         .manage(commands::prefix_deps::PrefixDepsInstallState::new())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -271,6 +272,10 @@ pub fn run() {
             commands::update::validate_update_request,
             commands::update::update_game,
             commands::update::cancel_update,
+            commands::run_executable::validate_run_executable_request,
+            commands::run_executable::run_executable,
+            commands::run_executable::cancel_run_executable,
+            commands::run_executable::stop_run_executable,
             // Phase 3: Catalog and Intelligence
             commands::community::community_list_indexed_profiles,
             commands::collections::collection_list,

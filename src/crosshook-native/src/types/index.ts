@@ -6,6 +6,7 @@ export * from './launch';
 export * from './launcher';
 export * from './install';
 export * from './update';
+export * from './run-executable';
 export * from './settings';
 export * from './health';
 export * from './migration';

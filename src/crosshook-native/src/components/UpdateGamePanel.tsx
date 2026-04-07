@@ -78,7 +78,6 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
     : undefined;
   const hasCoverHero = profileCoverSource !== null && (Boolean(coverArtUrl) || coverArtLoading);
 
-  const heroTitle = 'Apply update to existing prefix';
   const heroCopy =
     'Run a Windows update executable against an existing Proton prefix. Select a profile to auto-fill the prefix and Proton paths.';
 
@@ -94,12 +93,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
           <div className="crosshook-profile-hero">
             {coverArtUrl ? (
               <>
-                <img
-                  src={coverArtUrl}
-                  className="crosshook-profile-hero__art"
-                  alt=""
-                  aria-hidden="true"
-                />
+                <img src={coverArtUrl} className="crosshook-profile-hero__art" alt="" aria-hidden="true" />
                 <div className="crosshook-profile-hero__gradient" />
               </>
             ) : (
@@ -113,116 +107,110 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
                 </div>
               ) : null}
               <div className="crosshook-heading-eyebrow">Update Game</div>
-              <h3 id="update-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
-                {heroTitle}
-              </h3>
               <p className="crosshook-heading-copy">{heroCopy}</p>
             </div>
           </div>
         ) : (
           <div className="crosshook-install-intro">
             <div className="crosshook-heading-eyebrow">Update Game</div>
-            <h3 id="update-game-heading" className="crosshook-heading-title crosshook-heading-title--install">
-              {heroTitle}
-            </h3>
             <p className="crosshook-heading-copy">{heroCopy}</p>
           </div>
         )}
 
-      <div className="crosshook-install-section">
-        <div className="crosshook-install-section-title">Profile</div>
-        <div className="crosshook-field">
-          <label className="crosshook-label" htmlFor="update-profile-select">
-            Target Profile
-          </label>
-          <ThemedSelect
-            id="update-profile-select"
-            value={selectedProfile}
-            onValueChange={(value) => {
-              if (value.trim().length > 0) {
-                void populateFromProfile(value);
+        <div className="crosshook-install-section">
+          <div className="crosshook-install-section-title">Profile</div>
+          <div className="crosshook-field">
+            <label className="crosshook-label" htmlFor="update-profile-select">
+              Target Profile
+            </label>
+            <ThemedSelect
+              id="update-profile-select"
+              value={selectedProfile}
+              onValueChange={(value) => {
+                if (value.trim().length > 0) {
+                  void populateFromProfile(value);
+                }
+              }}
+              placeholder={
+                isLoadingProfiles
+                  ? 'Loading profiles...'
+                  : profiles.length === 0
+                    ? 'No proton_run profiles found'
+                    : 'Select a profile'
               }
-            }}
-            placeholder={
-              isLoadingProfiles
-                ? 'Loading profiles...'
-                : profiles.length === 0
-                  ? 'No proton_run profiles found'
-                  : 'Select a profile'
-            }
-            options={profiles.map((name) => ({ value: name, label: name }))}
-          />
-          {profilesError ? <p className="crosshook-danger">{profilesError}</p> : null}
-        </div>
-      </div>
-
-      <div className="crosshook-install-section">
-        <div className="crosshook-install-section-title">Update media</div>
-        <div className="crosshook-install-grid">
-          <InstallField
-            label="Update Executable"
-            value={request.updater_path}
-            onChange={(value) => updateField('updater_path', value)}
-            placeholder="/mnt/media/update.exe"
-            browseLabel="Browse"
-            browseTitle="Select Update Executable"
-            browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
-            helpText="The Windows .exe to run inside the Proton prefix."
-            error={validation.fieldErrors.updater_path}
-          />
-        </div>
-      </div>
-
-      <div className="crosshook-install-section">
-        <div className="crosshook-install-section-title">Runtime</div>
-        <div className="crosshook-install-runtime-stack">
-          <ProtonPathField
-            value={request.proton_path}
-            onChange={(value) => updateField('proton_path', value)}
-            error={validation.fieldErrors.proton_path}
-            installs={protonInstalls}
-            installsError={protonInstallsError}
-            idPrefix="update"
-          />
-
-          <InstallField
-            label="Prefix Path"
-            value={request.prefix_path}
-            onChange={(value) => updateField('prefix_path', value)}
-            placeholder="/home/user/.local/share/crosshook/prefixes/game-name"
-            browseLabel="Browse"
-            browseMode="directory"
-            browseTitle="Select Prefix Directory"
-            helpText="The existing Proton prefix directory for the selected profile."
-            error={validation.fieldErrors.prefix_path}
-          />
-        </div>
-      </div>
-
-      <div className="crosshook-install-card">
-        <div className="crosshook-install-status">
-          <div>
-            <div className="crosshook-install-stage">{stageLabel(stage)}</div>
-            <h4 style={{ margin: '10px 0 0', fontSize: '1.05rem' }}>Status</h4>
-            <p className="crosshook-heading-copy" style={{ marginTop: 8 }}>
-              {statusText}
-            </p>
+              options={profiles.map((name) => ({ value: name, label: name }))}
+            />
+            {profilesError ? <p className="crosshook-danger">{profilesError}</p> : null}
           </div>
         </div>
 
-        <div className="crosshook-install-review">
-          {error ? <p className="crosshook-danger">{error}</p> : null}
-          {validation.generalError ? <p className="crosshook-danger">{validation.generalError}</p> : null}
-          <p className="crosshook-help-text">{hintText}</p>
-
-          {logPath ? (
-            <div className="crosshook-install-candidate" style={{ cursor: 'default', flexDirection: 'column' }}>
-              <span>Update log path</span>
-              <span style={{ wordBreak: 'break-all', color: 'var(--crosshook-color-text)' }}>{logPath}</span>
-            </div>
-          ) : null}
+        <div className="crosshook-install-section">
+          <div className="crosshook-install-section-title">Update media</div>
+          <div className="crosshook-install-grid">
+            <InstallField
+              label="Update Executable"
+              value={request.updater_path}
+              onChange={(value) => updateField('updater_path', value)}
+              placeholder="/mnt/media/update.exe"
+              browseLabel="Browse"
+              browseTitle="Select Update Executable"
+              browseFilters={[{ name: 'Windows Executable', extensions: ['exe'] }]}
+              helpText="The Windows .exe to run inside the Proton prefix."
+              error={validation.fieldErrors.updater_path}
+            />
+          </div>
         </div>
-      </div>
+
+        <div className="crosshook-install-section">
+          <div className="crosshook-install-section-title">Runtime</div>
+          <div className="crosshook-install-runtime-stack">
+            <ProtonPathField
+              value={request.proton_path}
+              onChange={(value) => updateField('proton_path', value)}
+              error={validation.fieldErrors.proton_path}
+              installs={protonInstalls}
+              installsError={protonInstallsError}
+              idPrefix="update"
+            />
+
+            <InstallField
+              label="Prefix Path"
+              value={request.prefix_path}
+              onChange={(value) => updateField('prefix_path', value)}
+              placeholder="/home/user/.local/share/crosshook/prefixes/game-name"
+              browseLabel="Browse"
+              browseMode="directory"
+              browseTitle="Select Prefix Directory"
+              helpText="The existing Proton prefix directory for the selected profile."
+              error={validation.fieldErrors.prefix_path}
+            />
+          </div>
+        </div>
+
+        <div className="crosshook-install-card">
+          <div className="crosshook-install-status">
+            <div>
+              <div className="crosshook-install-stage">{stageLabel(stage)}</div>
+              <h4 style={{ margin: '10px 0 0', fontSize: '1.05rem' }}>Status</h4>
+              <p className="crosshook-heading-copy" style={{ marginTop: 8 }}>
+                {statusText}
+              </p>
+            </div>
+          </div>
+
+          <div className="crosshook-install-review">
+            {error ? <p className="crosshook-danger">{error}</p> : null}
+            {validation.generalError ? <p className="crosshook-danger">{validation.generalError}</p> : null}
+            <p className="crosshook-help-text">{hintText}</p>
+
+            {logPath ? (
+              <div className="crosshook-install-candidate" style={{ cursor: 'default', flexDirection: 'column' }}>
+                <span>Update log path</span>
+                <span style={{ wordBreak: 'break-all', color: 'var(--crosshook-color-text)' }}>{logPath}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       <div className="crosshook-install-shell__footer crosshook-route-footer">
