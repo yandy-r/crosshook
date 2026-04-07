@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { GameProfile } from '../types/profile';
+import type { GameProfile, LaunchMethod } from '../types/profile';
+import { createDefaultProfile } from '../types/profile';
 import {
   INSTALL_GAME_VALIDATION_FIELD,
   INSTALL_GAME_VALIDATION_MESSAGES,
@@ -13,14 +14,25 @@ import {
   type InstallGameValidationError,
   type InstallGameValidationState,
 } from '../types/install';
+import { resolveLaunchMethod } from '../utils/launch';
 
-type PrefixPathSource = 'auto' | 'manual';
+export interface InstallerInputs {
+  installer_path: string;
+}
 
 export interface UseInstallGameResult {
+  /** @deprecated Prefer `draftProfile` + `buildInstallGameRequest` — derived snapshot for legacy callers. */
   request: InstallGameRequest;
+  profileName: string;
+  setProfileName: (value: string) => void;
+  draftProfile: GameProfile;
+  updateDraftProfile: (updater: (current: GameProfile) => GameProfile) => void;
+  installerInputs: InstallerInputs;
+  updateInstallerInputs: <Key extends keyof InstallerInputs>(key: Key, value: InstallerInputs[Key]) => void;
   validation: InstallGameValidationState;
   stage: InstallGameStage;
   result: InstallGameResult | null;
+  /** Present after a successful install — mirrors merged `draftProfile`. */
   reviewProfile: GameProfile | null;
   error: string | null;
   defaultPrefixPath: string;
@@ -37,8 +49,11 @@ export interface UseInstallGameResult {
   isReadyToSave: boolean;
   hasFailed: boolean;
   isResolvingDefaultPrefixPath: boolean;
+  /** @deprecated Use `updateDraftProfile` / `updateInstallerInputs`. */
   setRequest: (request: InstallGameRequest) => void;
+  /** @deprecated Use `updateDraftProfile` / `updateInstallerInputs`. */
   updateRequest: <Key extends keyof InstallGameRequest>(key: Key, value: InstallGameRequest[Key]) => void;
+  /** @deprecated Use `updateDraftProfile` / `updateInstallerInputs`. */
   patchRequest: (patch: Partial<InstallGameRequest>) => void;
   setFieldError: <Key extends keyof InstallGameRequest>(key: Key, error: string | null) => void;
   setGeneralError: (error: string | null) => void;
@@ -49,20 +64,6 @@ export interface UseInstallGameResult {
   setInstalledExecutablePath: (path: string) => void;
   startInstall: () => Promise<void>;
   reset: () => void;
-}
-
-function createEmptyInstallGameRequest(): InstallGameRequest {
-  return {
-    profile_name: '',
-    display_name: '',
-    installer_path: '',
-    trainer_path: '',
-    proton_path: '',
-    prefix_path: '',
-    installed_game_executable_path: '',
-    launcher_icon_path: '',
-    custom_cover_art_path: '',
-  };
 }
 
 function createEmptyValidationState(): InstallGameValidationState {
@@ -121,6 +122,14 @@ function mapValidationErrorToField(message: string): keyof InstallGameRequest | 
     return 'custom_cover_art_path';
   }
 
+  if (normalized.includes('custom portrait art path')) {
+    return 'custom_portrait_art_path';
+  }
+
+  if (normalized.includes('custom background art path')) {
+    return 'custom_background_art_path';
+  }
+
   if (normalized.includes('proton path')) {
     return 'proton_path';
   }
@@ -134,28 +143,6 @@ function mapValidationErrorToField(message: string): keyof InstallGameRequest | 
   }
 
   return null;
-}
-
-function deriveReviewProfile(profile: GameProfile | null, executablePath: string): GameProfile | null {
-  if (!profile) {
-    return null;
-  }
-
-  const trimmedExecutablePath = executablePath.trim();
-
-  return {
-    ...profile,
-    game: {
-      ...profile.game,
-      executable_path: trimmedExecutablePath,
-    },
-    runtime: {
-      ...profile.runtime,
-      working_directory: trimmedExecutablePath
-        ? parentDirectory(trimmedExecutablePath)
-        : profile.runtime.working_directory,
-    },
-  };
 }
 
 function createCandidateOptions(result: InstallGameResult | null): InstallGameExecutableCandidate[] {
@@ -240,53 +227,194 @@ function deriveHintText(
   }
 }
 
+function buildInstallGameRequest(
+  profileName: string,
+  draftProfile: GameProfile,
+  installerPath: string
+): InstallGameRequest {
+  const launchMethod = (draftProfile.launch.method?.trim() || 'proton_run') as LaunchMethod;
+  const protonPath =
+    launchMethod === 'steam_applaunch' ? draftProfile.steam.proton_path : draftProfile.runtime.proton_path;
+  const prefixPath =
+    launchMethod === 'steam_applaunch' ? draftProfile.steam.compatdata_path : draftProfile.runtime.prefix_path;
+  const steamAppId =
+    launchMethod === 'steam_applaunch' ? draftProfile.steam.app_id : (draftProfile.runtime.steam_app_id ?? '');
+  return {
+    profile_name: profileName,
+    display_name: draftProfile.game.name,
+    installer_path: installerPath,
+    trainer_path: draftProfile.trainer.path,
+    proton_path: protonPath,
+    prefix_path: prefixPath,
+    installed_game_executable_path: draftProfile.game.executable_path,
+    launcher_icon_path: draftProfile.steam.launcher.icon_path,
+    custom_cover_art_path: draftProfile.game.custom_cover_art_path ?? '',
+    runner_method: launchMethod,
+    steam_app_id: steamAppId,
+    custom_portrait_art_path: draftProfile.game.custom_portrait_art_path ?? '',
+    custom_background_art_path: draftProfile.game.custom_background_art_path ?? '',
+    working_directory: draftProfile.runtime.working_directory ?? '',
+  };
+}
+
 export function useInstallGame(): UseInstallGameResult {
-  const [request, setRequestState] = useState<InstallGameRequest>(createEmptyInstallGameRequest);
+  const [profileName, setProfileNameState] = useState('');
+  const [draftProfile, setDraftProfileState] = useState<GameProfile>(createDefaultProfile);
+  const [installerInputs, setInstallerInputs] = useState<InstallerInputs>({ installer_path: '' });
   const [validation, setValidationState] = useState<InstallGameValidationState>(createEmptyValidationState);
   const [stage, setStageState] = useState<InstallGameStage>('idle');
   const [result, setResultState] = useState<InstallGameResult | null>(null);
-  const [reviewProfile, setReviewProfileState] = useState<GameProfile | null>(null);
   const [error, setErrorState] = useState<string | null>(null);
   const [defaultPrefixPath, setDefaultPrefixPath] = useState('');
   const [defaultPrefixPathState, setDefaultPrefixPathState] = useState<InstallGamePrefixPathState>('idle');
   const [defaultPrefixPathError, setDefaultPrefixPathError] = useState<string | null>(null);
-  const [prefixPathSource, setPrefixPathSource] = useState<PrefixPathSource>('auto');
   const prefixResolutionRequestIdRef = useRef(0);
+
+  const request = useMemo(
+    () => buildInstallGameRequest(profileName, draftProfile, installerInputs.installer_path),
+    [profileName, draftProfile, installerInputs.installer_path]
+  );
+
+  const reviewProfile = useMemo(() => (result?.succeeded ? draftProfile : null), [result, draftProfile]);
 
   const candidateOptions = useMemo(() => createCandidateOptions(result), [result]);
   const isResolvingDefaultPrefixPath = defaultPrefixPathState === 'loading';
 
+  const setProfileName = useCallback((value: string) => {
+    setProfileNameState(value);
+  }, []);
+
+  const updateDraftProfile = useCallback((updater: (current: GameProfile) => GameProfile) => {
+    setDraftProfileState((current) => updater(current));
+  }, []);
+
+  const updateInstallerInputs = useCallback(
+    <Key extends keyof InstallerInputs>(key: Key, value: InstallerInputs[Key]) => {
+      setInstallerInputs((current) => ({ ...current, [key]: value }));
+    },
+    []
+  );
+
   const setRequest = useCallback((nextRequest: InstallGameRequest) => {
-    setRequestState(nextRequest);
-    setPrefixPathSource(nextRequest.prefix_path.trim().length > 0 ? 'manual' : 'auto');
+    setProfileNameState(nextRequest.profile_name);
+    setInstallerInputs({ installer_path: nextRequest.installer_path });
+    setDraftProfileState((current) => {
+      const launchMethod = (nextRequest.runner_method || current.launch.method || 'proton_run') as LaunchMethod;
+      return {
+        ...current,
+        game: {
+          ...current.game,
+          name: nextRequest.display_name,
+          executable_path: nextRequest.installed_game_executable_path,
+          custom_cover_art_path: nextRequest.custom_cover_art_path,
+          custom_portrait_art_path: nextRequest.custom_portrait_art_path,
+          custom_background_art_path: nextRequest.custom_background_art_path,
+        },
+        trainer: { ...current.trainer, path: nextRequest.trainer_path },
+        steam: {
+          ...current.steam,
+          app_id: launchMethod === 'steam_applaunch' ? nextRequest.steam_app_id : current.steam.app_id,
+          compatdata_path: launchMethod === 'steam_applaunch' ? nextRequest.prefix_path : current.steam.compatdata_path,
+          proton_path: launchMethod === 'steam_applaunch' ? nextRequest.proton_path : current.steam.proton_path,
+          launcher: { ...current.steam.launcher, icon_path: nextRequest.launcher_icon_path },
+        },
+        runtime: {
+          ...current.runtime,
+          prefix_path: launchMethod !== 'steam_applaunch' ? nextRequest.prefix_path : current.runtime.prefix_path,
+          proton_path: launchMethod !== 'steam_applaunch' ? nextRequest.proton_path : current.runtime.proton_path,
+          working_directory: nextRequest.working_directory,
+          steam_app_id:
+            launchMethod === 'proton_run' || launchMethod === 'native' ? nextRequest.steam_app_id : current.runtime.steam_app_id,
+        },
+        launch: { ...current.launch, method: launchMethod },
+      };
+    });
   }, []);
 
   const updateRequest = useCallback(
     <Key extends keyof InstallGameRequest>(key: Key, value: InstallGameRequest[Key]) => {
-      setRequestState((current) => ({
-        ...current,
-        [key]: value,
-      }));
-
-      if (key === 'prefix_path') {
-        const trimmedValue = String(value).trim();
-        setPrefixPathSource(trimmedValue.length > 0 ? 'manual' : 'auto');
+      const v = value as string;
+      switch (key) {
+        case 'profile_name':
+          setProfileNameState(v);
+          break;
+        case 'installer_path':
+          setInstallerInputs((prev) => ({ ...prev, installer_path: v }));
+          break;
+        case 'display_name':
+          setDraftProfileState((c) => ({ ...c, game: { ...c.game, name: v } }));
+          break;
+        case 'trainer_path':
+          setDraftProfileState((c) => ({ ...c, trainer: { ...c.trainer, path: v } }));
+          break;
+        case 'proton_path':
+          setDraftProfileState((c) => {
+            const m = resolveLaunchMethod(c);
+            if (m === 'steam_applaunch') {
+              return { ...c, steam: { ...c.steam, proton_path: v } };
+            }
+            return { ...c, runtime: { ...c.runtime, proton_path: v } };
+          });
+          break;
+        case 'prefix_path':
+          setDraftProfileState((c) => {
+            const m = resolveLaunchMethod(c);
+            if (m === 'steam_applaunch') {
+              return { ...c, steam: { ...c.steam, compatdata_path: v } };
+            }
+            return { ...c, runtime: { ...c.runtime, prefix_path: v } };
+          });
+          break;
+        case 'installed_game_executable_path':
+          setDraftProfileState((c) => ({
+            ...c,
+            game: { ...c.game, executable_path: v },
+          }));
+          break;
+        case 'launcher_icon_path':
+          setDraftProfileState((c) => ({
+            ...c,
+            steam: { ...c.steam, launcher: { ...c.steam.launcher, icon_path: v } },
+          }));
+          break;
+        case 'custom_cover_art_path':
+          setDraftProfileState((c) => ({ ...c, game: { ...c.game, custom_cover_art_path: v } }));
+          break;
+        case 'runner_method':
+          setDraftProfileState((c) => ({ ...c, launch: { ...c.launch, method: v as LaunchMethod } }));
+          break;
+        case 'steam_app_id':
+          setDraftProfileState((c) => {
+            const m = resolveLaunchMethod(c);
+            if (m === 'steam_applaunch') {
+              return { ...c, steam: { ...c.steam, app_id: v } };
+            }
+            return { ...c, runtime: { ...c.runtime, steam_app_id: v } };
+          });
+          break;
+        case 'custom_portrait_art_path':
+          setDraftProfileState((c) => ({ ...c, game: { ...c.game, custom_portrait_art_path: v } }));
+          break;
+        case 'custom_background_art_path':
+          setDraftProfileState((c) => ({ ...c, game: { ...c.game, custom_background_art_path: v } }));
+          break;
+        case 'working_directory':
+          setDraftProfileState((c) => ({ ...c, runtime: { ...c.runtime, working_directory: v } }));
+          break;
+        default:
+          break;
       }
     },
     []
   );
 
   const patchRequest = useCallback((patch: Partial<InstallGameRequest>) => {
-    setRequestState((current) => ({
-      ...current,
-      ...patch,
-    }));
-
-    if (Object.prototype.hasOwnProperty.call(patch, 'prefix_path')) {
-      const trimmedValue = patch.prefix_path?.trim() ?? '';
-      setPrefixPathSource(trimmedValue.length > 0 ? 'manual' : 'auto');
-    }
-  }, []);
+    (Object.keys(patch) as (keyof InstallGameRequest)[]).forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(patch, key)) {
+        updateRequest(key, patch[key] as InstallGameRequest[typeof key]);
+      }
+    });
+  }, [updateRequest]);
 
   const setFieldError = useCallback(<Key extends keyof InstallGameRequest>(key: Key, nextError: string | null) => {
     setValidationState((current) => {
@@ -327,18 +455,27 @@ export function useInstallGame(): UseInstallGameResult {
     setResultState(nextResult);
 
     if (nextResult === null) {
-      setReviewProfileState(null);
       setStageState('idle');
       setErrorState(null);
       return;
     }
 
-    setReviewProfileState(nextResult.profile);
-    setRequestState((current) => ({
-      ...current,
-      prefix_path: nextResult.profile.runtime.prefix_path.trim() || current.prefix_path,
-      installed_game_executable_path: nextResult.profile.game.executable_path.trim(),
+    setDraftProfileState((current) => ({
+      ...nextResult.profile,
+      game: {
+        ...nextResult.profile.game,
+        custom_cover_art_path: current.game.custom_cover_art_path?.trim()
+          ? current.game.custom_cover_art_path
+          : nextResult.profile.game.custom_cover_art_path,
+        custom_portrait_art_path: current.game.custom_portrait_art_path?.trim()
+          ? current.game.custom_portrait_art_path
+          : nextResult.profile.game.custom_portrait_art_path,
+        custom_background_art_path: current.game.custom_background_art_path?.trim()
+          ? current.game.custom_background_art_path
+          : nextResult.profile.game.custom_background_art_path,
+      },
     }));
+
     setStageState(deriveResultStage(nextResult));
     setErrorState(nextResult.succeeded ? null : nextResult.message);
   }, []);
@@ -347,28 +484,19 @@ export function useInstallGame(): UseInstallGameResult {
     (path: string) => {
       const trimmedPath = path.trim();
 
-      setRequestState((current) => ({
+      setDraftProfileState((current) => ({
         ...current,
-        installed_game_executable_path: path,
+        game: {
+          ...current.game,
+          executable_path: path,
+        },
+        runtime: {
+          ...current.runtime,
+          working_directory: trimmedPath
+            ? parentDirectory(trimmedPath)
+            : current.runtime.working_directory,
+        },
       }));
-
-      setReviewProfileState((currentReviewProfile) =>
-        currentReviewProfile === null
-          ? null
-          : {
-              ...currentReviewProfile,
-              game: {
-                ...currentReviewProfile.game,
-                executable_path: trimmedPath,
-              },
-              runtime: {
-                ...currentReviewProfile.runtime,
-                working_directory: trimmedPath
-                  ? parentDirectory(trimmedPath)
-                  : currentReviewProfile.runtime.working_directory,
-              },
-            }
-      );
 
       if (result?.succeeded) {
         setStageState(trimmedPath.length > 0 ? 'ready_to_save' : 'review_required');
@@ -378,8 +506,8 @@ export function useInstallGame(): UseInstallGameResult {
   );
 
   const resolveDefaultPrefixPath = useCallback(
-    async (profileName: string, requestId?: number) => {
-      const trimmedProfileName = profileName.trim();
+    async (resolvedProfileName: string, requestId?: number) => {
+      const trimmedProfileName = resolvedProfileName.trim();
       if (!trimmedProfileName) {
         setDefaultPrefixPath('');
         setDefaultPrefixPathState('idle');
@@ -402,21 +530,32 @@ export function useInstallGame(): UseInstallGameResult {
         setDefaultPrefixPath(resolvedPrefixPath);
         setDefaultPrefixPathState('ready');
 
-        setRequestState((current) => {
-          const currentPrefixPath = current.prefix_path.trim();
+        setDraftProfileState((current) => {
+          const launchMethod = resolveLaunchMethod(current);
+          const currentPrefixPath =
+            launchMethod === 'steam_applaunch'
+              ? current.steam.compatdata_path.trim()
+              : current.runtime.prefix_path.trim();
           const previousAutoPrefixPath = defaultPrefixPath.trim();
           const shouldApplyResolvedPrefix =
             currentPrefixPath.length === 0 ||
             (previousAutoPrefixPath.length > 0 && currentPrefixPath === previousAutoPrefixPath);
 
-          if (shouldApplyResolvedPrefix) {
+          if (!shouldApplyResolvedPrefix) {
+            return current;
+          }
+
+          if (launchMethod === 'steam_applaunch') {
             return {
               ...current,
-              prefix_path: resolvedPrefixPath,
+              steam: { ...current.steam, compatdata_path: resolvedPrefixPath },
             };
           }
 
-          return current;
+          return {
+            ...current,
+            runtime: { ...current.runtime, prefix_path: resolvedPrefixPath },
+          };
         });
 
         return resolvedPrefixPath;
@@ -432,35 +571,31 @@ export function useInstallGame(): UseInstallGameResult {
   );
 
   const startInstall = useCallback(async () => {
-    const profileName = request.profile_name.trim();
+    const trimmedProfileName = profileName.trim();
     clearValidation();
     setErrorState(null);
     setStageState('preparing');
 
-    let prefixPath = request.prefix_path.trim();
+    let finalRequest = buildInstallGameRequest(
+      trimmedProfileName,
+      draftProfile,
+      installerInputs.installer_path
+    );
+
+    if (finalRequest.prefix_path.trim().length === 0) {
+      const resolved = (await resolveDefaultPrefixPath(trimmedProfileName)).trim();
+      finalRequest = { ...finalRequest, prefix_path: resolved };
+    }
 
     try {
-      if (prefixPath.length === 0) {
-        prefixPath = (await resolveDefaultPrefixPath(profileName)).trim();
-      }
-
-      const installRequest: InstallGameRequest = {
-        ...request,
-        prefix_path: prefixPath,
-      };
-
       await invoke<void>('validate_install_request', {
-        request: installRequest,
+        request: finalRequest,
       });
 
-      setRequestState((current) => ({
-        ...current,
-        prefix_path: prefixPath,
-      }));
       setStageState('running_installer');
 
       const installResult = await invoke<InstallGameResult>('install_game', {
-        request: installRequest,
+        request: finalRequest,
       });
 
       setResult(installResult);
@@ -477,23 +612,32 @@ export function useInstallGame(): UseInstallGameResult {
         setFieldError(validationField, message);
       }
     }
-  }, [clearValidation, resolveDefaultPrefixPath, request, setFieldError, setGeneralError]);
+  }, [
+    clearValidation,
+    draftProfile,
+    installerInputs.installer_path,
+    profileName,
+    resolveDefaultPrefixPath,
+    setFieldError,
+    setGeneralError,
+    setResult,
+  ]);
 
   const reset = useCallback(() => {
-    setRequestState(createEmptyInstallGameRequest());
+    setProfileNameState('');
+    setDraftProfileState(createDefaultProfile());
+    setInstallerInputs({ installer_path: '' });
     setValidationState(createEmptyValidationState());
     setStageState('idle');
     setResultState(null);
-    setReviewProfileState(null);
     setErrorState(null);
     setDefaultPrefixPath('');
     setDefaultPrefixPathState('idle');
     setDefaultPrefixPathError(null);
-    setPrefixPathSource('auto');
   }, []);
 
   useEffect(() => {
-    const trimmedProfileName = request.profile_name.trim();
+    const trimmedProfileName = profileName.trim();
     let active = true;
 
     if (!trimmedProfileName) {
@@ -519,7 +663,7 @@ export function useInstallGame(): UseInstallGameResult {
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [request.profile_name, resolveDefaultPrefixPath]);
+  }, [profileName, resolveDefaultPrefixPath]);
 
   const statusText = deriveStatusText(stage, defaultPrefixPathState, defaultPrefixPath, result);
   const hintText = deriveHintText(stage, result, defaultPrefixPath, defaultPrefixPathError);
@@ -543,6 +687,12 @@ export function useInstallGame(): UseInstallGameResult {
 
   return {
     request,
+    profileName,
+    setProfileName,
+    draftProfile,
+    updateDraftProfile,
+    installerInputs,
+    updateInstallerInputs,
     validation,
     stage,
     result,

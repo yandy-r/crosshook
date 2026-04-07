@@ -599,6 +599,12 @@ textarea {
 .crosshook-install-shell .crosshook-install-flow-tabs > .crosshook-subtab-row {
   margin-top: 0;
   width: 100%;
+  /* Five install tabs: extra row gap when wrapped (narrow / Steam Deck). */
+  row-gap: var(--crosshook-radius-sm);
+}
+
+/* Trainer tab omitted when launch method is native — hook class for future layout tweaks. */
+.crosshook-install-flow-tabs--skip-trainer {
 }
 
 /* Nested install flow: like Profiles — scroll on tab panel; __inner keeps natural height (no grid row stretch). */
