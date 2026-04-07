@@ -217,30 +217,18 @@ async fn fetch_expected_checksum(
 
 // ── extract helper ────────────────────────────────────────────────────────────
 
-/// Extract a `.tar.gz` archive to `dest_dir` and return the name of the first
+/// Extract a `.tar.gz` or `.tar.xz` stream to `dest_dir` and return the name of the first
 /// top-level directory extracted (the tool directory).
 ///
-/// This runs in a `spawn_blocking` context because `tar` and `flate2` are
-/// synchronous crates.
-async fn extract_tar_gz(
-    archive_path: PathBuf,
-    dest_dir: PathBuf,
-) -> Result<String, ProtonUpInstallResult> {
-    tokio::task::spawn_blocking(move || extract_tar_gz_sync(&archive_path, &dest_dir))
-        .await
-        .map_err(|e| unknown_err(format!("extraction task panicked: {e}")))?
-}
+/// Blocking I/O runs in `spawn_blocking` via [`extract_archive`] / [`peek_archive`].
 
-fn extract_tar_gz_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, ProtonUpInstallResult> {
-    use flate2::read::GzDecoder;
+fn extract_tar_read_sync<R: std::io::Read>(
+    read: R,
+    dest_dir: &Path,
+) -> Result<String, ProtonUpInstallResult> {
     use tar::Archive;
 
-    let file = std::fs::File::open(archive_path).map_err(|e| {
-        map_io_err(e, &format!("failed to open archive {}", archive_path.display()))
-    })?;
-
-    let gz = GzDecoder::new(file);
-    let mut archive = Archive::new(gz);
+    let mut archive = Archive::new(read);
 
     let mut top_level_dir: Option<String> = None;
 
@@ -279,19 +267,35 @@ fn extract_tar_gz_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, P
     top_level_dir.ok_or_else(|| unknown_err("archive appears to be empty"))
 }
 
-/// Read the first top-level directory name from a `.tar.gz` without extracting.
-///
-/// Used so install-target paths match what `extract_tar_gz_sync` will create.
-fn peek_tar_gz_top_level_sync(archive_path: &Path) -> Result<String, ProtonUpInstallResult> {
+fn extract_tar_gz_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, ProtonUpInstallResult> {
     use flate2::read::GzDecoder;
-    use tar::Archive;
 
     let file = std::fs::File::open(archive_path).map_err(|e| {
         map_io_err(e, &format!("failed to open archive {}", archive_path.display()))
     })?;
 
     let gz = GzDecoder::new(file);
-    let mut archive = Archive::new(gz);
+    extract_tar_read_sync(gz, dest_dir)
+}
+
+fn extract_tar_xz_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, ProtonUpInstallResult> {
+    use xz2::read::XzDecoder;
+
+    let file = std::fs::File::open(archive_path).map_err(|e| {
+        map_io_err(e, &format!("failed to open archive {}", archive_path.display()))
+    })?;
+
+    let xz = XzDecoder::new(file);
+    extract_tar_read_sync(xz, dest_dir)
+}
+
+/// Read the first top-level directory name from a tar stream without extracting.
+///
+/// Used so install-target paths match what `archive_extract_sync` will create.
+fn peek_tar_read_top_level_sync<R: std::io::Read>(read: R) -> Result<String, ProtonUpInstallResult> {
+    use tar::Archive;
+
+    let mut archive = Archive::new(read);
 
     let entries = archive.entries().map_err(|e| {
         unknown_err(format!("failed to read archive entries: {e}"))
@@ -317,10 +321,73 @@ fn peek_tar_gz_top_level_sync(archive_path: &Path) -> Result<String, ProtonUpIns
     Err(unknown_err("archive appears to be empty"))
 }
 
-async fn peek_tar_gz(archive_path: PathBuf) -> Result<String, ProtonUpInstallResult> {
-    tokio::task::spawn_blocking(move || peek_tar_gz_top_level_sync(&archive_path))
+fn peek_tar_gz_top_level_sync(archive_path: &Path) -> Result<String, ProtonUpInstallResult> {
+    use flate2::read::GzDecoder;
+
+    let file = std::fs::File::open(archive_path).map_err(|e| {
+        map_io_err(e, &format!("failed to open archive {}", archive_path.display()))
+    })?;
+
+    let gz = GzDecoder::new(file);
+    peek_tar_read_top_level_sync(gz)
+}
+
+fn peek_tar_xz_top_level_sync(archive_path: &Path) -> Result<String, ProtonUpInstallResult> {
+    use xz2::read::XzDecoder;
+
+    let file = std::fs::File::open(archive_path).map_err(|e| {
+        map_io_err(e, &format!("failed to open archive {}", archive_path.display()))
+    })?;
+
+    let xz = XzDecoder::new(file);
+    peek_tar_read_top_level_sync(xz)
+}
+
+fn archive_peek_sync(archive_path: &Path) -> Result<String, ProtonUpInstallResult> {
+    let name = archive_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    if name.ends_with(".tar.xz") {
+        peek_tar_xz_top_level_sync(archive_path)
+    } else if name.ends_with(".tar.gz") {
+        peek_tar_gz_top_level_sync(archive_path)
+    } else {
+        Err(unknown_err(format!(
+            "unsupported archive format (expected .tar.gz or .tar.xz): {name}"
+        )))
+    }
+}
+
+fn archive_extract_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, ProtonUpInstallResult> {
+    let name = archive_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    if name.ends_with(".tar.xz") {
+        extract_tar_xz_sync(archive_path, dest_dir)
+    } else if name.ends_with(".tar.gz") {
+        extract_tar_gz_sync(archive_path, dest_dir)
+    } else {
+        Err(unknown_err(format!(
+            "unsupported archive format (expected .tar.gz or .tar.xz): {name}"
+        )))
+    }
+}
+
+async fn peek_archive(archive_path: PathBuf) -> Result<String, ProtonUpInstallResult> {
+    tokio::task::spawn_blocking(move || archive_peek_sync(&archive_path))
         .await
         .map_err(|e| unknown_err(format!("peek task panicked: {e}")))?
+}
+
+async fn extract_archive(
+    archive_path: PathBuf,
+    dest_dir: PathBuf,
+) -> Result<String, ProtonUpInstallResult> {
+    tokio::task::spawn_blocking(move || archive_extract_sync(&archive_path, &dest_dir))
+        .await
+        .map_err(|e| unknown_err(format!("extraction task panicked: {e}")))?
 }
 
 // ── public install entry point ────────────────────────────────────────────────
@@ -332,7 +399,9 @@ async fn peek_tar_gz(archive_path: PathBuf) -> Result<String, ProtonUpInstallRes
 /// 2. Resolve download URL.
 /// 3. Download the archive to a temporary file.
 /// 4. Download and verify the SHA-512 checksum.
-/// 5. Peek the archive top-level directory name (must match `version_info.version`).
+/// 5. Peek the archive top-level directory name. For GE-Proton this must match
+///    `version_info.version`; Proton-CachyOS uses release tags that differ from the
+///    per-arch folder name (e.g. tag `cachyos-…-slr` vs `proton-cachyos-…-x86_64`).
 /// 6. If not `force`, return [`ProtonUpInstallErrorKind::AlreadyInstalled`] when that
 ///    directory already exists under `dest_dir`.
 /// 7. Extract the archive to the destination directory.
@@ -415,7 +484,7 @@ pub async fn install_version(
     }
 
     // 5. Discover install target from the archive (same top-level dir as extraction).
-    let top_level_dir = match peek_tar_gz(temp_path.clone()).await {
+    let top_level_dir = match peek_archive(temp_path.clone()).await {
         Ok(dir_name) => dir_name,
         Err(result) => {
             let _ = std::fs::remove_file(&temp_path);
@@ -423,7 +492,9 @@ pub async fn install_version(
         }
     };
 
-    if top_level_dir != version_info.version {
+    // GE-Proton (and similar) archives use the release tag as the root folder name.
+    // Proton-CachyOS tags do not: the tarball unpacks to `proton-cachyos-…-<arch>`.
+    if version_info.provider != "proton-cachyos" && top_level_dir != version_info.version {
         let _ = std::fs::remove_file(&temp_path);
         return err(
             format!(
@@ -450,7 +521,7 @@ pub async fn install_version(
     }
 
     // 6. Extract archive.
-    let extracted_top = match extract_tar_gz(temp_path.clone(), dest_dir.clone()).await {
+    let extracted_top = match extract_archive(temp_path.clone(), dest_dir.clone()).await {
         Ok(dir_name) => dir_name,
         Err(result) => {
             let _ = std::fs::remove_file(&temp_path);

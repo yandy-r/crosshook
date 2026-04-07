@@ -15,13 +15,24 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "kebab-case")]
 pub enum ProtonUpProvider {
     GeProton,
+    ProtonCachyos,
 }
 
 impl std::fmt::Display for ProtonUpProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::GeProton => write!(f, "ge-proton"),
+            Self::ProtonCachyos => write!(f, "proton-cachyos"),
         }
+    }
+}
+
+/// Parse a provider id from IPC or UI. Unknown values default to GE-Proton for backward compatibility.
+pub fn parse_protonup_provider(s: Option<&str>) -> ProtonUpProvider {
+    match s.map(str::trim).filter(|x| !x.is_empty()) {
+        None | Some("ge-proton") => ProtonUpProvider::GeProton,
+        Some("proton-cachyos") => ProtonUpProvider::ProtonCachyos,
+        Some(_) => ProtonUpProvider::GeProton,
     }
 }
 
@@ -160,6 +171,38 @@ mod tests {
         let provider: ProtonUpProvider =
             serde_json::from_str(r#""ge-proton""#).expect("deserialize ProtonUpProvider");
         assert_eq!(provider, ProtonUpProvider::GeProton);
+    }
+
+    #[test]
+    fn proton_cachyos_serializes_as_kebab_case() {
+        let json = serde_json::to_string(&ProtonUpProvider::ProtonCachyos)
+            .expect("serialize ProtonUpProvider");
+        assert_eq!(json, r#""proton-cachyos""#);
+    }
+
+    #[test]
+    fn proton_cachyos_deserializes_from_kebab_case() {
+        let provider: ProtonUpProvider =
+            serde_json::from_str(r#""proton-cachyos""#).expect("deserialize ProtonUpProvider");
+        assert_eq!(provider, ProtonUpProvider::ProtonCachyos);
+    }
+
+    #[test]
+    fn display_matches_kebab_case_ids() {
+        assert_eq!(ProtonUpProvider::GeProton.to_string(), "ge-proton");
+        assert_eq!(ProtonUpProvider::ProtonCachyos.to_string(), "proton-cachyos");
+    }
+
+    #[test]
+    fn parse_protonup_provider_defaults_and_maps() {
+        assert_eq!(parse_protonup_provider(None), ProtonUpProvider::GeProton);
+        assert_eq!(parse_protonup_provider(Some("")), ProtonUpProvider::GeProton);
+        assert_eq!(parse_protonup_provider(Some("ge-proton")), ProtonUpProvider::GeProton);
+        assert_eq!(
+            parse_protonup_provider(Some("proton-cachyos")),
+            ProtonUpProvider::ProtonCachyos
+        );
+        assert_eq!(parse_protonup_provider(Some("unknown")), ProtonUpProvider::GeProton);
     }
 
     // ── ProtonUpMatchStatus ───────────────────────────────────────────────────

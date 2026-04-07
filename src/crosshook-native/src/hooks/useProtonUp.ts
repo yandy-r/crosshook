@@ -7,6 +7,7 @@ import type {
   ProtonUpCatalogResponse,
   ProtonUpInstallRequest,
   ProtonUpInstallResult,
+  ProtonUpProvider,
   ProtonUpSuggestion,
 } from '../types/protonup';
 
@@ -15,6 +16,8 @@ export interface UseProtonUpOptions {
   autoFetchCatalog?: boolean;
   /** Steam client install path override. */
   steamClientInstallPath?: string;
+  /** Which provider catalog to list (GE-Proton vs Proton-CachyOS). Defaults to `ge-proton`. */
+  catalogProvider?: ProtonUpProvider;
 }
 
 export interface UseProtonUpResult {
@@ -40,6 +43,35 @@ function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const CATALOG_PROVIDERS: ProtonUpProvider[] = ['ge-proton', 'proton-cachyos'];
+
+/**
+ * Find which catalog contains `version` (checks GE first, then Proton-CachyOS).
+ * Falls back to `ge-proton` when the version is absent from both (legacy install attempt).
+ */
+export async function resolveProtonUpProviderForVersion(version: string): Promise<ProtonUpProvider> {
+  const trimmed = version.trim();
+  if (trimmed.length === 0) {
+    return 'ge-proton';
+  }
+
+  for (const provider of CATALOG_PROVIDERS) {
+    try {
+      const response = await invoke<ProtonUpCatalogResponse>('protonup_list_available_versions', {
+        provider,
+        forceRefresh: false,
+      });
+      if (response.versions.some((v) => v.version === trimmed)) {
+        return provider;
+      }
+    } catch {
+      // Advisory path: try next provider
+    }
+  }
+
+  return 'ge-proton';
+}
+
 export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult {
   const [versions, setVersions] = useState<ProtonUpAvailableVersion[]>([]);
   const [cacheMeta, setCacheMeta] = useState<ProtonUpCacheMeta | null>(null);
@@ -50,6 +82,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
 
   const steamClientInstallPath = options.steamClientInstallPath?.trim() ?? '';
   const autoFetchCatalog = options.autoFetchCatalog ?? false;
+  const catalogProvider = options.catalogProvider ?? 'ge-proton';
 
   useEffect(() => {
     if (!autoFetchCatalog && fetchVersion === 0) {
@@ -64,7 +97,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
         const response = await invoke<ProtonUpCatalogResponse>(
           'protonup_list_available_versions',
           {
-            provider: null,
+            provider: catalogProvider,
             forceRefresh: fetchVersion > 0,
           },
         );
@@ -96,7 +129,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
     return () => {
       active = false;
     };
-  }, [autoFetchCatalog, fetchVersion]);
+  }, [autoFetchCatalog, catalogProvider, fetchVersion]);
 
   const refreshCatalog = useCallback(() => {
     setFetchVersion((current) => current + 1);

@@ -6,7 +6,11 @@ import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { useCommunityProfiles } from '../../hooks/useCommunityProfiles';
 import { useProtonInstalls } from '../../hooks/useProtonInstalls';
 import { useProtonUp } from '../../hooks/useProtonUp';
-import type { ProtonUpAvailableVersion, ProtonUpInstallResult } from '../../types/protonup';
+import type {
+  ProtonUpAvailableVersion,
+  ProtonUpInstallResult,
+  ProtonUpProvider,
+} from '../../types/protonup';
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
 const DEFAULT_COMPAT_TOOLS_DIR = '~/.local/share/Steam/compatibilitytools.d';
@@ -40,7 +44,8 @@ function normalizeForComparison(value: string): string {
 }
 
 function ProtonVersionsPanel() {
-  const protonUp = useProtonUp({ autoFetchCatalog: true });
+  const [catalogProvider, setCatalogProvider] = useState<ProtonUpProvider>('ge-proton');
+  const protonUp = useProtonUp({ autoFetchCatalog: true, catalogProvider });
   const { installs, reload: reloadInstalls } = useProtonInstalls();
   const [installResult, setInstallResult] = useState<ProtonUpInstallResult | null>(null);
   const [installingVersion, setInstallingVersion] = useState<string | null>(null);
@@ -85,6 +90,39 @@ function ProtonVersionsPanel() {
         }
       >
         <div className="crosshook-protonup-catalog">
+          <div className="crosshook-field" style={{ marginBottom: 12 }}>
+            <span className="crosshook-label" id="protonup-catalog-provider-label">
+              Catalog source
+            </span>
+            <div
+              className="crosshook-protonup-catalog__provider-toggle"
+              role="group"
+              aria-labelledby="protonup-catalog-provider-label"
+              style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}
+            >
+              <button
+                type="button"
+                className={`crosshook-button crosshook-button--small${
+                  catalogProvider === 'ge-proton' ? ' crosshook-button--primary' : ' crosshook-button--ghost'
+                }`}
+                onClick={() => setCatalogProvider('ge-proton')}
+                aria-pressed={catalogProvider === 'ge-proton'}
+              >
+                GE-Proton
+              </button>
+              <button
+                type="button"
+                className={`crosshook-button crosshook-button--small${
+                  catalogProvider === 'proton-cachyos' ? ' crosshook-button--primary' : ' crosshook-button--ghost'
+                }`}
+                onClick={() => setCatalogProvider('proton-cachyos')}
+                aria-pressed={catalogProvider === 'proton-cachyos'}
+              >
+                Proton-CachyOS
+              </button>
+            </div>
+          </div>
+
           {/* Cache status */}
           {protonUp.cacheMeta ? (
             <p className="crosshook-help-text">

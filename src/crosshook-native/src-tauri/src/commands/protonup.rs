@@ -1,8 +1,8 @@
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::protonup::matching::match_community_version;
 use crosshook_core::protonup::{
-    ProtonUpCatalogResponse, ProtonUpInstallErrorKind, ProtonUpInstallRequest,
-    ProtonUpInstallResult, ProtonUpSuggestion,
+    parse_protonup_provider, ProtonUpCatalogResponse, ProtonUpInstallErrorKind,
+    ProtonUpInstallRequest, ProtonUpInstallResult, ProtonUpSuggestion,
 };
 use crosshook_core::steam::{discover_compat_tools, discover_steam_root_candidates};
 use tauri::State;
@@ -11,14 +11,18 @@ use tauri::State;
 #[tauri::command]
 pub async fn protonup_list_available_versions(
     metadata_store: State<'_, MetadataStore>,
-    _provider: Option<String>,
+    provider: Option<String>,
     force_refresh: Option<bool>,
 ) -> Result<ProtonUpCatalogResponse, String> {
-    Ok(crosshook_core::protonup::catalog::list_available_versions(
-        &metadata_store,
-        force_refresh.unwrap_or(false),
+    let provider = parse_protonup_provider(provider.as_deref());
+    Ok(
+        crosshook_core::protonup::catalog::list_available_versions(
+            &metadata_store,
+            force_refresh.unwrap_or(false),
+            provider,
+        )
+        .await,
     )
-    .await)
 }
 
 /// Install a selected Proton version.
@@ -27,10 +31,12 @@ pub async fn protonup_install_version(
     metadata_store: State<'_, MetadataStore>,
     request: ProtonUpInstallRequest,
 ) -> Result<ProtonUpInstallResult, String> {
-    // Look up version info from catalog first.
+    // Look up version info from catalog first (same provider as the install request).
+    let provider = parse_protonup_provider(Some(request.provider.as_str()));
     let catalog = crosshook_core::protonup::catalog::list_available_versions(
         &metadata_store,
         false,
+        provider,
     )
     .await;
 

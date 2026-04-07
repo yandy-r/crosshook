@@ -17,7 +17,7 @@ import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
-import { useProtonUp } from '../../hooks/useProtonUp';
+import { resolveProtonUpProviderForVersion, useProtonUp } from '../../hooks/useProtonUp';
 import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
 import type { ProtonInstallOption } from '../../types/proton';
 import type { ProtonUpSuggestion } from '../../types/protonup';
@@ -796,12 +796,16 @@ export function ProfilesPage() {
                     ? `${effectiveSteamClientInstallPath}/compatibilitytools.d`
                     : '';
                   setSuggestionInstallError(null);
-                  void protonUp
-                    .installVersion({
-                      provider: 'ge-proton',
-                      version: suggestion.recommended_version,
+                  void (async () => {
+                    const provider = await resolveProtonUpProviderForVersion(
+                      suggestion.recommended_version!,
+                    );
+                    return protonUp.installVersion({
+                      provider,
+                      version: suggestion.recommended_version!,
                       target_root: targetRoot,
-                    })
+                    });
+                  })()
                     .then((result) => {
                       if (!result.success) {
                         setSuggestionInstallError(
