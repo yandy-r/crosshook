@@ -13,8 +13,6 @@ import {
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { ThemedSelect } from './ui/ThemedSelect';
 import CommunityImportWizardModal from './CommunityImportWizardModal';
-import { CommunityArt } from './layout/PageBanner';
-import { PanelRouteDecor } from './layout/PanelRouteDecor';
 
 export interface CommunityBrowserProps {
   profilesDirectoryPath?: string;
@@ -263,20 +261,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
   }
 
   return (
-    <section
-      className="crosshook-card crosshook-card--with-route-decor crosshook-community-browser"
-      aria-label="Community profile browser"
-    >
-      <PanelRouteDecor illustration={<CommunityArt />} />
-      <header className="crosshook-community-browser__header">
-        <div className="crosshook-heading-eyebrow">Community</div>
-        <h2 className="crosshook-heading-title">Browse shared profiles</h2>
-        <p className="crosshook-heading-copy">
-          Search profiles from your configured taps, inspect compatibility metadata, and import a profile into your
-          local CrossHook library.
-        </p>
-      </header>
-
+    <section className="crosshook-card crosshook-community-browser" aria-label="Community profile browser">
       {cachedTapNotices.length > 0 ? (
         <div className="crosshook-community-browser__cache-banner" role="status" aria-live="polite">
           <span className="crosshook-status-chip crosshook-community-browser__cache-chip">Cached data</span>

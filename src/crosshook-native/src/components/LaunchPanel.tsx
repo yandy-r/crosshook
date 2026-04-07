@@ -17,8 +17,6 @@ import { usePreviewState } from '../hooks/usePreviewState';
 import { useProfileHealthContext } from '../context/ProfileHealthContext';
 import { copyToClipboard } from '../utils/clipboard';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../utils/launchPanelActionButtonStyle';
-import { LaunchArt } from './layout/PageBanner';
-import { PanelRouteDecor } from './layout/PanelRouteDecor';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import '../styles/preview.css';
 
@@ -725,19 +723,9 @@ export function LaunchPanel({
 
   return (
     <div className="crosshook-route-stack crosshook-launch-panel-stack">
-      {/* ── Launch controls (aligned with Profiles page “Profiles” strip) ── */}
-      <div className="crosshook-panel crosshook-panel--with-route-decor">
-        <PanelRouteDecor illustration={<LaunchArt />} />
+      {/* ── Launch controls (route identity lives in RouteBanner on LaunchPage) ── */}
+      <div className="crosshook-panel">
         <section className="crosshook-launch-panel crosshook-route-hero-launch-panel">
-          <header className="crosshook-settings-header crosshook-launch-panel__title-strip">
-            <div className="crosshook-launch-panel__title-strip-inner">
-              <div className="crosshook-heading-eyebrow">Launch</div>
-              <div className="crosshook-launch-panel__status" data-phase={phase}>
-                {phase}
-              </div>
-            </div>
-          </header>
-
           {infoSlot}
 
           {feedback ? (
@@ -921,15 +909,20 @@ export function LaunchPanel({
               className="crosshook-launch-panel__indicator"
               data-state={isSessionActive ? 'active' : isWaitingForTrainer ? 'waiting' : isGameRunning ? 'running' : 'idle'}
             >
-              <div className="crosshook-launch-panel__indicator-row">
-                <span className="crosshook-launch-panel__indicator-dot" aria-hidden="true" />
-                <span className="crosshook-launch-panel__indicator-label">
-                  {method === 'steam_applaunch'
-                    ? 'Steam runner selected'
-                    : method === 'proton_run'
-                      ? 'Proton runner selected'
-                      : 'Native runner selected'}
-                </span>
+              <div className="crosshook-launch-panel__runner-primary-row">
+                <div className="crosshook-launch-panel__indicator-row">
+                  <span className="crosshook-launch-panel__indicator-dot" aria-hidden="true" />
+                  <span className="crosshook-launch-panel__indicator-label">
+                    {method === 'steam_applaunch'
+                      ? 'Steam runner selected'
+                      : method === 'proton_run'
+                        ? 'Proton runner selected'
+                        : 'Native runner selected'}
+                  </span>
+                </div>
+                <div className="crosshook-launch-panel__status" data-phase={phase} aria-label={`Launch phase ${phase}`}>
+                  {phase}
+                </div>
               </div>
               {helperLogPath ? <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span> : null}
             </div>

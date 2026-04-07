@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { HealthDashboardArt } from '../layout/PageBanner';
-import { PanelRouteDecor } from '../layout/PanelRouteDecor';
+import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import type { TrendDirection } from '../../hooks/useProfileHealth';
@@ -1104,11 +1103,8 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
 
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--health">
-      <div
-        className="crosshook-route-stack crosshook-page crosshook-page--with-route-decor"
-        data-crosshook-focus-zone="content"
-      >
-        <PanelRouteDecor illustration={<HealthDashboardArt />} />
+      <div className="crosshook-route-stack" data-crosshook-focus-zone="content">
+        <RouteBanner route="health" />
         {error && (
           <div role="alert" className="crosshook-health-dashboard-error crosshook-panel">
             <p>Health scan failed. Check app logs for details.</p>

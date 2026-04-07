@@ -8,8 +8,7 @@ import { OnboardingWizard } from '../OnboardingWizard';
 import ProfilePreviewModal from '../ProfilePreviewModal';
 import ProfileSubTabs from '../ProfileSubTabs';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
-import { ProfilesArt } from '../layout/PageBanner';
-import { PanelRouteDecor } from '../layout/PanelRouteDecor';
+import { RouteBanner } from '../layout/RouteBanner';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { HealthBadge } from '../HealthBadge';
 import { OfflineStatusBadge } from '../OfflineStatusBadge';
@@ -590,15 +589,9 @@ export function ProfilesPage() {
 
       <div className="crosshook-route-stack crosshook-profiles-page">
         <div className="crosshook-route-stack__body--fill crosshook-profiles-page__body">
-        <div className="crosshook-panel crosshook-panel--with-route-decor crosshook-profiles-hero-outer">
-          <PanelRouteDecor illustration={<ProfilesArt />} />
+        <RouteBanner route="profiles" />
+        <div className="crosshook-panel crosshook-profiles-hero-outer">
           <section className="crosshook-launch-panel crosshook-route-hero-launch-panel">
-            <header className="crosshook-settings-header crosshook-launch-panel__title-strip">
-              <div className="crosshook-launch-panel__title-strip-inner">
-                <div className="crosshook-heading-eyebrow">Profiles</div>
-              </div>
-            </header>
-
             <div className="crosshook-launch-panel__profile-row">
               <label
                 className="crosshook-label"

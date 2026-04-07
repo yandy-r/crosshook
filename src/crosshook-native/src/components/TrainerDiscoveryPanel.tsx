@@ -256,15 +256,6 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
 
   return (
     <section className="crosshook-card crosshook-discovery-panel" aria-label="Trainer Discovery">
-      <header className="crosshook-discovery-panel__header">
-        <div className="crosshook-heading-eyebrow">Community</div>
-        <h2 className="crosshook-heading-title">Trainer Discovery</h2>
-        <p className="crosshook-heading-copy">
-          Search community trainer sources. CrossHook links to external sources only and does not
-          host trainers.
-        </p>
-      </header>
-
       {!settings.discovery_enabled && !pendingConsent && (
         <div className="crosshook-discovery-panel__gate">
           <p className="crosshook-muted">
