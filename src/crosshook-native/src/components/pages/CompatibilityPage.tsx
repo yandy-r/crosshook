@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import CompatibilityViewer, { type CompatibilityDatabaseEntry } from '../CompatibilityViewer';
+import { RouteBanner } from '../layout/RouteBanner';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { useCommunityProfiles } from '../../hooks/useCommunityProfiles';
 import { useProtonInstalls } from '../../hooks/useProtonInstalls';
@@ -236,6 +237,7 @@ export function CompatibilityPage() {
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--compatibility">
       <div className="crosshook-route-stack crosshook-compatibility-page">
         <div className="crosshook-route-stack__body--fill crosshook-compatibility-page__body">
+          <RouteBanner route="compatibility" />
           <div className="crosshook-route-card-host">
             <div className="crosshook-route-card-scroll">
               <div className="crosshook-panel crosshook-subtabs-shell crosshook-compatibility-subtabs">

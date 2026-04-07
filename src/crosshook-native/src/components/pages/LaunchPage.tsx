@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 import LaunchPanel from '../LaunchPanel';
+import { RouteBanner } from '../layout/RouteBanner';
 import { LaunchSubTabs } from '../LaunchSubTabs';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { useProfileContext } from '../../context/ProfileContext';
@@ -299,6 +300,7 @@ export function LaunchPage() {
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--launch">
       <div className="crosshook-route-stack crosshook-launch-page__grid">
+        <RouteBanner route="launch" />
         <LaunchPanel
           profileId={profileId}
           method={profileState.launchMethod}

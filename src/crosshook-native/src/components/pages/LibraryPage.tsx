@@ -11,6 +11,7 @@ import { LibraryToolbar } from '../library/LibraryToolbar';
 import { LibraryGrid } from '../library/LibraryGrid';
 import { GameDetailsModal } from '../library/GameDetailsModal';
 import { useGameDetailsModalState } from '../library/useGameDetailsModalState';
+import { RouteBanner } from '../layout/RouteBanner';
 
 const VIEW_MODE_KEY = 'crosshook.library.viewMode';
 
@@ -111,9 +112,10 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--library">
       <div className="crosshook-route-stack crosshook-library-page">
         <div className="crosshook-route-stack__body--fill crosshook-library-page__body">
+          <RouteBanner route="library" />
           <div className="crosshook-route-card-host">
             <div className="crosshook-route-card-scroll">
-              <div className="crosshook-library-page__content">
+              <div className="crosshook-card crosshook-library-page__content">
                 <div className="crosshook-library-page__toolbar-bar">
                   <LibraryToolbar
                     searchQuery={searchQuery}

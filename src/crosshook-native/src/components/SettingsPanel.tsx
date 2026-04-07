@@ -4,8 +4,6 @@ import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useLauncherManagement } from '../hooks/useLauncherManagement';
 import { usePrefixStorageManagement } from '../hooks/usePrefixStorageManagement';
 import { chooseDirectory, chooseFile } from '../utils/dialog';
-import { SettingsArt } from './layout/PageBanner';
-import { PanelRouteDecor } from './layout/PanelRouteDecor';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import type { AppSettingsData, DiagnosticBundleResult } from '../types';
 import type {
@@ -894,11 +892,9 @@ export function SettingsPanel({
   }, [settings.protontricks_binary_path]);
 
   return (
-    <section className="crosshook-card crosshook-card--with-route-decor crosshook-settings-panel" aria-label="Settings">
-      <PanelRouteDecor illustration={<SettingsArt />} />
+    <section className="crosshook-card crosshook-settings-panel" aria-label="Settings">
       <header className="crosshook-settings-header">
-        <div className="crosshook-heading-eyebrow">Settings</div>
-        <h2 className="crosshook-heading-title">App preferences and storage</h2>
+        <h2 className="crosshook-heading-title crosshook-heading-title--card">App preferences and storage</h2>
         <p className="crosshook-heading-copy">
           Keep startup behavior, profile storage, and recent file history in one place. The backend stores these values,
           and this panel reflects the current state for editing and review.

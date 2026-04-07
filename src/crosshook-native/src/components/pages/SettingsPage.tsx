@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import SettingsPanel from '../SettingsPanel';
+import { RouteBanner } from '../layout/RouteBanner';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { chooseDirectory } from '../../utils/dialog';
@@ -44,6 +45,7 @@ export function SettingsPage() {
         ) : null}
 
         <div className="crosshook-route-stack__body--fill crosshook-settings-page__body">
+          <RouteBanner route="settings" />
           <div className="crosshook-route-card-host">
             <div className="crosshook-route-card-scroll">
               <SettingsPanel
