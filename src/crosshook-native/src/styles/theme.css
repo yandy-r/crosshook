@@ -1787,6 +1787,83 @@ textarea {
   gap: 10px;
 }
 
+/* ── ProtonUp catalog (Compatibility > Proton tab) ── */
+
+.crosshook-compatibility-subtabs .crosshook-subtabs-root {
+  display: grid;
+  gap: 0;
+}
+
+.crosshook-compatibility-subtabs .crosshook-subtab-content__inner {
+  padding-top: 20px;
+}
+
+.crosshook-protonup-catalog {
+  display: grid;
+  gap: 12px;
+}
+
+.crosshook-protonup-catalog__list {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 360px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.crosshook-protonup-catalog__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--crosshook-color-border);
+}
+
+.crosshook-protonup-catalog__item:last-child {
+  border-bottom: none;
+}
+
+.crosshook-protonup-catalog__item-info {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.crosshook-protonup-catalog__item-name {
+  color: var(--crosshook-color-text);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.crosshook-protonup-catalog__item-size {
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.crosshook-protonup-catalog__result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crosshook-protonup-catalog__installed-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.crosshook-protonup-catalog__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
 .crosshook-install-shell {
   display: flex;
   flex-direction: column;

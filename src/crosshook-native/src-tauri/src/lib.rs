@@ -319,6 +319,10 @@ pub fn run() {
             commands::discovery::discovery_list_external_sources,
             commands::discovery::discovery_add_external_source,
             commands::discovery::discovery_remove_external_source,
+            // ProtonUp integration
+            commands::protonup::protonup_list_available_versions,
+            commands::protonup::protonup_install_version,
+            commands::protonup::protonup_get_suggestion,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");
