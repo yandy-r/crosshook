@@ -3824,9 +3824,9 @@ textarea {
   gap: 14px;
   padding: 18px;
   border-radius: 16px;
-  border: 1px solid rgba(120, 145, 177, 0.2);
-  background: rgba(13, 20, 31, 0.92);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--crosshook-color-border);
+  background: color-mix(in srgb, var(--crosshook-color-surface-strong) 92%, transparent);
+  box-shadow: var(--crosshook-shadow-strong);
 }
 
 .crosshook-onboarding-wizard__review-list {
@@ -3854,7 +3854,7 @@ textarea {
 }
 
 .crosshook-onboarding-wizard__review-label {
-  color: #d7def0;
+  color: var(--crosshook-color-text);
 }
 
 .crosshook-onboarding-wizard__required-badge {

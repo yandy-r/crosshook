@@ -67,10 +67,8 @@ export function evaluateWizardRequiredFields(
     {
       id: 'runner-method',
       label: 'Runner method',
-      isSatisfied:
-        launchMethod === 'steam_applaunch' ||
-        launchMethod === 'proton_run' ||
-        launchMethod === 'native',
+      // runner-method: `launchMethod` is `ResolvedLaunchMethod` (never ''), so a method is always chosen once the profile is loaded.
+      isSatisfied: true,
     },
   ];
 

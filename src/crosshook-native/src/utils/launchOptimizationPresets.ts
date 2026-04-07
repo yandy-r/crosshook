@@ -23,5 +23,6 @@ export function extractBundledOptimizationPresetId(key: string): string | null {
   if (!isBundledOptimizationPresetKey(key)) {
     return null;
   }
-  return key.slice(BUNDLED_PRESET_KEY_PREFIX.length);
+  const id = key.slice(BUNDLED_PRESET_KEY_PREFIX.length).trim();
+  return id.length === 0 ? null : id;
 }

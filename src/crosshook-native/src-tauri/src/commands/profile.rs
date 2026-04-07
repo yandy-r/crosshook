@@ -297,8 +297,11 @@ pub fn profile_save(
         let app_settings = settings_store.load().map_err(|e| e.to_string())?;
         apply_profile_creation_defaults_from_settings(&mut data, &app_settings);
 
+        // Only apply the app-settings default bundled preset when the incoming
+        // draft has not already selected one — otherwise an explicit wizard
+        // selection would be silently clobbered by the user's default.
         let pid = app_settings.default_bundled_optimization_preset_id.trim();
-        if !pid.is_empty() && metadata_store.is_available() {
+        if !pid.is_empty() && metadata_store.is_available() && data.launch.active_preset.trim().is_empty() {
             match metadata_store.get_bundled_optimization_preset(pid) {
                 Ok(Some(row)) => {
                     let enabled_option_ids: Vec<String> =

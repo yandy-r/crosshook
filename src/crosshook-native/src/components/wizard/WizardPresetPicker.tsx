@@ -12,9 +12,6 @@ export interface WizardPresetPickerProps {
   savedPresetNames: readonly string[];
   activePresetKey: string;
   busy: boolean;
-  /** When true, the picker is disabled with an explanatory hint (e.g. create
-   * mode, where the profile is not yet persisted so preset apply IPCs no-op). */
-  unavailableReason?: string;
   onApplyBundled: (presetId: string) => Promise<void>;
   onSelectSaved: (presetName: string) => Promise<void>;
 }
@@ -22,17 +19,17 @@ export interface WizardPresetPickerProps {
 /**
  * Slim launch preset picker for the Review step of the onboarding wizard.
  *
- * Exposes a single `ThemedSelect` grouped into `Built-in` and `Saved` sections,
- * dispatching the corresponding IPC through the caller-supplied handlers. This
- * mirrors the preset row pattern in `LaunchOptimizationsPanel.tsx` without any
- * of the per-option toggles — "choose/apply preset", not the full panel.
+ * Exposes a single grouped `ThemedSelect` (Built-in + Saved) that dispatches
+ * to caller-supplied handlers. The caller decides whether to apply the preset
+ * via IPC (edit mode, where the profile is already persisted) or against the
+ * in-memory draft (create mode, where `persistProfileDraft` will handle it on
+ * save). This component is pure: no IPC, no side effects of its own.
  */
 export function WizardPresetPicker({
   bundledPresets,
   savedPresetNames,
   activePresetKey,
   busy,
-  unavailableReason,
   onApplyBundled,
   onSelectSaved,
 }: WizardPresetPickerProps) {
@@ -67,7 +64,7 @@ export function WizardPresetPicker({
 
   const handleChange = useCallback(
     (value: string) => {
-      if (busy || unavailableReason) return;
+      if (busy) return;
 
       if (value.startsWith(BUNDLED_PRESET_KEY_PREFIX)) {
         const presetId = value.slice(BUNDLED_PRESET_KEY_PREFIX.length);
@@ -79,11 +76,11 @@ export function WizardPresetPicker({
       }
       void onSelectSaved(value);
     },
-    [busy, unavailableReason, bundledPresets, onApplyBundled, onSelectSaved]
+    [busy, bundledPresets, onApplyBundled, onSelectSaved]
   );
 
   const hasAnyPreset = groups.length > 0;
-  const disabled = busy || !hasAnyPreset || Boolean(unavailableReason);
+  const disabled = busy || !hasAnyPreset;
 
   const activeValue = useMemo(() => {
     const active = activePresetKey.trim();
@@ -95,11 +92,9 @@ export function WizardPresetPicker({
     return inBundled || inSaved ? active : '';
   }, [activePresetKey, bundledPresets, savedOptions]);
 
-  const helpText = unavailableReason
-    ? unavailableReason
-    : hasAnyPreset
-      ? 'Optional. Apply a built-in or saved launch optimization preset before saving the profile. You can change this later from the Launch page.'
-      : 'No launch optimization presets are available. You can configure presets later from the Launch page.';
+  const helpText = hasAnyPreset
+    ? 'Optional. Apply a built-in or saved launch optimization preset before saving. You can change this later from the Launch page.'
+    : 'No launch optimization presets are available. You can configure presets later from the Launch page.';
 
   return (
     <div className="crosshook-install-section">
@@ -108,23 +103,14 @@ export function WizardPresetPicker({
         <label className="crosshook-label" htmlFor={selectId}>
           Preset
         </label>
-        {disabled ? (
-          <ThemedSelect
-            id={selectId}
-            value={activeValue}
-            onValueChange={() => {}}
-            options={[]}
-            ariaLabelledby={helpId}
-          />
-        ) : (
-          <ThemedSelect
-            id={selectId}
-            value={activeValue}
-            onValueChange={handleChange}
-            groups={groups}
-            ariaLabelledby={helpId}
-          />
-        )}
+        <ThemedSelect
+          id={selectId}
+          value={activeValue}
+          onValueChange={disabled ? () => {} : handleChange}
+          groups={groups}
+          disabled={disabled}
+          ariaLabelledby={helpId}
+        />
         <p id={helpId} className="crosshook-help-text">
           {helpText}
         </p>

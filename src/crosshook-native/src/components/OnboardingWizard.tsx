@@ -1,5 +1,14 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react';
 
 import { invoke } from '@tauri-apps/api/core';
 import { ControllerPrompts } from './layout/ControllerPrompts';
@@ -17,6 +26,7 @@ import { useOnboarding } from '../hooks/useOnboarding';
 import { useProfileContext } from '../context/ProfileContext';
 import { usePreferencesContext } from '../context/PreferencesContext';
 import { resolveLaunchMethod } from '../utils/launch';
+import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
 import type { OnboardingWizardStage } from '../types/onboarding';
 import type { ProtonInstallOption } from '../types/proton';
 import type { ResolvedLaunchMethod } from '../types';
@@ -244,6 +254,64 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     [profileName, profile, launchMethod]
   );
 
+  // In create mode, the draft profile has not been persisted yet, so the
+  // backend preset IPCs (applyBundledOptimizationPreset /
+  // switchLaunchOptimizationPreset) refuse to run because
+  // hasExistingSavedProfile === false. We instead mutate the draft profile
+  // in-memory and let persistProfileDraft persist the optimizations, the
+  // [launch.presets.<key>] entry, and the active_preset in one transaction.
+  // Edit mode keeps the IPC-based path so config-revision capture and preset
+  // metadata origin tracking continue to run server-side.
+  const applyBundledPresetToDraft = useCallback(
+    async (presetId: string): Promise<void> => {
+      const preset = bundledOptimizationPresets.find((candidate) => candidate.preset_id === presetId);
+      if (!preset) return;
+      const key = bundledOptimizationTomlKey(preset.preset_id);
+      updateProfile((current) => ({
+        ...current,
+        launch: {
+          ...current.launch,
+          optimizations: {
+            ...current.launch.optimizations,
+            enabled_option_ids: [...preset.enabled_option_ids],
+          },
+          presets: {
+            ...(current.launch.presets ?? {}),
+            [key]: {
+              enabled_option_ids: [...preset.enabled_option_ids],
+            },
+          },
+          active_preset: key,
+        },
+      }));
+    },
+    [bundledOptimizationPresets, updateProfile]
+  );
+
+  const applySavedPresetToDraft = useCallback(
+    async (presetName: string): Promise<void> => {
+      const trimmed = presetName.trim();
+      if (trimmed.length === 0) return;
+      const target = profile.launch.presets?.[trimmed];
+      if (!target) return;
+      updateProfile((current) => ({
+        ...current,
+        launch: {
+          ...current.launch,
+          optimizations: {
+            ...current.launch.optimizations,
+            enabled_option_ids: [...(target.enabled_option_ids ?? [])],
+          },
+          active_preset: trimmed,
+        },
+      }));
+    },
+    [profile.launch.presets, updateProfile]
+  );
+
+  const onApplyBundledPreset = mode === 'edit' ? applyBundledOptimizationPreset : applyBundledPresetToDraft;
+  const onSelectSavedPreset = mode === 'edit' ? switchLaunchOptimizationPreset : applySavedPresetToDraft;
+
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape') {
       event.stopPropagation();
@@ -317,9 +385,13 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
   const totalVisibleSteps = getTotalVisibleSteps(launchMethod);
   const title = STAGE_TITLES[stage];
   const eyebrow = isCompleted ? 'Complete' : `Step ${visibleStep} of ${totalVisibleSteps}`;
-  const confirmLabel = isReview ? 'Save Profile' : isCompleted ? 'Done' : 'Next';
-  const presetPickerUnavailableReason =
-    mode === 'create' ? 'Save the profile first — presets can be applied from the Launch page.' : undefined;
+  const confirmLabel = isCompleted
+    ? 'Done'
+    : isReview
+      ? saving
+        ? 'Saving...'
+        : 'Save Profile'
+      : 'Next';
   const saveDescribedBy = !validation.isReady && validation.firstMissingId !== null
     ? `wizard-review-field-${validation.firstMissingId}`
     : undefined;
@@ -417,10 +489,9 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 bundledPresets={bundledOptimizationPresets}
                 savedPresetNames={Object.keys(profile.launch.presets ?? {})}
                 activePresetKey={profile.launch.active_preset ?? ''}
-                busy={optimizationPresetActionBusy}
-                unavailableReason={presetPickerUnavailableReason}
-                onApplyBundled={applyBundledOptimizationPreset}
-                onSelectSaved={switchLaunchOptimizationPreset}
+                busy={mode === 'edit' ? optimizationPresetActionBusy : false}
+                onApplyBundled={onApplyBundledPreset}
+                onSelectSaved={onSelectSavedPreset}
               />
               <CustomEnvironmentVariablesSection
                 profileName={profileName}
@@ -481,7 +552,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                   style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
                   onClick={handleNext}
                 >
-                  Next
+                  {confirmLabel}
                 </button>
               )}
 
@@ -495,7 +566,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                   aria-describedby={saveDescribedBy}
                   onClick={() => void handleComplete()}
                 >
-                  {saving ? 'Saving...' : 'Save Profile'}
+                  {confirmLabel}
                 </button>
               )}
 
@@ -507,7 +578,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                   style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
                   onClick={onComplete}
                 >
-                  Done
+                  {confirmLabel}
                 </button>
               )}
             </div>

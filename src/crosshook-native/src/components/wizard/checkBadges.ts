@@ -11,6 +11,8 @@ export function resolveCheckIcon(severity: HealthIssueSeverity): string {
       return '\u2717'; // ✗
     case 'warning':
       return '\u26A0'; // ⚠
+    case 'info':
+      return '\u2139'; // ℹ
     default:
       return '\u2713'; // ✓
   }
@@ -27,6 +29,8 @@ export function resolveCheckColor(severity: HealthIssueSeverity): string {
       return 'var(--crosshook-color-danger)';
     case 'warning':
       return 'var(--crosshook-color-warning)';
+    case 'info':
+      return 'var(--crosshook-color-info)';
     default:
       return 'var(--crosshook-color-success)';
   }
