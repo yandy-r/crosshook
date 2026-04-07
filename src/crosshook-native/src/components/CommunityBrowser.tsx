@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open } from '@/lib/plugin-stubs/dialog';
 import {
   deriveCommunityImportProfileName,
   type CommunityImportPreview,

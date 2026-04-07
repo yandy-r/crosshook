@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
-import { listen } from '@tauri-apps/api/event';
+import { subscribeEvent } from '@/lib/events';
 
 import ContentArea from './components/layout/ContentArea';
 import ControllerPrompts from './components/layout/ControllerPrompts';
 import ConsoleDrawer from './components/layout/ConsoleDrawer';
 import Sidebar, { type AppRoute } from './components/layout/Sidebar';
 import { OnboardingWizard } from './components/OnboardingWizard';
+import { DevModeBanner } from '@/lib/DevModeBanner';
 import type { OnboardingCheckPayload } from './types/onboarding';
 import { LaunchStateProvider } from './context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from './context/PreferencesContext';
@@ -64,7 +65,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    const p = listen<OnboardingCheckPayload>('onboarding-check', (event) => {
+    const p = subscribeEvent<OnboardingCheckPayload>('onboarding-check', (event) => {
       if (event.payload.show && !event.payload.has_profiles) setShowOnboarding(true);
     });
     return () => {
@@ -144,7 +145,11 @@ export function App() {
   useScrollEnhance();
 
   return (
-    <main ref={gamepadNav.rootRef} className="crosshook-app crosshook-focus-scope">
+    <main
+      ref={gamepadNav.rootRef}
+      className={`crosshook-app crosshook-focus-scope${__WEB_DEV_MODE__ ? ' crosshook-app--webdev' : ''}`}
+    >
+      {__WEB_DEV_MODE__ && <DevModeBanner />}
       <ProfileProvider>
         <ProfileHealthProvider>
           <AppShell controllerMode={gamepadNav.controllerMode} />

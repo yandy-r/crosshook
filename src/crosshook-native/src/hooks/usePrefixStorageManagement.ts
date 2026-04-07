@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 import type {
   PrefixCleanupResult,
@@ -48,7 +48,7 @@ export function usePrefixStorageManagement(): PrefixStorageManagementState {
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const response = await invoke<PrefixStorageHistoryResponse>('get_prefix_storage_history');
+      const response = await callCommand<PrefixStorageHistoryResponse>('get_prefix_storage_history');
       setPersistenceAvailable(response.available);
       setSnapshots(response.snapshots);
       setAuditEntries(response.audit);
@@ -65,7 +65,7 @@ export function usePrefixStorageManagement(): PrefixStorageManagementState {
     setScanLoading(true);
     setError(null);
     try {
-      const result = await invoke<PrefixStorageScanResult>('scan_prefix_storage');
+      const result = await callCommand<PrefixStorageScanResult>('scan_prefix_storage');
       setScanResult(result);
       setScanSource('live');
       // Refresh history after scan to pick up newly persisted snapshots
@@ -82,7 +82,7 @@ export function usePrefixStorageManagement(): PrefixStorageManagementState {
     setCleanupLoading(true);
     setError(null);
     try {
-      const result = await invoke<PrefixCleanupResult>('cleanup_prefix_storage', { targets });
+      const result = await callCommand<PrefixCleanupResult>('cleanup_prefix_storage', { targets });
       // Refresh history after cleanup to pick up newly persisted audit rows
       loadHistory().catch(() => {});
       return result;

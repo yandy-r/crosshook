@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import type { GameProfile, GamescopeConfig, LaunchMethod, LauncherDeleteResult, LauncherInfo, TrainerLoadingMode } from '../types';
 import { LauncherPreviewModal } from './LauncherPreviewModal';
 
@@ -152,7 +152,7 @@ export function LauncherExport({
 
   const refreshLauncherStatus = useCallback(async () => {
     try {
-      const info = await invoke<LauncherInfo>('check_launcher_exists', { request });
+      const info = await callCommand<LauncherInfo>('check_launcher_exists', { request });
       setLauncherStatus(info);
     } catch (error) {
       console.error('Failed to refresh launcher status.', error);
@@ -184,8 +184,8 @@ export function LauncherExport({
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          await invoke<void>('validate_launcher_export', { request });
-          await invoke<SteamExternalLauncherExportResult>('export_launchers', { request });
+          await callCommand<void>('validate_launcher_export', { request });
+          await callCommand<SteamExternalLauncherExportResult>('export_launchers', { request });
           void refreshLauncherStatus();
         } catch {
           // Silent — user can manually re-export if auto-export fails
@@ -271,8 +271,8 @@ export function LauncherExport({
     setResult(null);
 
     try {
-      await invoke<void>('validate_launcher_export', { request });
-      const exported = await invoke<SteamExternalLauncherExportResult>('export_launchers', { request });
+      await callCommand<void>('validate_launcher_export', { request });
+      const exported = await callCommand<SteamExternalLauncherExportResult>('export_launchers', { request });
       setResult(exported);
       setStatusMessage('Launcher export completed.');
       void refreshLauncherStatus();
@@ -315,8 +315,8 @@ export function LauncherExport({
     setErrorMessage(null);
     try {
       const [script, desktop] = await Promise.all([
-        invoke<string>('preview_launcher_script', { request }),
-        invoke<string>('preview_launcher_desktop', { request }),
+        callCommand<string>('preview_launcher_script', { request }),
+        callCommand<string>('preview_launcher_desktop', { request }),
       ]);
       setPreviewScriptContent(script);
       setPreviewDesktopContent(desktop);
@@ -333,7 +333,7 @@ export function LauncherExport({
     setStatusMessage(null);
 
     try {
-      const result = await invoke<LauncherDeleteResult>('delete_launcher', {
+      const result = await callCommand<LauncherDeleteResult>('delete_launcher', {
         displayName: profile.steam?.launcher?.display_name || '',
         steamAppId: profile.steam?.app_id || '',
         trainerPath: profile.trainer?.path || '',

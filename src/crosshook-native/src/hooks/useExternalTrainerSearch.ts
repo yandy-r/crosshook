@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 import type { ExternalTrainerSearchResponse } from '../types/discovery';
 
@@ -50,7 +50,7 @@ export function useExternalTrainerSearch(
       setError(null);
 
       try {
-        const result = await invoke<ExternalTrainerSearchResponse>(
+        const result = await callCommand<ExternalTrainerSearchResponse>(
           'discovery_search_external',
           {
             query: {

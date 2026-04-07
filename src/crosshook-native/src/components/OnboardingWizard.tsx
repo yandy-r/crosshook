@@ -10,7 +10,7 @@ import {
   type MouseEvent,
 } from 'react';
 
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { ControllerPrompts } from './layout/ControllerPrompts';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
@@ -161,7 +161,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     let active = true;
     async function loadProtonInstalls() {
       try {
-        const installs = await invoke<ProtonInstallOption[]>('list_proton_installs', {
+        const installs = await callCommand<ProtonInstallOption[]>('list_proton_installs', {
           steamClientInstallPath:
             effectiveSteamClientInstallPath.trim().length > 0 ? effectiveSteamClientInstallPath : undefined,
         });

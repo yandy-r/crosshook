@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
@@ -870,7 +870,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
     setIsVersionScanning(true);
     setVersionScanProgress({ done: 0, total: filteredProfiles.length });
     for (const report of filteredProfiles) {
-      await invoke('check_version_status', { name: report.name }).catch(() => {});
+      await callCommand('check_version_status', { name: report.name }).catch(() => {});
       setVersionScanProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : null));
     }
     setIsVersionScanning(false);

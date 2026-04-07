@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { open as shellOpen } from '@tauri-apps/plugin-shell';
-import { invoke } from '@tauri-apps/api/core';
+import { open as shellOpen } from '@/lib/plugin-stubs/shell';
+import { callCommand } from '@/lib/ipc';
 import { useTrainerDiscovery } from '../hooks/useTrainerDiscovery';
 import { useExternalTrainerSearch } from '../hooks/useExternalTrainerSearch';
 import { usePreferencesContext } from '../context/PreferencesContext';
@@ -245,7 +245,7 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
 
     const profilePath = `${result.tapLocalPath}/${result.relativePath}/community-profile.json`;
     try {
-      await invoke('community_import_profile', { path: profilePath });
+      await callCommand('community_import_profile', { path: profilePath });
       setImportNotice(`Imported profile for ${result.gameName}.`);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : String(err));

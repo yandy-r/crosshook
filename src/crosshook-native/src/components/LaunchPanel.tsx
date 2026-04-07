@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import type {
   PatternMatch,
   EnvVarSource,
@@ -640,7 +640,7 @@ export function LaunchPanel({
     if (verifyBusy) return;
     setVerifyBusy(true);
     try {
-      await invoke('acknowledge_version_change', { name: profileId });
+      await callCommand('acknowledge_version_change', { name: profileId });
       await revalidateSingle(profileId);
     } catch {
       // silently ignore — user can retry

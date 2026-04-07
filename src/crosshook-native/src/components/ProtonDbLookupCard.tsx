@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import { open as openUrl } from '@tauri-apps/plugin-shell';
+import { open as openUrl } from '@/lib/plugin-stubs/shell';
 
 import { useProtonDbLookup } from '../hooks/useProtonDbLookup';
 import type {

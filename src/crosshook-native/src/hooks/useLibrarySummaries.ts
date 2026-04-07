@@ -1,15 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
-import type { LibraryCardData } from '../types/library';
-
-interface ProfileSummary {
-  name: string;
-  gameName: string;
-  steamAppId: string;
-  customCoverArtPath?: string;
-  customPortraitArtPath?: string;
-}
+import type { LibraryCardData, ProfileSummary } from '../types/library';
 
 export interface UseLibrarySummariesResult {
   summaries: LibraryCardData[];
@@ -39,7 +31,7 @@ export function useLibrarySummaries(
 
   const fetchSummaries = useCallback(async () => {
     try {
-      const result = await invoke<ProfileSummary[]>('profile_list_summaries');
+      const result = await callCommand<ProfileSummary[]>('profile_list_summaries');
       const favoriteSet = new Set(favoriteProfilesRef.current);
       setSummaries(
         result.map((s) => ({

@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type RefObject } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { subscribeEvent } from '@/lib/events';
 import type { PanelImperativeHandle } from 'react-resizable-panels';
 
 import ConsoleView from '../ConsoleView';
@@ -71,8 +71,8 @@ export function ConsoleDrawer({ panelRef, defaultCollapsed = true }: ConsoleDraw
       setLineCount((current) => current + nextLineCount);
     };
 
-    const unlistenLaunch = listen<LogPayload>('launch-log', handler);
-    const unlistenUpdate = listen<LogPayload>('update-log', handler);
+    const unlistenLaunch = subscribeEvent<LogPayload>('launch-log', handler);
+    const unlistenUpdate = subscribeEvent<LogPayload>('update-log', handler);
 
     return () => {
       active = false;

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { open as shellOpen } from '@tauri-apps/plugin-shell';
+import { open as shellOpen } from '@/lib/plugin-stubs/shell';
 import type { ExternalTrainerResult, ExternalTrainerSearchResponse } from '../types/discovery';
 
 interface ExternalResultCardProps {

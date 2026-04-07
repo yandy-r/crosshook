@@ -1,4 +1,5 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
+import { convertFileSrc } from '@/lib/plugin-stubs/convertFileSrc';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 function normalizeAppId(appId: string): string {
@@ -40,7 +41,7 @@ export function useGameCoverArt(
     setCoverArtUrl(null);
 
     try {
-      const path = await invoke<string | null>('fetch_game_cover_art', {
+      const path = await callCommand<string | null>('fetch_game_cover_art', {
         appId: normalizedAppId,
         imageType: imageType ?? 'cover',
       });

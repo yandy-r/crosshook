@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { callCommand } from '@/lib/ipc';
+import { subscribeEvent } from '@/lib/events';
 
 import type { SerializedGameProfile } from '../types/profile';
 import { normalizeSerializedGameProfile } from '../types/profile';
@@ -112,13 +112,13 @@ export function useUpdateGame(): UseUpdateGameResult {
     setProfilesError(null);
 
     try {
-      const allNames = await invoke<string[]>('profile_list');
+      const allNames = await callCommand<string[]>('profile_list');
       const protonRunNames: string[] = [];
       let skippedCount = 0;
 
       for (const name of allNames) {
         try {
-          const profile = normalizeSerializedGameProfile(await invoke<SerializedGameProfile>('profile_load', { name }));
+          const profile = normalizeSerializedGameProfile(await callCommand<SerializedGameProfile>('profile_load', { name }));
           if (profile.launch.method === 'proton_run') {
             protonRunNames.push(name);
           }
@@ -145,7 +145,7 @@ export function useUpdateGame(): UseUpdateGameResult {
 
   const populateFromProfile = useCallback(async (name: string) => {
     try {
-      const profile = normalizeSerializedGameProfile(await invoke<SerializedGameProfile>('profile_load', { name }));
+      const profile = normalizeSerializedGameProfile(await callCommand<SerializedGameProfile>('profile_load', { name }));
 
       setRequest((current) => ({
         ...current,
@@ -197,7 +197,7 @@ export function useUpdateGame(): UseUpdateGameResult {
     setStage('preparing');
 
     try {
-      await invoke<void>('validate_update_request', { request });
+      await callCommand<void>('validate_update_request', { request });
     } catch (invokeError) {
       const message = normalizeErrorMessage(invokeError);
       const validationField = mapValidationErrorToField(message);
@@ -229,7 +229,7 @@ export function useUpdateGame(): UseUpdateGameResult {
     try {
       // Subscribe to the completion event BEFORE invoking the command
       // to avoid a race where the process exits before the listener exists.
-      const unlisten = await listen<number | null>('update-complete', (event) => {
+      const unlisten = await subscribeEvent<number | null>('update-complete', (event) => {
         completedBeforeInvoke = true;
         const exitCode = event.payload;
 
@@ -248,7 +248,7 @@ export function useUpdateGame(): UseUpdateGameResult {
       });
       unlistenRef.current = unlisten;
 
-      const updateResult = await invoke<UpdateGameResult>('update_game', { request });
+      const updateResult = await callCommand<UpdateGameResult>('update_game', { request });
       setResult(updateResult);
 
       // Only transition to 'running_updater' if the process hasn't already exited.
@@ -265,7 +265,7 @@ export function useUpdateGame(): UseUpdateGameResult {
 
   const cancelUpdate = useCallback(async () => {
     try {
-      await invoke<void>('cancel_update');
+      await callCommand<void>('cancel_update');
     } catch {
       // Best-effort cancellation
     }

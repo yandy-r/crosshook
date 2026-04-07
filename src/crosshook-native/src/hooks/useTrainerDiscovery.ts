@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 import type { TrainerSearchResponse } from '../types/discovery';
 
@@ -40,7 +40,7 @@ export function useTrainerDiscovery(
       setError(null);
 
       try {
-        const response = await invoke<TrainerSearchResponse>('discovery_search_trainers', {
+        const response = await callCommand<TrainerSearchResponse>('discovery_search_trainers', {
           query: {
             query: trimmed,
             limit: options?.limit,

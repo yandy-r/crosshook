@@ -7,7 +7,7 @@
  * Listens for `auto-load-profile` events emitted by the Tauri backend at startup.
  */
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { subscribeEvent } from '@/lib/events';
 
 import { useProfile, type UseProfileResult } from '../hooks/useProfile';
 import { deriveSteamClientInstallPath, deriveTargetHomePath } from '../utils/steam';
@@ -33,7 +33,7 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
 
   useEffect(() => {
     let active = true;
-    const unlistenPromise = listen<string>('auto-load-profile', (event) => {
+    const unlistenPromise = subscribeEvent<string>('auto-load-profile', (event) => {
       if (!active) {
         return;
       }

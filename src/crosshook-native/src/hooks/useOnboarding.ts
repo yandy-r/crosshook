@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { useCallback, useState } from 'react';
 
 import type { OnboardingWizardStage, ReadinessCheckResult } from '../types/onboarding';
@@ -113,7 +113,7 @@ export function useOnboarding(): UseOnboardingResult {
 
   const runChecks = useCallback(async () => {
     try {
-      const result = await invoke<ReadinessCheckResult>('check_readiness');
+      const result = await callCommand<ReadinessCheckResult>('check_readiness');
       setReadinessResult(result);
       setCheckError(null);
     } catch (error) {
@@ -149,14 +149,14 @@ export function useOnboarding(): UseOnboardingResult {
   }, []);
 
   const dismiss = useCallback(async () => {
-    await invoke<void>('dismiss_onboarding');
+    await callCommand<void>('dismiss_onboarding');
     setStage('completed');
     // Best-effort: trigger a health check so the new profile gets a health_snapshots
     // row in the Health Dashboard from day one. Ignored if MetadataStore is disabled.
-    invoke('batch_validate_profiles').catch(() => {});
+    callCommand('batch_validate_profiles').catch(() => {});
     // Version snapshot is recorded on first launch, not here
     if (lastCreatedProfileName) {
-      invoke<VersionCheckResult>('check_version_status', { name: lastCreatedProfileName })
+      callCommand<VersionCheckResult>('check_version_status', { name: lastCreatedProfileName })
         .then(setVersionResult)
         .catch(() => {});
     }

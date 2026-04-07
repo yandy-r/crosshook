@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { callCommand } from '@/lib/ipc';
+import { subscribeEvent } from '@/lib/events';
 import type { AppSettingsData, GameProfile } from '../types';
 import { toSettingsSaveRequest } from '../types/settings';
 
@@ -225,19 +225,19 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
   }, []);
 
   const saveSettingsTaps = useCallback(async (nextTaps: CommunityTapSubscription[]) => {
-    const settings = await invoke<AppSettingsData>('settings_load');
-    await invoke('settings_save', {
+    const settings = await callCommand<AppSettingsData>('settings_load');
+    await callCommand('settings_save', {
       data: toSettingsSaveRequest({ ...settings, community_taps: nextTaps }),
     });
   }, []);
 
   const refreshProfiles = useCallback(async () => {
-    const response = await invoke<CommunityProfileIndex>('community_list_profiles');
+    const response = await callCommand<CommunityProfileIndex>('community_list_profiles');
     setIndex(response);
   }, []);
 
   const refreshImportedProfileNames = useCallback(async () => {
-    const names = await invoke<string[]>('profile_list');
+    const names = await callCommand<string[]>('profile_list');
     setImportedProfileNames(new Set(names.map((name) => sanitizeProfileName(name)).filter((name) => name.length > 0)));
   }, []);
 
@@ -246,7 +246,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     setError(null);
 
     try {
-      const results = await invoke<CommunityTapSyncResult[]>('community_sync');
+      const results = await callCommand<CommunityTapSyncResult[]>('community_sync');
       setLastTapSyncResults(results);
       setLastSyncedCommits((previous) => {
         const next = { ...previous };
@@ -270,7 +270,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
       const normalized = normalizeTap(tap);
 
       try {
-        const response = await invoke<CommunityTapSubscription[]>('community_add_tap', {
+        const response = await callCommand<CommunityTapSubscription[]>('community_add_tap', {
           tap: normalized,
         });
         const updatedTaps = persistTaps(response);
@@ -352,7 +352,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     setError(null);
 
     try {
-      return await invoke<CommunityImportPreview>('community_prepare_import', {
+      return await callCommand<CommunityImportPreview>('community_prepare_import', {
         path: jsonPath,
       });
     } catch (importError) {
@@ -369,7 +369,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
       setError(null);
 
       try {
-        await invoke('profile_save', {
+        await callCommand('profile_save', {
           name,
           data: profile,
         });
@@ -389,7 +389,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
 
     async function loadInitialState() {
       try {
-        const settings = await invoke<AppSettingsData>('settings_load');
+        const settings = await callCommand<AppSettingsData>('settings_load');
         if (!active) {
           return;
         }
@@ -422,7 +422,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
 
   useEffect(() => {
     let active = true;
-    const unlistenPromise = listen<string>('profiles-changed', () => {
+    const unlistenPromise = subscribeEvent<string>('profiles-changed', () => {
       if (!active) {
         return;
       }
