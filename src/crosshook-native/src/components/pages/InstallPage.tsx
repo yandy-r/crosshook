@@ -3,6 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 
 import InstallGamePanel from '../InstallGamePanel';
 import ProfileFormSections from '../ProfileFormSections';
+import RunExecutablePanel from '../RunExecutablePanel';
 import UpdateGamePanel from '../UpdateGamePanel';
 import ProfileReviewModal, { type ProfileReviewModalConfirmation } from '../ProfileReviewModal';
 import { usePreferencesContext } from '../../context/PreferencesContext';
@@ -15,7 +16,7 @@ import { profilesEqual } from '../../utils/profile-compare';
 import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
 
-type InstallPageTab = 'install' | 'update';
+type InstallPageTab = 'install' | 'update' | 'run_executable';
 
 type ReviewConfirmationState = ProfileReviewModalConfirmation & {
   restoreIsOpen: boolean;
@@ -342,6 +343,9 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
                 <Tabs.Trigger value="update" className="crosshook-subtab">
                   Update Game
                 </Tabs.Trigger>
+                <Tabs.Trigger value="run_executable" className="crosshook-subtab">
+                  Run EXE/MSI
+                </Tabs.Trigger>
               </Tabs.List>
 
               <Tabs.Content
@@ -366,6 +370,20 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
               >
                 <div className="crosshook-subtab-content__inner crosshook-install-page-tabs__panel-inner">
                   <UpdateGamePanel protonInstalls={protonInstalls} protonInstallsError={protonInstallsError} />
+                </div>
+              </Tabs.Content>
+
+              <Tabs.Content
+                value="run_executable"
+                forceMount
+                className="crosshook-subtab-content crosshook-install-page-tabs__content"
+                style={{ display: installPageTab === 'run_executable' ? undefined : 'none' }}
+              >
+                <div className="crosshook-subtab-content__inner crosshook-install-page-tabs__panel-inner">
+                  <RunExecutablePanel
+                    protonInstalls={protonInstalls}
+                    protonInstallsError={protonInstallsError}
+                  />
                 </div>
               </Tabs.Content>
             </Tabs.Root>
