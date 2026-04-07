@@ -33,7 +33,7 @@ export function evaluateInstallRequiredFields(
   const withInstaller: WizardValidationResult['fields'] = [
     ...fields,
     {
-      id: 'installer_path',
+      id: 'installer-path',
       label: 'Installer EXE',
       isSatisfied: installerSatisfied,
     },

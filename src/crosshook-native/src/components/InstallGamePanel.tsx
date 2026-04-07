@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import { InstallField } from './ui/InstallField';
 import { InstallReviewSummary } from './install/InstallReviewSummary';
+import { prefixStateLabel } from './install/installLabels';
 import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
 import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
 import { RuntimeSection } from './profile-sections/RuntimeSection';
@@ -33,18 +34,28 @@ function isInstallFlowTabId(value: string): value is InstallFlowTabId {
   return Object.prototype.hasOwnProperty.call(INSTALL_FLOW_TAB_LABELS, value);
 }
 
-function prefixStateLabel(state: import('../types/install').InstallGamePrefixPathState): string {
-  switch (state) {
-    case 'loading':
-      return 'Resolving default prefix...';
-    case 'ready':
-      return 'Default prefix resolved';
-    case 'failed':
-      return 'Default prefix unavailable';
-    case 'idle':
-    default:
-      return 'Awaiting profile name';
-  }
+function InstallFlowTabContent({
+  value,
+  activeTab,
+  tabLabel,
+  children,
+}: {
+  value: InstallFlowTabId;
+  activeTab: InstallFlowTabId;
+  tabLabel: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tabs.Content
+      value={value}
+      forceMount
+      className="crosshook-subtab-content"
+      style={{ display: activeTab === value ? undefined : 'none' }}
+      aria-label={tabLabel}
+    >
+      {children}
+    </Tabs.Content>
+  );
 }
 
 export interface InstallGamePanelProps {
@@ -82,6 +93,17 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
   const { bundledOptimizationPresets } = useProfileContext();
   const { installs: protonInstalls, error: protonInstallsError } = useProtonInstalls();
 
+  useLayoutEffect(() => {
+    if (draftProfile.launch.method !== 'native') {
+      return;
+    }
+    updateDraftProfile((current) => ({
+      ...current,
+      launch: { ...current.launch, method: 'proton_run' },
+      steam: { ...current.steam, enabled: false },
+    }));
+  }, [draftProfile.launch.method, updateDraftProfile]);
+
   const launchMethod = resolveLaunchMethod(draftProfile);
   const installFlowTabs = useMemo(() => {
     const all: InstallFlowTabId[] = ['identity', 'runtime', 'trainer', 'media', 'installer_review'];
@@ -115,6 +137,14 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
       }),
     [profileName, draftProfile, launchMethod, installerInputs.installer_path]
   );
+
+  const firstMissingField = useMemo(() => {
+    const id = installValidation.firstMissingId;
+    if (!id) {
+      return null;
+    }
+    return installValidation.fields.find((field) => field.id === id) ?? null;
+  }, [installValidation]);
 
   const applyBundledPresetToDraft = useCallback(
     async (presetId: string): Promise<void> => {
@@ -210,9 +240,6 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
     openReviewPayload('install-complete');
   }, [openReviewPayload, reviewableInstallResult, reviewProfile]);
 
-  const skipTrainerClass =
-    launchMethod === 'native' ? ' crosshook-install-flow-tabs--skip-trainer' : '';
-
   return (
     <section className="crosshook-install-shell" aria-labelledby="install-game-heading">
       <div className="crosshook-install-shell__content">
@@ -228,7 +255,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
         </div>
 
         <Tabs.Root
-          className={`crosshook-install-flow-tabs${skipTrainerClass}`}
+          className="crosshook-install-flow-tabs"
           value={activeInstallTab}
           onValueChange={(value) => setActiveInstallTab(isInstallFlowTabId(value) ? value : 'identity')}
         >
@@ -244,13 +271,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
             ))}
           </Tabs.List>
 
-          <Tabs.Content
-            value="identity"
-            forceMount
-            className="crosshook-subtab-content"
-            style={{ display: activeInstallTab === 'identity' ? undefined : 'none' }}
-            aria-label={INSTALL_FLOW_TAB_LABELS.identity}
-          >
+          <InstallFlowTabContent value="identity" activeTab={activeInstallTab} tabLabel={INSTALL_FLOW_TAB_LABELS.identity}>
             <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
               <ProfileIdentitySection
                 profileName={profileName}
@@ -258,17 +279,11 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
                 onProfileNameChange={setProfileName}
                 onUpdateProfile={updateDraftProfile}
               />
-              <RunnerMethodSection profile={draftProfile} onUpdateProfile={updateDraftProfile} />
+              <RunnerMethodSection profile={draftProfile} onUpdateProfile={updateDraftProfile} hideNative />
             </div>
-          </Tabs.Content>
+          </InstallFlowTabContent>
 
-          <Tabs.Content
-            value="runtime"
-            forceMount
-            className="crosshook-subtab-content"
-            style={{ display: activeInstallTab === 'runtime' ? undefined : 'none' }}
-            aria-label={INSTALL_FLOW_TAB_LABELS.runtime}
-          >
+          <InstallFlowTabContent value="runtime" activeTab={activeInstallTab} tabLabel={INSTALL_FLOW_TAB_LABELS.runtime}>
             <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
               <RuntimeSection
                 profile={draftProfile}
@@ -283,16 +298,10 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
                 {defaultPrefixPathError ? ` ${defaultPrefixPathError}` : null}
               </p>
             </div>
-          </Tabs.Content>
+          </InstallFlowTabContent>
 
           {launchMethod !== 'native' ? (
-            <Tabs.Content
-              value="trainer"
-              forceMount
-              className="crosshook-subtab-content"
-              style={{ display: activeInstallTab === 'trainer' ? undefined : 'none' }}
-              aria-label={INSTALL_FLOW_TAB_LABELS.trainer}
-            >
+            <InstallFlowTabContent value="trainer" activeTab={activeInstallTab} tabLabel={INSTALL_FLOW_TAB_LABELS.trainer}>
               <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
                 <TrainerSection
                   profile={draftProfile}
@@ -302,27 +311,19 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
                   profileExists={false}
                 />
               </div>
-            </Tabs.Content>
+            </InstallFlowTabContent>
           ) : null}
 
-          <Tabs.Content
-            value="media"
-            forceMount
-            className="crosshook-subtab-content"
-            style={{ display: activeInstallTab === 'media' ? undefined : 'none' }}
-            aria-label={INSTALL_FLOW_TAB_LABELS.media}
-          >
+          <InstallFlowTabContent value="media" activeTab={activeInstallTab} tabLabel={INSTALL_FLOW_TAB_LABELS.media}>
             <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
               <MediaSection profile={draftProfile} onUpdateProfile={updateDraftProfile} launchMethod={launchMethod} />
             </div>
-          </Tabs.Content>
+          </InstallFlowTabContent>
 
-          <Tabs.Content
+          <InstallFlowTabContent
             value="installer_review"
-            forceMount
-            className="crosshook-subtab-content"
-            style={{ display: activeInstallTab === 'installer_review' ? undefined : 'none' }}
-            aria-label={INSTALL_FLOW_TAB_LABELS.installer_review}
+            activeTab={activeInstallTab}
+            tabLabel={INSTALL_FLOW_TAB_LABELS.installer_review}
           >
             <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
               <div className="crosshook-install-section">
@@ -376,7 +377,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
                 validation={installValidation}
               />
             </div>
-          </Tabs.Content>
+          </InstallFlowTabContent>
         </Tabs.Root>
       </div>
 
@@ -431,8 +432,8 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
           ) : null}
           {!installValidation.isReady ? (
             <span id={installRequiredHintId} className="crosshook-help-text">
-              {installValidation.firstMissingId
-                ? `Complete required fields (first missing: ${installValidation.firstMissingId}).`
+              {firstMissingField
+                ? `Complete required fields (first missing: ${firstMissingField.label}).`
                 : 'Complete required fields before installing.'}
             </span>
           ) : null}

@@ -6,6 +6,7 @@ import type {
   InstallGamePrefixPathState,
   InstallGameStage,
 } from '../../types/install';
+import { prefixStateLabel } from './installLabels';
 
 export interface InstallationStatus {
   stage: InstallGameStage;
@@ -47,20 +48,6 @@ function stageLabel(stage: InstallGameStage): string {
   }
 }
 
-function prefixStateLabel(state: InstallGamePrefixPathState): string {
-  switch (state) {
-    case 'loading':
-      return 'Resolving default prefix...';
-    case 'ready':
-      return 'Default prefix resolved';
-    case 'failed':
-      return 'Default prefix unavailable';
-    case 'idle':
-    default:
-      return 'Awaiting profile name';
-  }
-}
-
 function fileNameFromPath(path: string): string {
   const normalized = path.trim().replace(/\\/g, '/');
   const lastSegment = normalized.split('/').pop() ?? '';
@@ -95,11 +82,9 @@ export function InstallReviewSummary({ installation, validation }: InstallReview
       <div className="crosshook-install-status">
         <div>
           <div className="crosshook-install-stage">{stageLabel(stage)}</div>
-          <p className="crosshook-heading-copy" style={{ marginTop: 8 }}>
-            {statusText}
-          </p>
+          <p className="crosshook-heading-copy crosshook-install-review__status-copy">{statusText}</p>
         </div>
-        <div style={{ display: 'grid', gap: 10, justifyItems: 'end' }}>
+        <div className="crosshook-install-review__meta-grid">
           <div className="crosshook-install-pill">{prefixStateLabel(defaultPrefixPathState)}</div>
           <div className="crosshook-install-pill">Candidates: {candidateCount}</div>
         </div>
@@ -130,22 +115,18 @@ export function InstallReviewSummary({ installation, validation }: InstallReview
                 <button
                   key={`${candidate.index}:${candidate.path}`}
                   type="button"
-                  className="crosshook-install-candidate"
+                  className={
+                    isSelected
+                      ? 'crosshook-install-candidate crosshook-install-candidate--selected'
+                      : 'crosshook-install-candidate'
+                  }
                   onClick={() => onSelectCandidate(candidate.path)}
-                  style={{
-                    width: '100%',
-                    appearance: 'none',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    color: isSelected ? 'var(--crosshook-color-text)' : 'var(--crosshook-color-text-muted)',
-                    borderColor: isSelected ? 'rgba(0, 120, 212, 0.45)' : 'rgba(255, 255, 255, 0.06)',
-                  }}
                 >
                   <span>
-                    <strong style={{ color: 'var(--crosshook-color-text)' }}>{candidateLabel(candidate)}</strong>
+                    <strong className="crosshook-install-candidate__title">{candidateLabel(candidate)}</strong>
                     {candidate.is_recommended ? <span className="crosshook-muted"> - suggested</span> : null}
                   </span>
-                  <span style={{ wordBreak: 'break-all' }}>{candidate.path}</span>
+                  <span className="crosshook-install-candidate__path">{candidate.path}</span>
                 </button>
               );
             })}
@@ -159,9 +140,9 @@ export function InstallReviewSummary({ installation, validation }: InstallReview
         )}
 
         {helperLogPath ? (
-          <div className="crosshook-install-candidate" style={{ cursor: 'default', flexDirection: 'column' }}>
+          <div className="crosshook-install-candidate crosshook-install-log-path">
             <span>Installer log path</span>
-            <span style={{ wordBreak: 'break-all', color: 'var(--crosshook-color-text)' }}>{helperLogPath}</span>
+            <span className="crosshook-install-log-path__value">{helperLogPath}</span>
           </div>
         ) : null}
       </div>

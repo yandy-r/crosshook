@@ -603,10 +603,6 @@ textarea {
   row-gap: var(--crosshook-radius-sm);
 }
 
-/* Trainer tab omitted when launch method is native — hook class for future layout tweaks. */
-.crosshook-install-flow-tabs--skip-trainer {
-}
-
 /* Nested install flow: like Profiles — scroll on tab panel; __inner keeps natural height (no grid row stretch). */
 .crosshook-install-flow-tabs {
   display: flex;
@@ -2982,6 +2978,48 @@ textarea {
 
 .crosshook-install-candidate > span {
   min-width: 0;
+}
+
+.crosshook-install-candidate-list .crosshook-install-candidate {
+  width: 100%;
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crosshook-install-candidate--selected {
+  border-color: rgba(0, 120, 212, 0.45);
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-install-candidate__title {
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-install-candidate__path {
+  word-break: break-all;
+}
+
+.crosshook-install-review__meta-grid {
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+}
+
+.crosshook-install-review__status-copy {
+  margin-top: 8px;
+}
+
+.crosshook-install-log-path {
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+}
+
+.crosshook-install-log-path__value {
+  word-break: break-all;
+  color: var(--crosshook-color-text);
 }
 
 .crosshook-launch-panel {
