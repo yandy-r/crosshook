@@ -30,6 +30,8 @@ pub fn validate_install_request(
     validate_installer_path(request.installer_path.trim())?;
     validate_optional_trainer_path(request.trainer_path.trim())?;
     validate_optional_custom_cover_art_path(request.custom_cover_art_path.trim())?;
+    validate_optional_custom_portrait_art_path(request.custom_portrait_art_path.trim())?;
+    validate_optional_custom_background_art_path(request.custom_background_art_path.trim())?;
     validate_proton_path(request.proton_path.trim())?;
     validate_prefix_path(request.prefix_path.trim())?;
     validate_optional_installed_game_executable_path(
@@ -206,6 +208,38 @@ fn validate_optional_custom_cover_art_path(path: &str) -> Result<(), InstallGame
     Ok(())
 }
 
+fn validate_optional_custom_portrait_art_path(path: &str) -> Result<(), InstallGameValidationError> {
+    if path.is_empty() {
+        return Ok(());
+    }
+
+    let path = Path::new(path);
+    if !path.exists() {
+        return Err(InstallGameValidationError::CustomPortraitArtPathMissing);
+    }
+    if !path.is_file() {
+        return Err(InstallGameValidationError::CustomPortraitArtPathNotFile);
+    }
+
+    Ok(())
+}
+
+fn validate_optional_custom_background_art_path(path: &str) -> Result<(), InstallGameValidationError> {
+    if path.is_empty() {
+        return Ok(());
+    }
+
+    let path = Path::new(path);
+    if !path.exists() {
+        return Err(InstallGameValidationError::CustomBackgroundArtPathMissing);
+    }
+    if !path.is_file() {
+        return Err(InstallGameValidationError::CustomBackgroundArtPathNotFile);
+    }
+
+    Ok(())
+}
+
 fn validate_proton_path(path: &str) -> Result<(), InstallGameValidationError> {
     if path.is_empty() {
         return Err(InstallGameValidationError::ProtonPathRequired);
@@ -372,7 +406,13 @@ mod tests {
             proton_path: proton_path.to_string_lossy().into_owned(),
             prefix_path: prefix_path.to_string_lossy().into_owned(),
             installed_game_executable_path: String::new(),
+            launcher_icon_path: String::new(),
             custom_cover_art_path: String::new(),
+            runner_method: String::new(),
+            steam_app_id: String::new(),
+            custom_portrait_art_path: String::new(),
+            custom_background_art_path: String::new(),
+            working_directory: String::new(),
         }
     }
 

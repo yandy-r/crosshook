@@ -13,6 +13,12 @@ export interface InstallGameRequest {
   launcher_icon_path: string;
   /** Sent to core as `custom_cover_art_path`; optional image path on the generated profile. */
   custom_cover_art_path: string;
+  /** `proton_run` | `steam_applaunch` | `native`; empty serializes as default in core. */
+  runner_method: string;
+  steam_app_id: string;
+  custom_portrait_art_path: string;
+  custom_background_art_path: string;
+  working_directory: string;
 }
 
 export interface InstallGameResult {
@@ -58,7 +64,11 @@ export type InstallGameValidationError =
   | 'InstalledGameExecutablePathMissing'
   | 'InstalledGameExecutablePathNotFile'
   | 'CustomCoverArtPathMissing'
-  | 'CustomCoverArtPathNotFile';
+  | 'CustomCoverArtPathNotFile'
+  | 'CustomPortraitArtPathMissing'
+  | 'CustomPortraitArtPathNotFile'
+  | 'CustomBackgroundArtPathMissing'
+  | 'CustomBackgroundArtPathNotFile';
 
 /** Keep in sync with `InstallGameValidationError::message()` in crosshook-core `install/models.rs`. */
 export const INSTALL_GAME_VALIDATION_MESSAGES: Record<InstallGameValidationError, string> = {
@@ -80,6 +90,10 @@ export const INSTALL_GAME_VALIDATION_MESSAGES: Record<InstallGameValidationError
   InstalledGameExecutablePathNotFile: 'The final game executable path must be a file.',
   CustomCoverArtPathMissing: 'The custom cover art path does not exist.',
   CustomCoverArtPathNotFile: 'The custom cover art path must be a file.',
+  CustomPortraitArtPathMissing: 'The custom portrait art path does not exist.',
+  CustomPortraitArtPathNotFile: 'The custom portrait art path must be a file.',
+  CustomBackgroundArtPathMissing: 'The custom background art path does not exist.',
+  CustomBackgroundArtPathNotFile: 'The custom background art path must be a file.',
 };
 
 export const INSTALL_GAME_VALIDATION_FIELD: Record<InstallGameValidationError, keyof InstallGameRequest | null> = {
@@ -101,6 +115,10 @@ export const INSTALL_GAME_VALIDATION_FIELD: Record<InstallGameValidationError, k
   InstalledGameExecutablePathNotFile: 'installed_game_executable_path',
   CustomCoverArtPathMissing: 'custom_cover_art_path',
   CustomCoverArtPathNotFile: 'custom_cover_art_path',
+  CustomPortraitArtPathMissing: 'custom_portrait_art_path',
+  CustomPortraitArtPathNotFile: 'custom_portrait_art_path',
+  CustomBackgroundArtPathMissing: 'custom_background_art_path',
+  CustomBackgroundArtPathNotFile: 'custom_background_art_path',
 };
 
 export type InstallGameStage =

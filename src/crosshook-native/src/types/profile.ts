@@ -277,6 +277,31 @@ export function normalizeSerializedGameProfile(profile: SerializedGameProfile): 
   };
 }
 
+/** Empty profile for install / wizard drafts; matches normalized editor shape. */
+export function createDefaultProfile(): GameProfile {
+  return normalizeSerializedGameProfile({
+    game: { name: '', executable_path: '' },
+    trainer: {
+      path: '',
+      type: '',
+      loading_mode: 'source_directory',
+    },
+    injection: { dll_paths: [], inject_on_launch: [] },
+    steam: {
+      enabled: false,
+      app_id: '',
+      compatdata_path: '',
+      proton_path: '',
+      launcher: { icon_path: '', display_name: '' },
+    },
+    launch: {
+      method: 'proton_run',
+      optimizations: { enabled_option_ids: [] },
+      custom_env_vars: {},
+    },
+  });
+}
+
 /**
  * IPC result from the `profile_duplicate` Tauri command.
  *
