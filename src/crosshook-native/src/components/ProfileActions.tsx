@@ -1,6 +1,9 @@
 import { useProfileContext } from '../context/ProfileContext';
 import { useProfileHealthContext } from '../context/ProfileHealthContext';
-import { useAcknowledgeVersionChange } from '../hooks/useAcknowledgeVersionChange';
+import {
+  presentAcknowledgeVersionChangeOutcome,
+  useAcknowledgeVersionChange,
+} from '../hooks/useAcknowledgeVersionChange';
 import type { VersionCorrelationStatus } from '../types/version';
 
 /**
@@ -95,19 +98,10 @@ export function ProfileActions({
   const showMarkVerified = versionStatus != null && VERSION_MISMATCH_STATUSES.has(versionStatus);
 
   const handleMarkVerified = async () => {
+    // Defensive: showMarkVerified implies a profile row with version metadata; empty name is unreachable.
     if (!selectedProfile.trim()) return;
     const outcome = await acknowledgeVersionChange(selectedProfile, revalidateSingle);
-    if (!outcome.ok) {
-      if ('reason' in outcome) return;
-      const message = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
-      if (outcome.stage === 'acknowledge') {
-        console.error('Failed to acknowledge version change', outcome.error);
-        window.alert(`Could not mark profile as verified: ${message}`);
-      } else {
-        console.error('Failed to refresh profile health after acknowledge_version_change', outcome.error);
-        window.alert(`Version change was acknowledged, but health data refresh failed: ${message}`);
-      }
-    }
+    presentAcknowledgeVersionChangeOutcome(outcome);
   };
 
   return (

@@ -1,6 +1,9 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { useAcknowledgeVersionChange } from '../hooks/useAcknowledgeVersionChange';
+import {
+  presentAcknowledgeVersionChangeOutcome,
+  useAcknowledgeVersionChange,
+} from '../hooks/useAcknowledgeVersionChange';
 import type {
   PatternMatch,
   EnvVarSource,
@@ -638,19 +641,7 @@ export function LaunchPanel({
 
   async function handleMarkAsVerified() {
     const outcome = await acknowledgeVersionChange(profileId, revalidateSingle);
-    if (!outcome.ok) {
-      if ('reason' in outcome) {
-        return;
-      }
-      const message = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
-      if (outcome.stage === 'acknowledge') {
-        console.error('Failed to acknowledge version change', outcome.error);
-        window.alert(`Could not mark profile as verified: ${message}`);
-      } else {
-        console.error('Failed to refresh profile health after acknowledge_version_change', outcome.error);
-        window.alert(`Version change was acknowledged, but health data refresh failed: ${message}`);
-      }
-    }
+    presentAcknowledgeVersionChangeOutcome(outcome);
   }
 
   function versionMismatchMessage(): string {

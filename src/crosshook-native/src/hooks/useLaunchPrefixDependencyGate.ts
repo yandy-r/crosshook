@@ -8,24 +8,27 @@ export interface UseLaunchPrefixDependencyGateResult {
   installPrefixDependency: (profileName: string, prefixPath: string, packages: string[]) => Promise<void>;
   /** True when the app is running inside an active Gamescope session (from `check_gamescope_session`). */
   isGamescopeRunning: boolean;
-  checkGamescope: () => Promise<void>;
 }
 
 export function useLaunchPrefixDependencyGate(): UseLaunchPrefixDependencyGateResult {
   const [isGamescopeRunning, setIsGamescopeRunning] = useState(false);
 
-  const checkGamescope = useCallback(async () => {
-    try {
-      const inside = await callCommand<boolean>('check_gamescope_session');
-      setIsGamescopeRunning(inside);
-    } catch {
-      // Leave prior value on IPC failure
-    }
-  }, []);
-
   useEffect(() => {
-    void checkGamescope();
-  }, [checkGamescope]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const inside = await callCommand<boolean>('check_gamescope_session');
+        if (!cancelled) {
+          setIsGamescopeRunning(inside);
+        }
+      } catch (error) {
+        console.warn('check_gamescope_session failed; leaving prior Gamescope session state', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const getDependencyStatus = useCallback(async (profileName: string, prefixPath: string) => {
     return callCommand<PrefixDependencyStatus[]>('get_dependency_status', {
@@ -45,7 +48,7 @@ export function useLaunchPrefixDependencyGate(): UseLaunchPrefixDependencyGateRe
     []
   );
 
-  return { getDependencyStatus, installPrefixDependency, isGamescopeRunning, checkGamescope };
+  return { getDependencyStatus, installPrefixDependency, isGamescopeRunning };
 }
 
 export default useLaunchPrefixDependencyGate;

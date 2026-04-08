@@ -7,6 +7,27 @@ export type AcknowledgeVersionChangeOutcome =
   | { ok: false; stage: 'acknowledge'; error: unknown }
   | { ok: false; stage: 'revalidate'; error: unknown };
 
+/**
+ * Surfaces non-ok outcomes with the shared alert/console pattern used by Launch and Profiles.
+ * No-op for success and for `busy` (caller should keep buttons disabled while busy).
+ */
+export function presentAcknowledgeVersionChangeOutcome(outcome: AcknowledgeVersionChangeOutcome): void {
+  if (outcome.ok) {
+    return;
+  }
+  if ('reason' in outcome) {
+    return;
+  }
+  const message = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
+  if (outcome.stage === 'acknowledge') {
+    console.error('Failed to acknowledge version change', outcome.error);
+    window.alert(`Could not mark profile as verified: ${message}`);
+  } else {
+    console.error('Failed to refresh profile health after acknowledge_version_change', outcome.error);
+    window.alert(`Version change was acknowledged, but health data refresh failed: ${message}`);
+  }
+}
+
 export function useAcknowledgeVersionChange() {
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
