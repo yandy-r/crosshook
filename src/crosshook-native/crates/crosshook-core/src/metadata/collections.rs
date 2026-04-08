@@ -9,7 +9,7 @@ pub fn list_collections(conn: &Connection) -> Result<Vec<CollectionRow>, Metadat
         .prepare(
             "SELECT c.collection_id, c.name, c.description, c.created_at, c.updated_at, \
              (SELECT COUNT(*) FROM collection_profiles cp WHERE cp.collection_id = c.collection_id) as profile_count \
-             FROM collections c ORDER BY c.name",
+             FROM collections c ORDER BY c.sort_order ASC, c.name ASC",
         )
         .map_err(|source| MetadataStoreError::Database {
             action: "prepare list_collections query",
@@ -85,15 +85,11 @@ pub fn add_profile_to_collection(
     collection_id: &str,
     profile_name: &str,
 ) -> Result<(), MetadataStoreError> {
-    let profile_id = lookup_profile_id(conn, profile_name)?;
-    let Some(profile_id) = profile_id else {
-        tracing::warn!(
-            profile_name,
-            collection_id,
-            "profile not found in metadata index when adding to collection — skipping"
-        );
-        return Ok(());
-    };
+    let profile_id = lookup_profile_id(conn, profile_name)?.ok_or_else(|| {
+        MetadataStoreError::Validation(format!(
+            "profile not found when adding to collection: {profile_name}"
+        ))
+    })?;
 
     let now = Utc::now().to_rfc3339();
     conn.execute(
@@ -213,4 +209,115 @@ pub fn list_favorite_profiles(conn: &Connection) -> Result<Vec<String>, Metadata
     }
 
     Ok(result)
+}
+
+pub fn rename_collection(
+    conn: &Connection,
+    collection_id: &str,
+    new_name: &str,
+) -> Result<(), MetadataStoreError> {
+    let trimmed = new_name.trim();
+    if trimmed.is_empty() {
+        return Err(MetadataStoreError::Validation(
+            "collection name must not be empty".to_string(),
+        ));
+    }
+
+    let now = Utc::now().to_rfc3339();
+    let affected = conn
+        .execute(
+            "UPDATE collections SET name = ?1, updated_at = ?2 WHERE collection_id = ?3",
+            params![trimmed, now, collection_id],
+        )
+        .map_err(|source| MetadataStoreError::Database {
+            action: "rename a collection",
+            source,
+        })?;
+
+    if affected == 0 {
+        return Err(MetadataStoreError::Validation(format!(
+            "collection not found: {collection_id}"
+        )));
+    }
+
+    Ok(())
+}
+
+pub fn update_collection_description(
+    conn: &Connection,
+    collection_id: &str,
+    description: Option<&str>,
+) -> Result<(), MetadataStoreError> {
+    let normalized: Option<String> = description
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    let now = Utc::now().to_rfc3339();
+    let affected = conn
+        .execute(
+            "UPDATE collections SET description = ?1, updated_at = ?2 WHERE collection_id = ?3",
+            params![normalized, now, collection_id],
+        )
+        .map_err(|source| MetadataStoreError::Database {
+            action: "update a collection description",
+            source,
+        })?;
+
+    if affected == 0 {
+        return Err(MetadataStoreError::Validation(format!(
+            "collection not found: {collection_id}"
+        )));
+    }
+
+    Ok(())
+}
+
+pub fn collections_for_profile(
+    conn: &Connection,
+    profile_name: &str,
+) -> Result<Vec<CollectionRow>, MetadataStoreError> {
+    let profile_id = match lookup_profile_id(conn, profile_name)? {
+        Some(id) => id,
+        None => return Ok(Vec::new()),
+    };
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT c.collection_id, c.name, c.description, c.created_at, c.updated_at, \
+             (SELECT COUNT(*) FROM collection_profiles cp2 WHERE cp2.collection_id = c.collection_id) as profile_count \
+             FROM collections c \
+             INNER JOIN collection_profiles cp ON cp.collection_id = c.collection_id \
+             WHERE cp.profile_id = ?1 \
+             ORDER BY c.sort_order ASC, c.name ASC",
+        )
+        .map_err(|source| MetadataStoreError::Database {
+            action: "prepare collections_for_profile query",
+            source,
+        })?;
+
+    let rows = stmt
+        .query_map(params![profile_id], |row| {
+            Ok(CollectionRow {
+                collection_id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                created_at: row.get(3)?,
+                updated_at: row.get(4)?,
+                profile_count: row.get(5)?,
+            })
+        })
+        .map_err(|source| MetadataStoreError::Database {
+            action: "query collections for profile",
+            source,
+        })?;
+
+    let mut collections = Vec::new();
+    for row in rows {
+        collections.push(row.map_err(|source| MetadataStoreError::Database {
+            action: "read a collection row in collections_for_profile",
+            source,
+        })?);
+    }
+
+    Ok(collections)
 }

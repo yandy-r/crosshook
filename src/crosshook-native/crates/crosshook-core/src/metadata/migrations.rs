@@ -171,6 +171,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 19 {
+        migrate_18_to_19(conn)?;
+        conn.pragma_update(None, "user_version", 19_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 19",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -810,6 +819,38 @@ fn migrate_17_to_18(conn: &Connection) -> Result<(), MetadataStoreError> {
     Ok(())
 }
 
+fn migrate_18_to_19(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        BEGIN TRANSACTION;
+
+        -- 1. Add sort_order column to collections (NOT NULL DEFAULT 0).
+        ALTER TABLE collections ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+
+        -- 2. Rebuild collection_profiles with ON DELETE CASCADE on profile_id.
+        CREATE TABLE collection_profiles_new (
+            collection_id   TEXT NOT NULL REFERENCES collections(collection_id) ON DELETE CASCADE,
+            profile_id      TEXT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+            added_at        TEXT NOT NULL,
+            PRIMARY KEY (collection_id, profile_id)
+        );
+        INSERT INTO collection_profiles_new (collection_id, profile_id, added_at)
+        SELECT collection_id, profile_id, added_at FROM collection_profiles;
+        DROP TABLE collection_profiles;
+        ALTER TABLE collection_profiles_new RENAME TO collection_profiles;
+        CREATE INDEX IF NOT EXISTS idx_collection_profiles_profile_id
+            ON collection_profiles(profile_id);
+        COMMIT;
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 18 to 19",
+        source,
+    })?;
+
+    Ok(())
+}
+
 fn migrate_16_to_17(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(
         "
@@ -1047,7 +1088,10 @@ mod tests {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 18);
+        assert!(
+            version >= 18,
+            "schema version should be at least 18, got {version}"
+        );
 
         let table_exists: bool = conn
             .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trainer_sources'")
@@ -1075,5 +1119,83 @@ mod tests {
             app_id_idx_exists,
             "index idx_trainer_sources_app_id should exist"
         );
+    }
+
+    #[test]
+    fn migration_18_to_19_adds_sort_order_and_cascade() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let version: u32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 19);
+
+        // 1. sort_order column exists with NOT NULL DEFAULT 0.
+        let mut stmt = conn.prepare("PRAGMA table_info(collections)").unwrap();
+        let columns: Vec<(String, String, i64)> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(1)?, // name
+                    row.get::<_, String>(2)?, // type
+                    row.get::<_, i64>(3)?,    // notnull
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        let sort_order = columns
+            .iter()
+            .find(|(name, _, _)| name == "sort_order")
+            .expect("sort_order column should exist");
+        assert_eq!(sort_order.1, "INTEGER");
+        assert_eq!(sort_order.2, 1, "sort_order should be NOT NULL");
+
+        // 2. collection_profiles.profile_id FK has ON DELETE CASCADE.
+        // Insert a profile, add to a collection, delete the profile, verify the
+        // membership row cascades away.
+        conn.execute(
+            "INSERT INTO profiles (profile_id, current_filename, current_path, game_name, created_at, updated_at)
+             VALUES ('pf-1', 'game.toml', '/tmp/game.toml', 'Game', datetime('now'), datetime('now'))",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO collections (collection_id, name, created_at, updated_at)
+             VALUES ('col-1', 'Test', datetime('now'), datetime('now'))",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO collection_profiles (collection_id, profile_id, added_at)
+             VALUES ('col-1', 'pf-1', datetime('now'))",
+            [],
+        )
+        .unwrap();
+
+        conn.execute("DELETE FROM profiles WHERE profile_id = 'pf-1'", [])
+            .unwrap();
+
+        let orphan_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM collection_profiles WHERE profile_id = 'pf-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            orphan_count, 0,
+            "collection_profiles rows must cascade when the profile is deleted"
+        );
+
+        // 3. Collection→collection_profiles cascade still works (regression check).
+        let member_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM collection_profiles WHERE collection_id = ?1",
+                ["col-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(member_count, 0);
     }
 }
