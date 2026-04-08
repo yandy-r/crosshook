@@ -5,6 +5,7 @@
   "x-tauri-deps-versioning": "caret ^2.x on all @tauri-apps/* packages for semver-aligned minor/patch updates with the Tauri 2.x stack (Rust: tauri 2 in src-tauri/Cargo.toml).",
   "scripts": {
     "dev": "vite",
+    "dev:browser": "vite --mode webdev",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"

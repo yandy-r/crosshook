@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 export interface MangoHudPreset {
   id: string;
@@ -30,7 +30,7 @@ export function useMangoHudPresets(): UseMangoHudPresetsResult {
   useEffect(() => {
     let cancelled = false;
 
-    void invoke<MangoHudPreset[]>('get_mangohud_presets')
+    void callCommand<MangoHudPreset[]>('get_mangohud_presets')
       .then((data) => {
         if (!cancelled) {
           setPresets(data);

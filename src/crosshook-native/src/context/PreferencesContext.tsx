@@ -5,7 +5,7 @@
  * paths. Profile CRUD and selection are handled by ProfileContext.
  */
 import React, { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import type { AppSettingsData, RecentFilesData } from '../types';
 import { DEFAULT_APP_SETTINGS, toSettingsSaveRequest } from '../types/settings';
 
@@ -41,9 +41,9 @@ function formatError(error: unknown): string {
 
 async function loadPreferences() {
   const [loadedSettings, loadedRecentFiles, steamClientInstallPath] = await Promise.all([
-    invoke<AppSettingsData>('settings_load'),
-    invoke<RecentFilesData>('recent_files_load'),
-    invoke<string>('default_steam_client_install_path'),
+    callCommand<AppSettingsData>('settings_load'),
+    callCommand<RecentFilesData>('recent_files_load'),
+    callCommand<string>('default_steam_client_install_path'),
   ]);
 
   return {
@@ -103,8 +103,8 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
   const persistSettings = useCallback(
     async (patch: Partial<AppSettingsData>) => {
       const merged: AppSettingsData = { ...settings, ...patch };
-      await invoke('settings_save', { data: toSettingsSaveRequest(merged) });
-      const loaded = await invoke<AppSettingsData>('settings_load');
+      await callCommand('settings_save', { data: toSettingsSaveRequest(merged) });
+      const loaded = await callCommand<AppSettingsData>('settings_load');
       setSettings(loaded);
       setSettingsError(null);
     },
@@ -132,7 +132,7 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
       const keyOrNull = trimmedKey.length > 0 ? trimmedKey : null;
 
       try {
-        await invoke('settings_save_steamgriddb_key', { key: keyOrNull });
+        await callCommand('settings_save_steamgriddb_key', { key: keyOrNull });
         setSettings((previous) => ({
           ...previous,
           has_steamgriddb_api_key: keyOrNull !== null,
@@ -154,7 +154,7 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
     } satisfies RecentFilesData;
 
     try {
-      await invoke('recent_files_save', { data: nextRecentFiles });
+      await callCommand('recent_files_save', { data: nextRecentFiles });
       setRecentFiles(nextRecentFiles);
       setSettingsError(null);
     } catch (error) {

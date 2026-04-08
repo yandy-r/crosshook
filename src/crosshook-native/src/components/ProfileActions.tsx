@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 import { useProfileContext } from '../context/ProfileContext';
 import { useProfileHealthContext } from '../context/ProfileHealthContext';
@@ -99,7 +99,7 @@ export function ProfileActions({
   const handleMarkVerified = async () => {
     setMarkingVerified(true);
     try {
-      await invoke('acknowledge_version_change', { name: selectedProfile });
+      await callCommand('acknowledge_version_change', { name: selectedProfile });
       try {
         await revalidateSingle(selectedProfile);
       } catch (error) {

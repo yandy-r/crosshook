@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 /** A single optimization entry from the Rust catalog, including both
  *  functional fields (env, wrappers) and UI metadata (label, description). */
@@ -31,7 +31,7 @@ let _cached: OptimizationCatalogPayload | null = null;
  *  Caches the result in memory — subsequent calls return instantly. */
 export async function fetchOptimizationCatalog(): Promise<OptimizationCatalogPayload> {
   if (_cached) return _cached;
-  _cached = await invoke<OptimizationCatalogPayload>('get_optimization_catalog');
+  _cached = await callCommand<OptimizationCatalogPayload>('get_optimization_catalog');
   return _cached;
 }
 

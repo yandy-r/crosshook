@@ -1,10 +1,13 @@
 export type LibraryViewMode = 'grid' | 'list';
 
-export interface LibraryCardData {
+export interface ProfileSummary {
   name: string;
   gameName: string;
   steamAppId: string;
   customCoverArtPath?: string;
   customPortraitArtPath?: string;
+}
+
+export interface LibraryCardData extends ProfileSummary {
   isFavorite: boolean;
 }

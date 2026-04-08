@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { callCommand } from '@/lib/ipc';
+import { subscribeEvent } from '@/lib/events';
 
 import {
   isRunCommandError,
@@ -124,7 +124,7 @@ export function useRunExecutable(): UseRunExecutableResult {
 
   const cancelRun = useCallback(async () => {
     try {
-      await invoke<void>('cancel_run_executable');
+      await callCommand<void>('cancel_run_executable');
     } catch {
       // Best-effort cancellation — surface failures to the user via the next state transition.
     }
@@ -132,7 +132,7 @@ export function useRunExecutable(): UseRunExecutableResult {
 
   const stopRun = useCallback(async () => {
     try {
-      await invoke<void>('stop_run_executable');
+      await callCommand<void>('stop_run_executable');
     } catch {
       // Best-effort forceful stop.
     }
@@ -146,7 +146,7 @@ export function useRunExecutable(): UseRunExecutableResult {
     setStage('preparing');
 
     try {
-      await invoke<void>('validate_run_executable_request', { request });
+      await callCommand<void>('validate_run_executable_request', { request });
     } catch (invokeError) {
       setStage('idle');
       if (isRunCommandError(invokeError)) {
@@ -183,7 +183,7 @@ export function useRunExecutable(): UseRunExecutableResult {
     try {
       // Subscribe to the completion event BEFORE invoking the command
       // to avoid a race where the process exits before the listener exists.
-      const unlisten = await listen<number | null>('run-executable-complete', (event) => {
+      const unlisten = await subscribeEvent<number | null>('run-executable-complete', (event) => {
         const exitCode = event.payload;
         exitHolder.value = exitCode;
         unlistenRef.current = null;
@@ -197,7 +197,7 @@ export function useRunExecutable(): UseRunExecutableResult {
       });
       unlistenRef.current = unlisten;
 
-      const runResult = await invoke<RunExecutableResult>('run_executable', { request });
+      const runResult = await callCommand<RunExecutableResult>('run_executable', { request });
       setResult(runResult);
       invokeResolved = true;
 

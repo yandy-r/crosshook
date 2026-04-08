@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 import type { ProtonInstallOption } from '../types/proton';
 
@@ -42,7 +42,7 @@ export function useProtonInstalls(options: UseProtonInstallsOptions = {}): UsePr
 
     async function loadProtonInstalls() {
       try {
-        const resolvedInstalls = await invoke<ProtonInstallOption[]>('list_proton_installs', {
+        const resolvedInstalls = await callCommand<ProtonInstallOption[]>('list_proton_installs', {
           steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
         });
 

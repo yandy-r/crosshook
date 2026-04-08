@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
 import type { GamescopeConfig } from '../types/profile';
 import { copyToClipboard } from '../utils/clipboard';
@@ -45,7 +45,7 @@ export function SteamLaunchOptionsPanel({ enabledOptionIds, customEnvVars, games
 
     void (async () => {
       try {
-        const line = await invoke<string>('build_steam_launch_options_command', {
+        const line = await callCommand<string>('build_steam_launch_options_command', {
           enabledOptionIds: ids,
           customEnvVars: { ...stableCustomEnv },
           gamescope: stableGamescope,

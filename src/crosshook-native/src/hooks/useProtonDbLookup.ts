@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
@@ -103,7 +103,7 @@ export function useProtonDbLookup(appId: string): UseProtonDbLookupResult {
       setLookup((current) => loadingLookup(normalizedAppId, current));
 
       try {
-        const result = await invoke<ProtonDbLookupResult>('protondb_lookup', {
+        const result = await callCommand<ProtonDbLookupResult>('protondb_lookup', {
           appId: normalizedAppId,
           forceRefresh,
         });

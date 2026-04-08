@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { useCallback, useState } from 'react';
 
 export interface UseSetTrainerVersionResult {
@@ -29,7 +29,7 @@ export function useSetTrainerVersion(
       setSuccess(false);
 
       try {
-        await invoke('set_trainer_version', { name: profileName, version: trimmedVersion });
+        await callCommand('set_trainer_version', { name: profileName, version: trimmedVersion });
         onVersionSet?.();
         setSuccess(true);
         return true;

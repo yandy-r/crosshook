@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { callCommand } from '@/lib/ipc';
+import { subscribeEvent } from '@/lib/events';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import type {
@@ -88,7 +88,7 @@ export function useOfflineReadiness() {
     }
     dispatch({ type: 'batch-loading' });
     try {
-      const reports = await invoke<OfflineReadinessReport[]>('batch_offline_readiness');
+      const reports = await callCommand<OfflineReadinessReport[]>('batch_offline_readiness');
       if (signal?.aborted) {
         return;
       }
@@ -105,7 +105,7 @@ export function useOfflineReadiness() {
   const checkSingle = useCallback(async (name: string) => {
     dispatch({ type: 'single-loading' });
     try {
-      const report = await invoke<OfflineReadinessReport>('check_offline_readiness', { name });
+      const report = await callCommand<OfflineReadinessReport>('check_offline_readiness', { name });
       dispatch({ type: 'single-complete', report });
     } catch (error) {
       dispatch({ type: 'error', message: normalizeError(error) });
@@ -118,7 +118,7 @@ export function useOfflineReadiness() {
     const controller = new AbortController();
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const unlistenScan = listen<OfflineReadinessScanCompletePayload>('offline-readiness-scan-complete', () => {
+    const unlistenScan = subscribeEvent<OfflineReadinessScanCompletePayload>('offline-readiness-scan-complete', () => {
       startupEventReceivedRef.current = true;
       if (active) {
         void batchCheck(controller.signal);
@@ -127,7 +127,7 @@ export function useOfflineReadiness() {
 
     const run = async () => {
       try {
-        const rows = await invoke<CachedOfflineReadinessSnapshot[]>('get_cached_offline_readiness_snapshots');
+        const rows = await callCommand<CachedOfflineReadinessSnapshot[]>('get_cached_offline_readiness_snapshots');
         if (!active) {
           return;
         }

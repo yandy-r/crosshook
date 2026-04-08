@@ -1,0 +1,1 @@
+export { emitMockEvent } from '../events';

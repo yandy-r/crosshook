@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 import ConfigHistoryPanel from '../ConfigHistoryPanel';
 import { PrefixDepsPanel } from '../PrefixDepsPanel';
@@ -179,7 +179,7 @@ export function ProfilesPage() {
 
     async function loadProtonInstalls() {
       try {
-        const installs = await invoke<ProtonInstallOption[]>('list_proton_installs', {
+        const installs = await callCommand<ProtonInstallOption[]>('list_proton_installs', {
           steamClientInstallPath:
             effectiveSteamClientInstallPath.trim().length > 0 ? effectiveSteamClientInstallPath : undefined,
         });
@@ -221,7 +221,7 @@ export function ProfilesPage() {
 
     async function fetchSuggestion() {
       try {
-        const rows = await invoke<CommunityIndexedProfileRow[]>('community_list_indexed_profiles');
+        const rows = await callCommand<CommunityIndexedProfileRow[]>('community_list_indexed_profiles');
         if (!active) {
           return;
         }
@@ -425,7 +425,7 @@ export function ProfilesPage() {
 
     setExportingCommunity(true);
     try {
-      const result = await invoke<CommunityExportResult>('community_export_profile', {
+      const result = await callCommand<CommunityExportResult>('community_export_profile', {
         profile_name: nameOnDisk,
         output_path: outputPath,
       });
@@ -445,7 +445,7 @@ export function ProfilesPage() {
     setPreviewing(true);
     setPreviewError(null);
     try {
-      const toml = await invoke<string>('profile_export_toml', {
+      const toml = await callCommand<string>('profile_export_toml', {
         name: profileName,
         data: profile,
       });
@@ -806,7 +806,7 @@ export function ProfilesPage() {
                         );
                         return;
                       }
-                      void invoke<ProtonInstallOption[]>('list_proton_installs', {
+                      void callCommand<ProtonInstallOption[]>('list_proton_installs', {
                         steamClientInstallPath:
                           effectiveSteamClientInstallPath.trim().length > 0
                             ? effectiveSteamClientInstallPath

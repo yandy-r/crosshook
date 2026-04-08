@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { open as openShell } from '@tauri-apps/plugin-shell';
+import { callCommand } from '@/lib/ipc';
+import { open as openShell } from '@/lib/plugin-stubs/shell';
 import { useLauncherManagement } from '../hooks/useLauncherManagement';
 import { usePrefixStorageManagement } from '../hooks/usePrefixStorageManagement';
 import { chooseDirectory, chooseFile } from '../utils/dialog';
@@ -603,7 +603,7 @@ function DiagnosticExportSection() {
     setError(null);
     setResult(null);
     try {
-      const bundleResult = await invoke<DiagnosticBundleResult>('export_diagnostics', {
+      const bundleResult = await callCommand<DiagnosticBundleResult>('export_diagnostics', {
         redactPaths,
         outputDir,
       });
@@ -878,7 +878,7 @@ export function SettingsPanel({
   useEffect(() => {
     let active = true;
     try {
-      void invoke<{ found: boolean; binary_name: string; source: string }>('detect_protontricks_binary')
+      void callCommand<{ found: boolean; binary_name: string; source: string }>('detect_protontricks_binary')
         .then((result) => {
           if (active) setBinaryDetection(result);
         })

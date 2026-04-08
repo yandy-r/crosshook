@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { useEffect, useMemo, useState } from 'react';
 import type { CommunityImportPreview } from '../hooks/useCommunityProfiles';
 import { isLaunchValidationIssue, type LaunchPreview, type LaunchRequest, type LaunchValidationIssue } from '../types';
@@ -208,7 +208,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
     }
 
     let active = true;
-    void invoke<string>('default_steam_client_install_path')
+    void callCommand<string>('default_steam_client_install_path')
       .then((value) => {
         if (active) {
           setSteamClientInstallPath(value);
@@ -236,7 +236,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
     setValidationError(null);
 
     try {
-      const response = await invoke<SteamAutoPopulateResult>('auto_populate_steam', {
+      const response = await callCommand<SteamAutoPopulateResult>('auto_populate_steam', {
         request: {
           game_path: profile.game.executable_path,
           steam_client_install_path: steamClientInstallPath,
@@ -309,7 +309,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
     setValidationError(null);
     try {
       const request = buildLaunchRequest(profile, steamClientInstallPath);
-      const preview = await invoke<LaunchPreview>('preview_launch', { request });
+      const preview = await callCommand<LaunchPreview>('preview_launch', { request });
       setValidationIssues(preview.validation.issues);
       return preview.validation.issues;
     } catch (error) {
@@ -658,7 +658,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
               const request = buildLaunchRequest(profile, steamClientInstallPath);
               setValidationError(null);
               try {
-                await invoke<void>('validate_launch', { request });
+                await callCommand<void>('validate_launch', { request });
               } catch (error) {
                 if (isStrictLaunchValidationIssue(error)) {
                   setValidationIssues([error]);

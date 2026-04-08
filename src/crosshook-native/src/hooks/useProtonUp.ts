@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 import type {
   ProtonUpAvailableVersion,
@@ -57,7 +57,7 @@ export async function resolveProtonUpProviderForVersion(version: string): Promis
 
   for (const provider of CATALOG_PROVIDERS) {
     try {
-      const response = await invoke<ProtonUpCatalogResponse>('protonup_list_available_versions', {
+      const response = await callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
         provider,
         forceRefresh: false,
       });
@@ -94,7 +94,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
 
     async function fetchCatalog() {
       try {
-        const response = await invoke<ProtonUpCatalogResponse>(
+        const response = await callCommand<ProtonUpCatalogResponse>(
           'protonup_list_available_versions',
           {
             provider: catalogProvider,
@@ -139,7 +139,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
     async (request: ProtonUpInstallRequest): Promise<ProtonUpInstallResult> => {
       setInstalling(true);
       try {
-        const result = await invoke<ProtonUpInstallResult>('protonup_install_version', {
+        const result = await callCommand<ProtonUpInstallResult>('protonup_install_version', {
           request,
         });
         return result;
@@ -159,7 +159,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
   const getSuggestion = useCallback(
     async (communityVersion: string): Promise<ProtonUpSuggestion> => {
       try {
-        return await invoke<ProtonUpSuggestion>('protonup_get_suggestion', {
+        return await callCommand<ProtonUpSuggestion>('protonup_get_suggestion', {
           communityVersion,
           steamClientInstallPath:
             steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,

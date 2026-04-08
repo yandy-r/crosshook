@@ -1,4 +1,5 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
+import { convertFileSrc } from '@/lib/plugin-stubs/convertFileSrc';
 
 import type { GameProfile, LaunchMethod } from '../../types';
 import { FieldRow } from '../ProfileFormSections';
@@ -55,7 +56,7 @@ export function MediaSection({ profile, onUpdateProfile, launchMethod }: MediaSe
     ]);
     if (!path) return;
     try {
-      const imported = await invoke<string>('import_custom_art', { sourcePath: path, artType });
+      const imported = await callCommand<string>('import_custom_art', { sourcePath: path, artType });
       onUpdateProfile((c) => ({ ...c, game: { ...c.game, [fieldKey]: imported } }));
     } catch (err) {
       console.error(`Failed to import ${artType} art`, err);
