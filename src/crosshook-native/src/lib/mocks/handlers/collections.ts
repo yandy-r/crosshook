@@ -44,6 +44,12 @@ function findById(id: string): MockCollectionRow | undefined {
   return collections.find((c) => c.collection_id === id);
 }
 
+/** Match SQLite `COLLATE NOCASE` / typical backend duplicate checks (ASCII case-insensitive). */
+function nameCollidesWithExisting(name: string): boolean {
+  const lower = name.toLowerCase();
+  return collections.some((c) => c.name.toLowerCase() === lower);
+}
+
 export function registerCollections(map: Map<string, Handler>): void {
   map.set('collection_list', async (): Promise<MockCollectionRow[]> => {
     recomputeProfileCounts();
@@ -58,7 +64,7 @@ export function registerCollections(map: Map<string, Handler>): void {
     if (!trimmed) {
       throw new Error('[dev-mock] collection_create: collection name must not be empty');
     }
-    if (collections.some((c) => c.name === trimmed)) {
+    if (nameCollidesWithExisting(trimmed)) {
       throw new Error(`[dev-mock] collection_create: duplicate collection name: ${trimmed}`);
     }
     const id = `mock-collection-${Date.now().toString(36)}`;
@@ -79,25 +85,25 @@ export function registerCollections(map: Map<string, Handler>): void {
   });
 
   map.set('collection_delete', async (args): Promise<null> => {
-    const { collection_id } = args as { collection_id: string };
-    collections = collections.filter((c) => c.collection_id !== collection_id);
-    membership.delete(collection_id);
+    const { collectionId } = args as { collectionId: string };
+    collections = collections.filter((c) => c.collection_id !== collectionId);
+    membership.delete(collectionId);
     return null;
   });
 
   map.set('collection_add_profile', async (args): Promise<null> => {
-    const { collection_id, profile_name } = args as {
-      collection_id: string;
-      profile_name: string;
+    const { collectionId, profileName } = args as {
+      collectionId: string;
+      profileName: string;
     };
-    if (!findById(collection_id)) {
+    if (!findById(collectionId)) {
       throw new Error(
-        `[dev-mock] collection_add_profile: collection not found: ${collection_id}`
+        `[dev-mock] collection_add_profile: collection not found: ${collectionId}`
       );
     }
-    const trimmed = (profile_name ?? '').trim();
+    const trimmed = (profileName ?? '').trim();
     if (!trimmed) {
-      throw new Error('[dev-mock] collection_add_profile: profile_name must not be empty');
+      throw new Error('[dev-mock] collection_add_profile: profileName must not be empty');
     }
     const store = getStore();
     if (!store.profiles.has(trimmed)) {
@@ -105,43 +111,47 @@ export function registerCollections(map: Map<string, Handler>): void {
         `[dev-mock] collection_add_profile: profile not found: ${trimmed}`
       );
     }
-    const set = membership.get(collection_id) ?? new Set<string>();
+    const set = membership.get(collectionId) ?? new Set<string>();
     set.add(trimmed);
-    membership.set(collection_id, set);
+    membership.set(collectionId, set);
     return null;
   });
 
   map.set('collection_remove_profile', async (args): Promise<null> => {
-    const { collection_id, profile_name } = args as {
-      collection_id: string;
-      profile_name: string;
+    const { collectionId, profileName } = args as {
+      collectionId: string;
+      profileName: string;
     };
-    const trimmed = (profile_name ?? '').trim();
+    const trimmed = (profileName ?? '').trim();
     // Idempotent — matches Rust semantics at collections.rs:117-120.
-    membership.get(collection_id)?.delete(trimmed);
+    membership.get(collectionId)?.delete(trimmed);
     return null;
   });
 
   map.set('collection_list_profiles', async (args): Promise<string[]> => {
-    const { collection_id } = args as { collection_id: string };
-    const set = membership.get(collection_id);
+    const { collectionId } = args as { collectionId: string };
+    const set = membership.get(collectionId);
     return set ? [...set].sort() : [];
   });
 
   map.set('collection_rename', async (args): Promise<null> => {
-    const { collection_id, new_name } = args as {
-      collection_id: string;
-      new_name: string;
+    const { collectionId, newName } = args as {
+      collectionId: string;
+      newName: string;
     };
-    const trimmed = (new_name ?? '').trim();
+    const trimmed = (newName ?? '').trim();
     if (!trimmed) {
       throw new Error('[dev-mock] collection_rename: collection name must not be empty');
     }
-    const target = findById(collection_id);
+    const target = findById(collectionId);
     if (!target) {
-      throw new Error(`[dev-mock] collection_rename: collection not found: ${collection_id}`);
+      throw new Error(`[dev-mock] collection_rename: collection not found: ${collectionId}`);
     }
-    if (collections.some((c) => c.collection_id !== collection_id && c.name === trimmed)) {
+    if (
+      collections.some(
+        (c) => c.collection_id !== collectionId && c.name.toLowerCase() === trimmed.toLowerCase()
+      )
+    ) {
       throw new Error(`[dev-mock] collection_rename: duplicate collection name: ${trimmed}`);
     }
     target.name = trimmed;
@@ -150,14 +160,14 @@ export function registerCollections(map: Map<string, Handler>): void {
   });
 
   map.set('collection_update_description', async (args): Promise<null> => {
-    const { collection_id, description } = args as {
-      collection_id: string;
+    const { collectionId, description } = args as {
+      collectionId: string;
       description: string | null;
     };
-    const target = findById(collection_id);
+    const target = findById(collectionId);
     if (!target) {
       throw new Error(
-        `[dev-mock] collection_update_description: collection not found: ${collection_id}`
+        `[dev-mock] collection_update_description: collection not found: ${collectionId}`
       );
     }
     const normalized = description?.trim();
@@ -167,8 +177,8 @@ export function registerCollections(map: Map<string, Handler>): void {
   });
 
   map.set('collections_for_profile', async (args): Promise<MockCollectionRow[]> => {
-    const { profile_name } = args as { profile_name: string };
-    const trimmed = (profile_name ?? '').trim();
+    const { profileName } = args as { profileName: string };
+    const trimmed = (profileName ?? '').trim();
     recomputeProfileCounts();
     return collections
       .filter((c) => membership.get(c.collection_id)?.has(trimmed))

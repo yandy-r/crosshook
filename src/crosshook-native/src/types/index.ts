@@ -1,3 +1,4 @@
+export * from './collections';
 export * from './profile';
 export * from './profile-history';
 export * from './profile-review';
