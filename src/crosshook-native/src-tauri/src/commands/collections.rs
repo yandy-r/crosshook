@@ -1,4 +1,5 @@
 use crosshook_core::metadata::{CollectionRow, MetadataStore};
+use crosshook_core::profile::CollectionDefaultsSection;
 use tauri::State;
 
 fn map_error(e: impl ToString) -> String {
@@ -91,5 +92,26 @@ pub fn collections_for_profile(
 ) -> Result<Vec<CollectionRow>, String> {
     metadata_store
         .collections_for_profile(&profile_name)
+        .map_err(map_error)
+}
+
+#[tauri::command]
+pub fn collection_get_defaults(
+    collection_id: String,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<Option<CollectionDefaultsSection>, String> {
+    metadata_store
+        .get_collection_defaults(&collection_id)
+        .map_err(map_error)
+}
+
+#[tauri::command]
+pub fn collection_set_defaults(
+    collection_id: String,
+    defaults: Option<CollectionDefaultsSection>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<(), String> {
+    metadata_store
+        .set_collection_defaults(&collection_id, defaults.as_ref())
         .map_err(map_error)
 }

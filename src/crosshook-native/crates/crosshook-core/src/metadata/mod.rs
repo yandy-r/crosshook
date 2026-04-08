@@ -36,7 +36,7 @@ pub use version_store::{compute_correlation_status, hash_trainer_file};
 use crate::community::taps::CommunityTapSyncResult;
 use crate::discovery::TrainerSearchResponse;
 use crate::launch::diagnostics::models::DiagnosticReport;
-use crate::profile::{GameProfile, ProfileStore};
+use crate::profile::{CollectionDefaultsSection, GameProfile, ProfileStore};
 use chrono::Utc;
 use directories::BaseDirs;
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
@@ -522,6 +522,25 @@ impl MetadataStore {
     ) -> Result<Vec<CollectionRow>, MetadataStoreError> {
         self.with_conn("list collections for a profile", |conn| {
             collections::collections_for_profile(conn, profile_name)
+        })
+    }
+
+    pub fn get_collection_defaults(
+        &self,
+        collection_id: &str,
+    ) -> Result<Option<CollectionDefaultsSection>, MetadataStoreError> {
+        self.with_conn("read collection defaults", |conn| {
+            collections::get_collection_defaults(conn, collection_id)
+        })
+    }
+
+    pub fn set_collection_defaults(
+        &self,
+        collection_id: &str,
+        defaults: Option<&CollectionDefaultsSection>,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn("write collection defaults", |conn| {
+            collections::set_collection_defaults(conn, collection_id, defaults)
         })
     }
 
@@ -1479,9 +1498,9 @@ mod tests {
     };
     use crate::launch::request::ValidationSeverity;
     use crate::profile::{
-        GameProfile, GameSection, InjectionSection, LaunchSection, LauncherSection,
-        LocalOverrideSection, ProfileStore, RuntimeSection, SteamSection, TrainerLoadingMode,
-        TrainerSection,
+        CollectionDefaultsSection, GameProfile, GameSection, InjectionSection, LaunchSection,
+        LauncherSection, LocalOverrideSection, ProfileStore, RuntimeSection, SteamSection,
+        TrainerLoadingMode, TrainerSection,
     };
     use rusqlite::params;
     use std::fs;
@@ -2784,6 +2803,110 @@ mod tests {
         assert_eq!(
             member_count, 0,
             "collection_profiles rows should cascade-delete with the collection"
+        );
+    }
+
+    // --- Phase 3: per-collection launch defaults metadata ---
+
+    #[test]
+    fn test_collection_defaults_set_and_get_roundtrip() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let id = store.create_collection("Steam Deck").unwrap();
+
+        // Initially, no defaults.
+        let none = store.get_collection_defaults(&id).unwrap();
+        assert!(none.is_none());
+
+        let mut defaults = CollectionDefaultsSection::default();
+        defaults.method = Some("proton_run".to_string());
+        defaults
+            .custom_env_vars
+            .insert("DXVK_HUD".to_string(), "1".to_string());
+        defaults.network_isolation = Some(false);
+
+        store.set_collection_defaults(&id, Some(&defaults)).unwrap();
+
+        let loaded = store
+            .get_collection_defaults(&id)
+            .unwrap()
+            .expect("defaults should be set");
+        assert_eq!(loaded.method.as_deref(), Some("proton_run"));
+        assert_eq!(loaded.network_isolation, Some(false));
+        assert_eq!(
+            loaded.custom_env_vars.get("DXVK_HUD").cloned(),
+            Some("1".to_string())
+        );
+    }
+
+    #[test]
+    fn test_collection_defaults_clear_writes_null() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let id = store.create_collection("Temp").unwrap();
+
+        let mut defaults = CollectionDefaultsSection::default();
+        defaults.method = Some("native".to_string());
+        store.set_collection_defaults(&id, Some(&defaults)).unwrap();
+
+        // Clearing via None writes NULL.
+        store.set_collection_defaults(&id, None).unwrap();
+        assert!(store.get_collection_defaults(&id).unwrap().is_none());
+
+        // Clearing via empty-defaults struct ALSO writes NULL (is_empty() guard).
+        store
+            .set_collection_defaults(&id, Some(&CollectionDefaultsSection::default()))
+            .unwrap();
+        assert!(
+            store.get_collection_defaults(&id).unwrap().is_none(),
+            "empty defaults should normalize to NULL"
+        );
+    }
+
+    #[test]
+    fn test_collection_defaults_unknown_id_errors_on_set() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let mut defaults = CollectionDefaultsSection::default();
+        defaults.method = Some("native".to_string());
+        let result = store.set_collection_defaults("no-such-id", Some(&defaults));
+        assert!(matches!(result, Err(MetadataStoreError::Validation(_))));
+    }
+
+    #[test]
+    fn test_collection_defaults_corrupt_json_returns_corrupt_error() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let id = store.create_collection("Corrupt").unwrap();
+
+        // Force a corrupt JSON payload via raw SQL.
+        let conn = connection(&store);
+        conn.execute(
+            "UPDATE collections SET defaults_json = ?1 WHERE collection_id = ?2",
+            params!["{not-valid-json", id],
+        )
+        .unwrap();
+        drop(conn);
+
+        let result = store.get_collection_defaults(&id);
+        assert!(
+            matches!(result, Err(MetadataStoreError::Corrupt(_))),
+            "corrupt JSON should surface as Corrupt, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_collection_defaults_cascades_on_collection_delete() {
+        let store = MetadataStore::open_in_memory().unwrap();
+        let id = store.create_collection("Scratch").unwrap();
+
+        let mut defaults = CollectionDefaultsSection::default();
+        defaults.method = Some("native".to_string());
+        store.set_collection_defaults(&id, Some(&defaults)).unwrap();
+
+        store.delete_collection(&id).unwrap();
+
+        // After delete, reading defaults should error because the collection row is gone.
+        let result = store.get_collection_defaults(&id);
+        assert!(
+            result.is_err(),
+            "deleted collection defaults read should fail, got {result:?}"
         );
     }
 

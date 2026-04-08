@@ -1,6 +1,7 @@
 use super::models::CollectionRow;
 use super::profile_sync::lookup_profile_id;
 use super::{db, MetadataStoreError};
+use crate::profile::CollectionDefaultsSection;
 use chrono::Utc;
 use rusqlite::{params, Connection};
 
@@ -322,4 +323,81 @@ pub fn collections_for_profile(
     }
 
     Ok(collections)
+}
+
+/// Read the per-collection launch defaults stored as inline JSON in
+/// `collections.defaults_json`. Returns `Ok(None)` when the collection has no defaults
+/// (column is `NULL` or empty), `Ok(Some(_))` on a successful parse, or:
+///
+/// - `Err(Database)` when the collection row does not exist (caller surfaces
+///   "collection not found" via the `QueryReturnedNoRows` source).
+/// - `Err(Corrupt)` when the column contains invalid JSON. The raw bytes remain
+///   on disk so the user can clear them by saving fresh defaults.
+pub fn get_collection_defaults(
+    conn: &Connection,
+    collection_id: &str,
+) -> Result<Option<CollectionDefaultsSection>, MetadataStoreError> {
+    let json: Option<String> = conn
+        .query_row(
+            "SELECT defaults_json FROM collections WHERE collection_id = ?1",
+            params![collection_id],
+            |row| row.get(0),
+        )
+        .map_err(|source| MetadataStoreError::Database {
+            action: "read collection defaults",
+            source,
+        })?;
+
+    let Some(json) = json else {
+        return Ok(None);
+    };
+    if json.trim().is_empty() {
+        return Ok(None);
+    }
+
+    let parsed: CollectionDefaultsSection = serde_json::from_str(&json).map_err(|e| {
+        MetadataStoreError::Corrupt(format!(
+            "corrupt collection defaults JSON for {collection_id}: {e}"
+        ))
+    })?;
+    Ok(Some(parsed))
+}
+
+/// Write per-collection launch defaults into `collections.defaults_json`.
+///
+/// Passing `None` or an effectively-empty defaults struct (all fields cleared)
+/// normalizes to a `NULL` column write so empty state never round-trips as `{}`.
+/// `updated_at` is refreshed to give sidebar/UI cache layers an invalidation signal.
+pub fn set_collection_defaults(
+    conn: &Connection,
+    collection_id: &str,
+    defaults: Option<&CollectionDefaultsSection>,
+) -> Result<(), MetadataStoreError> {
+    let json: Option<String> = match defaults {
+        Some(d) if !d.is_empty() => Some(serde_json::to_string(d).map_err(|e| {
+            MetadataStoreError::Corrupt(format!(
+                "failed to serialize collection defaults for {collection_id}: {e}"
+            ))
+        })?),
+        _ => None,
+    };
+
+    let now = Utc::now().to_rfc3339();
+    let affected = conn
+        .execute(
+            "UPDATE collections SET defaults_json = ?1, updated_at = ?2 WHERE collection_id = ?3",
+            params![json, now, collection_id],
+        )
+        .map_err(|source| MetadataStoreError::Database {
+            action: "write collection defaults",
+            source,
+        })?;
+
+    if affected == 0 {
+        return Err(MetadataStoreError::Validation(format!(
+            "collection not found: {collection_id}"
+        )));
+    }
+
+    Ok(())
 }

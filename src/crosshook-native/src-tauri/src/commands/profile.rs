@@ -228,8 +228,27 @@ pub fn profile_list(store: State<'_, ProfileStore>) -> Result<Vec<String>, Strin
 }
 
 #[tauri::command]
-pub fn profile_load(name: String, store: State<'_, ProfileStore>) -> Result<GameProfile, String> {
-    store.load(&name).map_err(map_error)
+pub fn profile_load(
+    name: String,
+    collection_id: Option<String>,
+    store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<GameProfile, String> {
+    let profile = store.load(&name).map_err(map_error)?;
+
+    // When a collection context is provided, merge the collection's defaults
+    // into the profile via `effective_profile_with`. The returned profile still
+    // has its `local_override` layer applied last, so machine-specific paths
+    // continue to win.
+    match collection_id {
+        Some(ref cid) if !cid.trim().is_empty() => {
+            let defaults = metadata_store
+                .get_collection_defaults(cid)
+                .map_err(|e| e.to_string())?;
+            Ok(profile.effective_profile_with(defaults.as_ref()))
+        }
+        _ => Ok(profile),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

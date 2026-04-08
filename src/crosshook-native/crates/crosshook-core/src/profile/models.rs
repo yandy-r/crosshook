@@ -396,6 +396,46 @@ impl LaunchSection {
     }
 }
 
+/// Collection-scoped overrides for the `LaunchSection` overrideable subset.
+///
+/// Each `Option<T>` field means "inherit from profile when None, replace when Some".
+/// `custom_env_vars` is an **additive merge**: collection entries are union'd with the
+/// profile's `launch.custom_env_vars` and collection keys win on collision.
+///
+/// Excluded fields (per PRD): `presets`, `active_preset` — preset coupling is too complex
+/// to override at the collection level. Users wanting per-collection preset overrides go
+/// through the profile-level editor via the modal's "Open in Profiles page →" link.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct CollectionDefaultsSection {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub method: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub optimizations: Option<LaunchOptimizationsSection>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub custom_env_vars: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network_isolation: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gamescope: Option<GamescopeConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trainer_gamescope: Option<GamescopeConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mangohud: Option<MangoHudConfig>,
+}
+
+impl CollectionDefaultsSection {
+    /// Returns true when no field would influence a profile merge.
+    pub fn is_empty(&self) -> bool {
+        self.method.is_none()
+            && self.optimizations.is_none()
+            && self.custom_env_vars.is_empty()
+            && self.network_isolation.is_none()
+            && self.gamescope.is_none()
+            && self.trainer_gamescope.is_none()
+            && self.mangohud.is_none()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct LocalOverrideSection {
     #[serde(default)]
@@ -483,9 +523,61 @@ impl LocalOverrideRuntimeSection {
 impl GameProfile {
     /// Returns the effective profile used at runtime where local overrides take precedence
     /// over portable base values.
+    ///
+    /// Backward-compat shim: forwards to [`Self::effective_profile_with`] with no
+    /// collection-defaults layer. Existing call sites that don't know about per-collection
+    /// launch defaults continue to get base + `local_override` only.
     pub fn effective_profile(&self) -> Self {
+        self.effective_profile_with(None)
+    }
+
+    /// Returns the effective profile, optionally merging a collection-defaults layer
+    /// between the base profile and the local override layer.
+    ///
+    /// Precedence (lowest → highest):
+    ///   1. Base profile (`self`)
+    ///   2. Collection defaults (if `Some`) — per-collection overrides from
+    ///      [`CollectionDefaultsSection`]. `custom_env_vars` is an additive merge
+    ///      where collection keys win on collision; all other fields are replacement.
+    ///      Whitespace-only `method` is ignored so it cannot accidentally clobber
+    ///      a profile's launch method.
+    ///   3. `local_override.*` — machine-specific paths always win last so a power
+    ///      user's portable executable_path is never trampled by collection defaults.
+    pub fn effective_profile_with(&self, defaults: Option<&CollectionDefaultsSection>) -> Self {
         let mut merged = self.clone();
 
+        // ── Layer 2: collection defaults ────────────────────────────────────
+        if let Some(d) = defaults {
+            if let Some(ref method) = d.method {
+                if !method.trim().is_empty() {
+                    merged.launch.method = method.clone();
+                }
+            }
+            if let Some(ref opts) = d.optimizations {
+                merged.launch.optimizations = opts.clone();
+            }
+            if !d.custom_env_vars.is_empty() {
+                // Additive merge — collection keys win on collision, profile keys
+                // without a collision are preserved.
+                for (k, v) in &d.custom_env_vars {
+                    merged.launch.custom_env_vars.insert(k.clone(), v.clone());
+                }
+            }
+            if let Some(ni) = d.network_isolation {
+                merged.launch.network_isolation = ni;
+            }
+            if let Some(ref gs) = d.gamescope {
+                merged.launch.gamescope = gs.clone();
+            }
+            if let Some(ref tgs) = d.trainer_gamescope {
+                merged.launch.trainer_gamescope = tgs.clone();
+            }
+            if let Some(ref mh) = d.mangohud {
+                merged.launch.mangohud = mh.clone();
+            }
+        }
+
+        // ── Layer 3: local_override (unchanged) ─────────────────────────────
         if !self.local_override.game.executable_path.trim().is_empty() {
             merged.game.executable_path = self.local_override.game.executable_path.clone();
         }
@@ -1160,6 +1252,103 @@ type = "fling"
         assert_eq!(
             effective.game.custom_background_art_path,
             "/override/bg.png"
+        );
+    }
+
+    // --- Phase 3: per-collection launch defaults merge layer ---
+
+    #[test]
+    fn effective_profile_with_none_equals_shim() {
+        let mut profile = sample_profile();
+        profile
+            .launch
+            .custom_env_vars
+            .insert("DXVK_HUD".to_string(), "1".to_string());
+        profile.local_override.game.executable_path = "/local/game.exe".to_string();
+
+        let via_shim = profile.effective_profile();
+        let via_with_none = profile.effective_profile_with(None);
+        assert_eq!(via_shim, via_with_none, "shim must equal explicit None");
+    }
+
+    #[test]
+    fn effective_profile_with_merges_collection_defaults_between_base_and_local_override() {
+        let mut profile = sample_profile();
+        profile.launch.method = "native".to_string();
+        profile
+            .launch
+            .custom_env_vars
+            .insert("PROFILE_ONLY".to_string(), "A".to_string());
+        profile.game.executable_path = "/portable/game.exe".to_string();
+        profile.local_override.game.executable_path = "/local/game.exe".to_string();
+
+        let mut defaults = CollectionDefaultsSection::default();
+        defaults
+            .custom_env_vars
+            .insert("COLLECTION_ONLY".to_string(), "B".to_string());
+        defaults
+            .custom_env_vars
+            .insert("PROFILE_ONLY".to_string(), "OVERRIDDEN".to_string());
+        defaults.network_isolation = Some(false);
+        defaults.method = Some("proton_run".to_string());
+
+        let merged = profile.effective_profile_with(Some(&defaults));
+
+        // ── Layer 3 (local_override) still wins last ──
+        assert_eq!(merged.game.executable_path, "/local/game.exe");
+
+        // ── Layer 2 (collection defaults) applies ──
+        assert_eq!(merged.launch.method, "proton_run");
+        assert!(!merged.launch.network_isolation);
+        assert_eq!(
+            merged.launch.custom_env_vars.get("COLLECTION_ONLY").cloned(),
+            Some("B".to_string())
+        );
+        // ── Collection key wins on collision ──
+        assert_eq!(
+            merged.launch.custom_env_vars.get("PROFILE_ONLY").cloned(),
+            Some("OVERRIDDEN".to_string())
+        );
+    }
+
+    #[test]
+    fn effective_profile_with_none_fields_do_not_overwrite_profile() {
+        let mut profile = sample_profile();
+        profile.launch.method = "native".to_string();
+        profile.launch.network_isolation = true;
+        profile.launch.gamescope = GamescopeConfig::default();
+        profile
+            .launch
+            .custom_env_vars
+            .insert("PROFILE_KEY".to_string(), "retained".to_string());
+
+        // Empty defaults: every Option is None, BTreeMap is empty → no-op merge.
+        let defaults = CollectionDefaultsSection::default();
+        assert!(defaults.is_empty());
+        let merged = profile.effective_profile_with(Some(&defaults));
+
+        assert_eq!(merged.launch.method, "native");
+        assert!(merged.launch.network_isolation);
+        assert_eq!(
+            merged.launch.custom_env_vars.get("PROFILE_KEY").cloned(),
+            Some("retained".to_string())
+        );
+        // ── Profile env vars never dropped ──
+        assert_eq!(merged.launch.custom_env_vars.len(), 1);
+    }
+
+    #[test]
+    fn effective_profile_with_ignores_whitespace_only_method() {
+        let mut profile = sample_profile();
+        profile.launch.method = "native".to_string();
+
+        let mut defaults = CollectionDefaultsSection::default();
+        defaults.method = Some("   ".to_string()); // whitespace-only must NOT clobber profile
+
+        let merged = profile.effective_profile_with(Some(&defaults));
+        assert_eq!(
+            merged.launch.method, "native",
+            "whitespace method must not clobber profile"
         );
     }
 
