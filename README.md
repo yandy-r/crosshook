@@ -194,6 +194,27 @@ The AppImage is written to `dist/`. Additional options:
 
 This starts the Tauri dev server with hot-reload for the React frontend and Rust backend.
 
+### Browser Dev Mode
+
+The React frontend can also run as a plain Vite dev server at `http://localhost:5173`
+with all IPC calls served by hand-rolled mock handlers -- no Rust toolchain required.
+Start it with:
+
+```bash
+./scripts/dev-native.sh --browser
+```
+
+This is an iteration tool, not a parity environment. WebKitGTK (the Tauri WebView) and
+Chromium differ in scroll physics, `color-mix()` support, and font rendering, so real
+Tauri behavior must always be re-verified with `./scripts/dev-native.sh` (no flag)
+before merging UI changes. For security, the server binds loopback only;
+`--host 0.0.0.0` is unsupported by policy.
+
+Contributors adding new `#[tauri::command]` handlers should register a matching mock
+in the [mock handler registry](src/crosshook-native/src/lib/mocks/README.md). Production
+AppImage builds enforce a `verify:no-mocks` CI sentinel that rejects any bundle
+containing mock code -- the feature has zero production surface.
+
 ### CI
 
 The [release](.github/workflows/release.yml) GitHub Actions workflow builds and uploads the AppImage
