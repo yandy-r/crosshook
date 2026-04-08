@@ -18,10 +18,27 @@ lib/mocks/
 ├── store.ts          — singleton in-memory state (settings, profiles, …)
 ├── eventBus.ts       — re-exports emitMockEvent from lib/events.ts
 ├── handlers/
-│   ├── settings.ts   — IPC handlers for settings_* and recent_files_* commands
-│   └── profile.ts    — IPC handlers for profile_* commands
+│   ├── settings.ts   — settings_* and recent_files_* commands
+│   ├── profile.ts    — profile_* lifecycle + mutations + config history
+│   ├── launch.ts     — launch_*, preview/validate, gamescope session probe
+│   ├── install.ts    — install_game and install-* event sequence
+│   ├── update.ts     — update_game, cancel_update, update-complete event
+│   ├── health.ts     — batch_validate_profiles, version status, snapshot cache
+│   ├── onboarding.ts — readiness check, trainer guidance, onboarding-check event
+│   ├── proton.ts     — Proton install discovery and migrations
+│   ├── protonup.ts   — ProtonUp catalog + install (no real download)
+│   ├── protondb.ts   — ProtonDB lookup + suggestions + dismissal tracking
+│   ├── community.ts  — community profile index, taps, sync, import/export
+│   ├── launcher.ts   — desktop launcher export, delete, rename, preview
+│   ├── library.ts    — cover art fetch, Steam metadata auto-populate
+│   └── system.ts     — discovery, run-executable, prefix storage/deps,
+│                       diagnostics, optimization catalog, offline readiness
 └── README.md         — this file
 ```
+
+**Total commands registered**: ~113 across 14 handler files, covering ~95% of
+the Rust `#[tauri::command]` surface. The uncovered commands (`collection_*`)
+have no frontend callers yet, so they are intentionally not mocked.
 
 `ipc.ts` dynamically imports `./mocks` and calls `registerMocks()` when running in
 `webdev` mode. The returned `Map<string, Handler>` is used to dispatch every
