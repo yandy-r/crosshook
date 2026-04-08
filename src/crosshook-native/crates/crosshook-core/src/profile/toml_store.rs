@@ -645,6 +645,110 @@ mod tests {
         assert!(store.list().unwrap().is_empty());
     }
 
+    /// Regression test for M2 of the Phase 3 review (docs/prps/reviews/pr-184-review.md).
+    ///
+    /// Exercises the real runtime pipeline used by the `profile_load` Tauri command:
+    ///
+    ///   1. Save a profile whose `local_override` section carries machine-specific paths.
+    ///   2. `ProfileStore::load` bakes those overrides into layer 1 and clears
+    ///      `local_override` to `LocalOverrideSection::default()`.
+    ///   3. `effective_profile_with(Some(&defaults))` then merges collection defaults on
+    ///      top of the already-flattened profile.
+    ///
+    /// Asserts that:
+    /// - `local_override`-flavoured paths (executable_path, cover art) still win at the
+    ///   final call site even though layer 3 is technically a no-op at that point —
+    ///   because the save-then-load step has already baked them into layer 1.
+    /// - Collection defaults successfully override launch fields that do not overlap
+    ///   with `local_override` (method, env vars, network isolation).
+    ///
+    /// This locks in the behaviour documented on `effective_profile_with` so a future
+    /// contributor extending `local_override` with overlapping fields will see a failing
+    /// test if they break the "local_override always wins" runtime invariant.
+    #[test]
+    fn save_load_then_merge_collection_defaults_preserves_local_override_paths() {
+        use super::super::models::CollectionDefaultsSection;
+        use std::collections::BTreeMap;
+
+        let temp_dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
+
+        // Build a profile where local_override carries machine-specific paths and
+        // launch carries a profile-owned env var that the collection layer will
+        // attempt to override.
+        let mut profile = sample_profile();
+        profile.game.executable_path = "/portable/elden-ring.exe".to_string();
+        profile.game.custom_cover_art_path = "/portable/cover.png".to_string();
+        profile.launch.method = "native".to_string();
+        profile.launch.network_isolation = true;
+        profile
+            .launch
+            .custom_env_vars
+            .insert("PROFILE_ONLY".to_string(), "keep-me".to_string());
+        profile.local_override.game.executable_path = "/local/elden-ring.exe".to_string();
+        profile.local_override.game.custom_cover_art_path = "/local/cover.png".to_string();
+
+        store.save("elden-ring", &profile).unwrap();
+
+        // `load` bakes local_override into layer 1 and clears local_override itself.
+        let loaded = store.load("elden-ring").unwrap();
+        assert_eq!(
+            loaded.game.executable_path, "/local/elden-ring.exe",
+            "local_override executable_path should be baked into layer 1"
+        );
+        assert_eq!(
+            loaded.game.custom_cover_art_path, "/local/cover.png",
+            "local_override cover art should be baked into layer 1"
+        );
+        assert_eq!(
+            loaded.local_override,
+            LocalOverrideSection::default(),
+            "post-load profile must have local_override cleared — that's what makes \
+             layer 3 a no-op at the profile_load call site"
+        );
+
+        // Now merge a collection defaults layer on top. These fields intentionally
+        // target the non-overlapping launch subset (method, env vars, network).
+        let mut defaults = CollectionDefaultsSection::default();
+        defaults.method = Some("proton_run".to_string());
+        defaults.network_isolation = Some(false);
+        let mut env = BTreeMap::new();
+        env.insert("COLLECTION_ONLY".to_string(), "from-collection".to_string());
+        env.insert("PROFILE_ONLY".to_string(), "overridden".to_string());
+        defaults.custom_env_vars = env;
+
+        let merged = loaded.effective_profile_with(Some(&defaults));
+
+        // ── local_override paths are preserved even though layer 3 ran on an empty
+        //    local_override: they survived via layer 1 after the save/load cycle. ──
+        assert_eq!(
+            merged.game.executable_path, "/local/elden-ring.exe",
+            "local_override executable_path must survive the merge — this is the \
+             runtime 'local_override always wins' guarantee"
+        );
+        assert_eq!(
+            merged.game.custom_cover_art_path, "/local/cover.png",
+            "local_override cover art must survive the merge"
+        );
+
+        // ── Collection defaults apply to non-overlapping launch fields. ──
+        assert_eq!(merged.launch.method, "proton_run");
+        assert!(!merged.launch.network_isolation);
+        assert_eq!(
+            merged
+                .launch
+                .custom_env_vars
+                .get("COLLECTION_ONLY")
+                .cloned(),
+            Some("from-collection".to_string())
+        );
+        // ── Collision: collection keys win on the env-var additive merge. ──
+        assert_eq!(
+            merged.launch.custom_env_vars.get("PROFILE_ONLY").cloned(),
+            Some("overridden".to_string())
+        );
+    }
+
     #[test]
     fn import_legacy_converts_windows_paths_and_saves_toml() {
         let temp_dir = tempdir().unwrap();

@@ -55,6 +55,11 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   'build_steam_launch_options_command',
   'get_trainer_guidance',
   'verify_trainer_hash',
+  // `collection_*` prefix doesn't match the `get_`-prefix regex, so list reads
+  // explicitly. Phase 1 collection reads (`collection_list`, `collection_list_profiles`,
+  // `collections_for_profile`) match the `_list`/`_list_*` noun-suffix regex; only
+  // Phase 3's `collection_get_defaults` needs an explicit entry here.
+  'collection_get_defaults',
 ]);
 
 /**

@@ -18,11 +18,12 @@ pub use exchange::{
 };
 pub use legacy::{delete, list, load, save, validate_name};
 pub use models::{
-    resolve_art_app_id, resolve_launch_method, validate_steam_app_id, GameProfile, GameSection,
-    GamescopeConfig, GamescopeFilter, InjectionSection, LaunchOptimizationsSection, LaunchSection,
-    LauncherSection, LegacyProfileData, LocalOverrideGameSection, LocalOverrideRuntimeSection,
-    LocalOverrideSection, LocalOverrideSteamSection, LocalOverrideTrainerSection, MangoHudConfig,
-    MangoHudPosition, RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
+    resolve_art_app_id, resolve_launch_method, validate_steam_app_id, CollectionDefaultsSection,
+    GameProfile, GameSection, GamescopeConfig, GamescopeFilter, InjectionSection,
+    LaunchOptimizationsSection, LaunchSection, LauncherSection, LegacyProfileData,
+    LocalOverrideGameSection, LocalOverrideRuntimeSection, LocalOverrideSection,
+    LocalOverrideSteamSection, LocalOverrideTrainerSection, MangoHudConfig, MangoHudPosition,
+    RuntimeSection, SteamSection, TrainerLoadingMode, TrainerSection,
 };
 pub use toml_store::{
     bundled_optimization_preset_toml_key, profile_to_shareable_toml, DuplicateProfileResult,

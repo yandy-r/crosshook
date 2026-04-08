@@ -62,7 +62,22 @@ export interface UseProfileResult {
   /** Error message from the most recent config-history operation; null when none. */
   historyError: string | null;
   setProfileName: (name: string) => void;
-  selectProfile: (name: string) => Promise<void>;
+  /**
+   * Loads a profile into the editor / active state. Mirrors `loadProfile`.
+   *
+   * The optional `loadOptions.collectionId` triggers Rust-side merge of that
+   * collection's launch defaults via `effective_profile_with`. **EDITOR SAFETY**:
+   * `ProfilesPage` callers MUST NOT pass `collectionId` — the editor must always
+   * see the raw storage profile so saves don't persist a merged view.
+   */
+  selectProfile: (
+    name: string,
+    loadOptions?: {
+      collectionId?: string;
+      loadErrorContext?: string;
+      throwOnFailure?: boolean;
+    }
+  ) => Promise<void>;
   hydrateProfile: (name: string, profile: GameProfile) => void;
   updateProfile: (updater: (current: GameProfile) => GameProfile) => void;
   updateLaunchSetting: (updater: (current: GameProfile) => GameProfile) => void;
@@ -547,7 +562,24 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   );
 
   const loadProfile = useCallback(
-    async (name: string, loadOptions?: { loadErrorContext?: string; throwOnFailure?: boolean }) => {
+    async (
+      name: string,
+      loadOptions?: {
+        /**
+         * Optional collection context. When provided (and non-empty), Rust will
+         * merge the collection's launch defaults via `effective_profile_with` and
+         * the returned profile reflects the merged view.
+         *
+         * EDITOR SAFETY INVARIANT: `ProfilesPage` callers MUST NOT pass this — the
+         * editor must always see the raw storage profile, otherwise edits would
+         * persist the merged view back to the profile TOML. Only the LaunchPage
+         * profile-selector path passes a collectionId.
+         */
+        collectionId?: string;
+        loadErrorContext?: string;
+        throwOnFailure?: boolean;
+      }
+    ) => {
       const trimmed = name.trim();
       if (!trimmed) {
         setSelectedProfile('');
@@ -563,8 +595,16 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
       const formatLoadError = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+      // Normalize collectionId: trim and drop empty so we never send a degenerate
+      // `""` to Rust (which would treat it as a missing-collection error). Undefined
+      // means "no collection context — return raw storage profile".
+      const collectionId = loadOptions?.collectionId?.trim() || undefined;
+
       try {
-        const loaded = await callCommand<SerializedGameProfile>('profile_load', { name: trimmed });
+        const loaded = await callCommand<SerializedGameProfile>('profile_load', {
+          name: trimmed,
+          collectionId,
+        });
         const normalized = normalizeProfileForEdit(loaded, optionsById);
         setSelectedProfile(trimmed);
         setProfileName(trimmed);

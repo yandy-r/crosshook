@@ -30,6 +30,51 @@ let collections: MockCollectionRow[] = [
 ];
 const membership = new Map<string, Set<string>>([['mock-collection-1', new Set()]]);
 
+// Shape mirrors Rust `CollectionDefaultsSection` in
+// crates/crosshook-core/src/profile/models.rs. All fields optional;
+// `custom_env_vars` is an additive merge bucket. Inner shapes for gamescope/
+// trainer_gamescope/mangohud are intentionally `unknown` because the mock layer
+// does not need to introspect them — Rust performs the canonical merge in
+// production. The browser dev-mode merge in profile.ts performs a structural
+// replacement that mirrors the Rust semantics for the editable subset.
+export interface MockCollectionDefaults {
+  method?: string;
+  optimizations?: { enabled_option_ids: string[] };
+  custom_env_vars?: Record<string, string>;
+  network_isolation?: boolean;
+  gamescope?: unknown;
+  trainer_gamescope?: unknown;
+  mangohud?: unknown;
+}
+
+const mockDefaults = new Map<string, MockCollectionDefaults>();
+
+/** Deep-clone at IPC boundaries so callers cannot mutate stored mock state. */
+function cloneMockDefaults(d: MockCollectionDefaults): MockCollectionDefaults {
+  return structuredClone(d);
+}
+
+function isDefaultsEmpty(d: MockCollectionDefaults | undefined | null): boolean {
+  if (!d) return true;
+  return (
+    d.method === undefined &&
+    d.optimizations === undefined &&
+    (d.custom_env_vars === undefined || Object.keys(d.custom_env_vars).length === 0) &&
+    d.network_isolation === undefined &&
+    d.gamescope === undefined &&
+    d.trainer_gamescope === undefined &&
+    d.mangohud === undefined
+  );
+}
+
+/** Used by the profile_load mock to apply collection defaults to a loaded profile. */
+export function getMockCollectionDefaults(
+  collectionId: string
+): MockCollectionDefaults | undefined {
+  const d = mockDefaults.get(collectionId);
+  return d ? cloneMockDefaults(d) : undefined;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -88,6 +133,7 @@ export function registerCollections(map: Map<string, Handler>): void {
     const { collectionId } = args as { collectionId: string };
     collections = collections.filter((c) => c.collection_id !== collectionId);
     membership.delete(collectionId);
+    mockDefaults.delete(collectionId);
     return null;
   });
 
@@ -183,5 +229,39 @@ export function registerCollections(map: Map<string, Handler>): void {
     return collections
       .filter((c) => membership.get(c.collection_id)?.has(trimmed))
       .sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  map.set(
+    'collection_get_defaults',
+    async (args): Promise<MockCollectionDefaults | null> => {
+      const { collectionId } = args as { collectionId: string };
+      if (!findById(collectionId)) {
+        throw new Error(
+          `[dev-mock] collection_get_defaults: collection not found: ${collectionId}`
+        );
+      }
+      const d = mockDefaults.get(collectionId);
+      return d && !isDefaultsEmpty(d) ? cloneMockDefaults(d) : null;
+    }
+  );
+
+  map.set('collection_set_defaults', async (args): Promise<null> => {
+    const { collectionId, defaults } = args as {
+      collectionId: string;
+      defaults: MockCollectionDefaults | null;
+    };
+    const target = findById(collectionId);
+    if (!target) {
+      throw new Error(
+        `[dev-mock] collection_set_defaults: collection not found: ${collectionId}`
+      );
+    }
+    if (defaults === null || isDefaultsEmpty(defaults)) {
+      mockDefaults.delete(collectionId);
+    } else {
+      mockDefaults.set(collectionId, cloneMockDefaults(defaults));
+    }
+    target.updated_at = nowIso();
+    return null;
   });
 }
