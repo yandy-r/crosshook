@@ -10,6 +10,8 @@ import ConsoleDrawer from './components/layout/ConsoleDrawer';
 import Sidebar, { type AppRoute } from './components/layout/Sidebar';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { DevModeBanner } from '@/lib/DevModeBanner';
+import { getActiveFixture } from '@/lib/fixture';
+import { getActiveToggles, togglesToChipFragments } from '@/lib/toggles';
 import type { OnboardingCheckPayload } from './types/onboarding';
 import { LaunchStateProvider } from './context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from './context/PreferencesContext';
@@ -149,7 +151,12 @@ export function App() {
       ref={gamepadNav.rootRef}
       className={`crosshook-app crosshook-focus-scope${__WEB_DEV_MODE__ ? ' crosshook-app--webdev' : ''}`}
     >
-      {__WEB_DEV_MODE__ && <DevModeBanner />}
+      {__WEB_DEV_MODE__ && (
+        <DevModeBanner
+          fixture={getActiveFixture()}
+          toggles={togglesToChipFragments(getActiveToggles())}
+        />
+      )}
       <ProfileProvider>
         <ProfileHealthProvider>
           <AppShell controllerMode={gamepadNav.controllerMode} />

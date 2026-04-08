@@ -1,4 +1,5 @@
-import type { Handler } from '../index';
+import type { Handler } from './types';
+import { getActiveFixture } from '../../fixture';
 import { getStore } from '../store';
 import { emitMockEvent } from '../eventBus';
 import type { DiagnosticReport } from '../../../types/diagnostics';
@@ -17,6 +18,41 @@ import type { HashVerifyResult, OfflineReadinessReport } from '../../../types/of
 let lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
 let lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
 let runningGames: Set<string> = new Set();
+
+// ---------------------------------------------------------------------------
+// Fixture helpers (BR-11)
+// ---------------------------------------------------------------------------
+//
+// Launch commands are NOT shell-critical, so they follow the standard
+// fixture-dispatch pattern:
+//   populated — current behavior
+//   empty     — read commands return empty/false; mutating launch commands
+//                fall through to populated (no meaningful "empty" mutation)
+//   error     — fallible commands throw `[dev-mock] forced error for <name>`
+//   loading   — non-shell-critical commands return a never-resolving promise
+//
+// NOTE: Task 3.2's `wrapHandler()` middleware (`lib/mocks/wrapHandler.ts`) is
+// orthogonal to these helpers — it implements `?errors=true` / `?delay=<ms>`
+// toggles, while these implement `?fixture=loading|error`. Both systems are
+// applied to every handler; do NOT remove these helpers.
+
+/**
+ * Returns a promise that never resolves. Used by the `loading` fixture so
+ * loading-state UIs stay visible. Orthogonal to `?delay=<ms>` in `wrapHandler.ts`.
+ */
+function neverResolving<T>(): Promise<T> {
+  return new Promise<T>(() => {
+    /* intentionally never resolves */
+  });
+}
+
+/**
+ * Synthesizes a `[dev-mock] forced error` for the named command. Used by the
+ * `?fixture=error` dispatch path. Orthogonal to `?errors=true` in `wrapHandler.ts`.
+ */
+function forcedError(commandName: string): Error {
+  return new Error(`[dev-mock] forced error for ${commandName}`);
+}
 
 // ---------------------------------------------------------------------------
 // Synthetic data helpers
@@ -97,6 +133,9 @@ export function registerLaunch(map: Map<string, Handler>): void {
   // launch_game — returns LaunchResult immediately then emits event sequence
   // -------------------------------------------------------------------------
   map.set('launch_game', async (args): Promise<LaunchResult> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('launch_game');
+    if (fixture === 'loading') return neverResolving<LaunchResult>();
     const { request } = args as { request: LaunchRequest };
     const steamAppId = request.steam?.app_id ?? '9999001';
     const logSuffix = `game-launch-${steamAppId}`;
@@ -122,6 +161,9 @@ export function registerLaunch(map: Map<string, Handler>): void {
   // launch_trainer — returns LaunchResult immediately then emits event sequence
   // -------------------------------------------------------------------------
   map.set('launch_trainer', async (args): Promise<LaunchResult> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('launch_trainer');
+    if (fixture === 'loading') return neverResolving<LaunchResult>();
     const { request } = args as { request: LaunchRequest };
     const steamAppId = request.steam?.app_id ?? '9999001';
     const logSuffix = `trainer-launch-${steamAppId}`;
@@ -145,6 +187,10 @@ export function registerLaunch(map: Map<string, Handler>): void {
   // validate_launch — returns void (null) on success, throws LaunchValidationIssue on failure
   // -------------------------------------------------------------------------
   map.set('validate_launch', async (args): Promise<null> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('validate_launch');
+    if (fixture === 'loading') return neverResolving<null>();
+    if (fixture === 'empty') return null;
     const { request } = args as { request: LaunchRequest };
     const gamePath = request?.game_path?.trim() ?? '';
     if (!gamePath) {
@@ -163,6 +209,11 @@ export function registerLaunch(map: Map<string, Handler>): void {
   // preview_launch — returns a synthetic LaunchPreview
   // -------------------------------------------------------------------------
   map.set('preview_launch', async (args): Promise<LaunchPreview> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('preview_launch');
+    if (fixture === 'loading') return neverResolving<LaunchPreview>();
+    // `empty` falls through to the populated path because LaunchPreview is a
+    // non-nullable structural payload with no meaningful empty representation.
     const { request } = args as { request: LaunchRequest };
     const method = (request?.method ?? 'proton_run') as LaunchPreview['resolved_method'];
 
@@ -211,6 +262,11 @@ export function registerLaunch(map: Map<string, Handler>): void {
   // check_game_running — returns false in browser dev mode (no real /proc)
   // -------------------------------------------------------------------------
   map.set('check_game_running', async (args): Promise<boolean> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return false;
+    if (fixture === 'loading') return neverResolving<boolean>();
+    // `error` is allowed to resolve here — this is a polled status read and
+    // throwing on every poll would flood the console without meaningful UX.
     const { exeName } = args as { exeName: string };
     return runningGames.has(exeName.trim());
   });
@@ -219,6 +275,10 @@ export function registerLaunch(map: Map<string, Handler>): void {
   // check_gamescope_session — always false in browser dev mode
   // -------------------------------------------------------------------------
   map.set('check_gamescope_session', async (): Promise<boolean> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'loading') return neverResolving<boolean>();
+    // `empty` and `error` both naturally return false here — gamescope is
+    // never active in browser dev mode anyway.
     return false;
   });
 
@@ -231,6 +291,10 @@ export function registerLaunch(map: Map<string, Handler>): void {
   // build_steam_launch_options_command — returns a synthetic Steam launch options string
   // -------------------------------------------------------------------------
   map.set('build_steam_launch_options_command', async (args): Promise<string> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('build_steam_launch_options_command');
+    if (fixture === 'loading') return neverResolving<string>();
+    if (fixture === 'empty') return '%command%';
     const { enabled_option_ids } = args as {
       enabled_option_ids: string[];
       custom_env_vars: Record<string, string>;

@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "vite",
     "dev:browser": "vite --mode webdev",
+    "dev:browser:check": "bash ../../scripts/check-mock-coverage.sh",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:smoke": "playwright test",
+    "test:smoke:update": "playwright test --update-snapshots",
+    "test:smoke:install": "playwright install chromium"
   },
   "dependencies": {
     "@radix-ui/react-select": "^2.2.6",
@@ -23,6 +27,7 @@
     "react-resizable-panels": "^4.7.6"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.0",
     "@tauri-apps/cli": "^2.0.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

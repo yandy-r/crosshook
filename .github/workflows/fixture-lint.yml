@@ -1,0 +1,78 @@
+name: Fixture Content Lint
+
+# Enforces the fixture content policy (feature-spec.md BR-10, research-security.md W-3)
+# for the dev-web-frontend browser mock layer. Fails the build if real-data patterns leak
+# into files under `src/crosshook-native/src/lib/mocks/` — this keeps PII (real Steam IDs,
+# developer home paths) out of the public repository history.
+#
+# Scope is intentionally narrow: only `.ts` / `.tsx` files under `lib/mocks/` are scanned.
+# Production code that legitimately handles Steam IDs and file paths is excluded.
+#
+# Security note: this workflow does not interpolate any `github.event.*` inputs into
+# shell commands. The `run:` block operates exclusively on repo-controlled files.
+
+on:
+  push:
+    paths:
+      - 'src/crosshook-native/src/lib/mocks/**'
+      - '.github/workflows/fixture-lint.yml'
+  pull_request:
+    paths:
+      - 'src/crosshook-native/src/lib/mocks/**'
+      - '.github/workflows/fixture-lint.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check mock fixtures for real-data patterns
+        run: |
+          set -euo pipefail
+
+          # Forbidden patterns (per W-3 / BR-10):
+          #   - \b[0-9]{17}\b              — bare 17-digit integer (real SteamID64).
+          #                                   Synthetic fixture IDs use the 9999xxx range
+          #                                   (7 digits), so there must be zero matches.
+          #   - /home/, /Users/, /users/   — developer home paths reveal real usernames.
+          #
+          # Allowlist (stripped before failing):
+          #   - /home/devuser — intentional synthetic fixture path seeded by Task 1.12
+          #                      and documented in lib/mocks/README.md.
+          ALLOWLIST_RE='/home/devuser'
+
+          # -H forces grep to always print the filename (important when xargs batches
+          # a single file). -n gives line numbers. We do not echo matched lines — they
+          # can contain sensitive paths or IDs; only aggregate counts and file:line
+          # locations are emitted.
+          matches_raw=$(
+            find src/crosshook-native/src/lib/mocks \
+                 -type f \( -name '*.ts' -o -name '*.tsx' \) -print0 \
+              | xargs -0 grep -nHE '/home/|/Users/|/users/|\b[0-9]{17}\b' 2>/dev/null \
+              | grep -vE "$ALLOWLIST_RE" || true
+          )
+          matches_count=$(printf '%s\n' "$matches_raw" | grep -c . || echo 0)
+          matches_count=$(echo "$matches_count" | tr -d '[:space:]')
+          if [ -z "$matches_count" ]; then
+            matches_count=0
+          fi
+
+          if [ "$matches_count" -gt 0 ]; then
+            echo "::error::Real-data patterns found in mock fixture files"
+            echo ""
+            echo "Fixture content policy (BR-10 / W-3) requires:"
+            echo "  - Synthetic Steam IDs only (>= 9999001, outside valid range)"
+            echo "  - No real developer paths (/home/<user>, /Users/<user>)"
+            echo "  - Allowlisted synthetic path: /home/devuser"
+            echo ""
+            echo "Found ${matches_count} disallowed match line(s). Locations (file:line only; matched text omitted):"
+            printf '%s\n' "$matches_raw" | sed -E 's/^([^:]+:[0-9]+):.*/\1/'
+            exit 1
+          fi
+
+          echo "Fixture content lint passed — no real-data patterns found."
