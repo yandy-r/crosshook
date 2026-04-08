@@ -22,6 +22,7 @@ import { registerCommunity } from './handlers/community';
 import { registerLauncher } from './handlers/launcher';
 import { registerLibrary } from './handlers/library';
 import { registerSystem } from './handlers/system';
+import { registerCollections } from './handlers/collections';
 import { wrapAllHandlers } from './wrapHandler';
 import type { Handler } from './handlers/types';
 
@@ -47,6 +48,7 @@ export function registerMocks(): Map<string, Handler> {
   registerLauncher(map);
   registerLibrary(map);
   registerSystem(map);
+  registerCollections(map);
 
   // Wrap every handler with the orthogonal debug-toggle middleware
   // (`?delay=`, `?errors=true`). MUST run AFTER every register*() call so
