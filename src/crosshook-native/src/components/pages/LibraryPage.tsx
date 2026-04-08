@@ -113,8 +113,8 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   }, []);
 
   const handleSubmitCreateFromMenu = useCallback(
-    async (name: string, _description: string | null): Promise<boolean> => {
-      const id = await createCollection(name);
+    async (name: string, description: string | null): Promise<boolean> => {
+      const id = await createCollection(name, description);
       return id !== null;
     },
     [createCollection]

@@ -81,6 +81,10 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
     useCollectionViewModalState();
   const { renameCollection, updateDescription, collections, error: collectionsHookError } = useCollections();
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
+  const [collectionDescriptionToast, setCollectionDescriptionToast] = useState<{
+    collectionId: string;
+    description: string | null;
+  } | null>(null);
   const editingCollection = useMemo(
     () =>
       editingCollectionId === null
@@ -122,14 +126,32 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
       if (editingCollectionId === null) {
         return false;
       }
-      const renamed = await renameCollection(editingCollectionId, name);
+      const id = editingCollectionId;
+      const renamed = await renameCollection(id, name);
       if (!renamed) {
         return false;
       }
-      return updateDescription(editingCollectionId, description);
+      const descOk = await updateDescription(id, description);
+      if (!descOk) {
+        setCollectionDescriptionToast({ collectionId: id, description });
+      }
+      return true;
     },
     [editingCollectionId, renameCollection, updateDescription]
   );
+
+  const retryCollectionDescription = useCallback(async () => {
+    if (collectionDescriptionToast === null) {
+      return;
+    }
+    const ok = await updateDescription(
+      collectionDescriptionToast.collectionId,
+      collectionDescriptionToast.description
+    );
+    if (ok) {
+      setCollectionDescriptionToast(null);
+    }
+  }, [collectionDescriptionToast, updateDescription]);
 
   useEffect(() => {
     const p = subscribeEvent<OnboardingCheckPayload>('onboarding-check', (event) => {
@@ -224,6 +246,26 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
           onSubmitEdit={handleSubmitEditCollection}
           externalError={collectionsHookError}
         />
+        {collectionDescriptionToast !== null ? (
+          <div className="crosshook-rename-toast" role="status" aria-live="polite">
+            <span>Name saved, but the description could not be saved.</span>
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--ghost"
+              onClick={() => void retryCollectionDescription()}
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              className="crosshook-rename-toast-dismiss"
+              aria-label="Dismiss"
+              onClick={() => setCollectionDescriptionToast(null)}
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
       </LaunchStateProvider>
     </PreferencesProvider>
     </Tooltip.Provider>

@@ -13,8 +13,8 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
   const [createOpen, setCreateOpen] = useState(false);
 
   const handleCreate = useCallback(
-    async (name: string, _description: string | null): Promise<boolean> => {
-      const id = await createCollection(name);
+    async (name: string, description: string | null): Promise<boolean> => {
+      const id = await createCollection(name, description);
       return id !== null;
     },
     [createCollection]
@@ -77,7 +77,7 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
         onClose={() => setCreateOpen(false)}
         onSubmitCreate={handleCreate}
         onSubmitEdit={async () => false}
-        externalError={error}
+        externalError={null}
       />
     </>
   );

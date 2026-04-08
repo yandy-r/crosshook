@@ -107,8 +107,11 @@ export function ProfilesPage() {
     [collections, activeCollectionId]
   );
   const filteredProfiles = useMemo(() => {
-    if (activeCollectionId === null || memberNames.length === 0) {
+    if (activeCollectionId === null) {
       return profiles;
+    }
+    if (memberNames.length === 0) {
+      return [];
     }
     const set = new Set(memberNames);
     return profiles.filter((name) => set.has(name));

@@ -21,7 +21,7 @@
   padding: 24px;
   text-align: center;
   color: var(--crosshook-color-text-muted);
-  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border: 1px dashed var(--crosshook-color-border-muted);
   border-radius: var(--crosshook-radius-md);
 }
 

@@ -19,24 +19,9 @@ import { useLibrarySummaries } from '@/hooks/useLibrarySummaries';
 import { useProfileContext } from '@/context/ProfileContext';
 import { LibraryCard } from '@/components/library/LibraryCard';
 import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from '@/components/library/game-details-actions';
+import { getFocusableElements } from '@/lib/focus-utils';
 
 import './CollectionViewModal.css';
-
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-  '[contenteditable="true"]',
-].join(', ');
-
-function getFocusableElements(container: HTMLElement) {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length > 0
-  );
-}
 
 function focusElement(element: HTMLElement | null) {
   if (!element) {
@@ -85,10 +70,17 @@ export function CollectionViewModal({
   const { summaries } = useLibrarySummaries(profiles, favoriteProfiles);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   useEffect(() => {
     setSearchQuery('');
   }, [open, collectionId]);
+
+  useEffect(() => {
+    if (!open) {
+      setDeleteConfirm(false);
+    }
+  }, [open]);
 
   const collection = useMemo<CollectionRow | null>(
     () => collections.find((c) => c.collection_id === collectionId) ?? null,
@@ -336,12 +328,27 @@ export function CollectionViewModal({
 
         <footer className="crosshook-modal__footer">
           <div className="crosshook-modal__footer-actions">
+            {deleteConfirm ? (
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--ghost"
+                onClick={() => setDeleteConfirm(false)}
+              >
+                Cancel
+              </button>
+            ) : null}
             <button
               type="button"
               className="crosshook-button crosshook-button--danger"
-              onClick={() => void handleDeleteCollection()}
+              onClick={() => {
+                if (!deleteConfirm) {
+                  setDeleteConfirm(true);
+                  return;
+                }
+                void handleDeleteCollection();
+              }}
             >
-              Delete collection
+              {deleteConfirm ? 'Confirm delete' : 'Delete collection'}
             </button>
             <button type="button" className="crosshook-button" onClick={onClose}>
               Done

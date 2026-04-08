@@ -18,7 +18,7 @@ export interface UseCollectionsResult {
   deletingId: string | null;
   renamingId: string | null;
   refresh: () => Promise<void>;
-  createCollection: (name: string) => Promise<string | null>;
+  createCollection: (name: string, description?: string | null) => Promise<string | null>;
   deleteCollection: (collectionId: string) => Promise<boolean>;
   renameCollection: (collectionId: string, newName: string) => Promise<boolean>;
   updateDescription: (collectionId: string, description: string | null) => Promise<boolean>;
@@ -52,11 +52,21 @@ function useCollectionsState(): UseCollectionsResult {
   }, []);
 
   const createCollection = useCallback(
-    async (name: string): Promise<string | null> => {
+    async (name: string, description: string | null = null): Promise<string | null> => {
       setCreatingName(name);
       setError(null);
       try {
         const id = await callCommand<string>('collection_create', { name });
+        if (id !== null && description !== null && description.trim() !== '') {
+          try {
+            await callCommand<null>('collection_update_description', {
+              collectionId: id,
+              description: description.trim(),
+            });
+          } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+          }
+        }
         await refresh();
         return id;
       } catch (err) {

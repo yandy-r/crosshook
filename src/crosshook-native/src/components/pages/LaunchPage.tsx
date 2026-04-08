@@ -30,8 +30,11 @@ export function LaunchPage() {
     [collections, activeCollectionId]
   );
   const filteredProfiles = useMemo(() => {
-    if (activeCollectionId === null || memberNames.length === 0) {
+    if (activeCollectionId === null) {
       return profileState.profiles;
+    }
+    if (memberNames.length === 0) {
+      return [];
     }
     const set = new Set(memberNames);
     return profileState.profiles.filter((name) => set.has(name));
