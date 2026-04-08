@@ -15,6 +15,8 @@ import { OfflineStatusBadge } from '../OfflineStatusBadge';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
+import { useCollectionMembers } from '../../hooks/useCollectionMembers';
+import { useCollections } from '../../hooks/useCollections';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
 import { resolveProtonUpProviderForVersion, useProtonUp } from '../../hooks/useProtonUp';
 import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
@@ -94,7 +96,23 @@ export function ProfilesPage() {
     fetchConfigDiff,
     rollbackConfig,
     markKnownGood,
+    activeCollectionId,
+    setActiveCollectionId,
   } = useProfileContext();
+  const { collections } = useCollections();
+  const { memberNames } = useCollectionMembers(activeCollectionId);
+  const activeCollection = useMemo(
+    () =>
+      activeCollectionId === null ? null : (collections.find((c) => c.collection_id === activeCollectionId) ?? null),
+    [collections, activeCollectionId]
+  );
+  const filteredProfiles = useMemo(() => {
+    if (activeCollectionId === null || memberNames.length === 0) {
+      return profiles;
+    }
+    const set = new Set(memberNames);
+    return profiles.filter((name) => set.has(name));
+  }, [profiles, activeCollectionId, memberNames]);
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
   const [pendingRename, setPendingRename] = useState<string | null>(null);
@@ -601,6 +619,19 @@ export function ProfilesPage() {
                 Active Profile
               </label>
               <div className="crosshook-launch-panel__profile-row-select">
+                {activeCollection !== null && (
+                  <div className="crosshook-launch-collection-filter">
+                    Filtering by: <strong>{activeCollection.name}</strong>
+                    <button
+                      type="button"
+                      className="crosshook-button crosshook-button--ghost crosshook-button--small"
+                      onClick={() => setActiveCollectionId(null)}
+                      aria-label="Clear collection filter"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
                 <ThemedSelect
                   id="profile-selector-top"
                   value={selectedProfile}
@@ -608,7 +639,7 @@ export function ProfilesPage() {
                   placeholder="Create New"
                   options={[
                     { value: '', label: 'Create New' },
-                    ...profiles.map((name) => ({ value: name, label: name })),
+                    ...filteredProfiles.map((name) => ({ value: name, label: name })),
                   ]}
                 />
               </div>

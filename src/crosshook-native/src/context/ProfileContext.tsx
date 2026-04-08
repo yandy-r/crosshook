@@ -6,7 +6,7 @@
  *
  * Listens for `auto-load-profile` events emitted by the Tauri backend at startup.
  */
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { subscribeEvent } from '@/lib/events';
 
 import { useProfile, type UseProfileResult } from '../hooks/useProfile';
@@ -17,6 +17,8 @@ export interface ProfileContextValue extends UseProfileResult {
   launchMethod: ResolvedLaunchMethod;
   steamClientInstallPath: string;
   targetHomePath: string;
+  activeCollectionId: string | null;
+  setActiveCollectionId: (id: string | null) => void;
 }
 
 interface ProfileProviderProps {
@@ -30,6 +32,7 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
   const launchMethod = resolveLaunchMethod(profileState.profile);
   const steamClientInstallPath = deriveSteamClientInstallPath(profileState.profile.steam.compatdata_path);
   const targetHomePath = deriveTargetHomePath(steamClientInstallPath);
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -59,8 +62,10 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
       launchMethod,
       steamClientInstallPath,
       targetHomePath,
+      activeCollectionId,
+      setActiveCollectionId,
     }),
-    [launchMethod, profileState, steamClientInstallPath, targetHomePath]
+    [activeCollectionId, launchMethod, profileState, steamClientInstallPath, targetHomePath]
   );
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;

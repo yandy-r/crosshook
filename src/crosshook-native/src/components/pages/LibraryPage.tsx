@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type MouseEvent } from 'react';
 
 import type { AppRoute } from '../layout/Sidebar';
 import type { LibraryViewMode } from '../../types/library';
@@ -7,11 +7,14 @@ import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
+import { CollectionAssignMenu } from '../collections/CollectionAssignMenu';
+import { CollectionEditModal } from '../collections/CollectionEditModal';
 import { LibraryToolbar } from '../library/LibraryToolbar';
 import { LibraryGrid } from '../library/LibraryGrid';
 import { GameDetailsModal } from '../library/GameDetailsModal';
 import { useGameDetailsModalState } from '../library/useGameDetailsModalState';
 import { RouteBanner } from '../layout/RouteBanner';
+import { useCollections } from '@/hooks/useCollections';
 
 const VIEW_MODE_KEY = 'crosshook.library.viewMode';
 
@@ -35,6 +38,13 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<LibraryViewMode>(loadViewMode);
   const [launchingName, setLaunchingName] = useState<string | undefined>();
+  const [assignMenuState, setAssignMenuState] = useState<{
+    open: boolean;
+    profileName: string | null;
+    anchorPosition: { x: number; y: number } | null;
+  }>({ open: false, profileName: null, anchorPosition: null });
+  const [createCollectionFromMenuOpen, setCreateCollectionFromMenuOpen] = useState(false);
+  const { createCollection } = useCollections();
 
   // Refresh profile list from context on mount
   useEffect(() => {
@@ -86,6 +96,30 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     [gameDetailsModal, selectProfile, summaries],
   );
 
+  const handleCardContextMenu = useCallback((event: MouseEvent<HTMLDivElement>, profileName: string) => {
+    setAssignMenuState({
+      open: true,
+      profileName,
+      anchorPosition: { x: event.clientX, y: event.clientY },
+    });
+  }, []);
+
+  const closeAssignMenu = useCallback(() => {
+    setAssignMenuState({ open: false, profileName: null, anchorPosition: null });
+  }, []);
+
+  const handleCreateFromAssignMenu = useCallback(() => {
+    setCreateCollectionFromMenuOpen(true);
+  }, []);
+
+  const handleSubmitCreateFromMenu = useCallback(
+    async (name: string, _description: string | null): Promise<boolean> => {
+      const id = await createCollection(name);
+      return id !== null;
+    },
+    [createCollection]
+  );
+
   const handleToggleFavorite = useCallback(
     (name: string, current: boolean) => {
       // Optimistic: immediately update local state
@@ -133,6 +167,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
                   onToggleFavorite={handleToggleFavorite}
                   launchingName={launchingName}
                   onNavigate={onNavigate}
+                  onContextMenu={handleCardContextMenu}
                 />
               </div>
             </div>
@@ -151,6 +186,20 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
         onEdit={handleEdit}
         onToggleFavorite={handleToggleFavorite}
         launchingName={launchingName}
+      />
+      <CollectionAssignMenu
+        open={assignMenuState.open}
+        profileName={assignMenuState.profileName}
+        anchorPosition={assignMenuState.anchorPosition}
+        onClose={closeAssignMenu}
+        onCreateNew={handleCreateFromAssignMenu}
+      />
+      <CollectionEditModal
+        open={createCollectionFromMenuOpen}
+        mode="create"
+        onClose={() => setCreateCollectionFromMenuOpen(false)}
+        onSubmitCreate={handleSubmitCreateFromMenu}
+        onSubmitEdit={async () => false}
       />
     </div>
   );

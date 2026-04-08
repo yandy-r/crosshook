@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import type { LibraryCardData } from '../../types/library';
 import type { AppRoute } from '../layout/Sidebar';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
@@ -12,6 +13,7 @@ interface LibraryGridProps {
   onToggleFavorite: (name: string, current: boolean) => void;
   launchingName?: string;
   onNavigate?: (route: AppRoute) => void;
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>, profileName: string) => void;
 }
 
 export function LibraryGrid({
@@ -23,6 +25,7 @@ export function LibraryGrid({
   onToggleFavorite,
   launchingName,
   onNavigate,
+  onContextMenu,
 }: LibraryGridProps) {
   if (profiles.length === 0) {
     return (
@@ -51,6 +54,7 @@ export function LibraryGrid({
           onEdit={onEdit}
           onToggleFavorite={onToggleFavorite}
           isLaunching={launchingName === profile.name}
+          onContextMenu={onContextMenu}
         />
       ))}
     </div>

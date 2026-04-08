@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { LibraryCardData } from '../../types/library';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
@@ -11,6 +11,7 @@ interface LibraryCardProps {
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
   isLaunching?: boolean;
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>, profileName: string) => void;
 }
 
 function getInitials(gameName: string, name: string): string {
@@ -26,6 +27,7 @@ export function LibraryCard({
   onEdit,
   onToggleFavorite,
   isLaunching,
+  onContextMenu,
 }: LibraryCardProps) {
   // IntersectionObserver: only fetch cover art when card enters viewport
   const [visible, setVisible] = useState(false);
@@ -68,7 +70,19 @@ export function LibraryCard({
   }
 
   return (
-    <div ref={cardRef} className={cardClass} role="listitem">
+    <div
+      ref={cardRef}
+      className={cardClass}
+      role="listitem"
+      onContextMenu={
+        onContextMenu
+          ? (e) => {
+              e.preventDefault();
+              onContextMenu(e, profile.name);
+            }
+          : undefined
+      }
+    >
       <button
         type="button"
         className="crosshook-library-card__details-hitbox"
