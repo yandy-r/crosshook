@@ -2903,10 +2903,12 @@ mod tests {
         store.delete_collection(&id).unwrap();
 
         // After delete, reading defaults should error because the collection row is gone.
+        // The error shape must match `set_collection_defaults` (Validation) so frontend
+        // code sees a single surface for the missing-collection condition.
         let result = store.get_collection_defaults(&id);
         assert!(
-            result.is_err(),
-            "deleted collection defaults read should fail, got {result:?}"
+            matches!(result, Err(MetadataStoreError::Validation(_))),
+            "deleted collection defaults read should return Validation, got {result:?}"
         );
     }
 

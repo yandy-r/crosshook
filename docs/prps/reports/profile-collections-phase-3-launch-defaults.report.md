@@ -280,3 +280,129 @@ A single grouped PR linking `Closes #179` is acceptable per the plan.
 4. **Phase 4 prerequisites**: this report is the foundation for Phase 4 (TOML
    export/import of collection defaults), which can serialize the same
    `CollectionDefaultsSection` Rust type into a TOML wire format.
+
+## Addendum — PR #184 review follow-up (M1–M4)
+
+The PR #184 review (`docs/prps/reviews/pr-184-review.md`) flagged four Medium
+findings in addition to the two High ones. This section records how M1–M4 were
+resolved in a follow-up commit series on the same PR branch. The two High
+findings (H1: `handleLaunchFromCollection` missing `activeCollectionId`; H2:
+`LibraryPage.handleLaunch` missing `activeCollectionId`) are tracked separately.
+
+### M1 — `get_collection_defaults` error-shape parity
+
+**Problem**: `get_collection_defaults` returned
+`MetadataStoreError::Database { source: QueryReturnedNoRows }` when the
+collection row didn't exist, while `set_collection_defaults` returned
+`Validation("collection not found: …")` for the same condition. Frontend code
+saw two different error surfaces for one semantic condition.
+
+**Fix**: `crates/crosshook-core/src/metadata/collections.rs` — branch on
+`rusqlite::Error::QueryReturnedNoRows` and return `Validation(...)` to match
+the setter. Other SQLite errors still flow through `Database`. Doc comment on
+the function updated to describe the new error shape.
+
+**Test update**: `test_collection_defaults_cascades_on_collection_delete`
+(`crates/crosshook-core/src/metadata/mod.rs`) upgraded from
+`assert!(result.is_err())` to
+`assert!(matches!(result, Err(MetadataStoreError::Validation(_))))` so the
+error-shape contract is regression-guarded.
+
+### M2 — `effective_profile_with` precedence doc + regression test
+
+**Problem**: The doc comment on `GameProfile::effective_profile_with` advertised
+a 3-layer precedence (`base → collection defaults → local_override`), but the
+only production caller is `profile_load`, which first calls
+`ProfileStore::load`. `ProfileStore::load` already bakes `local_override` into
+layer 1 and clears the section to `LocalOverrideSection::default()`. At the
+`profile_load` call site, layer 3 is therefore a no-op. The doc comment did not
+warn a future contributor about this, and the existing tests built fixtures
+directly (bypassing `store.load`) so they couldn't have caught a regression in
+the real runtime pipeline.
+
+**Fix — doc**: Extended the `effective_profile_with` doc comment
+(`crates/crosshook-core/src/profile/models.rs`) with a dedicated
+"Runtime precedence after `ProfileStore::load`" section explaining that layer 3
+is a no-op at the post-load call site but the "local_override always wins"
+guarantee still holds because layer 1 already carries the baked override.
+
+**Fix — test**: Added
+`save_load_then_merge_collection_defaults_preserves_local_override_paths` in
+`crates/crosshook-core/src/profile/toml_store.rs` that exercises the full
+runtime pipeline: save a profile with populated `local_override` → load (which
+bakes local_override into layer 1) → merge with a `CollectionDefaultsSection`
+that targets non-overlapping launch fields. Asserts both that layer-1 paths
+survive the merge and that collection defaults apply to launch-only fields.
+This test will fail if a future contributor extends `local_override` with
+fields that overlap `CollectionDefaultsSection` without auditing the merge.
+
+### M3 — `profile_load` error-branch dead code
+
+**Problem**: The error branch in `profile_load` called
+`profile.effective_profile_with(None)` on a post-`store.load` profile whose
+`local_override` was already empty, making the call a functional no-op that
+visually suggested a defensive layer-3 application.
+
+**Fix**: Folded into the M3/M4 refactor below — the helper now returns
+`Ok(profile)` directly on the fail-open error path, which matches the
+`Some(_)` / no-collection branch and reads honestly.
+
+### M4 — Silent failure on corrupt collection defaults
+
+**Problem**: When `get_collection_defaults` returned
+`MetadataStoreError::Corrupt(_)`, `profile_load` logged a `tracing::warn!` and
+silently fell back to the un-merged profile. The user launched the game with
+no visible indication that their collection context was dropped. Corrupt JSON
+is a data-integrity issue the user needs to fix, not a transient glitch to
+absorb.
+
+**Fix**: Extracted the merge logic from `profile_load` into a private helper
+`apply_collection_defaults` in `src-tauri/src/commands/profile.rs` that
+branches on the error variant:
+
+- `Ok(defaults)` → merged profile.
+- `Err(MetadataStoreError::Corrupt(_))` → **bubble the error** so
+  `useProfile.loadProfile` routes it into `setError`, which LaunchPage
+  already surfaces to the user.
+- `Err(_)` (Validation, Database, Io, …) → log `warn` and fall back to
+  `Ok(profile)`. Fail-open semantics for transient/IO failures are preserved
+  so a stale collection id never hard-blocks a game launch.
+
+`profile_load` becomes a thin wrapper around the helper. No frontend code
+changes were needed: `useProfile.loadProfile`'s existing error pipeline
+(`useProfile.ts:626-635`) automatically surfaces the new corrupt-case error.
+
+**Tests**: Added `apply_collection_defaults_tests` submodule in
+`src-tauri/src/commands/profile.rs` covering five scenarios:
+
+1. `None` collection id → profile unchanged.
+2. Whitespace-only collection id → profile unchanged (mirrors the frontend
+   normalization in `useProfile.loadProfile`).
+3. Valid defaults → successful merge of method + additive env vars.
+4. Unknown collection id → fail-open with unmodified profile (exercises the
+   M1 `Validation` branch end-to-end).
+5. Corrupt JSON (seeded via raw SQL using `MetadataStore::with_sqlite_conn`)
+   → bubbles as `MetadataStoreError::Corrupt(_)` to the caller.
+
+The corrupt-defaults test uses tuple params instead of `rusqlite::params!` so
+`src-tauri` doesn't need a direct `rusqlite` dev-dep.
+
+### Drive-by fix — `steam_profile` test helper
+
+While adding the `apply_collection_defaults_tests` submodule, the
+`crosshook-native` lib test target was uncovered to have a pre-existing
+compile error: `steam_profile` (the test helper in
+`src-tauri/src/commands/profile.rs`) was missing the `required_protontricks`
+and `community_trainer_sha256` fields added to `TrainerSection` in a recent
+commit. This had rendered the entire `crosshook-native` test target
+uncompilable. Fixed in the same commit series so the new tests can run.
+
+### Verification (M1–M4 follow-up)
+
+| Check | Result |
+| --- | --- |
+| `cargo test -p crosshook-core` | **Pass** — 767 unit (+1 for M2) + 3 integration |
+| `cargo test -p crosshook-native` | **Pass** — 23 tests (+5 for `apply_collection_defaults_tests`; suite now actually compiles) |
+| `cargo clippy -p crosshook-core` | **Pass** — 30 warnings (baseline unchanged) |
+| `cargo check -p crosshook-native` | **Pass** |
+| `tsc --noEmit` (frontend) | **Pass** — zero errors |

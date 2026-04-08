@@ -329,24 +329,34 @@ pub fn collections_for_profile(
 /// `collections.defaults_json`. Returns `Ok(None)` when the collection has no defaults
 /// (column is `NULL` or empty), `Ok(Some(_))` on a successful parse, or:
 ///
-/// - `Err(Database)` when the collection row does not exist (caller surfaces
-///   "collection not found" via the `QueryReturnedNoRows` source).
+/// - `Err(Validation)` when the collection row does not exist. This matches the
+///   error shape of [`set_collection_defaults`] so callers see a single,
+///   consistent surface for the missing-collection condition.
+/// - `Err(Database)` for any other SQLite failure (IO, locking, schema drift).
 /// - `Err(Corrupt)` when the column contains invalid JSON. The raw bytes remain
 ///   on disk so the user can clear them by saving fresh defaults.
 pub fn get_collection_defaults(
     conn: &Connection,
     collection_id: &str,
 ) -> Result<Option<CollectionDefaultsSection>, MetadataStoreError> {
-    let json: Option<String> = conn
-        .query_row(
-            "SELECT defaults_json FROM collections WHERE collection_id = ?1",
-            params![collection_id],
-            |row| row.get(0),
-        )
-        .map_err(|source| MetadataStoreError::Database {
-            action: "read collection defaults",
-            source,
-        })?;
+    let json: Option<String> = match conn.query_row(
+        "SELECT defaults_json FROM collections WHERE collection_id = ?1",
+        params![collection_id],
+        |row| row.get(0),
+    ) {
+        Ok(v) => v,
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            return Err(MetadataStoreError::Validation(format!(
+                "collection not found: {collection_id}"
+            )));
+        }
+        Err(source) => {
+            return Err(MetadataStoreError::Database {
+                action: "read collection defaults",
+                source,
+            });
+        }
+    };
 
     let Some(json) = json else {
         return Ok(None);

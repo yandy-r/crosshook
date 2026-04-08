@@ -543,6 +543,33 @@ impl GameProfile {
     ///      a profile's launch method.
     ///   3. `local_override.*` — machine-specific paths always win last so a power
     ///      user's portable executable_path is never trampled by collection defaults.
+    ///
+    /// # Runtime precedence after [`crate::profile::ProfileStore::load`]
+    ///
+    /// The 3-layer precedence above applies when this method is called on a
+    /// profile that still carries a populated `local_override` section (e.g.,
+    /// a freshly-constructed fixture in tests or a raw-storage profile read from
+    /// TOML without going through the store loader).
+    ///
+    /// In production, the only caller that threads collection defaults is
+    /// `profile_load`, which first calls `ProfileStore::load`. That loader
+    /// already collapses `local_override` into layer 1 (baking the overrides
+    /// into the base profile fields) and clears `self.local_override` to
+    /// `LocalOverrideSection::default()`. By the time this method runs on a
+    /// post-load profile, layer 3 is a no-op — the `local_override`-guarded
+    /// branches below all see empty strings. The effective precedence at that
+    /// call site is therefore:
+    ///
+    /// ```text
+    /// (base ⊕ local_override, baked into layer 1)  →  collection defaults  →  ∅
+    /// ```
+    ///
+    /// Today this has no user-visible effect because `CollectionDefaultsSection`
+    /// and `LocalOverrideSection` have zero field overlap (collection = launch
+    /// subset; local_override = machine-specific paths). If a future contributor
+    /// adds overlapping fields, the "local_override always wins" guarantee still
+    /// holds at the call site because layer 1 already contains the override,
+    /// but any new fields must be audited here to preserve that invariant.
     pub fn effective_profile_with(&self, defaults: Option<&CollectionDefaultsSection>) -> Self {
         let mut merged = self.clone();
 
