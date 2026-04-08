@@ -1,0 +1,103 @@
+import { useCallback, useState } from 'react';
+
+import { useCollections } from '@/hooks/useCollections';
+
+import { CollectionEditModal } from './CollectionEditModal';
+
+export interface CollectionsSidebarProps {
+  onOpenCollection: (id: string) => void;
+}
+
+export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps) {
+  const { collections, createCollection, error } = useCollections();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createSessionError, setCreateSessionError] = useState<string | null>(null);
+
+  const handleCreate = useCallback(
+    async (name: string, description: string | null): Promise<boolean> => {
+      setCreateSessionError(null);
+      const result = await createCollection(name, description);
+      if (!result.ok) {
+        setCreateSessionError(result.error);
+        return false;
+      }
+      if (result.descriptionFailed) {
+        setCreateSessionError(
+          `Collection created, but description could not be saved: ${result.descriptionFailed}`
+        );
+        return false;
+      }
+      return true;
+    },
+    [createCollection]
+  );
+
+  const handleClickCollection = useCallback(
+    (id: string) => {
+      onOpenCollection(id);
+    },
+    [onOpenCollection]
+  );
+
+  return (
+    <>
+      <div className="crosshook-sidebar__section crosshook-collections-sidebar">
+        <div className="crosshook-sidebar__section-label">Collections</div>
+        {collections.length > 0 ? (
+          <div className="crosshook-sidebar__section-items crosshook-collections-sidebar__list" role="list">
+            {collections.map((c) => (
+              <button
+                key={c.collection_id}
+                type="button"
+                role="listitem"
+                className="crosshook-sidebar__item crosshook-collections-sidebar__item"
+                onClick={() => handleClickCollection(c.collection_id)}
+                title={c.name}
+              >
+                <span className="crosshook-collections-sidebar__item-name">{c.name}</span>
+                <span
+                  className="crosshook-collections-sidebar__item-count"
+                  aria-label={`${c.profile_count} profiles`}
+                >
+                  {c.profile_count}
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          className="crosshook-sidebar__item crosshook-collections-sidebar__cta"
+          onClick={() => {
+            setCreateSessionError(null);
+            setCreateOpen(true);
+          }}
+        >
+          <span className="crosshook-sidebar__item-icon" aria-hidden="true">
+            +
+          </span>
+          <span className="crosshook-sidebar__item-label">New Collection</span>
+        </button>
+
+        {(createSessionError ?? error) !== null && (
+          <p className="crosshook-collections-sidebar__error" role="alert">
+            {createSessionError ?? error}
+          </p>
+        )}
+      </div>
+
+      <CollectionEditModal
+        open={createOpen}
+        mode="create"
+        onClose={() => {
+          setCreateSessionError(null);
+          setCreateOpen(false);
+        }}
+        onSubmitCreate={handleCreate}
+        onSubmitEdit={async () => false}
+        externalError={createSessionError}
+      />
+    </>
+  );
+}

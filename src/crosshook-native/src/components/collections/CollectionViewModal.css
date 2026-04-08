@@ -1,0 +1,32 @@
+.crosshook-collection-modal__body {
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.crosshook-collection-modal__search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crosshook-collection-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.crosshook-collection-modal__empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--crosshook-color-text-muted);
+  border: 1px dashed var(--crosshook-color-border-muted);
+  border-radius: var(--crosshook-radius-md);
+}
+
+.crosshook-collection-modal__status {
+  padding: 24px;
+  text-align: center;
+  color: var(--crosshook-color-text-muted);
+}

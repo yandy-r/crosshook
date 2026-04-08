@@ -7,6 +7,8 @@
   --crosshook-color-surface-strong: #0c1120;
   --crosshook-color-border: rgba(224, 224, 224, 0.12);
   --crosshook-color-border-strong: rgba(224, 224, 224, 0.22);
+  /* Subtle dashed dividers / empty states (reusable muted border) */
+  --crosshook-color-border-muted: rgba(255, 255, 255, 0.1);
   --crosshook-color-text: #e0e0e0;
   --crosshook-color-text-muted: rgba(224, 224, 224, 0.76);
   --crosshook-color-text-subtle: rgba(224, 224, 224, 0.56);

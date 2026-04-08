@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
@@ -7,6 +7,9 @@ import { subscribeEvent } from '@/lib/events';
 import ContentArea from './components/layout/ContentArea';
 import ControllerPrompts from './components/layout/ControllerPrompts';
 import ConsoleDrawer from './components/layout/ConsoleDrawer';
+import { CollectionEditModal } from './components/collections/CollectionEditModal';
+import { CollectionViewModal } from './components/collections/CollectionViewModal';
+import { useCollectionViewModalState } from './components/collections/useCollectionViewModalState';
 import Sidebar, { type AppRoute } from './components/layout/Sidebar';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { DevModeBanner } from '@/lib/DevModeBanner';
@@ -15,9 +18,11 @@ import { getActiveToggles, togglesToChipFragments } from '@/lib/toggles';
 import type { OnboardingCheckPayload } from './types/onboarding';
 import { LaunchStateProvider } from './context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from './context/PreferencesContext';
+import { CollectionsProvider } from './context/CollectionsContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
 import { ProfileHealthProvider } from './context/ProfileHealthContext';
 import { useGamepadNav } from './hooks/useGamepadNav';
+import { useCollections } from './hooks/useCollections';
 import { useScrollEnhance } from './hooks/useScrollEnhance';
 
 const VALID_APP_ROUTES: Record<AppRoute, true> = {
@@ -60,11 +65,100 @@ function ConsoleDock({ panelRef }: { panelRef: RefObject<PanelImperativeHandle |
 }
 
 function AppShell({ controllerMode }: { controllerMode: boolean }) {
-  const { profileName, selectedProfile } = useProfileContext();
+  const {
+    profileName,
+    selectedProfile,
+    selectProfile,
+    activeCollectionId,
+    setActiveCollectionId,
+  } = useProfileContext();
   const [route, setRoute] = useState<AppRoute>('library');
   const lastProfile = profileName.trim() || selectedProfile;
   const consolePanelRef = useRef<PanelImperativeHandle>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  const { open: collectionModalOpen, collectionId: openCollectionId, openForCollection, close: closeCollectionModal } =
+    useCollectionViewModalState();
+  const { renameCollection, updateDescription, collections } = useCollections();
+  const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
+  const [editSessionError, setEditSessionError] = useState<string | null>(null);
+  const [collectionDescriptionToast, setCollectionDescriptionToast] = useState<{
+    collectionId: string;
+    description: string | null;
+  } | null>(null);
+  const editingCollection = useMemo(
+    () =>
+      editingCollectionId === null
+        ? null
+        : (collections.find((c) => c.collection_id === editingCollectionId) ?? null),
+    [collections, editingCollectionId]
+  );
+
+  const handleOpenCollection = useCallback(
+    (id: string) => {
+      setActiveCollectionId(id);
+      openForCollection(id);
+    },
+    [openForCollection, setActiveCollectionId]
+  );
+
+  const handleLaunchFromCollection = useCallback(
+    async (name: string) => {
+      await selectProfile(name);
+      setRoute('launch');
+    },
+    [selectProfile]
+  );
+
+  const handleEditFromCollection = useCallback(
+    async (name: string) => {
+      await selectProfile(name);
+      setRoute('profiles');
+    },
+    [selectProfile]
+  );
+
+  const handleRequestEditMetadata = useCallback((id: string) => {
+    setEditingCollectionId(id);
+  }, []);
+
+  useEffect(() => {
+    setEditSessionError(null);
+  }, [editingCollectionId]);
+
+  const handleSubmitEditCollection = useCallback(
+    async (name: string, description: string | null): Promise<boolean> => {
+      if (editingCollectionId === null) {
+        return false;
+      }
+      const id = editingCollectionId;
+      setEditSessionError(null);
+      const renamed = await renameCollection(id, name);
+      if (!renamed.ok) {
+        setEditSessionError(renamed.error);
+        return false;
+      }
+      const descResult = await updateDescription(id, description);
+      if (!descResult.ok) {
+        setCollectionDescriptionToast({ collectionId: id, description });
+      }
+      return true;
+    },
+    [editingCollectionId, renameCollection, updateDescription]
+  );
+
+  const retryCollectionDescription = useCallback(async () => {
+    if (collectionDescriptionToast === null) {
+      return;
+    }
+    const result = await updateDescription(
+      collectionDescriptionToast.collectionId,
+      collectionDescriptionToast.description
+    );
+    if (result.ok) {
+      setCollectionDescriptionToast(null);
+    }
+  }, [collectionDescriptionToast, updateDescription]);
 
   useEffect(() => {
     const p = subscribeEvent<OnboardingCheckPayload>('onboarding-check', (event) => {
@@ -98,6 +192,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
                   onNavigate={setRoute}
                   controllerMode={controllerMode}
                   lastProfile={lastProfile}
+                  onOpenCollection={handleOpenCollection}
                 />
               </Panel>
               <Separator className="crosshook-resize-handle crosshook-resize-handle--vertical" />
@@ -135,6 +230,49 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
             onDismiss={() => setShowOnboarding(false)}
           />
         )}
+        <CollectionViewModal
+          open={collectionModalOpen}
+          collectionId={openCollectionId}
+          onClose={closeCollectionModal}
+          onLaunch={handleLaunchFromCollection}
+          onEdit={handleEditFromCollection}
+          onRequestEditMetadata={handleRequestEditMetadata}
+          onCollectionDeleted={(id) => {
+            if (activeCollectionId === id) {
+              setActiveCollectionId(null);
+            }
+          }}
+        />
+        <CollectionEditModal
+          open={editingCollection !== null}
+          mode="edit"
+          initialName={editingCollection?.name ?? ''}
+          initialDescription={editingCollection?.description ?? null}
+          onClose={() => setEditingCollectionId(null)}
+          onSubmitCreate={async () => false}
+          onSubmitEdit={handleSubmitEditCollection}
+          externalError={editSessionError}
+        />
+        {collectionDescriptionToast !== null ? (
+          <div className="crosshook-rename-toast" role="status" aria-live="polite">
+            <span>Name saved, but the description could not be saved.</span>
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--ghost"
+              onClick={() => void retryCollectionDescription()}
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              className="crosshook-rename-toast-dismiss"
+              aria-label="Dismiss"
+              onClick={() => setCollectionDescriptionToast(null)}
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
       </LaunchStateProvider>
     </PreferencesProvider>
     </Tooltip.Provider>
@@ -159,7 +297,9 @@ export function App() {
       )}
       <ProfileProvider>
         <ProfileHealthProvider>
-          <AppShell controllerMode={gamepadNav.controllerMode} />
+          <CollectionsProvider>
+            <AppShell controllerMode={gamepadNav.controllerMode} />
+          </CollectionsProvider>
         </ProfileHealthProvider>
       </ProfileProvider>
     </main>

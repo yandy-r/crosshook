@@ -6,6 +6,8 @@ import LaunchPanel from '../LaunchPanel';
 import { RouteBanner } from '../layout/RouteBanner';
 import { LaunchSubTabs } from '../LaunchSubTabs';
 import { ThemedSelect } from '../ui/ThemedSelect';
+import { useCollectionMembers } from '../../hooks/useCollectionMembers';
+import { useCollections } from '../../hooks/useCollections';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { usePreferencesContext } from '../../context/PreferencesContext';
@@ -19,6 +21,55 @@ import { applyProtonDbGroupToProfile, mergeProtonDbEnvVarGroup, type PendingProt
 
 export function LaunchPage() {
   const profileState = useProfileContext();
+  const { activeCollectionId, setActiveCollectionId } = profileState;
+  const { collections } = useCollections();
+  const { memberNames, membersForCollectionId, loading: membersLoading } =
+    useCollectionMembers(activeCollectionId);
+  const activeCollection = useMemo(
+    () =>
+      activeCollectionId === null ? null : (collections.find((c) => c.collection_id === activeCollectionId) ?? null),
+    [collections, activeCollectionId]
+  );
+  const filteredProfiles = useMemo(() => {
+    if (activeCollectionId === null) {
+      return profileState.profiles;
+    }
+    if (membersForCollectionId !== activeCollectionId || membersLoading) {
+      return [];
+    }
+    if (memberNames.length === 0) {
+      return [];
+    }
+    const set = new Set(memberNames);
+    return profileState.profiles.filter((name) => set.has(name));
+  }, [profileState.profiles, activeCollectionId, memberNames, membersForCollectionId, membersLoading]);
+
+  useEffect(() => {
+    if (activeCollectionId === null) {
+      return;
+    }
+    if (membersLoading || membersForCollectionId !== activeCollectionId) {
+      return;
+    }
+    const sel = profileState.selectedProfile.trim();
+    if (filteredProfiles.length === 0) {
+      if (sel !== '') {
+        void profileState.selectProfile('');
+      }
+      return;
+    }
+    if (sel !== '' && !filteredProfiles.includes(sel)) {
+      void profileState.selectProfile(filteredProfiles[0]);
+    }
+  }, [
+    activeCollectionId,
+    membersLoading,
+    membersForCollectionId,
+    filteredProfiles,
+    profileState.selectedProfile,
+    profileState.selectProfile,
+  ]);
+
   const { healthByName } = useProfileHealthContext();
   const { settings } = usePreferencesContext();
   const { launchGame, launchTrainer } = useLaunchStateContext();
@@ -293,16 +344,31 @@ export function LaunchPage() {
           method={profileState.launchMethod}
           request={launchRequest}
           profileSelectSlot={
-            <ThemedSelect
-              id="launch-profile-selector"
-              value={profileState.selectedProfile}
-              onValueChange={(name) => void profileState.selectProfile(name)}
-              placeholder="Select a profile"
-              pinnedValues={pinnedSet}
-              onTogglePin={handleTogglePin}
-              ariaLabelledby="launch-active-profile-label"
-              options={profileState.profiles.map((name) => ({ value: name, label: name }))}
-            />
+            <>
+              {activeCollection !== null && (
+                <div className="crosshook-launch-collection-filter">
+                  Filtering by: <strong>{activeCollection.name}</strong>
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--ghost crosshook-button--small"
+                    onClick={() => setActiveCollectionId(null)}
+                    aria-label="Clear collection filter"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              <ThemedSelect
+                id="launch-profile-selector"
+                value={profileState.selectedProfile}
+                onValueChange={(name) => void profileState.selectProfile(name)}
+                placeholder="Select a profile"
+                pinnedValues={pinnedSet}
+                onTogglePin={handleTogglePin}
+                ariaLabelledby="launch-active-profile-label"
+                options={filteredProfiles.map((name) => ({ value: name, label: name }))}
+              />
+            </>
           }
           tabsSlot={
             <LaunchSubTabs

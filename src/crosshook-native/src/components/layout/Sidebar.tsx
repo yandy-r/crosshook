@@ -11,6 +11,7 @@ import {
   SettingsIcon,
   HealthIcon,
 } from '../icons/SidebarIcons';
+import { CollectionsSidebar } from '../collections/CollectionsSidebar';
 import { ROUTE_NAV_LABEL } from './routeMetadata';
 
 export type AppRoute = 'library' | 'profiles' | 'launch' | 'install' | 'community' | 'discover' | 'compatibility' | 'settings' | 'health';
@@ -20,6 +21,7 @@ export interface SidebarProps {
   onNavigate: (route: AppRoute) => void;
   controllerMode: boolean;
   lastProfile: string;
+  onOpenCollection: (id: string) => void;
 }
 
 interface SidebarSectionItem {
@@ -94,7 +96,13 @@ function StatusRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function Sidebar({ activeRoute, onNavigate, controllerMode, lastProfile }: SidebarProps) {
+export function Sidebar({
+  activeRoute,
+  onNavigate,
+  controllerMode,
+  lastProfile,
+  onOpenCollection,
+}: SidebarProps) {
   const controllerLabel = controllerMode ? 'On' : 'Off';
   const profileLabel = lastProfile.trim() || 'No profile selected';
 
@@ -132,7 +140,27 @@ export function Sidebar({ activeRoute, onNavigate, controllerMode, lastProfile }
       </div>
 
       <Tabs.List className="crosshook-sidebar__nav" aria-label="CrossHook sections">
-        {SIDEBAR_SECTIONS.map((section) => (
+        {SIDEBAR_SECTIONS[0] ? (
+          <div className="crosshook-sidebar__section" key={SIDEBAR_SECTIONS[0].label}>
+            <div className="crosshook-sidebar__section-label">{SIDEBAR_SECTIONS[0].label}</div>
+            <div className="crosshook-sidebar__section-items">
+              {SIDEBAR_SECTIONS[0].items.map((item) => (
+                <SidebarTrigger
+                  key={item.route}
+                  activeRoute={activeRoute}
+                  onNavigate={onNavigate}
+                  route={item.route}
+                  label={item.label}
+                  icon={item.icon}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <CollectionsSidebar onOpenCollection={onOpenCollection} />
+
+        {SIDEBAR_SECTIONS.slice(1).map((section) => (
           <div className="crosshook-sidebar__section" key={section.label}>
             <div className="crosshook-sidebar__section-label">{section.label}</div>
             <div className="crosshook-sidebar__section-items">
