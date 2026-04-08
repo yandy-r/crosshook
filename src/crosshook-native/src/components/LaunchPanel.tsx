@@ -1,6 +1,9 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { useAcknowledgeVersionChange } from '../hooks/useAcknowledgeVersionChange';
+import {
+  presentAcknowledgeVersionChangeOutcome,
+  useAcknowledgeVersionChange,
+} from '../hooks/useAcknowledgeVersionChange';
 import type {
   PatternMatch,
   EnvVarSource,
@@ -637,7 +640,8 @@ export function LaunchPanel({
   const isUpdateInProgress = versionStatus === 'update_in_progress';
 
   async function handleMarkAsVerified() {
-    await acknowledgeVersionChange(profileId, revalidateSingle);
+    const outcome = await acknowledgeVersionChange(profileId, revalidateSingle);
+    presentAcknowledgeVersionChangeOutcome(outcome);
   }
 
   function versionMismatchMessage(): string {
