@@ -1,4 +1,5 @@
 import type { Handler } from '../index';
+import { getActiveFixture } from '../index';
 import { getStore } from '../store';
 import { emitMockEvent } from '../eventBus';
 import type { ProfileSummary } from '../../../types/library';
@@ -61,6 +62,45 @@ function appendRevision(profileName: string, source: ConfigRevisionSummary['sour
   return revision;
 }
 
+// ---------------------------------------------------------------------------
+// Fixture helpers (BR-11)
+// ---------------------------------------------------------------------------
+//
+// `populated` (default) — current behavior, returns demo data
+// `empty`               — list/load handlers return empty/null
+// `error`               — fallible handlers throw; shell-critical reads still
+//                          resolve so `<AppShell />` can mount
+// `loading`             — non-shell-critical handlers never resolve
+//                          (`new Promise(() => {})`); shell-critical reads
+//                          still resolve so the shell renders
+//
+// NOTE: These helpers are NOT subsumed by the `wrapHandler()` middleware
+// added in Task 3.2 (`lib/mocks/wrapHandler.ts`). The middleware implements
+// the orthogonal `?errors=true` / `?delay=<ms>` toggles, while these helpers
+// implement the per-handler `?fixture=loading|error` dispatch. The two
+// systems are deliberately independent — keep both.
+
+/**
+ * Returns a promise that never resolves. Used by the `loading` fixture so
+ * loading-state UIs (skeletons, spinners) stay visible during dev review.
+ * Orthogonal to the `?delay=<ms>` toggle in `wrapHandler.ts`.
+ */
+function neverResolving<T>(): Promise<T> {
+  return new Promise<T>(() => {
+    /* intentionally never resolves */
+  });
+}
+
+/**
+ * Synthesizes a `[dev-mock] forced error` for the named command. Used by the
+ * `?fixture=error` dispatch path. Orthogonal to the `?errors=true` toggle in
+ * `wrapHandler.ts` — fixture-error throws even for reads, while the toggle
+ * exempts reads via `isReadCommand()`.
+ */
+function forcedError(commandName: string): Error {
+  return new Error(`[dev-mock] forced error for ${commandName}`);
+}
+
 function seedDemoProfiles(): void {
   const store = getStore();
   if (store.profiles.size > 0) return;
@@ -103,12 +143,20 @@ function seedDemoProfiles(): void {
 }
 
 export function registerProfile(map: Map<string, Handler>): void {
+  // profile_list — SHELL-CRITICAL (BR-11): always resolves with populated
+  // data (or `empty` returns []) so `<AppShell />` can render under every
+  // fixture state, including `error` and `loading`.
   map.set('profile_list', async () => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return [];
     seedDemoProfiles();
     return Array.from(getStore().profiles.keys());
   });
 
+  // profile_list_summaries — SHELL-CRITICAL (BR-11): same rationale as above.
   map.set('profile_list_summaries', async (): Promise<ProfileSummary[]> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return [];
     seedDemoProfiles();
     return Array.from(getStore().profiles.values()).map((p) => ({
       name: p.game.name,
@@ -120,11 +168,20 @@ export function registerProfile(map: Map<string, Handler>): void {
   });
 
   map.set('profile_list_favorites', async () => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return [];
+    if (fixture === 'loading') return neverResolving<string[]>();
+    // `error` is allowed to resolve here — favorites are non-fatal and the UI
+    // can render an empty favorites strip in error state.
     seedDemoProfiles();
     return Array.from(profileFavorites).filter((n) => getStore().profiles.has(n));
   });
 
   map.set('profile_load', async (args) => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return null;
+    if (fixture === 'loading') return neverResolving<unknown>();
+    if (fixture === 'error') throw forcedError('profile_load');
     seedDemoProfiles();
     const { name } = args as { name: string };
     return getStore().profiles.get(name) ?? null;
@@ -133,6 +190,9 @@ export function registerProfile(map: Map<string, Handler>): void {
   // ── Mutation handlers ─────────────────────────────────────────────────────
 
   map.set('profile_save', async (args) => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('profile_save');
+    if (fixture === 'loading') return neverResolving<null>();
     const { name, data } = args as { name: string; data: GameProfile };
     const trimmed = name.trim();
     if (!trimmed) {
@@ -224,6 +284,9 @@ export function registerProfile(map: Map<string, Handler>): void {
   });
 
   map.set('profile_delete', async (args) => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('profile_delete');
+    if (fixture === 'loading') return neverResolving<null>();
     const { name } = args as { name: string };
     const trimmed = name.trim();
     const store = getStore();
@@ -241,6 +304,9 @@ export function registerProfile(map: Map<string, Handler>): void {
   });
 
   map.set('profile_duplicate', async (args) => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('profile_duplicate');
+    if (fixture === 'loading') return neverResolving<DuplicateProfileResult>();
     const { name } = args as { name: string };
     const trimmed = name.trim();
     const store = getStore();
@@ -271,6 +337,9 @@ export function registerProfile(map: Map<string, Handler>): void {
   });
 
   map.set('profile_rename', async (args) => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('profile_rename');
+    if (fixture === 'loading') return neverResolving<boolean>();
     const { oldName, newName } = args as { oldName: string; newName: string };
     const trimmedOld = oldName.trim();
     const trimmedNew = newName.trim();
@@ -312,6 +381,9 @@ export function registerProfile(map: Map<string, Handler>): void {
   });
 
   map.set('profile_set_favorite', async (args) => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('profile_set_favorite');
+    if (fixture === 'loading') return neverResolving<null>();
     const { name, favorite } = args as { name: string; favorite: boolean };
     const trimmed = name.trim();
     if (favorite) {

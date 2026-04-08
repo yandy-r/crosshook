@@ -120,13 +120,70 @@ All synthetic data must satisfy these constraints (BR-7):
 
 ---
 
-## `?fixture=` URL Switcher (Phase 3 Scope)
+## `?fixture=` URL Switcher
 
-Phase 3 will add support for selecting a named fixture set via the URL query
-parameter `?fixture=<name>` (e.g. `?fixture=empty`, `?fixture=populated`). The
-hook is pre-documented here so Phase 2 contributors can plan for it. The
-`resetStore()` export in `store.ts` is the natural reset point for fixture
-switching.
+Select a named fixture scenario via the URL query parameter `?fixture=<name>`.
+Parsed once at module init in `lib/fixture.ts` (so a reload is required to
+change it) and dispatched per-handler. Unknown values fall back to `populated`.
+
+| Value         | Behavior                                                                       |
+| ------------- | ------------------------------------------------------------------------------ |
+| `populated`   | Default. Returns demo data with seeded profiles, settings, and history.        |
+| `empty`       | Empty arrays / `null` for list/load handlers. Mutations still succeed.         |
+| `error`       | Fallible commands throw `[dev-mock] forced error`. Shell-critical reads still resolve (BR-11). |
+| `loading`     | Non-shell-critical handlers return a never-resolving promise so loading UIs stay visible. |
+
+The chip label reflects the active fixture, e.g. `DEV · empty`.
+
+---
+
+## Orthogonal Debug Toggles (BR-12)
+
+Three orthogonal toggles can be combined freely with each other AND with the
+fixture switcher above. Like `?fixture=`, they are parsed once at module init
+(in `lib/toggles.ts`) and a reload is required to change them.
+
+| Toggle              | Effect                                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| `?delay=<ms>`       | Adds `setTimeout(<ms>)` artificial latency before EVERY mock handler runs.               |
+| `?errors=true`      | Rejects mutating commands with a synthetic `[dev-mock] forced error`. Reads succeed.    |
+| `?onboarding=show`  | Synthesizes an `onboarding-check` event 500ms after mount so the wizard surfaces.        |
+
+`?delay` and `?errors` are implemented as a `wrapHandler()` middleware in
+`lib/mocks/wrapHandler.ts` that wraps every registered handler exactly once
+during `registerMocks()`. `?onboarding=show` is a one-shot module-init side
+effect inside `handlers/onboarding.ts`.
+
+**Read detection**: `?errors=true` exempts read commands so the app shell can
+render. `wrapHandler.ts` uses an explicit allow-list (`SHELL_CRITICAL_READS`
+plus `EXPLICIT_READ_COMMANDS`) and a verb/noun regex heuristic
+(`get_`, `list_`, `load_`, `_load`, `_list`, …). Add new shell-critical reads
+to `SHELL_CRITICAL_READS` if they boot the app.
+
+**Stacking with fixtures**: a never-resolving promise from `?fixture=loading`
+trumps `?delay=<ms>` because the delay lives outside the handler — once the
+delay finishes, the inner promise still hangs forever.
+
+### Combination examples
+
+```
+http://localhost:5173/?fixture=empty&delay=800
+        Empty data + 800ms artificial latency. Chip: DEV · empty · 800ms
+
+http://localhost:5173/?errors=true&delay=200
+        Mutation errors + 200ms latency. Chip: DEV · populated · errors · 200ms
+
+http://localhost:5173/?fixture=error&onboarding=show
+        Error fixture + synthesized onboarding event. Chip: DEV · error · onboarding
+
+http://localhost:5173/?fixture=empty&errors=true&delay=400&onboarding=show
+        All four. Chip: DEV · empty · errors · 400ms · onboarding
+```
+
+The dev-mode chip in the lower-right corner shows the active fixture and
+toggle fragments separated by `·`. Order is deterministic
+(`fixture, errors, delay, onboarding`) so screenshots are stable across
+reloads with the same URL.
 
 ---
 

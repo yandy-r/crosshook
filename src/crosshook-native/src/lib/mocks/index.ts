@@ -1,6 +1,16 @@
 import { registerSettings } from './handlers/settings';
 import { registerProfile } from './handlers/profile';
 import { registerLaunch } from './handlers/launch';
+
+// Re-export the fixture switcher and orthogonal debug toggles so handler files
+// have a single import path (`../index`) for `Handler`, `getActiveFixture`,
+// and `getActiveToggles`. The actual logic lives in `../fixture` and
+// `../toggles` so they stay statically importable from production code without
+// dragging this dev-only module into the bundle.
+export { getActiveFixture } from '../fixture';
+export type { FixtureState } from '../fixture';
+export { getActiveToggles, togglesToChipFragments } from '../toggles';
+export type { DebugToggles } from '../toggles';
 import { registerInstall } from './handlers/install';
 import { registerUpdate } from './handlers/update';
 import { registerHealth } from './handlers/health';
@@ -12,6 +22,7 @@ import { registerCommunity } from './handlers/community';
 import { registerLauncher } from './handlers/launcher';
 import { registerLibrary } from './handlers/library';
 import { registerSystem } from './handlers/system';
+import { wrapAllHandlers } from './wrapHandler';
 
 export type Handler = (args: unknown) => unknown | Promise<unknown>;
 
@@ -36,5 +47,9 @@ export function registerMocks(): Map<string, Handler> {
   registerLibrary(map);
   registerSystem(map);
 
-  return map;
+  // Wrap every handler with the orthogonal debug-toggle middleware
+  // (`?delay=`, `?errors=true`). MUST run AFTER every register*() call so
+  // every entry in the map is wrapped exactly once. See `wrapHandler.ts` for
+  // the BR-11 shell-critical read exemption rules.
+  return wrapAllHandlers(map);
 }

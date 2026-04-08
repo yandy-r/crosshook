@@ -1,4 +1,5 @@
 import type { Handler } from '../index';
+import { getActiveToggles } from '../../toggles';
 import { getStore } from '../store';
 import { emitMockEvent } from '../eventBus';
 import type {
@@ -9,24 +10,36 @@ import type {
 
 let onboardingDismissed = false;
 
-// On module init: if ?onboarding=show is present in the URL, schedule a
-// synthetic `onboarding-check` event so App.tsx receives it. Only fires when
-// the flag is explicitly set — not the default behavior.
-if (typeof window !== 'undefined') {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('onboarding') === 'show') {
-    setTimeout(() => {
-      const store = getStore();
-      const payload: OnboardingCheckPayload = {
-        show: true,
-        has_profiles: store.profiles.size > 0,
-      };
-      emitMockEvent('onboarding-check', payload);
-    }, 500);
-  }
+// Synthesize the `onboarding-check` event ONCE per session when
+// `?onboarding=show` is present in the URL. The guard prevents HMR or
+// re-imports of this module from re-firing the event. The 500ms delay
+// ensures App.tsx has already mounted and called `subscribeEvent()` before
+// the emit fans out — without it, the event would race the subscription and
+// the listener would miss the payload.
+let onboardingEventSynthesized = false;
+
+function maybeSynthesizeOnboardingEvent(): void {
+  if (onboardingEventSynthesized) return;
+  if (!getActiveToggles().showOnboarding) return;
+  onboardingEventSynthesized = true;
+
+  setTimeout(() => {
+    const store = getStore();
+    const payload: OnboardingCheckPayload = {
+      show: true,
+      has_profiles: store.profiles.size > 0,
+    };
+    emitMockEvent('onboarding-check', payload);
+  }, 500);
 }
 
+// Eagerly schedule the synthesized event at module init so it fires even if
+// nothing else triggers `registerOnboarding()` later. The guard above makes
+// the second call from `registerOnboarding()` a no-op.
+maybeSynthesizeOnboardingEvent();
+
 export function registerOnboarding(map: Map<string, Handler>): void {
+  maybeSynthesizeOnboardingEvent();
   map.set('check_readiness', async (): Promise<ReadinessCheckResult> => {
     return {
       checks: [],
