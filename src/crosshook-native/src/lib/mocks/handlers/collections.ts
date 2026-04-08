@@ -4,6 +4,7 @@
 // sentinel.
 
 import type { Handler } from './types';
+import { getStore } from '../store';
 
 // Shape mirrors Rust `CollectionRow` in
 // crates/crosshook-core/src/metadata/models.rs (snake_case per serde default).
@@ -94,14 +95,18 @@ export function registerCollections(map: Map<string, Handler>): void {
         `[dev-mock] collection_add_profile: collection not found: ${collection_id}`
       );
     }
-    // Mirror the Task 2 fix: unknown profile name must surface as an error,
-    // not a silent success. In mock-land we accept any profile_name since we
-    // do not track the profile index — but empty string is still invalid.
-    if (!profile_name?.trim()) {
+    const trimmed = (profile_name ?? '').trim();
+    if (!trimmed) {
       throw new Error('[dev-mock] collection_add_profile: profile_name must not be empty');
     }
+    const store = getStore();
+    if (!store.profiles.has(trimmed)) {
+      throw new Error(
+        `[dev-mock] collection_add_profile: profile not found: ${trimmed}`
+      );
+    }
     const set = membership.get(collection_id) ?? new Set<string>();
-    set.add(profile_name);
+    set.add(trimmed);
     membership.set(collection_id, set);
     return null;
   });
@@ -111,8 +116,9 @@ export function registerCollections(map: Map<string, Handler>): void {
       collection_id: string;
       profile_name: string;
     };
+    const trimmed = (profile_name ?? '').trim();
     // Idempotent — matches Rust semantics at collections.rs:117-120.
-    membership.get(collection_id)?.delete(profile_name);
+    membership.get(collection_id)?.delete(trimmed);
     return null;
   });
 
@@ -162,9 +168,10 @@ export function registerCollections(map: Map<string, Handler>): void {
 
   map.set('collections_for_profile', async (args): Promise<MockCollectionRow[]> => {
     const { profile_name } = args as { profile_name: string };
+    const trimmed = (profile_name ?? '').trim();
     recomputeProfileCounts();
     return collections
-      .filter((c) => membership.get(c.collection_id)?.has(profile_name))
+      .filter((c) => membership.get(c.collection_id)?.has(trimmed))
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 }

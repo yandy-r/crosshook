@@ -2,7 +2,7 @@
 
 **Date**: 2026-04-08
 **Branch**: `feat/profile-collections-phase-1`
-**Source Plan**: `docs/prps/plans/profile-collections-phase-1-backend-foundation.plan.md`
+**Source Plan**: `docs/prps/archived/profile-collections-phase-1-backend-foundation.plan.md`
 **Source PRD**: `docs/prps/prds/profile-collections.prd.md` (Phase 1)
 **Status**: Complete
 
@@ -120,9 +120,9 @@ cargo clippy --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core â
 **30 clippy warnings are pre-existing** (verified against `main`). Zero new warnings
 from this branch. None of our modified files trigger clippy.
 
-Note: `cargo check --manifest-path src-tauri/Cargo.toml --all-targets` fails with a
+Note: `cargo check --manifest-path src/crosshook-native/src-tauri/Cargo.toml --all-targets` fails with a
 pre-existing `E0063 missing fields 'community_trainer_sha256' and 'required_protontricks'`
-error at `src-tauri/src/commands/profile.rs:1307`. This is unrelated to this plan
+error at `src/crosshook-native/src-tauri/src/commands/profile.rs:1307`. This is unrelated to this plan
 and exists on `main`.
 
 ### Level 2 â€” Unit + Integration Tests (Rust)

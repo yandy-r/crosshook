@@ -157,7 +157,7 @@ The "Must" items above all ship in v1 — the MVP-scope clause exists only as a 
 
 ### Architecture Notes
 
-- **Storage**: SQLite metadata (schema v4 already in place); v5 migration adds (a) `ON DELETE CASCADE` to `collection_profiles.profile_id` FK, (b) optional `collection_launch_defaults` table or inline JSON column on `collections` for per-collection overrides, (c) `sort_order INTEGER` column on `collections` for stable ordering.
+- **Storage**: SQLite metadata (`collections` / `collection_profiles` since schema v4). **Phase 1** ships the **v18 → v19** migration: `ON DELETE CASCADE` on `collection_profiles.profile_id`, `sort_order INTEGER NOT NULL DEFAULT 0` on `collections`. Per-collection launch defaults (table or inline column) land in **Phase 3** with a separate migration, not bundled in v18→v19.
 - **Wire format for sharing**: TOML, mirroring `profile_to_shareable_toml` (`crates/crosshook-core/src/profile/toml_store.rs:508-524`). Uses `schema_version` field per the `COMMUNITY_PROFILE_SCHEMA_VERSION` precedent (`profile/community_schema.rs:5`).
 - **Merge layer**: Rust-side. New `CollectionDefaultsSection` serde type holding the overrideable subset of `LaunchSection`. `effective_profile()` extended to accept an optional `Option<&CollectionDefaultsSection>` and apply it as a layer **between** base and `local_override` (precedence: base → collection defaults → local_override; local always wins last because local paths are machine-specific truths).
 - **Launch context plumbing**: New `activeCollectionId?: string` carried through `LaunchStateContext` (`src/context/LaunchStateContext.tsx:18-37`); `profile_load_with_collection(name, collection_id)` IPC OR extension of `profile_load` to accept optional `collection_id`. Decision: _extend `profile_load`_ to avoid IPC duplication.
@@ -170,8 +170,8 @@ The "Must" items above all ship in v1 — the MVP-scope clause exists only as a 
 
 Critical foot-guns that must be fixed _before_ the UI consumes the IPC:
 
-1. **`add_profile_to_collection` silent no-op** (`metadata/collections.rs:88-96`) — currently logs a warning and returns `Ok(())` when the profile name doesn't resolve. Frontend cannot distinguish "added" from "skipped". **Fix**: return `Err(MetadataStoreError::Validation { ... })` and surface in the Tauri command.
-2. **`collection_profiles.profile_id` FK lacks `ON DELETE CASCADE`** (`migrations.rs:284-289`) — deleting a profile leaves orphan membership rows. **Fix**: schema v5 migration to add the cascade.
+1. **`add_profile_to_collection` silent no-op** (`metadata/collections.rs:88-96`) — previously logged a warning and returned `Ok(())` when the profile name didn't resolve. Frontend could not distinguish "added" from "skipped". **Fix**: return `Err(MetadataStoreError::Validation(String))`, e.g. `Validation("profile not found when adding to collection: …".to_string())`, and surface via the Tauri command.
+2. **`collection_profiles.profile_id` FK lacks `ON DELETE CASCADE`** (`migrations.rs:284-289`) — deleting a profile leaves orphan membership rows. **Fix**: **v18 → v19** migration rebuilds `collection_profiles` with `ON DELETE CASCADE`.
 3. **Missing IPC commands**: `collection_rename`, `collection_update_description`, `collections_for_profile` (reverse lookup). **Fix**: add to `commands/collections.rs` with corresponding `MetadataStore` methods.
 4. **No browser dev-mode mocks** for any of the 6 existing or 3 new commands. **Fix**: add to `src/lib/ipc.dev` mock layer; required by `verify:no-mocks` CI sentinel and for `pnpm dev:browser` to not crash.
 
@@ -184,7 +184,7 @@ Critical foot-guns that must be fixed _before_ the UI consumes the IPC:
 | Profile identification on TOML import is unreliable (no stable cross-install UUID)                                                            | **High**   | Multi-field matching (`steam.app_id`, then `(game.name, trainer.community_trainer_sha256)`, then user disambiguation review modal). Mirrors `CommunityImportWizardModal` flow. Document explicitly that non-Steam profiles may need manual matching |
 | Sidebar collections panel introduces a new scrollable container that breaks WebKitGTK enhanced scroll if not added to `useScrollEnhance.ts:9` | **Medium** | Phase 2 acceptance criterion: any new `overflow-y: auto` container added to `SCROLLABLE` selector + uses `overscroll-behavior: contain`                                                                                                             |
 | `add_profile_to_collection` silent no-op corrupts the new feature's UX if not fixed first                                                     | **Medium** | Phase 1 precondition; ~10-line fix                                                                                                                                                                                                                  |
-| Orphan FK rows on profile delete corrupt collection counts                                                                                    | **Medium** | Phase 1 precondition; schema v5 migration                                                                                                                                                                                                           |
+| Orphan FK rows on profile delete corrupt collection counts                                                                                    | **Medium** | Phase 1 precondition; **v18 → v19** migration                                                                                                                                                                                                           |
 | `CollectionRow` and 6 IPC commands are dead-code today — first real use surfaces latent bugs                                                  | **Medium** | Phase 1 includes integration tests for every CRUD path against a real SQLite store                                                                                                                                                                  |
 | Steam Deck (controller) ergonomics for "add profile to collection" are not validated by any existing pattern                                  | **Medium** | Use right-click menu + button, **not** DnD. Test on a Deck or `gamescope` session before Phase 5 ships                                                                                                                                              |
 | Shared `<Modal>` extraction (Should-have) leaks scope into v1                                                                                 | **Low**    | Defer to a follow-up if Phase 2 runs long; new collection modals can copy `GameDetailsModal` directly as a fallback                                                                                                                                 |
@@ -217,8 +217,8 @@ Critical foot-guns that must be fixed _before_ the UI consumes the IPC:
 - **Goal**: Make the existing dead-code IPC surface production-ready and add missing primitives so the frontend can consume it safely.
 - **Scope**:
   - Fix `add_profile_to_collection` silent no-op → return typed error
-  - Add `ON DELETE CASCADE` to `collection_profiles.profile_id` FK (schema v5 migration)
-  - Add `sort_order INTEGER` column to `collections` (schema v5)
+  - Add `ON DELETE CASCADE` to `collection_profiles.profile_id` FK (**v18 → v19** migration)
+  - Add `sort_order INTEGER NOT NULL DEFAULT 0` column to `collections` (**v18 → v19** migration)
   - Implement `MetadataStore::rename_collection`, `update_collection_description`, `collections_for_profile`
   - Add Tauri commands `collection_rename`, `collection_update_description`, `collections_for_profile`
   - Add browser dev-mode mocks for all 6 existing + 3 new collection IPC commands
@@ -248,7 +248,7 @@ Critical foot-guns that must be fixed _before_ the UI consumes the IPC:
 - **Goal**: Add the "behavior" leg — collections actually affect launches.
 - **Scope**:
   - `CollectionDefaultsSection` serde type (subset of `LaunchSection`: `custom_env_vars`, `optimizations`, `gamescope`, `mangohud`, `method`)
-  - Schema v5: `collection_launch_defaults` table or inline TEXT column on `collections` (decision in plan phase based on sqlx ergonomics)
+  - Separate schema migration (after v19): `collection_launch_defaults` table or inline TEXT column on `collections` (decision in plan phase)
   - `MetadataStore` methods to read/write per-collection defaults
   - New IPC: `collection_get_defaults`, `collection_set_defaults`
   - Extend `effective_profile()` (`profile/models.rs:486`) to accept `Option<&CollectionDefaultsSection>` and apply as a layer between base and `local_override` (precedence: base → collection defaults → local_override)
@@ -310,13 +310,13 @@ Critical foot-guns that must be fixed _before_ the UI consumes the IPC:
 | **Soft-delete collections**               | Hard-delete v1                                                           | Soft-delete with `deleted_at` like profiles                                           | Simpler; users can re-create; revisit if complaints                                             |
 | **Sidebar opt-in rendering**              | Render Collections section only when ≥1 collection exists                | Always render with empty state                                                        | Protects non-power-users from UI churn; matches "non-users" exclusion                           |
 | **`add_profile_to_collection` no-op fix** | Return typed error                                                       | Keep silent skip + log                                                                | Foundational correctness fix; pre-existing foot-gun that would corrupt the new feature's UX     |
-| **Schema v5 migration scope**             | FK cascade + `sort_order` + collection defaults storage in one migration | Three separate migrations                                                             | Single coherent migration; less migration overhead per CLAUDE.md migration policy               |
+| **Phase 1 (v18→v19) vs later schema work** | Phase 1: FK cascade + `sort_order` only. Collection defaults storage ships with Phase 3 in a later migration | One mega-migration for unrelated features | Keeps Phase 1 bounded; defaults remain a separate concern from membership/cascade fixes               |
 
 ---
 
 ## Persistence & Usability
 
-- **Migration**: Schema v5 migration adds (a) `ON DELETE CASCADE` to `collection_profiles.profile_id` FK, (b) `sort_order INTEGER` column on `collections`, (c) per-collection launch defaults storage. The `collections` and `collection_profiles` tables themselves already exist in schema v4 and require **no destructive migration**. Backward compatibility: schema v4 → v5 is additive; downgrade not supported per repo policy.
+- **Migration**: **v18 → v19** adds (a) `ON DELETE CASCADE` on `collection_profiles.profile_id`, (b) `sort_order INTEGER NOT NULL DEFAULT 0` on `collections`. Per-collection launch defaults storage is **Phase 3** (separate migration). Original tables from v4 remain; changes are additive. Downgrade not supported per repo policy.
 - **Offline**: Collections are 100% local — no network dependency at any point. TOML export writes to local filesystem; import reads from local filesystem. Works fully offline.
 - **Degraded fallback**: If `MetadataStore` is unavailable (e.g., DB locked, disk full), the sidebar Collections section is hidden and the existing flat library card view + flat Active-Profile dropdown render unchanged. No data loss; the user simply loses the new organizational layer until the DB recovers. Documented as a no-data-loss fallback in the issue body.
 - **User visibility**: Collections are user-created and named via the UI. The collection database row is **not** directly file-editable (unlike profile TOMLs in `~/.config/crosshook/profiles/`), but **collection presets exported as TOML** _are_ fully human-editable and shareable — that's the user-facing escape hatch for power-user editing and sharing. Per-collection launch defaults are inline-editable in the collection edit modal for `LaunchSection` fields, with link-outs to the full Profiles page for advanced overrides.
@@ -334,7 +334,7 @@ Critical foot-guns that must be fixed _before_ the UI consumes the IPC:
 
 ### Technical Context
 
-- **Backend foundation is 80% pre-built**: schema v4 has the tables, all 6 IPC commands exist (registered in `src-tauri/src/lib.rs:281-286`), `CollectionRow` and `MetadataStore` collection methods exist. v1 adds 3 IPC commands, 1 schema v5 migration, 1 new serde type, and 1 line of `effective_profile()`-layer extension on the backend.
+- **Backend foundation is 80% pre-built**: schema v4 has the tables, all 6 IPC commands exist (registered in `src/crosshook-native/src-tauri/src/lib.rs` collections block), `CollectionRow` and `MetadataStore` collection methods exist. Phase 1 adds 3 IPC commands and the **v18 → v19** migration; later phases add serde types for defaults and `effective_profile()` extensions.
 - **Frontend foundation is 60% pre-built**: `useLibraryProfiles` is composable, `GameDetailsModal` is the modal precedent, `PinnedProfilesStrip` is the chip-strip pattern, `ProfileContext` + `ThemedSelect` are the dropdown integration points, `chooseSaveFile`/`chooseFile` are wired up. v1 adds 2 hooks (`useCollections`, `useCollectionMembers`), 1 sidebar section, 1–2 new modals, 1 import-review modal, and updates the active-profile dropdown to filter by active collection.
 - **Zero new dependencies required**. All required libraries (`@radix-ui/react-select`, `@radix-ui/react-tabs`, `@radix-ui/react-tooltip`, `tauri-plugin-dialog` v2, `tauri-plugin-fs` v2, `toml` v1.1.0, `react-dom` `createPortal`) are already in the tree.
 - **Three foot-guns to fix as Phase 1 preconditions**: silent no-op on `add_profile_to_collection`, missing FK cascade on `collection_profiles.profile_id`, and the missing browser dev-mode mocks (`pnpm dev:browser` will crash without them).

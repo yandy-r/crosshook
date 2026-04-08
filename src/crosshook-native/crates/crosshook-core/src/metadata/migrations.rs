@@ -1133,12 +1133,13 @@ mod tests {
 
         // 1. sort_order column exists with NOT NULL DEFAULT 0.
         let mut stmt = conn.prepare("PRAGMA table_info(collections)").unwrap();
-        let columns: Vec<(String, String, i64)> = stmt
+        let columns: Vec<(String, String, i64, Option<String>)> = stmt
             .query_map([], |row| {
                 Ok((
                     row.get::<_, String>(1)?, // name
                     row.get::<_, String>(2)?, // type
                     row.get::<_, i64>(3)?,    // notnull
+                    row.get::<_, Option<String>>(4)?, // dflt_value
                 ))
             })
             .unwrap()
@@ -1146,10 +1147,15 @@ mod tests {
             .unwrap();
         let sort_order = columns
             .iter()
-            .find(|(name, _, _)| name == "sort_order")
+            .find(|(name, _, _, _)| name == "sort_order")
             .expect("sort_order column should exist");
         assert_eq!(sort_order.1, "INTEGER");
         assert_eq!(sort_order.2, 1, "sort_order should be NOT NULL");
+        assert_eq!(
+            sort_order.3.as_deref(),
+            Some("0"),
+            "sort_order should default to 0"
+        );
 
         // 2. collection_profiles.profile_id FK has ON DELETE CASCADE.
         // Insert a profile, add to a collection, delete the profile, verify the

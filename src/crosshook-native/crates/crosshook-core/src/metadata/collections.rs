@@ -85,9 +85,10 @@ pub fn add_profile_to_collection(
     collection_id: &str,
     profile_name: &str,
 ) -> Result<(), MetadataStoreError> {
-    let profile_id = lookup_profile_id(conn, profile_name)?.ok_or_else(|| {
+    let trimmed = profile_name.trim();
+    let profile_id = lookup_profile_id(conn, trimmed)?.ok_or_else(|| {
         MetadataStoreError::Validation(format!(
-            "profile not found when adding to collection: {profile_name}"
+            "profile not found when adding to collection: {trimmed}"
         ))
     })?;
 
@@ -276,7 +277,8 @@ pub fn collections_for_profile(
     conn: &Connection,
     profile_name: &str,
 ) -> Result<Vec<CollectionRow>, MetadataStoreError> {
-    let profile_id = match lookup_profile_id(conn, profile_name)? {
+    let trimmed = profile_name.trim();
+    let profile_id = match lookup_profile_id(conn, trimmed)? {
         Some(id) => id,
         None => return Ok(Vec::new()),
     };

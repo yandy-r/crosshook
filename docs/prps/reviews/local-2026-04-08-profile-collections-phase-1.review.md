@@ -141,8 +141,9 @@ merge, no changes required.
 - [x] Idempotent `collection_remove_profile` matches Rust's
       `remove_profile_from_collection` semantics per `collections.rs:117-120`
       (documented inline in the mock).
-- [x] `collection_add_profile` mock rejects empty `profile_name` with
-      `[dev-mock]` error — mirrors the Task 2 Rust fix.
+- [x] `collection_add_profile` mock rejects empty `profile_name` and unknown
+      names (validated against `getStore().profiles`) with `[dev-mock]` errors —
+      mirrors the Task 2 Rust fix.
 - [x] Seed fixture uses `mock-collection-1` synthetic prefix — complies with
       `.github/workflows/fixture-lint.yml` (no real Steam IDs or PII).
 
@@ -225,8 +226,7 @@ isn't one). This would manifest as the `collections` array containing two rows
 with the same `collection_id`, which would break the `findById` behavior for
 the second row.
 
-**Impact**: Theoretical. Devs rarely click "Create" twice within 1ms. Mock-only.
-Zero production impact.
+**Impact**: Theoretical. Devs rarely click "Create" twice within 1ms. This is mock-only and has zero production impact.
 
 **Recommendation**: Not worth fixing now. If Phase 2 adds a "Create N
 collections at once" test fixture or rapid-click scenario, swap to
