@@ -1,17 +1,34 @@
 import { useCallback, useState } from 'react';
 
+import { BROWSER_DEV_IMPORT_PRESET_PATH } from '@/constants/browserDevPresetPaths';
 import { useCollections } from '@/hooks/useCollections';
+import { isBrowserDevUi } from '@/lib/runtime';
+import { chooseFile } from '@/utils/dialog';
+import type { CollectionImportPreview } from '@/types/collections';
 
+import { BrowserDevPresetExplainerModal } from './BrowserDevPresetExplainerModal';
 import { CollectionEditModal } from './CollectionEditModal';
+import { CollectionImportReviewModal } from './CollectionImportReviewModal';
 
 export interface CollectionsSidebarProps {
   onOpenCollection: (id: string) => void;
 }
 
 export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps) {
-  const { collections, createCollection, error } = useCollections();
+  const {
+    collections,
+    createCollection,
+    error,
+    prepareCollectionImportPreview,
+    applyImportedCollection,
+  } = useCollections();
   const [createOpen, setCreateOpen] = useState(false);
   const [createSessionError, setCreateSessionError] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<CollectionImportPreview | null>(null);
+  const [importReviewOpen, setImportReviewOpen] = useState(false);
+  const [importExplainerOpen, setImportExplainerOpen] = useState(false);
+  const [importApplying, setImportApplying] = useState(false);
+  const [importSessionError, setImportSessionError] = useState<string | null>(null);
 
   const handleCreate = useCallback(
     async (name: string, description: string | null): Promise<boolean> => {
@@ -37,6 +54,69 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
       onOpenCollection(id);
     },
     [onOpenCollection]
+  );
+
+  const handleImportPreset = useCallback(async () => {
+    setImportSessionError(null);
+    if (isBrowserDevUi()) {
+      setImportExplainerOpen(true);
+      return;
+    }
+    const path = await chooseFile('Import collection preset', [
+      { name: 'CrossHook collection preset', extensions: ['toml'] },
+    ]);
+    if (path === null) {
+      return;
+    }
+    try {
+      const preview = await prepareCollectionImportPreview(path);
+      setImportPreview(preview);
+      setImportReviewOpen(true);
+    } catch (err) {
+      setImportSessionError(err instanceof Error ? err.message : String(err));
+    }
+  }, [prepareCollectionImportPreview]);
+
+  const handleImportExplainerContinue = useCallback(async () => {
+    setImportExplainerOpen(false);
+    try {
+      const preview = await prepareCollectionImportPreview(BROWSER_DEV_IMPORT_PRESET_PATH);
+      setImportPreview(preview);
+      setImportReviewOpen(true);
+    } catch (err) {
+      setImportSessionError(err instanceof Error ? err.message : String(err));
+    }
+  }, [prepareCollectionImportPreview]);
+
+  const handleImportConfirm = useCallback(
+    async (input: {
+      name: string;
+      description: string | null;
+      ambiguousResolutions: (string | null)[];
+    }) => {
+      if (importPreview === null) {
+        return;
+      }
+      setImportApplying(true);
+      setImportSessionError(null);
+      try {
+        const result = await applyImportedCollection({
+          preview: importPreview,
+          name: input.name,
+          description: input.description,
+          ambiguousResolutions: input.ambiguousResolutions,
+        });
+        if (!result.ok) {
+          setImportSessionError(result.error);
+          return;
+        }
+        setImportReviewOpen(false);
+        setImportPreview(null);
+      } finally {
+        setImportApplying(false);
+      }
+    },
+    [applyImportedCollection, importPreview]
   );
 
   return (
@@ -80,9 +160,20 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
           <span className="crosshook-sidebar__item-label">New Collection</span>
         </button>
 
-        {(createSessionError ?? error) !== null && (
+        <button
+          type="button"
+          className="crosshook-sidebar__item crosshook-collections-sidebar__cta"
+          onClick={() => void handleImportPreset()}
+        >
+          <span className="crosshook-sidebar__item-icon" aria-hidden="true">
+            &gt;
+          </span>
+          <span className="crosshook-sidebar__item-label">Import Preset</span>
+        </button>
+
+        {(createSessionError ?? importSessionError ?? error) !== null && (
           <p className="crosshook-collections-sidebar__error" role="alert">
-            {createSessionError ?? error}
+            {createSessionError ?? importSessionError ?? error}
           </p>
         )}
       </div>
@@ -97,6 +188,26 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
         onSubmitCreate={handleCreate}
         onSubmitEdit={async () => false}
         externalError={createSessionError}
+      />
+
+      <CollectionImportReviewModal
+        open={importReviewOpen}
+        preview={importPreview}
+        applying={importApplying}
+        onClose={() => {
+          if (!importApplying) {
+            setImportReviewOpen(false);
+            setImportPreview(null);
+          }
+        }}
+        onConfirm={(input) => void handleImportConfirm(input)}
+      />
+
+      <BrowserDevPresetExplainerModal
+        mode="import"
+        open={importExplainerOpen}
+        onClose={() => setImportExplainerOpen(false)}
+        onContinue={() => void handleImportExplainerContinue()}
       />
     </>
   );

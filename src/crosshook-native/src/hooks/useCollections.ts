@@ -1,5 +1,7 @@
 export type {
+  ApplyImportedCollectionInput,
   CollectionCreateResult,
+  CollectionImportApplyResult,
   CollectionMutationResult,
   CollectionWriteResult,
   UseCollectionsResult,

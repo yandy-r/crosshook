@@ -289,6 +289,8 @@ pub fn run() {
             commands::collections::collections_for_profile,
             commands::collections::collection_get_defaults,
             commands::collections::collection_set_defaults,
+            commands::collections::collection_export_to_toml,
+            commands::collections::collection_import_from_toml,
             commands::profile::profile_set_favorite,
             commands::profile::profile_list_favorites,
             commands::profile::profile_config_history,
