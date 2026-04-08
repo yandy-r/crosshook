@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { callCommand } from '@/lib/ipc';
-
 import { useProfileContext } from '../context/ProfileContext';
 import { useProfileHealthContext } from '../context/ProfileHealthContext';
+import {
+  presentAcknowledgeVersionChangeOutcome,
+  useAcknowledgeVersionChange,
+} from '../hooks/useAcknowledgeVersionChange';
 import type { VersionCorrelationStatus } from '../types/version';
 
 /**
@@ -91,29 +92,16 @@ export function ProfileActions({
 }: ProfileActionsProps) {
   const { selectedProfile } = useProfileContext();
   const { healthByName, revalidateSingle } = useProfileHealthContext();
-  const [markingVerified, setMarkingVerified] = useState(false);
+  const { acknowledgeVersionChange, busy: markingVerified } = useAcknowledgeVersionChange();
 
   const versionStatus = healthByName[selectedProfile]?.metadata?.version_status;
   const showMarkVerified = versionStatus != null && VERSION_MISMATCH_STATUSES.has(versionStatus);
 
   const handleMarkVerified = async () => {
-    setMarkingVerified(true);
-    try {
-      await callCommand('acknowledge_version_change', { name: selectedProfile });
-      try {
-        await revalidateSingle(selectedProfile);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error('Failed to refresh profile health after acknowledge_version_change', error);
-        window.alert(`Version change was acknowledged, but health data refresh failed: ${message}`);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('Failed to acknowledge version change', error);
-      window.alert(`Could not mark profile as verified: ${message}`);
-    } finally {
-      setMarkingVerified(false);
-    }
+    // Defensive: showMarkVerified implies a profile row with version metadata; empty name is unreachable.
+    if (!selectedProfile.trim()) return;
+    const outcome = await acknowledgeVersionChange(selectedProfile, revalidateSingle);
+    presentAcknowledgeVersionChangeOutcome(outcome);
   };
 
   return (

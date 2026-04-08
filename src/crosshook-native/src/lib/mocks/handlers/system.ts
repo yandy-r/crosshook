@@ -335,7 +335,7 @@ export function registerSystem(map: Map<string, Handler>): void {
       archive_path: '/mock/diagnostics/crosshook-diagnostics-mock.zip',
       summary: {
         crosshook_version: '0.0.0-mock',
-        profile_count: 2,
+        profile_count: 8,
         log_file_count: 0,
         proton_install_count: 0,
         generated_at: new Date().toISOString(),

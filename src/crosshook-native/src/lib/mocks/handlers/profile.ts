@@ -114,45 +114,43 @@ function withProfileFixtureGate(commandName: string, impl: Handler): Handler {
   };
 }
 
+/** Seeded demo profiles — 8 entries (two rows × 4 in the library grid). Steam app IDs ≥ 9999001 per README. */
+const DEMO_PROFILE_SEEDS: ReadonlyArray<{ name: string; appId: string }> = [
+  { name: 'Test Game Alpha', appId: '9999001' },
+  { name: 'Dev Game Beta', appId: '9999002' },
+  { name: 'Sample Game Gamma', appId: '9999003' },
+  { name: 'Sample Game Delta', appId: '9999004' },
+  { name: 'Sample Game Epsilon', appId: '9999005' },
+  { name: 'Sample Game Zeta', appId: '9999006' },
+  { name: 'Sample Game Eta', appId: '9999007' },
+  { name: 'Sample Game Theta', appId: '9999008' },
+];
+
 function seedDemoProfiles(): void {
   const store = getStore();
   if (store.profiles.size > 0) return;
 
   const base = createDefaultProfile();
 
-  const alpha: GameProfile = {
-    ...base,
-    game: {
-      ...base.game,
-      name: 'Test Game Alpha',
-      custom_cover_art_path: '',
-      custom_portrait_art_path: '',
-      custom_background_art_path: '',
-    },
-    steam: {
-      ...base.steam,
-      app_id: '9999001',
-    },
-  };
+  for (const { name, appId } of DEMO_PROFILE_SEEDS) {
+    const profile: GameProfile = {
+      ...base,
+      game: {
+        ...base.game,
+        name,
+        custom_cover_art_path: '',
+        custom_portrait_art_path: '',
+        custom_background_art_path: '',
+      },
+      steam: {
+        ...base.steam,
+        app_id: appId,
+      },
+    };
+    store.profiles.set(name, profile);
+  }
 
-  const beta: GameProfile = {
-    ...base,
-    game: {
-      ...base.game,
-      name: 'Dev Game Beta',
-      custom_cover_art_path: '',
-      custom_portrait_art_path: '',
-      custom_background_art_path: '',
-    },
-    steam: {
-      ...base.steam,
-      app_id: '9999002',
-    },
-  };
-
-  store.profiles.set(alpha.game.name, alpha);
-  store.profiles.set(beta.game.name, beta);
-  store.activeProfileId = alpha.game.name;
+  store.activeProfileId = DEMO_PROFILE_SEEDS[0].name;
 }
 
 export function registerProfile(map: Map<string, Handler>): void {
