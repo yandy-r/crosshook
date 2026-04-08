@@ -43,7 +43,13 @@ export function ProfileProvider({ children }: ProfileProviderProps) {
 
     return () => {
       active = false;
-      void unlistenPromise.then((unlisten) => unlisten());
+      void unlistenPromise
+        .then((unlisten) => {
+          unlisten();
+        })
+        .catch(() => {
+          // subscribeEvent may reject; ignore during teardown
+        });
     };
   }, [profileState.selectProfile]);
 

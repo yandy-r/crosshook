@@ -8,11 +8,6 @@ export interface ProfileSummary {
   customPortraitArtPath?: string;
 }
 
-export interface LibraryCardData {
-  name: string;
-  gameName: string;
-  steamAppId: string;
-  customCoverArtPath?: string;
-  customPortraitArtPath?: string;
+export interface LibraryCardData extends ProfileSummary {
   isFavorite: boolean;
 }

@@ -105,6 +105,10 @@ jobs:
       - name: Verify no mock code in production bundle
         run: |
           echo "Checking dist/assets/ for mock-mode sentinel strings..."
+          if ! compgen -G "src/crosshook-native/dist/assets/*.js" > /dev/null; then
+            echo "::error::No JS assets found under src/crosshook-native/dist/assets/ — build output missing or glob did not match" >&2
+            exit 1
+          fi
           if grep -rl '\[dev-mock\]\|getMockRegistry\|registerMocks\|MOCK MODE' \
               src/crosshook-native/dist/assets/*.js 2>/dev/null; then
             echo "::error::Mock code found in production bundle — refusing to ship" >&2

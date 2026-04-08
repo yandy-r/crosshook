@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { open as shellOpen } from '@/lib/plugin-stubs/shell';
-import { callCommand } from '@/lib/ipc';
+import { useImportCommunityProfile } from '../hooks/useImportCommunityProfile';
 import { useTrainerDiscovery } from '../hooks/useTrainerDiscovery';
 import { useExternalTrainerSearch } from '../hooks/useExternalTrainerSearch';
 import { usePreferencesContext } from '../context/PreferencesContext';
@@ -200,6 +200,7 @@ function TrainerResultCard({ result, onImport, importing }: TrainerResultCardPro
 // ---------------------------------------------------------------------------
 
 export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPanelProps) {
+  const { importCommunityProfile } = useImportCommunityProfile();
   const { settings, persistSettings } = usePreferencesContext();
   const [query, setQuery] = useState(initialQuery);
   const [importingId, setImportingId] = useState<number | null>(null);
@@ -245,7 +246,7 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
 
     const profilePath = `${result.tapLocalPath}/${result.relativePath}/community-profile.json`;
     try {
-      await callCommand('community_import_profile', { path: profilePath });
+      await importCommunityProfile(profilePath);
       setImportNotice(`Imported profile for ${result.gameName}.`);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : String(err));

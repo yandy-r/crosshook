@@ -71,7 +71,7 @@ export function useLauncherManagement({
       setReexportingSlug(launcherSlug);
       setError(null);
       try {
-        await callCommand('reexport_launcher_by_slug', {
+        await callCommand<void>('reexport_launcher_by_slug', {
           launcherSlug,
           targetHomePath,
           steamClientInstallPath,

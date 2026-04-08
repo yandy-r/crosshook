@@ -4,12 +4,13 @@ import type { AppSettingsData, RecentFilesData } from '../../../types';
 import type { SettingsSaveRequest } from '../../../types/settings';
 
 export function registerSettings(map: Map<string, Handler>): void {
-  map.set('settings_load', async () => getStore().settings);
+  map.set('settings_load', async () => structuredClone(getStore().settings));
 
   map.set('settings_save', async (args) => {
     const next = (args as { data: SettingsSaveRequest }).data;
-    getStore().settings = { ...getStore().settings, ...next };
-    return getStore().settings;
+    const merged = { ...getStore().settings, ...next };
+    getStore().settings = structuredClone(merged);
+    return structuredClone(getStore().settings);
   });
 
   map.set('settings_save_steamgriddb_key', async (args) => {
@@ -21,12 +22,13 @@ export function registerSettings(map: Map<string, Handler>): void {
     return null;
   });
 
-  map.set('recent_files_load', async () => getStore().recentFiles);
+  map.set('recent_files_load', async () => structuredClone(getStore().recentFiles));
 
   map.set('recent_files_save', async (args) => {
     const next = (args as { data: RecentFilesData }).data;
-    getStore().recentFiles = next;
-    return next;
+    const copy = structuredClone(next);
+    getStore().recentFiles = copy;
+    return structuredClone(getStore().recentFiles);
   });
 
   map.set('default_steam_client_install_path', async () => getStore().defaultSteamClientInstallPath);

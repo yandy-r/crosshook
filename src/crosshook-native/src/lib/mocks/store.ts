@@ -23,7 +23,7 @@ export function getStore(): MockStore {
   if (!store) {
     store = {
       settings: { ...DEFAULT_APP_SETTINGS },
-      recentFiles: { ...EMPTY_RECENT_FILES },
+      recentFiles: structuredClone(EMPTY_RECENT_FILES),
       profiles: new Map(),
       activeProfileId: null,
       defaultSteamClientInstallPath: '/home/devuser/.steam/steam',

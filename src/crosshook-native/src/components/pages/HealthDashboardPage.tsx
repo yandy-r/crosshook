@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
-import { callCommand } from '@/lib/ipc';
+import { useVersionCheck } from '../../hooks/useVersionCheck';
 import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
@@ -837,6 +837,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
   } = useProtonMigration();
 
   const offlineReadiness = useOfflineReadiness();
+  const { checkVersionStatus } = useVersionCheck();
 
   const [sortField, setSortField] = useState<SortField>('status');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -869,12 +870,15 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
     if (isVersionScanning || filteredProfiles.length === 0) return;
     setIsVersionScanning(true);
     setVersionScanProgress({ done: 0, total: filteredProfiles.length });
-    for (const report of filteredProfiles) {
-      await callCommand('check_version_status', { name: report.name }).catch(() => {});
-      setVersionScanProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : null));
+    try {
+      for (const report of filteredProfiles) {
+        await checkVersionStatus(report.name);
+        setVersionScanProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : null));
+      }
+    } finally {
+      setIsVersionScanning(false);
+      setVersionScanProgress(null);
     }
-    setIsVersionScanning(false);
-    setVersionScanProgress(null);
     void batchValidate();
   }
 

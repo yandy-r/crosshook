@@ -14,6 +14,7 @@ import type {
   WriteFileOptions,
   ExistsOptions,
   FileInfo,
+  FileHandle,
 } from '@tauri-apps/plugin-fs';
 
 export type {
@@ -31,6 +32,7 @@ export type {
   WriteFileOptions,
   ExistsOptions,
   FileInfo,
+  FileHandle,
 };
 
 // Minimal synthetic FileInfo returned by stat/lstat in browser mode.
@@ -279,11 +281,10 @@ export async function truncate(
 export async function open(
   path: string | URL,
   options?: OpenOptions,
-): Promise<never> {
+): Promise<FileHandle> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
-    // Cast required because the browser-mode overload returns `never`.
-    return real.open(path, options) as Promise<never>;
+    return real.open(path, options);
   }
   throw new Error('[dev-mock] fs.open is not available in browser dev mode');
 }
@@ -296,10 +297,10 @@ export async function open(
 export async function create(
   path: string | URL,
   options?: CreateOptions,
-): Promise<never> {
+): Promise<FileHandle> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
-    return real.create(path, options) as Promise<never>;
+    return real.create(path, options);
   }
   throw new Error('[dev-mock] fs.create is not available in browser dev mode');
 }
