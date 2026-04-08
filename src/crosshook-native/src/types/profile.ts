@@ -353,8 +353,11 @@ export function isCollectionDefaultsEmpty(
   d: CollectionDefaults | null | undefined
 ): boolean {
   if (!d) return true;
+  const methodUnset =
+    d.method === undefined ||
+    (typeof d.method === 'string' && d.method.trim() === '');
   return (
-    d.method === undefined &&
+    methodUnset &&
     d.optimizations === undefined &&
     (d.custom_env_vars === undefined || Object.keys(d.custom_env_vars).length === 0) &&
     d.network_isolation === undefined &&

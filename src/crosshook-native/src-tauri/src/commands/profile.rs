@@ -241,12 +241,18 @@ pub fn profile_load(
     // has its `local_override` layer applied last, so machine-specific paths
     // continue to win.
     match collection_id {
-        Some(ref cid) if !cid.trim().is_empty() => {
-            let defaults = metadata_store
-                .get_collection_defaults(cid)
-                .map_err(|e| e.to_string())?;
-            Ok(profile.effective_profile_with(defaults.as_ref()))
-        }
+        Some(ref cid) if !cid.trim().is_empty() => match metadata_store.get_collection_defaults(cid)
+        {
+            Ok(defaults) => Ok(profile.effective_profile_with(defaults.as_ref())),
+            Err(e) => {
+                tracing::warn!(
+                    collection_id = %cid,
+                    error = %e,
+                    "failed to load collection defaults; falling back to profile without collection defaults"
+                );
+                Ok(profile.effective_profile_with(None))
+            }
+        },
         _ => Ok(profile),
     }
 }

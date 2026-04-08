@@ -49,6 +49,11 @@ export interface MockCollectionDefaults {
 
 const mockDefaults = new Map<string, MockCollectionDefaults>();
 
+/** Deep-clone at IPC boundaries so callers cannot mutate stored mock state. */
+function cloneMockDefaults(d: MockCollectionDefaults): MockCollectionDefaults {
+  return structuredClone(d);
+}
+
 function isDefaultsEmpty(d: MockCollectionDefaults | undefined | null): boolean {
   if (!d) return true;
   return (
@@ -66,7 +71,8 @@ function isDefaultsEmpty(d: MockCollectionDefaults | undefined | null): boolean 
 export function getMockCollectionDefaults(
   collectionId: string
 ): MockCollectionDefaults | undefined {
-  return mockDefaults.get(collectionId);
+  const d = mockDefaults.get(collectionId);
+  return d ? cloneMockDefaults(d) : undefined;
 }
 
 function nowIso(): string {
@@ -234,7 +240,7 @@ export function registerCollections(map: Map<string, Handler>): void {
         );
       }
       const d = mockDefaults.get(collectionId);
-      return d && !isDefaultsEmpty(d) ? d : null;
+      return d && !isDefaultsEmpty(d) ? cloneMockDefaults(d) : null;
     }
   );
 
@@ -252,7 +258,7 @@ export function registerCollections(map: Map<string, Handler>): void {
     if (defaults === null || isDefaultsEmpty(defaults)) {
       mockDefaults.delete(collectionId);
     } else {
-      mockDefaults.set(collectionId, { ...defaults });
+      mockDefaults.set(collectionId, cloneMockDefaults(defaults));
     }
     target.updated_at = nowIso();
     return null;

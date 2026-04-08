@@ -866,11 +866,34 @@ fn migrate_18_to_19(conn: &Connection) -> Result<(), MetadataStoreError> {
 /// (`CollectionDefaultsSection`). Existing rows backfill to `NULL`. Additive,
 /// non-destructive — no transaction needed for a single ALTER TABLE.
 fn migrate_19_to_20(conn: &Connection) -> Result<(), MetadataStoreError> {
-    conn.execute_batch("ALTER TABLE collections ADD COLUMN defaults_json TEXT;")
-        .map_err(|source| MetadataStoreError::Database {
-            action: "run metadata migration 19 to 20",
-            source,
-        })?;
+    let has_defaults_json = {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(collections)")
+            .map_err(|source| MetadataStoreError::Database {
+                action: "check collections columns for defaults_json in migration 19 to 20",
+                source,
+            })?;
+        let column_names: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|source| MetadataStoreError::Database {
+                action: "read collections columns for migration 19 to 20",
+                source,
+            })?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|source| MetadataStoreError::Database {
+                action: "read collections columns for migration 19 to 20",
+                source,
+            })?;
+        column_names.iter().any(|name| name == "defaults_json")
+    };
+
+    if !has_defaults_json {
+        conn.execute_batch("ALTER TABLE collections ADD COLUMN defaults_json TEXT;")
+            .map_err(|source| MetadataStoreError::Database {
+                action: "run metadata migration 19 to 20",
+                source,
+            })?;
+    }
 
     Ok(())
 }

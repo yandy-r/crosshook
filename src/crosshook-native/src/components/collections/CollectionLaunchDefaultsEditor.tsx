@@ -16,6 +16,36 @@ const LAUNCH_METHOD_OPTIONS: ReadonlyArray<{ value: LaunchMethod; label: string 
   { value: 'steam_applaunch', label: 'steam_applaunch' },
 ];
 
+interface EnvVarRow {
+  id: string;
+  key: string;
+  value: string;
+}
+
+function omitCustomEnvVars(d: CollectionDefaults): CollectionDefaults {
+  const { custom_env_vars: _omit, ...rest } = d;
+  void _omit;
+  return rest;
+}
+
+function recordToEnvRows(record: Record<string, string> | undefined): EnvVarRow[] {
+  if (!record) return [];
+  return Object.entries(record).map(([key, value]) => ({
+    id: crypto.randomUUID(),
+    key,
+    value,
+  }));
+}
+
+function envRowsToRecord(rows: EnvVarRow[]): Record<string, string> | undefined {
+  const o: Record<string, string> = {};
+  for (const r of rows) {
+    const trimmedKey = r.key.trim();
+    if (trimmedKey !== '') o[trimmedKey] = r.value;
+  }
+  return Object.keys(o).length ? o : undefined;
+}
+
 interface Props {
   collectionId: string;
   /**
@@ -40,24 +70,32 @@ interface Props {
 export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesPage }: Props) {
   const { defaults, loading, error, saveDefaults } = useCollectionDefaults(collectionId);
   const [draft, setDraft] = useState<CollectionDefaults>({});
+  const [envRows, setEnvRows] = useState<EnvVarRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  function mergedCollectionDefaults(): CollectionDefaults {
+    const env = envRowsToRecord(envRows);
+    if (!env) return draft;
+    return { ...draft, custom_env_vars: env };
+  }
 
   // Re-anchor the draft when fresh defaults arrive (collection switch or
   // post-save reload). Effect (not useMemo) so the state mutation runs after
   // the render commits.
   useEffect(() => {
-    setDraft(defaults ?? {});
+    setDraft(omitCustomEnvVars(defaults ?? {}));
+    setEnvRows(recordToEnvRows(defaults?.custom_env_vars));
     setSaveError(null);
   }, [defaults]);
 
-  const draftIsEmpty = isCollectionDefaultsEmpty(draft);
+  const draftIsEmpty = isCollectionDefaultsEmpty(mergedCollectionDefaults());
 
   async function handleSave() {
     setSaving(true);
     setSaveError(null);
     try {
-      await saveDefaults(draftIsEmpty ? null : draft);
+      await saveDefaults(draftIsEmpty ? null : mergedCollectionDefaults());
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -66,12 +104,14 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
   }
 
   function handleResetDraft() {
-    setDraft(defaults ?? {});
+    setDraft(omitCustomEnvVars(defaults ?? {}));
+    setEnvRows(recordToEnvRows(defaults?.custom_env_vars));
     setSaveError(null);
   }
 
   function handleClearAll() {
     setDraft({});
+    setEnvRows([]);
   }
 
   function setMethod(value: string) {
@@ -95,46 +135,30 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
   }
 
   function addEnvVar() {
-    const nextVars = { ...(draft.custom_env_vars ?? {}) };
-    let i = 1;
-    let key = `NEW_VAR_${i}`;
-    while (key in nextVars) {
-      i += 1;
-      key = `NEW_VAR_${i}`;
-    }
-    nextVars[key] = '';
-    setDraft({ ...draft, custom_env_vars: nextVars });
-  }
-
-  function updateEnvVarKey(oldKey: string, newKey: string) {
-    const trimmed = newKey;
-    const nextVars: Record<string, string> = {};
-    for (const [k, v] of Object.entries(draft.custom_env_vars ?? {})) {
-      if (k === oldKey) {
-        if (trimmed.trim() !== '') nextVars[trimmed] = v;
-      } else {
-        nextVars[k] = v;
+    setEnvRows((rows) => {
+      const keys = new Set(rows.map((r) => r.key));
+      let i = 1;
+      let key = `NEW_VAR_${i}`;
+      while (keys.has(key)) {
+        i += 1;
+        key = `NEW_VAR_${i}`;
       }
-    }
-    setDraft({ ...draft, custom_env_vars: nextVars });
+      return [...rows, { id: crypto.randomUUID(), key, value: '' }];
+    });
   }
 
-  function updateEnvVarValue(key: string, value: string) {
-    const nextVars = { ...(draft.custom_env_vars ?? {}) };
-    nextVars[key] = value;
-    setDraft({ ...draft, custom_env_vars: nextVars });
+  function updateEnvVarKey(rowId: string, newKeyRaw: string) {
+    setEnvRows((rows) =>
+      rows.map((r) => (r.id === rowId ? { ...r, key: newKeyRaw } : r))
+    );
   }
 
-  function removeEnvVar(key: string) {
-    const nextVars = { ...(draft.custom_env_vars ?? {}) };
-    delete nextVars[key];
-    if (Object.keys(nextVars).length === 0) {
-      const { custom_env_vars: _omit, ...rest } = draft;
-      void _omit;
-      setDraft(rest);
-      return;
-    }
-    setDraft({ ...draft, custom_env_vars: nextVars });
+  function updateEnvVarValue(rowId: string, value: string) {
+    setEnvRows((rows) => rows.map((r) => (r.id === rowId ? { ...r, value } : r)));
+  }
+
+  function removeEnvVar(rowId: string) {
+    setEnvRows((rows) => rows.filter((r) => r.id !== rowId));
   }
 
   const persistedActive = !isCollectionDefaultsEmpty(defaults);
@@ -202,37 +226,37 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
 
           <fieldset className="crosshook-collection-launch-defaults-editor__env">
             <legend>Custom env vars (additive)</legend>
-            {Object.entries(draft.custom_env_vars ?? {}).length === 0 && (
+            {envRows.length === 0 && (
               <p className="crosshook-collection-launch-defaults-editor__hint">
                 No collection env vars set. Profile env vars still apply.
               </p>
             )}
-            {Object.entries(draft.custom_env_vars ?? {}).map(([k, v]) => (
+            {envRows.map((row) => (
               <div
-                key={k}
+                key={row.id}
                 className="crosshook-collection-launch-defaults-editor__env-row"
               >
                 <input
                   type="text"
                   className="crosshook-input"
-                  value={k}
-                  onChange={(e) => updateEnvVarKey(k, e.target.value)}
+                  value={row.key}
+                  onChange={(e) => updateEnvVarKey(row.id, e.target.value)}
                   placeholder="KEY"
-                  aria-label={`env var key for ${k}`}
+                  aria-label={`env var key ${row.id}`}
                 />
                 <input
                   type="text"
                   className="crosshook-input"
-                  value={v}
-                  onChange={(e) => updateEnvVarValue(k, e.target.value)}
+                  value={row.value}
+                  onChange={(e) => updateEnvVarValue(row.id, e.target.value)}
                   placeholder="value"
-                  aria-label={`env var value for ${k}`}
+                  aria-label={`env var value for ${row.key || 'new row'}`}
                 />
                 <button
                   type="button"
                   className="crosshook-button crosshook-button--ghost"
-                  onClick={() => removeEnvVar(k)}
-                  aria-label={`Remove ${k}`}
+                  onClick={() => removeEnvVar(row.id)}
+                  aria-label={`Remove env var row`}
                 >
                   ×
                 </button>
