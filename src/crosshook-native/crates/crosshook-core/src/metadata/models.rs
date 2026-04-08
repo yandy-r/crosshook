@@ -292,7 +292,6 @@ pub struct CommunityProfileRow {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[allow(dead_code)]
 pub struct CollectionRow {
     pub collection_id: String,
     pub name: String,

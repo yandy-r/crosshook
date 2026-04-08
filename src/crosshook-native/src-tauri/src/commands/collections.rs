@@ -61,3 +61,35 @@ pub fn collection_list_profiles(
         .list_profiles_in_collection(&collection_id)
         .map_err(map_error)
 }
+
+#[tauri::command]
+pub fn collection_rename(
+    collection_id: String,
+    new_name: String,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<(), String> {
+    metadata_store
+        .rename_collection(&collection_id, &new_name)
+        .map_err(map_error)
+}
+
+#[tauri::command]
+pub fn collection_update_description(
+    collection_id: String,
+    description: Option<String>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<(), String> {
+    metadata_store
+        .update_collection_description(&collection_id, description.as_deref())
+        .map_err(map_error)
+}
+
+#[tauri::command]
+pub fn collections_for_profile(
+    profile_name: String,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<Vec<CollectionRow>, String> {
+    metadata_store
+        .collections_for_profile(&profile_name)
+        .map_err(map_error)
+}
