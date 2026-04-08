@@ -104,10 +104,14 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
 
   const handleLaunchFromCollection = useCallback(
     async (name: string) => {
-      await selectProfile(name);
+      // The user clicked Launch on a card inside CollectionViewModal, so `name`
+      // is guaranteed to be a member of `activeCollectionId`. Thread the
+      // collection context so `profile_load` applies the collection's launch
+      // defaults via `effective_profile_with` (Phase 3 merge layer).
+      await selectProfile(name, { collectionId: activeCollectionId ?? undefined });
       setRoute('launch');
     },
-    [selectProfile]
+    [selectProfile, activeCollectionId]
   );
 
   const handleEditFromCollection = useCallback(

@@ -22,6 +22,23 @@ interface EnvVarRow {
   value: string;
 }
 
+/** Stable row ids without relying on `crypto.randomUUID` (e.g. non-secure `http://` dev contexts). */
+function newEnvRowId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `env-row-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+/** Typical POSIX / shell env name: `[A-Za-z_][A-Za-z0-9_]*`; `=` must not appear in the name. */
+const POSIX_ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function isValidEnvVarName(trimmedKey: string): boolean {
+  if (trimmedKey === '') return true;
+  if (trimmedKey.includes('=')) return false;
+  return POSIX_ENV_NAME.test(trimmedKey);
+}
+
 function omitCustomEnvVars(d: CollectionDefaults): CollectionDefaults {
   const { custom_env_vars: _omit, ...rest } = d;
   void _omit;
@@ -31,7 +48,7 @@ function omitCustomEnvVars(d: CollectionDefaults): CollectionDefaults {
 function recordToEnvRows(record: Record<string, string> | undefined): EnvVarRow[] {
   if (!record) return [];
   return Object.entries(record).map(([key, value]) => ({
-    id: crypto.randomUUID(),
+    id: newEnvRowId(),
     key,
     value,
   }));
@@ -91,6 +108,10 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
 
   const draftIsEmpty = isCollectionDefaultsEmpty(mergedCollectionDefaults());
 
+  const envRowsMissingKey = envRows.some((r) => r.key.trim() === '');
+  const envRowsInvalidName = envRows.some((r) => !isValidEnvVarName(r.key.trim()));
+  const envVarsSaveBlocked = envRowsMissingKey || envRowsInvalidName;
+
   async function handleSave() {
     setSaving(true);
     setSaveError(null);
@@ -136,14 +157,14 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
 
   function addEnvVar() {
     setEnvRows((rows) => {
-      const keys = new Set(rows.map((r) => r.key));
+      const keys = new Set(rows.map((r) => r.key.trim()));
       let i = 1;
       let key = `NEW_VAR_${i}`;
       while (keys.has(key)) {
         i += 1;
         key = `NEW_VAR_${i}`;
       }
-      return [...rows, { id: crypto.randomUUID(), key, value: '' }];
+      return [...rows, { id: newEnvRowId(), key, value: '' }];
     });
   }
 
@@ -242,6 +263,10 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
                   value={row.key}
                   onChange={(e) => updateEnvVarKey(row.id, e.target.value)}
                   placeholder="KEY"
+                  aria-invalid={
+                    row.key.trim() === '' ||
+                    (row.key.trim() !== '' && !isValidEnvVarName(row.key.trim()))
+                  }
                   aria-label={
                     row.key.trim()
                       ? `Environment variable name: ${row.key}`
@@ -273,6 +298,26 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
             >
               + Add env var
             </button>
+            {envRowsMissingKey && (
+              <p
+                className="crosshook-collection-launch-defaults-editor__validation"
+                role="status"
+              >
+                Each env var row needs a name. Fill in the key column or remove the row before
+                saving.
+              </p>
+            )}
+            {envRowsInvalidName && !envRowsMissingKey && (
+              <p
+                className="crosshook-collection-launch-defaults-editor__validation"
+                role="status"
+              >
+                Env var names should look like shell variables: letters, numbers, and underscores
+                only, starting with a letter or underscore. Do not use{' '}
+                <code className="crosshook-collection-launch-defaults-editor__code">=</code> in the
+                name.
+              </p>
+            )}
           </fieldset>
 
           <p className="crosshook-collection-launch-defaults-editor__hint">
@@ -306,7 +351,7 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
               type="button"
               className="crosshook-button crosshook-button--primary"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || envVarsSaveBlocked}
             >
               {saving ? 'Saving…' : 'Save'}
             </button>

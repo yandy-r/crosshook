@@ -76,6 +76,17 @@
   color: var(--crosshook-color-danger, #d05858);
 }
 
+.crosshook-collection-launch-defaults-editor__validation {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--crosshook-color-warning, #b8860b);
+}
+
+.crosshook-collection-launch-defaults-editor__code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
 .crosshook-collection-launch-defaults-editor__actions {
   display: flex;
   flex-wrap: wrap;
