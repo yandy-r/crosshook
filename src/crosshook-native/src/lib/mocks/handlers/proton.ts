@@ -1,4 +1,4 @@
-import type { Handler } from '../index';
+import type { Handler } from './types';
 import type { ProtonInstallOption } from '../../../types/proton';
 import type {
   ApplyMigrationRequest,

@@ -1,4 +1,4 @@
-import type { Handler } from '../index';
+import type { Handler } from './types';
 import type {
   LauncherDeleteResult,
   LauncherInfo,

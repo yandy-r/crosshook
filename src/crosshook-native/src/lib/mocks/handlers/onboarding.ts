@@ -1,4 +1,4 @@
-import type { Handler } from '../index';
+import type { Handler } from './types';
 import { getActiveToggles } from '../../toggles';
 import { getStore } from '../store';
 import { emitMockEvent } from '../eventBus';
@@ -18,19 +18,40 @@ let onboardingDismissed = false;
 // the listener would miss the payload.
 let onboardingEventSynthesized = false;
 
+/** Prevents duplicate retry loops from module init + registerOnboarding(). */
+let onboardingSynthesisScheduled = false;
+
+const ONBOARDING_EMIT_INITIAL_MS = 500;
+const ONBOARDING_EMIT_RETRY_MS = 200;
+const ONBOARDING_EMIT_MAX_ATTEMPTS = 25;
+
 function maybeSynthesizeOnboardingEvent(): void {
   if (onboardingEventSynthesized) return;
   if (!getActiveToggles().showOnboarding) return;
-  onboardingEventSynthesized = true;
+  if (onboardingSynthesisScheduled) return;
+  onboardingSynthesisScheduled = true;
 
-  setTimeout(() => {
+  let attempts = 0;
+
+  const tryEmit = (): void => {
+    if (onboardingEventSynthesized) return;
     const store = getStore();
     const payload: OnboardingCheckPayload = {
       show: true,
       has_profiles: store.profiles.size > 0,
     };
-    emitMockEvent('onboarding-check', payload);
-  }, 500);
+    if (emitMockEvent('onboarding-check', payload)) {
+      onboardingEventSynthesized = true;
+      return;
+    }
+    attempts += 1;
+    if (attempts >= ONBOARDING_EMIT_MAX_ATTEMPTS) {
+      return;
+    }
+    setTimeout(tryEmit, ONBOARDING_EMIT_RETRY_MS);
+  };
+
+  setTimeout(tryEmit, ONBOARDING_EMIT_INITIAL_MS);
 }
 
 // Eagerly schedule the synthesized event at module init so it fires even if

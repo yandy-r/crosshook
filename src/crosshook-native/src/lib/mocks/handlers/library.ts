@@ -1,4 +1,4 @@
-import type { Handler } from '../index';
+import type { Handler } from './types';
 import type { SteamMetadataLookupResult } from '../../../types/game-metadata';
 
 // Synthetic Steam auto-populate result shapes (BR-10 / W-3)

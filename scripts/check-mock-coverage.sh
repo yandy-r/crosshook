@@ -61,6 +61,7 @@ fi
 # `[^}]*?` non-greedy span tolerates intervening attribute macros (for example
 # `#[specta::specta]`) on a separate line between the macro and the `fn`.
 RUST_TMP="$(mktemp)"
+MOCK_TMP=''
 trap 'rm -f "$RUST_TMP" "$MOCK_TMP"' EXIT
 
 rg -U --multiline --no-filename \

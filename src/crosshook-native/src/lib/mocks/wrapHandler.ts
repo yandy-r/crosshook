@@ -17,7 +17,7 @@
 // side effect implemented inline in `handlers/onboarding.ts` because it must
 // fire once at module init, not on every handler invocation.
 
-import type { Handler } from './index';
+import type { Handler } from './handlers/types';
 import { getActiveToggles } from '../toggles';
 
 /**

@@ -2,9 +2,9 @@ import { registerSettings } from './handlers/settings';
 import { registerProfile } from './handlers/profile';
 import { registerLaunch } from './handlers/launch';
 
-// Re-export the fixture switcher and orthogonal debug toggles so handler files
-// have a single import path (`../index`) for `Handler`, `getActiveFixture`,
-// and `getActiveToggles`. The actual logic lives in `../fixture` and
+// Re-export the fixture switcher and orthogonal debug toggles. Handlers import
+// `Handler` from `./handlers/types` and `getActiveFixture` from `../../fixture` to
+// avoid a circular dependency with this barrel. Logic lives in `../fixture` and
 // `../toggles` so they stay statically importable from production code without
 // dragging this dev-only module into the bundle.
 export { getActiveFixture } from '../fixture';
@@ -23,8 +23,9 @@ import { registerLauncher } from './handlers/launcher';
 import { registerLibrary } from './handlers/library';
 import { registerSystem } from './handlers/system';
 import { wrapAllHandlers } from './wrapHandler';
+import type { Handler } from './handlers/types';
 
-export type Handler = (args: unknown) => unknown | Promise<unknown>;
+export type { Handler };
 
 export function registerMocks(): Map<string, Handler> {
   const map = new Map<string, Handler>();

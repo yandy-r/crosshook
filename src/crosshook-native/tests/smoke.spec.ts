@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
+import type { AppRoute } from '../src/components/layout/Sidebar';
+import { ROUTE_NAV_LABEL } from '../src/components/layout/routeMetadata';
+
 /**
  * Smoke test the 9 application routes in browser dev mode.
  *
@@ -25,19 +28,24 @@ interface RouteDef {
   navLabel: string;
 }
 
-// Source of truth: src/components/layout/Sidebar.tsx (AppRoute) plus
-// src/components/layout/routeMetadata.ts (ROUTE_NAV_LABEL).
-const ROUTES: readonly RouteDef[] = [
-  { route: 'library', navLabel: 'Library' },
-  { route: 'profiles', navLabel: 'Profiles' },
-  { route: 'launch', navLabel: 'Launch' },
-  { route: 'install', navLabel: 'Install & Run' },
-  { route: 'community', navLabel: 'Browse' },
-  { route: 'discover', navLabel: 'Discover' },
-  { route: 'compatibility', navLabel: 'Compatibility' },
-  { route: 'settings', navLabel: 'Settings' },
-  { route: 'health', navLabel: 'Health' },
+/** Order matches sidebar primary nav (see Sidebar.tsx). */
+const ROUTE_ORDER: readonly AppRoute[] = [
+  'library',
+  'profiles',
+  'launch',
+  'install',
+  'community',
+  'discover',
+  'compatibility',
+  'settings',
+  'health',
 ];
+
+// Labels from ROUTE_NAV_LABEL (routeMetadata.ts) — same source as Sidebar triggers.
+const ROUTES: readonly RouteDef[] = ROUTE_ORDER.map((route) => ({
+  route,
+  navLabel: ROUTE_NAV_LABEL[route],
+}));
 
 interface ConsoleCapture {
   errors: string[];

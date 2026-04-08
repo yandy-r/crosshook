@@ -1,5 +1,5 @@
-import type { Handler } from '../index';
-import { getActiveFixture } from '../index';
+import type { Handler } from './types';
+import { getActiveFixture } from '../../fixture';
 import { getStore } from '../store';
 import { emitMockEvent } from '../eventBus';
 import type { DiagnosticReport } from '../../../types/diagnostics';

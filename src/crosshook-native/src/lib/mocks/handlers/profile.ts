@@ -1,5 +1,5 @@
-import type { Handler } from '../index';
-import { getActiveFixture } from '../index';
+import type { Handler } from './types';
+import { getActiveFixture } from '../../fixture';
 import { getStore } from '../store';
 import { emitMockEvent } from '../eventBus';
 import type { ProfileSummary } from '../../../types/library';
@@ -101,6 +101,19 @@ function forcedError(commandName: string): Error {
   return new Error(`[dev-mock] forced error for ${commandName}`);
 }
 
+/**
+ * Standard `?fixture=error|loading` gate for profile mutators and non-shell reads.
+ * Shell-critical handlers (`profile_list`, `profile_load`, …) keep bespoke logic.
+ */
+function withProfileFixtureGate(commandName: string, impl: Handler): Handler {
+  return async (args: unknown) => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError(commandName);
+    if (fixture === 'loading') return neverResolving<unknown>();
+    return impl(args);
+  };
+}
+
 function seedDemoProfiles(): void {
   const store = getStore();
   if (store.profiles.size > 0) return;
@@ -189,10 +202,9 @@ export function registerProfile(map: Map<string, Handler>): void {
 
   // ── Mutation handlers ─────────────────────────────────────────────────────
 
-  map.set('profile_save', async (args) => {
-    const fixture = getActiveFixture();
-    if (fixture === 'error') throw forcedError('profile_save');
-    if (fixture === 'loading') return neverResolving<null>();
+  map.set(
+    'profile_save',
+    withProfileFixtureGate('profile_save', async (args) => {
     const { name, data } = args as { name: string; data: GameProfile };
     const trimmed = name.trim();
     if (!trimmed) {
@@ -203,9 +215,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'manual_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_save_launch_optimizations', async (args) => {
+  map.set(
+    'profile_save_launch_optimizations',
+    withProfileFixtureGate('profile_save_launch_optimizations', async (args) => {
     const { name, optimizations } = args as {
       name: string;
       optimizations: { enabled_option_ids: string[]; switch_active_preset?: string };
@@ -230,9 +245,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'launch_optimization_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save-launch-optimizations' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_save_gamescope_config', async (args) => {
+  map.set(
+    'profile_save_gamescope_config',
+    withProfileFixtureGate('profile_save_gamescope_config', async (args) => {
     const { name, config } = args as { name: string; config: GamescopeConfig };
     const trimmed = name.trim();
     const store = getStore();
@@ -247,9 +265,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'manual_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save-gamescope-config' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_save_trainer_gamescope_config', async (args) => {
+  map.set(
+    'profile_save_trainer_gamescope_config',
+    withProfileFixtureGate('profile_save_trainer_gamescope_config', async (args) => {
     const { name, config } = args as { name: string; config: GamescopeConfig };
     const trimmed = name.trim();
     const store = getStore();
@@ -264,9 +285,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'manual_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save-trainer-gamescope-config' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_save_mangohud_config', async (args) => {
+  map.set(
+    'profile_save_mangohud_config',
+    withProfileFixtureGate('profile_save_mangohud_config', async (args) => {
     const { name, config } = args as { name: string; config: MangoHudConfig };
     const trimmed = name.trim();
     const store = getStore();
@@ -281,12 +305,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'manual_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save-mangohud-config' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_delete', async (args) => {
-    const fixture = getActiveFixture();
-    if (fixture === 'error') throw forcedError('profile_delete');
-    if (fixture === 'loading') return neverResolving<null>();
+  map.set(
+    'profile_delete',
+    withProfileFixtureGate('profile_delete', async (args) => {
     const { name } = args as { name: string };
     const trimmed = name.trim();
     const store = getStore();
@@ -301,12 +325,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     }
     emitMockEvent('profiles-changed', { name: trimmed, action: 'delete' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_duplicate', async (args) => {
-    const fixture = getActiveFixture();
-    if (fixture === 'error') throw forcedError('profile_duplicate');
-    if (fixture === 'loading') return neverResolving<DuplicateProfileResult>();
+  map.set(
+    'profile_duplicate',
+    withProfileFixtureGate('profile_duplicate', async (args) => {
     const { name } = args as { name: string };
     const trimmed = name.trim();
     const store = getStore();
@@ -334,12 +358,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     };
     emitMockEvent('profiles-changed', { name: copyName, action: 'duplicate' });
     return result;
-  });
+    }),
+  );
 
-  map.set('profile_rename', async (args) => {
-    const fixture = getActiveFixture();
-    if (fixture === 'error') throw forcedError('profile_rename');
-    if (fixture === 'loading') return neverResolving<boolean>();
+  map.set(
+    'profile_rename',
+    withProfileFixtureGate('profile_rename', async (args) => {
     const { oldName, newName } = args as { oldName: string; newName: string };
     const trimmedOld = oldName.trim();
     const trimmedNew = newName.trim();
@@ -378,12 +402,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     emitMockEvent('profiles-changed', { name: trimmedNew, action: 'rename' });
     // Returns had_launcher boolean (always false in mock — no real launcher files)
     return false;
-  });
+    }),
+  );
 
-  map.set('profile_set_favorite', async (args) => {
-    const fixture = getActiveFixture();
-    if (fixture === 'error') throw forcedError('profile_set_favorite');
-    if (fixture === 'loading') return neverResolving<null>();
+  map.set(
+    'profile_set_favorite',
+    withProfileFixtureGate('profile_set_favorite', async (args) => {
     const { name, favorite } = args as { name: string; favorite: boolean };
     const trimmed = name.trim();
     if (favorite) {
@@ -393,9 +417,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     }
     emitMockEvent('profiles-changed', { name: trimmed, action: 'favorite' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_import_legacy', async (args) => {
+  map.set(
+    'profile_import_legacy',
+    withProfileFixtureGate('profile_import_legacy', async (args) => {
     const { path } = args as { path: string };
     // Derive a name from the file stem
     const segments = path.replace(/\\/g, '/').split('/');
@@ -415,21 +442,31 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(stem, 'import');
     emitMockEvent('profiles-changed', { name: stem, action: 'import' });
     return structuredClone(imported);
-  });
+    }),
+  );
 
-  map.set('profile_export_toml', async (args) => {
+  map.set(
+    'profile_export_toml',
+    withProfileFixtureGate('profile_export_toml', async (args) => {
     const { name, data } = args as { name: string; data: GameProfile };
     // Return a minimal TOML-like stub for the frontend to display
     return `# CrossHook Profile Export\n# Profile: ${name}\n[game]\nname = "${data.game.name}"\nexecutable_path = "${data.game.executable_path}"\n`;
-  });
+    }),
+  );
 
   // ── Optimization preset handlers ──────────────────────────────────────────
 
-  map.set('profile_list_bundled_optimization_presets', async (): Promise<BundledOptimizationPreset[]> =>
-    getBundledOptimizationPresets(),
+  map.set(
+    'profile_list_bundled_optimization_presets',
+    withProfileFixtureGate(
+      'profile_list_bundled_optimization_presets',
+      async (): Promise<BundledOptimizationPreset[]> => getBundledOptimizationPresets(),
+    ),
   );
 
-  map.set('profile_apply_bundled_optimization_preset', async (args) => {
+  map.set(
+    'profile_apply_bundled_optimization_preset',
+    withProfileFixtureGate('profile_apply_bundled_optimization_preset', async (args) => {
     const { name, presetId } = args as { name: string; presetId: string };
     const trimmed = name.trim();
     const pid = presetId.trim();
@@ -456,9 +493,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'preset_apply');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'bundled-optimization-preset' });
     return structuredClone(updated);
-  });
+    }),
+  );
 
-  map.set('profile_save_manual_optimization_preset', async (args) => {
+  map.set(
+    'profile_save_manual_optimization_preset',
+    withProfileFixtureGate('profile_save_manual_optimization_preset', async (args) => {
     const { name, presetName, enabledOptionIds } = args as {
       name: string;
       presetName: string;
@@ -488,19 +528,25 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'preset_apply');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'manual-optimization-preset' });
     return structuredClone(updated);
-  });
+    }),
+  );
 
   // ── Config history handlers ───────────────────────────────────────────────
 
-  map.set('profile_config_history', async (args): Promise<ConfigRevisionSummary[]> => {
+  map.set(
+    'profile_config_history',
+    withProfileFixtureGate('profile_config_history', async (args): Promise<ConfigRevisionSummary[]> => {
     const { name, limit } = args as { name: string; limit?: number };
     const trimmed = name.trim();
     const rows = profileConfigHistory.get(trimmed) ?? [];
     const capped = typeof limit === 'number' ? rows.slice(0, limit) : rows;
     return structuredClone(capped);
-  });
+    }),
+  );
 
-  map.set('profile_config_diff', async (args): Promise<ConfigDiffResult> => {
+  map.set(
+    'profile_config_diff',
+    withProfileFixtureGate('profile_config_diff', async (args): Promise<ConfigDiffResult> => {
     const { name, revisionId, rightRevisionId } = args as {
       name: string;
       revisionId: number;
@@ -525,9 +571,12 @@ export function registerProfile(map: Map<string, Handler>): void {
       removed_lines: 0,
       truncated: false,
     };
-  });
+    }),
+  );
 
-  map.set('profile_config_rollback', async (args): Promise<ConfigRollbackResult> => {
+  map.set(
+    'profile_config_rollback',
+    withProfileFixtureGate('profile_config_rollback', async (args): Promise<ConfigRollbackResult> => {
     const { name, revisionId } = args as { name: string; revisionId: number };
     const trimmed = name.trim();
     const store = getStore();
@@ -552,9 +601,12 @@ export function registerProfile(map: Map<string, Handler>): void {
       new_revision_id: newRevision.id,
       profile: restored,
     };
-  });
+    }),
+  );
 
-  map.set('profile_mark_known_good', async (args) => {
+  map.set(
+    'profile_mark_known_good',
+    withProfileFixtureGate('profile_mark_known_good', async (args) => {
     const { name, revisionId } = args as { name: string; revisionId: number };
     const trimmed = name.trim();
     const rows = profileConfigHistory.get(trimmed) ?? [];
@@ -569,5 +621,6 @@ export function registerProfile(map: Map<string, Handler>): void {
       row.is_last_known_working = row.id === revisionId;
     }
     return null;
-  });
+    }),
+  );
 }

@@ -47,15 +47,22 @@ jobs:
           ALLOWLIST_RE='/home/devuser'
 
           # -H forces grep to always print the filename (important when xargs batches
-          # a single file). -n gives line numbers for the error report.
-          matches=$(
+          # a single file). -n gives line numbers. We do not echo matched lines — they
+          # can contain sensitive paths or IDs; only aggregate counts and file:line
+          # locations are emitted.
+          matches_raw=$(
             find src/crosshook-native/src/lib/mocks \
                  -type f \( -name '*.ts' -o -name '*.tsx' \) -print0 \
               | xargs -0 grep -nHE '/home/|/Users/|/users/|\b[0-9]{17}\b' 2>/dev/null \
               | grep -vE "$ALLOWLIST_RE" || true
           )
+          matches_count=$(printf '%s\n' "$matches_raw" | grep -c . || echo 0)
+          matches_count=$(echo "$matches_count" | tr -d '[:space:]')
+          if [ -z "$matches_count" ]; then
+            matches_count=0
+          fi
 
-          if [ -n "$matches" ]; then
+          if [ "$matches_count" -gt 0 ]; then
             echo "::error::Real-data patterns found in mock fixture files"
             echo ""
             echo "Fixture content policy (BR-10 / W-3) requires:"
@@ -63,8 +70,8 @@ jobs:
             echo "  - No real developer paths (/home/<user>, /Users/<user>)"
             echo "  - Allowlisted synthetic path: /home/devuser"
             echo ""
-            echo "Offending matches:"
-            echo "$matches"
+            echo "Found ${matches_count} disallowed match line(s). Locations (file:line only; matched text omitted):"
+            printf '%s\n' "$matches_raw" | sed -E 's/^([^:]+:[0-9]+):.*/\1/'
             exit 1
           fi
 
