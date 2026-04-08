@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { callCommand } from '@/lib/ipc';
 import { subscribeEvent } from '@/lib/events';
 import { useLaunchPrefixDependencyGate } from '../../hooks/useLaunchPrefixDependencyGate';
 
@@ -23,7 +22,7 @@ export function LaunchPage() {
   const { healthByName } = useProfileHealthContext();
   const { settings } = usePreferencesContext();
   const { launchGame, launchTrainer } = useLaunchStateContext();
-  const { getDependencyStatus, installPrefixDependency } = useLaunchPrefixDependencyGate();
+  const { getDependencyStatus, installPrefixDependency, isGamescopeRunning } = useLaunchPrefixDependencyGate();
   const profile = profileState.profile;
   const selectedName = profileState.selectedProfile || '';
   const launchRequest = buildProfileLaunchRequest(
@@ -33,12 +32,6 @@ export function LaunchPage() {
     selectedName
   );
   const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
-  const [isInsideGamescopeSession, setIsInsideGamescopeSession] = useState(false);
-  useEffect(() => {
-    callCommand<boolean>('check_gamescope_session')
-      .then(setIsInsideGamescopeSession)
-      .catch(() => {});
-  }, []);
 
   const pinnedSet = useMemo(() => new Set(profileState.favoriteProfiles), [profileState.favoriteProfiles]);
   const handleTogglePin = useCallback(
@@ -323,7 +316,7 @@ export function LaunchPage() {
                   launch: { ...current.launch, gamescope },
                 }));
               }}
-              isInsideGamescopeSession={isInsideGamescopeSession}
+              isInsideGamescopeSession={isGamescopeRunning}
               mangoHudConfig={profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG}
               onMangoHudChange={(mangohud) => {
                 profileState.updateLaunchSetting((current) => ({

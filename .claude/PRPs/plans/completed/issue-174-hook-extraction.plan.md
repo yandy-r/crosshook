@@ -175,7 +175,7 @@ mod tests {
 - **MIRROR**: `usePrefixDeps` for result shape and `useAcknowledgeVersionChange` for busy-guard behavior.
 - **IMPORTS**: N/A
 - **GOTCHA**: Do not accidentally include already-clean files (e.g., `LaunchPanel`, `HealthDashboardPage`) in this change.
-- **VALIDATE**: `rg "callCommand\\(" src/crosshook-native/src/components/pages/LaunchPage.tsx src/crosshook-native/src/components/ProfileActions.tsx`
+- **VALIDATE**: `rg "callCommand" src/crosshook-native/src/components/pages/LaunchPage.tsx src/crosshook-native/src/components/ProfileActions.tsx` (matches generic-invoked forms like `callCommand<boolean>(...)`; a literal `callCommand\\(` pattern misses those)
 
 ### Task 2: Introduce/Adapt Hooks for IPC Extraction
 - **ACTION**: Move Launch dependency-gate command calls into a hook and ensure acknowledge hook supports current UX.
@@ -199,7 +199,7 @@ mod tests {
 - **MIRROR**: Existing component async handler pattern and `console.error` + `window.alert` messaging style.
 - **IMPORTS**: New hook import, remove `callCommand` import.
 - **GOTCHA**: `selectedProfile` can be empty in edge states; guard in hook or handler before invoking backend.
-- **VALIDATE**: `rg "callCommand\\(" src/crosshook-native/src/components/ProfileActions.tsx` returns 0.
+- **VALIDATE**: `rg "callCommand" src/crosshook-native/src/components/ProfileActions.tsx` finds no matches (component IPC-agnostic).
 
 ### Task 4: Refactor `LaunchPage` to Consume Hook
 - **ACTION**: Replace dependency-related direct IPC calls with hook methods.
@@ -209,8 +209,8 @@ mod tests {
   - Preserve dep-gate state transitions and event-driven completion behavior.
 - **MIRROR**: Existing dep-gate state machine in `LaunchPage` and method contract style from `usePrefixDeps`.
 - **IMPORTS**: New hook import; remove `callCommand` usage for dependency gate commands.
-- **GOTCHA**: Keep non-dependency `callCommand('check_gamescope_session')` unchanged unless explicitly in scope from issue.
-- **VALIDATE**: `rg "callCommand\\(" src/crosshook-native/src/components/pages/LaunchPage.tsx` should only include out-of-scope non-dependency calls (or zero if fully abstracted).
+- **GOTCHA**: Move `check_gamescope_session` into `useLaunchPrefixDependencyGate` (or a dedicated hook) so `LaunchPage` stays IPC-agnostic.
+- **VALIDATE**: `rg "callCommand" src/crosshook-native/src/components/pages/LaunchPage.tsx` finds no matches after gamescope logic lives in the hook.
 
 ### Task 5: Verification and Scope Guard
 - **ACTION**: Run project checks and manual parity smoke tests in both app modes.
@@ -252,9 +252,9 @@ EXPECT: TypeScript + Vite build succeeds with zero type errors.
 
 ### Targeted Scan
 ```bash
-rg "callCommand\\(" src/crosshook-native/src/components/pages/LaunchPage.tsx src/crosshook-native/src/components/ProfileActions.tsx
+rg "callCommand" src/crosshook-native/src/components/pages/LaunchPage.tsx src/crosshook-native/src/components/ProfileActions.tsx
 ```
-EXPECT: No direct `callCommand()` remains for issue-scoped logic in those component files.
+EXPECT: No `callCommand` references in those component files (matches generic forms like `callCommand<T>(...)`; use this instead of `callCommand\\(` which misses them). Alternative: `rg -P 'callCommand(\\s*<[^>]+>)?'` if you need to anchor optional type parameters only.
 
 ### Unit Tests / Core Regression
 ```bash
@@ -289,8 +289,8 @@ EXPECT: Affected screens behave the same in Tauri runtime.
 ---
 
 ## Acceptance Criteria
-- [ ] No direct `callCommand()` remains in `ProfileActions.tsx`
-- [ ] No direct dependency-gate `callCommand()` remains in `LaunchPage.tsx`
+- [ ] No direct `callCommand` usage remains in `ProfileActions.tsx`
+- [ ] No direct `callCommand` usage remains in `LaunchPage.tsx` (dependency gate and Gamescope session check live in hooks)
 - [ ] Hook-based orchestration exists under `src/crosshook-native/src/hooks/`
 - [ ] Existing behavior preserved (including busy and error feedback semantics)
 - [ ] `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` passes

@@ -637,7 +637,20 @@ export function LaunchPanel({
   const isUpdateInProgress = versionStatus === 'update_in_progress';
 
   async function handleMarkAsVerified() {
-    await acknowledgeVersionChange(profileId, revalidateSingle);
+    const outcome = await acknowledgeVersionChange(profileId, revalidateSingle);
+    if (!outcome.ok) {
+      if ('reason' in outcome) {
+        return;
+      }
+      const message = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
+      if (outcome.stage === 'acknowledge') {
+        console.error('Failed to acknowledge version change', outcome.error);
+        window.alert(`Could not mark profile as verified: ${message}`);
+      } else {
+        console.error('Failed to refresh profile health after acknowledge_version_change', outcome.error);
+        window.alert(`Version change was acknowledged, but health data refresh failed: ${message}`);
+      }
+    }
   }
 
   function versionMismatchMessage(): string {
