@@ -58,7 +58,7 @@ function buildHealthReport(
       launcher_drift_state: null,
       is_community_import: false,
       is_favorite: false,
-      version_status: acknowledgedVersions.has(profileName) ? 'matched' : 'matched',
+      version_status: acknowledgedVersions.has(profileName) ? 'matched' : 'game_updated',
       snapshot_build_id: '12345678',
       current_build_id: '12345678',
       trainer_version: null,
@@ -127,7 +127,7 @@ function buildVersionSnapshot(profileName: string): VersionSnapshotInfo {
     trainer_version: null,
     trainer_file_hash: null,
     human_game_ver: null,
-    status: acknowledgedVersions.has(profileName) ? 'matched' : 'matched',
+    status: acknowledgedVersions.has(profileName) ? 'matched' : 'game_updated',
     checked_at: daysAgoIso(1),
   };
 }
@@ -136,7 +136,7 @@ function buildVersionCheckResult(profileName: string): VersionCheckResult {
   const profileId = `mock-pid-${profileName.replace(/\s+/g, '-').toLowerCase()}`;
   const status: VersionCorrelationStatus = acknowledgedVersions.has(profileName)
     ? 'matched'
-    : 'matched';
+    : 'game_updated';
   return {
     profile_id: profileId,
     current_build_id: '12345678',

@@ -133,23 +133,36 @@ export function registerInstall(map: Map<string, Handler>): void {
     const { request } = args as { request: InstallGameRequest };
     const profileName = request.profile_name?.trim() || 'mock-game';
 
-    installInFlight = profileName;
-    scheduleInstallEvents(profileName);
+    if (installInFlight !== null) {
+      throw new Error(
+        `[dev-mock] install_game: install already in progress for "${installInFlight}"`,
+      );
+    }
 
-    // Simulate install duration (~1.5 s total)
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 1500));
+    const runToken = profileName;
+    installInFlight = runToken;
 
-    const result = buildMockInstallResult(request);
+    try {
+      scheduleInstallEvents(profileName);
 
-    emitMockEvent('install-complete', {
-      profileName,
-      phase: 'complete',
-      progress: 100,
-      message: result.message,
-      result,
-    });
+      // Simulate install duration (~1.5 s total)
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 1500));
 
-    installInFlight = null;
-    return result;
+      const result = buildMockInstallResult(request);
+
+      emitMockEvent('install-complete', {
+        profileName,
+        phase: 'complete',
+        progress: 100,
+        message: result.message,
+        result,
+      });
+
+      return result;
+    } finally {
+      if (installInFlight === runToken) {
+        installInFlight = null;
+      }
+    }
   });
 }

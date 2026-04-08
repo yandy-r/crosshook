@@ -48,12 +48,19 @@ const CACHYOS_VERSIONS: ProtonUpAvailableVersion[] = [
   },
 ];
 
-const MOCK_CACHE_META = {
-  stale: false,
-  offline: false,
-  fetched_at: new Date().toISOString(),
-  expires_at: new Date(Date.now() + 3_600_000).toISOString(),
-};
+function getMockCacheMeta(): {
+  stale: boolean;
+  offline: boolean;
+  fetched_at: string;
+  expires_at: string;
+} {
+  return {
+    stale: false,
+    offline: false,
+    fetched_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+  };
+}
 
 export function registerProtonUp(map: Map<string, Handler>): void {
   map.set('protonup_list_available_versions', async (args): Promise<ProtonUpCatalogResponse> => {
@@ -64,7 +71,7 @@ export function registerProtonUp(map: Map<string, Handler>): void {
 
     return {
       versions,
-      cache: MOCK_CACHE_META,
+      cache: getMockCacheMeta(),
     };
   });
 

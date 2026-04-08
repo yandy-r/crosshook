@@ -24,6 +24,28 @@ const profileConfigHistory = new Map<string, ConfigRevisionSummary[]>();
 
 let nextRevisionId = 1;
 
+/** Same catalog as `profile_list_bundled_optimization_presets` — keep in sync for mock fidelity. */
+function getBundledOptimizationPresets(): BundledOptimizationPreset[] {
+  return [
+    {
+      preset_id: 'bundled/amd-fsr',
+      display_name: 'AMD FSR Performance',
+      vendor: 'amd',
+      mode: 'performance',
+      enabled_option_ids: ['use_gamemode', 'disable_vsync'],
+      catalog_version: 1,
+    },
+    {
+      preset_id: 'bundled/nvidia-dxvk',
+      display_name: 'NVIDIA DXVK Quality',
+      vendor: 'nvidia',
+      mode: 'quality',
+      enabled_option_ids: ['use_gamemode', 'enable_esync'],
+      catalog_version: 1,
+    },
+  ];
+}
+
 function appendRevision(profileName: string, source: ConfigRevisionSummary['source']): ConfigRevisionSummary {
   const revision: ConfigRevisionSummary = {
     id: nextRevisionId++,
@@ -146,6 +168,7 @@ export function registerProfile(map: Map<string, Handler>): void {
     };
     store.profiles.set(trimmed, updated);
     appendRevision(trimmed, 'launch_optimization_save');
+    emitMockEvent('profiles-changed', { name: trimmed, action: 'save-launch-optimizations' });
     return null;
   });
 
@@ -162,6 +185,7 @@ export function registerProfile(map: Map<string, Handler>): void {
       launch: { ...existing.launch, gamescope: structuredClone(config) },
     });
     appendRevision(trimmed, 'manual_save');
+    emitMockEvent('profiles-changed', { name: trimmed, action: 'save-gamescope-config' });
     return null;
   });
 
@@ -178,6 +202,7 @@ export function registerProfile(map: Map<string, Handler>): void {
       launch: { ...existing.launch, trainer_gamescope: structuredClone(config) },
     });
     appendRevision(trimmed, 'manual_save');
+    emitMockEvent('profiles-changed', { name: trimmed, action: 'save-trainer-gamescope-config' });
     return null;
   });
 
@@ -194,6 +219,7 @@ export function registerProfile(map: Map<string, Handler>): void {
       launch: { ...existing.launch, mangohud: structuredClone(config) },
     });
     appendRevision(trimmed, 'manual_save');
+    emitMockEvent('profiles-changed', { name: trimmed, action: 'save-mangohud-config' });
     return null;
   });
 
@@ -248,6 +274,9 @@ export function registerProfile(map: Map<string, Handler>): void {
     const { oldName, newName } = args as { oldName: string; newName: string };
     const trimmedOld = oldName.trim();
     const trimmedNew = newName.trim();
+    if (!trimmedNew) {
+      throw new Error('[dev-mock] profile_rename: new name must not be empty');
+    }
     const store = getStore();
     const existing = store.profiles.get(trimmedOld);
     if (!existing) {
@@ -324,27 +353,9 @@ export function registerProfile(map: Map<string, Handler>): void {
 
   // ── Optimization preset handlers ──────────────────────────────────────────
 
-  map.set('profile_list_bundled_optimization_presets', async (): Promise<BundledOptimizationPreset[]> => {
-    // Return a small set of synthetic bundled presets for UI testing
-    return [
-      {
-        preset_id: 'bundled/amd-fsr',
-        display_name: 'AMD FSR Performance',
-        vendor: 'amd',
-        mode: 'performance',
-        enabled_option_ids: ['use_gamemode', 'disable_vsync'],
-        catalog_version: 1,
-      },
-      {
-        preset_id: 'bundled/nvidia-dxvk',
-        display_name: 'NVIDIA DXVK Quality',
-        vendor: 'nvidia',
-        mode: 'quality',
-        enabled_option_ids: ['use_gamemode', 'enable_esync'],
-        catalog_version: 1,
-      },
-    ];
-  });
+  map.set('profile_list_bundled_optimization_presets', async (): Promise<BundledOptimizationPreset[]> =>
+    getBundledOptimizationPresets(),
+  );
 
   map.set('profile_apply_bundled_optimization_preset', async (args) => {
     const { name, presetId } = args as { name: string; presetId: string };
@@ -355,8 +366,11 @@ export function registerProfile(map: Map<string, Handler>): void {
     if (!existing) {
       throw new Error(`[dev-mock] profile_apply_bundled_optimization_preset: profile not found: ${trimmed}`);
     }
-    const tomlKey = `bundled/${pid.replace(/^bundled\//, '')}`;
-    const presetIds = ['use_gamemode', 'disable_vsync'];
+    const presets = getBundledOptimizationPresets();
+    const normalizedPid = pid.startsWith('bundled/') ? pid : `bundled/${pid}`;
+    const matched = presets.find((p) => p.preset_id === pid || p.preset_id === normalizedPid);
+    const tomlKey = matched?.preset_id ?? normalizedPid;
+    const presetIds = matched?.enabled_option_ids?.length ? [...matched.enabled_option_ids] : [];
     const updated: GameProfile = {
       ...existing,
       launch: {

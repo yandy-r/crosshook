@@ -6,6 +6,7 @@ import type {
   ProtonDbLookupResult,
   ProtonDbSuggestionSet,
 } from '../../../types/protondb';
+import type { GameProfile } from '../../../types/profile';
 
 // Tracks dismissed suggestion keys across handler calls within a browser session.
 // Key format: `${profileName}:${appId}:${suggestionKey}`
@@ -78,18 +79,37 @@ function buildSuggestionSet(appId: string, profileName: string): ProtonDbSuggest
   const suggestionKey = envKey;
   const dismissed = dismissedSuggestions.has(`${profileName}:${appId}:${suggestionKey}`);
 
+  const store = getStore();
+  const profile = store.profiles.get(profileName);
+  const customEnv = profile?.launch?.custom_env_vars ?? {};
+  const alreadyApplied = customEnv[envKey] === envValue;
+
+  let envVarSuggestions: ProtonDbSuggestionSet['envVarSuggestions'];
+  if (dismissed) {
+    envVarSuggestions = [];
+  } else if (alreadyApplied) {
+    envVarSuggestions = [
+      {
+        key: envKey,
+        value: envValue,
+        status: 'already_applied',
+        supportingReportCount: 12,
+      },
+    ];
+  } else {
+    envVarSuggestions = [
+      {
+        key: envKey,
+        value: envValue,
+        status: 'new',
+        supportingReportCount: 12,
+      },
+    ];
+  }
+
   return {
     catalogSuggestions: [],
-    envVarSuggestions: dismissed
-      ? []
-      : [
-          {
-            key: envKey,
-            value: envValue,
-            status: 'new',
-            supportingReportCount: 12,
-          },
-        ],
+    envVarSuggestions,
     launchOptionSuggestions: [
       {
         rawText: 'PROTON_NO_ESYNC=1 %command%',
@@ -156,8 +176,13 @@ export function registerProtonDb(map: Map<string, Handler>): void {
 
     if (request.kind === 'env_var') {
       const { envKey, envValue } = request;
+      const updated: GameProfile = structuredClone(profile);
+      const nextEnv = { ...(updated.launch.custom_env_vars ?? {}) };
+      nextEnv[envKey] = envValue;
+      updated.launch = { ...updated.launch, custom_env_vars: nextEnv };
+      store.profiles.set(profileName, updated);
       return {
-        updatedProfile: profile,
+        updatedProfile: updated,
         appliedKeys: [envKey],
         toggledOptionIds: [],
       };
