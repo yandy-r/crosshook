@@ -17,11 +17,13 @@ export async function subscribeEvent<T>(name: string, handler: EventCallback<T>)
   };
 }
 
-export function emitMockEvent(name: string, payload: unknown): void {
-  if (isTauri()) return;
+/** Returns true if at least one browser-dev listener received the payload. */
+export function emitMockEvent(name: string, payload: unknown): boolean {
+  if (isTauri()) return false;
   const bus = browserBus.get(name);
-  if (!bus) return;
+  if (!bus || bus.size === 0) return false;
   for (const listener of bus) {
     listener(payload);
   }
+  return true;
 }

@@ -1,4 +1,4 @@
-import type { Handler } from '../index';
+import type { Handler } from './types';
 import { emitMockEvent } from '../eventBus';
 import type { InstallGameRequest, InstallGameResult } from '../../../types/install';
 import { createDefaultProfile } from '../../../types/profile';

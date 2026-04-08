@@ -1,4 +1,5 @@
-import type { Handler } from '../index';
+import type { Handler } from './types';
+import { getActiveFixture } from '../../fixture';
 import { getStore } from '../store';
 import { emitMockEvent } from '../eventBus';
 import type { ProfileSummary } from '../../../types/library';
@@ -61,6 +62,58 @@ function appendRevision(profileName: string, source: ConfigRevisionSummary['sour
   return revision;
 }
 
+// ---------------------------------------------------------------------------
+// Fixture helpers (BR-11)
+// ---------------------------------------------------------------------------
+//
+// `populated` (default) — current behavior, returns demo data
+// `empty`               — list/load handlers return empty/null
+// `error`               — fallible handlers throw; shell-critical reads still
+//                          resolve so `<AppShell />` can mount
+// `loading`             — non-shell-critical handlers never resolve
+//                          (`new Promise(() => {})`); shell-critical reads
+//                          still resolve so the shell renders
+//
+// NOTE: These helpers are NOT subsumed by the `wrapHandler()` middleware
+// added in Task 3.2 (`lib/mocks/wrapHandler.ts`). The middleware implements
+// the orthogonal `?errors=true` / `?delay=<ms>` toggles, while these helpers
+// implement the per-handler `?fixture=loading|error` dispatch. The two
+// systems are deliberately independent — keep both.
+
+/**
+ * Returns a promise that never resolves. Used by the `loading` fixture so
+ * loading-state UIs (skeletons, spinners) stay visible during dev review.
+ * Orthogonal to the `?delay=<ms>` toggle in `wrapHandler.ts`.
+ */
+function neverResolving<T>(): Promise<T> {
+  return new Promise<T>(() => {
+    /* intentionally never resolves */
+  });
+}
+
+/**
+ * Synthesizes a `[dev-mock] forced error` for the named command. Used by the
+ * `?fixture=error` dispatch path. Orthogonal to the `?errors=true` toggle in
+ * `wrapHandler.ts` — fixture-error throws even for reads, while the toggle
+ * exempts reads via `isReadCommand()`.
+ */
+function forcedError(commandName: string): Error {
+  return new Error(`[dev-mock] forced error for ${commandName}`);
+}
+
+/**
+ * Standard `?fixture=error|loading` gate for profile mutators and non-shell reads.
+ * Shell-critical handlers (`profile_list`, `profile_load`, …) keep bespoke logic.
+ */
+function withProfileFixtureGate(commandName: string, impl: Handler): Handler {
+  return async (args: unknown) => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError(commandName);
+    if (fixture === 'loading') return neverResolving<unknown>();
+    return impl(args);
+  };
+}
+
 function seedDemoProfiles(): void {
   const store = getStore();
   if (store.profiles.size > 0) return;
@@ -103,12 +156,20 @@ function seedDemoProfiles(): void {
 }
 
 export function registerProfile(map: Map<string, Handler>): void {
+  // profile_list — SHELL-CRITICAL (BR-11): always resolves with populated
+  // data (or `empty` returns []) so `<AppShell />` can render under every
+  // fixture state, including `error` and `loading`.
   map.set('profile_list', async () => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return [];
     seedDemoProfiles();
     return Array.from(getStore().profiles.keys());
   });
 
+  // profile_list_summaries — SHELL-CRITICAL (BR-11): same rationale as above.
   map.set('profile_list_summaries', async (): Promise<ProfileSummary[]> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return [];
     seedDemoProfiles();
     return Array.from(getStore().profiles.values()).map((p) => ({
       name: p.game.name,
@@ -120,11 +181,20 @@ export function registerProfile(map: Map<string, Handler>): void {
   });
 
   map.set('profile_list_favorites', async () => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return [];
+    if (fixture === 'loading') return neverResolving<string[]>();
+    // `error` is allowed to resolve here — favorites are non-fatal and the UI
+    // can render an empty favorites strip in error state.
     seedDemoProfiles();
     return Array.from(profileFavorites).filter((n) => getStore().profiles.has(n));
   });
 
   map.set('profile_load', async (args) => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return null;
+    if (fixture === 'loading') return neverResolving<unknown>();
+    if (fixture === 'error') throw forcedError('profile_load');
     seedDemoProfiles();
     const { name } = args as { name: string };
     return getStore().profiles.get(name) ?? null;
@@ -132,7 +202,9 @@ export function registerProfile(map: Map<string, Handler>): void {
 
   // ── Mutation handlers ─────────────────────────────────────────────────────
 
-  map.set('profile_save', async (args) => {
+  map.set(
+    'profile_save',
+    withProfileFixtureGate('profile_save', async (args) => {
     const { name, data } = args as { name: string; data: GameProfile };
     const trimmed = name.trim();
     if (!trimmed) {
@@ -143,9 +215,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'manual_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_save_launch_optimizations', async (args) => {
+  map.set(
+    'profile_save_launch_optimizations',
+    withProfileFixtureGate('profile_save_launch_optimizations', async (args) => {
     const { name, optimizations } = args as {
       name: string;
       optimizations: { enabled_option_ids: string[]; switch_active_preset?: string };
@@ -170,9 +245,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'launch_optimization_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save-launch-optimizations' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_save_gamescope_config', async (args) => {
+  map.set(
+    'profile_save_gamescope_config',
+    withProfileFixtureGate('profile_save_gamescope_config', async (args) => {
     const { name, config } = args as { name: string; config: GamescopeConfig };
     const trimmed = name.trim();
     const store = getStore();
@@ -187,9 +265,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'manual_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save-gamescope-config' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_save_trainer_gamescope_config', async (args) => {
+  map.set(
+    'profile_save_trainer_gamescope_config',
+    withProfileFixtureGate('profile_save_trainer_gamescope_config', async (args) => {
     const { name, config } = args as { name: string; config: GamescopeConfig };
     const trimmed = name.trim();
     const store = getStore();
@@ -204,9 +285,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'manual_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save-trainer-gamescope-config' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_save_mangohud_config', async (args) => {
+  map.set(
+    'profile_save_mangohud_config',
+    withProfileFixtureGate('profile_save_mangohud_config', async (args) => {
     const { name, config } = args as { name: string; config: MangoHudConfig };
     const trimmed = name.trim();
     const store = getStore();
@@ -221,9 +305,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'manual_save');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'save-mangohud-config' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_delete', async (args) => {
+  map.set(
+    'profile_delete',
+    withProfileFixtureGate('profile_delete', async (args) => {
     const { name } = args as { name: string };
     const trimmed = name.trim();
     const store = getStore();
@@ -238,9 +325,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     }
     emitMockEvent('profiles-changed', { name: trimmed, action: 'delete' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_duplicate', async (args) => {
+  map.set(
+    'profile_duplicate',
+    withProfileFixtureGate('profile_duplicate', async (args) => {
     const { name } = args as { name: string };
     const trimmed = name.trim();
     const store = getStore();
@@ -268,9 +358,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     };
     emitMockEvent('profiles-changed', { name: copyName, action: 'duplicate' });
     return result;
-  });
+    }),
+  );
 
-  map.set('profile_rename', async (args) => {
+  map.set(
+    'profile_rename',
+    withProfileFixtureGate('profile_rename', async (args) => {
     const { oldName, newName } = args as { oldName: string; newName: string };
     const trimmedOld = oldName.trim();
     const trimmedNew = newName.trim();
@@ -309,9 +402,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     emitMockEvent('profiles-changed', { name: trimmedNew, action: 'rename' });
     // Returns had_launcher boolean (always false in mock — no real launcher files)
     return false;
-  });
+    }),
+  );
 
-  map.set('profile_set_favorite', async (args) => {
+  map.set(
+    'profile_set_favorite',
+    withProfileFixtureGate('profile_set_favorite', async (args) => {
     const { name, favorite } = args as { name: string; favorite: boolean };
     const trimmed = name.trim();
     if (favorite) {
@@ -321,9 +417,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     }
     emitMockEvent('profiles-changed', { name: trimmed, action: 'favorite' });
     return null;
-  });
+    }),
+  );
 
-  map.set('profile_import_legacy', async (args) => {
+  map.set(
+    'profile_import_legacy',
+    withProfileFixtureGate('profile_import_legacy', async (args) => {
     const { path } = args as { path: string };
     // Derive a name from the file stem
     const segments = path.replace(/\\/g, '/').split('/');
@@ -343,21 +442,31 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(stem, 'import');
     emitMockEvent('profiles-changed', { name: stem, action: 'import' });
     return structuredClone(imported);
-  });
+    }),
+  );
 
-  map.set('profile_export_toml', async (args) => {
+  map.set(
+    'profile_export_toml',
+    withProfileFixtureGate('profile_export_toml', async (args) => {
     const { name, data } = args as { name: string; data: GameProfile };
     // Return a minimal TOML-like stub for the frontend to display
     return `# CrossHook Profile Export\n# Profile: ${name}\n[game]\nname = "${data.game.name}"\nexecutable_path = "${data.game.executable_path}"\n`;
-  });
+    }),
+  );
 
   // ── Optimization preset handlers ──────────────────────────────────────────
 
-  map.set('profile_list_bundled_optimization_presets', async (): Promise<BundledOptimizationPreset[]> =>
-    getBundledOptimizationPresets(),
+  map.set(
+    'profile_list_bundled_optimization_presets',
+    withProfileFixtureGate(
+      'profile_list_bundled_optimization_presets',
+      async (): Promise<BundledOptimizationPreset[]> => getBundledOptimizationPresets(),
+    ),
   );
 
-  map.set('profile_apply_bundled_optimization_preset', async (args) => {
+  map.set(
+    'profile_apply_bundled_optimization_preset',
+    withProfileFixtureGate('profile_apply_bundled_optimization_preset', async (args) => {
     const { name, presetId } = args as { name: string; presetId: string };
     const trimmed = name.trim();
     const pid = presetId.trim();
@@ -384,9 +493,12 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'preset_apply');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'bundled-optimization-preset' });
     return structuredClone(updated);
-  });
+    }),
+  );
 
-  map.set('profile_save_manual_optimization_preset', async (args) => {
+  map.set(
+    'profile_save_manual_optimization_preset',
+    withProfileFixtureGate('profile_save_manual_optimization_preset', async (args) => {
     const { name, presetName, enabledOptionIds } = args as {
       name: string;
       presetName: string;
@@ -416,19 +528,25 @@ export function registerProfile(map: Map<string, Handler>): void {
     appendRevision(trimmed, 'preset_apply');
     emitMockEvent('profiles-changed', { name: trimmed, action: 'manual-optimization-preset' });
     return structuredClone(updated);
-  });
+    }),
+  );
 
   // ── Config history handlers ───────────────────────────────────────────────
 
-  map.set('profile_config_history', async (args): Promise<ConfigRevisionSummary[]> => {
+  map.set(
+    'profile_config_history',
+    withProfileFixtureGate('profile_config_history', async (args): Promise<ConfigRevisionSummary[]> => {
     const { name, limit } = args as { name: string; limit?: number };
     const trimmed = name.trim();
     const rows = profileConfigHistory.get(trimmed) ?? [];
     const capped = typeof limit === 'number' ? rows.slice(0, limit) : rows;
     return structuredClone(capped);
-  });
+    }),
+  );
 
-  map.set('profile_config_diff', async (args): Promise<ConfigDiffResult> => {
+  map.set(
+    'profile_config_diff',
+    withProfileFixtureGate('profile_config_diff', async (args): Promise<ConfigDiffResult> => {
     const { name, revisionId, rightRevisionId } = args as {
       name: string;
       revisionId: number;
@@ -453,9 +571,12 @@ export function registerProfile(map: Map<string, Handler>): void {
       removed_lines: 0,
       truncated: false,
     };
-  });
+    }),
+  );
 
-  map.set('profile_config_rollback', async (args): Promise<ConfigRollbackResult> => {
+  map.set(
+    'profile_config_rollback',
+    withProfileFixtureGate('profile_config_rollback', async (args): Promise<ConfigRollbackResult> => {
     const { name, revisionId } = args as { name: string; revisionId: number };
     const trimmed = name.trim();
     const store = getStore();
@@ -480,9 +601,12 @@ export function registerProfile(map: Map<string, Handler>): void {
       new_revision_id: newRevision.id,
       profile: restored,
     };
-  });
+    }),
+  );
 
-  map.set('profile_mark_known_good', async (args) => {
+  map.set(
+    'profile_mark_known_good',
+    withProfileFixtureGate('profile_mark_known_good', async (args) => {
     const { name, revisionId } = args as { name: string; revisionId: number };
     const trimmed = name.trim();
     const rows = profileConfigHistory.get(trimmed) ?? [];
@@ -497,5 +621,6 @@ export function registerProfile(map: Map<string, Handler>): void {
       row.is_last_known_working = row.id === revisionId;
     }
     return null;
-  });
+    }),
+  );
 }

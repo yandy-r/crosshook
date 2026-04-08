@@ -1,4 +1,4 @@
-import type { Handler } from '../index';
+import type { Handler } from './types';
 import { getStore } from '../store';
 import type { AppSettingsData, RecentFilesData } from '../../../types';
 import type { SettingsSaveRequest } from '../../../types/settings';

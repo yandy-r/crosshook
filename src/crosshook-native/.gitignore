@@ -2,3 +2,8 @@ dist/
 node_modules/
 target/
 src-tauri/gen/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
