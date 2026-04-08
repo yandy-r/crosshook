@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import { subscribeEvent } from '@/lib/events';
+import { useLaunchPrefixDependencyGate } from '../../hooks/useLaunchPrefixDependencyGate';
 
 import LaunchPanel from '../LaunchPanel';
 import { RouteBanner } from '../layout/RouteBanner';
@@ -11,7 +12,6 @@ import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useLaunchStateContext } from '../../context/LaunchStateContext';
 import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../../types/protondb';
-import type { PrefixDependencyStatus } from '../../types/prefix-deps';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
 import { useProtonDbSuggestions } from '../../hooks/useProtonDbSuggestions';
 import { resolveArtAppId } from '../../utils/art';
@@ -23,6 +23,7 @@ export function LaunchPage() {
   const { healthByName } = useProfileHealthContext();
   const { settings } = usePreferencesContext();
   const { launchGame, launchTrainer } = useLaunchStateContext();
+  const { getDependencyStatus, installPrefixDependency } = useLaunchPrefixDependencyGate();
   const profile = profileState.profile;
   const selectedName = profileState.selectedProfile || '';
   const launchRequest = buildProfileLaunchRequest(
@@ -161,10 +162,7 @@ export function LaunchPage() {
       if (!prefixPath) return true;
 
       try {
-        const statuses = await callCommand<PrefixDependencyStatus[]>('get_dependency_status', {
-          profileName: selectedName,
-          prefixPath,
-        });
+        const statuses = await getDependencyStatus(selectedName, prefixPath);
 
         const missing = requiredPackages.filter((pkg) => {
           const status = statuses.find((s) => s.package_name === pkg);
@@ -179,11 +177,7 @@ export function LaunchPage() {
           setDepGatePendingAction(action);
           setDepGateInstalling(true);
           try {
-            await callCommand('install_prefix_dependency', {
-              profileName: selectedName,
-              prefixPath,
-              packages: missing,
-            });
+            await installPrefixDependency(selectedName, prefixPath, missing);
           } catch {
             setDepGateInstalling(false);
             setDepGatePackages(null);
@@ -201,7 +195,7 @@ export function LaunchPage() {
         return true;
       }
     },
-    [profile, selectedName, settings.auto_install_prefix_deps]
+    [profile, selectedName, settings.auto_install_prefix_deps, getDependencyStatus, installPrefixDependency]
   );
 
   const applyProtonDbGroup = useCallback(
@@ -413,11 +407,7 @@ export function LaunchPage() {
                     const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
                     setDepGateInstalling(true);
                     try {
-                      await callCommand('install_prefix_dependency', {
-                        profileName: selectedName,
-                        prefixPath,
-                        packages: depGatePackages,
-                      });
+                      await installPrefixDependency(selectedName, prefixPath, depGatePackages);
                     } catch {
                       setDepGateInstalling(false);
                     }
