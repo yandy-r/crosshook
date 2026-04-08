@@ -59,7 +59,9 @@ export function LaunchPage() {
       return;
     }
     if (sel !== '' && !filteredProfiles.includes(sel)) {
-      void profileState.selectProfile(filteredProfiles[0]);
+      void profileState.selectProfile(filteredProfiles[0], {
+        collectionId: activeCollectionId ?? undefined,
+      });
     }
   }, [
     activeCollectionId,
@@ -124,10 +126,13 @@ export function LaunchPage() {
     async (request: AcceptSuggestionRequest): Promise<void> => {
       const result = await suggestions.acceptSuggestion(request);
       if (result.appliedKeys.length > 0 || result.toggledOptionIds.length > 0) {
-        void profileState.selectProfile(selectedName);
+        // LaunchPage: reload reflects active collection context if any.
+        void profileState.selectProfile(selectedName, {
+          collectionId: activeCollectionId ?? undefined,
+        });
       }
     },
-    [suggestions.acceptSuggestion, profileState.selectProfile, selectedName],
+    [suggestions.acceptSuggestion, profileState.selectProfile, selectedName, activeCollectionId],
   );
 
   // Dep gate modal state
@@ -361,7 +366,14 @@ export function LaunchPage() {
               <ThemedSelect
                 id="launch-profile-selector"
                 value={profileState.selectedProfile}
-                onValueChange={(name) => void profileState.selectProfile(name)}
+                onValueChange={(name) =>
+                  // LaunchPage threads `activeCollectionId` so Rust merges the
+                  // collection's launch defaults via `effective_profile_with`.
+                  // Editor safety: `ProfilesPage` MUST NOT pass collectionId.
+                  void profileState.selectProfile(name, {
+                    collectionId: activeCollectionId ?? undefined,
+                  })
+                }
                 placeholder="Select a profile"
                 pinnedValues={pinnedSet}
                 onTogglePin={handleTogglePin}

@@ -287,6 +287,8 @@ pub fn run() {
             commands::collections::collection_rename,
             commands::collections::collection_update_description,
             commands::collections::collections_for_profile,
+            commands::collections::collection_get_defaults,
+            commands::collections::collection_set_defaults,
             commands::profile::profile_set_favorite,
             commands::profile::profile_list_favorites,
             commands::profile::profile_config_history,

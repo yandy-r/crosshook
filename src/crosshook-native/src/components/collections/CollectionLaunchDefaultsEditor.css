@@ -1,0 +1,95 @@
+.crosshook-collection-launch-defaults-editor {
+  border: 1px solid var(--crosshook-color-border-muted);
+  border-radius: var(--crosshook-radius-md);
+  padding: 8px 12px;
+  background: var(--crosshook-color-surface-muted, transparent);
+}
+
+.crosshook-collection-launch-defaults-editor__summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.crosshook-collection-launch-defaults-editor__badge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--crosshook-color-accent-muted, rgba(120, 160, 220, 0.18));
+  color: var(--crosshook-color-accent, inherit);
+}
+
+.crosshook-collection-launch-defaults-editor__body {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crosshook-collection-launch-defaults-editor__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.crosshook-collection-launch-defaults-editor__env {
+  border: 1px solid var(--crosshook-color-border-muted);
+  border-radius: var(--crosshook-radius-md);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-collection-launch-defaults-editor__env legend {
+  padding: 0 4px;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.crosshook-collection-launch-defaults-editor__env-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.crosshook-collection-launch-defaults-editor__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-collection-launch-defaults-editor__status {
+  margin: 8px 0 0 0;
+  font-size: 0.875rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-collection-launch-defaults-editor__error {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--crosshook-color-danger, #d05858);
+}
+
+.crosshook-collection-launch-defaults-editor__validation {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--crosshook-color-warning, #b8860b);
+}
+
+.crosshook-collection-launch-defaults-editor__code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+}
+
+.crosshook-collection-launch-defaults-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}

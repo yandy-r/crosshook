@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type MouseEvent } from 'react';
 
 import type { AppRoute } from '../layout/Sidebar';
 import type { LibraryViewMode } from '../../types/library';
+import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
@@ -28,8 +29,20 @@ interface LibraryPageProps {
 }
 
 export function LibraryPage({ onNavigate }: LibraryPageProps) {
-  const { profiles, favoriteProfiles, selectedProfile, selectProfile, toggleFavorite, refreshProfiles } =
-    useProfileContext();
+  const {
+    profiles,
+    favoriteProfiles,
+    selectedProfile,
+    selectProfile,
+    toggleFavorite,
+    refreshProfiles,
+    activeCollectionId,
+  } = useProfileContext();
+  const {
+    memberNames: activeCollectionMemberNames,
+    membersForCollectionId: activeCollectionMembersFetchedFor,
+    loading: activeCollectionMembersLoading,
+  } = useCollectionMembers(activeCollectionId);
 
   const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles);
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
@@ -61,18 +74,42 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   // Filter by search
   const filtered = useLibraryProfiles(summaries, searchQuery);
 
-  // Launch handler: select profile then navigate to launch page
+  // Launch handler: select profile then navigate to launch page.
+  //
+  // When an `activeCollectionId` is set globally (e.g. from the sidebar or a
+  // recently-opened CollectionViewModal) AND the launched profile is actually
+  // a member of that collection, thread the collection context so Rust's
+  // `profile_load` applies the collection's launch defaults via
+  // `effective_profile_with` (Phase 3 merge layer).
+  //
+  // If members haven't finished loading yet, or the profile isn't a member,
+  // fall back to the raw load — matching the fail-open philosophy of the Rust
+  // side. This prevents a stale collection context from silently leaking its
+  // defaults into unrelated profile launches from the library grid.
   const handleLaunch = useCallback(
     async (name: string) => {
       setLaunchingName(name);
       try {
-        await selectProfile(name);
+        const membersReady =
+          activeCollectionId !== null &&
+          !activeCollectionMembersLoading &&
+          activeCollectionMembersFetchedFor === activeCollectionId;
+        const profileIsInActiveCollection = membersReady && activeCollectionMemberNames.includes(name);
+        const collectionIdForLoad = profileIsInActiveCollection ? (activeCollectionId ?? undefined) : undefined;
+        await selectProfile(name, { collectionId: collectionIdForLoad });
         onNavigate?.('launch');
       } finally {
         setLaunchingName(undefined);
       }
     },
-    [selectProfile, onNavigate],
+    [
+      selectProfile,
+      onNavigate,
+      activeCollectionId,
+      activeCollectionMemberNames,
+      activeCollectionMembersFetchedFor,
+      activeCollectionMembersLoading,
+    ],
   );
 
   // Edit handler: select profile then navigate to profiles page

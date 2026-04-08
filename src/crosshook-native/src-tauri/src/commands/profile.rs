@@ -227,9 +227,77 @@ pub fn profile_list(store: State<'_, ProfileStore>) -> Result<Vec<String>, Strin
     store.list().map_err(map_error)
 }
 
+/// Merges the per-collection launch defaults layer into a profile that was just
+/// returned from [`ProfileStore::load`].
+///
+/// Behaviour:
+/// - `collection_id` is `None` or trims to empty → returns `profile` unchanged.
+/// - `get_collection_defaults` returns `Ok(None)` (no defaults set on the
+///   collection) → merges an empty layer, i.e. returns the profile unchanged.
+/// - `get_collection_defaults` returns `Ok(Some(defaults))` → returns the
+///   merged profile via [`GameProfile::effective_profile_with`].
+/// - `get_collection_defaults` returns `Err(MetadataStoreError::Corrupt(_))`
+///   → bubbles the error up so the frontend surfaces a loud failure. Corrupt
+///   defaults are a data-integrity issue the user needs to fix, not a transient
+///   glitch to silently swallow.
+/// - `get_collection_defaults` returns any other `Err` (missing row via
+///   `Validation`, `Database`, `Io`, …) → logs a `tracing::warn!` and falls
+///   back to `Ok(profile)`. This preserves fail-open launch semantics so a
+///   stale collection id or a transient SQLite glitch never hard-blocks a
+///   game launch.
+///
+/// Note on layer precedence: `profile` here has already been flattened by
+/// `ProfileStore::load`, which bakes `local_override` into layer 1 and clears
+/// the section. That's why we can call `effective_profile_with` on it directly
+/// — layer 3 is a no-op at this call site but layer 1 still carries every
+/// machine-specific override, so the "local_override always wins" guarantee
+/// holds at runtime. See the doc comment on `effective_profile_with` for the
+/// full explanation.
+fn apply_collection_defaults(
+    profile: GameProfile,
+    metadata_store: &MetadataStore,
+    collection_id: Option<&str>,
+) -> Result<GameProfile, MetadataStoreError> {
+    let Some(cid) = collection_id.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(profile);
+    };
+
+    match metadata_store.get_collection_defaults(cid) {
+        Ok(defaults) => Ok(profile.effective_profile_with(defaults.as_ref())),
+        Err(MetadataStoreError::Corrupt(msg)) => {
+            tracing::warn!(
+                collection_id = %cid,
+                error = %msg,
+                "collection defaults JSON is corrupt; surfacing error to launch entrypoint"
+            );
+            Err(MetadataStoreError::Corrupt(msg))
+        }
+        Err(other) => {
+            tracing::warn!(
+                collection_id = %cid,
+                error = %other,
+                "failed to load collection defaults; launching with raw profile"
+            );
+            Ok(profile)
+        }
+    }
+}
+
 #[tauri::command]
-pub fn profile_load(name: String, store: State<'_, ProfileStore>) -> Result<GameProfile, String> {
-    store.load(&name).map_err(map_error)
+pub fn profile_load(
+    name: String,
+    collection_id: Option<String>,
+    store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<GameProfile, String> {
+    let profile = store.load(&name).map_err(map_error)?;
+
+    // When a collection context is provided, merge the collection's defaults
+    // into the profile via `effective_profile_with`. The returned profile still
+    // reflects the machine-specific `local_override` layer that `ProfileStore::load`
+    // baked into layer 1, so collection defaults can never clobber portable paths.
+    apply_collection_defaults(profile, metadata_store.inner(), collection_id.as_deref())
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1309,6 +1377,8 @@ mod tests {
                 kind: String::new(),
                 loading_mode: TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),
+                required_protontricks: Vec::new(),
+                community_trainer_sha256: String::new(),
             },
             steam: SteamSection {
                 app_id: "12345".to_string(),
@@ -1442,5 +1512,134 @@ mod tests {
         .expect_err("missing profile should fail");
 
         assert!(error.contains("profile file not found"));
+    }
+
+    // ── apply_collection_defaults (M3 + M4 regression tests) ─────────────────
+    //
+    // These unit tests cover the private helper extracted from `profile_load`:
+    //   - Fail-open on missing collection_id (M3 cleanup — no layer 3 no-op).
+    //   - Fail-open on transient / not-found errors (preserves launch path).
+    //   - Bubble `Corrupt` errors so the frontend can surface them via the
+    //     existing `useProfile.loadProfile` error channel (M4).
+
+    mod apply_collection_defaults_tests {
+        use super::*;
+        use crosshook_core::profile::CollectionDefaultsSection;
+
+        fn profile_with_custom_env(name: &str, value: &str) -> GameProfile {
+            let mut profile = GameProfile::default();
+            profile
+                .launch
+                .custom_env_vars
+                .insert(name.to_string(), value.to_string());
+            profile
+        }
+
+        #[test]
+        fn none_collection_id_returns_profile_unchanged() {
+            let store = MetadataStore::open_in_memory().expect("open in-memory metadata store");
+            let profile = profile_with_custom_env("PROFILE_ONLY", "keep-me");
+
+            let result = apply_collection_defaults(profile.clone(), &store, None)
+                .expect("None collection id must succeed");
+
+            assert_eq!(result, profile);
+        }
+
+        #[test]
+        fn empty_collection_id_returns_profile_unchanged() {
+            let store = MetadataStore::open_in_memory().expect("open in-memory metadata store");
+            let profile = profile_with_custom_env("PROFILE_ONLY", "keep-me");
+
+            // Whitespace-only ids are treated as "no collection context" — this
+            // mirrors the normalization in `useProfile.loadProfile` which drops
+            // empty trimmed ids before calling the command.
+            let result = apply_collection_defaults(profile.clone(), &store, Some("   "))
+                .expect("empty collection id must succeed");
+
+            assert_eq!(result, profile);
+        }
+
+        #[test]
+        fn valid_defaults_merge_into_profile() {
+            let store = MetadataStore::open_in_memory().expect("open in-memory metadata store");
+            let collection_id = store
+                .create_collection("Speedrun Tools")
+                .expect("create collection");
+
+            let mut defaults = CollectionDefaultsSection::default();
+            defaults.method = Some("proton_run".to_string());
+            defaults
+                .custom_env_vars
+                .insert("CROSSHOOK_PROBE".to_string(), "1".to_string());
+            store
+                .set_collection_defaults(&collection_id, Some(&defaults))
+                .expect("seed collection defaults");
+
+            let profile = profile_with_custom_env("PROFILE_ONLY", "keep-me");
+            let result =
+                apply_collection_defaults(profile, &store, Some(collection_id.as_str()))
+                    .expect("valid defaults must merge");
+
+            assert_eq!(result.launch.method, "proton_run");
+            assert_eq!(
+                result.launch.custom_env_vars.get("CROSSHOOK_PROBE").cloned(),
+                Some("1".to_string()),
+                "collection env vars must merge on top of profile env vars"
+            );
+            assert_eq!(
+                result.launch.custom_env_vars.get("PROFILE_ONLY").cloned(),
+                Some("keep-me".to_string()),
+                "profile env vars without a collision must be preserved"
+            );
+        }
+
+        #[test]
+        fn unknown_collection_id_fails_open_with_unmodified_profile() {
+            let store = MetadataStore::open_in_memory().expect("open in-memory metadata store");
+            let profile = profile_with_custom_env("PROFILE_ONLY", "keep-me");
+
+            // With the M1 fix, `get_collection_defaults` on a nonexistent
+            // collection returns `Validation(...)`. The helper must treat that
+            // as fail-open and return the raw profile rather than hard-block
+            // the launch.
+            let result = apply_collection_defaults(profile.clone(), &store, Some("no-such-id"))
+                .expect("unknown collection id must fail open, not propagate Validation");
+
+            assert_eq!(result, profile);
+        }
+
+        #[test]
+        fn corrupt_defaults_bubble_error_to_caller() {
+            let store = MetadataStore::open_in_memory().expect("open in-memory metadata store");
+            let collection_id = store.create_collection("Broken").expect("create collection");
+
+            // Force a corrupt JSON payload via raw SQL. `set_collection_defaults`
+            // would refuse to write invalid JSON, so we go under it via
+            // `with_sqlite_conn`. We avoid the `rusqlite::params!` macro so
+            // src-tauri doesn't need a direct rusqlite dev-dep: tuple params
+            // implement `rusqlite::Params` directly.
+            store
+                .with_sqlite_conn("seed corrupt defaults", |conn| {
+                    conn.execute(
+                        "UPDATE collections SET defaults_json = ?1 WHERE collection_id = ?2",
+                        ("{not-valid-json", collection_id.as_str()),
+                    )
+                    .expect("raw update");
+                    Ok(())
+                })
+                .expect("with_sqlite_conn");
+
+            let profile = profile_with_custom_env("PROFILE_ONLY", "keep-me");
+            let err =
+                apply_collection_defaults(profile, &store, Some(collection_id.as_str()))
+                    .expect_err("corrupt defaults must bubble up");
+
+            assert!(
+                matches!(err, MetadataStoreError::Corrupt(_)),
+                "corrupt JSON must surface as Corrupt so the launch entrypoint can \
+                 show the error, got {err:?}"
+            );
+        }
     }
 }

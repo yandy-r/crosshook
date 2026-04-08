@@ -180,6 +180,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 20 {
+        migrate_19_to_20(conn)?;
+        conn.pragma_update(None, "user_version", 20_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 20",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -851,6 +860,44 @@ fn migrate_18_to_19(conn: &Connection) -> Result<(), MetadataStoreError> {
     Ok(())
 }
 
+/// Phase 3: per-collection launch defaults.
+///
+/// Adds a nullable `defaults_json TEXT` column to `collections` for storing inline JSON
+/// (`CollectionDefaultsSection`). Existing rows backfill to `NULL`. Additive,
+/// non-destructive — no transaction needed for a single ALTER TABLE.
+fn migrate_19_to_20(conn: &Connection) -> Result<(), MetadataStoreError> {
+    let has_defaults_json = {
+        let mut stmt = conn
+            .prepare("PRAGMA table_info(collections)")
+            .map_err(|source| MetadataStoreError::Database {
+                action: "check collections columns for defaults_json in migration 19 to 20",
+                source,
+            })?;
+        let column_names: Vec<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|source| MetadataStoreError::Database {
+                action: "read collections columns for migration 19 to 20",
+                source,
+            })?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|source| MetadataStoreError::Database {
+                action: "read collections columns for migration 19 to 20",
+                source,
+            })?;
+        column_names.iter().any(|name| name == "defaults_json")
+    };
+
+    if !has_defaults_json {
+        conn.execute_batch("ALTER TABLE collections ADD COLUMN defaults_json TEXT;")
+            .map_err(|source| MetadataStoreError::Database {
+                action: "run metadata migration 19 to 20",
+                source,
+            })?;
+    }
+
+    Ok(())
+}
+
 fn migrate_16_to_17(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(
         "
@@ -1129,7 +1176,10 @@ mod tests {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 19);
+        assert!(
+            version >= 19,
+            "schema version should be at least 19, got {version}"
+        );
 
         // 1. sort_order column exists with NOT NULL DEFAULT 0.
         let mut stmt = conn.prepare("PRAGMA table_info(collections)").unwrap();
@@ -1203,5 +1253,71 @@ mod tests {
             )
             .unwrap();
         assert_eq!(member_count, 0);
+    }
+
+    #[test]
+    fn migration_19_to_20_adds_defaults_json_column() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let version: u32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert!(
+            version >= 20,
+            "schema version should be at least 20 after migration 19→20, got {version}"
+        );
+
+        // Verify defaults_json column exists, is TEXT, and is nullable.
+        let mut stmt = conn.prepare("PRAGMA table_info(collections)").unwrap();
+        let columns: Vec<(String, String, i64)> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(1)?, // name
+                    row.get::<_, String>(2)?, // type
+                    row.get::<_, i64>(3)?,    // notnull
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        let defaults_json = columns
+            .iter()
+            .find(|(name, _, _)| name == "defaults_json")
+            .expect("defaults_json column should exist");
+        assert_eq!(defaults_json.1, "TEXT");
+        assert_eq!(defaults_json.2, 0, "defaults_json should be nullable");
+
+        // Round-trip a JSON payload.
+        conn.execute(
+            "INSERT INTO collections (collection_id, name, created_at, updated_at, defaults_json)
+             VALUES ('col-1', 'Test', datetime('now'), datetime('now'), ?1)",
+            [r#"{"method":"proton_run"}"#],
+        )
+        .unwrap();
+        let payload: Option<String> = conn
+            .query_row(
+                "SELECT defaults_json FROM collections WHERE collection_id = 'col-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(payload.as_deref(), Some(r#"{"method":"proton_run"}"#));
+
+        // NULL round-trip — column defaults to NULL when not provided.
+        conn.execute(
+            "INSERT INTO collections (collection_id, name, created_at, updated_at)
+             VALUES ('col-2', 'Test2', datetime('now'), datetime('now'))",
+            [],
+        )
+        .unwrap();
+        let empty: Option<String> = conn
+            .query_row(
+                "SELECT defaults_json FROM collections WHERE collection_id = 'col-2'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(empty, None, "defaults_json should default to NULL");
     }
 }
