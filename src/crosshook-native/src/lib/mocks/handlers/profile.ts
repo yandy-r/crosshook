@@ -11,6 +11,10 @@ import type {
   MangoHudConfig,
 } from '../../../types/profile';
 import { createDefaultProfile } from '../../../types/profile';
+import {
+  getMockCollectionDefaults,
+  type MockCollectionDefaults,
+} from './collections';
 import type {
   ConfigRevisionSummary,
   ConfigDiffResult,
@@ -99,6 +103,55 @@ function neverResolving<T>(): Promise<T> {
  */
 function forcedError(commandName: string): Error {
   return new Error(`[dev-mock] forced error for ${commandName}`);
+}
+
+/**
+ * Apply collection defaults to a loaded profile (browser dev-mode parity for the
+ * Rust `effective_profile_with` merge layer). Mirrors the precedence: collection
+ * defaults override profile base for the editable subset, but `custom_env_vars` is
+ * an additive merge where collection keys win on collision.
+ *
+ * Excludes the `local_override` layer because the dev-mode profile fixtures do not
+ * carry one — production Rust applies it after the collection layer.
+ */
+function applyMockCollectionDefaults(
+  profile: GameProfile,
+  d: MockCollectionDefaults
+): GameProfile {
+  // Deep-clone via JSON round-trip — GameProfile is serde-friendly (no cycles,
+  // no Date, no undefined surprises) so this is the safest portable clone.
+  const merged: GameProfile = JSON.parse(JSON.stringify(profile));
+
+  if (typeof d.method === 'string' && d.method.trim() !== '') {
+    // Caller (Rust serde) only emits known LaunchMethod variants; mock relays as-is.
+    merged.launch.method = d.method as GameProfile['launch']['method'];
+  }
+  if (d.optimizations) {
+    merged.launch.optimizations = {
+      ...merged.launch.optimizations,
+      enabled_option_ids: [...(d.optimizations.enabled_option_ids ?? [])],
+    };
+  }
+  if (d.custom_env_vars) {
+    merged.launch.custom_env_vars = {
+      ...(merged.launch.custom_env_vars ?? {}),
+      ...d.custom_env_vars, // collection wins on collision
+    };
+  }
+  if (typeof d.network_isolation === 'boolean') {
+    merged.launch.network_isolation = d.network_isolation;
+  }
+  if (d.gamescope !== undefined) {
+    (merged.launch as { gamescope: unknown }).gamescope = d.gamescope;
+  }
+  if (d.trainer_gamescope !== undefined) {
+    (merged.launch as { trainer_gamescope: unknown }).trainer_gamescope = d.trainer_gamescope;
+  }
+  if (d.mangohud !== undefined) {
+    (merged.launch as { mangohud: unknown }).mangohud = d.mangohud;
+  }
+
+  return merged;
 }
 
 /**
@@ -194,8 +247,16 @@ export function registerProfile(map: Map<string, Handler>): void {
     if (fixture === 'loading') return neverResolving<unknown>();
     if (fixture === 'error') throw forcedError('profile_load');
     seedDemoProfiles();
-    const { name } = args as { name: string };
-    return getStore().profiles.get(name) ?? null;
+    const { name, collectionId } = args as { name: string; collectionId?: string };
+    const profile = getStore().profiles.get(name) ?? null;
+    if (profile === null) return null;
+    // No collection context → return raw storage profile (matches Rust shim path).
+    if (collectionId === undefined || collectionId === null || collectionId.trim() === '') {
+      return profile;
+    }
+    const defaults = getMockCollectionDefaults(collectionId);
+    if (!defaults) return profile;
+    return applyMockCollectionDefaults(profile, defaults);
   });
 
   // ── Mutation handlers ─────────────────────────────────────────────────────

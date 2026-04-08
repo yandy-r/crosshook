@@ -242,6 +242,12 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
               setActiveCollectionId(null);
             }
           }}
+          onOpenInProfilesPage={() => {
+            // `activeCollectionId` is already set by the open-collection flow,
+            // so the Profiles page filter is preserved across the navigation.
+            closeCollectionModal();
+            setRoute('profiles');
+          }}
         />
         <CollectionEditModal
           open={editingCollection !== null}

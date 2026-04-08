@@ -319,3 +319,47 @@ export interface DuplicateProfileResult {
 export interface SerializedDuplicateProfileResult extends Omit<DuplicateProfileResult, 'profile'> {
   profile: SerializedGameProfile;
 }
+
+/**
+ * Collection-scoped overrides for the editable subset of `LaunchSection`.
+ *
+ * Mirrors the Rust `CollectionDefaultsSection` struct in
+ * `crates/crosshook-core/src/profile/models.rs`. The field set matches what the
+ * inline editor inside `<CollectionViewModal>` exposes; users wanting to edit
+ * `presets` / `active_preset` use the "Open in Profiles page →" link-out.
+ *
+ * Semantics:
+ * - `undefined` (or absent) for any optional field means "inherit from the
+ *   profile's base value" — the merge layer leaves it untouched.
+ * - `custom_env_vars` is an **additive merge**: collection entries union with
+ *   the profile's `launch.custom_env_vars` and the collection key wins on
+ *   collision.
+ *
+ * Tauri serializes Rust `Option<T>` to `undefined`/missing JSON fields, so use
+ * `?` (optional) here, never `| null`.
+ */
+export interface CollectionDefaults {
+  method?: LaunchMethod;
+  optimizations?: LaunchOptimizations;
+  custom_env_vars?: Record<string, string>;
+  network_isolation?: boolean;
+  gamescope?: GamescopeConfig;
+  trainer_gamescope?: GamescopeConfig;
+  mangohud?: MangoHudConfig;
+}
+
+/** Returns true when no field of `d` would influence the merge layer. */
+export function isCollectionDefaultsEmpty(
+  d: CollectionDefaults | null | undefined
+): boolean {
+  if (!d) return true;
+  return (
+    d.method === undefined &&
+    d.optimizations === undefined &&
+    (d.custom_env_vars === undefined || Object.keys(d.custom_env_vars).length === 0) &&
+    d.network_isolation === undefined &&
+    d.gamescope === undefined &&
+    d.trainer_gamescope === undefined &&
+    d.mangohud === undefined
+  );
+}

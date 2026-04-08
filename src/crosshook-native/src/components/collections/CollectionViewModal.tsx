@@ -18,6 +18,7 @@ import { useLibraryProfiles } from '@/hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '@/hooks/useLibrarySummaries';
 import { useProfileContext } from '@/context/ProfileContext';
 import { LibraryCard } from '@/components/library/LibraryCard';
+import { CollectionLaunchDefaultsEditor } from './CollectionLaunchDefaultsEditor';
 import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from '@/components/library/game-details-actions';
 import { getFocusableElements } from '@/lib/focus-utils';
 
@@ -41,6 +42,13 @@ export interface CollectionViewModalProps {
   launchingName?: string;
   /** When the active collection filter should clear (e.g. after delete). */
   onCollectionDeleted?: (collectionId: string) => void;
+  /**
+   * Phase 3: navigate to the Profiles page from inside the launch-defaults editor
+   * link-out. The host preserves `activeCollectionId` so the Profiles page opens
+   * inside the collection filter; the modal is expected to close as part of the
+   * navigation.
+   */
+  onOpenInProfilesPage: () => void;
 }
 
 export function CollectionViewModal({
@@ -52,6 +60,7 @@ export function CollectionViewModal({
   onRequestEditMetadata,
   launchingName,
   onCollectionDeleted,
+  onOpenInProfilesPage,
 }: CollectionViewModalProps) {
   const titleId = useId();
   const descriptionId = useId();
@@ -291,6 +300,11 @@ export function CollectionViewModal({
         </header>
 
         <div className="crosshook-modal__body crosshook-collection-modal__body">
+          <CollectionLaunchDefaultsEditor
+            collectionId={collection.collection_id}
+            onOpenInProfilesPage={onOpenInProfilesPage}
+          />
+
           <div className="crosshook-collection-modal__search">
             <label className="crosshook-label" htmlFor={`${titleId}-search`}>
               Search this collection
