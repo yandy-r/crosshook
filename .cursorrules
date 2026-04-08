@@ -53,6 +53,7 @@ For storage changes, plans must also:
 
 ```bash
 ./scripts/dev-native.sh
+./scripts/dev-native.sh --browser    # browser-only dev mode (no Rust toolchain), loopback only
 ./scripts/build-native.sh
 ./scripts/build-native-container.sh
 ./scripts/build-native.sh --binary-only
@@ -61,6 +62,10 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ```
 
 Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`.
+
+### Browser Dev Mode
+
+`./scripts/dev-native.sh --browser` (or `--web`) starts Vite at `http://localhost:5173` and routes IPC through the shared adapter: browser dev mode serves hand-rolled mock handlers for `callCommand()` and `subscribeEvent()` — no Rust toolchain or running Tauri backend is required. Raw `invoke()` / `listen()` bypass the mock bridge, so frontend code must use the adapter APIs to participate in mocks and to be exercised consistently with CI checks. The server binds loopback only; `--host 0.0.0.0` is unsupported per security policy (BR-9). Because mock handlers return synthetic data, real Tauri behavior must be re-verified with `./scripts/dev-native.sh` (no flag) before merging any UI changes. To add or extend handlers for new commands, see `src/crosshook-native/src/lib/mocks/README.md`. The CI sentinel `verify:no-mocks` runs after every AppImage build and will refuse any production bundle that contains mock code — keeping the mock layer strictly development-only.
 
 ---
 

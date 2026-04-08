@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 import type {
   AcceptSuggestionRequest,
@@ -39,7 +39,7 @@ export function useProtonDbSuggestions(
       setError(null);
 
       try {
-        const result = await invoke<ProtonDbSuggestionSet>('protondb_get_suggestions', {
+        const result = await callCommand<ProtonDbSuggestionSet>('protondb_get_suggestions', {
           appId,
           profileName,
           forceRefresh,
@@ -80,7 +80,7 @@ export function useProtonDbSuggestions(
 
   const acceptSuggestion = useCallback(
     async (request: AcceptSuggestionRequest): Promise<AcceptSuggestionResult> => {
-      const result = await invoke<AcceptSuggestionResult>('protondb_accept_suggestion', {
+      const result = await callCommand<AcceptSuggestionResult>('protondb_accept_suggestion', {
         request,
       });
       void fetchSuggestions(false);
@@ -91,7 +91,7 @@ export function useProtonDbSuggestions(
 
   const dismissSuggestion = useCallback(
     (suggestionKey: string): void => {
-      invoke('protondb_dismiss_suggestion', { profileName, appId, suggestionKey }).catch((err) => {
+      callCommand('protondb_dismiss_suggestion', { profileName, appId, suggestionKey }).catch((err) => {
         console.warn('[protondb] dismiss failed', { profileName, appId, suggestionKey }, err);
       });
 

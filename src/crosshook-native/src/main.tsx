@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import '@/lib/plugin-stubs/convertFileSrc';
 import App from './App';
 import './styles/theme.css';
 import './styles/focus.css';

@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import type { LauncherDeleteResult, LauncherInfo } from '../types';
 
 interface UseLauncherManagementOptions {
@@ -31,7 +31,7 @@ export function useLauncherManagement({
   const listLaunchers = useCallback(async () => {
     setIsListing(true);
     try {
-      const result = await invoke<LauncherInfo[]>('list_launchers', {
+      const result = await callCommand<LauncherInfo[]>('list_launchers', {
         targetHomePath,
         steamClientInstallPath,
       });
@@ -49,7 +49,7 @@ export function useLauncherManagement({
       setDeletingSlug(launcherSlug);
       setError(null);
       try {
-        await invoke<LauncherDeleteResult>('delete_launcher_by_slug', {
+        await callCommand<LauncherDeleteResult>('delete_launcher_by_slug', {
           launcherSlug,
           targetHomePath,
           steamClientInstallPath,
@@ -71,7 +71,7 @@ export function useLauncherManagement({
       setReexportingSlug(launcherSlug);
       setError(null);
       try {
-        await invoke('reexport_launcher_by_slug', {
+        await callCommand<void>('reexport_launcher_by_slug', {
           launcherSlug,
           targetHomePath,
           steamClientInstallPath,

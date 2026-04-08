@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { callCommand } from '@/lib/ipc';
+import { subscribeEvent } from '@/lib/events';
 import type {
   AppSettingsData,
   BundledOptimizationPreset,
@@ -506,13 +506,13 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   }, []);
 
   const syncProfileMetadata = useCallback(async (name: string, currentProfile: GameProfile) => {
-    const settings = await invoke<AppSettingsData>('settings_load');
-    await invoke('settings_save', {
+    const settings = await callCommand<AppSettingsData>('settings_load');
+    await callCommand('settings_save', {
       data: toSettingsSaveRequest({ ...settings, last_used_profile: name }),
     });
 
-    const recentFiles = await invoke<RecentFilesData>('recent_files_load');
-    await invoke('recent_files_save', {
+    const recentFiles = await callCommand<RecentFilesData>('recent_files_load');
+    await callCommand('recent_files_save', {
       data: {
         game_paths: mergeRecentPaths(recentFiles.game_paths, currentProfile.game.executable_path),
         trainer_paths: mergeRecentPaths(recentFiles.trainer_paths, currentProfile.trainer.path),
@@ -526,7 +526,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   const loadFavorites = useCallback(async () => {
     try {
-      const names = await invoke<string[]>('profile_list_favorites');
+      const names = await callCommand<string[]>('profile_list_favorites');
       setFavoriteProfiles(names);
     } catch {
       setFavoriteProfiles([]);
@@ -536,7 +536,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const toggleFavorite = useCallback(
     async (name: string, favorite: boolean) => {
       try {
-        await invoke('profile_set_favorite', { name, favorite });
+        await callCommand('profile_set_favorite', { name, favorite });
         await loadFavorites();
       } catch (err) {
         console.error('Failed to update profile favorite state', err);
@@ -564,7 +564,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       const formatLoadError = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
       try {
-        const loaded = await invoke<SerializedGameProfile>('profile_load', { name: trimmed });
+        const loaded = await callCommand<SerializedGameProfile>('profile_load', { name: trimmed });
         const normalized = normalizeProfileForEdit(loaded, optionsById);
         setSelectedProfile(trimmed);
         setProfileName(trimmed);
@@ -599,7 +599,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   const refreshProfiles = useCallback(async () => {
     try {
-      const names = await invoke<string[]>('profile_list');
+      const names = await callCommand<string[]>('profile_list');
       setProfiles(names);
 
       if (names.length === 0) {
@@ -627,13 +627,13 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   const finalizeProfileDeletion = useCallback(
     async (name: string) => {
-      const settings = await invoke<AppSettingsData>('settings_load');
+      const settings = await callCommand<AppSettingsData>('settings_load');
       if (settings.last_used_profile === name) {
-        await invoke('settings_save', {
+        await callCommand('settings_save', {
           data: toSettingsSaveRequest({ ...settings, last_used_profile: '' }),
         });
       }
-      const names = await invoke<string[]>('profile_list');
+      const names = await callCommand<string[]>('profile_list');
       setProfiles(names);
       void loadFavorites();
 
@@ -727,7 +727,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       }
 
       await enqueueLaunchProfileWrite(async () => {
-        await invoke('profile_save_launch_optimizations', {
+        await callCommand('profile_save_launch_optimizations', {
           name: trimmed,
           optimizations: {
             enabled_option_ids: [...currentIds],
@@ -827,7 +827,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
       try {
         await enqueueLaunchProfileWrite(async () => {
-          await invoke('profile_save_launch_optimizations', {
+          await callCommand('profile_save_launch_optimizations', {
             name: trimmedName,
             optimizations: {
               enabled_option_ids: [...targetPresetIds],
@@ -909,7 +909,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
       try {
         const updated = await enqueueLaunchProfileWrite(() =>
-          invoke<SerializedGameProfile>('profile_apply_bundled_optimization_preset', {
+          callCommand<SerializedGameProfile>('profile_apply_bundled_optimization_preset', {
             name: trimmedName,
             presetId: pid,
           })
@@ -992,7 +992,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
       try {
         const updated = await enqueueLaunchProfileWrite(() =>
-          invoke<SerializedGameProfile>('profile_save_manual_optimization_preset', {
+          callCommand<SerializedGameProfile>('profile_save_manual_optimization_preset', {
             name: trimmedName,
             presetName: key,
             enabledOptionIds: ids,
@@ -1042,7 +1042,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
       try {
         const normalizedProfile = normalizeProfileForSave(draftProfile, optionsById);
-        await invoke('profile_save', { name: trimmedName, data: normalizedProfile });
+        await callCommand('profile_save', { name: trimmedName, data: normalizedProfile });
         lastSavedLaunchOptimizationIdsRef.current = normalizedProfile.launch.optimizations.enabled_option_ids;
         await syncProfileMetadata(trimmedName, normalizedProfile);
         await refreshProfiles();
@@ -1079,7 +1079,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setDuplicating(true);
       setError(null);
       try {
-        const result = await invoke<SerializedDuplicateProfileResult>('profile_duplicate', {
+        const result = await callCommand<SerializedDuplicateProfileResult>('profile_duplicate', {
           name: sourceName,
         });
         await refreshProfiles();
@@ -1130,7 +1130,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setRenaming(true);
       setError(null);
       try {
-        const hadLauncher = await invoke<boolean>('profile_rename', {
+        const hadLauncher = await callCommand<boolean>('profile_rename', {
           oldName: oldName.trim(),
           newName: newName.trim(),
         });
@@ -1158,7 +1158,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     setError(null);
 
     try {
-      const launcherInfo = await invoke<LauncherInfo>('check_launcher_for_profile', {
+      const launcherInfo = await callCommand<LauncherInfo>('check_launcher_for_profile', {
         name: trimmed,
       });
 
@@ -1185,7 +1185,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     setError(null);
 
     try {
-      await invoke('profile_delete', { name });
+      await callCommand('profile_delete', { name });
       await finalizeProfileDeletion(name);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -1202,7 +1202,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     setHistoryLoading(true);
     setHistoryError(null);
     try {
-      return await invoke<ConfigRevisionSummary[]>('profile_config_history', {
+      return await callCommand<ConfigRevisionSummary[]>('profile_config_history', {
         name,
         ...(limit !== undefined ? { limit } : {}),
       });
@@ -1220,7 +1220,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setHistoryLoading(true);
       setHistoryError(null);
       try {
-        return await invoke<ConfigDiffResult>('profile_config_diff', {
+        return await callCommand<ConfigDiffResult>('profile_config_diff', {
           name,
           revisionId,
           ...(rightRevisionId !== undefined ? { rightRevisionId } : {}),
@@ -1241,7 +1241,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       setHistoryLoading(true);
       setHistoryError(null);
       try {
-        const result = await invoke<ConfigRollbackResult>('profile_config_rollback', {
+        const result = await callCommand<ConfigRollbackResult>('profile_config_rollback', {
           name,
           revisionId,
         });
@@ -1266,7 +1266,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     setHistoryLoading(true);
     setHistoryError(null);
     try {
-      await invoke('profile_mark_known_good', { name, revisionId });
+      await callCommand('profile_mark_known_good', { name, revisionId });
     } catch (err) {
       const message = formatInvokeError(err);
       setHistoryError(message);
@@ -1287,7 +1287,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     let cancelled = false;
     void (async () => {
       try {
-        const rows = await invoke<BundledOptimizationPreset[]>('profile_list_bundled_optimization_presets');
+        const rows = await callCommand<BundledOptimizationPreset[]>('profile_list_bundled_optimization_presets');
         if (!cancelled) {
           setBundledOptimizationPresets(rows);
         }
@@ -1304,7 +1304,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   useEffect(() => {
     let active = true;
-    const unlistenPromise = listen<string>('profiles-changed', () => {
+    const unlistenPromise = subscribeEvent<string>('profiles-changed', () => {
       if (!active) {
         return;
       }
@@ -1354,7 +1354,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       void (async () => {
         try {
           await enqueueLaunchProfileWrite(async () => {
-            await invoke('profile_save_launch_optimizations', {
+            await callCommand('profile_save_launch_optimizations', {
               name: trimmedName,
               optimizations: {
                 enabled_option_ids: normalizedIds,
@@ -1426,7 +1426,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       void (async () => {
         try {
           await enqueueLaunchProfileWrite(async () => {
-            await invoke('profile_save_gamescope_config', {
+            await callCommand('profile_save_gamescope_config', {
               name: trimmedName,
               config: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
             });
@@ -1483,7 +1483,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       void (async () => {
         try {
           await enqueueLaunchProfileWrite(async () => {
-            await invoke('profile_save_trainer_gamescope_config', {
+            await callCommand('profile_save_trainer_gamescope_config', {
               name: trimmedName,
               config: profile.launch.trainer_gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
             });
@@ -1540,7 +1540,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
       void (async () => {
         try {
           await enqueueLaunchProfileWrite(async () => {
-            await invoke('profile_save_mangohud_config', {
+            await callCommand('profile_save_mangohud_config', {
               name: trimmedName,
               config: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
             });

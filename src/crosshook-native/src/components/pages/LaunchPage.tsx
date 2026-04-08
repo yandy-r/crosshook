@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { callCommand } from '@/lib/ipc';
+import { subscribeEvent } from '@/lib/events';
 
 import LaunchPanel from '../LaunchPanel';
 import { RouteBanner } from '../layout/RouteBanner';
@@ -34,7 +34,7 @@ export function LaunchPage() {
   const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
   const [isInsideGamescopeSession, setIsInsideGamescopeSession] = useState(false);
   useEffect(() => {
-    invoke<boolean>('check_gamescope_session')
+    callCommand<boolean>('check_gamescope_session')
       .then(setIsInsideGamescopeSession)
       .catch(() => {});
   }, []);
@@ -124,7 +124,7 @@ export function LaunchPage() {
 
     const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
 
-    const unlistenPromise = listen<{
+    const unlistenPromise = subscribeEvent<{
       profile_name: string;
       prefix_path: string;
       succeeded: boolean;
@@ -161,7 +161,7 @@ export function LaunchPage() {
       if (!prefixPath) return true;
 
       try {
-        const statuses = await invoke<PrefixDependencyStatus[]>('get_dependency_status', {
+        const statuses = await callCommand<PrefixDependencyStatus[]>('get_dependency_status', {
           profileName: selectedName,
           prefixPath,
         });
@@ -179,7 +179,7 @@ export function LaunchPage() {
           setDepGatePendingAction(action);
           setDepGateInstalling(true);
           try {
-            await invoke('install_prefix_dependency', {
+            await callCommand('install_prefix_dependency', {
               profileName: selectedName,
               prefixPath,
               packages: missing,
@@ -413,7 +413,7 @@ export function LaunchPage() {
                     const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
                     setDepGateInstalling(true);
                     try {
-                      await invoke('install_prefix_dependency', {
+                      await callCommand('install_prefix_dependency', {
                         profileName: selectedName,
                         prefixPath,
                         packages: depGatePackages,

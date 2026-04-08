@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import type { GameProfile, GamescopeConfig, LaunchMethod, LauncherDeleteResult, LauncherInfo, TrainerLoadingMode } from '../types';
+import { useEffect, useMemo, useState } from 'react';
+import type { GameProfile, GamescopeConfig, LaunchMethod, TrainerLoadingMode } from '../types';
+import { useLauncherExport, type SteamExternalLauncherExportRequest } from '../hooks/useLauncherExport';
 import { LauncherPreviewModal } from './LauncherPreviewModal';
 
 interface LauncherExportProps {
@@ -11,29 +11,6 @@ interface LauncherExportProps {
   targetHomePath: string;
   pendingReExport?: boolean;
   onReExportHandled?: () => void;
-}
-
-interface SteamExternalLauncherExportRequest {
-  method: string;
-  launcher_name: string;
-  trainer_path: string;
-  trainer_loading_mode: TrainerLoadingMode;
-  launcher_icon_path: string;
-  prefix_path: string;
-  proton_path: string;
-  steam_app_id: string;
-  steam_client_install_path: string;
-  target_home_path: string;
-  profile_name?: string;
-  network_isolation: boolean;
-  gamescope?: GamescopeConfig;
-}
-
-interface SteamExternalLauncherExportResult {
-  display_name: string;
-  launcher_slug: string;
-  script_path: string;
-  desktop_entry_path: string;
 }
 
 const automaticLauncherSuffix = ' - Trainer';
@@ -49,12 +26,6 @@ function stripAutomaticLauncherSuffix(value: string): string {
   return trimmed.endsWith(automaticLauncherSuffix)
     ? trimmed.slice(0, -automaticLauncherSuffix.length).trimEnd()
     : trimmed;
-}
-
-function collectDeleteWarnings(result: LauncherDeleteResult): string[] {
-  return [result.script_skipped_reason, result.desktop_entry_skipped_reason].filter(
-    (value): value is string => typeof value === 'string' && value.trim().length > 0
-  );
 }
 
 function deriveLauncherName(profile: GameProfile): string {
@@ -124,17 +95,6 @@ export function LauncherExport({
   onReExportHandled,
 }: LauncherExportProps) {
   const [launcherName, setLauncherName] = useState(() => deriveLauncherName(profile));
-  const [isExporting, setIsExporting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [result, setResult] = useState<SteamExternalLauncherExportResult | null>(null);
-  const [launcherStatus, setLauncherStatus] = useState<LauncherInfo | null>(null);
-  const [deleteConfirming, setDeleteConfirming] = useState(false);
-  const deleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showLauncherPreview, setShowLauncherPreview] = useState(false);
-  const [previewScriptContent, setPreviewScriptContent] = useState('');
-  const [previewDesktopContent, setPreviewDesktopContent] = useState('');
-  const [previewLoading, setPreviewLoading] = useState(false);
 
   const request = useMemo(
     () =>
@@ -150,53 +110,36 @@ export function LauncherExport({
     [profile, profileName, method, launcherName, steamClientInstallPath, targetHomePath, profile.launch]
   );
 
-  const refreshLauncherStatus = useCallback(async () => {
-    try {
-      const info = await invoke<LauncherInfo>('check_launcher_exists', { request });
-      setLauncherStatus(info);
-    } catch (error) {
-      console.error('Failed to refresh launcher status.', error);
-      setErrorMessage(`Failed to check launcher status: ${error instanceof Error ? error.message : String(error)}`);
-      setLauncherStatus(null);
-    }
-  }, [request]);
+  const {
+    launcherStatus,
+    errorMessage,
+    setErrorMessage,
+    statusMessage,
+    result,
+    isExporting,
+    previewLoading,
+    previewScriptContent,
+    previewDesktopContent,
+    showLauncherPreview,
+    setShowLauncherPreview,
+    deleteConfirming,
+    exportLauncher,
+    previewLauncher,
+    handleDeleteClick,
+    handleDeleteBlur,
+    clearExportFeedback,
+  } = useLauncherExport({
+    request,
+    profile,
+    steamClientInstallPath,
+    targetHomePath,
+    pendingReExport,
+    onReExportHandled,
+  });
 
   useEffect(() => {
     setLauncherName(deriveLauncherName(profile));
   }, [profile]);
-
-  useEffect(() => {
-    void refreshLauncherStatus();
-  }, [refreshLauncherStatus]);
-
-  useEffect(() => {
-    return () => {
-      if (deleteTimeoutRef.current !== null) {
-        clearTimeout(deleteTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Auto re-export after profile rename: wait briefly for request to settle, then export.
-  useEffect(() => {
-    if (!pendingReExport) return;
-
-    const timer = setTimeout(() => {
-      void (async () => {
-        try {
-          await invoke<void>('validate_launcher_export', { request });
-          await invoke<SteamExternalLauncherExportResult>('export_launchers', { request });
-          void refreshLauncherStatus();
-        } catch {
-          // Silent — user can manually re-export if auto-export fails
-        } finally {
-          onReExportHandled?.();
-        }
-      })();
-    }, 150);
-
-    return () => clearTimeout(timer);
-  }, [pendingReExport, request, refreshLauncherStatus, onReExportHandled]);
 
   const metadataRows = useMemo(
     () =>
@@ -264,101 +207,6 @@ export function LauncherExport({
         ? 'No launcher files are currently exported.'
         : 'Only one launcher file exists for this profile.';
 
-  async function handleExport() {
-    setIsExporting(true);
-    setErrorMessage(null);
-    setStatusMessage(null);
-    setResult(null);
-
-    try {
-      await invoke<void>('validate_launcher_export', { request });
-      const exported = await invoke<SteamExternalLauncherExportResult>('export_launchers', { request });
-      setResult(exported);
-      setStatusMessage('Launcher export completed.');
-      void refreshLauncherStatus();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setIsExporting(false);
-    }
-  }
-
-  function handleDeleteClick() {
-    if (deleteConfirming) {
-      if (deleteTimeoutRef.current !== null) {
-        clearTimeout(deleteTimeoutRef.current);
-        deleteTimeoutRef.current = null;
-      }
-      setDeleteConfirming(false);
-      void handleDeleteLauncher();
-    } else {
-      setDeleteConfirming(true);
-      deleteTimeoutRef.current = setTimeout(() => {
-        setDeleteConfirming(false);
-        deleteTimeoutRef.current = null;
-      }, 3000);
-    }
-  }
-
-  function handleDeleteBlur() {
-    if (deleteConfirming) {
-      if (deleteTimeoutRef.current !== null) {
-        clearTimeout(deleteTimeoutRef.current);
-        deleteTimeoutRef.current = null;
-      }
-      setDeleteConfirming(false);
-    }
-  }
-
-  async function handlePreviewLauncher() {
-    setPreviewLoading(true);
-    setErrorMessage(null);
-    try {
-      const [script, desktop] = await Promise.all([
-        invoke<string>('preview_launcher_script', { request }),
-        invoke<string>('preview_launcher_desktop', { request }),
-      ]);
-      setPreviewScriptContent(script);
-      setPreviewDesktopContent(desktop);
-      setShowLauncherPreview(true);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setPreviewLoading(false);
-    }
-  }
-
-  async function handleDeleteLauncher() {
-    setErrorMessage(null);
-    setStatusMessage(null);
-
-    try {
-      const result = await invoke<LauncherDeleteResult>('delete_launcher', {
-        displayName: profile.steam?.launcher?.display_name || '',
-        steamAppId: profile.steam?.app_id || '',
-        trainerPath: profile.trainer?.path || '',
-        targetHomePath: targetHomePath || '',
-        steamClientInstallPath: steamClientInstallPath || '',
-      });
-      const warnings = collectDeleteWarnings(result);
-      const deletedAny = result.script_deleted || result.desktop_entry_deleted;
-
-      if (deletedAny && warnings.length === 0) {
-        setStatusMessage('Launcher deleted.');
-      } else if (deletedAny) {
-        setStatusMessage(`Launcher deleted with warnings: ${warnings.join(' ')}`);
-      } else if (warnings.length > 0) {
-        setErrorMessage(`Launcher was not deleted: ${warnings.join(' ')}`);
-      } else {
-        setStatusMessage('Launcher files were already absent.');
-      }
-
-      void refreshLauncherStatus();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-    }
-  }
-
   return (
     <section className="crosshook-export-panel" aria-label="Launcher export">
       <div className="crosshook-export-panel__body">
@@ -397,14 +245,14 @@ export function LauncherExport({
       </div>
 
       <div className="crosshook-export-actions">
-        <button type="button" className="crosshook-button" disabled={!canExport} onClick={() => void handleExport()}>
+        <button type="button" className="crosshook-button" disabled={!canExport} onClick={() => void exportLauncher()}>
           {isExporting ? 'Exporting...' : 'Export Launcher'}
         </button>
         <button
           type="button"
           className="crosshook-button crosshook-button--secondary"
           disabled={!canExport || previewLoading}
-          onClick={() => void handlePreviewLauncher()}
+          onClick={() => void previewLauncher()}
         >
           {previewLoading ? 'Loading...' : 'Preview Launcher'}
         </button>
@@ -413,9 +261,7 @@ export function LauncherExport({
           className="crosshook-button crosshook-button--secondary"
           onClick={() => {
             setLauncherName(deriveLauncherName(profile));
-            setErrorMessage(null);
-            setStatusMessage(null);
-            setResult(null);
+            clearExportFeedback();
           }}
         >
           Reset
@@ -473,7 +319,7 @@ export function LauncherExport({
           <p className="crosshook-export-callout__copy">
             Current slug: <code>{launcherStatus.launcher_slug}</code>
           </p>
-          <button type="button" className="crosshook-button crosshook-button--warning" onClick={handleExport}>
+          <button type="button" className="crosshook-button crosshook-button--warning" onClick={() => void exportLauncher()}>
             Re-export Launcher
           </button>
         </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 type SteamFieldState = 'Idle' | 'Saved' | 'NotFound' | 'Found' | 'Ambiguous';
 
@@ -133,7 +133,7 @@ export function AutoPopulate({
     setError(null);
 
     try {
-      const response = await invoke<SteamAutoPopulateResult>('auto_populate_steam', {
+      const response = await callCommand<SteamAutoPopulateResult>('auto_populate_steam', {
         request: {
           game_path: gamePath,
           steam_client_install_path: steamClientInstallPath,

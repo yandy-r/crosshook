@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { useAcknowledgeVersionChange } from '../hooks/useAcknowledgeVersionChange';
 import type {
   PatternMatch,
   EnvVarSource,
@@ -624,10 +624,10 @@ export function LaunchPanel({
 
   const { loading, preview, error: previewError, requestPreview, clearPreview } = usePreviewState();
   const { healthByName, revalidateSingle } = useProfileHealthContext();
+  const { acknowledgeVersionChange, busy: verifyBusy } = useAcknowledgeVersionChange();
   const [showPreview, setShowPreview] = useState(false);
   const [diagnosticExpanded, setDiagnosticExpanded] = useState(false);
   const [diagnosticCopyLabel, setDiagnosticCopyLabel] = useState('Copy Report');
-  const [verifyBusy, setVerifyBusy] = useState(false);
   const launchGuidanceId = useId();
 
   const metadata = healthByName[profileId]?.metadata ?? null;
@@ -637,16 +637,7 @@ export function LaunchPanel({
   const isUpdateInProgress = versionStatus === 'update_in_progress';
 
   async function handleMarkAsVerified() {
-    if (verifyBusy) return;
-    setVerifyBusy(true);
-    try {
-      await invoke('acknowledge_version_change', { name: profileId });
-      await revalidateSingle(profileId);
-    } catch {
-      // silently ignore — user can retry
-    } finally {
-      setVerifyBusy(false);
-    }
+    await acknowledgeVersionChange(profileId, revalidateSingle);
   }
 
   function versionMismatchMessage(): string {

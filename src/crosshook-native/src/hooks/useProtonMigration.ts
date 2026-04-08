@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { useCallback, useState } from 'react';
 
 import { useProfileHealthContext } from '../context/ProfileHealthContext';
@@ -24,7 +24,7 @@ export function useProtonMigration() {
     setIsScanning(true);
     setError(null);
     try {
-      const result = await invoke<MigrationScanResult>('check_proton_migrations', {
+      const result = await callCommand<MigrationScanResult>('check_proton_migrations', {
         steamClientInstallPath: steamClientInstallPath ?? null,
       });
       setScanResult(result);
@@ -42,7 +42,7 @@ export function useProtonMigration() {
       setIsApplying(true);
       setError(null);
       try {
-        const result = await invoke<MigrationApplyResult>('apply_proton_migration', { request });
+        const result = await callCommand<MigrationApplyResult>('apply_proton_migration', { request });
         setApplyResult(result);
         if (result.outcome === 'applied') {
           await revalidateSingle(request.profile_name);
@@ -63,7 +63,7 @@ export function useProtonMigration() {
       setBatchResult(null);
       setBatchError(null);
       try {
-        const result = await invoke<BatchMigrationResult>('apply_batch_migration', {
+        const result = await callCommand<BatchMigrationResult>('apply_batch_migration', {
           request: { migrations: requests },
         });
         setBatchResult(result);

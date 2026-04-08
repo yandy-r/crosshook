@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { TrainerTypeEntry } from '../types/offline';
@@ -9,7 +9,7 @@ export function useTrainerTypeCatalog() {
 
   useEffect(() => {
     let cancelled = false;
-    void invoke<TrainerTypeEntry[]>('get_trainer_type_catalog')
+    void callCommand<TrainerTypeEntry[]>('get_trainer_type_catalog')
       .then((rows) => {
         if (!cancelled) {
           setCatalog(rows);

@@ -4,6 +4,7 @@ export * from './profile-review';
 export * from './diagnostics';
 export * from './launch';
 export * from './launcher';
+export * from './library';
 export * from './install';
 export * from './update';
 export * from './run-executable';

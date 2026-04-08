@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { GameProfile } from '../types/profile';
@@ -217,7 +217,7 @@ export function useInstallGame(): UseInstallGameResult {
     setDefaultPrefixPathError(null);
 
     try {
-      const resolvedPrefixPath = await invoke<string>('install_default_prefix_path', {
+      const resolvedPrefixPath = await callCommand<string>('install_default_prefix_path', {
         profileName: trimmedProfileName,
       });
 
@@ -286,13 +286,13 @@ export function useInstallGame(): UseInstallGameResult {
     }
 
     try {
-      await invoke<void>('validate_install_request', {
+      await callCommand<void>('validate_install_request', {
         request: finalRequest,
       });
 
       setStageState('running_installer');
 
-      const installResult = await invoke<InstallGameResult>('install_game', {
+      const installResult = await callCommand<InstallGameResult>('install_game', {
         request: finalRequest,
       });
 

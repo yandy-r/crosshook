@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import type { LaunchPreview, LaunchRequest } from '../types';
 
 export function usePreviewState() {
@@ -13,7 +13,7 @@ export function usePreviewState() {
     setError(null);
 
     try {
-      const result = await invoke<LaunchPreview>('preview_launch', { request });
+      const result = await callCommand<LaunchPreview>('preview_launch', { request });
       setPreview(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

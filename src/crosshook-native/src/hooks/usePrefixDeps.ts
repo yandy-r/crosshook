@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 
 import type { PrefixDependencyStatus } from '../types/prefix-deps';
 
@@ -37,7 +37,7 @@ export function usePrefixDeps(
 
       setLoading(true);
       try {
-        const result = await invoke<PrefixDependencyStatus[]>(
+        const result = await callCommand<PrefixDependencyStatus[]>(
           'get_dependency_status',
           { profileName, prefixPath },
         );
@@ -65,7 +65,7 @@ export function usePrefixDeps(
     async (packages: string[]) => {
       setLoading(true);
       try {
-        const result = await invoke<PrefixDependencyStatus[]>(
+        const result = await callCommand<PrefixDependencyStatus[]>(
           'check_prefix_dependencies',
           { profileName, prefixPath, packages },
         );
@@ -83,7 +83,7 @@ export function usePrefixDeps(
   const installDep = useCallback(
     async (packages: string[]) => {
       try {
-        await invoke('install_prefix_dependency', {
+        await callCommand('install_prefix_dependency', {
           profileName,
           prefixPath,
           packages,

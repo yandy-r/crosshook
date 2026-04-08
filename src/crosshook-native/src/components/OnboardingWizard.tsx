@@ -10,7 +10,6 @@ import {
   type MouseEvent,
 } from 'react';
 
-import { invoke } from '@tauri-apps/api/core';
 import { ControllerPrompts } from './layout/ControllerPrompts';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
@@ -28,7 +27,7 @@ import { usePreferencesContext } from '../context/PreferencesContext';
 import { resolveLaunchMethod } from '../utils/launch';
 import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
 import type { OnboardingWizardStage } from '../types/onboarding';
-import type { ProtonInstallOption } from '../types/proton';
+import { useProtonInstalls } from '../hooks/useProtonInstalls';
 import type { ResolvedLaunchMethod } from '../types';
 
 export interface OnboardingWizardProps {
@@ -149,35 +148,14 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
 
   const launchMethod = resolveLaunchMethod(profile);
 
-  const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
-  const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
-
   const effectiveSteamClientInstallPath = useMemo(
     () => defaultSteamClientInstallPath || steamClientInstallPath,
     [defaultSteamClientInstallPath, steamClientInstallPath]
   );
 
-  useEffect(() => {
-    let active = true;
-    async function loadProtonInstalls() {
-      try {
-        const installs = await invoke<ProtonInstallOption[]>('list_proton_installs', {
-          steamClientInstallPath:
-            effectiveSteamClientInstallPath.trim().length > 0 ? effectiveSteamClientInstallPath : undefined,
-        });
-        if (active) {
-          setProtonInstalls(installs);
-          setProtonInstallsError(null);
-        }
-      } catch (err) {
-        if (active) setProtonInstallsError(String(err));
-      }
-    }
-    void loadProtonInstalls();
-    return () => {
-      active = false;
-    };
-  }, [effectiveSteamClientInstallPath]);
+  const { installs: protonInstalls, error: protonInstallsError } = useProtonInstalls({
+    steamClientInstallPath: effectiveSteamClientInstallPath,
+  });
 
   // Portal host — created unconditionally on mount, NOT gated on `open`
   // (following ProfileReviewModal.tsx pattern exactly)

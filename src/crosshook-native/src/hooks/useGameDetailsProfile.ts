@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { useEffect, useState } from 'react';
 
 import type { GameProfile, SerializedGameProfile } from '../types';
@@ -44,7 +44,7 @@ export function useGameDetailsProfile(profileName: string | null, open: boolean)
     setProfile(null);
     setErrorMessage(null);
 
-    void invoke<SerializedGameProfile>('profile_load', { name: trimmed })
+    void callCommand<SerializedGameProfile>('profile_load', { name: trimmed })
       .then((data) => {
         if (requestId !== requestCounter.current) {
           return;

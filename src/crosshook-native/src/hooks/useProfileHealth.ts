@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { callCommand } from '@/lib/ipc';
+import { subscribeEvent } from '@/lib/events';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import type { CachedHealthSnapshot, EnrichedHealthSummary, EnrichedProfileHealthReport, HealthStatus } from '../types';
@@ -120,7 +120,7 @@ export function useProfileHealth() {
     }
     dispatch({ type: 'batch-loading' });
     try {
-      const summary = await invoke<EnrichedHealthSummary>('batch_validate_profiles');
+      const summary = await callCommand<EnrichedHealthSummary>('batch_validate_profiles');
       if (signal?.aborted) {
         return;
       }
@@ -136,7 +136,7 @@ export function useProfileHealth() {
   const revalidateSingle = useCallback(async (name: string) => {
     dispatch({ type: 'single-loading' });
     try {
-      const report = await invoke<EnrichedProfileHealthReport>('get_profile_health', { name });
+      const report = await callCommand<EnrichedProfileHealthReport>('get_profile_health', { name });
       dispatch({ type: 'single-complete', report });
     } catch (error) {
       dispatch({ type: 'error', message: normalizeError(error) });
@@ -149,7 +149,7 @@ export function useProfileHealth() {
     const controller = new AbortController();
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const unlistenBatchComplete = listen<EnrichedHealthSummary>('profile-health-batch-complete', (event) => {
+    const unlistenBatchComplete = subscribeEvent<EnrichedHealthSummary>('profile-health-batch-complete', (event) => {
       startupEventReceivedRef.current = true;
       if (active) {
         dispatch({ type: 'batch-complete', summary: event.payload });
@@ -158,7 +158,7 @@ export function useProfileHealth() {
 
     const run = async () => {
       try {
-        const snapshots = await invoke<CachedHealthSnapshot[]>('get_cached_health_snapshots');
+        const snapshots = await callCommand<CachedHealthSnapshot[]>('get_cached_health_snapshots');
         if (active) {
           const byName: Record<string, CachedHealthSnapshot> = {};
           for (const snap of snapshots) {
@@ -191,15 +191,15 @@ export function useProfileHealth() {
 
   useEffect(() => {
     let active = true;
-    const unlistenProfilesChanged = listen<string>('profiles-changed', () => {
+    const unlistenProfilesChanged = subscribeEvent<string>('profiles-changed', () => {
       if (!active) return;
       void batchValidate();
     });
-    const unlistenLaunchComplete = listen<unknown>('launch-complete', () => {
+    const unlistenLaunchComplete = subscribeEvent<unknown>('launch-complete', () => {
       if (!active) return;
       void batchValidate();
     });
-    const unlistenVersionScan = listen<unknown>('version-scan-complete', () => {
+    const unlistenVersionScan = subscribeEvent<unknown>('version-scan-complete', () => {
       if (!active) return;
       void batchValidate();
     });

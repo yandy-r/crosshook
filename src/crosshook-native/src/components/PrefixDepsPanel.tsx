@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { subscribeEvent } from '@/lib/events';
 
 import type { DepState, PrefixDependencyStatus } from '../types/prefix-deps';
 import { usePrefixDeps } from '../hooks/usePrefixDeps';
@@ -76,7 +76,7 @@ export function PrefixDepsPanel({
 
   // Listen for install events
   useEffect(() => {
-    const unlistenLog = listen<{ profile_name: string; prefix_path: string; line: string }>(
+    const unlistenLog = subscribeEvent<{ profile_name: string; prefix_path: string; line: string }>(
       'prefix-dep-log',
       (event) => {
         if (
@@ -89,7 +89,7 @@ export function PrefixDepsPanel({
       },
     );
 
-    const unlistenComplete = listen<{
+    const unlistenComplete = subscribeEvent<{
       profile_name: string;
       prefix_path: string;
       succeeded: boolean;

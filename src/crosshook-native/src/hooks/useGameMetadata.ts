@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core';
+import { callCommand } from '@/lib/ipc';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
@@ -105,7 +105,7 @@ export function useGameMetadata(steamAppId: string | undefined): UseGameMetadata
       setResult((current) => loadingLookup(normalizedAppId, current));
 
       try {
-        const data = await invoke<SteamMetadataLookupResult>('fetch_game_metadata', {
+        const data = await callCommand<SteamMetadataLookupResult>('fetch_game_metadata', {
           appId: normalizedAppId,
           forceRefresh,
         });

@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { callCommand } from '@/lib/ipc';
+import { subscribeEvent } from '@/lib/events';
 import { useEffect, useReducer, useRef, useState } from 'react';
 
 import type {
@@ -126,7 +126,7 @@ function normalizeRuntimeError(error: unknown): string {
 
 async function validateLaunchRequest(request: LaunchRequest): Promise<LaunchValidationIssue | null> {
   try {
-    await invoke<void>('validate_launch', { request });
+    await callCommand<void>('validate_launch', { request });
     return null;
   } catch (error) {
     if (isLaunchValidationIssue(error)) {
@@ -170,7 +170,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     let cancelled = false;
     setOfflineReadinessLoading(true);
     setOfflineReadinessError(null);
-    void invoke<OfflineReadinessReport>('check_offline_readiness', { name: profileName })
+    void callCommand<OfflineReadinessReport>('check_offline_readiness', { name: profileName })
       .then((report) => {
         if (!cancelled) {
           setOfflineReadiness(report);
@@ -208,7 +208,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
 
     let cancelled = false;
     const check = () => {
-      void invoke<boolean>('check_game_running', { exeName })
+      void callCommand<boolean>('check_game_running', { exeName })
         .then((running) => {
           if (!cancelled) setIsGameRunning(running);
         })
@@ -228,7 +228,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   useEffect(() => {
     let active = true;
 
-    const unlistenDiagnostic = listen<DiagnosticReport>('launch-diagnostic', (event) => {
+    const unlistenDiagnostic = subscribeEvent<DiagnosticReport>('launch-diagnostic', (event) => {
       if (!active || !isDiagnosticReport(event.payload)) {
         return;
       }
@@ -244,7 +244,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
 
       dispatch({ type: 'diagnostic-received', report: event.payload });
     });
-    const unlistenComplete = listen('launch-complete', () => {
+    const unlistenComplete = subscribeEvent('launch-complete', () => {
       if (active) {
         dispatch({ type: 'launch-complete' });
       }
@@ -281,7 +281,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
         return;
       }
 
-      const result = await invoke<LaunchResult>('launch_game', {
+      const result = await callCommand<LaunchResult>('launch_game', {
         request: launchRequest,
       });
       setLaunchPathWarnings(result.warnings ?? []);
@@ -319,7 +319,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
       if (profileName.trim()) {
         setOfflineReadinessLoading(true);
         try {
-          const report = await invoke<OfflineReadinessReport>('check_offline_readiness', {
+          const report = await callCommand<OfflineReadinessReport>('check_offline_readiness', {
             name: profileName,
           });
           setOfflineReadiness(report);
@@ -359,7 +359,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
         return;
       }
 
-      const result = await invoke<LaunchResult>('launch_trainer', {
+      const result = await callCommand<LaunchResult>('launch_trainer', {
         request: launchRequest,
       });
       setLaunchPathWarnings(result.warnings ?? []);
@@ -386,7 +386,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     }
     setTrainerHashUpdateBusy(true);
     try {
-      await invoke<HashVerifyResult>('verify_trainer_hash', { name: profileName });
+      await callCommand<HashVerifyResult>('verify_trainer_hash', { name: profileName });
       setLaunchPathWarnings((prev) =>
         prev.filter((i) => i.code !== 'trainer_hash_mismatch' && i.code !== 'trainer_hash_verify_failed')
       );
