@@ -10,6 +10,9 @@ import {
 import { callCommand } from '@/lib/ipc';
 import type { CollectionRow } from '@/types/collections';
 
+/** Result of rename / description updates so callers can show session-scoped errors without reading global hook state. */
+export type CollectionWriteResult = { ok: true } | { ok: false; error: string };
+
 export interface UseCollectionsResult {
   collections: CollectionRow[];
   error: string | null;
@@ -20,8 +23,8 @@ export interface UseCollectionsResult {
   refresh: () => Promise<void>;
   createCollection: (name: string, description?: string | null) => Promise<string | null>;
   deleteCollection: (collectionId: string) => Promise<boolean>;
-  renameCollection: (collectionId: string, newName: string) => Promise<boolean>;
-  updateDescription: (collectionId: string, description: string | null) => Promise<boolean>;
+  renameCollection: (collectionId: string, newName: string) => Promise<CollectionWriteResult>;
+  updateDescription: (collectionId: string, description: string | null) => Promise<CollectionWriteResult>;
   addProfile: (collectionId: string, profileName: string) => Promise<boolean>;
   removeProfile: (collectionId: string, profileName: string) => Promise<boolean>;
   listMembers: (collectionId: string) => Promise<string[]>;
@@ -98,16 +101,17 @@ function useCollectionsState(): UseCollectionsResult {
   );
 
   const renameCollection = useCallback(
-    async (collectionId: string, newName: string): Promise<boolean> => {
+    async (collectionId: string, newName: string): Promise<CollectionWriteResult> => {
       setRenamingId(collectionId);
       setError(null);
       try {
         await callCommand<null>('collection_rename', { collectionId, newName });
         await refresh();
-        return true;
+        return { ok: true };
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        return false;
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        return { ok: false, error: message };
       } finally {
         setRenamingId(null);
       }
@@ -116,15 +120,16 @@ function useCollectionsState(): UseCollectionsResult {
   );
 
   const updateDescription = useCallback(
-    async (collectionId: string, description: string | null): Promise<boolean> => {
+    async (collectionId: string, description: string | null): Promise<CollectionWriteResult> => {
       setError(null);
       try {
         await callCommand<null>('collection_update_description', { collectionId, description });
         await refresh();
-        return true;
+        return { ok: true };
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        return false;
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        return { ok: false, error: message };
       }
     },
     [refresh]

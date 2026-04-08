@@ -84,6 +84,11 @@ export function CollectionEditModal({
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.key === 'Escape') {
+        if (busy) {
+          event.stopPropagation();
+          event.preventDefault();
+          return;
+        }
         event.stopPropagation();
         event.preventDefault();
         onClose();
@@ -121,7 +126,7 @@ export function CollectionEditModal({
         focusable[0].focus({ preventScroll: true });
       }
     },
-    [onClose]
+    [busy, onClose]
   );
 
   const handleSubmit = useCallback(
@@ -134,14 +139,17 @@ export function CollectionEditModal({
       }
       setBusy(true);
       setLocalError(null);
-      const descNormalized = description.trim() ? description.trim() : null;
-      const ok =
-        mode === 'create'
-          ? await onSubmitCreate(trimmed, descNormalized)
-          : await onSubmitEdit(trimmed, descNormalized);
-      setBusy(false);
-      if (ok) {
-        onClose();
+      try {
+        const descNormalized = description.trim() ? description.trim() : null;
+        const ok =
+          mode === 'create'
+            ? await onSubmitCreate(trimmed, descNormalized)
+            : await onSubmitEdit(trimmed, descNormalized);
+        if (ok) {
+          onClose();
+        }
+      } finally {
+        setBusy(false);
       }
     },
     [description, mode, name, onClose, onSubmitCreate, onSubmitEdit]
@@ -161,7 +169,7 @@ export function CollectionEditModal({
         className="crosshook-modal__backdrop"
         aria-hidden="true"
         onMouseDown={(e: MouseEvent<HTMLDivElement>) => {
-          if (e.target === e.currentTarget) {
+          if (e.target === e.currentTarget && !busy) {
             onClose();
           }
         }}
@@ -186,6 +194,7 @@ export function CollectionEditModal({
               type="button"
               className="crosshook-button crosshook-button--ghost crosshook-modal__close"
               data-crosshook-modal-close
+              disabled={busy}
               onClick={onClose}
             >
               Close

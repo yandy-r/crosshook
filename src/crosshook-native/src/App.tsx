@@ -79,8 +79,9 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
 
   const { open: collectionModalOpen, collectionId: openCollectionId, openForCollection, close: closeCollectionModal } =
     useCollectionViewModalState();
-  const { renameCollection, updateDescription, collections, error: collectionsHookError } = useCollections();
+  const { renameCollection, updateDescription, collections } = useCollections();
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
+  const [editSessionError, setEditSessionError] = useState<string | null>(null);
   const [collectionDescriptionToast, setCollectionDescriptionToast] = useState<{
     collectionId: string;
     description: string | null;
@@ -121,18 +122,24 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
     setEditingCollectionId(id);
   }, []);
 
+  useEffect(() => {
+    setEditSessionError(null);
+  }, [editingCollectionId]);
+
   const handleSubmitEditCollection = useCallback(
     async (name: string, description: string | null): Promise<boolean> => {
       if (editingCollectionId === null) {
         return false;
       }
       const id = editingCollectionId;
+      setEditSessionError(null);
       const renamed = await renameCollection(id, name);
-      if (!renamed) {
+      if (!renamed.ok) {
+        setEditSessionError(renamed.error);
         return false;
       }
-      const descOk = await updateDescription(id, description);
-      if (!descOk) {
+      const descResult = await updateDescription(id, description);
+      if (!descResult.ok) {
         setCollectionDescriptionToast({ collectionId: id, description });
       }
       return true;
@@ -144,11 +151,11 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
     if (collectionDescriptionToast === null) {
       return;
     }
-    const ok = await updateDescription(
+    const result = await updateDescription(
       collectionDescriptionToast.collectionId,
       collectionDescriptionToast.description
     );
-    if (ok) {
+    if (result.ok) {
       setCollectionDescriptionToast(null);
     }
   }, [collectionDescriptionToast, updateDescription]);
@@ -244,7 +251,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
           onClose={() => setEditingCollectionId(null)}
           onSubmitCreate={async () => false}
           onSubmitEdit={handleSubmitEditCollection}
-          externalError={collectionsHookError}
+          externalError={editSessionError}
         />
         {collectionDescriptionToast !== null ? (
           <div className="crosshook-rename-toast" role="status" aria-live="polite">

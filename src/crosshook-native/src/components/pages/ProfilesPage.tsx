@@ -100,7 +100,8 @@ export function ProfilesPage() {
     setActiveCollectionId,
   } = useProfileContext();
   const { collections } = useCollections();
-  const { memberNames } = useCollectionMembers(activeCollectionId);
+  const { memberNames, membersForCollectionId, loading: membersLoading } =
+    useCollectionMembers(activeCollectionId);
   const activeCollection = useMemo(
     () =>
       activeCollectionId === null ? null : (collections.find((c) => c.collection_id === activeCollectionId) ?? null),
@@ -110,12 +111,15 @@ export function ProfilesPage() {
     if (activeCollectionId === null) {
       return profiles;
     }
+    if (membersLoading || membersForCollectionId !== activeCollectionId) {
+      return [];
+    }
     if (memberNames.length === 0) {
       return [];
     }
     const set = new Set(memberNames);
     return profiles.filter((name) => set.has(name));
-  }, [profiles, activeCollectionId, memberNames]);
+  }, [profiles, activeCollectionId, memberNames, membersLoading, membersForCollectionId]);
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
   const [pendingRename, setPendingRename] = useState<string | null>(null);

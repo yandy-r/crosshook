@@ -23,7 +23,8 @@ export function LaunchPage() {
   const profileState = useProfileContext();
   const { activeCollectionId, setActiveCollectionId } = profileState;
   const { collections } = useCollections();
-  const { memberNames } = useCollectionMembers(activeCollectionId);
+  const { memberNames, membersForCollectionId, loading: membersLoading } =
+    useCollectionMembers(activeCollectionId);
   const activeCollection = useMemo(
     () =>
       activeCollectionId === null ? null : (collections.find((c) => c.collection_id === activeCollectionId) ?? null),
@@ -33,12 +34,15 @@ export function LaunchPage() {
     if (activeCollectionId === null) {
       return profileState.profiles;
     }
+    if (membersForCollectionId !== activeCollectionId || membersLoading) {
+      return [];
+    }
     if (memberNames.length === 0) {
       return [];
     }
     const set = new Set(memberNames);
     return profileState.profiles.filter((name) => set.has(name));
-  }, [profileState.profiles, activeCollectionId, memberNames]);
+  }, [profileState.profiles, activeCollectionId, memberNames, membersForCollectionId, membersLoading]);
   const { healthByName } = useProfileHealthContext();
   const { settings } = usePreferencesContext();
   const { launchGame, launchTrainer } = useLaunchStateContext();

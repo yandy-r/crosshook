@@ -86,6 +86,7 @@ export function CollectionViewModal({
     () => collections.find((c) => c.collection_id === collectionId) ?? null,
     [collections, collectionId]
   );
+  const collectionPresent = collection !== null;
 
   const memberSet = useMemo(() => new Set(memberNames), [memberNames]);
   const memberSummaries = useMemo<LibraryCardData[]>(
@@ -136,7 +137,7 @@ export function CollectionViewModal({
   }, []);
 
   useEffect(() => {
-    if (!open || !collection || typeof document === 'undefined') {
+    if (!open || collectionId === null || typeof document === 'undefined' || !collectionPresent) {
       return;
     }
     const { body } = document;
@@ -190,7 +191,7 @@ export function CollectionViewModal({
       }
       previouslyFocusedRef.current = null;
     };
-  }, [open, collection]);
+  }, [open, collectionId, collectionPresent]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape') {
