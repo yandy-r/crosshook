@@ -133,6 +133,7 @@ export function registerCollections(map: Map<string, Handler>): void {
     const { collectionId } = args as { collectionId: string };
     collections = collections.filter((c) => c.collection_id !== collectionId);
     membership.delete(collectionId);
+    mockDefaults.delete(collectionId);
     return null;
   });
 

@@ -231,7 +231,7 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
                 No collection env vars set. Profile env vars still apply.
               </p>
             )}
-            {envRows.map((row) => (
+            {envRows.map((row, index) => (
               <div
                 key={row.id}
                 className="crosshook-collection-launch-defaults-editor__env-row"
@@ -242,7 +242,11 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
                   value={row.key}
                   onChange={(e) => updateEnvVarKey(row.id, e.target.value)}
                   placeholder="KEY"
-                  aria-label={`env var key ${row.id}`}
+                  aria-label={
+                    row.key.trim()
+                      ? `Environment variable name: ${row.key}`
+                      : `Environment variable name (row ${index + 1})`
+                  }
                 />
                 <input
                   type="text"

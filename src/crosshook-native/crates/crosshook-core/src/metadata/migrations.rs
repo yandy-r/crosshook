@@ -1263,7 +1263,10 @@ mod tests {
         let version: u32 = conn
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 20);
+        assert!(
+            version >= 20,
+            "schema version should be at least 20 after migration 19→20, got {version}"
+        );
 
         // Verify defaults_json column exists, is TEXT, and is nullable.
         let mut stmt = conn.prepare("PRAGMA table_info(collections)").unwrap();
