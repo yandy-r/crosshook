@@ -43,6 +43,33 @@ export function LaunchPage() {
     const set = new Set(memberNames);
     return profileState.profiles.filter((name) => set.has(name));
   }, [profileState.profiles, activeCollectionId, memberNames, membersForCollectionId, membersLoading]);
+
+  useEffect(() => {
+    if (activeCollectionId === null) {
+      return;
+    }
+    if (membersLoading || membersForCollectionId !== activeCollectionId) {
+      return;
+    }
+    const sel = profileState.selectedProfile.trim();
+    if (filteredProfiles.length === 0) {
+      if (sel !== '') {
+        void profileState.selectProfile('');
+      }
+      return;
+    }
+    if (sel !== '' && !filteredProfiles.includes(sel)) {
+      void profileState.selectProfile(filteredProfiles[0]);
+    }
+  }, [
+    activeCollectionId,
+    membersLoading,
+    membersForCollectionId,
+    filteredProfiles,
+    profileState.selectedProfile,
+    profileState.selectProfile,
+  ]);
+
   const { healthByName } = useProfileHealthContext();
   const { settings } = usePreferencesContext();
   const { launchGame, launchTrainer } = useLaunchStateContext();

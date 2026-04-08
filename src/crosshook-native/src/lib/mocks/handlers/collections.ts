@@ -44,6 +44,12 @@ function findById(id: string): MockCollectionRow | undefined {
   return collections.find((c) => c.collection_id === id);
 }
 
+/** Match SQLite `COLLATE NOCASE` / typical backend duplicate checks (ASCII case-insensitive). */
+function nameCollidesWithExisting(name: string): boolean {
+  const lower = name.toLowerCase();
+  return collections.some((c) => c.name.toLowerCase() === lower);
+}
+
 export function registerCollections(map: Map<string, Handler>): void {
   map.set('collection_list', async (): Promise<MockCollectionRow[]> => {
     recomputeProfileCounts();
@@ -58,7 +64,7 @@ export function registerCollections(map: Map<string, Handler>): void {
     if (!trimmed) {
       throw new Error('[dev-mock] collection_create: collection name must not be empty');
     }
-    if (collections.some((c) => c.name === trimmed)) {
+    if (nameCollidesWithExisting(trimmed)) {
       throw new Error(`[dev-mock] collection_create: duplicate collection name: ${trimmed}`);
     }
     const id = `mock-collection-${Date.now().toString(36)}`;
@@ -141,7 +147,11 @@ export function registerCollections(map: Map<string, Handler>): void {
     if (!target) {
       throw new Error(`[dev-mock] collection_rename: collection not found: ${collectionId}`);
     }
-    if (collections.some((c) => c.collection_id !== collectionId && c.name === trimmed)) {
+    if (
+      collections.some(
+        (c) => c.collection_id !== collectionId && c.name.toLowerCase() === trimmed.toLowerCase()
+      )
+    ) {
       throw new Error(`[dev-mock] collection_rename: duplicate collection name: ${trimmed}`);
     }
     target.name = trimmed;

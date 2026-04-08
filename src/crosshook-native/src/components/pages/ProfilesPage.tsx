@@ -120,6 +120,33 @@ export function ProfilesPage() {
     const set = new Set(memberNames);
     return profiles.filter((name) => set.has(name));
   }, [profiles, activeCollectionId, memberNames, membersLoading, membersForCollectionId]);
+
+  useEffect(() => {
+    if (activeCollectionId === null) {
+      return;
+    }
+    if (membersLoading || membersForCollectionId !== activeCollectionId) {
+      return;
+    }
+    const sel = selectedProfile.trim();
+    if (filteredProfiles.length === 0) {
+      if (sel !== '') {
+        void selectProfile('');
+      }
+      return;
+    }
+    if (sel !== '' && !filteredProfiles.includes(sel)) {
+      void selectProfile(filteredProfiles[0]);
+    }
+  }, [
+    activeCollectionId,
+    membersLoading,
+    membersForCollectionId,
+    filteredProfiles,
+    selectedProfile,
+    selectProfile,
+  ]);
+
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
   const [pendingRename, setPendingRename] = useState<string | null>(null);

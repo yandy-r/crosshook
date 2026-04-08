@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CSSProperties } from 'react';
 
@@ -22,7 +22,26 @@ export function CollectionAssignMenu({
   const { collections, addProfile, removeProfile, collectionsForProfile } = useCollections();
   const [memberOf, setMemberOf] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [, setViewportTick] = useState(0);
   const popoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setInlineError(null);
+    }
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      return;
+    }
+    function onResize() {
+      setViewportTick((t) => t + 1);
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [open]);
 
   useEffect(() => {
     if (!open || profileName === null) {
@@ -69,10 +88,11 @@ export function CollectionAssignMenu({
         return;
       }
       setBusy(true);
-      const ok = currentlyMember
+      setInlineError(null);
+      const result = currentlyMember
         ? await removeProfile(collectionId, profileName)
         : await addProfile(collectionId, profileName);
-      if (ok) {
+      if (result.ok) {
         setMemberOf((prev) => {
           const next = new Set(prev);
           if (currentlyMember) {
@@ -82,6 +102,8 @@ export function CollectionAssignMenu({
           }
           return next;
         });
+      } else {
+        setInlineError(result.error);
       }
       setBusy(false);
     },
@@ -108,6 +130,11 @@ export function CollectionAssignMenu({
       style={style}
     >
       <div className="crosshook-collection-assign-menu__header">Add to collection</div>
+      {inlineError !== null ? (
+        <p className="crosshook-collection-assign-menu__error" role="alert">
+          {inlineError}
+        </p>
+      ) : null}
       {collections.length === 0 ? (
         <p className="crosshook-collection-assign-menu__empty">No collections yet.</p>
       ) : (

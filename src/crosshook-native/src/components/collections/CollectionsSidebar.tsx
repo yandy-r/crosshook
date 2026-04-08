@@ -11,11 +11,23 @@ export interface CollectionsSidebarProps {
 export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps) {
   const { collections, createCollection, error } = useCollections();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSessionError, setCreateSessionError] = useState<string | null>(null);
 
   const handleCreate = useCallback(
     async (name: string, description: string | null): Promise<boolean> => {
-      const id = await createCollection(name, description);
-      return id !== null;
+      setCreateSessionError(null);
+      const result = await createCollection(name, description);
+      if (!result.ok) {
+        setCreateSessionError(result.error);
+        return false;
+      }
+      if (result.descriptionFailed) {
+        setCreateSessionError(
+          `Collection created, but description could not be saved: ${result.descriptionFailed}`
+        );
+        return false;
+      }
+      return true;
     },
     [createCollection]
   );
@@ -37,6 +49,7 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
               <button
                 key={c.collection_id}
                 type="button"
+                role="listitem"
                 className="crosshook-sidebar__item crosshook-collections-sidebar__item"
                 onClick={() => handleClickCollection(c.collection_id)}
                 title={c.name}
@@ -56,7 +69,10 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
         <button
           type="button"
           className="crosshook-sidebar__item crosshook-collections-sidebar__cta"
-          onClick={() => setCreateOpen(true)}
+          onClick={() => {
+            setCreateSessionError(null);
+            setCreateOpen(true);
+          }}
         >
           <span className="crosshook-sidebar__item-icon" aria-hidden="true">
             +
@@ -64,9 +80,9 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
           <span className="crosshook-sidebar__item-label">New Collection</span>
         </button>
 
-        {error !== null && (
+        {(createSessionError ?? error) !== null && (
           <p className="crosshook-collections-sidebar__error" role="alert">
-            {error}
+            {createSessionError ?? error}
           </p>
         )}
       </div>
@@ -74,10 +90,13 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
       <CollectionEditModal
         open={createOpen}
         mode="create"
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateSessionError(null);
+          setCreateOpen(false);
+        }}
         onSubmitCreate={handleCreate}
         onSubmitEdit={async () => false}
-        externalError={null}
+        externalError={createSessionError}
       />
     </>
   );

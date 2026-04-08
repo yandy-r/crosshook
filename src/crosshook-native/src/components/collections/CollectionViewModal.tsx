@@ -121,7 +121,11 @@ export function CollectionViewModal({
   }, [collectionId, deleteCollection, onClose, onCollectionDeleted]);
 
   useEffect(() => {
-    if (typeof document === 'undefined') {
+    if (!open || typeof document === 'undefined') {
+      return;
+    }
+    if (portalHostRef.current) {
+      setIsMounted(true);
       return;
     }
     const host = document.createElement('div');
@@ -129,10 +133,15 @@ export function CollectionViewModal({
     portalHostRef.current = host;
     document.body.appendChild(host);
     setIsMounted(true);
+  }, [open]);
+
+  useEffect(() => {
     return () => {
-      host.remove();
-      portalHostRef.current = null;
-      setIsMounted(false);
+      if (portalHostRef.current) {
+        portalHostRef.current.remove();
+        portalHostRef.current = null;
+        setIsMounted(false);
+      }
     };
   }, []);
 

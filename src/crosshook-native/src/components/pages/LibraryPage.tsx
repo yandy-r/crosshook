@@ -44,6 +44,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     anchorPosition: { x: number; y: number } | null;
   }>({ open: false, profileName: null, anchorPosition: null });
   const [createCollectionFromMenuOpen, setCreateCollectionFromMenuOpen] = useState(false);
+  const [createCollectionSessionError, setCreateCollectionSessionError] = useState<string | null>(null);
   const { createCollection } = useCollections();
 
   // Refresh profile list from context on mount
@@ -109,13 +110,25 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   }, []);
 
   const handleCreateFromAssignMenu = useCallback(() => {
+    setCreateCollectionSessionError(null);
     setCreateCollectionFromMenuOpen(true);
   }, []);
 
   const handleSubmitCreateFromMenu = useCallback(
     async (name: string, description: string | null): Promise<boolean> => {
-      const id = await createCollection(name, description);
-      return id !== null;
+      setCreateCollectionSessionError(null);
+      const result = await createCollection(name, description);
+      if (!result.ok) {
+        setCreateCollectionSessionError(result.error);
+        return false;
+      }
+      if (result.descriptionFailed) {
+        setCreateCollectionSessionError(
+          `Collection created, but description could not be saved: ${result.descriptionFailed}`
+        );
+        return false;
+      }
+      return true;
     },
     [createCollection]
   );
@@ -197,9 +210,13 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
       <CollectionEditModal
         open={createCollectionFromMenuOpen}
         mode="create"
-        onClose={() => setCreateCollectionFromMenuOpen(false)}
+        onClose={() => {
+          setCreateCollectionSessionError(null);
+          setCreateCollectionFromMenuOpen(false);
+        }}
         onSubmitCreate={handleSubmitCreateFromMenu}
         onSubmitEdit={async () => false}
+        externalError={createCollectionSessionError}
       />
     </div>
   );

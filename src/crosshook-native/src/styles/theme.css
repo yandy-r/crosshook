@@ -5991,3 +5991,9 @@ textarea {
   color: var(--crosshook-color-text-muted);
   font-style: italic;
 }
+
+.crosshook-collection-assign-menu__error {
+  padding: 6px 8px;
+  color: var(--crosshook-color-danger);
+  font-size: 0.85rem;
+}

@@ -13,6 +13,13 @@ import type { CollectionRow } from '@/types/collections';
 /** Result of rename / description updates so callers can show session-scoped errors without reading global hook state. */
 export type CollectionWriteResult = { ok: true } | { ok: false; error: string };
 
+/** Create flow: collection row may succeed while description IPC fails; `descriptionFailed` is set in that case (refresh still runs). */
+export type CollectionCreateResult =
+  | { ok: true; id: string; descriptionFailed?: string }
+  | { ok: false; error: string };
+
+export type CollectionMutationResult = { ok: true } | { ok: false; error: string };
+
 export interface UseCollectionsResult {
   collections: CollectionRow[];
   error: string | null;
@@ -21,12 +28,12 @@ export interface UseCollectionsResult {
   deletingId: string | null;
   renamingId: string | null;
   refresh: () => Promise<void>;
-  createCollection: (name: string, description?: string | null) => Promise<string | null>;
+  createCollection: (name: string, description?: string | null) => Promise<CollectionCreateResult>;
   deleteCollection: (collectionId: string) => Promise<boolean>;
   renameCollection: (collectionId: string, newName: string) => Promise<CollectionWriteResult>;
   updateDescription: (collectionId: string, description: string | null) => Promise<CollectionWriteResult>;
-  addProfile: (collectionId: string, profileName: string) => Promise<boolean>;
-  removeProfile: (collectionId: string, profileName: string) => Promise<boolean>;
+  addProfile: (collectionId: string, profileName: string) => Promise<CollectionMutationResult>;
+  removeProfile: (collectionId: string, profileName: string) => Promise<CollectionMutationResult>;
   listMembers: (collectionId: string) => Promise<string[]>;
   collectionsForProfile: (profileName: string) => Promise<CollectionRow[]>;
 }
@@ -55,26 +62,30 @@ function useCollectionsState(): UseCollectionsResult {
   }, []);
 
   const createCollection = useCallback(
-    async (name: string, description: string | null = null): Promise<string | null> => {
+    async (name: string, description: string | null = null): Promise<CollectionCreateResult> => {
       setCreatingName(name);
       setError(null);
       try {
         const id = await callCommand<string>('collection_create', { name });
-        if (id !== null && description !== null && description.trim() !== '') {
+        let descriptionFailed: string | undefined;
+        if (description !== null && description.trim() !== '') {
           try {
             await callCommand<null>('collection_update_description', {
               collectionId: id,
               description: description.trim(),
             });
           } catch (err) {
-            setError(err instanceof Error ? err.message : String(err));
+            descriptionFailed = err instanceof Error ? err.message : String(err);
           }
         }
         await refresh();
-        return id;
+        return descriptionFailed !== undefined
+          ? { ok: true, id, descriptionFailed }
+          : { ok: true, id };
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        return null;
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        return { ok: false, error: message };
       } finally {
         setCreatingName(null);
       }
@@ -136,30 +147,32 @@ function useCollectionsState(): UseCollectionsResult {
   );
 
   const addProfile = useCallback(
-    async (collectionId: string, profileName: string): Promise<boolean> => {
+    async (collectionId: string, profileName: string): Promise<CollectionMutationResult> => {
       setError(null);
       try {
         await callCommand<null>('collection_add_profile', { collectionId, profileName });
         await refresh();
-        return true;
+        return { ok: true };
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        return false;
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        return { ok: false, error: message };
       }
     },
     [refresh]
   );
 
   const removeProfile = useCallback(
-    async (collectionId: string, profileName: string): Promise<boolean> => {
+    async (collectionId: string, profileName: string): Promise<CollectionMutationResult> => {
       setError(null);
       try {
         await callCommand<null>('collection_remove_profile', { collectionId, profileName });
         await refresh();
-        return true;
+        return { ok: true };
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        return false;
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        return { ok: false, error: message };
       }
     },
     [refresh]
