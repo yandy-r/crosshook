@@ -194,6 +194,7 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
         open={importReviewOpen}
         preview={importPreview}
         applying={importApplying}
+        importSessionError={importSessionError}
         onClose={() => {
           if (!importApplying) {
             setImportReviewOpen(false);

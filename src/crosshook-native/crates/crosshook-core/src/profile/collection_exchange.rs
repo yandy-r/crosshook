@@ -411,18 +411,18 @@ fn parse_collection_preset_toml(
             message: e.to_string(),
         })?;
 
-    if manifest.schema_version != COLLECTION_PRESET_SCHEMA_VERSION {
-        return Err(CollectionExchangeError::UnsupportedSchemaVersion {
-            version: manifest.schema_version.clone(),
-            supported: COLLECTION_PRESET_SCHEMA_VERSION.to_string(),
-        });
-    }
-
-    if manifest.name.trim().is_empty() {
-        return Err(CollectionExchangeError::InvalidManifest {
-            message: "collection preset must include a non-empty name".to_string(),
-        });
-    }
+    manifest.validate().map_err(|msg| {
+        if !manifest.schema_version.is_empty()
+            && manifest.schema_version != COLLECTION_PRESET_SCHEMA_VERSION
+        {
+            CollectionExchangeError::UnsupportedSchemaVersion {
+                version: manifest.schema_version.clone(),
+                supported: COLLECTION_PRESET_SCHEMA_VERSION.to_string(),
+            }
+        } else {
+            CollectionExchangeError::InvalidManifest { message: msg }
+        }
+    })?;
 
     Ok(manifest)
 }

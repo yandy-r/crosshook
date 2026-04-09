@@ -29,6 +29,8 @@ export interface CollectionImportReviewModalProps {
   open: boolean;
   preview: CollectionImportPreview | null;
   applying: boolean;
+  /** Shown inside the dialog when import/apply fails (e.g. from applyImportedCollection). */
+  importSessionError?: string | null;
   onClose: () => void;
   onConfirm: (input: {
     name: string;
@@ -41,6 +43,7 @@ export function CollectionImportReviewModal({
   open,
   preview,
   applying,
+  importSessionError = null,
   onClose,
   onConfirm,
 }: CollectionImportReviewModalProps) {
@@ -240,6 +243,11 @@ export function CollectionImportReviewModal({
         </header>
 
         <div className="crosshook-modal__body crosshook-collection-import-review__body">
+          {importSessionError ? (
+            <div className="crosshook-collection-import-review__alert" role="alert">
+              {importSessionError}
+            </div>
+          ) : null}
           <div className="crosshook-collection-import-review__field">
             <label className="crosshook-label" htmlFor={`${titleId}-name`}>
               Collection name
@@ -278,8 +286,10 @@ export function CollectionImportReviewModal({
             <section className="crosshook-collection-import-review__section" aria-label="Matched profiles">
               <h3 className="crosshook-collection-import-review__section-title">Matched</h3>
               <ul className="crosshook-collection-import-review__list">
-                {preview.matched.map((m) => (
-                  <li key={`${m.local_profile_name}-${m.descriptor.game_name}`}>
+                {preview.matched.map((m, i) => (
+                  <li
+                    key={`${m.local_profile_name}-${m.descriptor.steam_app_id || m.descriptor.trainer_community_trainer_sha256 || i}`}
+                  >
                     <strong>{m.local_profile_name}</strong>
                     <span className="crosshook-collection-import-review__muted">
                       {' '}

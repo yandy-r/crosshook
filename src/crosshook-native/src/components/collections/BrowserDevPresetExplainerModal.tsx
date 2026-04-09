@@ -66,18 +66,39 @@ export function BrowserDevPresetExplainerModal({
   onContinue,
 }: BrowserDevPresetExplainerModalProps) {
   const titleId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const bodyStyleRef = useRef('');
+  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const [busy, setBusy] = useState(false);
 
   const { title, paragraphs, continueLabel } = COPY[mode];
 
   useEffect(() => {
-    if (!open) {
+    if (!open || typeof document === 'undefined') {
       return;
     }
 
+    const root = rootRef.current;
+    if (!root) {
+      return;
+    }
+
+    const { body } = document;
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    bodyStyleRef.current = body.style.overflow;
+    body.style.overflow = 'hidden';
+
+    hiddenNodesRef.current = Array.from(body.children)
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== root)
+      .map((element) => {
+        const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
+        const ariaHidden = element.getAttribute('aria-hidden');
+        (element as HTMLElement & { inert?: boolean }).inert = true;
+        element.setAttribute('aria-hidden', 'true');
+        return { element, inert: inertState, ariaHidden };
+      });
 
     const frame = window.requestAnimationFrame(() => {
       const panel = panelRef.current;
@@ -92,6 +113,16 @@ export function BrowserDevPresetExplainerModal({
 
     return () => {
       window.cancelAnimationFrame(frame);
+      body.style.overflow = bodyStyleRef.current;
+      for (const { element, inert, ariaHidden } of hiddenNodesRef.current) {
+        (element as HTMLElement & { inert?: boolean }).inert = inert;
+        if (ariaHidden === null) {
+          element.removeAttribute('aria-hidden');
+        } else {
+          element.setAttribute('aria-hidden', ariaHidden);
+        }
+      }
+      hiddenNodesRef.current = [];
       const restoreTarget = previouslyFocusedRef.current;
       if (restoreTarget && restoreTarget.isConnected) {
         restoreTarget.focus({ preventScroll: true });
@@ -162,7 +193,11 @@ export function BrowserDevPresetExplainerModal({
   }
 
   const node = (
-    <div className="crosshook-modal crosshook-browser-dev-preset-explainer" role="presentation">
+    <div
+      ref={rootRef}
+      className="crosshook-modal crosshook-browser-dev-preset-explainer"
+      role="presentation"
+    >
       <div
         className="crosshook-modal__backdrop"
         aria-hidden="true"

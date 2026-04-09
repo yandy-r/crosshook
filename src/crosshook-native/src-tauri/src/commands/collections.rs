@@ -132,7 +132,10 @@ pub fn collection_export_to_toml(
     if cid.is_empty() {
         return Err("collection_id must not be empty".to_string());
     }
-    let path = PathBuf::from(output_path.trim());
+    if output_path.is_empty() {
+        return Err("output_path must not be empty".to_string());
+    }
+    let path = PathBuf::from(output_path);
     export_collection_preset_to_toml(&metadata_store, &profile_store, cid, &path).map_err(|e| e.to_string())
 }
 
@@ -141,6 +144,9 @@ pub fn collection_import_from_toml(
     path: String,
     profile_store: State<'_, ProfileStore>,
 ) -> Result<CollectionImportPreview, String> {
-    let p = PathBuf::from(path.trim());
+    if path.is_empty() {
+        return Err("path must not be empty".to_string());
+    }
+    let p = PathBuf::from(path);
     preview_collection_preset_import(&profile_store, &p).map_err(|e| e.to_string())
 }

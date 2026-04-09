@@ -4,6 +4,15 @@
   gap: 1rem;
 }
 
+.crosshook-collection-import-review__alert {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--crosshook-radius-md);
+  font-size: 0.9rem;
+  color: var(--crosshook-color-danger);
+  background: var(--crosshook-color-danger-bg);
+}
+
 .crosshook-collection-import-review__field {
   display: flex;
   flex-direction: column;
@@ -48,7 +57,7 @@
   flex-direction: column;
   gap: 0.35rem;
   padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  border-bottom: 1px solid var(--crosshook-divider-color);
 }
 
 .crosshook-collection-import-review__ambiguous:last-child {
