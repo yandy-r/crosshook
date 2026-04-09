@@ -6,6 +6,12 @@
 import type { Handler } from './types';
 import { getStore } from '../store';
 
+import type {
+  CollectionExportResult,
+  CollectionImportPreview,
+} from '../../../types/collections';
+import type { CollectionDefaults } from '../../../types/profile';
+
 // Shape mirrors Rust `CollectionRow` in
 // crates/crosshook-core/src/metadata/models.rs (snake_case per serde default).
 interface MockCollectionRow {
@@ -263,5 +269,83 @@ export function registerCollections(map: Map<string, Handler>): void {
     }
     target.updated_at = nowIso();
     return null;
+  });
+
+  map.set('collection_export_to_toml', async (args): Promise<CollectionExportResult> => {
+    const { collectionId, outputPath } = args as { collectionId: string; outputPath: string };
+    const col = findById(collectionId);
+    if (!col) {
+      throw new Error(`[dev-mock] collection_export_to_toml: collection not found: ${collectionId}`);
+    }
+    const memberNames = [...(membership.get(collectionId) ?? [])].sort();
+    const store = getStore();
+    const profiles = memberNames.map((name) => {
+      const p = store.profiles.get(name);
+      const steam = (p?.steam?.app_id ?? '').trim() || (p?.runtime?.steam_app_id ?? '').trim();
+      return {
+        steam_app_id: steam,
+        game_name: p?.game?.name ?? name,
+        trainer_community_trainer_sha256: p?.trainer?.community_trainer_sha256 ?? '',
+      };
+    });
+    const defaults = mockDefaults.get(collectionId);
+    const defaultsOut: CollectionDefaults | null =
+      defaults && !isDefaultsEmpty(defaults) ? (cloneMockDefaults(defaults) as CollectionDefaults) : null;
+    return {
+      collection_id: collectionId,
+      output_path: outputPath || '/mock/export.crosshook-collection.toml',
+      manifest: {
+        schema_version: '1',
+        name: col.name,
+        description: col.description,
+        defaults: defaultsOut,
+        profiles,
+      },
+    };
+  });
+
+  map.set('collection_import_from_toml', async (args): Promise<CollectionImportPreview> => {
+    const { path } = args as { path: string };
+    const store = getStore();
+    const names = [...store.profiles.keys()].sort();
+    const first = names[0];
+    const p = first ? store.profiles.get(first) : undefined;
+    const descriptor = p
+      ? {
+          steam_app_id: (p.steam?.app_id ?? '').trim() || (p.runtime?.steam_app_id ?? '').trim(),
+          game_name: p.game?.name ?? first ?? '',
+          trainer_community_trainer_sha256: p.trainer?.community_trainer_sha256 ?? '',
+        }
+      : {
+          steam_app_id: '999999',
+          game_name: 'Mock Game',
+          trainer_community_trainer_sha256: '',
+        };
+    const matched =
+      first && p
+        ? [
+            {
+              descriptor: {
+                steam_app_id: descriptor.steam_app_id,
+                game_name: descriptor.game_name,
+                trainer_community_trainer_sha256: descriptor.trainer_community_trainer_sha256,
+              },
+              local_profile_name: first,
+            },
+          ]
+        : [];
+    return {
+      source_path: path || '/mock/import.crosshook-collection.toml',
+      manifest: {
+        schema_version: '1',
+        name: 'Imported (mock)',
+        description: 'Fixture from dev mock',
+        defaults: { method: 'proton_run' },
+        profiles: [descriptor],
+      },
+      matched,
+      ambiguous: [],
+      unmatched: first ? [] : [descriptor],
+    };
   });
 }

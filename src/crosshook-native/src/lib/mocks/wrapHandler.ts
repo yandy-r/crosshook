@@ -60,6 +60,8 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   // `collections_for_profile`) match the `_list`/`_list_*` noun-suffix regex; only
   // Phase 3's `collection_get_defaults` needs an explicit entry here.
   'collection_get_defaults',
+  // Phase 4: preview-only import (mutation-sounding name).
+  'collection_import_from_toml',
 ]);
 
 /**

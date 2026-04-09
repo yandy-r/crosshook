@@ -18,6 +18,10 @@
   --crosshook-color-success: #28c76f;
   --crosshook-color-warning: #f5c542;
   --crosshook-color-danger: #ff758f;
+  /* Soft danger surface (alerts, inline errors) */
+  --crosshook-color-danger-bg: rgba(248, 113, 113, 0.08);
+  /* List / section dividers (subtle slate) */
+  --crosshook-divider-color: rgba(148, 163, 184, 0.2);
 
   --crosshook-offline-ready: #4caf50;
   --crosshook-offline-partial: #ff9800;
@@ -84,6 +88,12 @@
   --crosshook-custom-env-fields-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   --crosshook-custom-env-add-margin-top: 12px;
   --crosshook-page-padding: 32px;
+  /* Modal surfaces (import/export explainer, etc.) */
+  --crosshook-modal-width: 440px;
+  --crosshook-modal-max-height: 560px;
+  --crosshook-modal-offset: 32px;
+  --crosshook-modal-body-gap: 12px;
+  --crosshook-modal-body-padding-inline: 20px;
   --crosshook-transition-fast: 140ms;
   --crosshook-transition-standard: 220ms;
 

@@ -12,12 +12,15 @@ import {
 
 import type { CollectionRow } from '@/types/collections';
 import type { LibraryCardData } from '@/types/library';
+import { BROWSER_DEV_EXPORT_PRESET_PATH } from '@/constants/browserDevPresetPaths';
 import { useCollectionMembers } from '@/hooks/useCollectionMembers';
 import { useCollections } from '@/hooks/useCollections';
+import { isBrowserDevUi } from '@/lib/runtime';
 import { useLibraryProfiles } from '@/hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '@/hooks/useLibrarySummaries';
 import { useProfileContext } from '@/context/ProfileContext';
 import { LibraryCard } from '@/components/library/LibraryCard';
+import { BrowserDevPresetExplainerModal } from './BrowserDevPresetExplainerModal';
 import { CollectionLaunchDefaultsEditor } from './CollectionLaunchDefaultsEditor';
 import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from '@/components/library/game-details-actions';
 import { getFocusableElements } from '@/lib/focus-utils';
@@ -73,13 +76,15 @@ export function CollectionViewModal({
   const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const [isMounted, setIsMounted] = useState(false);
 
-  const { collections, deleteCollection } = useCollections();
+  const { collections, deleteCollection, exportCollectionPreset } = useCollections();
   const { memberNames, loading: membersLoading } = useCollectionMembers(open ? collectionId : null);
   const { profiles, favoriteProfiles, selectedProfile } = useProfileContext();
   const { summaries } = useLibrarySummaries(profiles, favoriteProfiles);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportExplainerOpen, setExportExplainerOpen] = useState(false);
 
   useEffect(() => {
     setSearchQuery('');
@@ -88,8 +93,45 @@ export function CollectionViewModal({
   useEffect(() => {
     if (!open) {
       setDeleteConfirm(false);
+      setExportError(null);
+      setExportExplainerOpen(false);
     }
   }, [open]);
+
+  const handleExportPreset = useCallback(async () => {
+    if (collectionId === null) {
+      return;
+    }
+    setExportError(null);
+    if (isBrowserDevUi()) {
+      setExportExplainerOpen(true);
+      return;
+    }
+    const result = await exportCollectionPreset(collectionId);
+    if (result === 'cancelled') {
+      return;
+    }
+    if (!result.ok) {
+      setExportError(result.error);
+    }
+  }, [collectionId, exportCollectionPreset]);
+
+  const handleExportExplainerContinue = useCallback(async () => {
+    if (collectionId === null) {
+      return;
+    }
+    setExportExplainerOpen(false);
+    setExportError(null);
+    const result = await exportCollectionPreset(collectionId, {
+      outputPathOverride: BROWSER_DEV_EXPORT_PRESET_PATH,
+    });
+    if (result === 'cancelled') {
+      return;
+    }
+    if (!result.ok) {
+      setExportError(result.error);
+    }
+  }, [collectionId, exportCollectionPreset]);
 
   const collection = useMemo<CollectionRow | null>(
     () => collections.find((c) => c.collection_id === collectionId) ?? null,
@@ -256,7 +298,7 @@ export function CollectionViewModal({
     return null;
   }
 
-  return createPortal(
+  const mainModal = createPortal(
     <div className="crosshook-modal" role="presentation">
       <div className="crosshook-modal__backdrop" aria-hidden="true" onMouseDown={handleBackdropMouseDown} />
       <div
@@ -351,7 +393,19 @@ export function CollectionViewModal({
         </div>
 
         <footer className="crosshook-modal__footer">
+          {exportError !== null ? (
+            <p className="crosshook-collection-modal__export-error" role="alert">
+              {exportError}
+            </p>
+          ) : null}
           <div className="crosshook-modal__footer-actions">
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--ghost"
+              onClick={() => void handleExportPreset()}
+            >
+              Export Preset
+            </button>
             {deleteConfirm ? (
               <button
                 type="button"
@@ -382,5 +436,17 @@ export function CollectionViewModal({
       </div>
     </div>,
     portalHostRef.current
+  );
+
+  return (
+    <>
+      {mainModal}
+      <BrowserDevPresetExplainerModal
+        mode="export"
+        open={exportExplainerOpen}
+        onClose={() => setExportExplainerOpen(false)}
+        onContinue={() => void handleExportExplainerContinue()}
+      />
+    </>
   );
 }

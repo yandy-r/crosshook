@@ -1,5 +1,10 @@
+use std::path::PathBuf;
+
 use crosshook_core::metadata::{CollectionRow, MetadataStore};
-use crosshook_core::profile::CollectionDefaultsSection;
+use crosshook_core::profile::{
+    export_collection_preset_to_toml, preview_collection_preset_import, CollectionDefaultsSection,
+    CollectionExportResult, CollectionImportPreview, ProfileStore,
+};
 use tauri::State;
 
 fn map_error(e: impl ToString) -> String {
@@ -114,4 +119,34 @@ pub fn collection_set_defaults(
     metadata_store
         .set_collection_defaults(&collection_id, defaults.as_ref())
         .map_err(map_error)
+}
+
+#[tauri::command]
+pub fn collection_export_to_toml(
+    collection_id: String,
+    output_path: String,
+    metadata_store: State<'_, MetadataStore>,
+    profile_store: State<'_, ProfileStore>,
+) -> Result<CollectionExportResult, String> {
+    let cid = collection_id.trim();
+    if cid.is_empty() {
+        return Err("collection_id must not be empty".to_string());
+    }
+    if output_path.is_empty() {
+        return Err("output_path must not be empty".to_string());
+    }
+    let path = PathBuf::from(output_path);
+    export_collection_preset_to_toml(&metadata_store, &profile_store, cid, &path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn collection_import_from_toml(
+    path: String,
+    profile_store: State<'_, ProfileStore>,
+) -> Result<CollectionImportPreview, String> {
+    if path.is_empty() {
+        return Err("path must not be empty".to_string());
+    }
+    let p = PathBuf::from(path);
+    preview_collection_preset_import(&profile_store, &p).map_err(|e| e.to_string())
 }

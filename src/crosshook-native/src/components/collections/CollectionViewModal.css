@@ -30,3 +30,12 @@
   text-align: center;
   color: var(--crosshook-color-text-muted);
 }
+
+.crosshook-collection-modal__export-error {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: var(--crosshook-radius-md);
+  font-size: 0.9rem;
+  color: var(--crosshook-color-danger);
+  background: var(--crosshook-color-danger-bg);
+}
