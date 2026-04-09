@@ -163,6 +163,11 @@ export function CollectionImportReviewModal({
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape') {
+      if (applying) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       event.stopPropagation();
       event.preventDefault();
       onClose();
@@ -197,6 +202,11 @@ export function CollectionImportReviewModal({
 
   function handleBackdropMouseDown(event: MouseEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget) {
+      return;
+    }
+    if (applying) {
+      event.preventDefault();
+      event.stopPropagation?.();
       return;
     }
     onClose();
@@ -236,6 +246,7 @@ export function CollectionImportReviewModal({
             type="button"
             className="crosshook-button crosshook-button--ghost crosshook-modal__close"
             data-crosshook-modal-close
+            disabled={applying}
             onClick={onClose}
           >
             Close
