@@ -31,7 +31,10 @@ function attachConsoleCapture(page: Page): ConsoleCapture {
 }
 
 test.describe('collections smoke', () => {
+  let capture: ConsoleCapture;
+
   test.beforeEach(async ({ page }) => {
+    capture = attachConsoleCapture(page);
     await page.goto('/?fixture=populated');
 
     // Boot sanity: dev chip proves mock IPC loaded.
@@ -40,8 +43,6 @@ test.describe('collections smoke', () => {
   });
 
   test('create collection flow via sidebar CTA', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     // Click the "New Collection" CTA in the sidebar.
     const newCollectionCta = page.getByRole('button', { name: 'New Collection' });
     await expect(newCollectionCta).toBeVisible();
@@ -63,6 +64,10 @@ test.describe('collections smoke', () => {
     // Allow any deferred renders to settle.
     await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
+    await expect(page.getByRole('button', { name: /Test Collection/ })).toBeVisible({
+      timeout: 10_000,
+    });
+
     expect(
       capture.errors,
       `Uncaught errors during create collection flow:\n${capture.errors.join('\n')}`
@@ -70,8 +75,6 @@ test.describe('collections smoke', () => {
   });
 
   test('open and close CollectionViewModal', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     // Click an existing collection in the sidebar.
     const collectionItem = page.locator('.crosshook-collections-sidebar__item').first();
     // Wait for the sidebar to render at least one collection.
@@ -95,8 +98,6 @@ test.describe('collections smoke', () => {
   });
 
   test('assign menu opens on library card context menu and keyboard navigates', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     // Navigate to Library tab.
     const libraryTrigger = page.getByRole('tab', { name: 'Library', exact: true });
     await expect(libraryTrigger).toBeVisible();
@@ -107,20 +108,27 @@ test.describe('collections smoke', () => {
     const firstCard = page.locator('.crosshook-library-card').first();
     await expect(firstCard).toBeVisible({ timeout: 10_000 });
 
-    // Right-click to open assign menu.
+    await firstCard.focus();
+    // Right-click to open assign menu (desktop analogue of context-menu invoke).
     await firstCard.click({ button: 'right' });
 
     // Assign menu (dialog) should open.
     const assignMenu = page.locator('.crosshook-collection-assign-menu');
     await expect(assignMenu).toBeVisible({ timeout: 5_000 });
 
-    // Press ArrowDown twice — focus should move between focusable elements.
+    const checkboxes = assignMenu.locator(
+      '.crosshook-collection-assign-menu__option input[type="checkbox"]'
+    );
+    const newCollectionBtn = assignMenu.getByRole('button', { name: /New collection/i });
+    await expect(checkboxes.first()).toBeFocused();
     await page.keyboard.press('ArrowDown');
+    await expect(newCollectionBtn).toBeFocused();
     await page.keyboard.press('ArrowDown');
+    await expect(checkboxes.first()).toBeFocused();
 
-    // Press Escape to close.
     await page.keyboard.press('Escape');
     await expect(assignMenu).not.toBeVisible({ timeout: 5_000 });
+    await expect(firstCard).toBeFocused();
 
     await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
@@ -131,8 +139,6 @@ test.describe('collections smoke', () => {
   });
 
   test('import preset flow opens BrowserDevPresetExplainerModal', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     // Click "Import Preset" CTA.
     const importCta = page.getByRole('button', { name: 'Import Preset' });
     await expect(importCta).toBeVisible();
@@ -147,11 +153,9 @@ test.describe('collections smoke', () => {
     await expect(continueBtn).toBeVisible();
     await continueBtn.click();
 
-    // Import review modal should appear (or the explainer closes into it).
-    // Wait for the import review dialog.
-    await page.waitForTimeout(1_000);
+    const importReview = page.getByRole('dialog', { name: /import collection preset/i });
+    await expect(importReview).toBeVisible({ timeout: 10_000 });
 
-    // Press Escape to close whatever dialog is open.
     await page.keyboard.press('Escape');
 
     await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});

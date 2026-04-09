@@ -9,7 +9,7 @@ use crosshook_core::profile::{
     CollectionDefaultsSection, CollectionPresetManifest, GameProfile, ProfileStore,
     COLLECTION_PRESET_SCHEMA_VERSION,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use tempfile::tempdir;
 
@@ -20,6 +20,9 @@ fn sample_profile_named(name: &str, steam_app_id: &str, trainer_sha: &str) -> Ga
     p.game.name = name.to_string();
     p.steam.app_id = steam_app_id.to_string();
     p.trainer.community_trainer_sha256 = trainer_sha.to_string();
+    p.launch
+        .custom_env_vars
+        .insert("PRE_EXISTING".to_string(), "1".to_string());
     p
 }
 
@@ -118,6 +121,11 @@ fn end_to_end_collections_jtbd() {
     let profile_05 = store.load("fixture-05").unwrap();
     let merged = profile_05.effective_profile_with(Some(&defaults));
     assert_eq!(
+        merged.launch.custom_env_vars.get("PRE_EXISTING"),
+        Some(&"1".to_string()),
+        "effective merge must preserve pre-existing launch env vars from the base profile"
+    );
+    assert_eq!(
         merged.launch.custom_env_vars.get("DXVK_HUD"),
         Some(&"fps".to_string()),
         "effective profile with collection defaults must contain DXVK_HUD=fps"
@@ -125,6 +133,11 @@ fn end_to_end_collections_jtbd() {
 
     // ── Step 8: Effective profile WITHOUT context ───────────────────────────
     let no_merge = profile_05.effective_profile_with(None);
+    assert_eq!(
+        no_merge.launch.custom_env_vars.get("PRE_EXISTING"),
+        Some(&"1".to_string()),
+        "base profile env vars must survive when collection defaults are not applied"
+    );
     assert!(
         !no_merge.launch.custom_env_vars.contains_key("DXVK_HUD"),
         "effective profile without collection defaults must NOT contain DXVK_HUD"
@@ -226,10 +239,11 @@ fn end_to_end_collections_jtbd() {
     let new_members = metadata2
         .list_profiles_in_collection(&new_action_cid)
         .unwrap();
+    let expected: BTreeSet<_> = action_members.iter().cloned().collect();
+    let got: BTreeSet<_> = new_members.iter().cloned().collect();
     assert_eq!(
-        new_members.len(),
-        action_members.len(),
-        "re-imported collection must have the same member count as the original"
+        got, expected,
+        "re-imported collection membership must match the original (set equality, not just length)"
     );
 
     let new_defaults = metadata2

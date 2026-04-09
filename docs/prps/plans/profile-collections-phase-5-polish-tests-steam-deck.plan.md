@@ -70,7 +70,7 @@ in the Phase 5 report; the PRD is updated; the Phase 2 and Phase 5 plan files ar
 
 ## Metadata
 
-- **Complexity**: **Medium-Large** (22 tasks across 4 batches; ~14 files UPDATE, 5 files CREATE, 1
+- **Complexity**: **Medium-Large** (22 tasks across 5 batches; ~12 files UPDATE, 8 files CREATE, 1
   git-mv; no backend-breaking changes; all refactors preserve existing behavior)
 - **Source PRD**: [`docs/prps/prds/profile-collections.prd.md`](../prds/profile-collections.prd.md)
   §Phase 5 (line 211, 274-284)
@@ -84,7 +84,7 @@ in the Phase 5 report; the PRD is updated; the Phase 2 and Phase 5 plan files ar
     v20)
   - Phase 4 merged (`f018e4a`, `*.crosshook-collection.toml` export/import + review modal)
 - **Blocks**: closing epic #73 and the release that bundles the feature
-- **Estimated files**: ~20 (14 UPDATE, 5 CREATE, 1 git-mv)
+- **Estimated files**: ~21 (12 UPDATE, 8 CREATE, 1 git-mv)
   - CREATE: `src/crosshook-native/src/hooks/useFocusTrap.ts`;
     `src/crosshook-native/crates/crosshook-core/tests/collections_jtbd_integration.rs`;
     `src/crosshook-native/tests/collections.spec.ts`;

@@ -5,8 +5,10 @@
 **Source Plan**: `docs/prps/plans/profile-collections-phase-5-polish-tests-steam-deck.plan.md`
 **Source PRD**: `docs/prps/prds/profile-collections.prd.md` (Phase 5)
 **Source Issue**: [`yandy-r/crosshook#181`](https://github.com/yandy-r/crosshook/issues/181)
-**Status**: Complete — ready for `/ycc:prp-pr`
+**Status**: In progress — automated deliverables complete; **Steam Deck hardware validation gate still open** (see Manual Steam Deck Validation table below). Do not treat Phase 5 as fully complete until those rows are **CLOSED**.
 **Parent Issue**: [`yandy-r/crosshook#73`](https://github.com/yandy-r/crosshook/issues/73) — closes on merge
+
+**Phase 5 exit criteria (readiness)**: Phase 5 is **complete** only when **all** rows in the **Manual Steam Deck Validation** table (and any other hardware-only gates called out there) are **CLOSED** with Pass — not when code and automated tests alone are green. Until then, keep **Status** at **In progress** (or **Pending**).
 
 ## Overview
 
@@ -129,7 +131,7 @@ Four new docs under `docs/internal-docs/`:
 |---|-------|-----------|-------|
 | 1 | Sidebar Collections section reachable via D-pad up/down | PENDING | Requires hardware or gamescope session |
 | 2 | A button opens CollectionViewModal; B button closes it | PENDING | Requires hardware or gamescope session |
-| 3 | Right-click/Shift+F10/ContextMenu key reaches CollectionAssignMenu | PENDING | Keyboard path verified via Playwright |
+| 3 | Steam Deck Context/Menu (or Phase 5 mapped combo) opens CollectionAssignMenu; UI navigable with controller only | PENDING | Desktop keyboard path verified via Playwright; hardware pass still required |
 | 4 | ArrowUp/Down inside assign menu walks checkboxes | PASS | Verified via Playwright test |
 | 5 | Space on focused checkbox toggles membership | PENDING | Requires manual verification |
 | 6 | Escape/B closes assign menu and restores focus to card | PASS | Verified via Playwright test |

@@ -36,7 +36,11 @@ Unmatched descriptors (no local profile found) are reported separately so the us
 
 ## Forward compatibility
 
-`schema_version` is checked first during parsing. Versions greater than `"1"` are rejected immediately with `CollectionExchangeError::UnsupportedSchemaVersion { version, supported }` before any further field processing occurs. This ensures older versions of CrossHook do not silently misinterpret data from a newer schema.
+`schema_version` is validated in `CollectionPresetManifest::validate` and in `parse_collection_preset_toml` (`collection_exchange.rs`). The importer rejects **any non-empty** `schema_version` string other than `"1"`: during parsing, that case is surfaced as `CollectionExchangeError::UnsupportedSchemaVersion { version, supported }` (with `supported` set to the current `COLLECTION_PRESET_SCHEMA_VERSION`).
+
+An **empty** `schema_version` (string `""`) is treated differently: `validate()` fails with `"collection preset must include schema_version"`, and the mapper returns `CollectionExchangeError::InvalidManifest` instead of `UnsupportedSchemaVersion`, because the manifest is missing a required version rather than declaring an unsupported future version.
+
+This ensures older versions of CrossHook do not silently misinterpret data from a newer schema.
 
 ## Minimal example
 

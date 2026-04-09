@@ -28,11 +28,11 @@ base profile (TOML on disk)
     -> local_override (machine-specific paths, always wins last)
 ```
 
-1. **Layer 1 — Base profile**: The profile as stored on disk in TOML. Local override fields are already folded in by the existing `effective_profile()` shim.
+1. **Layer 1 — Base profile**: The portable profile as stored on disk in TOML (`ProfileStore` / `GameProfile` fields such as `game`, `launch`, etc.) **before** any `local_override` paths are applied. `local_override` is **not** part of layer 1; it is merged in **layer 3** inside `GameProfile::effective_profile_with` (and `effective_profile()`), so collection defaults are applied **between** the base profile and `local_override`.
 2. **Layer 2 — Collection defaults**: Each non-`None` field in `CollectionDefaultsSection` replaces the corresponding base profile field. `custom_env_vars` uses an additive merge: collection entries are unioned with the profile's `launch.custom_env_vars`, and collection keys win on collision. Profile keys without a collision are preserved.
-3. **Layer 3 — Local override**: Machine-specific overrides (paths, local configuration) always win last, exactly as before Phase 3.
+3. **Layer 3 — Local override**: Machine-specific overrides from `local_override.*` (paths, etc.) always win last, after collection defaults.
 
-When `defaults` is `None`, the method behaves identically to the pre-Phase 3 `effective_profile()` shim.
+When `defaults` is `None`, `effective_profile_with(None)` skips the collection-defaults layer and **otherwise matches** the pre-Phase 3 `effective_profile()` shim (still `base + local_override` via the same method).
 
 ## Editor-safety invariant
 

@@ -188,7 +188,7 @@ export function useFocusTrap({
       }
       previouslyFocusedRef.current = null;
     };
-  }, [open, panelRef, onClose, initialFocusRef, restoreFocusOnClose]);
+  }, [open, panelRef, initialFocusRef, restoreFocusOnClose]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape') {
