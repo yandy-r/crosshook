@@ -80,7 +80,7 @@ function tier1Status(
     case 'trainer':
       return profile.trainer.path.trim() !== '' ? 'configured' : 'not-configured';
     case 'optimizations':
-      return 'configured';
+      return profile.launch.optimizations.enabled_option_ids.length > 0 ? 'configured' : 'not-configured';
     case 'launch':
       return 'not-configured';
   }
@@ -97,8 +97,14 @@ function lastPathSegment(path: string): string {
 
 function tier2DetailForNode(id: Exclude<PipelineNodeId, 'launch'>, preview: LaunchPreview): string | undefined {
   switch (id) {
-    case 'game':
-      return preview.game_executable_name || undefined;
+    case 'game': {
+      const name = preview.game_executable_name?.trim();
+      if (name) {
+        return name;
+      }
+      const exe = preview.game_executable?.trim();
+      return exe ? lastPathSegment(exe) : undefined;
+    }
     case 'wine-prefix': {
       const p = preview.proton_setup?.wine_prefix_path;
       return p ? lastPathSegment(p) : undefined;
@@ -111,12 +117,32 @@ function tier2DetailForNode(id: Exclude<PipelineNodeId, 'launch'>, preview: Laun
       return preview.steam_launch_options ? 'Launch options set' : 'Ready';
     case 'trainer': {
       const p = preview.trainer?.path;
-      return p ? lastPathSegment(p) : 'Not configured';
+      return p ? lastPathSegment(p) : undefined;
     }
     case 'optimizations': {
+      if (preview.environment === null && preview.wrappers === null) {
+        return undefined;
+      }
       const envCount = preview.environment?.length ?? 0;
       return envCount > 0 ? `${envCount} env vars` : 'No optimizations';
     }
+  }
+}
+
+function isTier2Resolved(id: Exclude<PipelineNodeId, 'launch'>, preview: LaunchPreview): boolean {
+  switch (id) {
+    case 'game':
+      return Boolean(preview.game_executable_name?.trim() || preview.game_executable?.trim());
+    case 'wine-prefix':
+      return Boolean(preview.proton_setup?.wine_prefix_path?.trim());
+    case 'proton':
+      return Boolean(preview.proton_setup?.proton_executable?.trim());
+    case 'steam':
+      return preview.resolved_method === 'steam_applaunch';
+    case 'trainer':
+      return preview.trainer !== null;
+    case 'optimizations':
+      return preview.environment !== null || preview.wrappers !== null;
   }
 }
 
@@ -134,11 +160,20 @@ function buildTier2Node(
   if (id === 'optimizations' && preview.directives_error) {
     return { id, label, status: 'error', detail: preview.directives_error };
   }
+  const detail = tier2DetailForNode(id, preview);
+  if (!isTier2Resolved(id, preview)) {
+    return {
+      id,
+      label,
+      status: 'not-configured',
+      detail: detail ?? 'Not configured',
+    };
+  }
   return {
     id,
     label,
     status: 'configured',
-    detail: tier2DetailForNode(id, preview),
+    detail,
   };
 }
 
@@ -157,10 +192,17 @@ function buildLaunchNode(
   if (hasError) {
     return { id: 'launch', label, status: 'error', detail: 'Resolve errors above' };
   }
+  const hasNotConfigured = priorNodes.some((n) => n.status === 'not-configured');
+  if (hasNotConfigured) {
+    return { id: 'launch', label, status: 'not-configured', detail: 'Complete steps above' };
+  }
+  if (!preview.effective_command?.trim()) {
+    return { id: 'launch', label, status: 'not-configured', detail: 'Not ready' };
+  }
   return {
     id: 'launch',
     label,
     status: 'configured',
-    detail: preview.effective_command ? 'Command ready' : 'Not ready',
+    detail: 'Command ready',
   };
 }

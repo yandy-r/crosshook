@@ -300,15 +300,18 @@ type PipelineNodeId = 'game' | 'wine-prefix' | 'proton' | 'steam' | 'trainer' | 
 export function mapValidationToNode(issue: LaunchValidationIssue): PipelineNodeId { ... }
 ```
 
-The mapping uses the `code` field (populated by T1) with a prefix-match strategy:
+The mapping uses the `code` field (populated by T1) with a prefix-match strategy (aligned with the
+**Validation Issue -> Pipeline Node Mapping** table above and `mapValidationToNode.ts`):
 - Codes starting with `game_path` or `native_windows_executable` -> `'game'`
-- Codes starting with `runtime_prefix` or `low_disk_space` -> `'wine-prefix'`
+- Codes starting with `runtime_prefix` -> `'wine-prefix'`
 - Codes starting with `runtime_proton` -> `'proton'`
 - Codes starting with `steam_` -> `'steam'`
 - Codes starting with `trainer_` or `native_trainer` or `unshare_net` -> `'trainer'`
 - Codes starting with `unknown_launch_optimization`, `duplicate_launch_optimization`,
   `incompatible_launch_optimization`, `launch_optimization`, `gamescope_`, `custom_env_var` ->
   `'optimizations'`
+- Codes starting with `low_disk_space` -> `'launch'` (e.g. `low_disk_space_advisory` from
+  `LowDiskSpaceAdvisory`)
 - Everything else (including `unsupported_method`, `offline_readiness_insufficient`, unknown codes,
   or missing `code`) -> `'launch'`
 

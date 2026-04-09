@@ -119,6 +119,7 @@ maintainability improvements.
   is not available. Adding at least one variant per prefix group in `mapValidationToNode.ts` would
   make gaps visible sooner.
 - **Suggestion**: Add assertions for the currently untested `launch`-node variants:
+
   ```rust
   assert_eq!(ValidationError::UnsupportedMethod("x".into()).code(), "unsupported_method");
   assert_eq!(

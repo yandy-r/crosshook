@@ -219,41 +219,42 @@ export function registerLaunch(map: Map<string, Handler>): void {
     const gamePath = request?.game_path?.trim() ?? '';
 
     if (gamePath === '' || gamePath === '__MOCK_VALIDATION_ERROR__') {
+      const isNative = method === 'native';
+      const issues: LaunchPreview['validation']['issues'] = [
+        {
+          message: 'A game executable path is required.',
+          help: 'Set a game executable path in the profile.',
+          severity: 'fatal' as const,
+          code: 'game_path_required',
+        },
+      ];
+      if (!isNative) {
+        issues.push({
+          message: 'The runtime prefix path does not exist.',
+          help: 'Check that the Wine prefix directory exists.',
+          severity: 'fatal' as const,
+          code: 'runtime_prefix_path_missing',
+        });
+      }
       const previewWithIssues: LaunchPreview = {
         resolved_method: method,
-        validation: {
-          issues: [
-            {
-              message: 'A game executable path is required.',
-              help: 'Set a game executable path in the profile.',
-              severity: 'fatal' as const,
-              code: 'game_path_required',
-            },
-            {
-              message: 'The runtime prefix path does not exist.',
-              help: 'Check that the Wine prefix directory exists.',
-              severity: 'fatal' as const,
-              code: 'runtime_prefix_path_missing',
-            },
-          ],
-        },
+        validation: { issues },
         environment: null,
         cleared_variables: [],
         wrappers: null,
         effective_command: null,
-        directives_error: 'Mock directive resolution error',
+        directives_error: isNative ? null : 'Mock directive resolution error',
         steam_launch_options: null,
-        proton_setup:
-          method !== 'native'
-            ? {
-                wine_prefix_path: '/home/devuser/.local/share/mock-prefix',
-                compat_data_path: '/home/devuser/.steam/steam/steamapps/compatdata/9999001',
-                steam_client_install_path: getStore().defaultSteamClientInstallPath,
-                proton_executable:
-                  '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton',
-                umu_run_path: null,
-              }
-            : null,
+        proton_setup: isNative
+          ? null
+          : {
+              wine_prefix_path: '/home/devuser/.local/share/mock-prefix',
+              compat_data_path: '/home/devuser/.steam/steam/steamapps/compatdata/9999001',
+              steam_client_install_path: getStore().defaultSteamClientInstallPath,
+              proton_executable:
+                '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton',
+              umu_run_path: null,
+            },
         working_directory: '/home/devuser/Games/TestGameAlpha',
         game_executable: '',
         game_executable_name: '',
