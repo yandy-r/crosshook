@@ -380,10 +380,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
                 style={{ display: installPageTab === 'run_executable' ? undefined : 'none' }}
               >
                 <div className="crosshook-subtab-content__inner crosshook-install-page-tabs__panel-inner">
-                  <RunExecutablePanel
-                    protonInstalls={protonInstalls}
-                    protonInstallsError={protonInstallsError}
-                  />
+                  <RunExecutablePanel protonInstalls={protonInstalls} protonInstallsError={protonInstallsError} />
                 </div>
               </Tabs.Content>
             </Tabs.Root>

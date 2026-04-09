@@ -115,7 +115,10 @@ fn network_err(message: impl std::fmt::Display) -> ProtonUpInstallResult {
 }
 
 fn permission_err(message: impl std::fmt::Display) -> ProtonUpInstallResult {
-    err(message.to_string(), ProtonUpInstallErrorKind::PermissionDenied)
+    err(
+        message.to_string(),
+        ProtonUpInstallErrorKind::PermissionDenied,
+    )
 }
 
 fn unknown_err(message: impl std::fmt::Display) -> ProtonUpInstallResult {
@@ -154,7 +157,10 @@ async fn download_to_file(
     }
 
     let mut file = fs::File::create(dest_path).await.map_err(|e| {
-        map_io_err(e, &format!("failed to create temp file {}", dest_path.display()))
+        map_io_err(
+            e,
+            &format!("failed to create temp file {}", dest_path.display()),
+        )
     })?;
 
     let mut hasher = Sha512::new();
@@ -164,14 +170,14 @@ async fn download_to_file(
     while let Some(chunk) = stream.next().await {
         let bytes = chunk.map_err(|e| network_err(format!("download interrupted: {e}")))?;
         hasher.update(&bytes);
-        file.write_all(&bytes).await.map_err(|e| {
-            map_io_err(e, &format!("write failed to {}", dest_path.display()))
-        })?;
+        file.write_all(&bytes)
+            .await
+            .map_err(|e| map_io_err(e, &format!("write failed to {}", dest_path.display())))?;
     }
 
-    file.flush().await.map_err(|e| {
-        map_io_err(e, &format!("flush failed for {}", dest_path.display()))
-    })?;
+    file.flush()
+        .await
+        .map_err(|e| map_io_err(e, &format!("flush failed for {}", dest_path.display())))?;
 
     Ok(hasher.finalize().to_vec())
 }
@@ -232,18 +238,17 @@ fn extract_tar_read_sync<R: std::io::Read>(
 
     let mut top_level_dir: Option<String> = None;
 
-    let entries = archive.entries().map_err(|e| {
-        unknown_err(format!("failed to read archive entries: {e}"))
-    })?;
+    let entries = archive
+        .entries()
+        .map_err(|e| unknown_err(format!("failed to read archive entries: {e}")))?;
 
     for entry_result in entries {
-        let mut entry = entry_result.map_err(|e| {
-            unknown_err(format!("failed to read archive entry: {e}"))
-        })?;
+        let mut entry =
+            entry_result.map_err(|e| unknown_err(format!("failed to read archive entry: {e}")))?;
 
-        let entry_path = entry.path().map_err(|e| {
-            unknown_err(format!("invalid path in archive entry: {e}"))
-        })?;
+        let entry_path = entry
+            .path()
+            .map_err(|e| unknown_err(format!("invalid path in archive entry: {e}")))?;
 
         // Capture the top-level directory name from the first component.
         if top_level_dir.is_none() {
@@ -257,7 +262,10 @@ fn extract_tar_read_sync<R: std::io::Read>(
 
         entry.unpack_in(dest_dir).map_err(|e| {
             if e.kind() == std::io::ErrorKind::PermissionDenied {
-                permission_err(format!("permission denied extracting to {}: {e}", dest_dir.display()))
+                permission_err(format!(
+                    "permission denied extracting to {}: {e}",
+                    dest_dir.display()
+                ))
             } else {
                 unknown_err(format!("extraction error: {e}"))
             }
@@ -267,22 +275,34 @@ fn extract_tar_read_sync<R: std::io::Read>(
     top_level_dir.ok_or_else(|| unknown_err("archive appears to be empty"))
 }
 
-fn extract_tar_gz_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, ProtonUpInstallResult> {
+fn extract_tar_gz_sync(
+    archive_path: &Path,
+    dest_dir: &Path,
+) -> Result<String, ProtonUpInstallResult> {
     use flate2::read::GzDecoder;
 
     let file = std::fs::File::open(archive_path).map_err(|e| {
-        map_io_err(e, &format!("failed to open archive {}", archive_path.display()))
+        map_io_err(
+            e,
+            &format!("failed to open archive {}", archive_path.display()),
+        )
     })?;
 
     let gz = GzDecoder::new(file);
     extract_tar_read_sync(gz, dest_dir)
 }
 
-fn extract_tar_xz_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, ProtonUpInstallResult> {
+fn extract_tar_xz_sync(
+    archive_path: &Path,
+    dest_dir: &Path,
+) -> Result<String, ProtonUpInstallResult> {
     use xz2::read::XzDecoder;
 
     let file = std::fs::File::open(archive_path).map_err(|e| {
-        map_io_err(e, &format!("failed to open archive {}", archive_path.display()))
+        map_io_err(
+            e,
+            &format!("failed to open archive {}", archive_path.display()),
+        )
     })?;
 
     let xz = XzDecoder::new(file);
@@ -292,23 +312,24 @@ fn extract_tar_xz_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, P
 /// Read the first top-level directory name from a tar stream without extracting.
 ///
 /// Used so install-target paths match what `archive_extract_sync` will create.
-fn peek_tar_read_top_level_sync<R: std::io::Read>(read: R) -> Result<String, ProtonUpInstallResult> {
+fn peek_tar_read_top_level_sync<R: std::io::Read>(
+    read: R,
+) -> Result<String, ProtonUpInstallResult> {
     use tar::Archive;
 
     let mut archive = Archive::new(read);
 
-    let entries = archive.entries().map_err(|e| {
-        unknown_err(format!("failed to read archive entries: {e}"))
-    })?;
+    let entries = archive
+        .entries()
+        .map_err(|e| unknown_err(format!("failed to read archive entries: {e}")))?;
 
     for entry_result in entries {
-        let entry = entry_result.map_err(|e| {
-            unknown_err(format!("failed to read archive entry: {e}"))
-        })?;
+        let entry =
+            entry_result.map_err(|e| unknown_err(format!("failed to read archive entry: {e}")))?;
 
-        let entry_path = entry.path().map_err(|e| {
-            unknown_err(format!("invalid path in archive entry: {e}"))
-        })?;
+        let entry_path = entry
+            .path()
+            .map_err(|e| unknown_err(format!("invalid path in archive entry: {e}")))?;
 
         if let Some(first) = entry_path.components().next() {
             let name = first.as_os_str().to_string_lossy().to_string();
@@ -325,7 +346,10 @@ fn peek_tar_gz_top_level_sync(archive_path: &Path) -> Result<String, ProtonUpIns
     use flate2::read::GzDecoder;
 
     let file = std::fs::File::open(archive_path).map_err(|e| {
-        map_io_err(e, &format!("failed to open archive {}", archive_path.display()))
+        map_io_err(
+            e,
+            &format!("failed to open archive {}", archive_path.display()),
+        )
     })?;
 
     let gz = GzDecoder::new(file);
@@ -336,7 +360,10 @@ fn peek_tar_xz_top_level_sync(archive_path: &Path) -> Result<String, ProtonUpIns
     use xz2::read::XzDecoder;
 
     let file = std::fs::File::open(archive_path).map_err(|e| {
-        map_io_err(e, &format!("failed to open archive {}", archive_path.display()))
+        map_io_err(
+            e,
+            &format!("failed to open archive {}", archive_path.display()),
+        )
     })?;
 
     let xz = XzDecoder::new(file);
@@ -359,7 +386,10 @@ fn archive_peek_sync(archive_path: &Path) -> Result<String, ProtonUpInstallResul
     }
 }
 
-fn archive_extract_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, ProtonUpInstallResult> {
+fn archive_extract_sync(
+    archive_path: &Path,
+    dest_dir: &Path,
+) -> Result<String, ProtonUpInstallResult> {
     let name = archive_path
         .file_name()
         .and_then(|s| s.to_str())
@@ -634,22 +664,32 @@ mod tests {
     #[test]
     fn rejects_empty_path() {
         let result = validate_install_destination("").unwrap_err();
-        assert_eq!(result.error_kind, Some(ProtonUpInstallErrorKind::InvalidPath));
+        assert_eq!(
+            result.error_kind,
+            Some(ProtonUpInstallErrorKind::InvalidPath)
+        );
         assert!(result.error_message.unwrap().contains("empty"));
     }
 
     #[test]
     fn rejects_path_with_parent_dir_component() {
-        let result =
-            validate_install_destination("/home/user/.steam/../../../etc/passwd/compatibilitytools.d")
-                .unwrap_err();
-        assert_eq!(result.error_kind, Some(ProtonUpInstallErrorKind::InvalidPath));
+        let result = validate_install_destination(
+            "/home/user/.steam/../../../etc/passwd/compatibilitytools.d",
+        )
+        .unwrap_err();
+        assert_eq!(
+            result.error_kind,
+            Some(ProtonUpInstallErrorKind::InvalidPath)
+        );
     }
 
     #[test]
     fn rejects_path_without_compatibilitytools_d_segment() {
         let result = validate_install_destination("/home/user/.steam/root/steamapps").unwrap_err();
-        assert_eq!(result.error_kind, Some(ProtonUpInstallErrorKind::InvalidPath));
+        assert_eq!(
+            result.error_kind,
+            Some(ProtonUpInstallErrorKind::InvalidPath)
+        );
         assert!(result
             .error_message
             .unwrap()
@@ -771,7 +811,10 @@ mod tests {
     fn err_helper_sets_failure_fields() {
         let result = err("test message", ProtonUpInstallErrorKind::InvalidPath);
         assert!(!result.success);
-        assert_eq!(result.error_kind, Some(ProtonUpInstallErrorKind::InvalidPath));
+        assert_eq!(
+            result.error_kind,
+            Some(ProtonUpInstallErrorKind::InvalidPath)
+        );
         assert_eq!(result.error_message.as_deref(), Some("test message"));
         assert!(result.installed_path.is_none());
     }
@@ -780,14 +823,20 @@ mod tests {
     fn network_err_sets_network_error_kind() {
         let result = network_err("connection refused");
         assert!(!result.success);
-        assert_eq!(result.error_kind, Some(ProtonUpInstallErrorKind::NetworkError));
+        assert_eq!(
+            result.error_kind,
+            Some(ProtonUpInstallErrorKind::NetworkError)
+        );
     }
 
     #[test]
     fn permission_err_sets_permission_denied_kind() {
         let result = permission_err("access denied");
         assert!(!result.success);
-        assert_eq!(result.error_kind, Some(ProtonUpInstallErrorKind::PermissionDenied));
+        assert_eq!(
+            result.error_kind,
+            Some(ProtonUpInstallErrorKind::PermissionDenied)
+        );
     }
 
     #[test]

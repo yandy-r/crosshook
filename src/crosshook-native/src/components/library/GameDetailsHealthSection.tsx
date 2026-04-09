@@ -68,7 +68,9 @@ export function GameDetailsHealthSection({
         <h4 className="crosshook-game-details-modal__subsection-title">Offline readiness</h4>
         {offlineError ? <p className="crosshook-game-details-modal__warn">{offlineError}</p> : null}
         {!offlineReport && !offlineError ? (
-          <p className="crosshook-game-details-modal__muted">Offline readiness has not been computed for this profile.</p>
+          <p className="crosshook-game-details-modal__muted">
+            Offline readiness has not been computed for this profile.
+          </p>
         ) : null}
         {offlineReport ? (
           <div className="crosshook-game-details-modal__health-block">

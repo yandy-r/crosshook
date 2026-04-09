@@ -37,16 +37,13 @@ export function useLaunchPrefixDependencyGate(): UseLaunchPrefixDependencyGateRe
     });
   }, []);
 
-  const installPrefixDependency = useCallback(
-    async (profileName: string, prefixPath: string, packages: string[]) => {
-      await callCommand('install_prefix_dependency', {
-        profileName,
-        prefixPath,
-        packages,
-      });
-    },
-    []
-  );
+  const installPrefixDependency = useCallback(async (profileName: string, prefixPath: string, packages: string[]) => {
+    await callCommand('install_prefix_dependency', {
+      profileName,
+      prefixPath,
+      packages,
+    });
+  }, []);
 
   return { getDependencyStatus, installPrefixDependency, isGamescopeRunning };
 }

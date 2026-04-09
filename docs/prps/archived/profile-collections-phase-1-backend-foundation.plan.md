@@ -27,13 +27,13 @@ As a **power user with 50+ profiles**, I want the backend foundation for collect
 
 This section classifies every new or changed datum in Phase 1 so reviewers can audit storage contracts before Phase 2 (UI) and later phases. It aligns with **Files to Change**, **Task 1** (`migrate_18_to_19` in `migrations.rs`), and the **`run_migrations` dispatch** around `migrations.rs:165–172` (version checks and `user_version` bumps).
 
-| Datum / behavior | Classification | Where it lives | Migration / back-compat (v18 → v19) |
-| --- | --- | --- | --- |
-| Collection rows (`name`, `description`, `sort_order`, timestamps) | Operational metadata (SQLite) | `collections` table | **v18 → v19**: `ALTER TABLE collections ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`. Existing rows backfill `0`. No destructive change to prior columns. Prior migrations are immutable. |
-| Collection ↔ profile membership (`added_at`) | Operational metadata (SQLite) | `collection_profiles` | **v18 → v19**: table rebuilt with `ON DELETE CASCADE` on `profile_id` → `profiles`. `INSERT … SELECT` preserves all pairs. |
-| Typed error when adding a missing profile | Ephemeral message only (error string over IPC) | Not persisted | No schema change; behavior-only fix in `collections.rs` (`add_profile_to_collection`). |
-| Browser dev-mode mock state (fixture collections / membership) | Ephemeral runtime (memory); dev-only | TypeScript mock handlers | Not in production DB; resets on reload. |
-| `CollectionRow` IPC payloads | Serialized view of SQLite + counts | Derived at read time | Same as pre–Phase 1 shape; `sort_order` affects ordering only. |
+| Datum / behavior                                                  | Classification                                 | Where it lives           | Migration / back-compat (v18 → v19)                                                                                                                                                            |
+| ----------------------------------------------------------------- | ---------------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Collection rows (`name`, `description`, `sort_order`, timestamps) | Operational metadata (SQLite)                  | `collections` table      | **v18 → v19**: `ALTER TABLE collections ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0`. Existing rows backfill `0`. No destructive change to prior columns. Prior migrations are immutable. |
+| Collection ↔ profile membership (`added_at`)                      | Operational metadata (SQLite)                  | `collection_profiles`    | **v18 → v19**: table rebuilt with `ON DELETE CASCADE` on `profile_id` → `profiles`. `INSERT … SELECT` preserves all pairs.                                                                     |
+| Typed error when adding a missing profile                         | Ephemeral message only (error string over IPC) | Not persisted            | No schema change; behavior-only fix in `collections.rs` (`add_profile_to_collection`).                                                                                                         |
+| Browser dev-mode mock state (fixture collections / membership)    | Ephemeral runtime (memory); dev-only           | TypeScript mock handlers | Not in production DB; resets on reload.                                                                                                                                                        |
+| `CollectionRow` IPC payloads                                      | Serialized view of SQLite + counts             | Derived at read time     | Same as pre–Phase 1 shape; `sort_order` affects ordering only.                                                                                                                                 |
 
 **Not in Phase 1 (later PRD phases)**: per-collection launch defaults and TOML export/import remain **out of scope** here; they will be classified when those phases add tables or settings.
 
@@ -649,6 +649,7 @@ export function registerMocks(): Map<string, Handler> {
   ```
 
   This is a one-line change. It wires the new column into the read path so Phase 2 gets correct ordering as soon as it starts writing `sort_order` values.
+
 - **MIRROR**: `create_collection` (validation + trim), `list_collections` (prepare + query_map + row construction), `set_profile_favorite` (UPDATE shape).
 - **IMPORTS**: `CollectionRow` is already imported at the top of `collections.rs` via `use super::models::CollectionRow;`. No new imports needed.
 - **GOTCHA**:

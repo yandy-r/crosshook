@@ -23,8 +23,16 @@ export function InfoTooltip({ content, size = 16 }: InfoTooltipProps) {
           role="button"
           tabIndex={0}
           aria-label="Info"
-          onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-          onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.stopPropagation(); e.preventDefault(); } }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.stopPropagation();
+              e.preventDefault();
+            }
+          }}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

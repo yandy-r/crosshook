@@ -6,53 +6,53 @@ Implemented a shared `RouteBanner` plus centralized `routeMetadata` (nav labels,
 
 ## Assessment vs Reality
 
-| Metric | Predicted (Plan) | Actual |
-| --- | --- | --- |
-| Complexity | Large | Large (touched all primary routes + shared layout) |
-| Confidence | (not in plan) | High — `npm run build` and `cargo test -p crosshook-core` pass |
-| Files Changed | 12–16 | 18 tracked files (+2 new components); plan file archived |
+| Metric        | Predicted (Plan) | Actual                                                         |
+| ------------- | ---------------- | -------------------------------------------------------------- |
+| Complexity    | Large            | Large (touched all primary routes + shared layout)             |
+| Confidence    | (not in plan)    | High — `npm run build` and `cargo test -p crosshook-core` pass |
+| Files Changed | 12–16            | 18 tracked files (+2 new components); plan file archived       |
 
 ## Tasks Completed
 
-| # | Task | Status | Notes |
-| --- | --- | --- | --- |
-| 1 | RouteBanner + route metadata | Complete | `RouteBanner.tsx`, `routeMetadata.ts`, `DiscoverArt` in `PageBanner.tsx` |
-| 1.5 | Sidebar/banner parity | Complete | `Sidebar` uses `ROUTE_NAV_LABEL` from `routeMetadata` |
-| 2 | Shared banner CSS | Complete | `.crosshook-route-banner*` in `theme.css` |
-| 3 | Wire all top-level routes | Complete | Library, Profiles, Launch, Install, Community, Discover, Compatibility, Settings, Health |
-| 4 | Remove duplicate intros | Complete | LaunchPanel, Profiles, Community/Compatibility/Discover panels, Settings in-card |
-| 5 | Scroll / layout | Complete | No new scroll containers; banner is `flex-shrink: 0` |
-| 6 | Copy / a11y | Complete | `h1` + `aria-labelledby` on banner; phase strip `aria-label` on Launch |
+| #   | Task                         | Status   | Notes                                                                                    |
+| --- | ---------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| 1   | RouteBanner + route metadata | Complete | `RouteBanner.tsx`, `routeMetadata.ts`, `DiscoverArt` in `PageBanner.tsx`                 |
+| 1.5 | Sidebar/banner parity        | Complete | `Sidebar` uses `ROUTE_NAV_LABEL` from `routeMetadata`                                    |
+| 2   | Shared banner CSS            | Complete | `.crosshook-route-banner*` in `theme.css`                                                |
+| 3   | Wire all top-level routes    | Complete | Library, Profiles, Launch, Install, Community, Discover, Compatibility, Settings, Health |
+| 4   | Remove duplicate intros      | Complete | LaunchPanel, Profiles, Community/Compatibility/Discover panels, Settings in-card         |
+| 5   | Scroll / layout              | Complete | No new scroll containers; banner is `flex-shrink: 0`                                     |
+| 6   | Copy / a11y                  | Complete | `h1` + `aria-labelledby` on banner; phase strip `aria-label` on Launch                   |
 
 ## Validation Results
 
-| Level | Status | Notes |
-| --- | --- | --- |
-| Static Analysis | Pass | `cd src/crosshook-native && npm run build` |
-| Unit Tests | N/A | No frontend test harness (per plan) |
-| Rust tests | Pass | `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` |
-| Build | Pass | Vite production build |
-| Integration | N/A | Manual route sweep recommended |
-| Edge Cases | Not automated | Checklist in plan remains for human verification |
+| Level           | Status        | Notes                                                                          |
+| --------------- | ------------- | ------------------------------------------------------------------------------ |
+| Static Analysis | Pass          | `cd src/crosshook-native && npm run build`                                     |
+| Unit Tests      | N/A           | No frontend test harness (per plan)                                            |
+| Rust tests      | Pass          | `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` |
+| Build           | Pass          | Vite production build                                                          |
+| Integration     | N/A           | Manual route sweep recommended                                                 |
+| Edge Cases      | Not automated | Checklist in plan remains for human verification                               |
 
 ## Files Changed
 
-| File | Action |
-| --- | --- |
-| `src/crosshook-native/src/components/layout/RouteBanner.tsx` | CREATED |
-| `src/crosshook-native/src/components/layout/routeMetadata.ts` | CREATED |
-| `src/crosshook-native/src/components/layout/PageBanner.tsx` | UPDATED — added `DiscoverArt`; later rewrote all 9 `*Art` exports as 64×64 icons (polish pass — see below) |
-| `src/crosshook-native/src/components/layout/Sidebar.tsx` | UPDATED — `ROUTE_NAV_LABEL` |
-| `src/crosshook-native/src/components/pages/*.tsx` | UPDATED — nine pages |
-| `src/crosshook-native/src/components/pages/LibraryPage.tsx` | UPDATED — added `RouteBanner`; later promoted `__content` wrapper to `.crosshook-card` (polish pass) |
-| `src/crosshook-native/src/components/LaunchPanel.tsx` | UPDATED |
-| `src/crosshook-native/src/components/SettingsPanel.tsx` | UPDATED |
-| `src/crosshook-native/src/components/CommunityBrowser.tsx` | UPDATED |
-| `src/crosshook-native/src/components/CompatibilityViewer.tsx` | UPDATED |
-| `src/crosshook-native/src/components/TrainerDiscoveryPanel.tsx` | UPDATED |
-| `src/crosshook-native/src/styles/theme.css` | UPDATED — initial route-banner styles; polish pass added radial halo background, simplified icon rules to mirror sidebar brand-art exactly, tightened `@media (max-height: 820px)` block, added `.crosshook-library-page__content` to the `route-card-scroll` panel-children selector |
-| `src/crosshook-native/src/styles/library.css` | UPDATED (polish pass) — dropped the custom `padding`/`max-width` overrides on `.crosshook-library-page__content`; now relies on `.crosshook-card` for inner padding and panel boundary |
-| `.claude/PRPs/plans/completed/ui-standardization-phase-1.plan.md` | ARCHIVED (moved from `plans/`) |
+| File                                                              | Action                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/crosshook-native/src/components/layout/RouteBanner.tsx`      | CREATED                                                                                                                                                                                                                                                                               |
+| `src/crosshook-native/src/components/layout/routeMetadata.ts`     | CREATED                                                                                                                                                                                                                                                                               |
+| `src/crosshook-native/src/components/layout/PageBanner.tsx`       | UPDATED — added `DiscoverArt`; later rewrote all 9 `*Art` exports as 64×64 icons (polish pass — see below)                                                                                                                                                                            |
+| `src/crosshook-native/src/components/layout/Sidebar.tsx`          | UPDATED — `ROUTE_NAV_LABEL`                                                                                                                                                                                                                                                           |
+| `src/crosshook-native/src/components/pages/*.tsx`                 | UPDATED — nine pages                                                                                                                                                                                                                                                                  |
+| `src/crosshook-native/src/components/pages/LibraryPage.tsx`       | UPDATED — added `RouteBanner`; later promoted `__content` wrapper to `.crosshook-card` (polish pass)                                                                                                                                                                                  |
+| `src/crosshook-native/src/components/LaunchPanel.tsx`             | UPDATED                                                                                                                                                                                                                                                                               |
+| `src/crosshook-native/src/components/SettingsPanel.tsx`           | UPDATED                                                                                                                                                                                                                                                                               |
+| `src/crosshook-native/src/components/CommunityBrowser.tsx`        | UPDATED                                                                                                                                                                                                                                                                               |
+| `src/crosshook-native/src/components/CompatibilityViewer.tsx`     | UPDATED                                                                                                                                                                                                                                                                               |
+| `src/crosshook-native/src/components/TrainerDiscoveryPanel.tsx`   | UPDATED                                                                                                                                                                                                                                                                               |
+| `src/crosshook-native/src/styles/theme.css`                       | UPDATED — initial route-banner styles; polish pass added radial halo background, simplified icon rules to mirror sidebar brand-art exactly, tightened `@media (max-height: 820px)` block, added `.crosshook-library-page__content` to the `route-card-scroll` panel-children selector |
+| `src/crosshook-native/src/styles/library.css`                     | UPDATED (polish pass) — dropped the custom `padding`/`max-width` overrides on `.crosshook-library-page__content`; now relies on `.crosshook-card` for inner padding and panel boundary                                                                                                |
+| `.claude/PRPs/plans/completed/ui-standardization-phase-1.plan.md` | ARCHIVED (moved from `plans/`)                                                                                                                                                                                                                                                        |
 
 ## Deviations from Plan
 
@@ -90,17 +90,17 @@ A follow-up pass corrected the two regressions above with surgical, scope-bounde
 
 ### Polish-pass validation
 
-| Level | Status | Notes |
-| --- | --- | --- |
-| Static Analysis | Pass | `cd src/crosshook-native && npm run build` (clean; only the pre-existing chunk-size advisory) |
-| Rust tests | Pass | `cargo test -p crosshook-core` — 718 unit + 3 integration tests pass |
-| Manual visual | Pending | Sweep all 9 routes; confirm icons read clearly with the warm blue halo, Library content spans the same width as other pages |
+| Level           | Status  | Notes                                                                                                                       |
+| --------------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Static Analysis | Pass    | `cd src/crosshook-native && npm run build` (clean; only the pre-existing chunk-size advisory)                               |
+| Rust tests      | Pass    | `cargo test -p crosshook-core` — 718 unit + 3 integration tests pass                                                        |
+| Manual visual   | Pending | Sweep all 9 routes; confirm icons read clearly with the warm blue halo, Library content spans the same width as other pages |
 
 ## Tests Written
 
-| Test File | Tests | Coverage |
-| --- | --- | --- |
-| N/A | N/A | No frontend unit tests configured |
+| Test File | Tests | Coverage                          |
+| --------- | ----- | --------------------------------- |
+| N/A       | N/A   | No frontend unit tests configured |
 
 ## Next Steps
 

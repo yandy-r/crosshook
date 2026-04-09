@@ -418,18 +418,27 @@ export function ProtonDbLookupCard({
                 <div className="crosshook-protondb-card__recommendation-label">
                   <strong>{item.label}</strong>
                   {item.status === 'already_applied' ? (
-                    <span className="crosshook-protondb-card__status-badge crosshook-protondb-card__status-badge--applied">&#10003; Applied</span>
+                    <span className="crosshook-protondb-card__status-badge crosshook-protondb-card__status-badge--applied">
+                      &#10003; Applied
+                    </span>
                   ) : null}
                 </div>
                 <p className="crosshook-protondb-card__recommendation-note">
-                  {item.description} &bull; {item.supportingReportCount} report{item.supportingReportCount === 1 ? '' : 's'}
+                  {item.description} &bull; {item.supportingReportCount} report
+                  {item.supportingReportCount === 1 ? '' : 's'}
                 </p>
                 <div className="crosshook-protondb-card__actions">
                   {item.status === 'new' && onAcceptSuggestion ? (
                     <button
                       type="button"
                       className="crosshook-button"
-                      onClick={() => void onAcceptSuggestion({ kind: 'catalog', profileName: '', catalogEntryId: item.catalogEntryId })}
+                      onClick={() =>
+                        void onAcceptSuggestion({
+                          kind: 'catalog',
+                          profileName: '',
+                          catalogEntryId: item.catalogEntryId,
+                        })
+                      }
                     >
                       Enable
                     </button>
@@ -450,11 +459,17 @@ export function ProtonDbLookupCard({
             {visibleEnvVar.map((item: EnvVarSuggestionItem) => (
               <div key={item.key} className="crosshook-protondb-card__recommendation-item">
                 <p className="crosshook-protondb-card__recommendation-label">
-                  <code>{item.key}={item.value}</code>
+                  <code>
+                    {item.key}={item.value}
+                  </code>
                   {item.status === 'already_applied' ? (
-                    <span className="crosshook-protondb-card__status-badge crosshook-protondb-card__status-badge--applied">&#10003; Applied</span>
+                    <span className="crosshook-protondb-card__status-badge crosshook-protondb-card__status-badge--applied">
+                      &#10003; Applied
+                    </span>
                   ) : item.status === 'conflict' ? (
-                    <span className="crosshook-protondb-card__status-badge crosshook-protondb-card__status-badge--conflict">&#9888; Conflict</span>
+                    <span className="crosshook-protondb-card__status-badge crosshook-protondb-card__status-badge--conflict">
+                      &#9888; Conflict
+                    </span>
                   ) : null}
                 </p>
                 <p className="crosshook-protondb-card__recommendation-note">
@@ -465,7 +480,14 @@ export function ProtonDbLookupCard({
                     <button
                       type="button"
                       className="crosshook-button"
-                      onClick={() => void onAcceptSuggestion({ kind: 'env_var', profileName: '', envKey: item.key, envValue: item.value })}
+                      onClick={() =>
+                        void onAcceptSuggestion({
+                          kind: 'env_var',
+                          profileName: '',
+                          envKey: item.key,
+                          envValue: item.value,
+                        })
+                      }
                     >
                       {item.status === 'conflict' ? 'Overwrite' : 'Apply'}
                     </button>

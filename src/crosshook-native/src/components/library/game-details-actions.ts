@@ -6,7 +6,7 @@
 export function gameDetailsLaunchThenNavigate(
   profileName: string,
   launch: (name: string) => void | Promise<void>,
-  closeModal: () => void,
+  closeModal: () => void
 ): void {
   closeModal();
   void launch(profileName);
@@ -15,7 +15,7 @@ export function gameDetailsLaunchThenNavigate(
 export function gameDetailsEditThenNavigate(
   profileName: string,
   edit: (name: string) => void | Promise<void>,
-  closeModal: () => void,
+  closeModal: () => void
 ): void {
   closeModal();
   void edit(profileName);

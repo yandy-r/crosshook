@@ -1,4 +1,5 @@
 # Plan: Network Isolation for Trainers via `unshare --user --net`
+
 <!-- Updated to reflect shipped behavior: all references use --user --net (not --net alone) -->
 
 ## Summary
@@ -59,12 +60,12 @@ When unshare --user --net is unavailable:
 
 ### Interaction Changes
 
-| Touchpoint              | Before                                        | After                                                       | Notes                                                                      |
-| ----------------------- | --------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Profile TOML `[launch]` | No field                                      | `network_isolation = true`                                  | Default true; backward-compatible via `#[serde(default = "default_true")]` |
+| Touchpoint              | Before                                        | After                                                              | Notes                                                                      |
+| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Profile TOML `[launch]` | No field                                      | `network_isolation = true`                                         | Default true; backward-compatible via `#[serde(default = "default_true")]` |
 | Launch preview          | No mention                                    | Shows `unshare --user --net` in wrapper chain                      | Visible in effective_command string                                        |
 | Trainer launch command  | `mangohud gamemoderun proton run trainer.exe` | `unshare --user --net mangohud gamemoderun proton run trainer.exe` | Prepended as first wrapper                                                 |
-| Game launch command     | Unchanged                                     | Unchanged                                                   | Game processes NOT affected                                                |
+| Game launch command     | Unchanged                                     | Unchanged                                                          | Game processes NOT affected                                                |
 | Validation              | N/A                                           | Warning when `unshare --user --net` unavailable                    | Non-blocking warning severity                                              |
 
 ---
@@ -74,11 +75,11 @@ When unshare --user --net is unavailable:
 | Priority       | File                                                                       | Lines   | Why                                                                                |
 | -------------- | -------------------------------------------------------------------------- | ------- | ---------------------------------------------------------------------------------- |
 | P0 (critical)  | `src/crosshook-native/crates/crosshook-core/src/profile/models.rs`         | 307-341 | `LaunchSection` struct — add `network_isolation` field here                        |
-| P0 (critical)  | `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`   | 206-262 | `build_proton_trainer_command` — prepend `unshare --user --net` to wrappers here          |
+| P0 (critical)  | `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`   | 206-262 | `build_proton_trainer_command` — prepend `unshare --user --net` to wrappers here   |
 | P0 (critical)  | `src/crosshook-native/crates/crosshook-core/src/launch/runtime_helpers.rs` | 25-41   | `new_direct_proton_command_with_wrappers` — how wrapper chain is assembled         |
 | P0 (critical)  | `src/crosshook-native/crates/crosshook-core/src/launch/request.rs`         | 23-59   | `LaunchRequest` struct — add `network_isolation` field                             |
 | P1 (important) | `src/crosshook-native/crates/crosshook-core/src/offline/trainer_type.rs`   | 36-48   | `TrainerTypeEntry.requires_network` field — used to auto-skip isolation            |
-| P1 (important) | `src/crosshook-native/crates/crosshook-core/src/launch/preview.rs`         | 614-676 | `build_effective_command_string` — include `unshare --user --net` in preview              |
+| P1 (important) | `src/crosshook-native/crates/crosshook-core/src/launch/preview.rs`         | 614-676 | `build_effective_command_string` — include `unshare --user --net` in preview       |
 | P1 (important) | `src/crosshook-native/src/types/profile.ts`                                | 92-161  | Frontend `GameProfile` type — add `network_isolation`                              |
 | P2 (reference) | `src/crosshook-native/src-tauri/src/commands/launch.rs`                    | 44-394  | Tauri launch commands — no changes needed, passes `LaunchRequest` through          |
 | P2 (reference) | `src/crosshook-native/crates/crosshook-core/src/settings/mod.rs`           | 126-183 | `AppSettingsData` — reference for how global defaults are structured (not changed) |
@@ -86,10 +87,10 @@ When unshare --user --net is unavailable:
 
 ## External Documentation
 
-| Topic           | Source                  | Key Takeaway                                                                                                                                                              |
-| --------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Topic                  | Source                  | Key Takeaway                                                                                                                                                              |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `unshare --user --net` | `man 1 unshare` (Linux) | Creates isolated network namespace with no interfaces. Works without root when unprivileged user namespaces are enabled (`kernel.unprivileged_userns_clone=1` or sysctl). |
-| User namespaces | kernel docs             | Some distros/kernels disable unprivileged user namespaces for security. The `unshare --user --net` call will fail with EPERM. Must detect and degrade gracefully.                |
+| User namespaces        | kernel docs             | Some distros/kernels disable unprivileged user namespaces for security. The `unshare --user --net` call will fail with EPERM. Must detect and degrade gracefully.         |
 
 ---
 
@@ -195,9 +196,9 @@ mod tests {
 | -------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------ |
 | `src/crosshook-native/crates/crosshook-core/src/profile/models.rs`         | UPDATE | Add `network_isolation: bool` to `LaunchSection`                                                       |
 | `src/crosshook-native/crates/crosshook-core/src/launch/request.rs`         | UPDATE | Add `network_isolation: bool` to `LaunchRequest`; add `UnshareNetUnavailable` validation warning       |
-| `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`   | UPDATE | Prepend `unshare --user --net` to trainer wrappers when `network_isolation` is true                           |
+| `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs`   | UPDATE | Prepend `unshare --user --net` to trainer wrappers when `network_isolation` is true                    |
 | `src/crosshook-native/crates/crosshook-core/src/launch/runtime_helpers.rs` | UPDATE | Add `is_unshare_net_available()` capability check function                                             |
-| `src/crosshook-native/crates/crosshook-core/src/launch/preview.rs`         | UPDATE | Include `unshare --user --net` in effective command preview                                                   |
+| `src/crosshook-native/crates/crosshook-core/src/launch/preview.rs`         | UPDATE | Include `unshare --user --net` in effective command preview                                            |
 | `src/crosshook-native/crates/crosshook-core/src/launch/optimizations.rs`   | UPDATE | Add `unshare` to wrapper chain in `resolve_launch_directives` if needed (or handle in `script_runner`) |
 | `src/crosshook-native/crates/crosshook-core/src/launch/mod.rs`             | UPDATE | Re-export `is_unshare_net_available` if needed                                                         |
 | `src/crosshook-native/src/types/profile.ts`                                | UPDATE | Add `network_isolation?: boolean` to `GameProfile.launch`                                              |
@@ -523,17 +524,17 @@ mod tests {
 
 ### Unit Tests
 
-| Test                                   | Input                | Expected Output                      | Edge Case?              |
-| -------------------------------------- | -------------------- | ------------------------------------ | ----------------------- |
-| TOML without `network_isolation` field | Old profile TOML     | `network_isolation == true`          | Yes - backward compat   |
-| TOML with `network_isolation = false`  | Explicit false       | `network_isolation == false`         | No                      |
-| TOML roundtrip: true omitted           | Profile with `true`  | Field not in serialized TOML         | No                      |
-| TOML roundtrip: false preserved        | Profile with `false` | `network_isolation = false` in TOML  | No                      |
-| `LaunchSection::default()`             | None                 | `network_isolation == true`          | Yes - manual Default    |
+| Test                                   | Input                | Expected Output                             | Edge Case?              |
+| -------------------------------------- | -------------------- | ------------------------------------------- | ----------------------- |
+| TOML without `network_isolation` field | Old profile TOML     | `network_isolation == true`                 | Yes - backward compat   |
+| TOML with `network_isolation = false`  | Explicit false       | `network_isolation == false`                | No                      |
+| TOML roundtrip: true omitted           | Profile with `true`  | Field not in serialized TOML                | No                      |
+| TOML roundtrip: false preserved        | Profile with `false` | `network_isolation = false` in TOML         | No                      |
+| `LaunchSection::default()`             | None                 | `network_isolation == true`                 | Yes - manual Default    |
 | Trainer command with isolation=true    | LaunchRequest        | `unshare --user --net` first in args        | No                      |
-| Trainer command with isolation=false   | LaunchRequest        | No `unshare` in args                 | No                      |
-| Game command with isolation=true       | LaunchRequest        | No `unshare` in args                 | Yes - game NOT isolated |
-| `UnshareNetUnavailable` severity       | Validation error     | `Warning` severity                   | No                      |
+| Trainer command with isolation=false   | LaunchRequest        | No `unshare` in args                        | No                      |
+| Game command with isolation=true       | LaunchRequest        | No `unshare` in args                        | Yes - game NOT isolated |
+| `UnshareNetUnavailable` severity       | Validation error     | `Warning` severity                          | No                      |
 | Preview with isolation=true            | LaunchRequest        | `unshare --user --net` in effective_command | No                      |
 
 ### Edge Cases Checklist
@@ -620,8 +621,8 @@ EXPECT: Build succeeds
 
 | Risk                                                            | Likelihood | Impact   | Mitigation                                                                                                                                         |
 | --------------------------------------------------------------- | ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `unshare --user --net` not available on some distros                   | Medium     | Low      | Graceful fallback with warning; tested on common distros                                                                                           |
-| `unshare --user --net` breaks Wine/Proton internals                    | Low        | Medium   | Trainers run inside Proton which uses wineserver; wineserver should work in isolated namespace since it's a local socket. Test with real trainers. |
+| `unshare --user --net` not available on some distros            | Medium     | Low      | Graceful fallback with warning; tested on common distros                                                                                           |
+| `unshare --user --net` breaks Wine/Proton internals             | Low        | Medium   | Trainers run inside Proton which uses wineserver; wineserver should work in isolated namespace since it's a local socket. Test with real trainers. |
 | Performance overhead of network namespace creation              | Very Low   | Very Low | `unshare` is a lightweight kernel operation; negligible overhead                                                                                   |
 | `steam_applaunch` bash scripts don't support wrapper prepending | Low        | Medium   | `build_trainer_command` passes args to bash script; verify the script respects the wrapper chain. May need to handle separately for steam path.    |
 

@@ -14,12 +14,9 @@ export interface UseGameCoverArtResult {
 export function useGameCoverArt(
   steamAppId: string | undefined,
   customCoverArtPath?: string,
-  imageType?: string,
+  imageType?: string
 ): UseGameCoverArtResult {
-  const normalizedAppId = useMemo(
-    () => normalizeAppId(steamAppId ?? ''),
-    [steamAppId]
-  );
+  const normalizedAppId = useMemo(() => normalizeAppId(steamAppId ?? ''), [steamAppId]);
   const [coverArtUrl, setCoverArtUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const requestIdRef = useRef(0);

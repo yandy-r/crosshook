@@ -190,9 +190,7 @@ export function RuntimeSection({
               }
               placeholder="Optional — used for art and metadata lookup"
               error={
-                !validateSteamAppId(profile.runtime?.steam_app_id ?? '')
-                  ? 'App ID must contain digits only'
-                  : null
+                !validateSteamAppId(profile.runtime?.steam_app_id ?? '') ? 'App ID must contain digits only' : null
               }
             />
 

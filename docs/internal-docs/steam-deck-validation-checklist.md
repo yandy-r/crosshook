@@ -15,18 +15,18 @@ gamescope -W 1280 -H 800 -r 60 -- ./CrossHook_amd64.AppImage
 
 ## Validation checklist
 
-| #  | Check                                                                          | Pass/Fail | Notes |
-| -- | ------------------------------------------------------------------------------ | --------- | ----- |
-| 1  | Sidebar Collections section reachable via D-pad up/down                        |           |       |
-| 2  | A button opens CollectionViewModal; B button closes it                         |           |       |
-| 3  | From a focused library card, **Context/Menu** (or Phase 5 mapped controller combo) opens CollectionAssignMenu on the Steam Deck; UI appears and is navigable with D-pad + A/B/X/Y only |       |       |
-| 4  | ArrowUp/Down inside assign menu walks checkboxes                               |           |       |
-| 5  | Space on focused checkbox toggles membership                                   |           |       |
-| 6  | Escape/B closes assign menu and restores focus to card                         |           |       |
-| 7  | Full JTBD flow requires no mouse or touchpad                                   |           |       |
-| 8  | D-pad inside CollectionViewModal walks library cards without scroll-jank        |           |       |
-| 9  | Right panel scroll in CollectionLaunchDefaultsEditor works via D-pad           |           |       |
-| 10 | Collection import review modal reachable and navigable via D-pad               |           |       |
+| #   | Check                                                                                                                                                                                  | Pass/Fail | Notes |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----- |
+| 1   | Sidebar Collections section reachable via D-pad up/down                                                                                                                                |           |       |
+| 2   | A button opens CollectionViewModal; B button closes it                                                                                                                                 |           |       |
+| 3   | From a focused library card, **Context/Menu** (or Phase 5 mapped controller combo) opens CollectionAssignMenu on the Steam Deck; UI appears and is navigable with D-pad + A/B/X/Y only |           |       |
+| 4   | ArrowUp/Down inside assign menu walks checkboxes                                                                                                                                       |           |       |
+| 5   | Space on focused checkbox toggles membership                                                                                                                                           |           |       |
+| 6   | Escape/B closes assign menu and restores focus to card                                                                                                                                 |           |       |
+| 7   | Full JTBD flow requires no mouse or touchpad                                                                                                                                           |           |       |
+| 8   | D-pad inside CollectionViewModal walks library cards without scroll-jank                                                                                                               |           |       |
+| 9   | Right panel scroll in CollectionLaunchDefaultsEditor works via D-pad                                                                                                                   |           |       |
+| 10  | Collection import review modal reachable and navigable via D-pad                                                                                                                       |           |       |
 
 ## Gotchas
 

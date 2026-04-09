@@ -10,7 +10,9 @@ use rusqlite::{params, OptionalExtension};
 use serde::Deserialize;
 
 use crate::metadata::{MetadataStore, MetadataStoreError};
-use crate::protonup::{ProtonUpAvailableVersion, ProtonUpCacheMeta, ProtonUpCatalogResponse, ProtonUpProvider};
+use crate::protonup::{
+    ProtonUpAvailableVersion, ProtonUpCacheMeta, ProtonUpCatalogResponse, ProtonUpProvider,
+};
 
 const CACHE_TTL_HOURS: i64 = 6;
 const REQUEST_TIMEOUT_SECS: u64 = 10;
@@ -118,8 +120,7 @@ pub async fn list_available_versions(
     match fetch_live_catalog(&cfg).await {
         Ok(versions) => {
             let fetched_at = Utc::now().to_rfc3339();
-            let expires_at =
-                (Utc::now() + ChronoDuration::hours(CACHE_TTL_HOURS)).to_rfc3339();
+            let expires_at = (Utc::now() + ChronoDuration::hours(CACHE_TTL_HOURS)).to_rfc3339();
 
             let response = ProtonUpCatalogResponse {
                 versions,
@@ -197,7 +198,10 @@ fn tarball_stem(name: &str) -> Option<&str> {
 /// architectures; we prefer Linux x86_64 baseline, then x86_64_v3, then any non-ARM `.tar.xz`.
 fn pick_tarball_asset<'a>(assets: &'a [GhAsset], provider_id: &str) -> Option<&'a GhAsset> {
     if provider_id == "proton-cachyos" {
-        let xz: Vec<&GhAsset> = assets.iter().filter(|a| a.name.ends_with(".tar.xz")).collect();
+        let xz: Vec<&GhAsset> = assets
+            .iter()
+            .filter(|a| a.name.ends_with(".tar.xz"))
+            .collect();
 
         let baseline_x86 = xz.iter().find(|a| {
             let n = a.name.as_str();
@@ -222,7 +226,10 @@ fn find_matching_sha512sum<'a>(assets: &'a [GhAsset], tarball_name: &str) -> Opt
     assets.iter().find(|a| a.name == expected)
 }
 
-fn gh_release_to_version(release: GhRelease, provider_id: &str) -> Option<ProtonUpAvailableVersion> {
+fn gh_release_to_version(
+    release: GhRelease,
+    provider_id: &str,
+) -> Option<ProtonUpAvailableVersion> {
     let tarball = pick_tarball_asset(&release.assets, provider_id)?;
 
     let checksum = find_matching_sha512sum(&release.assets, &tarball.name);
@@ -295,8 +302,7 @@ fn parse_cached_row(row: CachedCatalogRow, is_stale: bool) -> Option<ProtonUpCat
         return None;
     }
 
-    let mut response =
-        serde_json::from_str::<ProtonUpCatalogResponse>(&row.payload_json).ok()?;
+    let mut response = serde_json::from_str::<ProtonUpCatalogResponse>(&row.payload_json).ok()?;
 
     response.cache = ProtonUpCacheMeta {
         stale: is_stale,
@@ -330,7 +336,10 @@ fn persist_catalog(
     cfg: &CatalogProviderConfig,
 ) {
     let Ok(payload) = serde_json::to_string(response) else {
-        tracing::warn!(cache_key = cfg.cache_key, "failed to serialize ProtonUp catalog payload");
+        tracing::warn!(
+            cache_key = cfg.cache_key,
+            "failed to serialize ProtonUp catalog payload"
+        );
         return;
     };
 
@@ -451,8 +460,16 @@ mod tests {
         assert_eq!(versions.len(), 1);
         assert_eq!(versions[0].provider, "proton-cachyos");
         assert_eq!(versions[0].version, "cachyos-10.0-20260330-slr");
-        assert!(versions[0].download_url.as_deref().unwrap().ends_with(".tar.xz"));
-        assert!(versions[0].checksum_url.as_deref().unwrap().contains("x86_64.sha512sum"));
+        assert!(versions[0]
+            .download_url
+            .as_deref()
+            .unwrap()
+            .ends_with(".tar.xz"));
+        assert!(versions[0]
+            .checksum_url
+            .as_deref()
+            .unwrap()
+            .contains("x86_64.sha512sum"));
     }
 
     #[test]
@@ -482,8 +499,18 @@ mod tests {
     #[test]
     fn skips_draft_releases() {
         let releases = vec![
-            make_release("GE-Proton9-21", true, false, vec![tar_gz_asset("GE-Proton9-21")]),
-            make_release("GE-Proton9-20", false, false, vec![tar_gz_asset("GE-Proton9-20")]),
+            make_release(
+                "GE-Proton9-21",
+                true,
+                false,
+                vec![tar_gz_asset("GE-Proton9-21")],
+            ),
+            make_release(
+                "GE-Proton9-20",
+                false,
+                false,
+                vec![tar_gz_asset("GE-Proton9-20")],
+            ),
         ];
 
         let versions = parse_releases(releases, "ge-proton");
@@ -494,8 +521,18 @@ mod tests {
     #[test]
     fn skips_prerelease_releases() {
         let releases = vec![
-            make_release("GE-Proton9-21-rc1", false, true, vec![tar_gz_asset("GE-Proton9-21-rc1")]),
-            make_release("GE-Proton9-20", false, false, vec![tar_gz_asset("GE-Proton9-20")]),
+            make_release(
+                "GE-Proton9-21-rc1",
+                false,
+                true,
+                vec![tar_gz_asset("GE-Proton9-21-rc1")],
+            ),
+            make_release(
+                "GE-Proton9-20",
+                false,
+                false,
+                vec![tar_gz_asset("GE-Proton9-20")],
+            ),
         ];
 
         let versions = parse_releases(releases, "ge-proton");

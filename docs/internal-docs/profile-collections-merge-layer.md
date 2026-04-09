@@ -6,15 +6,15 @@ CrossHook resolves launch configuration for a game through a 3-layer precedence 
 
 Defined at `src/crosshook-native/crates/crosshook-core/src/profile/models.rs:409-424`.
 
-| Field                | Type                               | Semantics                                                                                          |
-| -------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `method`             | `Option<String>`                   | Launch method override (`"proton_run"`, `"native"`, etc.). Whitespace-only values are ignored.     |
-| `optimizations`      | `Option<LaunchOptimizationsSection>` | Replaces the profile's launch optimizations wholesale when `Some`.                                |
-| `custom_env_vars`    | `BTreeMap<String, String>`         | Additive merge with profile env vars. Collection keys win on collision; profile-only keys survive. |
-| `network_isolation`  | `Option<bool>`                     | Overrides the profile's network isolation toggle when `Some`.                                      |
-| `gamescope`          | `Option<GamescopeConfig>`          | Overrides the profile's gamescope config when `Some`.                                              |
-| `trainer_gamescope`  | `Option<GamescopeConfig>`          | Overrides the profile's trainer gamescope config when `Some`.                                      |
-| `mangohud`           | `Option<MangoHudConfig>`           | Overrides the profile's MangoHUD config when `Some`.                                               |
+| Field               | Type                                 | Semantics                                                                                          |
+| ------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `method`            | `Option<String>`                     | Launch method override (`"proton_run"`, `"native"`, etc.). Whitespace-only values are ignored.     |
+| `optimizations`     | `Option<LaunchOptimizationsSection>` | Replaces the profile's launch optimizations wholesale when `Some`.                                 |
+| `custom_env_vars`   | `BTreeMap<String, String>`           | Additive merge with profile env vars. Collection keys win on collision; profile-only keys survive. |
+| `network_isolation` | `Option<bool>`                       | Overrides the profile's network isolation toggle when `Some`.                                      |
+| `gamescope`         | `Option<GamescopeConfig>`            | Overrides the profile's gamescope config when `Some`.                                              |
+| `trainer_gamescope` | `Option<GamescopeConfig>`            | Overrides the profile's trainer gamescope config when `Some`.                                      |
+| `mangohud`          | `Option<MangoHudConfig>`             | Overrides the profile's MangoHUD config when `Some`.                                               |
 
 Every `Option<T>` field means "inherit from profile when `None`, replace when `Some`". Fields excluded from collection-level override by design: `presets` and `active_preset` (preset coupling is too complex to override at the collection level).
 
@@ -44,12 +44,12 @@ The collection-aware load path is used only by `CollectionViewModal` and similar
 
 Four tests in `src/crosshook-native/crates/crosshook-core/src/profile/models.rs:1288-1380` cover the merge layer:
 
-| Test name                                                                 | Lines       | Validates                                                                 |
-| ------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------- |
-| `effective_profile_with_none_equals_shim`                                 | 1288-1299   | Passing `None` produces the same result as the existing shim              |
-| `effective_profile_with_merges_collection_defaults_between_base_and_local_override` | 1302-1339   | Collection defaults apply between base and local override; env var collision semantics |
-| `effective_profile_with_none_fields_do_not_overwrite_profile`             | 1342-1365   | Empty defaults (all `None`) leave the profile unchanged                   |
-| `effective_profile_with_ignores_whitespace_only_method`                   | 1368-1380   | Whitespace-only `method` does not clobber the profile's launch method     |
+| Test name                                                                           | Lines     | Validates                                                                              |
+| ----------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------- |
+| `effective_profile_with_none_equals_shim`                                           | 1288-1299 | Passing `None` produces the same result as the existing shim                           |
+| `effective_profile_with_merges_collection_defaults_between_base_and_local_override` | 1302-1339 | Collection defaults apply between base and local override; env var collision semantics |
+| `effective_profile_with_none_fields_do_not_overwrite_profile`                       | 1342-1365 | Empty defaults (all `None`) leave the profile unchanged                                |
+| `effective_profile_with_ignores_whitespace_only_method`                             | 1368-1380 | Whitespace-only `method` does not clobber the profile's launch method                  |
 
 Run with:
 

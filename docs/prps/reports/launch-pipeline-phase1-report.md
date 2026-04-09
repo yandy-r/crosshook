@@ -6,43 +6,43 @@ Implemented the `LaunchPipeline` horizontal stepper (Tier 1 config-derived node 
 
 ## Assessment vs Reality
 
-| Metric        | Predicted (Plan) | Actual |
-| ------------- | ---------------- | ------ |
+| Metric        | Predicted (Plan) | Actual     |
+| ------------- | ---------------- | ---------- |
 | Complexity    | Low–medium       | Low–medium |
-| Confidence    | High             | High |
-| Files Changed | 6                | 6 |
+| Confidence    | High             | High       |
+| Files Changed | 6                | 6          |
 
 ## Tasks Completed
 
-| #   | Task                                      | Status          | Notes |
-| --- | ----------------------------------------- | --------------- | ----- |
-| 1   | Types `PipelineNode` / `PipelineNodeStatus` | Complete        | Appended to `types/launch.ts` |
-| 2   | `derivePipelineNodes()`                   | Complete        | `utils/derivePipelineNodes.ts` |
-| 3   | `LaunchPipeline.tsx`                      | Complete        | `aria-current="step"` on current step |
-| 4   | `launch-pipeline.css`                     | Complete        | Responsive + status tokens |
-| 5   | `LaunchPanel.tsx` integration           | Complete        | `profile` prop; runner-stack retained for spacing |
-| 6   | `LaunchPage.tsx` pass `profile`           | Complete        | Only call site |
-| 7   | Validation                                | Complete        | `tsc`, `npm run build`, `cargo test -p crosshook-core` |
+| #   | Task                                        | Status   | Notes                                                  |
+| --- | ------------------------------------------- | -------- | ------------------------------------------------------ |
+| 1   | Types `PipelineNode` / `PipelineNodeStatus` | Complete | Appended to `types/launch.ts`                          |
+| 2   | `derivePipelineNodes()`                     | Complete | `utils/derivePipelineNodes.ts`                         |
+| 3   | `LaunchPipeline.tsx`                        | Complete | `aria-current="step"` on current step                  |
+| 4   | `launch-pipeline.css`                       | Complete | Responsive + status tokens                             |
+| 5   | `LaunchPanel.tsx` integration               | Complete | `profile` prop; runner-stack retained for spacing      |
+| 6   | `LaunchPage.tsx` pass `profile`             | Complete | Only call site                                         |
+| 7   | Validation                                  | Complete | `tsc`, `npm run build`, `cargo test -p crosshook-core` |
 
 ## Validation Results
 
-| Level           | Status | Notes |
-| --------------- | ------ | ----- |
-| Static Analysis | Pass   | `npx tsc --noEmit` |
-| Unit Tests      | N/A    | No new TS unit harness; Rust unchanged |
-| Build           | Pass   | `npm run build` (tsc + vite) |
+| Level           | Status | Notes                                    |
+| --------------- | ------ | ---------------------------------------- |
+| Static Analysis | Pass   | `npx tsc --noEmit`                       |
+| Unit Tests      | N/A    | No new TS unit harness; Rust unchanged   |
+| Build           | Pass   | `npm run build` (tsc + vite)             |
 | Integration     | N/A    | Manual smoke per plan (browser dev mode) |
-| Edge Cases      | N/A    | As above |
+| Edge Cases      | N/A    | As above                                 |
 
 ## Files Changed
 
-| File | Action |
-| ---- | ------ |
-| `src/crosshook-native/src/types/launch.ts` | UPDATED |
-| `src/crosshook-native/src/utils/derivePipelineNodes.ts` | CREATED |
-| `src/crosshook-native/src/components/LaunchPipeline.tsx` | CREATED |
-| `src/crosshook-native/src/styles/launch-pipeline.css` | CREATED |
-| `src/crosshook-native/src/components/LaunchPanel.tsx` | UPDATED |
+| File                                                       | Action  |
+| ---------------------------------------------------------- | ------- |
+| `src/crosshook-native/src/types/launch.ts`                 | UPDATED |
+| `src/crosshook-native/src/utils/derivePipelineNodes.ts`    | CREATED |
+| `src/crosshook-native/src/components/LaunchPipeline.tsx`   | CREATED |
+| `src/crosshook-native/src/styles/launch-pipeline.css`      | CREATED |
+| `src/crosshook-native/src/components/LaunchPanel.tsx`      | UPDATED |
 | `src/crosshook-native/src/components/pages/LaunchPage.tsx` | UPDATED |
 
 ## Deviations from Plan
@@ -56,8 +56,8 @@ None.
 
 ## Tests Written
 
-| Test File | Tests | Coverage |
-| --------- | ----- | -------- |
+| Test File | Tests | Coverage                                                            |
+| --------- | ----- | ------------------------------------------------------------------- |
 | —         | —     | Plan did not require new TS tests; `crosshook-core` tests unchanged |
 
 ## Next Steps

@@ -349,13 +349,9 @@ export interface CollectionDefaults {
 }
 
 /** Returns true when no field of `d` would influence the merge layer. */
-export function isCollectionDefaultsEmpty(
-  d: CollectionDefaults | null | undefined
-): boolean {
+export function isCollectionDefaultsEmpty(d: CollectionDefaults | null | undefined): boolean {
   if (!d) return true;
-  const methodUnset =
-    d.method === undefined ||
-    (typeof d.method === 'string' && d.method.trim() === '');
+  const methodUnset = d.method === undefined || (typeof d.method === 'string' && d.method.trim() === '');
   return (
     methodUnset &&
     d.optimizations === undefined &&

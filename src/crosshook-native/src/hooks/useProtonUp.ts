@@ -94,13 +94,10 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
 
     async function fetchCatalog() {
       try {
-        const response = await callCommand<ProtonUpCatalogResponse>(
-          'protonup_list_available_versions',
-          {
-            provider: catalogProvider,
-            forceRefresh: fetchVersion > 0,
-          },
-        );
+        const response = await callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
+          provider: catalogProvider,
+          forceRefresh: fetchVersion > 0,
+        });
 
         if (!active) {
           return;
@@ -135,34 +132,30 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
     setFetchVersion((current) => current + 1);
   }, []);
 
-  const installVersion = useCallback(
-    async (request: ProtonUpInstallRequest): Promise<ProtonUpInstallResult> => {
-      setInstalling(true);
-      try {
-        const result = await callCommand<ProtonUpInstallResult>('protonup_install_version', {
-          request,
-        });
-        return result;
-      } catch (error) {
-        return {
-          success: false,
-          error_kind: 'unknown',
-          error_message: normalizeError(error),
-        };
-      } finally {
-        setInstalling(false);
-      }
-    },
-    [],
-  );
+  const installVersion = useCallback(async (request: ProtonUpInstallRequest): Promise<ProtonUpInstallResult> => {
+    setInstalling(true);
+    try {
+      const result = await callCommand<ProtonUpInstallResult>('protonup_install_version', {
+        request,
+      });
+      return result;
+    } catch (error) {
+      return {
+        success: false,
+        error_kind: 'unknown',
+        error_message: normalizeError(error),
+      };
+    } finally {
+      setInstalling(false);
+    }
+  }, []);
 
   const getSuggestion = useCallback(
     async (communityVersion: string): Promise<ProtonUpSuggestion> => {
       try {
         return await callCommand<ProtonUpSuggestion>('protonup_get_suggestion', {
           communityVersion,
-          steamClientInstallPath:
-            steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
+          steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
         });
       } catch (error) {
         return {
@@ -171,7 +164,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
         };
       }
     },
-    [steamClientInstallPath],
+    [steamClientInstallPath]
   );
 
   return {

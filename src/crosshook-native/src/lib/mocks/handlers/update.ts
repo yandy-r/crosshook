@@ -31,9 +31,7 @@ export function registerUpdate(map: Map<string, Handler>): void {
 
     // Guard: reject if already running
     if (updateInFlight !== null) {
-      throw new Error(
-        `[dev-mock] update already in flight for profile "${updateInFlight}"`,
-      );
+      throw new Error(`[dev-mock] update already in flight for profile "${updateInFlight}"`);
     }
 
     validateRequest(request);

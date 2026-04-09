@@ -45,9 +45,7 @@ impl RunExecutableProcessState {
 /// Locks `info` and silently recovers from poisoning. A panicking previous
 /// handler must not permanently disable the cancel/stop pathway for the
 /// rest of the session.
-fn lock_info(
-    state: &RunExecutableProcessState,
-) -> MutexGuard<'_, Option<RunningProcessInfo>> {
+fn lock_info(state: &RunExecutableProcessState) -> MutexGuard<'_, Option<RunningProcessInfo>> {
     state
         .info
         .lock()

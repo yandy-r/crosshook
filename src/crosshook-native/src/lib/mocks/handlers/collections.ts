@@ -6,10 +6,7 @@
 import type { Handler } from './types';
 import { getStore } from '../store';
 
-import type {
-  CollectionExportResult,
-  CollectionImportPreview,
-} from '../../../types/collections';
+import type { CollectionExportResult, CollectionImportPreview } from '../../../types/collections';
 import type { CollectionDefaults } from '../../../types/profile';
 
 // Shape mirrors Rust `CollectionRow` in
@@ -74,9 +71,7 @@ function isDefaultsEmpty(d: MockCollectionDefaults | undefined | null): boolean 
 }
 
 /** Used by the profile_load mock to apply collection defaults to a loaded profile. */
-export function getMockCollectionDefaults(
-  collectionId: string
-): MockCollectionDefaults | undefined {
+export function getMockCollectionDefaults(collectionId: string): MockCollectionDefaults | undefined {
   const d = mockDefaults.get(collectionId);
   return d ? cloneMockDefaults(d) : undefined;
 }
@@ -149,9 +144,7 @@ export function registerCollections(map: Map<string, Handler>): void {
       profileName: string;
     };
     if (!findById(collectionId)) {
-      throw new Error(
-        `[dev-mock] collection_add_profile: collection not found: ${collectionId}`
-      );
+      throw new Error(`[dev-mock] collection_add_profile: collection not found: ${collectionId}`);
     }
     const trimmed = (profileName ?? '').trim();
     if (!trimmed) {
@@ -159,9 +152,7 @@ export function registerCollections(map: Map<string, Handler>): void {
     }
     const store = getStore();
     if (!store.profiles.has(trimmed)) {
-      throw new Error(
-        `[dev-mock] collection_add_profile: profile not found: ${trimmed}`
-      );
+      throw new Error(`[dev-mock] collection_add_profile: profile not found: ${trimmed}`);
     }
     const set = membership.get(collectionId) ?? new Set<string>();
     set.add(trimmed);
@@ -199,11 +190,7 @@ export function registerCollections(map: Map<string, Handler>): void {
     if (!target) {
       throw new Error(`[dev-mock] collection_rename: collection not found: ${collectionId}`);
     }
-    if (
-      collections.some(
-        (c) => c.collection_id !== collectionId && c.name.toLowerCase() === trimmed.toLowerCase()
-      )
-    ) {
+    if (collections.some((c) => c.collection_id !== collectionId && c.name.toLowerCase() === trimmed.toLowerCase())) {
       throw new Error(`[dev-mock] collection_rename: duplicate collection name: ${trimmed}`);
     }
     target.name = trimmed;
@@ -218,9 +205,7 @@ export function registerCollections(map: Map<string, Handler>): void {
     };
     const target = findById(collectionId);
     if (!target) {
-      throw new Error(
-        `[dev-mock] collection_update_description: collection not found: ${collectionId}`
-      );
+      throw new Error(`[dev-mock] collection_update_description: collection not found: ${collectionId}`);
     }
     const normalized = description?.trim();
     target.description = normalized ? normalized : null;
@@ -237,19 +222,14 @@ export function registerCollections(map: Map<string, Handler>): void {
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 
-  map.set(
-    'collection_get_defaults',
-    async (args): Promise<MockCollectionDefaults | null> => {
-      const { collectionId } = args as { collectionId: string };
-      if (!findById(collectionId)) {
-        throw new Error(
-          `[dev-mock] collection_get_defaults: collection not found: ${collectionId}`
-        );
-      }
-      const d = mockDefaults.get(collectionId);
-      return d && !isDefaultsEmpty(d) ? cloneMockDefaults(d) : null;
+  map.set('collection_get_defaults', async (args): Promise<MockCollectionDefaults | null> => {
+    const { collectionId } = args as { collectionId: string };
+    if (!findById(collectionId)) {
+      throw new Error(`[dev-mock] collection_get_defaults: collection not found: ${collectionId}`);
     }
-  );
+    const d = mockDefaults.get(collectionId);
+    return d && !isDefaultsEmpty(d) ? cloneMockDefaults(d) : null;
+  });
 
   map.set('collection_set_defaults', async (args): Promise<null> => {
     const { collectionId, defaults } = args as {
@@ -258,9 +238,7 @@ export function registerCollections(map: Map<string, Handler>): void {
     };
     const target = findById(collectionId);
     if (!target) {
-      throw new Error(
-        `[dev-mock] collection_set_defaults: collection not found: ${collectionId}`
-      );
+      throw new Error(`[dev-mock] collection_set_defaults: collection not found: ${collectionId}`);
     }
     if (defaults === null || isDefaultsEmpty(defaults)) {
       mockDefaults.delete(collectionId);

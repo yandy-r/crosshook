@@ -91,10 +91,7 @@ export function isLaunchValidationIssue(value: unknown): value is LaunchValidati
   if (candidate.trainer_hash_current !== undefined && typeof candidate.trainer_hash_current !== 'string') {
     return false;
   }
-  if (
-    candidate.trainer_sha256_community !== undefined &&
-    typeof candidate.trainer_sha256_community !== 'string'
-  ) {
+  if (candidate.trainer_sha256_community !== undefined && typeof candidate.trainer_sha256_community !== 'string') {
     return false;
   }
   return true;
@@ -158,14 +155,7 @@ export interface LaunchPreview {
 }
 
 /** Stable identifier union for pipeline nodes. */
-export type PipelineNodeId =
-  | 'game'
-  | 'wine-prefix'
-  | 'proton'
-  | 'steam'
-  | 'trainer'
-  | 'optimizations'
-  | 'launch';
+export type PipelineNodeId = 'game' | 'wine-prefix' | 'proton' | 'steam' | 'trainer' | 'optimizations' | 'launch';
 
 /** Status of a single pipeline node. */
 export type PipelineNodeStatus = 'configured' | 'not-configured' | 'error' | 'active' | 'complete';

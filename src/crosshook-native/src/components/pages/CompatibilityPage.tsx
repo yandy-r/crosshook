@@ -7,11 +7,7 @@ import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { useCommunityProfiles } from '../../hooks/useCommunityProfiles';
 import { useProtonInstalls } from '../../hooks/useProtonInstalls';
 import { useProtonUp } from '../../hooks/useProtonUp';
-import type {
-  ProtonUpAvailableVersion,
-  ProtonUpInstallResult,
-  ProtonUpProvider,
-} from '../../types/protonup';
+import type { ProtonUpAvailableVersion, ProtonUpInstallResult, ProtonUpProvider } from '../../types/protonup';
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
 const DEFAULT_COMPAT_TOOLS_DIR = '~/.local/share/Steam/compatibilitytools.d';
@@ -51,10 +47,7 @@ function ProtonVersionsPanel() {
   const [installResult, setInstallResult] = useState<ProtonUpInstallResult | null>(null);
   const [installingVersion, setInstallingVersion] = useState<string | null>(null);
 
-  const installedNames = useMemo(
-    () => new Set(installs.map((i) => normalizeForComparison(i.name))),
-    [installs],
-  );
+  const installedNames = useMemo(() => new Set(installs.map((i) => normalizeForComparison(i.name))), [installs]);
 
   const handleInstall = useCallback(
     async (version: ProtonUpAvailableVersion) => {
@@ -72,7 +65,7 @@ function ProtonVersionsPanel() {
         reloadInstalls();
       }
     },
-    [protonUp, reloadInstalls],
+    [protonUp, reloadInstalls]
   );
 
   const dismissResult = useCallback(() => setInstallResult(null), []);

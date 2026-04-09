@@ -208,7 +208,9 @@ fn validate_optional_custom_cover_art_path(path: &str) -> Result<(), InstallGame
     Ok(())
 }
 
-fn validate_optional_custom_portrait_art_path(path: &str) -> Result<(), InstallGameValidationError> {
+fn validate_optional_custom_portrait_art_path(
+    path: &str,
+) -> Result<(), InstallGameValidationError> {
     if path.is_empty() {
         return Ok(());
     }
@@ -224,7 +226,9 @@ fn validate_optional_custom_portrait_art_path(path: &str) -> Result<(), InstallG
     Ok(())
 }
 
-fn validate_optional_custom_background_art_path(path: &str) -> Result<(), InstallGameValidationError> {
+fn validate_optional_custom_background_art_path(
+    path: &str,
+) -> Result<(), InstallGameValidationError> {
     if path.is_empty() {
         return Ok(());
     }

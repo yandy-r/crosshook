@@ -126,25 +126,22 @@ export function PreferencesProvider({ children, activeProfileName }: Preferences
     [activeProfileName, persistSettings, settings.last_used_profile]
   );
 
-  const handleSteamGridDbApiKeyChange = useCallback(
-    async (key: string) => {
-      const trimmedKey = key.trim();
-      const keyOrNull = trimmedKey.length > 0 ? trimmedKey : null;
+  const handleSteamGridDbApiKeyChange = useCallback(async (key: string) => {
+    const trimmedKey = key.trim();
+    const keyOrNull = trimmedKey.length > 0 ? trimmedKey : null;
 
-      try {
-        await callCommand('settings_save_steamgriddb_key', { key: keyOrNull });
-        setSettings((previous) => ({
-          ...previous,
-          has_steamgriddb_api_key: keyOrNull !== null,
-        }));
-        setSettingsError(null);
-      } catch (error) {
-        setSettingsError(formatError(error));
-        throw error;
-      }
-    },
-    []
-  );
+    try {
+      await callCommand('settings_save_steamgriddb_key', { key: keyOrNull });
+      setSettings((previous) => ({
+        ...previous,
+        has_steamgriddb_api_key: keyOrNull !== null,
+      }));
+      setSettingsError(null);
+    } catch (error) {
+      setSettingsError(formatError(error));
+      throw error;
+    }
+  }, []);
 
   const clearRecentFiles = useCallback(async () => {
     const nextRecentFiles = {

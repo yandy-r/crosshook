@@ -66,8 +66,7 @@ export function registerProtonUp(map: Map<string, Handler>): void {
   map.set('protonup_list_available_versions', async (args): Promise<ProtonUpCatalogResponse> => {
     const { provider } = (args ?? {}) as { provider?: string; forceRefresh?: boolean };
 
-    const versions =
-      provider === 'proton-cachyos' ? CACHYOS_VERSIONS : GE_PROTON_VERSIONS;
+    const versions = provider === 'proton-cachyos' ? CACHYOS_VERSIONS : GE_PROTON_VERSIONS;
 
     return {
       versions,
@@ -82,8 +81,7 @@ export function registerProtonUp(map: Map<string, Handler>): void {
       throw new Error('[dev-mock] protonup_install_version: missing required request fields');
     }
 
-    const catalog =
-      request.provider === 'proton-cachyos' ? CACHYOS_VERSIONS : GE_PROTON_VERSIONS;
+    const catalog = request.provider === 'proton-cachyos' ? CACHYOS_VERSIONS : GE_PROTON_VERSIONS;
 
     const found = catalog.some((v) => v.version === request.version && v.provider === request.provider);
 
@@ -120,8 +118,8 @@ export function registerProtonUp(map: Map<string, Handler>): void {
 
     // Simulate a match against the GE-Proton synthetic catalog
     const lowerVersion = version.toLowerCase();
-    const matched = GE_PROTON_VERSIONS.find((v) =>
-      v.version.toLowerCase().includes(lowerVersion) || lowerVersion.includes(v.version.toLowerCase()),
+    const matched = GE_PROTON_VERSIONS.find(
+      (v) => v.version.toLowerCase().includes(lowerVersion) || lowerVersion.includes(v.version.toLowerCase())
     );
 
     if (matched) {

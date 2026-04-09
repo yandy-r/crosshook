@@ -1,12 +1,5 @@
 import { createPortal } from 'react-dom';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type MouseEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type MouseEvent } from 'react';
 
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 
@@ -21,10 +14,7 @@ export interface BrowserDevPresetExplainerModalProps {
   onContinue: () => void | Promise<void>;
 }
 
-const COPY: Record<
-  BrowserDevPresetExplainerMode,
-  { title: string; paragraphs: string[]; continueLabel: string }
-> = {
+const COPY: Record<BrowserDevPresetExplainerMode, { title: string; paragraphs: string[]; continueLabel: string }> = {
   import: {
     title: 'Import Preset',
     paragraphs: [
@@ -54,17 +44,7 @@ const COPY: Record<
  */
 function renderParagraph(text: string) {
   const parts = text.split(/\*\*(.+?)\*\*/g);
-  return (
-    <p>
-      {parts.map((part, i) =>
-        i % 2 === 1 ? (
-          <strong key={i}>{part}</strong>
-        ) : (
-          <span key={i}>{part}</span>
-        )
-      )}
-    </p>
-  );
+  return <p>{parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>))}</p>;
 }
 
 export function BrowserDevPresetExplainerModal({
@@ -126,10 +106,7 @@ export function BrowserDevPresetExplainerModal({
   }
 
   const node = (
-    <div
-      className="crosshook-modal crosshook-browser-dev-preset-explainer"
-      role="presentation"
-    >
+    <div className="crosshook-modal crosshook-browser-dev-preset-explainer" role="presentation">
       <div
         className="crosshook-modal__backdrop"
         aria-hidden="true"
@@ -183,12 +160,7 @@ export function BrowserDevPresetExplainerModal({
             >
               Cancel
             </button>
-            <button
-              type="button"
-              className="crosshook-button"
-              disabled={busy}
-              onClick={() => void handleContinue()}
-            >
+            <button type="button" className="crosshook-button" disabled={busy} onClick={() => void handleContinue()}>
               {continueLabel}
             </button>
           </div>

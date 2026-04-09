@@ -11,10 +11,9 @@ let mocksPromise: Promise<Map<string, Handler>> | null = null;
 
 async function ensureMocks(): Promise<Map<string, Handler>> {
   if (mocksPromise !== null) return mocksPromise;
-  mocksPromise =
-    (import(/* @vite-ignore */ './mocks') as Promise<{ registerMocks: () => Map<string, Handler> }>).then((m) =>
-      m.registerMocks(),
-    );
+  mocksPromise = (import(/* @vite-ignore */ './mocks') as Promise<{ registerMocks: () => Map<string, Handler> }>).then(
+    (m) => m.registerMocks()
+  );
   return mocksPromise;
 }
 
@@ -23,7 +22,7 @@ export async function runMockCommand<T>(name: string, args?: InvokeArgs): Promis
   const handler = map.get(name);
   if (!handler) {
     throw new Error(
-      `[dev-mock] Unhandled command: ${name}. Add a handler in src/lib/mocks/handlers/<area>.ts — see lib/mocks/README.md`,
+      `[dev-mock] Unhandled command: ${name}. Add a handler in src/lib/mocks/handlers/<area>.ts — see lib/mocks/README.md`
     );
   }
   if (import.meta.env.DEV) {

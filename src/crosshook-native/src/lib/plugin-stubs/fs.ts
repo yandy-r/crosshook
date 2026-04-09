@@ -65,10 +65,7 @@ const STUB_FILE_INFO: FileInfo = {
  * In Tauri mode delegates to the real plugin.
  * In browser mode returns an empty Uint8Array and warns.
  */
-export async function readFile(
-  path: string | URL,
-  options?: ReadFileOptions,
-): Promise<Uint8Array<ArrayBuffer>> {
+export async function readFile(path: string | URL, options?: ReadFileOptions): Promise<Uint8Array<ArrayBuffer>> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.readFile(path, options);
@@ -81,10 +78,7 @@ export async function readFile(
  * In Tauri mode delegates to the real plugin.
  * In browser mode returns an empty string and warns.
  */
-export async function readTextFile(
-  path: string | URL,
-  options?: ReadFileOptions,
-): Promise<string> {
+export async function readTextFile(path: string | URL, options?: ReadFileOptions): Promise<string> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.readTextFile(path, options);
@@ -97,10 +91,7 @@ export async function readTextFile(
  * In Tauri mode delegates to the real plugin.
  * In browser mode returns an empty array and warns.
  */
-export async function readDir(
-  path: string | URL,
-  options?: ReadDirOptions,
-): Promise<DirEntry[]> {
+export async function readDir(path: string | URL, options?: ReadDirOptions): Promise<DirEntry[]> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.readDir(path, options);
@@ -113,10 +104,7 @@ export async function readDir(
  * In Tauri mode delegates to the real plugin.
  * In browser mode returns false and warns.
  */
-export async function exists(
-  path: string | URL,
-  options?: ExistsOptions,
-): Promise<boolean> {
+export async function exists(path: string | URL, options?: ExistsOptions): Promise<boolean> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.exists(path, options);
@@ -129,10 +117,7 @@ export async function exists(
  * In Tauri mode delegates to the real plugin.
  * In browser mode returns a minimal synthetic FileInfo and warns.
  */
-export async function stat(
-  path: string | URL,
-  options?: StatOptions,
-): Promise<FileInfo> {
+export async function stat(path: string | URL, options?: StatOptions): Promise<FileInfo> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.stat(path, options);
@@ -145,10 +130,7 @@ export async function stat(
  * In Tauri mode delegates to the real plugin.
  * In browser mode returns a minimal synthetic FileInfo and warns.
  */
-export async function lstat(
-  path: string | URL,
-  options?: StatOptions,
-): Promise<FileInfo> {
+export async function lstat(path: string | URL, options?: StatOptions): Promise<FileInfo> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.lstat(path, options);
@@ -168,7 +150,7 @@ export async function lstat(
 export async function writeFile(
   path: string | URL,
   data: Uint8Array | ReadableStream<Uint8Array>,
-  options?: WriteFileOptions,
+  options?: WriteFileOptions
 ): Promise<void> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
@@ -181,11 +163,7 @@ export async function writeFile(
  * In Tauri mode delegates to the real plugin.
  * In browser mode throws — silent no-ops would mask install/update flow bugs.
  */
-export async function writeTextFile(
-  path: string | URL,
-  data: string,
-  options?: WriteFileOptions,
-): Promise<void> {
+export async function writeTextFile(path: string | URL, data: string, options?: WriteFileOptions): Promise<void> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.writeTextFile(path, data, options);
@@ -198,10 +176,7 @@ export async function writeTextFile(
  * In Tauri mode delegates to the real plugin.
  * In browser mode throws.
  */
-export async function remove(
-  path: string | URL,
-  options?: RemoveOptions,
-): Promise<void> {
+export async function remove(path: string | URL, options?: RemoveOptions): Promise<void> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.remove(path, options);
@@ -213,11 +188,7 @@ export async function remove(
  * In Tauri mode delegates to the real plugin.
  * In browser mode throws.
  */
-export async function rename(
-  oldPath: string | URL,
-  newPath: string | URL,
-  options?: RenameOptions,
-): Promise<void> {
+export async function rename(oldPath: string | URL, newPath: string | URL, options?: RenameOptions): Promise<void> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.rename(oldPath, newPath, options);
@@ -230,10 +201,7 @@ export async function rename(
  * In Tauri mode delegates to the real plugin.
  * In browser mode throws.
  */
-export async function mkdir(
-  path: string | URL,
-  options?: MkdirOptions,
-): Promise<void> {
+export async function mkdir(path: string | URL, options?: MkdirOptions): Promise<void> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.mkdir(path, options);
@@ -245,11 +213,7 @@ export async function mkdir(
  * In Tauri mode delegates to the real plugin.
  * In browser mode throws.
  */
-export async function copyFile(
-  fromPath: string | URL,
-  toPath: string | URL,
-  options?: CopyFileOptions,
-): Promise<void> {
+export async function copyFile(fromPath: string | URL, toPath: string | URL, options?: CopyFileOptions): Promise<void> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.copyFile(fromPath, toPath, options);
@@ -261,11 +225,7 @@ export async function copyFile(
  * In Tauri mode delegates to the real plugin.
  * In browser mode throws.
  */
-export async function truncate(
-  path: string | URL,
-  len?: number,
-  options?: TruncateOptions,
-): Promise<void> {
+export async function truncate(path: string | URL, len?: number, options?: TruncateOptions): Promise<void> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.truncate(path, len, options);
@@ -278,10 +238,7 @@ export async function truncate(
  * In Tauri mode delegates to the real plugin.
  * In browser mode throws.
  */
-export async function open(
-  path: string | URL,
-  options?: OpenOptions,
-): Promise<FileHandle> {
+export async function open(path: string | URL, options?: OpenOptions): Promise<FileHandle> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.open(path, options);
@@ -294,10 +251,7 @@ export async function open(
  * In Tauri mode delegates to the real plugin.
  * In browser mode throws.
  */
-export async function create(
-  path: string | URL,
-  options?: CreateOptions,
-): Promise<FileHandle> {
+export async function create(path: string | URL, options?: CreateOptions): Promise<FileHandle> {
   if (isTauri()) {
     const real = await import('@tauri-apps/plugin-fs');
     return real.create(path, options);

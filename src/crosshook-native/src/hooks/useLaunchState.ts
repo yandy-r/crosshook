@@ -199,7 +199,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
 
   useEffect(() => {
     const gamePath = request?.game_path?.trim() ?? '';
-    const exeName = gamePath ? gamePath.split(/[\\/]/).pop() ?? '' : '';
+    const exeName = gamePath ? (gamePath.split(/[\\/]/).pop() ?? '') : '';
 
     if (!exeName) {
       setIsGameRunning(false);

@@ -15,12 +15,7 @@
 /** Valid fixture states. Unknown query values fall back to `populated`. */
 export type FixtureState = 'populated' | 'empty' | 'error' | 'loading';
 
-const VALID_FIXTURES: ReadonlySet<FixtureState> = new Set([
-  'populated',
-  'empty',
-  'error',
-  'loading',
-]);
+const VALID_FIXTURES: ReadonlySet<FixtureState> = new Set(['populated', 'empty', 'error', 'loading']);
 
 function readFixtureFromUrl(): FixtureState {
   // Defensive: avoid touching `window` in environments where it does not exist

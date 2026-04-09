@@ -95,7 +95,7 @@ throw new Error('[dev-mock] profile not found: ' + id);
 import { getStore, resetStore } from '../store';
 
 const store = getStore(); // initialises on first access
-resetStore();             // wipes state; next getStore() returns a fresh copy
+resetStore(); // wipes state; next getStore() returns a fresh copy
 ```
 
 **HMR behaviour**: Vite HMR resets the store on any handler edit — you get clean
@@ -126,12 +126,12 @@ Select a named fixture scenario via the URL query parameter `?fixture=<name>`.
 Parsed once at module init in `lib/fixture.ts` (so a reload is required to
 change it) and dispatched per-handler. Unknown values fall back to `populated`.
 
-| Value         | Behavior                                                                       |
-| ------------- | ------------------------------------------------------------------------------ |
-| `populated`   | Default. Returns demo data with seeded profiles, settings, and history.        |
-| `empty`       | Empty arrays / `null` for list/load handlers. Mutations still succeed.         |
-| `error`       | Fallible commands throw `[dev-mock] forced error`. Shell-critical reads still resolve (BR-11). |
-| `loading`     | Non-shell-critical handlers return a never-resolving promise so loading UIs stay visible. |
+| Value       | Behavior                                                                                       |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| `populated` | Default. Returns demo data with seeded profiles, settings, and history.                        |
+| `empty`     | Empty arrays / `null` for list/load handlers. Mutations still succeed.                         |
+| `error`     | Fallible commands throw `[dev-mock] forced error`. Shell-critical reads still resolve (BR-11). |
+| `loading`   | Non-shell-critical handlers return a never-resolving promise so loading UIs stay visible.      |
 
 The chip label reflects the active fixture, e.g. `DEV · empty`.
 
@@ -143,11 +143,11 @@ Three orthogonal toggles can be combined freely with each other AND with the
 fixture switcher above. Like `?fixture=`, they are parsed once at module init
 (in `lib/toggles.ts`) and a reload is required to change them.
 
-| Toggle              | Effect                                                                                   |
-| ------------------- | ---------------------------------------------------------------------------------------- |
-| `?delay=<ms>`       | Adds `setTimeout(<ms>)` artificial latency before EVERY mock handler runs.               |
-| `?errors=true`      | Rejects mutating commands with a synthetic `[dev-mock] forced error`. Reads succeed.    |
-| `?onboarding=show`  | Synthesizes an `onboarding-check` event 500ms after mount so the wizard surfaces.        |
+| Toggle             | Effect                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| `?delay=<ms>`      | Adds `setTimeout(<ms>)` artificial latency before EVERY mock handler runs.           |
+| `?errors=true`     | Rejects mutating commands with a synthetic `[dev-mock] forced error`. Reads succeed. |
+| `?onboarding=show` | Synthesizes an `onboarding-check` event 500ms after mount so the wizard surfaces.    |
 
 `?delay` and `?errors` are implemented as a `wrapHandler()` middleware in
 `lib/mocks/wrapHandler.ts` that wraps every registered handler exactly once

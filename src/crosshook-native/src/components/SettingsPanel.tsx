@@ -260,7 +260,9 @@ function PrefixStorageSummary({
         <strong>Last scan:</strong>
         <span>{formatTimestamp(scannedAt)}</span>
         {scanSource ? (
-          <span className={`crosshook-health-chip crosshook-health-chip--${scanSource === 'live' ? 'healthy' : 'warning'}`}>
+          <span
+            className={`crosshook-health-chip crosshook-health-chip--${scanSource === 'live' ? 'healthy' : 'warning'}`}
+          >
             {scanSource === 'live' ? 'Live' : 'Cached'}
           </span>
         ) : null}
@@ -447,8 +449,16 @@ function PrefixStorageCleanupHistory({ entries }: { entries: PrefixStorageCleanu
 
 function PrefixStorageHealthSection() {
   const {
-    scanResult, scanLoading, cleanupLoading, error, scanStorage, cleanupStorage,
-    scanSource, persistenceAvailable, auditEntries, loadHistory,
+    scanResult,
+    scanLoading,
+    cleanupLoading,
+    error,
+    scanStorage,
+    cleanupStorage,
+    scanSource,
+    persistenceAvailable,
+    auditEntries,
+    loadHistory,
   } = usePrefixStorageManagement();
   const [confirmAction, setConfirmAction] = useState<PrefixCleanupTargetKind | null>(null);
   const [cleanupResult, setCleanupResult] = useState<PrefixCleanupResult | null>(null);
@@ -565,11 +575,7 @@ function PrefixStorageHealthSection() {
       )}
 
       {persistenceAvailable && auditEntries.length > 0 ? (
-        <CollapsibleSection
-          title="Cleanup History"
-          defaultOpen={false}
-          className="crosshook-settings-subsection"
-        >
+        <CollapsibleSection title="Cleanup History" defaultOpen={false} className="crosshook-settings-subsection">
           <PrefixStorageCleanupHistory entries={auditEntries} />
         </CollapsibleSection>
       ) : null}
@@ -774,7 +780,10 @@ function SteamGridDbSection({
       <div className="crosshook-settings-field-row">
         <span className="crosshook-label">Key status</span>
         {hasApiKey ? (
-          <span className="crosshook-muted crosshook-settings-note" style={{ color: 'var(--crosshook-success, #4caf50)' }}>
+          <span
+            className="crosshook-muted crosshook-settings-note"
+            style={{ color: 'var(--crosshook-success, #4caf50)' }}
+          >
             Key is set
           </span>
         ) : (
@@ -873,7 +882,11 @@ export function SettingsPanel({
     ? 'Custom path is saved in settings.toml. Restart CrossHook to use it as the active profile store.'
     : 'Leave empty to use the default directory under your CrossHook config folder.';
 
-  const [binaryDetection, setBinaryDetection] = useState<{ found: boolean; binary_name: string; source: string } | null>(null);
+  const [binaryDetection, setBinaryDetection] = useState<{
+    found: boolean;
+    binary_name: string;
+    source: string;
+  } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -888,7 +901,9 @@ export function SettingsPanel({
     } catch {
       if (active) setBinaryDetection(null);
     }
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [settings.protontricks_binary_path]);
 
   return (
@@ -1000,9 +1015,7 @@ export function SettingsPanel({
                 id="default-trainer-mode"
                 className="crosshook-input"
                 value={settings.default_trainer_loading_mode}
-                onChange={(event) =>
-                  void onPersistSettings({ default_trainer_loading_mode: event.target.value })
-                }
+                onChange={(event) => void onPersistSettings({ default_trainer_loading_mode: event.target.value })}
               >
                 <option value="source_directory">source_directory</option>
                 <option value="copy_to_prefix">copy_to_prefix</option>
@@ -1158,16 +1171,14 @@ export function SettingsPanel({
               <input
                 type="checkbox"
                 checked={settings.auto_install_prefix_deps}
-                onChange={(event) =>
-                  void onPersistSettings({ auto_install_prefix_deps: event.target.checked })
-                }
+                onChange={(event) => void onPersistSettings({ auto_install_prefix_deps: event.target.checked })}
                 className="crosshook-settings-checkbox"
               />
               <span>
                 <span className="crosshook-label">Auto-install prefix dependencies on first launch</span>
                 <p className="crosshook-muted crosshook-settings-note">
-                  When enabled, CrossHook will automatically install any required winetricks/protontricks
-                  dependencies into the Wine prefix before launching for the first time.
+                  When enabled, CrossHook will automatically install any required winetricks/protontricks dependencies
+                  into the Wine prefix before launching for the first time.
                 </p>
               </span>
             </label>
@@ -1244,10 +1255,7 @@ export function SettingsPanel({
 
           <DiagnosticExportSection />
 
-          <SteamGridDbSection
-            hasApiKey={settings.has_steamgriddb_api_key}
-            onApiKeyChange={onSteamGridDbApiKeyChange}
-          />
+          <SteamGridDbSection hasApiKey={settings.has_steamgriddb_api_key} onApiKeyChange={onSteamGridDbApiKeyChange} />
         </div>
 
         <section className="crosshook-settings-recent-column" aria-label="Recent files">

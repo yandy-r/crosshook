@@ -78,21 +78,24 @@ export function usePrefixStorageManagement(): PrefixStorageManagementState {
     }
   }, [loadHistory]);
 
-  const cleanupStorage = useCallback(async (targets: PrefixCleanupTarget[]): Promise<PrefixCleanupResult> => {
-    setCleanupLoading(true);
-    setError(null);
-    try {
-      const result = await callCommand<PrefixCleanupResult>('cleanup_prefix_storage', { targets });
-      // Refresh history after cleanup to pick up newly persisted audit rows
-      loadHistory().catch(() => {});
-      return result;
-    } catch (cleanupError) {
-      setError(formatError(cleanupError));
-      throw cleanupError;
-    } finally {
-      setCleanupLoading(false);
-    }
-  }, [loadHistory]);
+  const cleanupStorage = useCallback(
+    async (targets: PrefixCleanupTarget[]): Promise<PrefixCleanupResult> => {
+      setCleanupLoading(true);
+      setError(null);
+      try {
+        const result = await callCommand<PrefixCleanupResult>('cleanup_prefix_storage', { targets });
+        // Refresh history after cleanup to pick up newly persisted audit rows
+        loadHistory().catch(() => {});
+        return result;
+      } catch (cleanupError) {
+        setError(formatError(cleanupError));
+        throw cleanupError;
+      } finally {
+        setCleanupLoading(false);
+      }
+    },
+    [loadHistory]
+  );
 
   return {
     scanResult,

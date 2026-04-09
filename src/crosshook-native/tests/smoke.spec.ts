@@ -97,10 +97,7 @@ test.describe('browser dev mode smoke', () => {
         fullPage: true,
       });
 
-      expect(
-        capture.errors,
-        `Uncaught errors on route "${route}":\n${capture.errors.join('\n')}`
-      ).toEqual([]);
+      expect(capture.errors, `Uncaught errors on route "${route}":\n${capture.errors.join('\n')}`).toEqual([]);
     });
   }
 });

@@ -1,12 +1,5 @@
 import { createPortal } from 'react-dom';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type MouseEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type MouseEvent } from 'react';
 
 import type { CollectionImportPreview } from '@/types/collections';
 import { isCollectionDefaultsEmpty } from '@/types/profile';
@@ -23,11 +16,7 @@ export interface CollectionImportReviewModalProps {
   /** Shown inside the dialog when import/apply fails (e.g. from applyImportedCollection). */
   importSessionError?: string | null;
   onClose: () => void;
-  onConfirm: (input: {
-    name: string;
-    description: string | null;
-    ambiguousResolutions: (string | null)[];
-  }) => void;
+  onConfirm: (input: { name: string; description: string | null; ambiguousResolutions: (string | null)[] }) => void;
 }
 
 export function CollectionImportReviewModal({
@@ -88,8 +77,7 @@ export function CollectionImportReviewModal({
   const ambiguousReady =
     preview !== null &&
     (preview.ambiguous.length === 0 ||
-      (ambiguousSelect.length === preview.ambiguous.length &&
-        ambiguousSelect.every((v) => v !== '')));
+      (ambiguousSelect.length === preview.ambiguous.length && ambiguousSelect.every((v) => v !== '')));
 
   const canConfirm = preview !== null && name.trim() !== '' && ambiguousReady && !applying;
 
@@ -97,9 +85,7 @@ export function CollectionImportReviewModal({
     if (!preview || !canConfirm) {
       return;
     }
-    const ambiguousResolutions: (string | null)[] = ambiguousSelect.map((v) =>
-      v === SKIP_VALUE ? null : v
-    );
+    const ambiguousResolutions: (string | null)[] = ambiguousSelect.map((v) => (v === SKIP_VALUE ? null : v));
     onConfirm({
       name: name.trim(),
       description: description.trim() === '' ? null : description.trim(),
@@ -292,11 +278,7 @@ export function CollectionImportReviewModal({
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                className="crosshook-button"
-                disabled={!canConfirm}
-              >
+              <button type="submit" className="crosshook-button" disabled={!canConfirm}>
                 Import collection
               </button>
             </div>

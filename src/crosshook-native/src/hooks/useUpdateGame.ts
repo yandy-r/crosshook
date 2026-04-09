@@ -118,7 +118,9 @@ export function useUpdateGame(): UseUpdateGameResult {
 
       for (const name of allNames) {
         try {
-          const profile = normalizeSerializedGameProfile(await callCommand<SerializedGameProfile>('profile_load', { name }));
+          const profile = normalizeSerializedGameProfile(
+            await callCommand<SerializedGameProfile>('profile_load', { name })
+          );
           if (profile.launch.method === 'proton_run') {
             protonRunNames.push(name);
           }
@@ -145,7 +147,9 @@ export function useUpdateGame(): UseUpdateGameResult {
 
   const populateFromProfile = useCallback(async (name: string) => {
     try {
-      const profile = normalizeSerializedGameProfile(await callCommand<SerializedGameProfile>('profile_load', { name }));
+      const profile = normalizeSerializedGameProfile(
+        await callCommand<SerializedGameProfile>('profile_load', { name })
+      );
 
       setRequest((current) => ({
         ...current,

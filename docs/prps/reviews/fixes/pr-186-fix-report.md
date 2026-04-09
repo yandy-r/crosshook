@@ -9,19 +9,19 @@
 
 ## Summary
 
-| Metric | Count |
-|--------|-------|
-| Findings eligible | 12 (F001–F012) |
-| Fixed | 11 |
-| Already fixed (stale) | 1 (F001) |
-| Failed | 0 |
+| Metric                    | Count                  |
+| ------------------------- | ---------------------- |
+| Findings eligible         | 12 (F001–F012)         |
+| Fixed                     | 11                     |
+| Already fixed (stale)     | 1 (F001)               |
+| Failed                    | 0                      |
 | Skipped (below threshold) | 8 (F013–F020, LOW/NIT) |
 
 ## Validation
 
-| Check | Result |
-|-------|--------|
-| `tsc --noEmit` | Pass (zero errors) |
+| Check                          | Result                 |
+| ------------------------------ | ---------------------- |
+| `tsc --noEmit`                 | Pass (zero errors)     |
 | `cargo test -p crosshook-core` | Pass (all tests green) |
 
 ---
@@ -121,19 +121,19 @@ None — all 20 findings resolved.
 **Mode**: `--parallel --severity low`
 **Severity threshold**: LOW (CRITICAL + HIGH + MEDIUM + LOW)
 
-| Metric | Count |
-|--------|-------|
-| Findings eligible | 6 (F013–F018) |
-| Fixed | 5 |
-| Resolved by prior fix | 1 (F017, resolved by F005) |
-| Failed | 0 |
-| Skipped (below threshold) | 2 (F019–F020, NIT) |
+| Metric                    | Count                      |
+| ------------------------- | -------------------------- |
+| Findings eligible         | 6 (F013–F018)              |
+| Fixed                     | 5                          |
+| Resolved by prior fix     | 1 (F017, resolved by F005) |
+| Failed                    | 0                          |
+| Skipped (below threshold) | 2 (F019–F020, NIT)         |
 
 ### Validation
 
-| Check | Result |
-|-------|--------|
-| `tsc --noEmit` | Pass (zero errors) |
+| Check                          | Result                 |
+| ------------------------------ | ---------------------- |
+| `tsc --noEmit`                 | Pass (zero errors)     |
 | `cargo test -p crosshook-core` | Pass (all tests green) |
 
 ### Fixes Applied
@@ -156,10 +156,10 @@ None — all 20 findings resolved.
 
 **Mode**: `--parallel`
 
-| Metric | Count |
-|--------|-------|
+| Metric            | Count         |
+| ----------------- | ------------- |
 | Findings eligible | 2 (F019–F020) |
-| Fixed | 2 |
+| Fixed             | 2             |
 
 **F019** (NIT) — Added comment in `collections_jtbd_integration.rs` documenting that `/profiles/fixture-00.toml` is a synthetic path (AppWrite bypasses `fs::metadata`).
 
@@ -169,12 +169,12 @@ None — all 20 findings resolved.
 
 ## Cumulative Totals
 
-| Metric | Count |
-|--------|-------|
-| Total findings | 20 |
-| Fixed | 18 |
+| Metric                | Count    |
+| --------------------- | -------- |
+| Total findings        | 20       |
+| Fixed                 | 18       |
 | Already fixed (stale) | 1 (F001) |
 | Resolved by prior fix | 1 (F017) |
-| Remaining | 0 |
+| Remaining             | 0        |
 
 All 20 findings from PR #186 review are resolved.

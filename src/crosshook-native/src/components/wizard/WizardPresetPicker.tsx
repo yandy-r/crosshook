@@ -1,10 +1,7 @@
 import { useCallback, useId, useMemo } from 'react';
 
 import type { BundledOptimizationPreset } from '../../types';
-import {
-  BUNDLED_PRESET_KEY_PREFIX,
-  bundledOptimizationTomlKey,
-} from '../../utils/launchOptimizationPresets';
+import { BUNDLED_PRESET_KEY_PREFIX, bundledOptimizationTomlKey } from '../../utils/launchOptimizationPresets';
 import { ThemedSelect, type SelectOptionGroup } from '../ui/ThemedSelect';
 
 export interface WizardPresetPickerProps {
@@ -85,9 +82,7 @@ export function WizardPresetPicker({
   const activeValue = useMemo(() => {
     const active = activePresetKey.trim();
     if (!active) return '';
-    const inBundled = bundledPresets.some(
-      (preset) => bundledOptimizationTomlKey(preset.preset_id) === active
-    );
+    const inBundled = bundledPresets.some((preset) => bundledOptimizationTomlKey(preset.preset_id) === active);
     const inSaved = savedOptions.some((opt) => opt.value === active);
     return inBundled || inSaved ? active : '';
   }, [activePresetKey, bundledPresets, savedOptions]);

@@ -1,18 +1,7 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { callCommand } from '@/lib/ipc';
-import type {
-  CollectionImportPreview,
-  CollectionExportResult,
-  CollectionRow,
-} from '@/types/collections';
+import type { CollectionImportPreview, CollectionExportResult, CollectionRow } from '@/types/collections';
 import { isCollectionDefaultsEmpty } from '@/types/profile';
 import { chooseSaveFile } from '@/utils/dialog';
 
@@ -104,9 +93,7 @@ function useCollectionsState(): UseCollectionsResult {
           }
         }
         await refresh();
-        return descriptionFailed !== undefined
-          ? { ok: true, id, descriptionFailed }
-          : { ok: true, id };
+        return descriptionFailed !== undefined ? { ok: true, id, descriptionFailed } : { ok: true, id };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         setError(message);

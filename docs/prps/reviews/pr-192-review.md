@@ -16,11 +16,11 @@ strings; detail text shows resolved paths and error messages.
 
 ## Validation Results
 
-| Check | Status |
-|-------|--------|
-| `cargo test -p crosshook-core` | Pass (777 tests) |
-| `npm run build` | Pass (clean TS, Vite build) |
-| `npm run test:smoke` | Not run (Playwright not installed) |
+| Check                          | Status                             |
+| ------------------------------ | ---------------------------------- |
+| `cargo test -p crosshook-core` | Pass (777 tests)                   |
+| `npm run build`                | Pass (clean TS, Vite build)        |
+| `npm run test:smoke`           | Not run (Playwright not installed) |
 
 ## Decision: APPROVE
 
@@ -184,25 +184,25 @@ maintainability improvements.
 
 ## Findings Summary
 
-| # | Severity | Category | File | Status |
-|---|----------|----------|------|--------|
-| 1 | High | Correctness | mapValidationToNode.ts:34 | Fixed |
-| 2 | Medium | Security | handlers/launch.ts:221 | Fixed |
-| 3 | Medium | Maintainability | mapValidationToNode.ts:12 | Fixed |
-| 4 | Medium | Maintainability | request.rs:324 | Fixed |
-| 5 | Medium | Maintainability | request.rs:1752 | Fixed |
-| 6 | Medium | Performance | derivePipelineNodes.ts:32 | Fixed |
-| 7 | Low | Type Safety | derivePipelineNodes.ts:149 | Fixed |
-| 8 | Low | Type Safety | launch.ts:166 | Fixed |
-| 9 | Nitpick | Pattern Compliance | handlers/launch.ts:229 | Open |
+| #   | Severity | Category           | File                       | Status |
+| --- | -------- | ------------------ | -------------------------- | ------ |
+| 1   | High     | Correctness        | mapValidationToNode.ts:34  | Fixed  |
+| 2   | Medium   | Security           | handlers/launch.ts:221     | Fixed  |
+| 3   | Medium   | Maintainability    | mapValidationToNode.ts:12  | Fixed  |
+| 4   | Medium   | Maintainability    | request.rs:324             | Fixed  |
+| 5   | Medium   | Maintainability    | request.rs:1752            | Fixed  |
+| 6   | Medium   | Performance        | derivePipelineNodes.ts:32  | Fixed  |
+| 7   | Low      | Type Safety        | derivePipelineNodes.ts:149 | Fixed  |
+| 8   | Low      | Type Safety        | launch.ts:166              | Fixed  |
+| 9   | Nitpick  | Pattern Compliance | handlers/launch.ts:229     | Open   |
 
 | Severity | Count |
-|----------|-------|
-| Critical | 0 |
-| High | 1 |
-| Medium | 5 |
-| Low | 2 |
-| Nitpick | 1 |
+| -------- | ----- |
+| Critical | 0     |
+| High     | 1     |
+| Medium   | 5     |
+| Low      | 2     |
+| Nitpick  | 1     |
 
 ## Strengths
 

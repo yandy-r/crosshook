@@ -11,7 +11,7 @@ function sectionStateFromMetadata(
   hasAppId: boolean,
   loading: boolean,
   unavailable: boolean,
-  state: string,
+  state: string
 ): GameDetailsSectionState {
   if (!hasAppId) {
     return 'unavailable';
@@ -43,7 +43,9 @@ export function GameDetailsMetadataSection({ steamAppId, meta }: GameDetailsMeta
         Store metadata
       </h3>
       {!hasAppId ? (
-        <p className="crosshook-game-details-modal__muted">No Steam App ID on this profile. Metadata lookup is unavailable.</p>
+        <p className="crosshook-game-details-modal__muted">
+          No Steam App ID on this profile. Metadata lookup is unavailable.
+        </p>
       ) : null}
       {hasAppId && metaState === 'loading' ? (
         <p className="crosshook-game-details-modal__muted">Loading Steam metadata…</p>

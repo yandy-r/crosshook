@@ -97,9 +97,9 @@ impl RunExecutableValidationError {
             | Self::ExecutablePathMissing
             | Self::ExecutablePathNotFile
             | Self::ExecutablePathNotWindowsExecutable => "executable_path",
-            Self::ProtonPathRequired
-            | Self::ProtonPathMissing
-            | Self::ProtonPathNotExecutable => "proton_path",
+            Self::ProtonPathRequired | Self::ProtonPathMissing | Self::ProtonPathNotExecutable => {
+                "proton_path"
+            }
             Self::PrefixPathMissing | Self::PrefixPathNotDirectory => "prefix_path",
         }
     }

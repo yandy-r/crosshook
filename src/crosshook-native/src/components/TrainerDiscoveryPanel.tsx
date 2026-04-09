@@ -22,37 +22,32 @@ interface ConsentDialogProps {
 
 function ConsentDialog({ onAccept, onCancel }: ConsentDialogProps) {
   return (
-    <div className="crosshook-discovery-consent" role="dialog" aria-modal="true" aria-labelledby="discovery-consent-title">
+    <div
+      className="crosshook-discovery-consent"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="discovery-consent-title"
+    >
       <h3 id="discovery-consent-title" className="crosshook-discovery-consent__title">
         Trainer Discovery
       </h3>
       <div className="crosshook-discovery-consent__body">
         <p>
-          Trainer Discovery links to external community sources. CrossHook does{' '}
-          <strong>not</strong> host, distribute, or endorse any trainers or third-party content.
+          Trainer Discovery links to external community sources. CrossHook does <strong>not</strong> host, distribute,
+          or endorse any trainers or third-party content.
         </p>
         <p>
-          You are solely responsible for ensuring compliance with applicable laws and the terms of
-          service for any game you use a trainer with. Using trainers in online games may violate
-          those games&apos; terms of service and result in account bans or other penalties.
+          You are solely responsible for ensuring compliance with applicable laws and the terms of service for any game
+          you use a trainer with. Using trainers in online games may violate those games&apos; terms of service and
+          result in account bans or other penalties.
         </p>
-        <p>
-          By enabling Trainer Discovery you acknowledge that you have read and understood the above.
-        </p>
+        <p>By enabling Trainer Discovery you acknowledge that you have read and understood the above.</p>
       </div>
       <div className="crosshook-discovery-consent__actions">
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={onCancel}
-        >
+        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={onCancel}>
           Cancel
         </button>
-        <button
-          type="button"
-          className="crosshook-button"
-          onClick={onAccept}
-        >
+        <button type="button" className="crosshook-button" onClick={onAccept}>
           I Understand
         </button>
       </div>
@@ -84,12 +79,15 @@ function TrainerResultCard({ result, onImport, importing }: TrainerResultCardPro
     setExpanded((prev) => !prev);
   }, []);
 
-  useEffect(() => () => {
-    isMountedRef.current = false;
-    if (copyTimeoutRef.current !== null) {
-      clearTimeout(copyTimeoutRef.current);
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      isMountedRef.current = false;
+      if (copyTimeoutRef.current !== null) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    },
+    []
+  );
 
   const handleCopySha = useCallback(() => {
     if (!result.sha256) return;
@@ -141,20 +139,17 @@ function TrainerResultCard({ result, onImport, importing }: TrainerResultCardPro
         <div className="crosshook-discovery-card__details">
           {result.trainerVersion && (
             <div className="crosshook-discovery-card__meta-line">
-              <span className="crosshook-muted">Trainer version:</span>{' '}
-              {result.trainerVersion}
+              <span className="crosshook-muted">Trainer version:</span> {result.trainerVersion}
             </div>
           )}
           {result.gameVersion && (
             <div className="crosshook-discovery-card__meta-line">
-              <span className="crosshook-muted">Game version:</span>{' '}
-              {result.gameVersion}
+              <span className="crosshook-muted">Game version:</span> {result.gameVersion}
             </div>
           )}
           {result.notes && (
             <div className="crosshook-discovery-card__meta-line">
-              <span className="crosshook-muted">Notes:</span>{' '}
-              {result.notes}
+              <span className="crosshook-muted">Notes:</span> {result.notes}
             </div>
           )}
           {sha256Display && (
@@ -175,19 +170,10 @@ function TrainerResultCard({ result, onImport, importing }: TrainerResultCardPro
       )}
 
       <div className="crosshook-discovery-card__actions">
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={handleOpenSource}
-        >
+        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={handleOpenSource}>
           Get Trainer
         </button>
-        <button
-          type="button"
-          className="crosshook-button"
-          onClick={() => onImport(result)}
-          disabled={importing}
-        >
+        <button type="button" className="crosshook-button" onClick={() => onImport(result)} disabled={importing}>
           {importing ? 'Importing…' : 'Import Profile'}
         </button>
       </div>
@@ -208,12 +194,8 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const [pendingConsent, setPendingConsent] = useState(false);
 
-  const { data, loading, error } = useTrainerDiscovery(
-    settings.discovery_enabled ? query : '',
-  );
-  const externalSearch = useExternalTrainerSearch(
-    settings.discovery_enabled ? query : '',
-  );
+  const { data, loading, error } = useTrainerDiscovery(settings.discovery_enabled ? query : '');
+  const externalSearch = useExternalTrainerSearch(settings.discovery_enabled ? query : '');
 
   const results = data?.results ?? [];
   const totalCount = data?.totalCount ?? 0;
@@ -262,19 +244,13 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
           <p className="crosshook-muted">
             Trainer Discovery is disabled. Enable it to search community trainer sources.
           </p>
-          <button
-            type="button"
-            className="crosshook-button"
-            onClick={handleEnableClick}
-          >
+          <button type="button" className="crosshook-button" onClick={handleEnableClick}>
             Enable Trainer Discovery
           </button>
         </div>
       )}
 
-      {showConsent && (
-        <ConsentDialog onAccept={handleConsentAccept} onCancel={handleConsentCancel} />
-      )}
+      {showConsent && <ConsentDialog onAccept={handleConsentAccept} onCancel={handleConsentCancel} />}
 
       {settings.discovery_enabled && (
         <>
@@ -302,34 +278,21 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
             </div>
           </div>
 
-          {importNotice && (
-            <p className="crosshook-success crosshook-discovery-panel__notice">{importNotice}</p>
-          )}
-          {importError && (
-            <p className="crosshook-discovery-panel__error">{importError}</p>
-          )}
+          {importNotice && <p className="crosshook-success crosshook-discovery-panel__notice">{importNotice}</p>}
+          {importError && <p className="crosshook-discovery-panel__error">{importError}</p>}
 
-          <div
-            className="crosshook-discovery-panel__results-meta"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
+          <div className="crosshook-discovery-panel__results-meta" role="status" aria-live="polite" aria-atomic="true">
             {loading && <span className="crosshook-muted">Searching…</span>}
-            {!loading && query.trim() && error && (
-              <span className="crosshook-discovery-panel__error">{error}</span>
-            )}
+            {!loading && query.trim() && error && <span className="crosshook-discovery-panel__error">{error}</span>}
             {!loading && !error && query.trim() && totalCount > 0 && (
-              <span className="crosshook-muted">
-                {`${totalCount} result${totalCount !== 1 ? 's' : ''}`}
-              </span>
+              <span className="crosshook-muted">{`${totalCount} result${totalCount !== 1 ? 's' : ''}`}</span>
             )}
             {!loading && !error && query.trim() && totalCount === 0 && (
               <div className="crosshook-discovery-panel__empty">
                 <p className="crosshook-muted">No local trainers found for &ldquo;{query.trim()}&rdquo;</p>
                 <p className="crosshook-muted crosshook-discovery-panel__empty-hint">
-                  Check the online results below, or add community taps with{' '}
-                  <code>trainer-sources.json</code> manifests for local discovery.
+                  Check the online results below, or add community taps with <code>trainer-sources.json</code> manifests
+                  for local discovery.
                 </p>
               </div>
             )}
@@ -344,7 +307,9 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
                 <div key={result.id} role="listitem">
                   <TrainerResultCard
                     result={result}
-                    onImport={(r) => { void handleImport(r); }}
+                    onImport={(r) => {
+                      void handleImport(r);
+                    }}
                     importing={importingId === result.id}
                   />
                 </div>
@@ -356,7 +321,9 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
             data={externalSearch.data}
             loading={externalSearch.loading}
             error={externalSearch.error}
-            onRetry={() => { void externalSearch.search(true); }}
+            onRetry={() => {
+              void externalSearch.search(true);
+            }}
           />
         </>
       )}

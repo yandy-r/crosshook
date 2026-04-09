@@ -27,6 +27,7 @@ None.
 `CollectionsContext.createCollection` writes the collection, then best-effort calls `collection_update_description`. On description failure it sets `error` — but the subsequent `await refresh()` calls `setError(null)` on success, wiping the failure before any consumer can render it. Upstream, `CollectionsSidebar.handleCreate` returns `id !== null` (always true when the collection itself was created) and the Edit modal closes. Net result: a new collection is created without its description and the user is never told.
 
 The Edit flow was fixed in `44c890a` via `editSessionError` + `CollectionWriteResult`; the Create flow deserves the same treatment. Suggested fixes (pick one):
+
 - Make `createCollection` return a `CollectionWriteResult`-like object that carries a partial success (`{ ok: true; descriptionFailed?: string }`), and surface it in `CollectionsSidebar`.
 - Or queue the description retry toast (same pattern as `collectionDescriptionToast` in `App.tsx`) whenever the sidebar create path fails the description step.
 - Or simply don't clear `error` inside `refresh()` when it isn't the source of the error — e.g. only clear on explicit mutation entry, not on refetch success.
@@ -34,6 +35,7 @@ The Edit flow was fixed in `44c890a` via `editSessionError` + `CollectionWriteRe
 **M2 — Stale `selectedProfile` when the active collection filter excludes it**
 `src/crosshook-native/src/components/pages/LaunchPage.tsx:32-44`, `ProfilesPage.tsx:109-118`
 When a collection filter is active and the currently-selected profile is not a member, the `ThemedSelect` trigger still displays the old value, but the dropdown omits it. The user can't reselect it without clearing the filter — and from the sidebar-open flow (`handleOpenCollection` in `App.tsx`), this is the common state right after filtering. Consider one of:
+
 - Auto-select the first filtered profile when the current selection drops out of the filter.
 - Clear the selection (`selectProfile('')`) when filtering excludes it.
 - Show an in-chip note ("current selection not in filter") so the user understands why the dropdown can't reach their current choice.
@@ -77,13 +79,13 @@ When a collection filter is active and the currently-selected profile is not a m
 
 ## Validation Results
 
-| Check        | Result                                                      |
-| ------------ | ----------------------------------------------------------- |
-| Type check   | ✅ Pass — `tsc` (via `npm run build`) at `44c890a`          |
-| Lint         | ⏭ Skipped — no lint script in `package.json`               |
-| Tests        | ⏭ Skipped — Playwright smoke needs Chromium install; no unit test framework |
-| Build        | ✅ Pass — `vite build` at `44c890a` (dist produced)         |
-| Mock sentinel| ✅ Pass — `npm run dev:browser:check` reports 0 missing handlers |
+| Check         | Result                                                                       |
+| ------------- | ---------------------------------------------------------------------------- |
+| Type check    | ✅ Pass — `tsc` (via `npm run build`) at `44c890a`                           |
+| Lint          | ⏭ Skipped — no lint script in `package.json`                                |
+| Tests         | ⏭ Skipped — Playwright smoke needs Chromium install; no unit test framework |
+| Build         | ✅ Pass — `vite build` at `44c890a` (dist produced)                          |
+| Mock sentinel | ✅ Pass — `npm run dev:browser:check` reports 0 missing handlers             |
 
 > Ran against a detached worktree at the PR head (`git worktree add --detach /tmp/crosshook-pr183-review <sha>`) to avoid confusion with uncommitted local WIP in the main worktree.
 

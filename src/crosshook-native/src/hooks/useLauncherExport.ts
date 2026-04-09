@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-import type { GameProfile, GamescopeConfig, LaunchMethod, LauncherDeleteResult, LauncherInfo, TrainerLoadingMode } from '../types';
+import type {
+  GameProfile,
+  GamescopeConfig,
+  LaunchMethod,
+  LauncherDeleteResult,
+  LauncherInfo,
+  TrainerLoadingMode,
+} from '../types';
 
 export interface SteamExternalLauncherExportRequest {
   method: string;
@@ -169,7 +176,14 @@ export function useLauncherExport({
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
     }
-  }, [profile.steam?.app_id, profile.steam?.launcher?.display_name, profile.trainer?.path, refreshLauncherStatus, steamClientInstallPath, targetHomePath]);
+  }, [
+    profile.steam?.app_id,
+    profile.steam?.launcher?.display_name,
+    profile.trainer?.path,
+    refreshLauncherStatus,
+    steamClientInstallPath,
+    targetHomePath,
+  ]);
 
   const handleDeleteClick = useCallback(() => {
     if (deleteConfirming) {

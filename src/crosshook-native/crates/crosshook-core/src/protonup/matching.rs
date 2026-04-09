@@ -1,6 +1,6 @@
 use crate::protonup::{ProtonUpMatchStatus, ProtonUpSuggestion};
-use crate::steam::ProtonInstall;
 use crate::steam::proton::normalize_alias;
+use crate::steam::ProtonInstall;
 
 /// Compare a community-recommended Proton version against installed runtimes.
 ///
@@ -39,11 +39,9 @@ pub fn match_community_version(
 
     // Normalized match: strip non-alphanumeric, lowercase.
     if let Some(normalized_community) = normalize_alias(trimmed) {
-        let normalized_match = installed.iter().find(|install| {
-            install
-                .normalized_aliases
-                .contains(&normalized_community)
-        });
+        let normalized_match = installed
+            .iter()
+            .find(|install| install.normalized_aliases.contains(&normalized_community));
 
         if let Some(install) = normalized_match {
             return ProtonUpSuggestion {
@@ -105,7 +103,10 @@ mod tests {
 
     #[test]
     fn exact_alias_match_returns_matched() {
-        let installs = vec![test_install("GE-Proton9-4", &["GE-Proton9-4", "GE Proton 9-4"])];
+        let installs = vec![test_install(
+            "GE-Proton9-4",
+            &["GE-Proton9-4", "GE Proton 9-4"],
+        )];
         let result = match_community_version("GE-Proton9-4", &installs);
         assert_eq!(result.status, ProtonUpMatchStatus::Matched);
         assert_eq!(result.matched_install_name.as_deref(), Some("GE-Proton9-4"));
@@ -120,10 +121,7 @@ mod tests {
         let result = match_community_version("GE-Proton 9-4", &installs);
         assert_eq!(result.status, ProtonUpMatchStatus::Matched);
         assert_eq!(result.matched_install_name.as_deref(), Some("GE-Proton9-4"));
-        assert_eq!(
-            result.community_version.as_deref(),
-            Some("GE-Proton 9-4")
-        );
+        assert_eq!(result.community_version.as_deref(), Some("GE-Proton 9-4"));
         assert!(result.recommended_version.is_none());
     }
 
@@ -205,9 +203,6 @@ mod tests {
         let result = match_community_version("GE-Proton9", &installs);
         assert_eq!(result.status, ProtonUpMatchStatus::Missing);
         assert_eq!(result.community_version.as_deref(), Some("GE-Proton9"));
-        assert_eq!(
-            result.recommended_version.as_deref(),
-            Some("GE-Proton9")
-        );
+        assert_eq!(result.recommended_version.as_deref(), Some("GE-Proton9"));
     }
 }

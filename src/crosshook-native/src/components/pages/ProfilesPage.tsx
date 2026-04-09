@@ -100,8 +100,7 @@ export function ProfilesPage() {
     setActiveCollectionId,
   } = useProfileContext();
   const { collections } = useCollections();
-  const { memberNames, membersForCollectionId, loading: membersLoading } =
-    useCollectionMembers(activeCollectionId);
+  const { memberNames, membersForCollectionId, loading: membersLoading } = useCollectionMembers(activeCollectionId);
   const activeCollection = useMemo(
     () =>
       activeCollectionId === null ? null : (collections.find((c) => c.collection_id === activeCollectionId) ?? null),
@@ -138,14 +137,7 @@ export function ProfilesPage() {
     if (sel !== '' && !filteredProfiles.includes(sel)) {
       void selectProfile(filteredProfiles[0]);
     }
-  }, [
-    activeCollectionId,
-    membersLoading,
-    membersForCollectionId,
-    filteredProfiles,
-    selectedProfile,
-    selectProfile,
-  ]);
+  }, [activeCollectionId, membersLoading, membersForCollectionId, filteredProfiles, selectedProfile, selectProfile]);
 
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
@@ -284,7 +276,7 @@ export function ProfilesPage() {
             typeof row.game_name === 'string' &&
             row.game_name.trim().toLowerCase() === normalizedGame &&
             typeof row.proton_version === 'string' &&
-            row.proton_version.trim().length > 0,
+            row.proton_version.trim().length > 0
         );
 
         if (!match || !match.proton_version) {
@@ -641,234 +633,233 @@ export function ProfilesPage() {
 
       <div className="crosshook-route-stack crosshook-profiles-page">
         <div className="crosshook-route-stack__body--fill crosshook-profiles-page__body">
-        <RouteBanner route="profiles" />
-        <div className="crosshook-panel crosshook-profiles-hero-outer">
-          <section className="crosshook-launch-panel crosshook-route-hero-launch-panel">
-            <div className="crosshook-launch-panel__profile-row">
-              <label
-                className="crosshook-label"
-                htmlFor="profile-selector-top"
-                style={{ margin: 0, whiteSpace: 'nowrap' }}
-              >
-                Active Profile
-              </label>
-              <div className="crosshook-launch-panel__profile-row-select">
-                {activeCollection !== null && (
-                  <div className="crosshook-launch-collection-filter">
-                    Filtering by: <strong>{activeCollection.name}</strong>
+          <RouteBanner route="profiles" />
+          <div className="crosshook-panel crosshook-profiles-hero-outer">
+            <section className="crosshook-launch-panel crosshook-route-hero-launch-panel">
+              <div className="crosshook-launch-panel__profile-row">
+                <label
+                  className="crosshook-label"
+                  htmlFor="profile-selector-top"
+                  style={{ margin: 0, whiteSpace: 'nowrap' }}
+                >
+                  Active Profile
+                </label>
+                <div className="crosshook-launch-panel__profile-row-select">
+                  {activeCollection !== null && (
+                    <div className="crosshook-launch-collection-filter">
+                      Filtering by: <strong>{activeCollection.name}</strong>
+                      <button
+                        type="button"
+                        className="crosshook-button crosshook-button--ghost crosshook-button--small"
+                        onClick={() => setActiveCollectionId(null)}
+                        aria-label="Clear collection filter"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+                  <ThemedSelect
+                    id="profile-selector-top"
+                    value={selectedProfile}
+                    onValueChange={(val) => void selectProfile(val)}
+                    placeholder="Create New"
+                    options={[
+                      { value: '', label: 'Create New' },
+                      ...filteredProfiles.map((name) => ({ value: name, label: name })),
+                    ]}
+                  />
+                </div>
+                <div className="crosshook-launch-panel__profile-row-actions">
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-launch-panel__action"
+                    style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
+                    onClick={() => {
+                      setWizardMode('create');
+                      setShowWizard(true);
+                    }}
+                  >
+                    New Profile
+                  </button>
+                  {hasSelectedProfile ? (
                     <button
                       type="button"
-                      className="crosshook-button crosshook-button--ghost crosshook-button--small"
-                      onClick={() => setActiveCollectionId(null)}
-                      aria-label="Clear collection filter"
+                      className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
+                      style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
+                      onClick={() => {
+                        setWizardMode('edit');
+                        setShowWizard(true);
+                      }}
                     >
-                      ×
+                      Edit in Wizard
                     </button>
-                  </div>
-                )}
-                <ThemedSelect
-                  id="profile-selector-top"
-                  value={selectedProfile}
-                  onValueChange={(val) => void selectProfile(val)}
-                  placeholder="Create New"
-                  options={[
-                    { value: '', label: 'Create New' },
-                    ...filteredProfiles.map((name) => ({ value: name, label: name })),
-                  ]}
-                />
+                  ) : null}
+                </div>
               </div>
-              <div className="crosshook-launch-panel__profile-row-actions">
-                <button
-                  type="button"
-                  className="crosshook-button crosshook-launch-panel__action"
-                  style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
-                  onClick={() => {
-                    setWizardMode('create');
-                    setShowWizard(true);
-                  }}
-                >
-                  New Profile
-                </button>
-                {hasSelectedProfile ? (
+
+              <div className="crosshook-profiles-hero-status">
+                {renderProfileHealthBadge()}
+                {renderOfflineStatusBadge()}
+                {launchMethod !== 'native' && profile.trainer.path.trim().length > 0 ? (
+                  <span className="crosshook-status-chip" title="Trainer type catalog id for offline scoring">
+                    Trainer type: {trainerTypeDisplayName}
+                  </span>
+                ) : null}
+                {renderVersionStatusBadge()}
+                {summary !== null && summary.stale_count + summary.broken_count > 0 ? (
+                  <span className="crosshook-status-chip">
+                    {summary.stale_count + summary.broken_count} of {summary.total_count} profile
+                    {summary.total_count !== 1 ? 's' : ''} have issues
+                  </span>
+                ) : null}
+                {!selectedReport && selectedStaleInfo?.isStale ? (
+                  <span className="crosshook-status-chip crosshook-status-chip--muted" role="note">
+                    Checked {selectedStaleInfo.daysAgo}d ago
+                  </span>
+                ) : null}
+                <div className="crosshook-profiles-hero-status__action">
                   <button
                     type="button"
                     className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
                     style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
-                    onClick={() => {
-                      setWizardMode('edit');
-                      setShowWizard(true);
+                    onClick={async (event) => {
+                      event.preventDefault();
+                      await refreshProfiles();
+                      await batchValidate();
                     }}
                   >
-                    Edit in Wizard
+                    {summary !== null && summary.stale_count + summary.broken_count > 0
+                      ? healthLoading
+                        ? 'Checking...'
+                        : 'Re-check'
+                      : 'Refresh'}
                   </button>
-                ) : null}
+                </div>
               </div>
-            </div>
+            </section>
+          </div>
 
-            <div className="crosshook-profiles-hero-status">
-              {renderProfileHealthBadge()}
-              {renderOfflineStatusBadge()}
-              {launchMethod !== 'native' && profile.trainer.path.trim().length > 0 ? (
-                <span className="crosshook-status-chip" title="Trainer type catalog id for offline scoring">
-                  Trainer type: {trainerTypeDisplayName}
-                </span>
-              ) : null}
-              {renderVersionStatusBadge()}
-              {summary !== null && summary.stale_count + summary.broken_count > 0 ? (
-                <span className="crosshook-status-chip">
-                  {summary.stale_count + summary.broken_count} of {summary.total_count} profile
-                  {summary.total_count !== 1 ? 's' : ''} have issues
-                </span>
-              ) : null}
-              {!selectedReport && selectedStaleInfo?.isStale ? (
-                <span className="crosshook-status-chip crosshook-status-chip--muted" role="note">
-                  Checked {selectedStaleInfo.daysAgo}d ago
-                </span>
-              ) : null}
-              <div className="crosshook-profiles-hero-status__action">
-                <button
-                  type="button"
-                  className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
-                  style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
-                  onClick={async (event) => {
-                    event.preventDefault();
-                    await refreshProfiles();
-                    await batchValidate();
-                  }}
-                >
-                  {summary !== null && summary.stale_count + summary.broken_count > 0
-                    ? healthLoading
-                      ? 'Checking...'
-                      : 'Re-check'
-                    : 'Refresh'}
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
+          {/* Health Issues card — shown when selected profile has broken/stale health */}
+          {(() => {
+            const report = selectedReport;
+            if (!report || (report.status !== 'broken' && report.status !== 'stale') || report.issues.length === 0) {
+              return null;
+            }
 
-        {/* Health Issues card — shown when selected profile has broken/stale health */}
-        {(() => {
-          const report = selectedReport;
-          if (!report || (report.status !== 'broken' && report.status !== 'stale') || report.issues.length === 0) {
-            return null;
-          }
+            const metadata = report.metadata ?? null;
 
-          const metadata = report.metadata ?? null;
+            const driftMessage: Record<string, string> = {
+              missing: 'Exported launcher not found — re-export recommended',
+              moved: 'Exported launcher has moved — re-export recommended',
+              stale: 'Exported launcher may be outdated — re-export recommended',
+            };
+            const driftWarning =
+              metadata !== null && metadata.launcher_drift_state !== null
+                ? (driftMessage[metadata.launcher_drift_state] ?? null)
+                : null;
 
-          const driftMessage: Record<string, string> = {
-            missing: 'Exported launcher not found — re-export recommended',
-            moved: 'Exported launcher has moved — re-export recommended',
-            stale: 'Exported launcher may be outdated — re-export recommended',
-          };
-          const driftWarning =
-            metadata !== null && metadata.launcher_drift_state !== null
-              ? (driftMessage[metadata.launcher_drift_state] ?? null)
-              : null;
-
-          return (
-            <div ref={healthIssuesRef}>
-              <CollapsibleSection title="Health Issues" className="crosshook-panel">
-                {metadata !== null ? (
-                  <div style={{ marginBottom: 10, display: 'grid', gap: 4 }}>
-                    {metadata.last_success !== null ? (
-                      <p className="crosshook-help-text" style={{ margin: 0 }}>
-                        Last worked: {formatRelativeTime(metadata.last_success)}
-                      </p>
-                    ) : null}
-                    {metadata.total_launches > 0 ? (
-                      <p className="crosshook-help-text" style={{ margin: 0 }}>
-                        Launched {metadata.total_launches} time{metadata.total_launches !== 1 ? 's' : ''} &bull;{' '}
-                        {metadata.failure_count_30d} failure{metadata.failure_count_30d !== 1 ? 's' : ''} in last 30
-                        days
-                      </p>
-                    ) : null}
-                    {driftWarning !== null ? (
-                      <p className="crosshook-danger" style={{ margin: 0 }} role="alert">
-                        {driftWarning}
-                      </p>
-                    ) : null}
-                    {metadata.is_community_import && (report.status === 'broken' || report.status === 'stale') ? (
-                      <p className="crosshook-help-text" style={{ margin: 0 }}>
-                        This profile was imported from a community tap — paths may need adjustment for your system.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
-                  {report.issues.map((issue, index) => (
-                    <li
-                      key={index}
-                      style={{ borderLeft: '3px solid var(--crosshook-danger, #ef4444)', paddingLeft: 10 }}
-                    >
-                      <strong>{issue.field}</strong>
-                      {issue.path ? <span className="crosshook-muted"> — {issue.path}</span> : null}
-                      <p style={{ margin: '2px 0' }}>{issue.message}</p>
-                      {issue.remediation ? (
-                        <p className="crosshook-help-text" style={{ margin: '2px 0' }}>
-                          {issue.remediation}
+            return (
+              <div ref={healthIssuesRef}>
+                <CollapsibleSection title="Health Issues" className="crosshook-panel">
+                  {metadata !== null ? (
+                    <div style={{ marginBottom: 10, display: 'grid', gap: 4 }}>
+                      {metadata.last_success !== null ? (
+                        <p className="crosshook-help-text" style={{ margin: 0 }}>
+                          Last worked: {formatRelativeTime(metadata.last_success)}
                         </p>
                       ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </CollapsibleSection>
-            </div>
-          );
-        })()}
-
-        {/* Prefix Dependencies — shown when the selected profile has required_protontricks */}
-        {profile.trainer?.required_protontricks && profile.trainer.required_protontricks.length > 0 ? (
-          <CollapsibleSection title="Prefix Dependencies" className="crosshook-panel">
-            <PrefixDepsPanel
-              profileName={profileName}
-              prefixPath={profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? ''}
-              requiredPackages={profile.trainer.required_protontricks}
-            />
-          </CollapsibleSection>
-        ) : null}
-
-        {/* ProtonUp recommendation — advisory only, never blocks launch */}
-        {suggestion !== null && suggestion.status === 'missing' && !suggestionDismissed ? (
-          <div className="crosshook-panel crosshook-protonup-recommendation" role="status">
-            <div className="crosshook-protonup-recommendation__content">
-              <span className="crosshook-protonup-recommendation__icon" aria-hidden="true">&#9888;</span>
-              <div className="crosshook-protonup-recommendation__text">
-                <strong>Runtime suggestion</strong>
-                <p className="crosshook-help-text" style={{ margin: '4px 0 0' }}>
-                  This community profile recommends{' '}
-                  <strong>{suggestion.community_version}</strong>, which is not currently
-                  installed. You can still launch with your current runtime.
-                </p>
+                      {metadata.total_launches > 0 ? (
+                        <p className="crosshook-help-text" style={{ margin: 0 }}>
+                          Launched {metadata.total_launches} time{metadata.total_launches !== 1 ? 's' : ''} &bull;{' '}
+                          {metadata.failure_count_30d} failure{metadata.failure_count_30d !== 1 ? 's' : ''} in last 30
+                          days
+                        </p>
+                      ) : null}
+                      {driftWarning !== null ? (
+                        <p className="crosshook-danger" style={{ margin: 0 }} role="alert">
+                          {driftWarning}
+                        </p>
+                      ) : null}
+                      {metadata.is_community_import && (report.status === 'broken' || report.status === 'stale') ? (
+                        <p className="crosshook-help-text" style={{ margin: 0 }}>
+                          This profile was imported from a community tap — paths may need adjustment for your system.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
+                    {report.issues.map((issue, index) => (
+                      <li
+                        key={index}
+                        style={{ borderLeft: '3px solid var(--crosshook-danger, #ef4444)', paddingLeft: 10 }}
+                      >
+                        <strong>{issue.field}</strong>
+                        {issue.path ? <span className="crosshook-muted"> — {issue.path}</span> : null}
+                        <p style={{ margin: '2px 0' }}>{issue.message}</p>
+                        {issue.remediation ? (
+                          <p className="crosshook-help-text" style={{ margin: '2px 0' }}>
+                            {issue.remediation}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </CollapsibleSection>
               </div>
-            </div>
-            <div className="crosshook-protonup-recommendation__actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--small crosshook-button--primary"
-                onClick={() => {
-                  if (!suggestion.recommended_version) {
-                    return;
-                  }
-                  const targetRoot = effectiveSteamClientInstallPath
-                    ? `${effectiveSteamClientInstallPath}/compatibilitytools.d`
-                    : '';
-                  setSuggestionInstallError(null);
-                  void (async () => {
-                    const provider = await resolveProtonUpProviderForVersion(
-                      suggestion.recommended_version!,
-                    );
-                    return protonUp.installVersion({
-                      provider,
-                      version: suggestion.recommended_version!,
-                      target_root: targetRoot,
-                    });
-                  })()
-                    .then((result) => {
+            );
+          })()}
+
+          {/* Prefix Dependencies — shown when the selected profile has required_protontricks */}
+          {profile.trainer?.required_protontricks && profile.trainer.required_protontricks.length > 0 ? (
+            <CollapsibleSection title="Prefix Dependencies" className="crosshook-panel">
+              <PrefixDepsPanel
+                profileName={profileName}
+                prefixPath={profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? ''}
+                requiredPackages={profile.trainer.required_protontricks}
+              />
+            </CollapsibleSection>
+          ) : null}
+
+          {/* ProtonUp recommendation — advisory only, never blocks launch */}
+          {suggestion !== null && suggestion.status === 'missing' && !suggestionDismissed ? (
+            <div className="crosshook-panel crosshook-protonup-recommendation" role="status">
+              <div className="crosshook-protonup-recommendation__content">
+                <span className="crosshook-protonup-recommendation__icon" aria-hidden="true">
+                  &#9888;
+                </span>
+                <div className="crosshook-protonup-recommendation__text">
+                  <strong>Runtime suggestion</strong>
+                  <p className="crosshook-help-text" style={{ margin: '4px 0 0' }}>
+                    This community profile recommends <strong>{suggestion.community_version}</strong>, which is not
+                    currently installed. You can still launch with your current runtime.
+                  </p>
+                </div>
+              </div>
+              <div
+                className="crosshook-protonup-recommendation__actions"
+                style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}
+              >
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--small crosshook-button--primary"
+                  onClick={() => {
+                    if (!suggestion.recommended_version) {
+                      return;
+                    }
+                    const targetRoot = effectiveSteamClientInstallPath
+                      ? `${effectiveSteamClientInstallPath}/compatibilitytools.d`
+                      : '';
+                    setSuggestionInstallError(null);
+                    void (async () => {
+                      const provider = await resolveProtonUpProviderForVersion(suggestion.recommended_version!);
+                      return protonUp.installVersion({
+                        provider,
+                        version: suggestion.recommended_version!,
+                        target_root: targetRoot,
+                      });
+                    })().then((result) => {
                       if (!result.success) {
-                        setSuggestionInstallError(
-                          result.error_message ?? result.error_kind ?? 'Install failed',
-                        );
+                        setSuggestionInstallError(result.error_message ?? result.error_kind ?? 'Install failed');
                         return;
                       }
                       void callCommand<ProtonInstallOption[]>('list_proton_installs', {
@@ -881,55 +872,51 @@ export function ProfilesPage() {
                       });
                       setSuggestionDismissed(true);
                     });
-                }}
-                disabled={
-                  protonUp.installing ||
-                  !suggestion.recommended_version ||
-                  !effectiveSteamClientInstallPath
-                }
-              >
-                {protonUp.installing ? 'Installing\u2026' : 'Install recommended'}
-              </button>
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--small crosshook-button--ghost"
-                onClick={() => setSuggestionDismissed(true)}
-              >
-                Dismiss
-              </button>
+                  }}
+                  disabled={protonUp.installing || !suggestion.recommended_version || !effectiveSteamClientInstallPath}
+                >
+                  {protonUp.installing ? 'Installing\u2026' : 'Install recommended'}
+                </button>
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--small crosshook-button--ghost"
+                  onClick={() => setSuggestionDismissed(true)}
+                >
+                  Dismiss
+                </button>
+              </div>
+              {suggestionInstallError ? (
+                <p className="crosshook-danger" role="alert" style={{ margin: '8px 0 0' }}>
+                  {suggestionInstallError}
+                </p>
+              ) : null}
             </div>
-            {suggestionInstallError ? (
-              <p className="crosshook-danger" role="alert" style={{ margin: '8px 0 0' }}>
-                {suggestionInstallError}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+          ) : null}
 
-        {/* Profile sub-tabs — stable height; scroll inside active tab */}
-        <div className="crosshook-profiles-editor-host">
-          <div className="crosshook-panel crosshook-subtabs-shell crosshook-profiles-subtabs">
-            <ProfileSubTabs
-              profile={profile}
-              profileName={profileName}
-              profileExists={profileExists}
-              profiles={profiles}
-              launchMethod={launchMethod}
-              protonInstalls={protonInstalls}
-              protonInstallsError={protonInstallsError}
-              onUpdateProfile={updateProfile}
-              onProfileNameChange={setProfileName}
-              trainerVersion={selectedTrainerVersion}
-              onVersionSet={() => {
-                if (selectedProfile) void revalidateSingle(selectedProfile);
-              }}
-              steamClientInstallPath={effectiveSteamClientInstallPath}
-              targetHomePath={targetHomePath}
-              pendingReExport={pendingLauncherReExport}
-              onReExportHandled={() => setPendingLauncherReExport(false)}
-            />
+          {/* Profile sub-tabs — stable height; scroll inside active tab */}
+          <div className="crosshook-profiles-editor-host">
+            <div className="crosshook-panel crosshook-subtabs-shell crosshook-profiles-subtabs">
+              <ProfileSubTabs
+                profile={profile}
+                profileName={profileName}
+                profileExists={profileExists}
+                profiles={profiles}
+                launchMethod={launchMethod}
+                protonInstalls={protonInstalls}
+                protonInstallsError={protonInstallsError}
+                onUpdateProfile={updateProfile}
+                onProfileNameChange={setProfileName}
+                trainerVersion={selectedTrainerVersion}
+                onVersionSet={() => {
+                  if (selectedProfile) void revalidateSingle(selectedProfile);
+                }}
+                steamClientInstallPath={effectiveSteamClientInstallPath}
+                targetHomePath={targetHomePath}
+                pendingReExport={pendingLauncherReExport}
+                onReExportHandled={() => setPendingLauncherReExport(false)}
+              />
+            </div>
           </div>
-        </div>
         </div>
 
         <div className="crosshook-profiles-page__actions crosshook-route-footer crosshook-panel">

@@ -15,7 +15,7 @@ export interface UseExternalTrainerSearchReturn {
  */
 export function useExternalTrainerSearch(
   gameName: string,
-  options?: { steamAppId?: string },
+  options?: { steamAppId?: string }
 ): UseExternalTrainerSearchReturn {
   const [data, setData] = useState<ExternalTrainerSearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,16 +50,13 @@ export function useExternalTrainerSearch(
       setError(null);
 
       try {
-        const result = await callCommand<ExternalTrainerSearchResponse>(
-          'discovery_search_external',
-          {
-            query: {
-              gameName: trimmed,
-              steamAppId: options?.steamAppId,
-              forceRefresh,
-            },
+        const result = await callCommand<ExternalTrainerSearchResponse>('discovery_search_external', {
+          query: {
+            gameName: trimmed,
+            steamAppId: options?.steamAppId,
+            forceRefresh,
           },
-        );
+        });
 
         if (!isMountedRef.current || requestIdRef.current !== id) {
           return;
@@ -79,7 +76,7 @@ export function useExternalTrainerSearch(
         }
       }
     },
-    [gameName, options?.steamAppId],
+    [gameName, options?.steamAppId]
   );
 
   // Auto-fire with debounce when gameName changes.
@@ -119,7 +116,7 @@ export function useExternalTrainerSearch(
       clearDebounceTimer();
       await fetchResults(forceRefresh);
     },
-    [fetchResults, clearDebounceTimer],
+    [fetchResults, clearDebounceTimer]
   );
 
   return { data, loading, error, search };

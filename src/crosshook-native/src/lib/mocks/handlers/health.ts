@@ -9,11 +9,7 @@ import type {
   HealthStatus,
 } from '../../../types/health';
 import type { CachedOfflineReadinessSnapshot } from '../../../types/offline';
-import type {
-  VersionCheckResult,
-  VersionCorrelationStatus,
-  VersionSnapshotInfo,
-} from '../../../types/version';
+import type { VersionCheckResult, VersionCorrelationStatus, VersionSnapshotInfo } from '../../../types/version';
 
 // ---------------------------------------------------------------------------
 // Module-scope health state
@@ -42,7 +38,7 @@ function daysAgoIso(days: number): string {
 function buildHealthReport(
   profileName: string,
   status: HealthStatus,
-  issues: HealthIssue[],
+  issues: HealthIssue[]
 ): EnrichedProfileHealthReport {
   return {
     name: profileName,
@@ -134,9 +130,7 @@ function buildVersionSnapshot(profileName: string): VersionSnapshotInfo {
 
 function buildVersionCheckResult(profileName: string): VersionCheckResult {
   const profileId = `mock-pid-${profileName.replace(/\s+/g, '-').toLowerCase()}`;
-  const status: VersionCorrelationStatus = acknowledgedVersions.has(profileName)
-    ? 'matched'
-    : 'game_updated';
+  const status: VersionCorrelationStatus = acknowledgedVersions.has(profileName) ? 'matched' : 'game_updated';
   return {
     profile_id: profileId,
     current_build_id: '12345678',
@@ -193,28 +187,25 @@ export function registerHealth(map: Map<string, Handler>): void {
   });
 
   // get_cached_offline_readiness_snapshots — returns cached offline readiness rows
-  map.set(
-    'get_cached_offline_readiness_snapshots',
-    async (): Promise<CachedOfflineReadinessSnapshot[]> => {
-      const store = getStore();
-      const names = Array.from(store.profiles.keys());
-      return names.map((name) => ({
-        profile_id: `mock-pid-${name.replace(/\s+/g, '-').toLowerCase()}`,
-        profile_name: name,
-        readiness_state: 'ready',
-        readiness_score: 90,
-        trainer_type: 'standalone',
-        trainer_present: 1,
-        trainer_hash_valid: 1,
-        trainer_activated: 1,
-        proton_available: 1,
-        community_tap_cached: 0,
-        network_required: 0,
-        blocking_reasons: null,
-        checked_at: daysAgoIso(1),
-      }));
-    },
-  );
+  map.set('get_cached_offline_readiness_snapshots', async (): Promise<CachedOfflineReadinessSnapshot[]> => {
+    const store = getStore();
+    const names = Array.from(store.profiles.keys());
+    return names.map((name) => ({
+      profile_id: `mock-pid-${name.replace(/\s+/g, '-').toLowerCase()}`,
+      profile_name: name,
+      readiness_state: 'ready',
+      readiness_score: 90,
+      trainer_type: 'standalone',
+      trainer_present: 1,
+      trainer_hash_valid: 1,
+      trainer_activated: 1,
+      proton_available: 1,
+      community_tap_cached: 0,
+      network_required: 0,
+      blocking_reasons: null,
+      checked_at: daysAgoIso(1),
+    }));
+  });
 
   // check_version_status — checks version correlation for a named profile
   map.set('check_version_status', async (args) => {
@@ -246,9 +237,7 @@ export function registerHealth(map: Map<string, Handler>): void {
     const { name, version } = args as { name: string; version: string };
     const store = getStore();
     if (!store.profiles.has(name)) {
-      throw new Error(
-        `[dev-mock] profile '${name}' is not registered in the metadata store`,
-      );
+      throw new Error(`[dev-mock] profile '${name}' is not registered in the metadata store`);
     }
     // In the mock we just note the version was set; no persistent state change needed
     void version;
@@ -260,9 +249,7 @@ export function registerHealth(map: Map<string, Handler>): void {
     const { name } = args as { name: string };
     const store = getStore();
     if (!store.profiles.has(name)) {
-      throw new Error(
-        `[dev-mock] profile '${name}' is not registered in the metadata store`,
-      );
+      throw new Error(`[dev-mock] profile '${name}' is not registered in the metadata store`);
     }
     acknowledgedVersions.add(name);
     // Update the in-memory snapshot so subsequent reads reflect acknowledged state

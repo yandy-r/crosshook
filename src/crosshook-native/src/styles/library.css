@@ -63,7 +63,8 @@
   background: transparent;
   color: var(--crosshook-color-text-muted);
   cursor: pointer;
-  transition: background var(--crosshook-transition-fast) ease,
+  transition:
+    background var(--crosshook-transition-fast) ease,
     color var(--crosshook-transition-fast) ease;
 }
 
@@ -80,10 +81,7 @@
 
 .crosshook-library-grid {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(var(--crosshook-library-card-width), 1fr)
-  );
+  grid-template-columns: repeat(auto-fill, minmax(var(--crosshook-library-card-width), 1fr));
   gap: var(--crosshook-library-grid-gap);
   align-content: start;
 }
@@ -96,7 +94,8 @@
   border-radius: var(--crosshook-radius-md);
   background: var(--crosshook-color-surface);
   cursor: default;
-  transition: transform var(--crosshook-transition-fast) ease,
+  transition:
+    transform var(--crosshook-transition-fast) ease,
     box-shadow var(--crosshook-transition-fast) ease;
 }
 

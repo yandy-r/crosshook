@@ -15,14 +15,12 @@ pub async fn protonup_list_available_versions(
     force_refresh: Option<bool>,
 ) -> Result<ProtonUpCatalogResponse, String> {
     let provider = parse_protonup_provider(provider.as_deref());
-    Ok(
-        crosshook_core::protonup::catalog::list_available_versions(
-            &metadata_store,
-            force_refresh.unwrap_or(false),
-            provider,
-        )
-        .await,
+    Ok(crosshook_core::protonup::catalog::list_available_versions(
+        &metadata_store,
+        force_refresh.unwrap_or(false),
+        provider,
     )
+    .await)
 }
 
 /// Install a selected Proton version.
@@ -51,10 +49,7 @@ pub async fn protonup_install_version(
             success: false,
             installed_path: None,
             error_kind: Some(ProtonUpInstallErrorKind::DependencyMissing),
-            error_message: Some(format!(
-                "version {} not found in catalog",
-                request.version
-            )),
+            error_message: Some(format!("version {} not found in catalog", request.version)),
         });
     };
 

@@ -14,13 +14,8 @@ export interface CollectionsSidebarProps {
 }
 
 export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps) {
-  const {
-    collections,
-    createCollection,
-    error,
-    prepareCollectionImportPreview,
-    applyImportedCollection,
-  } = useCollections();
+  const { collections, createCollection, error, prepareCollectionImportPreview, applyImportedCollection } =
+    useCollections();
   const [createOpen, setCreateOpen] = useState(false);
   const [createSessionError, setCreateSessionError] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<CollectionImportPreview | null>(null);
@@ -38,9 +33,7 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
         return false;
       }
       if (result.descriptionFailed) {
-        setCreateSessionError(
-          `Collection created, but description could not be saved: ${result.descriptionFailed}`
-        );
+        setCreateSessionError(`Collection created, but description could not be saved: ${result.descriptionFailed}`);
         return false;
       }
       return true;
@@ -88,11 +81,7 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
   }, [prepareCollectionImportPreview]);
 
   const handleImportConfirm = useCallback(
-    async (input: {
-      name: string;
-      description: string | null;
-      ambiguousResolutions: (string | null)[];
-    }) => {
+    async (input: { name: string; description: string | null; ambiguousResolutions: (string | null)[] }) => {
       if (importPreview === null) {
         return;
       }

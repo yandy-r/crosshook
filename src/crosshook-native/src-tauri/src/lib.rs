@@ -42,8 +42,7 @@ pub fn run() {
             .any(|p| std::path::Path::new(p).exists())
         {
             let current_ld = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
-            let new_ld =
-                format!("/usr/lib:/usr/lib64:/usr/lib/x86_64-linux-gnu:{current_ld}");
+            let new_ld = format!("/usr/lib:/usr/lib64:/usr/lib/x86_64-linux-gnu:{current_ld}");
 
             if let Ok(exe) = std::env::current_exe() {
                 let args: Vec<String> = std::env::args().skip(1).collect();

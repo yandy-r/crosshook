@@ -1,13 +1,5 @@
 import { createPortal } from 'react-dom';
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 
 import type { LibraryCardData } from '../../types/library';
 import type { EnrichedProfileHealthReport } from '../../types/health';
@@ -39,7 +31,7 @@ const FOCUSABLE_SELECTOR = [
 
 function getFocusableElements(container: HTMLElement) {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length > 0,
+    (element) => !element.hasAttribute('disabled') && element.tabIndex >= 0 && element.getClientRects().length > 0
   );
 }
 
@@ -139,7 +131,7 @@ export function GameDetailsModal({
   const customBgPath = effectiveGameArtPath(profile, 'custom_background_art_path');
   const customPortraitPath =
     loadState === 'ready' && profile
-      ? effectiveGameArtPath(profile, 'custom_portrait_art_path') ?? summary?.customPortraitArtPath
+      ? (effectiveGameArtPath(profile, 'custom_portrait_art_path') ?? summary?.customPortraitArtPath)
       : summary?.customPortraitArtPath;
 
   const meta = useGameMetadata(appIdForArt);
@@ -148,8 +140,7 @@ export function GameDetailsModal({
   const portraitArt = useGameCoverArt(appIdForArt, customPortraitPath, 'portrait');
 
   const headerImage = meta.appDetails?.header_image?.trim() || null;
-  const metaLoading =
-    Boolean(hasNumericAppId) && (meta.loading || meta.state === 'idle' || meta.state === 'loading');
+  const metaLoading = Boolean(hasNumericAppId) && (meta.loading || meta.state === 'idle' || meta.state === 'loading');
 
   const heroResolved = useMemo(
     () =>
@@ -168,7 +159,7 @@ export function GameDetailsModal({
       heroGridArt.loading,
       headerImage,
       metaLoading,
-    ],
+    ]
   );
 
   const [heroImgBroken, setHeroImgBroken] = useState(false);
@@ -365,7 +356,7 @@ export function GameDetailsModal({
           <div className="crosshook-modal__summary-item">
             <div className="crosshook-modal__summary-label">Launch method</div>
             <div className="crosshook-modal__summary-value crosshook-modal__summary-value--mono">
-              {loadState === 'loading' ? 'Loading…' : methodLabel ?? '—'}
+              {loadState === 'loading' ? 'Loading…' : (methodLabel ?? '—')}
             </div>
           </div>
         </section>
@@ -482,7 +473,7 @@ export function GameDetailsModal({
         </footer>
       </div>
     </div>,
-    portalHostRef.current,
+    portalHostRef.current
   );
 }
 

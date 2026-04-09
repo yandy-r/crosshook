@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
-import type {
-  AcceptSuggestionRequest,
-  AcceptSuggestionResult,
-  ProtonDbSuggestionSet,
-} from '../types/protondb';
+import type { AcceptSuggestionRequest, AcceptSuggestionResult, ProtonDbSuggestionSet } from '../types/protondb';
 
 export interface UseProtonDbSuggestionsResult {
   suggestionSet: ProtonDbSuggestionSet | null;
@@ -16,10 +12,7 @@ export interface UseProtonDbSuggestionsResult {
   refresh: () => Promise<void>;
 }
 
-export function useProtonDbSuggestions(
-  appId: string,
-  profileName: string,
-): UseProtonDbSuggestionsResult {
+export function useProtonDbSuggestions(appId: string, profileName: string): UseProtonDbSuggestionsResult {
   const [suggestionSet, setSuggestionSet] = useState<ProtonDbSuggestionSet | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +56,7 @@ export function useProtonDbSuggestions(
         }
       }
     },
-    [appId, profileName],
+    [appId, profileName]
   );
 
   useEffect(() => {
@@ -86,7 +79,7 @@ export function useProtonDbSuggestions(
       void fetchSuggestions(false);
       return result;
     },
-    [fetchSuggestions],
+    [fetchSuggestions]
   );
 
   const dismissSuggestion = useCallback(
@@ -99,17 +92,13 @@ export function useProtonDbSuggestions(
         if (!prev) return prev;
         return {
           ...prev,
-          catalogSuggestions: prev.catalogSuggestions.filter(
-            (s) => s.catalogEntryId !== suggestionKey,
-          ),
+          catalogSuggestions: prev.catalogSuggestions.filter((s) => s.catalogEntryId !== suggestionKey),
           envVarSuggestions: prev.envVarSuggestions.filter((s) => s.key !== suggestionKey),
-          launchOptionSuggestions: prev.launchOptionSuggestions.filter(
-            (s) => s.rawText !== suggestionKey,
-          ),
+          launchOptionSuggestions: prev.launchOptionSuggestions.filter((s) => s.rawText !== suggestionKey),
         };
       });
     },
-    [profileName, appId],
+    [profileName, appId]
   );
 
   const refresh = useCallback(async (): Promise<void> => {

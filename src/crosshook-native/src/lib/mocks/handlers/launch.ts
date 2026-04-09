@@ -3,12 +3,7 @@ import { getActiveFixture } from '../../fixture';
 import { getStore } from '../store';
 import { emitMockEvent } from '../eventBus';
 import type { DiagnosticReport } from '../../../types/diagnostics';
-import type {
-  LaunchRequest,
-  LaunchResult,
-  LaunchPreview,
-  LaunchValidationIssue,
-} from '../../../types/launch';
+import type { LaunchRequest, LaunchResult, LaunchPreview, LaunchValidationIssue } from '../../../types/launch';
 import type { HashVerifyResult, OfflineReadinessReport } from '../../../types/offline';
 
 // ---------------------------------------------------------------------------
@@ -107,9 +102,12 @@ function scheduleLaunchLogSequence(
   afterLogsDelayMs: number
 ): void {
   logLines.forEach((line, index) => {
-    setTimeout(() => {
-      emitMockEvent('launch-log', line);
-    }, delayBetweenMs * (index + 1));
+    setTimeout(
+      () => {
+        emitMockEvent('launch-log', line);
+      },
+      delayBetweenMs * (index + 1)
+    );
   });
 
   const diagnosticDelay = delayBetweenMs * (logLines.length + 1) + afterLogsDelayMs;
@@ -251,8 +249,7 @@ export function registerLaunch(map: Map<string, Handler>): void {
               wine_prefix_path: '/home/devuser/.local/share/mock-prefix',
               compat_data_path: '/home/devuser/.steam/steam/steamapps/compatdata/9999001',
               steam_client_install_path: getStore().defaultSteamClientInstallPath,
-              proton_executable:
-                '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton',
+              proton_executable: '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton',
               umu_run_path: null,
             },
         working_directory: '/home/devuser/Games/TestGameAlpha',
@@ -281,8 +278,7 @@ export function registerLaunch(map: Map<string, Handler>): void {
               wine_prefix_path: '/home/devuser/.local/share/mock-prefix',
               compat_data_path: '/home/devuser/.steam/steam/steamapps/compatdata/9999001',
               steam_client_install_path: getStore().defaultSteamClientInstallPath,
-              proton_executable:
-                '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton',
+              proton_executable: '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton',
               umu_run_path: null,
             }
           : null,
@@ -299,8 +295,7 @@ export function registerLaunch(map: Map<string, Handler>): void {
             }
           : null,
       generated_at: new Date().toISOString(),
-      display_text:
-        'Mock preview: game will be launched via Proton with PROTON_LOG=1 and esync enabled.',
+      display_text: 'Mock preview: game will be launched via Proton with PROTON_LOG=1 and esync enabled.',
     };
 
     return preview;

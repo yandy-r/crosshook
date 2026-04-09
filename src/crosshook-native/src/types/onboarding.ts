@@ -7,13 +7,7 @@ export interface ReadinessCheckResult {
   warnings: number;
 }
 
-export type OnboardingWizardStage =
-  | 'identity_game'
-  | 'runtime'
-  | 'trainer'
-  | 'media'
-  | 'review'
-  | 'completed';
+export type OnboardingWizardStage = 'identity_game' | 'runtime' | 'trainer' | 'media' | 'review' | 'completed';
 
 export interface TrainerGuidanceEntry {
   id: string;

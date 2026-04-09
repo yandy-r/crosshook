@@ -69,4 +69,3 @@ export interface PrefixStorageHistoryResponse {
   snapshots: PrefixStorageSnapshotRow[];
   audit: PrefixStorageCleanupAuditRow[];
 }
-

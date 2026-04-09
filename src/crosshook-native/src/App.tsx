@@ -65,20 +65,19 @@ function ConsoleDock({ panelRef }: { panelRef: RefObject<PanelImperativeHandle |
 }
 
 function AppShell({ controllerMode }: { controllerMode: boolean }) {
-  const {
-    profileName,
-    selectedProfile,
-    selectProfile,
-    activeCollectionId,
-    setActiveCollectionId,
-  } = useProfileContext();
+  const { profileName, selectedProfile, selectProfile, activeCollectionId, setActiveCollectionId } =
+    useProfileContext();
   const [route, setRoute] = useState<AppRoute>('library');
   const lastProfile = profileName.trim() || selectedProfile;
   const consolePanelRef = useRef<PanelImperativeHandle>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  const { open: collectionModalOpen, collectionId: openCollectionId, openForCollection, close: closeCollectionModal } =
-    useCollectionViewModalState();
+  const {
+    open: collectionModalOpen,
+    collectionId: openCollectionId,
+    openForCollection,
+    close: closeCollectionModal,
+  } = useCollectionViewModalState();
   const { renameCollection, updateDescription, collections } = useCollections();
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
   const [editSessionError, setEditSessionError] = useState<string | null>(null);
@@ -88,9 +87,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
   } | null>(null);
   const editingCollection = useMemo(
     () =>
-      editingCollectionId === null
-        ? null
-        : (collections.find((c) => c.collection_id === editingCollectionId) ?? null),
+      editingCollectionId === null ? null : (collections.find((c) => c.collection_id === editingCollectionId) ?? null),
     [collections, editingCollectionId]
   );
 
@@ -175,116 +172,116 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
 
   return (
     <Tooltip.Provider delayDuration={200}>
-    <PreferencesProvider activeProfileName={lastProfile}>
-      <LaunchStateProvider>
-        <Tabs.Root
-          orientation="vertical"
-          value={route}
-          onValueChange={(value) => {
-            if (isAppRoute(value)) setRoute(value);
-          }}
-        >
-          <div className="crosshook-app-layout">
-            <Group
-              className="crosshook-shell-group"
-              orientation="horizontal"
-              resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
-            >
-              <Panel className="crosshook-shell-panel" defaultSize="20%" minSize="14%" maxSize="40%">
-                <Sidebar
-                  activeRoute={route}
-                  onNavigate={setRoute}
-                  controllerMode={controllerMode}
-                  lastProfile={lastProfile}
-                  onOpenCollection={handleOpenCollection}
-                />
-              </Panel>
-              <Separator className="crosshook-resize-handle crosshook-resize-handle--vertical" />
-              <Panel className="crosshook-shell-panel" minSize="28%">
-                <Group
-                  className="crosshook-shell-group"
-                  orientation="vertical"
-                  resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
-                >
-                  <Panel className="crosshook-shell-panel" defaultSize="80%" minSize="28%">
-                    <ContentArea route={route} onNavigate={setRoute} />
-                  </Panel>
-                  <Separator className="crosshook-resize-handle crosshook-resize-handle--horizontal" />
-                  <Panel
-                    className="crosshook-shell-panel"
-                    panelRef={consolePanelRef}
-                    collapsible
-                    collapsedSize="40px"
-                    defaultSize="60%"
-                    minSize="25%"
-                    maxSize="75%"
+      <PreferencesProvider activeProfileName={lastProfile}>
+        <LaunchStateProvider>
+          <Tabs.Root
+            orientation="vertical"
+            value={route}
+            onValueChange={(value) => {
+              if (isAppRoute(value)) setRoute(value);
+            }}
+          >
+            <div className="crosshook-app-layout">
+              <Group
+                className="crosshook-shell-group"
+                orientation="horizontal"
+                resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
+              >
+                <Panel className="crosshook-shell-panel" defaultSize="20%" minSize="14%" maxSize="40%">
+                  <Sidebar
+                    activeRoute={route}
+                    onNavigate={setRoute}
+                    controllerMode={controllerMode}
+                    lastProfile={lastProfile}
+                    onOpenCollection={handleOpenCollection}
+                  />
+                </Panel>
+                <Separator className="crosshook-resize-handle crosshook-resize-handle--vertical" />
+                <Panel className="crosshook-shell-panel" minSize="28%">
+                  <Group
+                    className="crosshook-shell-group"
+                    orientation="vertical"
+                    resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
                   >
-                    <ConsoleDock panelRef={consolePanelRef} />
-                  </Panel>
-                </Group>
-              </Panel>
-            </Group>
-          </div>
-          {controllerMode ? <ControllerPrompts /> : null}
-        </Tabs.Root>
-        {showOnboarding && (
-          <OnboardingWizard
-            open={showOnboarding}
-            onComplete={() => setShowOnboarding(false)}
-            onDismiss={() => setShowOnboarding(false)}
+                    <Panel className="crosshook-shell-panel" defaultSize="80%" minSize="28%">
+                      <ContentArea route={route} onNavigate={setRoute} />
+                    </Panel>
+                    <Separator className="crosshook-resize-handle crosshook-resize-handle--horizontal" />
+                    <Panel
+                      className="crosshook-shell-panel"
+                      panelRef={consolePanelRef}
+                      collapsible
+                      collapsedSize="40px"
+                      defaultSize="60%"
+                      minSize="25%"
+                      maxSize="75%"
+                    >
+                      <ConsoleDock panelRef={consolePanelRef} />
+                    </Panel>
+                  </Group>
+                </Panel>
+              </Group>
+            </div>
+            {controllerMode ? <ControllerPrompts /> : null}
+          </Tabs.Root>
+          {showOnboarding && (
+            <OnboardingWizard
+              open={showOnboarding}
+              onComplete={() => setShowOnboarding(false)}
+              onDismiss={() => setShowOnboarding(false)}
+            />
+          )}
+          <CollectionViewModal
+            open={collectionModalOpen}
+            collectionId={openCollectionId}
+            onClose={closeCollectionModal}
+            onLaunch={handleLaunchFromCollection}
+            onEdit={handleEditFromCollection}
+            onRequestEditMetadata={handleRequestEditMetadata}
+            onCollectionDeleted={(id) => {
+              if (activeCollectionId === id) {
+                setActiveCollectionId(null);
+              }
+            }}
+            onOpenInProfilesPage={() => {
+              // `activeCollectionId` is already set by the open-collection flow,
+              // so the Profiles page filter is preserved across the navigation.
+              closeCollectionModal();
+              setRoute('profiles');
+            }}
           />
-        )}
-        <CollectionViewModal
-          open={collectionModalOpen}
-          collectionId={openCollectionId}
-          onClose={closeCollectionModal}
-          onLaunch={handleLaunchFromCollection}
-          onEdit={handleEditFromCollection}
-          onRequestEditMetadata={handleRequestEditMetadata}
-          onCollectionDeleted={(id) => {
-            if (activeCollectionId === id) {
-              setActiveCollectionId(null);
-            }
-          }}
-          onOpenInProfilesPage={() => {
-            // `activeCollectionId` is already set by the open-collection flow,
-            // so the Profiles page filter is preserved across the navigation.
-            closeCollectionModal();
-            setRoute('profiles');
-          }}
-        />
-        <CollectionEditModal
-          open={editingCollection !== null}
-          mode="edit"
-          initialName={editingCollection?.name ?? ''}
-          initialDescription={editingCollection?.description ?? null}
-          onClose={() => setEditingCollectionId(null)}
-          onSubmitCreate={async () => false}
-          onSubmitEdit={handleSubmitEditCollection}
-          externalError={editSessionError}
-        />
-        {collectionDescriptionToast !== null ? (
-          <div className="crosshook-rename-toast" role="status" aria-live="polite">
-            <span>Name saved, but the description could not be saved.</span>
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              onClick={() => void retryCollectionDescription()}
-            >
-              Retry
-            </button>
-            <button
-              type="button"
-              className="crosshook-rename-toast-dismiss"
-              aria-label="Dismiss"
-              onClick={() => setCollectionDescriptionToast(null)}
-            >
-              ×
-            </button>
-          </div>
-        ) : null}
-      </LaunchStateProvider>
-    </PreferencesProvider>
+          <CollectionEditModal
+            open={editingCollection !== null}
+            mode="edit"
+            initialName={editingCollection?.name ?? ''}
+            initialDescription={editingCollection?.description ?? null}
+            onClose={() => setEditingCollectionId(null)}
+            onSubmitCreate={async () => false}
+            onSubmitEdit={handleSubmitEditCollection}
+            externalError={editSessionError}
+          />
+          {collectionDescriptionToast !== null ? (
+            <div className="crosshook-rename-toast" role="status" aria-live="polite">
+              <span>Name saved, but the description could not be saved.</span>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--ghost"
+                onClick={() => void retryCollectionDescription()}
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                className="crosshook-rename-toast-dismiss"
+                aria-label="Dismiss"
+                onClick={() => setCollectionDescriptionToast(null)}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+        </LaunchStateProvider>
+      </PreferencesProvider>
     </Tooltip.Provider>
   );
 }
@@ -300,10 +297,7 @@ export function App() {
       className={`crosshook-app crosshook-focus-scope${__WEB_DEV_MODE__ ? ' crosshook-app--webdev' : ''}`}
     >
       {__WEB_DEV_MODE__ && (
-        <DevModeBanner
-          fixture={getActiveFixture()}
-          toggles={togglesToChipFragments(getActiveToggles())}
-        />
+        <DevModeBanner fixture={getActiveFixture()} toggles={togglesToChipFragments(getActiveToggles())} />
       )}
       <ProfileProvider>
         <ProfileHealthProvider>

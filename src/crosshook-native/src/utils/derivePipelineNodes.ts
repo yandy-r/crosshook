@@ -7,10 +7,7 @@ import {
   type PipelineNodeStatus,
 } from '../types/launch';
 import type { ResolvedLaunchMethod } from './launch';
-import {
-  groupIssuesByNode,
-  type PipelineNodeId,
-} from './mapValidationToNode';
+import { groupIssuesByNode, type PipelineNodeId } from './mapValidationToNode';
 
 /**
  * Derives pipeline nodes for the launch method. Tier 1 (config-only) when `preview` is null; Tier 2
@@ -48,11 +45,7 @@ export function derivePipelineNodes(
   return applyPhaseOverlay(method, phase, baseNodes);
 }
 
-function applyPhaseOverlay(
-  method: ResolvedLaunchMethod,
-  phase: LaunchPhase,
-  base: PipelineNode[]
-): PipelineNode[] {
+function applyPhaseOverlay(method: ResolvedLaunchMethod, phase: LaunchPhase, base: PipelineNode[]): PipelineNode[] {
   if (phase === LaunchPhase.Idle) {
     return base;
   }

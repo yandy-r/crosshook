@@ -319,7 +319,11 @@ export function LauncherExport({
           <p className="crosshook-export-callout__copy">
             Current slug: <code>{launcherStatus.launcher_slug}</code>
           </p>
-          <button type="button" className="crosshook-button crosshook-button--warning" onClick={() => void exportLauncher()}>
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--warning"
+            onClick={() => void exportLauncher()}
+          >
             Re-export Launcher
           </button>
         </div>

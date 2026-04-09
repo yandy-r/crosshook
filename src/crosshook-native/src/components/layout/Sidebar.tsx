@@ -14,7 +14,16 @@ import {
 import { CollectionsSidebar } from '../collections/CollectionsSidebar';
 import { ROUTE_NAV_LABEL } from './routeMetadata';
 
-export type AppRoute = 'library' | 'profiles' | 'launch' | 'install' | 'community' | 'discover' | 'compatibility' | 'settings' | 'health';
+export type AppRoute =
+  | 'library'
+  | 'profiles'
+  | 'launch'
+  | 'install'
+  | 'community'
+  | 'discover'
+  | 'compatibility'
+  | 'settings'
+  | 'health';
 
 export interface SidebarProps {
   activeRoute: AppRoute;
@@ -96,13 +105,7 @@ function StatusRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function Sidebar({
-  activeRoute,
-  onNavigate,
-  controllerMode,
-  lastProfile,
-  onOpenCollection,
-}: SidebarProps) {
+export function Sidebar({ activeRoute, onNavigate, controllerMode, lastProfile, onOpenCollection }: SidebarProps) {
   const controllerLabel = controllerMode ? 'On' : 'Off';
   const profileLabel = lastProfile.trim() || 'No profile selected';
 

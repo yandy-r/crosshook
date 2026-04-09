@@ -190,9 +190,7 @@ export function useInstallGame(): UseInstallGameResult {
         },
         runtime: {
           ...current.runtime,
-          working_directory: trimmedPath
-            ? parentDirectory(trimmedPath)
-            : current.runtime.working_directory,
+          working_directory: trimmedPath ? parentDirectory(trimmedPath) : current.runtime.working_directory,
         },
       }));
 
@@ -274,11 +272,7 @@ export function useInstallGame(): UseInstallGameResult {
     setErrorState(null);
     setStageState('preparing');
 
-    let finalRequest = buildInstallGameRequest(
-      trimmedProfileName,
-      draftProfile,
-      installerInputs.installer_path
-    );
+    let finalRequest = buildInstallGameRequest(trimmedProfileName, draftProfile, installerInputs.installer_path);
 
     if (finalRequest.prefix_path.trim().length === 0) {
       const resolved = (await resolveDefaultPrefixPath(trimmedProfileName)).trim();

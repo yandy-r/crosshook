@@ -486,13 +486,22 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const [optimizationPresetActionBusy, setOptimizationPresetActionBusy] = useState(false);
   const launchOptimizationsAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedLaunchOptimizationIdsRef = useRef<LaunchOptimizationId[]>([]);
-  const [gamescopeAutoSaveStatus, setGamescopeAutoSaveStatus] = useState<LaunchAutoSaveStatus>({ tone: 'idle', label: 'Ready' });
+  const [gamescopeAutoSaveStatus, setGamescopeAutoSaveStatus] = useState<LaunchAutoSaveStatus>({
+    tone: 'idle',
+    label: 'Ready',
+  });
   const gamescopeAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedGamescopeJsonRef = useRef<string>('null');
-  const [trainerGamescopeAutoSaveStatus, setTrainerGamescopeAutoSaveStatus] = useState<LaunchAutoSaveStatus>({ tone: 'idle', label: 'Ready' });
+  const [trainerGamescopeAutoSaveStatus, setTrainerGamescopeAutoSaveStatus] = useState<LaunchAutoSaveStatus>({
+    tone: 'idle',
+    label: 'Ready',
+  });
   const trainerGamescopeAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedTrainerGamescopeJsonRef = useRef<string>('null');
-  const [mangoHudAutoSaveStatus, setMangoHudAutoSaveStatus] = useState<LaunchAutoSaveStatus>({ tone: 'idle', label: 'Ready' });
+  const [mangoHudAutoSaveStatus, setMangoHudAutoSaveStatus] = useState<LaunchAutoSaveStatus>({
+    tone: 'idle',
+    label: 'Ready',
+  });
   const mangoHudAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedMangoHudJsonRef = useRef<string>('null');
   const hasExistingSavedProfileRef = useRef(false);

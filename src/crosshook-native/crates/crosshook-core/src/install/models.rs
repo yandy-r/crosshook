@@ -424,10 +424,7 @@ mod tests {
         assert_eq!(profile.launch.method, "steam_applaunch");
         assert_eq!(profile.steam.app_id, "1245620");
         assert!(profile.runtime.steam_app_id.is_empty());
-        assert_eq!(
-            profile.steam.compatdata_path,
-            prefix_path.to_string_lossy()
-        );
+        assert_eq!(profile.steam.compatdata_path, prefix_path.to_string_lossy());
         assert_eq!(profile.steam.proton_path, "/proton");
         assert!(profile.runtime.prefix_path.is_empty());
         assert!(profile.runtime.proton_path.is_empty());

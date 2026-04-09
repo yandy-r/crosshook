@@ -16,7 +16,11 @@ import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../ty
 import type { VersionCorrelationStatus } from '../types/version';
 import { useProtonDbSuggestions } from '../hooks/useProtonDbSuggestions';
 import { resolveArtAppId } from '../utils/art';
-import { applyProtonDbGroupToProfile, mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../utils/protondb';
+import {
+  applyProtonDbGroupToProfile,
+  mergeProtonDbEnvVarGroup,
+  type PendingProtonDbOverwrite,
+} from '../utils/protondb';
 import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
 import { formatProtonInstallLabel } from '../utils/proton';
 
@@ -306,7 +310,13 @@ function ProfileSelectorField({
   );
 }
 
-export function TrainerVersionSetField({ profileName, onVersionSet }: { profileName: string; onVersionSet?: () => void }) {
+export function TrainerVersionSetField({
+  profileName,
+  onVersionSet,
+}: {
+  profileName: string;
+  onVersionSet?: () => void;
+}) {
   const [pendingVersion, setPendingVersion] = useState('');
   const inputId = useId();
   const { setting, error, success, setVersion, clearSuccess } = useSetTrainerVersion(profileName, onVersionSet);
@@ -426,7 +436,9 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
       }
       setProtonDbStatusMessage(
         `Applied ${parts.join(' and ')}${
-          unchangedCount > 0 ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged` : ''
+          unchangedCount > 0
+            ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged`
+            : ''
         }.`
       );
       return;
@@ -535,11 +547,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
         launchMethod={launchMethod}
       />
 
-      <RunnerMethodSection
-        profile={profile}
-        onUpdateProfile={onUpdateProfile}
-        reviewMode={reviewMode}
-      />
+      <RunnerMethodSection profile={profile} onUpdateProfile={onUpdateProfile} reviewMode={reviewMode} />
 
       <CustomEnvironmentVariablesSection
         profileName={profileName}

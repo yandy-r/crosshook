@@ -20,12 +20,12 @@ focus to the library card root after close.
 
 ## Validation Results
 
-| Check | Status |
-|-------|--------|
-| `npx tsc --noEmit` | Pass (clean) |
-| `npm run build` | Pass (per PR description) |
-| `npm run test:smoke` | Pass (13/13, per PR description) |
-| `cargo test -p crosshook-core` | N/A (no backend changes) |
+| Check                          | Status                           |
+| ------------------------------ | -------------------------------- |
+| `npx tsc --noEmit`             | Pass (clean)                     |
+| `npm run build`                | Pass (per PR description)        |
+| `npm run test:smoke`           | Pass (13/13, per PR description) |
+| `cargo test -p crosshook-core` | N/A (no backend changes)         |
 
 ## Decision: APPROVE
 
@@ -135,7 +135,7 @@ No security issues found — all data originates from local typed objects, JSX r
 - **Status**: Fixed
 - **Description**: `crosshook-pulse-waiting` (line 153) is defined before `crosshook-pulse` (line
   179), despite `crosshook-pulse` being referenced first (line 127). The `@media
-  (prefers-reduced-motion)` block (line 168) falls between the two `@keyframes` blocks, fragmenting
+(prefers-reduced-motion)` block (line 168) falls between the two `@keyframes` blocks, fragmenting
   the animation section.
 
 - **Suggested fix**: Group as: status rules -> all `@keyframes` -> `@media (prefers-reduced-motion)`.
@@ -210,17 +210,17 @@ No security issues found — all data originates from local typed objects, JSX r
 
 ## Summary Table
 
-| # | Severity | Category | File | Status |
-|---|----------|----------|------|--------|
-| 1 | medium | Type Safety | `types/launch.ts:177` | Fixed |
-| 2 | medium | Correctness | `derivePipelineNodes.ts:77-108` | Fixed |
-| 3 | medium | Performance | `useFocusTrap.ts:217-227` | Fixed |
-| 4 | low | Maintainability | `launch-pipeline.css:99,159` | Fixed |
-| 5 | low | Maintainability | `launch-pipeline.css:153,168,179` | Fixed |
-| 6 | low | Maintainability | `derivePipelineNodes.ts:86` | Fixed |
-| 7 | low | Maintainability | `LibraryCard/Page/AssignMenu` | Fixed |
-| 8 | low | Pattern | `LibraryPage.tsx:54-59` | Fixed |
-| 9 | low | Maintainability | `LaunchPipeline.tsx:61` | Fixed |
-| 10 | low | Performance | `LaunchPipeline.tsx:36-40` | Open |
+| #   | Severity | Category        | File                              | Status |
+| --- | -------- | --------------- | --------------------------------- | ------ |
+| 1   | medium   | Type Safety     | `types/launch.ts:177`             | Fixed  |
+| 2   | medium   | Correctness     | `derivePipelineNodes.ts:77-108`   | Fixed  |
+| 3   | medium   | Performance     | `useFocusTrap.ts:217-227`         | Fixed  |
+| 4   | low      | Maintainability | `launch-pipeline.css:99,159`      | Fixed  |
+| 5   | low      | Maintainability | `launch-pipeline.css:153,168,179` | Fixed  |
+| 6   | low      | Maintainability | `derivePipelineNodes.ts:86`       | Fixed  |
+| 7   | low      | Maintainability | `LibraryCard/Page/AssignMenu`     | Fixed  |
+| 8   | low      | Pattern         | `LibraryPage.tsx:54-59`           | Fixed  |
+| 9   | low      | Maintainability | `LaunchPipeline.tsx:61`           | Fixed  |
+| 10  | low      | Performance     | `LaunchPipeline.tsx:36-40`        | Open   |
 
 **Critical: 0 | High: 0 | Medium: 3 | Low: 7**

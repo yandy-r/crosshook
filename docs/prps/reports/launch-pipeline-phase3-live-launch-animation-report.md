@@ -14,34 +14,34 @@ Extended the pipeline DTO with optional `PipelineNodeTone` (`default` | `waiting
 
 ## Tasks Completed
 
-| #   | Task                                           | Status          | Notes |
-| --- | ---------------------------------------------- | --------------- | ----- |
-| 1   | Extend pipeline node contract (`tone`)         | Complete        |       |
-| 2   | Base + `applyPhaseOverlay`                     | Complete        |       |
-| 3   | Method-aware phase mapping                     | Complete        | Native `WaitingForTrainer` maps to game complete + trainer active (no waiting tone) |
-| 4   | `LaunchPipeline` aria + `data-tone`            | Complete        |       |
-| 5   | CSS waiting / complete / reduced-motion        | Complete        |       |
-| 6   | Browser + Tauri manual validation              | Not run in CI   | Run locally per plan checklist |
+| #   | Task                                    | Status        | Notes                                                                               |
+| --- | --------------------------------------- | ------------- | ----------------------------------------------------------------------------------- |
+| 1   | Extend pipeline node contract (`tone`)  | Complete      |                                                                                     |
+| 2   | Base + `applyPhaseOverlay`              | Complete      |                                                                                     |
+| 3   | Method-aware phase mapping              | Complete      | Native `WaitingForTrainer` maps to game complete + trainer active (no waiting tone) |
+| 4   | `LaunchPipeline` aria + `data-tone`     | Complete      |                                                                                     |
+| 5   | CSS waiting / complete / reduced-motion | Complete      |                                                                                     |
+| 6   | Browser + Tauri manual validation       | Not run in CI | Run locally per plan checklist                                                      |
 
 ## Validation Results
 
-| Level           | Status      | Notes |
-| --------------- | ----------- | ----- |
-| Static Analysis | Pass        | `npm run build` (`tsc && vite build`) in `src/crosshook-native` |
-| Unit Tests      | N/A         | No frontend unit runner per plan; logic covered by type-check |
-| Build           | Pass        | Vite production build succeeded |
-| Integration     | N/A         | — |
+| Level              | Status       | Notes                                                                                        |
+| ------------------ | ------------ | -------------------------------------------------------------------------------------------- |
+| Static Analysis    | Pass         | `npm run build` (`tsc && vite build`) in `src/crosshook-native`                              |
+| Unit Tests         | N/A          | No frontend unit runner per plan; logic covered by type-check                                |
+| Build              | Pass         | Vite production build succeeded                                                              |
+| Integration        | N/A          | —                                                                                            |
 | Smoke (Playwright) | Skipped here | Failed: Chromium not installed in sandbox (`npx playwright install` required on dev machine) |
-| Edge Cases      | Pending     | User to verify checklist in plan (browser + full Tauri) |
+| Edge Cases         | Pending      | User to verify checklist in plan (browser + full Tauri)                                      |
 
 ## Files Changed
 
-| File | Action  |
-| ---- | ------- |
-| `src/crosshook-native/src/types/launch.ts` | UPDATED |
-| `src/crosshook-native/src/utils/derivePipelineNodes.ts` | UPDATED |
+| File                                                     | Action  |
+| -------------------------------------------------------- | ------- |
+| `src/crosshook-native/src/types/launch.ts`               | UPDATED |
+| `src/crosshook-native/src/utils/derivePipelineNodes.ts`  | UPDATED |
 | `src/crosshook-native/src/components/LaunchPipeline.tsx` | UPDATED |
-| `src/crosshook-native/src/styles/launch-pipeline.css` | UPDATED |
+| `src/crosshook-native/src/styles/launch-pipeline.css`    | UPDATED |
 
 ## Deviations from Plan
 

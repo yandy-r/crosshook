@@ -149,12 +149,7 @@ function findPortalHost(el: HTMLElement): HTMLElement | null {
  * );
  * ```
  */
-export function useFocusTrap({
-  open,
-  panelRef,
-  onClose,
-  initialFocusRef,
-}: UseFocusTrapOptions): UseFocusTrapReturn {
+export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFocusTrapOptions): UseFocusTrapReturn {
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   /** Elements this instance registered with {@link modalInertRegistry}. */
   const touchedInertRef = useRef<HTMLElement[]>([]);
@@ -173,8 +168,7 @@ export function useFocusTrap({
     if (!portalHost) return;
 
     // Save current focus
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     modalBodyLockDepth += 1;
     if (modalBodyLockDepth === 1) {

@@ -4,14 +4,7 @@ import { useCallback, useState } from 'react';
 import type { OnboardingWizardStage, ReadinessCheckResult } from '../types/onboarding';
 import type { VersionCheckResult } from '../types/version';
 
-const STAGE_SEQUENCE: OnboardingWizardStage[] = [
-  'identity_game',
-  'runtime',
-  'trainer',
-  'media',
-  'review',
-  'completed',
-];
+const STAGE_SEQUENCE: OnboardingWizardStage[] = ['identity_game', 'runtime', 'trainer', 'media', 'review', 'completed'];
 
 export interface UseOnboardingResult {
   stage: OnboardingWizardStage;
@@ -125,11 +118,7 @@ export function useOnboarding(): UseOnboardingResult {
     setStage((current) => {
       const currentIndex = STAGE_SEQUENCE.indexOf(current);
       let nextIndex = currentIndex + 1;
-      if (
-        nextIndex < STAGE_SEQUENCE.length &&
-        STAGE_SEQUENCE[nextIndex] === 'trainer' &&
-        launchMethod === 'native'
-      ) {
+      if (nextIndex < STAGE_SEQUENCE.length && STAGE_SEQUENCE[nextIndex] === 'trainer' && launchMethod === 'native') {
         nextIndex += 1;
       }
       return nextIndex < STAGE_SEQUENCE.length ? STAGE_SEQUENCE[nextIndex] : current;

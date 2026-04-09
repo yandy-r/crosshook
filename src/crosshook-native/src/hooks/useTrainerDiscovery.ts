@@ -15,10 +15,7 @@ export interface UseTrainerDiscoveryReturn {
   refresh: () => Promise<void>;
 }
 
-export function useTrainerDiscovery(
-  query: string,
-  options?: UseTrainerDiscoveryOptions,
-): UseTrainerDiscoveryReturn {
+export function useTrainerDiscovery(query: string, options?: UseTrainerDiscoveryOptions): UseTrainerDiscoveryReturn {
   const [data, setData] = useState<TrainerSearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +63,7 @@ export function useTrainerDiscovery(
         }
       }
     },
-    [options?.limit, options?.offset],
+    [options?.limit, options?.offset]
   );
 
   useEffect(() => {

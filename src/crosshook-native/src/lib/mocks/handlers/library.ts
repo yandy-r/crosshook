@@ -24,8 +24,7 @@ const SEEDED_METADATA: SteamMetadataLookupResult = {
   state: 'ready',
   app_details: {
     name: 'Test Game Alpha',
-    short_description:
-      'A synthetic action-RPG used exclusively for CrossHook browser-mode development.',
+    short_description: 'A synthetic action-RPG used exclusively for CrossHook browser-mode development.',
     header_image: null,
     genres: [
       { id: '1', description: 'Action' },
@@ -101,9 +100,7 @@ export function registerLibrary(map: Map<string, Handler>): void {
       throw new Error('[dev-mock] auto_populate_steam: request is required');
     }
 
-    const isSeededGame =
-      typeof request.game_path === 'string' &&
-      request.game_path.trim().length > 0;
+    const isSeededGame = typeof request.game_path === 'string' && request.game_path.trim().length > 0;
 
     if (isSeededGame) {
       return {

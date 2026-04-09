@@ -16,51 +16,51 @@ invariant is preserved.
 
 ## Assessment vs Reality
 
-| Metric        | Predicted (Plan)                                            | Actual                                               |
-| ------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
-| Complexity    | Large                                                       | Large                                                |
-| Confidence    | N/A                                                         | High — all validation levels passed first time       |
-| Files Changed | 8–10                                                        | 10 (5 modified, 5 created)                           |
-| Wizard LOC    | Target ≤ 600 after refactor                                 | 528 (down from 764; 31% reduction)                   |
+| Metric        | Predicted (Plan)            | Actual                                         |
+| ------------- | --------------------------- | ---------------------------------------------- |
+| Complexity    | Large                       | Large                                          |
+| Confidence    | N/A                         | High — all validation levels passed first time |
+| Files Changed | 8–10                        | 10 (5 modified, 5 created)                     |
+| Wizard LOC    | Target ≤ 600 after refactor | 528 (down from 764; 31% reduction)             |
 
 ## Tasks Completed
 
-| # | Task                                                  | Status         | Notes                                                                           |
-| - | ----------------------------------------------------- | -------------- | ------------------------------------------------------------------------------- |
-| 1 | Extend wizard stage state machine                     | ✅ Complete    | 6-stage sequence, new boolean flags, skip rules preserved for native            |
-| 2 | Create wizard validation helpers                      | ✅ Complete    | `evaluateWizardRequiredFields` strict superset of `validateProfileForSave`      |
-| 3 | Extract check badge helpers                           | ✅ Complete    | `components/wizard/checkBadges.ts` used by wizard + review summary              |
-| 4 | Create `WizardPresetPicker`                           | ✅ Complete    | Slim grouped `ThemedSelect`, disabled in create mode with explanatory hint      |
-| 5 | Create `WizardReviewSummary`                          | ✅ Complete    | Required-field checklist + readiness recap + tip                                |
-| 6 | Refactor `OnboardingWizard.tsx` to compose sections   | ✅ Complete    | 764 → 528 lines; portal/focus contract untouched                                |
-| 7 | Add CSS for wizard layout + review summary            | ✅ Complete    | `__step-grid`, `__review-summary/row/list/icon/label`, badge variants           |
-| 8 | Verify mount sites and run validation                 | ✅ Complete    | `App.tsx` and `ProfilesPage.tsx` unchanged — props stable                       |
+| #   | Task                                                | Status      | Notes                                                                      |
+| --- | --------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+| 1   | Extend wizard stage state machine                   | ✅ Complete | 6-stage sequence, new boolean flags, skip rules preserved for native       |
+| 2   | Create wizard validation helpers                    | ✅ Complete | `evaluateWizardRequiredFields` strict superset of `validateProfileForSave` |
+| 3   | Extract check badge helpers                         | ✅ Complete | `components/wizard/checkBadges.ts` used by wizard + review summary         |
+| 4   | Create `WizardPresetPicker`                         | ✅ Complete | Slim grouped `ThemedSelect`, disabled in create mode with explanatory hint |
+| 5   | Create `WizardReviewSummary`                        | ✅ Complete | Required-field checklist + readiness recap + tip                           |
+| 6   | Refactor `OnboardingWizard.tsx` to compose sections | ✅ Complete | 764 → 528 lines; portal/focus contract untouched                           |
+| 7   | Add CSS for wizard layout + review summary          | ✅ Complete | `__step-grid`, `__review-summary/row/list/icon/label`, badge variants      |
+| 8   | Verify mount sites and run validation               | ✅ Complete | `App.tsx` and `ProfilesPage.tsx` unchanged — props stable                  |
 
 ## Validation Results
 
-| Level                     | Status            | Notes                                                                 |
-| ------------------------- | ----------------- | --------------------------------------------------------------------- |
-| Static Analysis (tsc)     | ✅ Pass           | `cd src/crosshook-native && npm run build` — zero errors              |
-| Lint                      | ✅ Pass (N/A)     | No lint pipeline configured in repo; tsc + Vite is the gate           |
-| Unit Tests                | ✅ Pass (N/A)     | No frontend test framework configured; see Testing Strategy for map   |
-| Build (Vite)              | ✅ Pass           | `dist/assets/index-UngSdTd4.js 768.48 kB / index-D1QFqPHm.css 144.46 kB` |
-| Rust sanity suite         | ✅ Pass           | `cargo test -p crosshook-core`: 718 + 3 passed, 0 failed              |
-| Console.log hygiene       | ✅ Pass           | Zero `console.*` calls added in new/modified wizard files             |
+| Level                 | Status        | Notes                                                                    |
+| --------------------- | ------------- | ------------------------------------------------------------------------ |
+| Static Analysis (tsc) | ✅ Pass       | `cd src/crosshook-native && npm run build` — zero errors                 |
+| Lint                  | ✅ Pass (N/A) | No lint pipeline configured in repo; tsc + Vite is the gate              |
+| Unit Tests            | ✅ Pass (N/A) | No frontend test framework configured; see Testing Strategy for map      |
+| Build (Vite)          | ✅ Pass       | `dist/assets/index-UngSdTd4.js 768.48 kB / index-D1QFqPHm.css 144.46 kB` |
+| Rust sanity suite     | ✅ Pass       | `cargo test -p crosshook-core`: 718 + 3 passed, 0 failed                 |
+| Console.log hygiene   | ✅ Pass       | Zero `console.*` calls added in new/modified wizard files                |
 
 ## Files Changed
 
-| File                                                                  | Action  | Lines        |
-| --------------------------------------------------------------------- | ------- | ------------ |
-| `src/crosshook-native/src/types/onboarding.ts`                        | UPDATED | +7 / -1      |
-| `src/crosshook-native/src/hooks/useOnboarding.ts`                     | UPDATED | +44 / -32    |
-| `src/crosshook-native/src/components/OnboardingWizard.tsx`            | UPDATED | +144 / -380  |
-| `src/crosshook-native/src/components/LaunchOptimizationsPanel.tsx`    | UPDATED | +4 / -7      |
-| `src/crosshook-native/src/styles/theme.css`                           | UPDATED | +68 / -0     |
-| `src/crosshook-native/src/utils/launchOptimizationPresets.ts`         | CREATED | +27          |
-| `src/crosshook-native/src/components/wizard/checkBadges.ts`           | CREATED | +33          |
-| `src/crosshook-native/src/components/wizard/wizardValidation.ts`      | CREATED | +117         |
-| `src/crosshook-native/src/components/wizard/WizardPresetPicker.tsx`   | CREATED | +136         |
-| `src/crosshook-native/src/components/wizard/WizardReviewSummary.tsx`  | CREATED | +103         |
+| File                                                                 | Action  | Lines       |
+| -------------------------------------------------------------------- | ------- | ----------- |
+| `src/crosshook-native/src/types/onboarding.ts`                       | UPDATED | +7 / -1     |
+| `src/crosshook-native/src/hooks/useOnboarding.ts`                    | UPDATED | +44 / -32   |
+| `src/crosshook-native/src/components/OnboardingWizard.tsx`           | UPDATED | +144 / -380 |
+| `src/crosshook-native/src/components/LaunchOptimizationsPanel.tsx`   | UPDATED | +4 / -7     |
+| `src/crosshook-native/src/styles/theme.css`                          | UPDATED | +68 / -0    |
+| `src/crosshook-native/src/utils/launchOptimizationPresets.ts`        | CREATED | +27         |
+| `src/crosshook-native/src/components/wizard/checkBadges.ts`          | CREATED | +33         |
+| `src/crosshook-native/src/components/wizard/wizardValidation.ts`     | CREATED | +117        |
+| `src/crosshook-native/src/components/wizard/WizardPresetPicker.tsx`  | CREATED | +136        |
+| `src/crosshook-native/src/components/wizard/WizardReviewSummary.tsx` | CREATED | +103        |
 
 ## Deviations from Plan
 
@@ -80,7 +80,7 @@ invariant is preserved.
      `useProfile.ts`, and both `applyBundledOptimizationPreset` and
      `switchLaunchOptimizationPreset` silently no-op. Rather than let the user
      click a dead control, the picker renders disabled with an explanatory help
-     line: *"Save the profile first — presets can be applied from the Launch page."*
+     line: _"Save the profile first — presets can be applied from the Launch page."_
    - **Why**: Preserves the BR-9 no-write-before-review invariant (no draft
      profile exists to persist a preset against) while avoiding a silent
      usability failure. In edit mode the picker is fully functional.

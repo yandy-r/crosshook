@@ -32,9 +32,7 @@ export interface UseCollectionDefaultsResult {
  * - `collectionId` is `null` (the modal is closed / no selection).
  * - The fetch failed (the error is exposed in `error`).
  */
-export function useCollectionDefaults(
-  collectionId: string | null
-): UseCollectionDefaultsResult {
+export function useCollectionDefaults(collectionId: string | null): UseCollectionDefaultsResult {
   const [defaults, setDefaults] = useState<CollectionDefaults | null>(null);
   const [defaultsForCollectionId, setDefaultsForCollectionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

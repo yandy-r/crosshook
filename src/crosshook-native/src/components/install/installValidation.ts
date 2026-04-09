@@ -1,9 +1,6 @@
 import type { GameProfile } from '../../types';
 import type { ResolvedLaunchMethod } from '../../utils/launch';
-import {
-  evaluateWizardRequiredFields,
-  type WizardValidationResult,
-} from '../wizard/wizardValidation';
+import { evaluateWizardRequiredFields, type WizardValidationResult } from '../wizard/wizardValidation';
 
 export interface EvaluateInstallRequiredFieldsArgs {
   profileName: string;
@@ -16,9 +13,7 @@ export interface EvaluateInstallRequiredFieldsArgs {
  * Wizard required-field checks plus install-only `installer_path`.
  * Game executable is not required before running the installer (post-install confirmation).
  */
-export function evaluateInstallRequiredFields(
-  args: EvaluateInstallRequiredFieldsArgs
-): WizardValidationResult {
+export function evaluateInstallRequiredFields(args: EvaluateInstallRequiredFieldsArgs): WizardValidationResult {
   const wizardResult = evaluateWizardRequiredFields({
     profileName: args.profileName,
     profile: args.profile,

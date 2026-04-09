@@ -140,9 +140,7 @@ export function registerCommunity(map: Map<string, Handler>): void {
       normalized.pinned_commit = tap.pinned_commit.trim();
     }
     const key = `${normalized.url}::${normalized.branch ?? ''}::${normalized.pinned_commit ?? ''}`;
-    const alreadyPresent = taps.some(
-      (t) => `${t.url}::${t.branch ?? ''}::${t.pinned_commit ?? ''}` === key
-    );
+    const alreadyPresent = taps.some((t) => `${t.url}::${t.branch ?? ''}::${t.pinned_commit ?? ''}` === key);
     if (!alreadyPresent) {
       taps = [...taps, normalized];
     }
@@ -170,9 +168,7 @@ export function registerCommunity(map: Map<string, Handler>): void {
     if (!trimmed) {
       throw new Error('[dev-mock] community_export_profile: profile_name is required');
     }
-    const entry = MOCK_ENTRIES.find(
-      (e) => e.manifest.metadata.game_name.toLowerCase() === trimmed.toLowerCase(),
-    );
+    const entry = MOCK_ENTRIES.find((e) => e.manifest.metadata.game_name.toLowerCase() === trimmed.toLowerCase());
     if (!entry) {
       throw new Error(`[dev-mock] community_export_profile: profile not found: ${profile_name}`);
     }

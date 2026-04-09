@@ -13,7 +13,12 @@ export interface SteamLaunchOptionsPanelProps {
   className?: string;
 }
 
-export function SteamLaunchOptionsPanel({ enabledOptionIds, customEnvVars, gamescopeConfig, className }: SteamLaunchOptionsPanelProps) {
+export function SteamLaunchOptionsPanel({
+  enabledOptionIds,
+  customEnvVars,
+  gamescopeConfig,
+  className,
+}: SteamLaunchOptionsPanelProps) {
   const titleId = useId();
   const [command, setCommand] = useState<string>('');
   const [error, setError] = useState<string | null>(null);

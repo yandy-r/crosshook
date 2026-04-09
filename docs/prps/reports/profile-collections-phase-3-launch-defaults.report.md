@@ -399,10 +399,10 @@ uncompilable. Fixed in the same commit series so the new tests can run.
 
 ### Verification (M1–M4 follow-up)
 
-| Check | Result |
-| --- | --- |
-| `cargo test -p crosshook-core` | **Pass** — 767 unit (+1 for M2) + 3 integration |
-| `cargo test -p crosshook-native` | **Pass** — 23 tests (+5 for `apply_collection_defaults_tests`; suite now actually compiles) |
-| `cargo clippy -p crosshook-core` | **Pass** — 30 warnings (baseline unchanged) |
-| `cargo check -p crosshook-native` | **Pass** |
-| `tsc --noEmit` (frontend) | **Pass** — zero errors |
+| Check                             | Result                                                                                      |
+| --------------------------------- | ------------------------------------------------------------------------------------------- |
+| `cargo test -p crosshook-core`    | **Pass** — 767 unit (+1 for M2) + 3 integration                                             |
+| `cargo test -p crosshook-native`  | **Pass** — 23 tests (+5 for `apply_collection_defaults_tests`; suite now actually compiles) |
+| `cargo clippy -p crosshook-core`  | **Pass** — 30 warnings (baseline unchanged)                                                 |
+| `cargo check -p crosshook-native` | **Pass**                                                                                    |
+| `tsc --noEmit` (frontend)         | **Pass** — zero errors                                                                      |

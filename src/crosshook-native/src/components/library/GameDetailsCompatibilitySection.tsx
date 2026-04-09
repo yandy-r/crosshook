@@ -19,7 +19,9 @@ export function GameDetailsCompatibilitySection({ steamAppId }: GameDetailsCompa
       <p className="crosshook-game-details-modal__muted">ProtonDB data is unavailable (offline or not cached).</p>
     );
   } else if (proton.isStale) {
-    statusMessage = <p className="crosshook-game-details-modal__stale">Showing cached ProtonDB data; it may be stale.</p>;
+    statusMessage = (
+      <p className="crosshook-game-details-modal__stale">Showing cached ProtonDB data; it may be stale.</p>
+    );
   }
 
   return (

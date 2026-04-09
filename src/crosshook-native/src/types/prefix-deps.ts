@@ -1,11 +1,5 @@
 /** State of a single prefix dependency package. */
-export type DepState =
-  | 'unknown'
-  | 'installed'
-  | 'missing'
-  | 'install_failed'
-  | 'check_failed'
-  | 'user_skipped';
+export type DepState = 'unknown' | 'installed' | 'missing' | 'install_failed' | 'check_failed' | 'user_skipped';
 
 /** Result of binary detection for winetricks/protontricks. */
 export interface BinaryDetectionResult {

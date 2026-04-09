@@ -369,7 +369,10 @@ pub fn profile_save(
         // draft has not already selected one — otherwise an explicit wizard
         // selection would be silently clobbered by the user's default.
         let pid = app_settings.default_bundled_optimization_preset_id.trim();
-        if !pid.is_empty() && metadata_store.is_available() && data.launch.active_preset.trim().is_empty() {
+        if !pid.is_empty()
+            && metadata_store.is_available()
+            && data.launch.active_preset.trim().is_empty()
+        {
             match metadata_store.get_bundled_optimization_preset(pid) {
                 Ok(Some(row)) => {
                     let enabled_option_ids: Vec<String> =
@@ -1577,13 +1580,16 @@ mod tests {
                 .expect("seed collection defaults");
 
             let profile = profile_with_custom_env("PROFILE_ONLY", "keep-me");
-            let result =
-                apply_collection_defaults(profile, &store, Some(collection_id.as_str()))
-                    .expect("valid defaults must merge");
+            let result = apply_collection_defaults(profile, &store, Some(collection_id.as_str()))
+                .expect("valid defaults must merge");
 
             assert_eq!(result.launch.method, "proton_run");
             assert_eq!(
-                result.launch.custom_env_vars.get("CROSSHOOK_PROBE").cloned(),
+                result
+                    .launch
+                    .custom_env_vars
+                    .get("CROSSHOOK_PROBE")
+                    .cloned(),
                 Some("1".to_string()),
                 "collection env vars must merge on top of profile env vars"
             );
@@ -1612,7 +1618,9 @@ mod tests {
         #[test]
         fn corrupt_defaults_bubble_error_to_caller() {
             let store = MetadataStore::open_in_memory().expect("open in-memory metadata store");
-            let collection_id = store.create_collection("Broken").expect("create collection");
+            let collection_id = store
+                .create_collection("Broken")
+                .expect("create collection");
 
             // Force a corrupt JSON payload via raw SQL. `set_collection_defaults`
             // would refuse to write invalid JSON, so we go under it via
@@ -1631,9 +1639,8 @@ mod tests {
                 .expect("with_sqlite_conn");
 
             let profile = profile_with_custom_env("PROFILE_ONLY", "keep-me");
-            let err =
-                apply_collection_defaults(profile, &store, Some(collection_id.as_str()))
-                    .expect_err("corrupt defaults must bubble up");
+            let err = apply_collection_defaults(profile, &store, Some(collection_id.as_str()))
+                .expect_err("corrupt defaults must bubble up");
 
             assert!(
                 matches!(err, MetadataStoreError::Corrupt(_)),

@@ -554,7 +554,10 @@ mod tests {
         std::fs::create_dir_all(store.settings_path().parent().unwrap()).unwrap();
         std::fs::write(store.settings_path(), old_toml).unwrap();
         let loaded = store.load().unwrap();
-        assert!(loaded.protonup_auto_suggest, "protonup_auto_suggest should default to true");
+        assert!(
+            loaded.protonup_auto_suggest,
+            "protonup_auto_suggest should default to true"
+        );
         assert!(
             loaded.protonup_binary_path.is_empty(),
             "protonup_binary_path should default to empty"

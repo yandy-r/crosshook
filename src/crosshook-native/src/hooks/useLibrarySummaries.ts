@@ -16,10 +16,7 @@ export interface UseLibrarySummariesResult {
  * triggered by favorite toggles, while a separate effect keeps the favorite
  * flag in sync when `favoriteProfiles` changes independently.
  */
-export function useLibrarySummaries(
-  profiles: string[],
-  favoriteProfiles: string[],
-): UseLibrarySummariesResult {
+export function useLibrarySummaries(profiles: string[], favoriteProfiles: string[]): UseLibrarySummariesResult {
   const [summaries, setSummaries] = useState<LibraryCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +38,7 @@ export function useLibrarySummaries(
           customCoverArtPath: s.customCoverArtPath,
           customPortraitArtPath: s.customPortraitArtPath,
           isFavorite: favoriteSet.has(s.name),
-        })),
+        }))
       );
     } catch (err) {
       console.error('Failed to fetch profile summaries', err);
@@ -59,9 +56,7 @@ export function useLibrarySummaries(
   // Enrich with favorite state when favorites change (no network call).
   useEffect(() => {
     const favoriteSet = new Set(favoriteProfiles);
-    setSummaries((prev) =>
-      prev.map((s) => ({ ...s, isFavorite: favoriteSet.has(s.name) })),
-    );
+    setSummaries((prev) => prev.map((s) => ({ ...s, isFavorite: favoriteSet.has(s.name) })));
   }, [favoriteProfiles]);
 
   return { summaries, setSummaries, loading, error };

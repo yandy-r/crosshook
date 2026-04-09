@@ -1,14 +1,5 @@
 import { createPortal } from 'react-dom';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 
 import { ControllerPrompts } from './layout/ControllerPrompts';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
@@ -363,16 +354,11 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
   const totalVisibleSteps = getTotalVisibleSteps(launchMethod);
   const title = STAGE_TITLES[stage];
   const eyebrow = isCompleted ? 'Complete' : `Step ${visibleStep} of ${totalVisibleSteps}`;
-  const confirmLabel = isCompleted
-    ? 'Done'
-    : isReview
-      ? saving
-        ? 'Saving...'
-        : 'Save Profile'
-      : 'Next';
-  const saveDescribedBy = !validation.isReady && validation.firstMissingId !== null
-    ? `wizard-review-field-${validation.firstMissingId}`
-    : undefined;
+  const confirmLabel = isCompleted ? 'Done' : isReview ? (saving ? 'Saving...' : 'Save Profile') : 'Next';
+  const saveDescribedBy =
+    !validation.isReady && validation.firstMissingId !== null
+      ? `wizard-review-field-${validation.firstMissingId}`
+      : undefined;
 
   return createPortal(
     <div className="crosshook-modal" role="presentation">
@@ -477,11 +463,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 onUpdateProfile={updateProfile}
                 idPrefix="onboarding-wizard"
               />
-              <WizardReviewSummary
-                validation={validation}
-                readinessResult={readinessResult}
-                checkError={checkError}
-              />
+              <WizardReviewSummary validation={validation} readinessResult={readinessResult} checkError={checkError} />
             </section>
           )}
 

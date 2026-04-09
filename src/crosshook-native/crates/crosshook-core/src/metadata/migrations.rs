@@ -1186,9 +1186,9 @@ mod tests {
         let columns: Vec<(String, String, i64, Option<String>)> = stmt
             .query_map([], |row| {
                 Ok((
-                    row.get::<_, String>(1)?, // name
-                    row.get::<_, String>(2)?, // type
-                    row.get::<_, i64>(3)?,    // notnull
+                    row.get::<_, String>(1)?,         // name
+                    row.get::<_, String>(2)?,         // type
+                    row.get::<_, i64>(3)?,            // notnull
                     row.get::<_, Option<String>>(4)?, // dflt_value
                 ))
             })

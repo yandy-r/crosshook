@@ -11,11 +11,7 @@ interface LibraryCardProps {
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
   isLaunching?: boolean;
-  onContextMenu?: (
-    position: { x: number; y: number },
-    profileName: string,
-    restoreFocusTo: HTMLElement
-  ) => void;
+  onContextMenu?: (position: { x: number; y: number }, profileName: string, restoreFocusTo: HTMLElement) => void;
 }
 
 /** Keyboard shortcut to open context menu: Shift+F10 or the ContextMenu key. */
@@ -58,7 +54,7 @@ export function LibraryCard({
   const { coverArtUrl, loading } = useGameCoverArt(
     visible ? profile.steamAppId : undefined,
     profile.customPortraitArtPath,
-    'portrait',
+    'portrait'
   );
 
   const [imgFailed, setImgFailed] = useState(false);
@@ -67,10 +63,9 @@ export function LibraryCard({
   const hasMedia = !!(coverArtUrl && !imgFailed);
   const showTitle = !hasMedia && !loading;
 
-  const cardClass = [
-    'crosshook-library-card',
-    isSelected && 'crosshook-library-card--selected',
-  ].filter(Boolean).join(' ');
+  const cardClass = ['crosshook-library-card', isSelected && 'crosshook-library-card--selected']
+    .filter(Boolean)
+    .join(' ');
 
   const displayName = profile.gameName || profile.name;
 
@@ -131,9 +126,7 @@ export function LibraryCard({
           onError={() => setImgFailed(true)}
         />
       ) : (
-        <div className="crosshook-library-card__fallback">
-          {getInitials(profile.gameName, profile.name)}
-        </div>
+        <div className="crosshook-library-card__fallback">{getInitials(profile.gameName, profile.name)}</div>
       )}
 
       {/* Gradient scrim */}
@@ -172,7 +165,14 @@ export function LibraryCard({
               onToggleFavorite(profile.name, profile.isFavorite);
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 20 20" fill={profile.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 20 20"
+              fill={profile.isFavorite ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
               <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
             </svg>
           </button>
@@ -184,7 +184,16 @@ export function LibraryCard({
               onEdit(profile.name);
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M14.5 2.5l3 3L6 17H3v-3z" />
             </svg>
           </button>

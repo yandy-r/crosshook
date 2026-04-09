@@ -76,10 +76,7 @@ export function CollectionAssignMenu({
   }, [open, profileName, collectionsForProfile]);
 
   const handleClose = useCallback(() => {
-    const restoreTarget =
-      restoreFocusTo && restoreFocusTo.isConnected
-        ? restoreFocusTo
-        : previouslyFocusedRef.current;
+    const restoreTarget = restoreFocusTo && restoreFocusTo.isConnected ? restoreFocusTo : previouslyFocusedRef.current;
     onClose();
     if (restoreTarget && restoreTarget.isConnected) {
       restoreTarget.focus();
@@ -89,8 +86,7 @@ export function CollectionAssignMenu({
 
   useEffect(() => {
     if (!open) return;
-    previouslyFocusedRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const frame = requestAnimationFrame(() => {
       const popover = popoverRef.current;
       if (!popover) return;

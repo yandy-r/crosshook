@@ -5,9 +5,8 @@
 
 use crosshook_core::metadata::{CollectionRow, MetadataStore, SyncSource};
 use crosshook_core::profile::{
-    export_collection_preset_to_toml, preview_collection_preset_import,
-    CollectionDefaultsSection, CollectionPresetManifest, GameProfile, ProfileStore,
-    COLLECTION_PRESET_SCHEMA_VERSION,
+    export_collection_preset_to_toml, preview_collection_preset_import, CollectionDefaultsSection,
+    CollectionPresetManifest, GameProfile, ProfileStore, COLLECTION_PRESET_SCHEMA_VERSION,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -87,15 +86,11 @@ fn end_to_end_collections_jtbd() {
     // WIP: fixture-10 through fixture-19
     for i in 10..20 {
         let name = format!("fixture-{:02}", i);
-        metadata
-            .add_profile_to_collection(&wip_cid, &name)
-            .unwrap();
+        metadata.add_profile_to_collection(&wip_cid, &name).unwrap();
     }
 
     // ── Step 5: Filter assertions ───────────────────────────────────────────
-    let action_members = metadata
-        .list_profiles_in_collection(&action_cid)
-        .unwrap();
+    let action_members = metadata.list_profiles_in_collection(&action_cid).unwrap();
     assert_eq!(
         action_members.len(),
         10,
@@ -147,13 +142,8 @@ fn end_to_end_collections_jtbd() {
 
     // ── Step 9: Export ──────────────────────────────────────────────────────
     let exported_path = dir.path().join("action.crosshook-collection.toml");
-    let export_result = export_collection_preset_to_toml(
-        &metadata,
-        &store,
-        &action_cid,
-        &exported_path,
-    )
-    .unwrap();
+    let export_result =
+        export_collection_preset_to_toml(&metadata, &store, &action_cid, &exported_path).unwrap();
     assert!(
         exported_path.exists(),
         "exported collection preset file must exist on disk"
@@ -161,11 +151,9 @@ fn end_to_end_collections_jtbd() {
 
     // Verify the exported file parses as valid TOML with schema_version = "1"
     let exported_content = std::fs::read_to_string(&exported_path).unwrap();
-    let parsed_manifest: CollectionPresetManifest =
-        toml::from_str(&exported_content).unwrap();
+    let parsed_manifest: CollectionPresetManifest = toml::from_str(&exported_content).unwrap();
     assert_eq!(
-        parsed_manifest.schema_version,
-        COLLECTION_PRESET_SCHEMA_VERSION,
+        parsed_manifest.schema_version, COLLECTION_PRESET_SCHEMA_VERSION,
         "exported preset must have schema_version = \"1\""
     );
     assert_eq!(
@@ -178,8 +166,7 @@ fn end_to_end_collections_jtbd() {
     let metadata2 = MetadataStore::open_in_memory().unwrap();
 
     // ── Step 11: Re-import preview ──────────────────────────────────────────
-    let preview =
-        preview_collection_preset_import(&store, &exported_path).unwrap();
+    let preview = preview_collection_preset_import(&store, &exported_path).unwrap();
     assert_eq!(
         preview.matched.len(),
         10,
@@ -198,12 +185,7 @@ fn end_to_end_collections_jtbd() {
         "preview manifest name must be 'Action'"
     );
     assert_eq!(
-        preview
-            .manifest
-            .defaults
-            .as_ref()
-            .unwrap()
-            .custom_env_vars["DXVK_HUD"],
+        preview.manifest.defaults.as_ref().unwrap().custom_env_vars["DXVK_HUD"],
         "fps",
         "preview manifest defaults must carry DXVK_HUD=fps"
     );
@@ -219,10 +201,7 @@ fn end_to_end_collections_jtbd() {
             .observe_profile_write(
                 &entry.local_profile_name,
                 &profile,
-                &PathBuf::from("/profiles").join(format!(
-                    "{}.toml",
-                    entry.local_profile_name
-                )),
+                &PathBuf::from("/profiles").join(format!("{}.toml", entry.local_profile_name)),
                 SyncSource::AppWrite,
                 None,
             )

@@ -80,10 +80,10 @@ merge, no changes required.
       `ALTER TABLE ... ADD COLUMN` succeeds but the table rebuild fails, the
       entire transaction rolls back. No half-migrated state possible.
 - [x] **FK cascade correctness** — `collection_profiles.profile_id REFERENCES
-    profiles(profile_id) ON DELETE CASCADE` is verified end-to-end by the new
+  profiles(profile_id) ON DELETE CASCADE` is verified end-to-end by the new
       `migration_18_to_19_adds_sort_order_and_cascade` test (insert profile → add
       to collection → delete profile → assert `COUNT(*) WHERE profile_id='pf-1' ==
-    0`). The test also regression-checks the existing collection→membership
+  0`). The test also regression-checks the existing collection→membership
       cascade.
 - [x] **`sort_order INTEGER NOT NULL DEFAULT 0`** — SQLite accepts this because
       `0` is a constant default, so the backfill on existing rows is automatic.

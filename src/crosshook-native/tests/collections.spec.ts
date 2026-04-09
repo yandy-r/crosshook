@@ -68,10 +68,7 @@ test.describe('collections smoke', () => {
       timeout: 10_000,
     });
 
-    expect(
-      capture.errors,
-      `Uncaught errors during create collection flow:\n${capture.errors.join('\n')}`
-    ).toEqual([]);
+    expect(capture.errors, `Uncaught errors during create collection flow:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 
   test('open and close CollectionViewModal', async ({ page }) => {
@@ -91,10 +88,7 @@ test.describe('collections smoke', () => {
 
     await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
-    expect(
-      capture.errors,
-      `Uncaught errors during view modal flow:\n${capture.errors.join('\n')}`
-    ).toEqual([]);
+    expect(capture.errors, `Uncaught errors during view modal flow:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 
   test('assign menu opens on library card context menu and keyboard navigates', async ({ page }) => {
@@ -116,9 +110,7 @@ test.describe('collections smoke', () => {
     const assignMenu = page.locator('.crosshook-collection-assign-menu');
     await expect(assignMenu).toBeVisible({ timeout: 5_000 });
 
-    const checkboxes = assignMenu.locator(
-      '.crosshook-collection-assign-menu__option input[type="checkbox"]'
-    );
+    const checkboxes = assignMenu.locator('.crosshook-collection-assign-menu__option input[type="checkbox"]');
     const newCollectionBtn = assignMenu.getByRole('button', { name: /New collection/i });
     // Populated mock has exactly one collection — navigation wraps [checkbox] ↔ [+ New collection].
     await expect(checkboxes).toHaveCount(1);
@@ -134,10 +126,7 @@ test.describe('collections smoke', () => {
 
     await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
 
-    expect(
-      capture.errors,
-      `Uncaught errors during assign menu flow:\n${capture.errors.join('\n')}`
-    ).toEqual([]);
+    expect(capture.errors, `Uncaught errors during assign menu flow:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 
   test('import preset flow opens BrowserDevPresetExplainerModal', async ({ page }) => {
@@ -161,9 +150,6 @@ test.describe('collections smoke', () => {
     await page.keyboard.press('Escape');
     await expect(reviewDialog).not.toBeVisible({ timeout: 5_000 });
 
-    expect(
-      capture.errors,
-      `Uncaught errors during import preset flow:\n${capture.errors.join('\n')}`
-    ).toEqual([]);
+    expect(capture.errors, `Uncaught errors during import preset flow:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 });

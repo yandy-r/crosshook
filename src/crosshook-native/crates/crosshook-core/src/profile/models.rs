@@ -1328,7 +1328,11 @@ type = "fling"
         assert_eq!(merged.launch.method, "proton_run");
         assert!(!merged.launch.network_isolation);
         assert_eq!(
-            merged.launch.custom_env_vars.get("COLLECTION_ONLY").cloned(),
+            merged
+                .launch
+                .custom_env_vars
+                .get("COLLECTION_ONLY")
+                .cloned(),
             Some("B".to_string())
         );
         // ── Collection key wins on collision ──

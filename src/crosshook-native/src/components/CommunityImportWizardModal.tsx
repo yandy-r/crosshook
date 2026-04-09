@@ -420,12 +420,14 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
             <div className="crosshook-prefix-deps-trust" role="alert">
               <h4 className="crosshook-prefix-deps-trust__title">Required Prefix Dependencies</h4>
               <p className="crosshook-help-text">
-                This community profile requires the following packages to be installed
-                into your WINE prefix. Only import profiles from sources you trust.
+                This community profile requires the following packages to be installed into your WINE prefix. Only
+                import profiles from sources you trust.
               </p>
               <ul className="crosshook-prefix-deps-trust__list">
                 {draft.required_prefix_deps.map((dep) => (
-                  <li key={dep}><code>{dep}</code></li>
+                  <li key={dep}>
+                    <code>{dep}</code>
+                  </li>
                 ))}
               </ul>
             </div>

@@ -73,12 +73,12 @@ opening the Preview modal and reading through a flat issue list.
 **No new persisted data in Phase 2.** All pipeline node status is runtime-only, derived from
 existing `GameProfile` + `LaunchPreview` + `LaunchPhase` on each render.
 
-| Datum                      | Classification             | Where                                        | Migration  |
-| -------------------------- | -------------------------- | -------------------------------------------- | ---------- |
-| Pipeline node status       | **Runtime-only** (derived) | `derivePipelineNodes()` return value          | N/A        |
-| Pipeline node `detail`     | **Runtime-only** (derived) | `PipelineNode.detail` field                  | N/A        |
-| Preview data (Tier 2 src)  | **Runtime-only** (state)   | `usePreviewState()` hook in `LaunchPanel`     | N/A        |
-| Validation issue `code`    | **Runtime-only** (IPC DTO) | `LaunchValidationIssue.code` (already exists) | N/A        |
+| Datum                     | Classification             | Where                                         | Migration |
+| ------------------------- | -------------------------- | --------------------------------------------- | --------- |
+| Pipeline node status      | **Runtime-only** (derived) | `derivePipelineNodes()` return value          | N/A       |
+| Pipeline node `detail`    | **Runtime-only** (derived) | `PipelineNode.detail` field                   | N/A       |
+| Preview data (Tier 2 src) | **Runtime-only** (state)   | `usePreviewState()` hook in `LaunchPanel`     | N/A       |
+| Validation issue `code`   | **Runtime-only** (IPC DTO) | `LaunchValidationIssue.code` (already exists) | N/A       |
 
 **Offline**: Pipeline derives from local profile + preview data. Fully functional offline.
 **Degraded**: When `LaunchPreview` is null, falls back to Tier 1 (config-derived). Never blank.
@@ -88,16 +88,16 @@ existing `GameProfile` + `LaunchPreview` + `LaunchPhase` on each render.
 
 ## Patterns to Mirror
 
-| Pattern                                      | Source                                                             | Use it for                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `tier1Status()` per-node switch              | `derivePipelineNodes.ts:60-81`                                     | `tier2Status()` follows same structure with preview data          |
-| `data-status` CSS selectors                  | `launch-pipeline.css:84-137`                                       | `error` status styling is already implemented (lines 108-116)     |
-| `PipelineNode.detail` field                  | `types/launch.ts:173`                                              | Populate with resolved paths or error messages                    |
-| `ValidationError` variant naming             | `request.rs:243-321`                                               | Derive `code` strings from variant names (snake_case)             |
-| `code`-based routing in UI                   | `LaunchSubTabs.tsx:359,374` (`issue.code === 'trainer_hash_...'`)  | Same pattern for node-to-issue routing via `code`                 |
-| Mock handler fixture dispatch                | `handlers/launch.ts:211-258`                                       | Add conditional validation issues to `preview_launch` mock        |
-| `sortIssuesBySeverity()` precedence          | `LaunchPanel.tsx:66-69` (`fatal: 0, warning: 1, info: 2`)         | Issue severity ranking when multiple issues hit the same node     |
-| Conventional commit title                    | `5a3855e` (`feat(ui): add launch pipeline stepper phase 1 (#191)`) | `feat(ui): add preview-derived pipeline status phase 2 (#188)`    |
+| Pattern                             | Source                                                             | Use it for                                                     |
+| ----------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `tier1Status()` per-node switch     | `derivePipelineNodes.ts:60-81`                                     | `tier2Status()` follows same structure with preview data       |
+| `data-status` CSS selectors         | `launch-pipeline.css:84-137`                                       | `error` status styling is already implemented (lines 108-116)  |
+| `PipelineNode.detail` field         | `types/launch.ts:173`                                              | Populate with resolved paths or error messages                 |
+| `ValidationError` variant naming    | `request.rs:243-321`                                               | Derive `code` strings from variant names (snake_case)          |
+| `code`-based routing in UI          | `LaunchSubTabs.tsx:359,374` (`issue.code === 'trainer_hash_...'`)  | Same pattern for node-to-issue routing via `code`              |
+| Mock handler fixture dispatch       | `handlers/launch.ts:211-258`                                       | Add conditional validation issues to `preview_launch` mock     |
+| `sortIssuesBySeverity()` precedence | `LaunchPanel.tsx:66-69` (`fatal: 0, warning: 1, info: 2`)          | Issue severity ranking when multiple issues hit the same node  |
+| Conventional commit title           | `5a3855e` (`feat(ui): add launch pipeline stepper phase 1 (#191)`) | `feat(ui): add preview-derived pipeline status phase 2 (#188)` |
 
 ---
 
@@ -141,14 +141,14 @@ existing `GameProfile` + `LaunchPreview` + `LaunchPhase` on each render.
 
 ## Gotchas / Risks
 
-| #   | Risk                                                                                          | Likelihood | Mitigation                                                                                                                                                                                                                                           |
-| --- | --------------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **`ValidationError::issue()` code change is a Rust modification**                             | Certain    | The PRD says "no new IPC commands or backend types." This change populates an **existing** field (`code: Option<String>`) on an **existing** struct. No new types, no new commands. The alternative — message-string matching — is fragile and unmaintainable. |
-| 2   | **Multiple validation issues can target the same node**                                       | High       | Use severity precedence: `fatal > warning > info`. The first (highest severity) issue's message becomes the node's `detail`. Lower-severity issues are visible in the Preview modal.                                                                  |
-| 3   | **Gamescope/env-var/advisory issues have no natural pipeline node**                            | Medium     | Map gamescope and custom env-var issues to the `optimizations` node (closest semantic match). Advisory warnings (`OfflineReadinessInsufficient`, `LowDiskSpaceAdvisory`) map to the `launch` (summary) node. `UnshareNetUnavailable` maps to `trainer`. |
-| 4   | **Trainer hash warnings (`trainer_hash_mismatch`) only appear at launch time, not in preview** | Low        | Phase 2 is preview-derived status. These codes are handled correctly if they ever appear in preview data (mapping to `trainer` node), but they won't surface until Phase 3 (live launch). No action needed now.                                        |
-| 5   | **`isStale()` preview indicator not wired to pipeline**                                        | Low        | Per PRD risk table: "Show subtle 'stale' indicator when preview is > 60s old." Defer to Phase 4 (Polish). Tier 2 shows whatever preview data exists; Tier 1 is always current as fallback.                                                            |
-| 6   | **Mock preview always returns empty validation issues**                                        | Certain    | T3 adds validation issue fixtures to the mock handler so browser dev mode can exercise error states. Without this, the `error` status path is untestable in dev mode.                                                                                 |
+| #   | Risk                                                                                           | Likelihood | Mitigation                                                                                                                                                                                                                                                     |
+| --- | ---------------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **`ValidationError::issue()` code change is a Rust modification**                              | Certain    | The PRD says "no new IPC commands or backend types." This change populates an **existing** field (`code: Option<String>`) on an **existing** struct. No new types, no new commands. The alternative — message-string matching — is fragile and unmaintainable. |
+| 2   | **Multiple validation issues can target the same node**                                        | High       | Use severity precedence: `fatal > warning > info`. The first (highest severity) issue's message becomes the node's `detail`. Lower-severity issues are visible in the Preview modal.                                                                           |
+| 3   | **Gamescope/env-var/advisory issues have no natural pipeline node**                            | Medium     | Map gamescope and custom env-var issues to the `optimizations` node (closest semantic match). Advisory warnings (`OfflineReadinessInsufficient`, `LowDiskSpaceAdvisory`) map to the `launch` (summary) node. `UnshareNetUnavailable` maps to `trainer`.        |
+| 4   | **Trainer hash warnings (`trainer_hash_mismatch`) only appear at launch time, not in preview** | Low        | Phase 2 is preview-derived status. These codes are handled correctly if they ever appear in preview data (mapping to `trainer` node), but they won't surface until Phase 3 (live launch). No action needed now.                                                |
+| 5   | **`isStale()` preview indicator not wired to pipeline**                                        | Low        | Per PRD risk table: "Show subtle 'stale' indicator when preview is > 60s old." Defer to Phase 4 (Polish). Tier 2 shows whatever preview data exists; Tier 1 is always current as fallback.                                                                     |
+| 6   | **Mock preview always returns empty validation issues**                                        | Certain    | T3 adds validation issue fixtures to the mock handler so browser dev mode can exercise error states. Without this, the `error` status path is untestable in dev mode.                                                                                          |
 
 ---
 
@@ -158,54 +158,54 @@ The mapping is based on which `collect_*` function emits each `ValidationError` 
 semantic domain of the error. Each variant gets a `code` string derived from its Rust enum name
 (PascalCase -> snake_case).
 
-| Validation Error Variant                    | Code (snake_case)                            | Pipeline Node      | Severity |
-| ------------------------------------------- | -------------------------------------------- | ------------------ | -------- |
-| `GamePathRequired`                          | `game_path_required`                         | `game`             | Fatal    |
-| `GamePathMissing`                           | `game_path_missing`                          | `game`             | Fatal    |
-| `GamePathNotFile`                           | `game_path_not_file`                         | `game`             | Fatal    |
-| `NativeWindowsExecutableNotSupported`       | `native_windows_executable_not_supported`    | `game`             | Fatal    |
-| `RuntimePrefixPathRequired`                 | `runtime_prefix_path_required`               | `wine-prefix`      | Fatal    |
-| `RuntimePrefixPathMissing`                  | `runtime_prefix_path_missing`                | `wine-prefix`      | Fatal    |
-| `RuntimePrefixPathNotDirectory`             | `runtime_prefix_path_not_directory`          | `wine-prefix`      | Fatal    |
-| `RuntimeProtonPathRequired`                 | `runtime_proton_path_required`               | `proton`           | Fatal    |
-| `RuntimeProtonPathMissing`                  | `runtime_proton_path_missing`                | `proton`           | Fatal    |
-| `RuntimeProtonPathNotExecutable`            | `runtime_proton_path_not_executable`         | `proton`           | Fatal    |
-| `SteamAppIdRequired`                        | `steam_app_id_required`                      | `steam`            | Fatal    |
-| `SteamCompatDataPathRequired`               | `steam_compat_data_path_required`            | `steam`            | Fatal    |
-| `SteamCompatDataPathMissing`                | `steam_compat_data_path_missing`             | `steam`            | Fatal    |
-| `SteamCompatDataPathNotDirectory`           | `steam_compat_data_path_not_directory`       | `steam`            | Fatal    |
-| `SteamProtonPathRequired`                   | `steam_proton_path_required`                 | `steam`            | Fatal    |
-| `SteamProtonPathMissing`                    | `steam_proton_path_missing`                  | `steam`            | Fatal    |
-| `SteamProtonPathNotExecutable`              | `steam_proton_path_not_executable`           | `steam`            | Fatal    |
-| `SteamClientInstallPathRequired`            | `steam_client_install_path_required`         | `steam`            | Fatal    |
-| `TrainerPathRequired`                       | `trainer_path_required`                      | `trainer`          | Fatal    |
-| `TrainerHostPathRequired`                   | `trainer_host_path_required`                 | `trainer`          | Fatal    |
-| `TrainerHostPathMissing`                    | `trainer_host_path_missing`                  | `trainer`          | Fatal    |
-| `TrainerHostPathNotFile`                    | `trainer_host_path_not_file`                 | `trainer`          | Fatal    |
-| `NativeTrainerLaunchUnsupported`            | `native_trainer_launch_unsupported`          | `trainer`          | Fatal    |
-| `UnknownLaunchOptimization`                 | `unknown_launch_optimization`                | `optimizations`    | Fatal    |
-| `DuplicateLaunchOptimization`               | `duplicate_launch_optimization`              | `optimizations`    | Fatal    |
-| `IncompatibleLaunchOptimizations`           | `incompatible_launch_optimizations`          | `optimizations`    | Fatal    |
-| `LaunchOptimizationDependencyMissing`       | `launch_optimization_dependency_missing`     | `optimizations`    | Fatal    |
-| `LaunchOptimizationsUnsupportedForMethod`   | `launch_optimizations_unsupported_for_method`| `optimizations`    | Fatal    |
-| `LaunchOptimizationNotSupportedForMethod`   | `launch_optimization_not_supported_for_method`| `optimizations`   | Fatal    |
-| `GamescopeBinaryMissing`                    | `gamescope_binary_missing`                   | `optimizations`    | Fatal    |
-| `GamescopeNotSupportedForMethod`            | `gamescope_not_supported_for_method`         | `optimizations`    | Fatal    |
-| `GamescopeResolutionPairIncomplete`         | `gamescope_resolution_pair_incomplete`       | `optimizations`    | Fatal    |
-| `GamescopeFsrSharpnessOutOfRange`           | `gamescope_fsr_sharpness_out_of_range`       | `optimizations`    | Fatal    |
-| `GamescopeFullscreenBorderlessConflict`     | `gamescope_fullscreen_borderless_conflict`   | `optimizations`    | Fatal    |
-| `GamescopeNestedSession`                    | `gamescope_nested_session`                   | `optimizations`    | Warning  |
-| `CustomEnvVarKeyEmpty`                      | `custom_env_var_key_empty`                   | `optimizations`    | Fatal    |
-| `CustomEnvVarKeyContainsEquals`             | `custom_env_var_key_contains_equals`         | `optimizations`    | Fatal    |
-| `CustomEnvVarKeyContainsNul`               | `custom_env_var_key_contains_nul`            | `optimizations`    | Fatal    |
-| `CustomEnvVarValueContainsNul`             | `custom_env_var_value_contains_nul`          | `optimizations`    | Fatal    |
-| `CustomEnvVarReservedKey`                   | `custom_env_var_reserved_key`                | `optimizations`    | Fatal    |
-| `UnsupportedMethod`                         | `unsupported_method`                         | `launch`           | Fatal    |
-| `UnshareNetUnavailable`                     | `unshare_net_unavailable`                    | `trainer`          | Warning  |
-| `OfflineReadinessInsufficient`              | `offline_readiness_insufficient`             | `launch`           | Warning  |
-| `LowDiskSpaceAdvisory`                      | `low_disk_space_advisory`                    | `launch`           | Warning  |
-| *(existing)* `trainer_hash_mismatch`        | `trainer_hash_mismatch`                      | `trainer`          | Warning  |
-| *(existing)* `trainer_hash_community_mismatch` | `trainer_hash_community_mismatch`         | `trainer`          | Warning  |
+| Validation Error Variant                       | Code (snake_case)                              | Pipeline Node   | Severity |
+| ---------------------------------------------- | ---------------------------------------------- | --------------- | -------- |
+| `GamePathRequired`                             | `game_path_required`                           | `game`          | Fatal    |
+| `GamePathMissing`                              | `game_path_missing`                            | `game`          | Fatal    |
+| `GamePathNotFile`                              | `game_path_not_file`                           | `game`          | Fatal    |
+| `NativeWindowsExecutableNotSupported`          | `native_windows_executable_not_supported`      | `game`          | Fatal    |
+| `RuntimePrefixPathRequired`                    | `runtime_prefix_path_required`                 | `wine-prefix`   | Fatal    |
+| `RuntimePrefixPathMissing`                     | `runtime_prefix_path_missing`                  | `wine-prefix`   | Fatal    |
+| `RuntimePrefixPathNotDirectory`                | `runtime_prefix_path_not_directory`            | `wine-prefix`   | Fatal    |
+| `RuntimeProtonPathRequired`                    | `runtime_proton_path_required`                 | `proton`        | Fatal    |
+| `RuntimeProtonPathMissing`                     | `runtime_proton_path_missing`                  | `proton`        | Fatal    |
+| `RuntimeProtonPathNotExecutable`               | `runtime_proton_path_not_executable`           | `proton`        | Fatal    |
+| `SteamAppIdRequired`                           | `steam_app_id_required`                        | `steam`         | Fatal    |
+| `SteamCompatDataPathRequired`                  | `steam_compat_data_path_required`              | `steam`         | Fatal    |
+| `SteamCompatDataPathMissing`                   | `steam_compat_data_path_missing`               | `steam`         | Fatal    |
+| `SteamCompatDataPathNotDirectory`              | `steam_compat_data_path_not_directory`         | `steam`         | Fatal    |
+| `SteamProtonPathRequired`                      | `steam_proton_path_required`                   | `steam`         | Fatal    |
+| `SteamProtonPathMissing`                       | `steam_proton_path_missing`                    | `steam`         | Fatal    |
+| `SteamProtonPathNotExecutable`                 | `steam_proton_path_not_executable`             | `steam`         | Fatal    |
+| `SteamClientInstallPathRequired`               | `steam_client_install_path_required`           | `steam`         | Fatal    |
+| `TrainerPathRequired`                          | `trainer_path_required`                        | `trainer`       | Fatal    |
+| `TrainerHostPathRequired`                      | `trainer_host_path_required`                   | `trainer`       | Fatal    |
+| `TrainerHostPathMissing`                       | `trainer_host_path_missing`                    | `trainer`       | Fatal    |
+| `TrainerHostPathNotFile`                       | `trainer_host_path_not_file`                   | `trainer`       | Fatal    |
+| `NativeTrainerLaunchUnsupported`               | `native_trainer_launch_unsupported`            | `trainer`       | Fatal    |
+| `UnknownLaunchOptimization`                    | `unknown_launch_optimization`                  | `optimizations` | Fatal    |
+| `DuplicateLaunchOptimization`                  | `duplicate_launch_optimization`                | `optimizations` | Fatal    |
+| `IncompatibleLaunchOptimizations`              | `incompatible_launch_optimizations`            | `optimizations` | Fatal    |
+| `LaunchOptimizationDependencyMissing`          | `launch_optimization_dependency_missing`       | `optimizations` | Fatal    |
+| `LaunchOptimizationsUnsupportedForMethod`      | `launch_optimizations_unsupported_for_method`  | `optimizations` | Fatal    |
+| `LaunchOptimizationNotSupportedForMethod`      | `launch_optimization_not_supported_for_method` | `optimizations` | Fatal    |
+| `GamescopeBinaryMissing`                       | `gamescope_binary_missing`                     | `optimizations` | Fatal    |
+| `GamescopeNotSupportedForMethod`               | `gamescope_not_supported_for_method`           | `optimizations` | Fatal    |
+| `GamescopeResolutionPairIncomplete`            | `gamescope_resolution_pair_incomplete`         | `optimizations` | Fatal    |
+| `GamescopeFsrSharpnessOutOfRange`              | `gamescope_fsr_sharpness_out_of_range`         | `optimizations` | Fatal    |
+| `GamescopeFullscreenBorderlessConflict`        | `gamescope_fullscreen_borderless_conflict`     | `optimizations` | Fatal    |
+| `GamescopeNestedSession`                       | `gamescope_nested_session`                     | `optimizations` | Warning  |
+| `CustomEnvVarKeyEmpty`                         | `custom_env_var_key_empty`                     | `optimizations` | Fatal    |
+| `CustomEnvVarKeyContainsEquals`                | `custom_env_var_key_contains_equals`           | `optimizations` | Fatal    |
+| `CustomEnvVarKeyContainsNul`                   | `custom_env_var_key_contains_nul`              | `optimizations` | Fatal    |
+| `CustomEnvVarValueContainsNul`                 | `custom_env_var_value_contains_nul`            | `optimizations` | Fatal    |
+| `CustomEnvVarReservedKey`                      | `custom_env_var_reserved_key`                  | `optimizations` | Fatal    |
+| `UnsupportedMethod`                            | `unsupported_method`                           | `launch`        | Fatal    |
+| `UnshareNetUnavailable`                        | `unshare_net_unavailable`                      | `trainer`       | Warning  |
+| `OfflineReadinessInsufficient`                 | `offline_readiness_insufficient`               | `launch`        | Warning  |
+| `LowDiskSpaceAdvisory`                         | `low_disk_space_advisory`                      | `launch`        | Warning  |
+| _(existing)_ `trainer_hash_mismatch`           | `trainer_hash_mismatch`                        | `trainer`       | Warning  |
+| _(existing)_ `trainer_hash_community_mismatch` | `trainer_hash_community_mismatch`              | `trainer`       | Warning  |
 
 ---
 
@@ -264,6 +264,7 @@ currently returns `code: None` for all `ValidationError` variants. Change it to 
 `code: Some(...)` string from the variant name using PascalCase-to-snake_case conversion.
 
 Implementation approach:
+
 - Add a `code(&self) -> &'static str` method on the `ValidationError` enum that returns a
   snake_case string for each variant (e.g., `GamePathRequired` -> `"game_path_required"`,
   `SteamAppIdRequired` -> `"steam_app_id_required"`). For variants with inner data
@@ -275,6 +276,7 @@ Implementation approach:
   different code path and are already correct.
 
 Verification:
+
 ```bash
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ```
@@ -302,6 +304,7 @@ export function mapValidationToNode(issue: LaunchValidationIssue): PipelineNodeI
 
 The mapping uses the `code` field (populated by T1) with a prefix-match strategy (aligned with the
 **Validation Issue -> Pipeline Node Mapping** table above and `mapValidationToNode.ts`):
+
 - Codes starting with `game_path` or `native_windows_executable` -> `'game'`
 - Codes starting with `runtime_prefix` -> `'wine-prefix'`
 - Codes starting with `runtime_proton` -> `'proton'`
@@ -405,12 +408,13 @@ When `preview` is non-null, the function calls a new internal `tier2Status()` fu
    unchanged.
 
 Implementation structure:
+
 ```typescript
 export function derivePipelineNodes(
   method: ResolvedLaunchMethod,
   profile: GameProfile,
-  preview: LaunchPreview | null,  // remove underscore
-  _phase: LaunchPhase             // keep underscore for Phase 3
+  preview: LaunchPreview | null, // remove underscore
+  _phase: LaunchPhase // keep underscore for Phase 3
 ): PipelineNode[] {
   const ids = METHOD_NODE_IDS[method];
   const issuesByNode = preview ? groupIssuesByNode(preview.validation.issues) : null;
@@ -473,9 +477,7 @@ of (or below) the generic status label.
 Update the `<li>` content in the `.map()`:
 
 ```tsx
-<span className="crosshook-launch-pipeline__node-status">
-  {node.detail || STATUS_LABEL[node.status]}
-</span>
+<span className="crosshook-launch-pipeline__node-status">{node.detail || STATUS_LABEL[node.status]}</span>
 ```
 
 When `node.detail` is present and the status is `'error'`, use the detail text (the validation
@@ -544,6 +546,7 @@ fn validation_error_codes_are_populated() {
 ```
 
 Verification:
+
 ```bash
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core -- validation_error_codes
 ```
@@ -582,11 +585,11 @@ Acceptance: PRD reflects Phase 2 as complete; Phase 3 is the next pending phase.
 
 ## Batches
 
-| Batch | Tasks           | Can run in parallel                                                    |
-| ----- | --------------- | ---------------------------------------------------------------------- |
-| A     | T1, T2, T3      | All 3 independent — Rust, TS utility, and mock handler                 |
-| B     | T4, T5          | T4 depends on T1+T2; T5 depends on T4                                 |
-| C     | T6, T7, T8, T9, T10 | T6+T7+T8 depend on T4; T9 depends on all; T10 depends on T9       |
+| Batch | Tasks               | Can run in parallel                                         |
+| ----- | ------------------- | ----------------------------------------------------------- |
+| A     | T1, T2, T3          | All 3 independent — Rust, TS utility, and mock handler      |
+| B     | T4, T5              | T4 depends on T1+T2; T5 depends on T4                       |
+| C     | T6, T7, T8, T9, T10 | T6+T7+T8 depend on T4; T9 depends on all; T10 depends on T9 |
 
 Batch A tasks can be dispatched to 3 parallel agents. Batch B requires sequential execution (T4
 then T5). Batch C tasks T6, T7, T8 are parallel; T9 is a serial gate; T10 is final.

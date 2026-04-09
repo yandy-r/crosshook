@@ -89,7 +89,7 @@ export function applyProtonDbGroupToProfile(
   current: GameProfile,
   group: ProtonDbRecommendationGroup,
   overwriteKeys: readonly string[],
-  catalog: OptimizationCatalogPayload | null,
+  catalog: OptimizationCatalogPayload | null
 ): ProtonDbApplyResult {
   const nextMerge = mergeProtonDbEnvVarGroup(current.launch.custom_env_vars, group, overwriteKeys);
 

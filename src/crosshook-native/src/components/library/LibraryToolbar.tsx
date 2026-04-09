@@ -7,12 +7,7 @@ interface LibraryToolbarProps {
   onViewModeChange: (mode: LibraryViewMode) => void;
 }
 
-export function LibraryToolbar({
-  searchQuery,
-  onSearchChange,
-  viewMode,
-  onViewModeChange,
-}: LibraryToolbarProps) {
+export function LibraryToolbar({ searchQuery, onSearchChange, viewMode, onViewModeChange }: LibraryToolbarProps) {
   return (
     <div className="crosshook-library-toolbar">
       <input

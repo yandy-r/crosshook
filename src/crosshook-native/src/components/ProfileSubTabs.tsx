@@ -68,7 +68,10 @@ export function ProfileSubTabs({
   const supportsTrainerLaunch = launchMethod !== 'native';
 
   const steamAppId = resolveArtAppId(profile);
-  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(steamAppId || undefined, profile.game.custom_cover_art_path);
+  const { coverArtUrl, loading: coverArtLoading } = useGameCoverArt(
+    steamAppId || undefined,
+    profile.game.custom_cover_art_path
+  );
   const dominantColor = useImageDominantColor(coverArtUrl);
 
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';

@@ -66,11 +66,11 @@ Launching the game through Proton. / Game launch is ready. Start the trainer whe
 
 ### Interaction Changes
 
-| Touchpoint | Before | After | Notes |
-| ---------- | ------ | ----- | ----- |
-| Launch pipeline | Static readiness / preview status only | Live phase overlay updates the active node during launch | No click targets added |
+| Touchpoint                  | Before                                      | After                                                        | Notes                                  |
+| --------------------------- | ------------------------------------------- | ------------------------------------------------------------ | -------------------------------------- |
+| Launch pipeline             | Static readiness / preview status only      | Live phase overlay updates the active node during launch     | No click targets added                 |
 | Waiting-for-trainer handoff | Only status copy changes below the pipeline | Game node shows complete and trainer node shows waiting tone | Preserves two-step launch mental model |
-| Session-active feedback | Text says session is active | Launch node becomes the active summary node | Avoids duplicate phase widgets |
+| Session-active feedback     | Text says session is active                 | Launch node becomes the active summary node                  | Avoids duplicate phase widgets         |
 
 ---
 
@@ -78,21 +78,21 @@ Launching the game through Proton. / Game launch is ready. Start the trainer whe
 
 Files that MUST be read before implementing:
 
-| Priority | File | Lines | Why |
-| -------- | ---- | ----- | --- |
-| P0 (critical) | `src/crosshook-native/src/utils/derivePipelineNodes.ts` | 1-208 | Current Tier 1/Tier 2 derivation and the unused `phase` input live here |
-| P0 (critical) | `src/crosshook-native/src/components/LaunchPipeline.tsx` | 1-71 | Current render contract, status labels, and `aria-current` logic |
-| P0 (critical) | `src/crosshook-native/src/hooks/useLaunchState.ts` | 51-104, 260-304, 306-381, 425-531 | Source of `LaunchPhase`, helper log path, and guidance text transitions |
-| P1 (important) | `src/crosshook-native/src/types/launch.ts` | 160-183 | `PipelineNodeId`, `PipelineNodeStatus`, and `PipelineNode` contract |
-| P1 (important) | `src/crosshook-native/src/styles/launch-pipeline.css` | 1-252 | Existing status selectors, motion tokens, breakpoints, and connector styling |
-| P1 (important) | `src/crosshook-native/src/components/LaunchPanel.tsx` | 899-908 | Runner-stack integration that must stay intact |
-| P2 (reference) | `src/crosshook-native/src/lib/mocks/handlers/launch.ts` | 103-184, 211-260 | Browser-mode launch and preview fixtures used for manual validation |
-| P2 (reference) | `src/crosshook-native/src/context/LaunchStateContext.tsx` | 18-45 | Shows how `LaunchPipeline` gets state through the shared launch session context |
+| Priority       | File                                                      | Lines                             | Why                                                                             |
+| -------------- | --------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
+| P0 (critical)  | `src/crosshook-native/src/utils/derivePipelineNodes.ts`   | 1-208                             | Current Tier 1/Tier 2 derivation and the unused `phase` input live here         |
+| P0 (critical)  | `src/crosshook-native/src/components/LaunchPipeline.tsx`  | 1-71                              | Current render contract, status labels, and `aria-current` logic                |
+| P0 (critical)  | `src/crosshook-native/src/hooks/useLaunchState.ts`        | 51-104, 260-304, 306-381, 425-531 | Source of `LaunchPhase`, helper log path, and guidance text transitions         |
+| P1 (important) | `src/crosshook-native/src/types/launch.ts`                | 160-183                           | `PipelineNodeId`, `PipelineNodeStatus`, and `PipelineNode` contract             |
+| P1 (important) | `src/crosshook-native/src/styles/launch-pipeline.css`     | 1-252                             | Existing status selectors, motion tokens, breakpoints, and connector styling    |
+| P1 (important) | `src/crosshook-native/src/components/LaunchPanel.tsx`     | 899-908                           | Runner-stack integration that must stay intact                                  |
+| P2 (reference) | `src/crosshook-native/src/lib/mocks/handlers/launch.ts`   | 103-184, 211-260                  | Browser-mode launch and preview fixtures used for manual validation             |
+| P2 (reference) | `src/crosshook-native/src/context/LaunchStateContext.tsx` | 18-45                             | Shows how `LaunchPipeline` gets state through the shared launch session context |
 
 ## External Documentation
 
-| Topic | Source | Key Takeaway |
-| ----- | ------ | ------------ |
+| Topic             | Source      | Key Takeaway                                                               |
+| ----------------- | ----------- | -------------------------------------------------------------------------- |
 | External research | None needed | Phase 3 uses existing React, CSS, and app-local launch state patterns only |
 
 ---
@@ -158,7 +158,15 @@ should only override the specific nodes required by the active phase.
 .crosshook-launch-pipeline__node[data-status='active'] .crosshook-launch-pipeline__node-indicator {
   animation: crosshook-pulse 2s ease-in-out infinite;
 }
-@keyframes crosshook-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes crosshook-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
 ```
 
 Keep animation CSS driven by `data-*` attributes and shared motion tokens instead of inline styles.
@@ -167,7 +175,9 @@ Keep animation CSS driven by `data-*` attributes and shared motion tokens instea
 
 ```ts
 // SOURCE: src/crosshook-native/src/components/LaunchPipeline.tsx:36-42
-const firstIssueIdx = nodes.findIndex((n) => n.id !== 'launch' && (n.status === 'not-configured' || n.status === 'error'));
+const firstIssueIdx = nodes.findIndex(
+  (n) => n.id !== 'launch' && (n.status === 'not-configured' || n.status === 'error')
+);
 const launchIndex = nodes.findIndex((n) => n.id === 'launch');
 const currentStepIndex = firstIssueIdx >= 0 ? firstIssueIdx : launchIndex >= 0 ? launchIndex : 0;
 ```
@@ -203,22 +213,22 @@ test surface.
 
 ## Files to Change
 
-| File | Action | Justification |
-| ---- | ------ | ------------- |
-| `src/crosshook-native/src/types/launch.ts` | UPDATE | Extend the pipeline node contract with a minimal live-tone field for the waiting state |
-| `src/crosshook-native/src/utils/derivePipelineNodes.ts` | UPDATE | Consume `phase`, overlay live node status, and keep Tier 1/Tier 2 fallback intact |
-| `src/crosshook-native/src/components/LaunchPipeline.tsx` | UPDATE | Render live-phase-first current step selection and expose any new tone/status metadata to the DOM |
-| `src/crosshook-native/src/styles/launch-pipeline.css` | UPDATE | Add waiting-specific visual treatment, complete-connector styling, and reduced-motion-safe animation |
+| File                                                     | Action | Justification                                                                                        |
+| -------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
+| `src/crosshook-native/src/types/launch.ts`               | UPDATE | Extend the pipeline node contract with a minimal live-tone field for the waiting state               |
+| `src/crosshook-native/src/utils/derivePipelineNodes.ts`  | UPDATE | Consume `phase`, overlay live node status, and keep Tier 1/Tier 2 fallback intact                    |
+| `src/crosshook-native/src/components/LaunchPipeline.tsx` | UPDATE | Render live-phase-first current step selection and expose any new tone/status metadata to the DOM    |
+| `src/crosshook-native/src/styles/launch-pipeline.css`    | UPDATE | Add waiting-specific visual treatment, complete-connector styling, and reduced-motion-safe animation |
 
 ## Storage / Persistence
 
 No new persisted data is required for Phase 3.
 
-| Datum | Classification | Notes |
-| ----- | -------------- | ----- |
-| Live pipeline node overlay | Runtime-only | Derived from existing `LaunchPhase` + node status on each render |
-| Waiting/active tone metadata | Runtime-only | UI-only helper field; never written to TOML or SQLite |
-| Helper log path display | Runtime-only | Already provided by `useLaunchState`; Phase 3 only keeps it visible below the pipeline |
+| Datum                        | Classification | Notes                                                                                  |
+| ---------------------------- | -------------- | -------------------------------------------------------------------------------------- |
+| Live pipeline node overlay   | Runtime-only   | Derived from existing `LaunchPhase` + node status on each render                       |
+| Waiting/active tone metadata | Runtime-only   | UI-only helper field; never written to TOML or SQLite                                  |
+| Helper log path display      | Runtime-only   | Already provided by `useLaunchState`; Phase 3 only keeps it visible below the pipeline |
 
 ### Persistence & Usability
 
@@ -328,12 +338,12 @@ No new persisted data is required for Phase 3.
 
 ### Unit Tests
 
-| Test | Input | Expected Output | Edge Case? |
-| ---- | ----- | --------------- | ---------- |
-| Phase overlay helper returns base nodes on idle | Existing Tier 1/Tier 2 node array + `LaunchPhase.Idle` | Unchanged node statuses and detail | Yes |
-| Two-step flow marks trainer as waiting | `proton_run` or `steam_applaunch` nodes + `LaunchPhase.WaitingForTrainer` | `game=complete`, `trainer=active`, `trainer.tone='waiting'` | Yes |
-| Native flow skips trainer overlay | `native` nodes + each non-idle phase | No trainer references introduced | Yes |
-| Session-active summary targets launch node | Ready node array + `LaunchPhase.SessionActive` | `launch=active`, prior runtime nodes `complete` | No |
+| Test                                            | Input                                                                     | Expected Output                                             | Edge Case? |
+| ----------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------- |
+| Phase overlay helper returns base nodes on idle | Existing Tier 1/Tier 2 node array + `LaunchPhase.Idle`                    | Unchanged node statuses and detail                          | Yes        |
+| Two-step flow marks trainer as waiting          | `proton_run` or `steam_applaunch` nodes + `LaunchPhase.WaitingForTrainer` | `game=complete`, `trainer=active`, `trainer.tone='waiting'` | Yes        |
+| Native flow skips trainer overlay               | `native` nodes + each non-idle phase                                      | No trainer references introduced                            | Yes        |
+| Session-active summary targets launch node      | Ready node array + `LaunchPhase.SessionActive`                            | `launch=active`, prior runtime nodes `complete`             | No         |
 
 ### Edge Cases Checklist
 
@@ -417,12 +427,12 @@ EXPECT: Browser dev mode reproduces the live phase sequence with mock handlers, 
 
 ## Risks
 
-| Risk | Likelihood | Impact | Mitigation |
-| ---- | ---------- | ------ | ---------- |
-| Waiting state gets modeled as a new status instead of a tone | Medium | Medium | Keep `waiting` as optional tone metadata layered on top of `active` |
-| Live overlay hides real validation errors after launch/reset | Medium | High | Apply phase overlay only for non-idle phases and preserve the base node array for idle fallback |
-| Mock timing diverges from real Tauri event timing | Medium | Medium | Validate both `./scripts/dev-native.sh --browser` and full `./scripts/dev-native.sh` |
-| New animation causes accessibility or Steam Deck regressions | Low | Medium | Reuse existing breakpoints, add reduced-motion handling, and keep the visual delta small |
+| Risk                                                         | Likelihood | Impact | Mitigation                                                                                      |
+| ------------------------------------------------------------ | ---------- | ------ | ----------------------------------------------------------------------------------------------- |
+| Waiting state gets modeled as a new status instead of a tone | Medium     | Medium | Keep `waiting` as optional tone metadata layered on top of `active`                             |
+| Live overlay hides real validation errors after launch/reset | Medium     | High   | Apply phase overlay only for non-idle phases and preserve the base node array for idle fallback |
+| Mock timing diverges from real Tauri event timing            | Medium     | Medium | Validate both `./scripts/dev-native.sh --browser` and full `./scripts/dev-native.sh`            |
+| New animation causes accessibility or Steam Deck regressions | Low        | Medium | Reuse existing breakpoints, add reduced-motion handling, and keep the visual delta small        |
 
 ## Notes
 

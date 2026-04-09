@@ -16,10 +16,7 @@ function normalizeError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export function usePrefixDeps(
-  profileName: string,
-  prefixPath: string,
-): UsePrefixDepsResult {
+export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefixDepsResult {
   const [deps, setDeps] = useState<PrefixDependencyStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +34,10 @@ export function usePrefixDeps(
 
       setLoading(true);
       try {
-        const result = await callCommand<PrefixDependencyStatus[]>(
-          'get_dependency_status',
-          { profileName, prefixPath },
-        );
+        const result = await callCommand<PrefixDependencyStatus[]>('get_dependency_status', {
+          profileName,
+          prefixPath,
+        });
 
         if (!active) return;
         setDeps(result);
@@ -65,10 +62,11 @@ export function usePrefixDeps(
     async (packages: string[]) => {
       setLoading(true);
       try {
-        const result = await callCommand<PrefixDependencyStatus[]>(
-          'check_prefix_dependencies',
-          { profileName, prefixPath, packages },
-        );
+        const result = await callCommand<PrefixDependencyStatus[]>('check_prefix_dependencies', {
+          profileName,
+          prefixPath,
+          packages,
+        });
         setDeps(result);
         setError(null);
       } catch (err) {
@@ -77,7 +75,7 @@ export function usePrefixDeps(
         setLoading(false);
       }
     },
-    [profileName, prefixPath],
+    [profileName, prefixPath]
   );
 
   const installDep = useCallback(
@@ -95,7 +93,7 @@ export function usePrefixDeps(
         throw err;
       }
     },
-    [profileName, prefixPath],
+    [profileName, prefixPath]
   );
 
   const reload = useCallback(() => {

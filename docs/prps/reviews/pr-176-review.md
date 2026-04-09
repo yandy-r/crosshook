@@ -41,7 +41,7 @@ The `try { ... } catch {}` block intentionally preserves the prior `isGamescopeR
 
 **LOW-3 — `handleMarkVerified` short-circuit no longer resets busy state (correctness note)** (`src/crosshook-native/src/components/ProfileActions.tsx:97-111`)
 
-The early-return guard `if (!selectedProfile.trim()) return;` runs *before* `acknowledgeVersionChange`, so busy state is never flipped — correct. I only call it out because it's a subtle behavioral addition not present in the pre-PR component (where there was no empty-name guard at all). Worth confirming this doesn't mask a UX edge case where the button was previously clickable against an empty selection. Given `showMarkVerified` requires `versionStatus != null` (which itself requires a resolved profile entry), this is effectively unreachable — safe.
+The early-return guard `if (!selectedProfile.trim()) return;` runs _before_ `acknowledgeVersionChange`, so busy state is never flipped — correct. I only call it out because it's a subtle behavioral addition not present in the pre-PR component (where there was no empty-name guard at all). Worth confirming this doesn't mask a UX edge case where the button was previously clickable against an empty selection. Given `showMarkVerified` requires `versionStatus != null` (which itself requires a resolved profile entry), this is effectively unreachable — safe.
 
 **Addressed**: Inline comment documents that `showMarkVerified` makes the empty-name path effectively unreachable.
 
@@ -73,33 +73,33 @@ Both component files are now fully IPC-agnostic — acceptance criteria met.
 
 ## Category Checklist
 
-| Category               | Status | Notes                                                                                                              |
-| ---------------------- | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| Category               | Status | Notes                                                                                                                                                                                                                                               |
+| ---------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Correctness**        | Pass   | Busy-guard preserved via `busyRef`; dep-gate state machine (`depGateInstalling` / event listener) unchanged; `handleBeforeLaunch` early-returns on missing prefix/packages preserved; install-failure catches reset all three dep-gate state slots. |
-| **Type Safety**        | Pass   | New discriminated union `AcknowledgeVersionChangeOutcome` is exhaustive; no `any`; hook return type is a named interface; `PrefixDependencyStatus` import moved cleanly into the hook. |
-| **Pattern Compliance** | Pass   | Hook naming (`use*`) + `UseXxxResult` interface mirrors `usePrefixDeps`; error-normalization style matches existing hooks; component error-alert style matches the prior inline implementation; `@/lib/ipc` import alias consistent. |
-| **Security**           | Pass   | No new IPC commands; no user-supplied strings interpolated into shell; no new auth/secret surface.                 |
-| **Performance**        | Pass   | `useCallback`-memoized dep-gate actions; Gamescope probe runs once on mount via `useEffect`; dep-gate effect's prefix-path computation moved into the effect body (re-derived per event, still O(1)). |
-| **Completeness**       | Pass   | Atomic update of `LaunchPanel` alongside `useAcknowledgeVersionChange` prevents hook contract drift; plan + report committed under `.claude/PRPs/`; `Closes #174` present in body. |
-| **Maintainability**    | Pass   | Single-responsibility hooks; `presentAcknowledgeVersionChangeOutcome` centralizes user-facing handling; Gamescope IPC failure logs a dev warning. |
+| **Type Safety**        | Pass   | New discriminated union `AcknowledgeVersionChangeOutcome` is exhaustive; no `any`; hook return type is a named interface; `PrefixDependencyStatus` import moved cleanly into the hook.                                                              |
+| **Pattern Compliance** | Pass   | Hook naming (`use*`) + `UseXxxResult` interface mirrors `usePrefixDeps`; error-normalization style matches existing hooks; component error-alert style matches the prior inline implementation; `@/lib/ipc` import alias consistent.                |
+| **Security**           | Pass   | No new IPC commands; no user-supplied strings interpolated into shell; no new auth/secret surface.                                                                                                                                                  |
+| **Performance**        | Pass   | `useCallback`-memoized dep-gate actions; Gamescope probe runs once on mount via `useEffect`; dep-gate effect's prefix-path computation moved into the effect body (re-derived per event, still O(1)).                                               |
+| **Completeness**       | Pass   | Atomic update of `LaunchPanel` alongside `useAcknowledgeVersionChange` prevents hook contract drift; plan + report committed under `.claude/PRPs/`; `Closes #174` present in body.                                                                  |
+| **Maintainability**    | Pass   | Single-responsibility hooks; `presentAcknowledgeVersionChangeOutcome` centralizes user-facing handling; Gamescope IPC failure logs a dev warning.                                                                                                   |
 
 ## Files Reviewed
 
-| File                                                                              | Change     | Notes                                                                                                                   |
-| --------------------------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `src/crosshook-native/src/hooks/useLaunchPrefixDependencyGate.ts`                 | Added      | New hook encapsulating `get_dependency_status`, `install_prefix_dependency`, `check_gamescope_session`.                |
-| `src/crosshook-native/src/hooks/useAcknowledgeVersionChange.ts`                   | Modified   | Introduces `AcknowledgeVersionChangeOutcome`; replaces silent catch with structured result; busy-guard unchanged.      |
-| `src/crosshook-native/src/components/pages/LaunchPage.tsx`                        | Modified   | Removes `callCommand` + `PrefixDependencyStatus` imports; all three IPC call-sites routed via hook; `isGamescopeRunning` now sourced from hook state. |
-| `src/crosshook-native/src/components/ProfileActions.tsx`                          | Modified   | Removes direct `callCommand`/`useState`; `busy` is now sourced from hook; added empty-profile-name guard (effectively unreachable given `showMarkVerified`). |
-| `src/crosshook-native/src/components/LaunchPanel.tsx`                             | Modified   | Adopts new outcome contract; alert/revalidate branches surface errors that were previously silenced (behavioral *improvement*). |
-| `.claude/PRPs/plans/completed/issue-174-hook-extraction.plan.md`                  | Added      | Implementation plan; archived into `completed/`.                                                                        |
-| `.claude/PRPs/reports/issue-174-hook-extraction-report.md`                        | Added      | Post-implementation report — transparently flags smoke-test gap for reviewer follow-up.                                |
+| File                                                              | Change   | Notes                                                                                                                                                        |
+| ----------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/crosshook-native/src/hooks/useLaunchPrefixDependencyGate.ts` | Added    | New hook encapsulating `get_dependency_status`, `install_prefix_dependency`, `check_gamescope_session`.                                                      |
+| `src/crosshook-native/src/hooks/useAcknowledgeVersionChange.ts`   | Modified | Introduces `AcknowledgeVersionChangeOutcome`; replaces silent catch with structured result; busy-guard unchanged.                                            |
+| `src/crosshook-native/src/components/pages/LaunchPage.tsx`        | Modified | Removes `callCommand` + `PrefixDependencyStatus` imports; all three IPC call-sites routed via hook; `isGamescopeRunning` now sourced from hook state.        |
+| `src/crosshook-native/src/components/ProfileActions.tsx`          | Modified | Removes direct `callCommand`/`useState`; `busy` is now sourced from hook; added empty-profile-name guard (effectively unreachable given `showMarkVerified`). |
+| `src/crosshook-native/src/components/LaunchPanel.tsx`             | Modified | Adopts new outcome contract; alert/revalidate branches surface errors that were previously silenced (behavioral _improvement_).                              |
+| `.claude/PRPs/plans/completed/issue-174-hook-extraction.plan.md`  | Added    | Implementation plan; archived into `completed/`.                                                                                                             |
+| `.claude/PRPs/reports/issue-174-hook-extraction-report.md`        | Added    | Post-implementation report — transparently flags smoke-test gap for reviewer follow-up.                                                                      |
 
 ## Notable Observations
 
 - **Behavioral improvement in `LaunchPanel`**: the previous `useAcknowledgeVersionChange` swallowed all errors with a bare `catch {}`. The new discriminated-outcome shape causes `LaunchPanel.handleMarkAsVerified` to surface acknowledge/revalidate failures to the user via `window.alert`, matching the semantics `ProfileActions` already had. This is a low-key UX upgrade, not a regression.
 - **Atomic migration** of both `LaunchPanel` and `ProfileActions` alongside the hook signature change means no mixed-contract risk on `main` — good refactor hygiene.
-- **Scope discipline**: Gamescope session probe was *not* in the original issue #174 scope but was pulled into the hook here; the PR title and report note this explicitly, and it's a logical fit since `check_gamescope_session` was the only remaining direct `callCommand` in `LaunchPage`.
+- **Scope discipline**: Gamescope session probe was _not_ in the original issue #174 scope but was pulled into the hook here; the PR title and report note this explicitly, and it's a logical fit since `check_gamescope_session` was the only remaining direct `callCommand` in `LaunchPage`.
 
 ## Decision Rationale
 

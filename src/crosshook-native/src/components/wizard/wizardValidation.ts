@@ -43,9 +43,7 @@ function notBlank(value: string | undefined | null): boolean {
  *
  * Pure and synchronous — no IPC, no React state. Safe to call on every render.
  */
-export function evaluateWizardRequiredFields(
-  args: EvaluateWizardRequiredFieldsArgs
-): WizardValidationResult {
+export function evaluateWizardRequiredFields(args: EvaluateWizardRequiredFieldsArgs): WizardValidationResult {
   const { profileName, profile, launchMethod } = args;
 
   const fields: WizardRequiredField[] = [

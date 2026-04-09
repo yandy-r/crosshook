@@ -161,8 +161,8 @@ mod tests {
 
     #[test]
     fn provider_serializes_as_kebab_case() {
-        let json = serde_json::to_string(&ProtonUpProvider::GeProton)
-            .expect("serialize ProtonUpProvider");
+        let json =
+            serde_json::to_string(&ProtonUpProvider::GeProton).expect("serialize ProtonUpProvider");
         assert_eq!(json, r#""ge-proton""#);
     }
 
@@ -190,41 +190,50 @@ mod tests {
     #[test]
     fn display_matches_kebab_case_ids() {
         assert_eq!(ProtonUpProvider::GeProton.to_string(), "ge-proton");
-        assert_eq!(ProtonUpProvider::ProtonCachyos.to_string(), "proton-cachyos");
+        assert_eq!(
+            ProtonUpProvider::ProtonCachyos.to_string(),
+            "proton-cachyos"
+        );
     }
 
     #[test]
     fn parse_protonup_provider_defaults_and_maps() {
         assert_eq!(parse_protonup_provider(None), ProtonUpProvider::GeProton);
-        assert_eq!(parse_protonup_provider(Some("")), ProtonUpProvider::GeProton);
-        assert_eq!(parse_protonup_provider(Some("ge-proton")), ProtonUpProvider::GeProton);
+        assert_eq!(
+            parse_protonup_provider(Some("")),
+            ProtonUpProvider::GeProton
+        );
+        assert_eq!(
+            parse_protonup_provider(Some("ge-proton")),
+            ProtonUpProvider::GeProton
+        );
         assert_eq!(
             parse_protonup_provider(Some("proton-cachyos")),
             ProtonUpProvider::ProtonCachyos
         );
-        assert_eq!(parse_protonup_provider(Some("unknown")), ProtonUpProvider::GeProton);
+        assert_eq!(
+            parse_protonup_provider(Some("unknown")),
+            ProtonUpProvider::GeProton
+        );
     }
 
     // ── ProtonUpMatchStatus ───────────────────────────────────────────────────
 
     #[test]
     fn match_status_matched_serializes_as_snake_case() {
-        let json = serde_json::to_string(&ProtonUpMatchStatus::Matched)
-            .expect("serialize Matched");
+        let json = serde_json::to_string(&ProtonUpMatchStatus::Matched).expect("serialize Matched");
         assert_eq!(json, r#""matched""#);
     }
 
     #[test]
     fn match_status_missing_serializes_as_snake_case() {
-        let json = serde_json::to_string(&ProtonUpMatchStatus::Missing)
-            .expect("serialize Missing");
+        let json = serde_json::to_string(&ProtonUpMatchStatus::Missing).expect("serialize Missing");
         assert_eq!(json, r#""missing""#);
     }
 
     #[test]
     fn match_status_unknown_serializes_as_snake_case() {
-        let json = serde_json::to_string(&ProtonUpMatchStatus::Unknown)
-            .expect("serialize Unknown");
+        let json = serde_json::to_string(&ProtonUpMatchStatus::Unknown).expect("serialize Unknown");
         assert_eq!(json, r#""unknown""#);
     }
 
@@ -233,18 +242,26 @@ mod tests {
     #[test]
     fn install_error_kind_serializes_as_snake_case() {
         let cases = [
-            (ProtonUpInstallErrorKind::DependencyMissing, "dependency_missing"),
-            (ProtonUpInstallErrorKind::PermissionDenied, "permission_denied"),
+            (
+                ProtonUpInstallErrorKind::DependencyMissing,
+                "dependency_missing",
+            ),
+            (
+                ProtonUpInstallErrorKind::PermissionDenied,
+                "permission_denied",
+            ),
             (ProtonUpInstallErrorKind::ChecksumFailed, "checksum_failed"),
             (ProtonUpInstallErrorKind::NetworkError, "network_error"),
             (ProtonUpInstallErrorKind::InvalidPath, "invalid_path"),
-            (ProtonUpInstallErrorKind::AlreadyInstalled, "already_installed"),
+            (
+                ProtonUpInstallErrorKind::AlreadyInstalled,
+                "already_installed",
+            ),
             (ProtonUpInstallErrorKind::Unknown, "unknown"),
         ];
 
         for (kind, expected) in cases {
-            let json = serde_json::to_string(&kind)
-                .unwrap_or_else(|_| panic!("serialize {kind}"));
+            let json = serde_json::to_string(&kind).unwrap_or_else(|_| panic!("serialize {kind}"));
             assert_eq!(json, format!(r#""{expected}""#), "mismatch for {kind}");
         }
     }
@@ -330,7 +347,9 @@ mod tests {
     fn install_result_success_round_trip() {
         let original = ProtonUpInstallResult {
             success: true,
-            installed_path: Some("/home/user/.steam/root/compatibilitytools.d/GE-Proton9-21".to_string()),
+            installed_path: Some(
+                "/home/user/.steam/root/compatibilitytools.d/GE-Proton9-21".to_string(),
+            ),
             error_kind: None,
             error_message: None,
         };

@@ -12,22 +12,33 @@ interface PrefixDepsPanelProps {
 
 function stateLabel(state: DepState): string {
   switch (state) {
-    case 'installed': return 'Installed';
-    case 'missing': return 'Missing';
-    case 'install_failed': return 'Failed';
-    case 'check_failed': return 'Check Failed';
-    case 'user_skipped': return 'Skipped';
-    default: return 'Unknown';
+    case 'installed':
+      return 'Installed';
+    case 'missing':
+      return 'Missing';
+    case 'install_failed':
+      return 'Failed';
+    case 'check_failed':
+      return 'Check Failed';
+    case 'user_skipped':
+      return 'Skipped';
+    default:
+      return 'Unknown';
   }
 }
 
 function stateModifier(state: DepState): string {
   switch (state) {
-    case 'installed': return 'success';
-    case 'missing': return 'warning';
-    case 'install_failed': return 'danger';
-    case 'user_skipped': return 'muted';
-    default: return 'muted';
+    case 'installed':
+      return 'success';
+    case 'missing':
+      return 'warning';
+    case 'install_failed':
+      return 'danger';
+    case 'user_skipped':
+      return 'muted';
+    default:
+      return 'muted';
   }
 }
 
@@ -45,15 +56,8 @@ function DependencyStatusBadge({ dep }: { dep: PrefixDependencyStatus }) {
   );
 }
 
-export function PrefixDepsPanel({
-  profileName,
-  prefixPath,
-  requiredPackages,
-}: PrefixDepsPanelProps) {
-  const { deps, loading, error, checkDeps, installDep, reload } = usePrefixDeps(
-    profileName,
-    prefixPath,
-  );
+export function PrefixDepsPanel({ profileName, prefixPath, requiredPackages }: PrefixDepsPanelProps) {
+  const { deps, loading, error, checkDeps, installDep, reload } = usePrefixDeps(profileName, prefixPath);
   const [installing, setInstalling] = useState(false);
   const [confirmInstall, setConfirmInstall] = useState<string[] | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
@@ -61,13 +65,15 @@ export function PrefixDepsPanel({
   // Merge required packages with cached status
   const packageStatuses: PrefixDependencyStatus[] = requiredPackages.map((pkg) => {
     const cached = deps.find((d) => d.package_name === pkg);
-    return cached ?? {
-      package_name: pkg,
-      state: 'unknown' as DepState,
-      checked_at: null,
-      installed_at: null,
-      last_error: null,
-    };
+    return (
+      cached ?? {
+        package_name: pkg,
+        state: 'unknown' as DepState,
+        checked_at: null,
+        installed_at: null,
+        last_error: null,
+      }
+    );
   });
 
   const missingPackages = packageStatuses
@@ -79,14 +85,11 @@ export function PrefixDepsPanel({
     const unlistenLog = subscribeEvent<{ profile_name: string; prefix_path: string; line: string }>(
       'prefix-dep-log',
       (event) => {
-        if (
-          event.payload.profile_name !== profileName
-          || event.payload.prefix_path !== prefixPath
-        ) {
+        if (event.payload.profile_name !== profileName || event.payload.prefix_path !== prefixPath) {
           return;
         }
         setLogLines((prev) => [...prev.slice(-200), event.payload.line]);
-      },
+      }
     );
 
     const unlistenComplete = subscribeEvent<{
@@ -95,10 +98,7 @@ export function PrefixDepsPanel({
       succeeded: boolean;
       exit_code: number | null;
     }>('prefix-dep-complete', (event) => {
-      if (
-        event.payload.profile_name !== profileName
-        || event.payload.prefix_path !== prefixPath
-      ) {
+      if (event.payload.profile_name !== profileName || event.payload.prefix_path !== prefixPath) {
         return;
       }
       setInstalling(false);
@@ -140,12 +140,9 @@ export function PrefixDepsPanel({
     setConfirmInstall(missingPackages);
   }, [missingPackages]);
 
-  const handleInstallSingle = useCallback(
-    (pkg: string) => {
-      setConfirmInstall([pkg]);
-    },
-    [],
-  );
+  const handleInstallSingle = useCallback((pkg: string) => {
+    setConfirmInstall([pkg]);
+  }, []);
 
   if (requiredPackages.length === 0) return null;
 
@@ -201,12 +198,10 @@ export function PrefixDepsPanel({
       ) : null}
 
       {/* Install progress indicator */}
-      {installing ? (
-        <progress aria-label="Dependency installation in progress" />
-      ) : null}
+      {installing ? <progress aria-label="Dependency installation in progress" /> : null}
 
       {/* Install log output */}
-      {(installing || logLines.length > 0) ? (
+      {installing || logLines.length > 0 ? (
         <div className="crosshook-prefix-deps__log">
           <div className="crosshook-prefix-deps__log-header">
             <strong>{installing ? 'Installing...' : 'Install Log'}</strong>
@@ -219,7 +214,12 @@ export function PrefixDepsPanel({
 
       {/* Confirmation modal */}
       {confirmInstall !== null ? (
-        <div className="crosshook-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="prefix-deps-confirm-title">
+        <div
+          className="crosshook-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="prefix-deps-confirm-title"
+        >
           <div className="crosshook-modal crosshook-prefix-deps__confirm">
             <h3 id="prefix-deps-confirm-title">Install Prefix Dependencies</h3>
             <p>The following packages will be installed:</p>
@@ -229,8 +229,8 @@ export function PrefixDepsPanel({
               ))}
             </ul>
             <p className="crosshook-help-text">
-              Installation may take several minutes and requires internet access.
-              Do not close CrossHook during installation.
+              Installation may take several minutes and requires internet access. Do not close CrossHook during
+              installation.
             </p>
             <div className="crosshook-modal__actions">
               <button

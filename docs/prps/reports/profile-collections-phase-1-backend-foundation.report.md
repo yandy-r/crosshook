@@ -27,16 +27,16 @@ Key outcomes:
 
 ## Files Changed
 
-| # | File | Action | Notes |
-|---|------|--------|-------|
-| 1 | `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs` | UPDATE | Added `migrate_18_to_19` + dispatch; retargeted `migration_17_to_18_creates_trainer_sources_table` assertion from `version == 18` to `version >= 18`; added `migration_18_to_19_adds_sort_order_and_cascade` test |
-| 2 | `src/crosshook-native/crates/crosshook-core/src/metadata/collections.rs` | UPDATE | Fixed `add_profile_to_collection` silent no-op; added `rename_collection`, `update_collection_description`, `collections_for_profile`; switched `list_collections` ORDER BY to `sort_order ASC, name ASC` |
-| 3 | `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs` | UPDATE | Added 3 `MetadataStore` wrapper methods (`rename_collection`, `update_collection_description`, `collections_for_profile`); added 7 integration tests covering new paths and FK cascade |
-| 4 | `src/crosshook-native/crates/crosshook-core/src/metadata/models.rs` | UPDATE | Removed stale `#[allow(dead_code)]` from `CollectionRow` |
-| 5 | `src/crosshook-native/src-tauri/src/commands/collections.rs` | UPDATE | Added `collection_rename`, `collection_update_description`, `collections_for_profile` Tauri command handlers |
-| 6 | `src/crosshook-native/src-tauri/src/lib.rs` | UPDATE | Registered 3 new commands in `tauri::generate_handler!` block |
-| 7 | `src/crosshook-native/src/lib/mocks/handlers/collections.ts` | CREATE | New mock handler file covering all 9 collection IPC commands with 1 seed fixture and module-scope state |
-| 8 | `src/crosshook-native/src/lib/mocks/index.ts` | UPDATE | Import and call `registerCollections(map)` in the `registerMocks()` barrel |
+| #   | File                                                                     | Action | Notes                                                                                                                                                                                                             |
+| --- | ------------------------------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`  | UPDATE | Added `migrate_18_to_19` + dispatch; retargeted `migration_17_to_18_creates_trainer_sources_table` assertion from `version == 18` to `version >= 18`; added `migration_18_to_19_adds_sort_order_and_cascade` test |
+| 2   | `src/crosshook-native/crates/crosshook-core/src/metadata/collections.rs` | UPDATE | Fixed `add_profile_to_collection` silent no-op; added `rename_collection`, `update_collection_description`, `collections_for_profile`; switched `list_collections` ORDER BY to `sort_order ASC, name ASC`         |
+| 3   | `src/crosshook-native/crates/crosshook-core/src/metadata/mod.rs`         | UPDATE | Added 3 `MetadataStore` wrapper methods (`rename_collection`, `update_collection_description`, `collections_for_profile`); added 7 integration tests covering new paths and FK cascade                            |
+| 4   | `src/crosshook-native/crates/crosshook-core/src/metadata/models.rs`      | UPDATE | Removed stale `#[allow(dead_code)]` from `CollectionRow`                                                                                                                                                          |
+| 5   | `src/crosshook-native/src-tauri/src/commands/collections.rs`             | UPDATE | Added `collection_rename`, `collection_update_description`, `collections_for_profile` Tauri command handlers                                                                                                      |
+| 6   | `src/crosshook-native/src-tauri/src/lib.rs`                              | UPDATE | Registered 3 new commands in `tauri::generate_handler!` block                                                                                                                                                     |
+| 7   | `src/crosshook-native/src/lib/mocks/handlers/collections.ts`             | CREATE | New mock handler file covering all 9 collection IPC commands with 1 seed fixture and module-scope state                                                                                                           |
+| 8   | `src/crosshook-native/src/lib/mocks/index.ts`                            | UPDATE | Import and call `registerCollections(map)` in the `registerMocks()` barrel                                                                                                                                        |
 
 ## Features Delivered
 
@@ -89,11 +89,13 @@ Adventure"), and `[dev-mock]`-prefixed error strings. Includes:
 ## Test Coverage
 
 **Migration tests (1)**:
+
 - `migration_18_to_19_adds_sort_order_and_cascade` — verifies version, `sort_order`
   column shape (type + NOT NULL), FK cascade end-to-end (insert → delete → assert
   zero orphan rows), and regression check on the collection→membership cascade.
 
 **Metadata store tests (7)**:
+
 - `test_add_profile_to_collection_missing_profile_errors` — typed error on unknown
   profile, no row inserted
 - `test_rename_collection_updates_name` — happy path

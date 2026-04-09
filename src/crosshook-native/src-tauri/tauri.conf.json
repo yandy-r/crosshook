@@ -23,10 +23,7 @@
       "csp": "default-src 'self'; script-src 'self'; img-src 'self' asset: http://asset.localhost",
       "assetProtocol": {
         "enable": true,
-        "scope": [
-          "$LOCALDATA/crosshook/cache/images/**",
-          "$LOCALDATA/crosshook/media/**"
-        ]
+        "scope": ["$LOCALDATA/crosshook/cache/images/**", "$LOCALDATA/crosshook/media/**"]
       }
     }
   },

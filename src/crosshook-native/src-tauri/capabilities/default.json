@@ -8,17 +8,11 @@
     "dialog:default",
     {
       "identifier": "shell:allow-open",
-      "allow": [
-        { "url": "https://www.protondb.com/**" },
-        { "url": "https://www.steamgriddb.com/**" }
-      ]
+      "allow": [{ "url": "https://www.protondb.com/**" }, { "url": "https://www.steamgriddb.com/**" }]
     },
     {
       "identifier": "fs:allow-read-file",
-      "allow": [
-        { "path": "$LOCALDATA/crosshook/cache/images/**" },
-        { "path": "$LOCALDATA/crosshook/media/**" }
-      ]
+      "allow": [{ "path": "$LOCALDATA/crosshook/cache/images/**" }, { "path": "$LOCALDATA/crosshook/media/**" }]
     }
   ]
 }

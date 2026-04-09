@@ -1,11 +1,7 @@
 import { callCommand } from '@/lib/ipc';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type {
-  SteamAppDetails,
-  SteamMetadataLookupResult,
-  SteamMetadataLookupState,
-} from '../types/game-metadata';
+import type { SteamAppDetails, SteamMetadataLookupResult, SteamMetadataLookupState } from '../types/game-metadata';
 
 const idleLookup = (appId = ''): SteamMetadataLookupResult => ({
   app_id: appId,
@@ -55,10 +51,7 @@ function normalizeLookupResult(result: SteamMetadataLookupResult): SteamMetadata
   };
 }
 
-function loadingLookup(
-  appId: string,
-  previous: SteamMetadataLookupResult | null
-): SteamMetadataLookupResult {
+function loadingLookup(appId: string, previous: SteamMetadataLookupResult | null): SteamMetadataLookupResult {
   const canReusePrevious = previous?.app_id === appId;
   return {
     app_id: appId,
@@ -82,13 +75,8 @@ export interface UseGameMetadataResult {
 }
 
 export function useGameMetadata(steamAppId: string | undefined): UseGameMetadataResult {
-  const normalizedAppId = useMemo(
-    () => normalizeAppId(steamAppId ?? ''),
-    [steamAppId]
-  );
-  const [result, setResult] = useState<SteamMetadataLookupResult>(() =>
-    idleLookup(normalizedAppId)
-  );
+  const normalizedAppId = useMemo(() => normalizeAppId(steamAppId ?? ''), [steamAppId]);
+  const [result, setResult] = useState<SteamMetadataLookupResult>(() => idleLookup(normalizedAppId));
   const [loading, setLoading] = useState(false);
   const requestIdRef = useRef(0);
 

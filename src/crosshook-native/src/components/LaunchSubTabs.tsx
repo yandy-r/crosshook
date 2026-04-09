@@ -23,13 +23,7 @@ import type { LaunchOptimizationId } from '../types/launch-optimizations';
 import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
 import type { PendingProtonDbOverwrite } from '../utils/protondb';
 
-export type LaunchSubTabId =
-  | 'offline'
-  | 'environment'
-  | 'gamescope'
-  | 'mangohud'
-  | 'optimizations'
-  | 'steam-options';
+export type LaunchSubTabId = 'offline' | 'environment' | 'gamescope' | 'mangohud' | 'optimizations' | 'steam-options';
 
 const TAB_LABELS: Record<LaunchSubTabId, string> = {
   offline: 'Offline',
@@ -217,8 +211,7 @@ export function LaunchSubTabs({
     dismissTrainerHashCommunityWarning,
   } = useLaunchStateContext();
 
-  const hasOfflineConcern =
-    Boolean(offlineReadinessError) || offlineWarning || launchPathWarnings.length > 0;
+  const hasOfflineConcern = Boolean(offlineReadinessError) || offlineWarning || launchPathWarnings.length > 0;
 
   useEffect(() => {
     if (hasOfflineConcern && !autoSwitchedRef.current) {
@@ -238,11 +231,11 @@ export function LaunchSubTabs({
   const dominantColor = useImageDominantColor(coverArtUrl);
 
   const gameColorStyle: CSSProperties | undefined = dominantColor
-    ? {
+    ? ({
         '--crosshook-game-color-r': String(dominantColor[0]),
         '--crosshook-game-color-g': String(dominantColor[1]),
         '--crosshook-game-color-b': String(dominantColor[2]),
-      } as CSSProperties
+      } as CSSProperties)
     : undefined;
 
   const showCoverArt = Boolean(coverArtUrl) || coverArtLoading;
@@ -261,21 +254,13 @@ export function LaunchSubTabs({
         style={gameColorStyle}
       >
         <div
-          className={[
-            'crosshook-subtabs-backdrop',
-            !showCoverArt ? 'crosshook-subtabs-backdrop--empty' : '',
-          ]
+          className={['crosshook-subtabs-backdrop', !showCoverArt ? 'crosshook-subtabs-backdrop--empty' : '']
             .filter(Boolean)
             .join(' ')}
           aria-hidden="true"
         >
           {coverArtUrl ? (
-            <img
-              src={coverArtUrl}
-              className="crosshook-subtabs-backdrop__art"
-              alt=""
-              aria-hidden="true"
-            />
+            <img src={coverArtUrl} className="crosshook-subtabs-backdrop__art" alt="" aria-hidden="true" />
           ) : null}
           {coverArtLoading && !coverArtUrl ? (
             <div className="crosshook-subtabs-backdrop__skeleton crosshook-skeleton" />
@@ -324,10 +309,7 @@ export function LaunchSubTabs({
                 className="crosshook-launch-panel__offline"
                 style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}
               >
-                <OfflineStatusBadge
-                  report={offlineReadiness}
-                  loading={offlineReadinessLoading && !offlineReadiness}
-                />
+                <OfflineStatusBadge report={offlineReadiness} loading={offlineReadinessLoading && !offlineReadiness} />
                 {!offlineReadinessLoading && offlineReadiness ? (
                   <span className="crosshook-muted" style={{ fontSize: '0.85rem' }}>
                     {offlineReadiness.readiness_state.replace(/_/g, ' ')}
@@ -342,15 +324,9 @@ export function LaunchSubTabs({
               {launchPathWarnings.length > 0 ? (
                 <ul className="crosshook-launch-panel__feedback-list" aria-label="Launch path warnings">
                   {launchPathWarnings.map((issue, index) => (
-                    <li
-                      key={`launch-warn-${issue.message}-${index}`}
-                      className="crosshook-launch-panel__feedback-item"
-                    >
+                    <li key={`launch-warn-${issue.message}-${index}`} className="crosshook-launch-panel__feedback-item">
                       <div className="crosshook-launch-panel__feedback-header">
-                        <span
-                          className="crosshook-launch-panel__feedback-badge"
-                          data-severity={issue.severity}
-                        >
+                        <span className="crosshook-launch-panel__feedback-badge" data-severity={issue.severity}>
                           {issue.severity}
                         </span>
                         <p className="crosshook-launch-panel__feedback-title">{issue.message}</p>

@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { useCollectionDefaults } from '@/hooks/useCollectionDefaults';
-import {
-  isCollectionDefaultsEmpty,
-  type CollectionDefaults,
-  type LaunchMethod,
-} from '@/types/profile';
+import { isCollectionDefaultsEmpty, type CollectionDefaults, type LaunchMethod } from '@/types/profile';
 
 import './CollectionLaunchDefaultsEditor.css';
 
@@ -169,9 +165,7 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
   }
 
   function updateEnvVarKey(rowId: string, newKeyRaw: string) {
-    setEnvRows((rows) =>
-      rows.map((r) => (r.id === rowId ? { ...r, key: newKeyRaw } : r))
-    );
+    setEnvRows((rows) => rows.map((r) => (r.id === rowId ? { ...r, key: newKeyRaw } : r)));
   }
 
   function updateEnvVarValue(rowId: string, value: string) {
@@ -192,13 +186,13 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
       >
         <span>Collection launch defaults</span>
         {persistedActive && (
-          <span className="crosshook-collection-launch-defaults-editor__badge" aria-hidden="true">Active</span>
+          <span className="crosshook-collection-launch-defaults-editor__badge" aria-hidden="true">
+            Active
+          </span>
         )}
       </summary>
 
-      {loading && (
-        <p className="crosshook-collection-launch-defaults-editor__status">Loading defaults…</p>
-      )}
+      {loading && <p className="crosshook-collection-launch-defaults-editor__status">Loading defaults…</p>}
       {error && (
         <p className="crosshook-collection-launch-defaults-editor__error" role="alert">
           {error}
@@ -208,8 +202,8 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
       {!loading && (
         <div className="crosshook-collection-launch-defaults-editor__body">
           <p className="crosshook-collection-launch-defaults-editor__hint">
-            Collection defaults override the profile's launch settings, but local
-            machine paths always win on top. Empty fields inherit the profile.
+            Collection defaults override the profile's launch settings, but local machine paths always win on top. Empty
+            fields inherit the profile.
           </p>
 
           <div className="crosshook-collection-launch-defaults-editor__row">
@@ -232,13 +226,7 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
               Network isolation
               <select
                 className="crosshook-input"
-                value={
-                  draft.network_isolation === undefined
-                    ? ''
-                    : draft.network_isolation
-                      ? 'on'
-                      : 'off'
-                }
+                value={draft.network_isolation === undefined ? '' : draft.network_isolation ? 'on' : 'off'}
                 onChange={(e) => setNetworkIsolation(e.target.value)}
               >
                 <option value="">(inherit)</option>
@@ -256,20 +244,14 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
               </p>
             )}
             {envRows.map((row, index) => (
-              <div
-                key={row.id}
-                className="crosshook-collection-launch-defaults-editor__env-row"
-              >
+              <div key={row.id} className="crosshook-collection-launch-defaults-editor__env-row">
                 <input
                   type="text"
                   className="crosshook-input"
                   value={row.key}
                   onChange={(e) => updateEnvVarKey(row.id, e.target.value)}
                   placeholder="KEY"
-                  aria-invalid={
-                    row.key.trim() === '' ||
-                    (row.key.trim() !== '' && !isValidEnvVarName(row.key.trim()))
-                  }
+                  aria-invalid={row.key.trim() === '' || (row.key.trim() !== '' && !isValidEnvVarName(row.key.trim()))}
                   aria-label={
                     row.key.trim()
                       ? `Environment variable name: ${row.key}`
@@ -294,60 +276,35 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
                 </button>
               </div>
             ))}
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              onClick={addEnvVar}
-            >
+            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={addEnvVar}>
               + Add env var
             </button>
             {envRowsMissingKey && (
-              <p
-                className="crosshook-collection-launch-defaults-editor__validation"
-                role="status"
-              >
-                Each env var row needs a name. Fill in the key column or remove the row before
-                saving.
+              <p className="crosshook-collection-launch-defaults-editor__validation" role="status">
+                Each env var row needs a name. Fill in the key column or remove the row before saving.
               </p>
             )}
             {envRowsInvalidName && !envRowsMissingKey && (
-              <p
-                className="crosshook-collection-launch-defaults-editor__validation"
-                role="status"
-              >
-                Env var names should look like shell variables: letters, numbers, and underscores
-                only, starting with a letter or underscore. Do not use{' '}
-                <code className="crosshook-collection-launch-defaults-editor__code">=</code> in the
-                name.
+              <p className="crosshook-collection-launch-defaults-editor__validation" role="status">
+                Env var names should look like shell variables: letters, numbers, and underscores only, starting with a
+                letter or underscore. Do not use{' '}
+                <code className="crosshook-collection-launch-defaults-editor__code">=</code> in the name.
               </p>
             )}
           </fieldset>
 
           <p className="crosshook-collection-launch-defaults-editor__hint">
-            Optimizations, gamescope, and MangoHUD overrides are managed from the
-            Profiles page.
+            Optimizations, gamescope, and MangoHUD overrides are managed from the Profiles page.
           </p>
 
           <div className="crosshook-collection-launch-defaults-editor__actions">
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              onClick={onOpenInProfilesPage}
-            >
+            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={onOpenInProfilesPage}>
               Open in Profiles page →
             </button>
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              onClick={handleClearAll}
-            >
+            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={handleClearAll}>
               Clear all
             </button>
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              onClick={handleResetDraft}
-            >
+            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={handleResetDraft}>
               Reset draft
             </button>
             <button

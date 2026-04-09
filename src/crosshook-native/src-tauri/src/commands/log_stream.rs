@@ -59,8 +59,7 @@ async fn stream_log_lines(
                 if interrupted_emitted {
                     // Surface recovery so the user can correlate "interrupted"
                     // with the lines that follow once reads succeed again.
-                    let _ =
-                        app.emit(event_name, "Log stream resumed.".to_string());
+                    let _ = app.emit(event_name, "Log stream resumed.".to_string());
                     interrupted_emitted = false;
                 }
                 consecutive_read_failures = 0;

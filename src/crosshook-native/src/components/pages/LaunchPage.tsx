@@ -17,14 +17,17 @@ import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/p
 import { useProtonDbSuggestions } from '../../hooks/useProtonDbSuggestions';
 import { resolveArtAppId } from '../../utils/art';
 import { buildProfileLaunchRequest } from '../../utils/launch';
-import { applyProtonDbGroupToProfile, mergeProtonDbEnvVarGroup, type PendingProtonDbOverwrite } from '../../utils/protondb';
+import {
+  applyProtonDbGroupToProfile,
+  mergeProtonDbEnvVarGroup,
+  type PendingProtonDbOverwrite,
+} from '../../utils/protondb';
 
 export function LaunchPage() {
   const profileState = useProfileContext();
   const { activeCollectionId, setActiveCollectionId } = profileState;
   const { collections } = useCollections();
-  const { memberNames, membersForCollectionId, loading: membersLoading } =
-    useCollectionMembers(activeCollectionId);
+  const { memberNames, membersForCollectionId, loading: membersLoading } = useCollectionMembers(activeCollectionId);
   const activeCollection = useMemo(
     () =>
       activeCollectionId === null ? null : (collections.find((c) => c.collection_id === activeCollectionId) ?? null),
@@ -132,7 +135,7 @@ export function LaunchPage() {
         });
       }
     },
-    [suggestions.acceptSuggestion, profileState.selectProfile, selectedName, activeCollectionId],
+    [suggestions.acceptSuggestion, profileState.selectProfile, selectedName, activeCollectionId]
   );
 
   // Dep gate modal state
@@ -215,7 +218,9 @@ export function LaunchPage() {
 
         const missing = requiredPackages.filter((pkg) => {
           const status = statuses.find((s) => s.package_name === pkg);
-          return !status || status.state === 'missing' || status.state === 'install_failed' || status.state === 'unknown';
+          return (
+            !status || status.state === 'missing' || status.state === 'install_failed' || status.state === 'unknown'
+          );
         });
 
         if (missing.length === 0) return true;
@@ -272,7 +277,9 @@ export function LaunchPage() {
         }
         setProtonDbStatusMessage(
           `Applied ${parts.join(' and ')}${
-            unchangedCount > 0 ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged` : ''
+            unchangedCount > 0
+              ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged`
+              : ''
           }.`
         );
         return;
@@ -314,7 +321,11 @@ export function LaunchPage() {
   );
 
   const handleEnvironmentBlurAutoSave = useCallback(
-    (trigger: 'key' | 'value', row: Readonly<{ key: string; value: string }>, nextEnvVars: Readonly<Record<string, string>>) => {
+    (
+      trigger: 'key' | 'value',
+      row: Readonly<{ key: string; value: string }>,
+      nextEnvVars: Readonly<Record<string, string>>
+    ) => {
       if (!hasSavedSelectedProfile) {
         return;
       }

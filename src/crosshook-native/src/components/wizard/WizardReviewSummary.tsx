@@ -21,11 +21,7 @@ export interface WizardReviewSummaryProps {
  *
  * The component is pure and does not call any IPC.
  */
-export function WizardReviewSummary({
-  validation,
-  readinessResult,
-  checkError,
-}: WizardReviewSummaryProps) {
+export function WizardReviewSummary({ validation, readinessResult, checkError }: WizardReviewSummaryProps) {
   return (
     <div className="crosshook-onboarding-wizard__review-summary" aria-live="polite">
       <section aria-label="Required fields">
@@ -77,10 +73,7 @@ export function WizardReviewSummary({
             </p>
             <ul className="crosshook-onboarding-wizard__review-list">
               {readinessResult.checks.map((check, idx) => (
-                <li
-                  key={`${check.field}-${check.path}-${idx}`}
-                  className="crosshook-onboarding-wizard__review-row"
-                >
+                <li key={`${check.field}-${check.path}-${idx}`} className="crosshook-onboarding-wizard__review-row">
                   <span
                     aria-hidden="true"
                     style={{ color: resolveCheckColor(check.severity) }}

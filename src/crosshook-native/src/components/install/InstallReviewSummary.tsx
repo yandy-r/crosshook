@@ -1,11 +1,7 @@
 import { InstallField } from '../ui/InstallField';
 import { WizardReviewSummary } from '../wizard/WizardReviewSummary';
 import type { WizardValidationResult } from '../wizard/wizardValidation';
-import type {
-  InstallGameExecutableCandidate,
-  InstallGamePrefixPathState,
-  InstallGameStage,
-} from '../../types/install';
+import type { InstallGameExecutableCandidate, InstallGamePrefixPathState, InstallGameStage } from '../../types/install';
 import { prefixStateLabel } from './installLabels';
 
 export interface InstallationStatus {

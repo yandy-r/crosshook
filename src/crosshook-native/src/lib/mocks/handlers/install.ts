@@ -44,10 +44,7 @@ function buildMockInstallResult(request: InstallGameRequest): InstallGameResult 
     },
   };
 
-  const candidates = [
-    '/mock/games/mock-game/game.exe',
-    '/mock/games/mock-game/launcher.exe',
-  ];
+  const candidates = ['/mock/games/mock-game/game.exe', '/mock/games/mock-game/launcher.exe'];
 
   return {
     succeeded: true,
@@ -134,9 +131,7 @@ export function registerInstall(map: Map<string, Handler>): void {
     const profileName = request.profile_name?.trim() || 'mock-game';
 
     if (installInFlight !== null) {
-      throw new Error(
-        `[dev-mock] install_game: install already in progress for "${installInFlight}"`,
-      );
+      throw new Error(`[dev-mock] install_game: install already in progress for "${installInFlight}"`);
     }
 
     const runToken = profileName;

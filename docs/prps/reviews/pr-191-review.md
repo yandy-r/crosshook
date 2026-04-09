@@ -166,10 +166,7 @@ stabilizing the profile reference upstream.
 effective immediately:
 
 ```tsx
-const nodes = useMemo(
-  () => derivePipelineNodes(method, profile, preview, phase),
-  [method, profile, preview, phase]
-);
+const nodes = useMemo(() => derivePipelineNodes(method, profile, preview, phase), [method, profile, preview, phase]);
 ```
 
 ---

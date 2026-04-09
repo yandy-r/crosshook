@@ -1,9 +1,5 @@
 import type { Handler } from './types';
-import type {
-  LauncherDeleteResult,
-  LauncherInfo,
-  LauncherRenameResult,
-} from '../../../types/launcher';
+import type { LauncherDeleteResult, LauncherInfo, LauncherRenameResult } from '../../../types/launcher';
 
 // ---- Synthetic data (BR-10 / W-3: fictional names, /home/devuser paths) ----
 
@@ -12,8 +8,7 @@ const SYNTHETIC_LAUNCHERS: LauncherInfo[] = [
     display_name: 'Test Game Alpha - Trainer',
     launcher_slug: 'test-game-alpha-trainer',
     script_path: '/home/devuser/.local/share/crosshook/launchers/test-game-alpha-trainer.sh',
-    desktop_entry_path:
-      '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
+    desktop_entry_path: '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
     script_exists: true,
     desktop_entry_exists: true,
     is_stale: false,
@@ -24,16 +19,14 @@ const SYNTHETIC_EXPORT_RESULT = {
   display_name: 'Test Game Alpha - Trainer',
   launcher_slug: 'test-game-alpha-trainer',
   script_path: '/home/devuser/.local/share/crosshook/launchers/test-game-alpha-trainer.sh',
-  desktop_entry_path:
-    '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
+  desktop_entry_path: '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
 };
 
 const SYNTHETIC_DELETE_RESULT: LauncherDeleteResult = {
   script_deleted: false,
   desktop_entry_deleted: false,
   script_path: '/home/devuser/.local/share/crosshook/launchers/test-game-alpha-trainer.sh',
-  desktop_entry_path:
-    '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
+  desktop_entry_path: '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
   script_skipped_reason: null,
   desktop_entry_skipped_reason: null,
 };
@@ -42,8 +35,7 @@ const SYNTHETIC_LAUNCHER_STATUS: LauncherInfo = {
   display_name: 'Test Game Alpha - Trainer',
   launcher_slug: 'test-game-alpha-trainer',
   script_path: '/home/devuser/.local/share/crosshook/launchers/test-game-alpha-trainer.sh',
-  desktop_entry_path:
-    '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
+  desktop_entry_path: '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
   script_exists: true,
   desktop_entry_exists: true,
   is_stale: false,
@@ -111,10 +103,8 @@ export function registerLauncher(map: Map<string, Handler>): void {
     const result: LauncherRenameResult = {
       old_slug: 'test-game-alpha-trainer',
       new_slug: 'test-game-alpha-trainer',
-      new_script_path:
-        '/home/devuser/.local/share/crosshook/launchers/test-game-alpha-trainer.sh',
-      new_desktop_entry_path:
-        '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
+      new_script_path: '/home/devuser/.local/share/crosshook/launchers/test-game-alpha-trainer.sh',
+      new_desktop_entry_path: '/home/devuser/.local/share/applications/test-game-alpha-trainer.desktop',
       script_renamed: false,
       desktop_entry_renamed: false,
       old_script_cleanup_warning: null,

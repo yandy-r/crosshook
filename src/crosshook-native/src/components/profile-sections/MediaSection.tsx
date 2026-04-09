@@ -92,7 +92,9 @@ export function MediaSection({ profile, onUpdateProfile, launchMethod }: MediaSe
             <div key={slotType} className="crosshook-media-slot">
               <div className="crosshook-media-slot__header">
                 <span className="crosshook-label">{cfg.label}</span>
-                <span className={`crosshook-media-slot__badge crosshook-media-slot__badge--${badge.toLowerCase().replace(' ', '-')}`}>
+                <span
+                  className={`crosshook-media-slot__badge crosshook-media-slot__badge--${badge.toLowerCase().replace(' ', '-')}`}
+                >
                   {badge}
                 </span>
               </div>

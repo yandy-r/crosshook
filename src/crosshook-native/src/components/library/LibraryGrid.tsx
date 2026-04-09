@@ -12,11 +12,7 @@ interface LibraryGridProps {
   onToggleFavorite: (name: string, current: boolean) => void;
   launchingName?: string;
   onNavigate?: (route: AppRoute) => void;
-  onContextMenu?: (
-    position: { x: number; y: number },
-    profileName: string,
-    restoreFocusTo: HTMLElement
-  ) => void;
+  onContextMenu?: (position: { x: number; y: number }, profileName: string, restoreFocusTo: HTMLElement) => void;
 }
 
 export function LibraryGrid({
@@ -35,10 +31,7 @@ export function LibraryGrid({
       <div className="crosshook-library-empty">
         <h2 className="crosshook-library-empty__heading">No game profiles yet</h2>
         <p>Create your first profile to see it here.</p>
-        <button
-          className="crosshook-library-empty__cta"
-          onClick={() => onNavigate?.('profiles')}
-        >
+        <button className="crosshook-library-empty__cta" onClick={() => onNavigate?.('profiles')}>
           Create a profile
         </button>
       </div>

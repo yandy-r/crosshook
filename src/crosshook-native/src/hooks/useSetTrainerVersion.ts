@@ -9,10 +9,7 @@ export interface UseSetTrainerVersionResult {
   clearSuccess: () => void;
 }
 
-export function useSetTrainerVersion(
-  profileName: string,
-  onVersionSet?: () => void
-): UseSetTrainerVersionResult {
+export function useSetTrainerVersion(profileName: string, onVersionSet?: () => void): UseSetTrainerVersionResult {
   const [setting, setSetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);

@@ -31,11 +31,7 @@ function ExternalResultCard({ result }: ExternalResultCardProps) {
       )}
 
       <div className="crosshook-discovery-card__actions">
-        <button
-          type="button"
-          className="crosshook-button crosshook-button--secondary"
-          onClick={handleOpenSource}
-        >
+        <button type="button" className="crosshook-button crosshook-button--secondary" onClick={handleOpenSource}>
           View on {result.sourceName}
         </button>
       </div>
@@ -55,26 +51,16 @@ export function ExternalResultsSection({ data, loading, error, onRetry }: Extern
     return null;
   }
 
-  const cacheAgeMinutes = data?.cacheAgeSecs != null
-    ? Math.round(data.cacheAgeSecs / 60)
-    : null;
+  const cacheAgeMinutes = data?.cacheAgeSecs != null ? Math.round(data.cacheAgeSecs / 60) : null;
 
   return (
     <div className="crosshook-discovery-external-section">
       <div className="crosshook-discovery-external-section__header">
-        <span className="crosshook-discovery-external-section__title">
-          Online Sources
-        </span>
+        <span className="crosshook-discovery-external-section__title">Online Sources</span>
         {data?.cached && cacheAgeMinutes != null && (
-          <span className="crosshook-discovery-cache-indicator">
-            Results from cache, {cacheAgeMinutes} min ago
-          </span>
+          <span className="crosshook-discovery-cache-indicator">Results from cache, {cacheAgeMinutes} min ago</span>
         )}
-        {data?.isStale && (
-          <span className="crosshook-discovery-cache-indicator">
-            Results may be outdated
-          </span>
-        )}
+        {data?.isStale && <span className="crosshook-discovery-cache-indicator">Results may be outdated</span>}
       </div>
 
       {data?.offline && (
@@ -96,9 +82,7 @@ export function ExternalResultsSection({ data, loading, error, onRetry }: Extern
         </div>
       )}
 
-      {!loading && error && (
-        <p className="crosshook-discovery-panel__error">{error}</p>
-      )}
+      {!loading && error && <p className="crosshook-discovery-panel__error">{error}</p>}
 
       {!loading && !error && data && data.results.length > 0 && (
         <div className="crosshook-discovery-results" role="list">

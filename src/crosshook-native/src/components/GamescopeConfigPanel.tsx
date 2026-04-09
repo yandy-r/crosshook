@@ -51,7 +51,13 @@ function parseOptionalInt(value: string): number | undefined {
   return isNaN(parsed) ? undefined : parsed;
 }
 
-export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSession, enableHint, lockedFullscreen }: GamescopeConfigPanelProps) {
+export function GamescopeConfigPanel({
+  config,
+  onChange,
+  isInsideGamescopeSession,
+  enableHint,
+  lockedFullscreen,
+}: GamescopeConfigPanelProps) {
   const id = useId();
   const isDisabled = !config.enabled;
   const showSessionWarning = isInsideGamescopeSession && config.enabled;
@@ -85,7 +91,15 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
             onChange={(e: ChangeEvent<HTMLInputElement>) => patch({ enabled: e.target.checked })}
             style={{ width: 20, height: 20, accentColor: 'var(--crosshook-color-accent-strong)' }}
           />
-          <span style={{ color: 'var(--crosshook-color-text)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span
+            style={{
+              color: 'var(--crosshook-color-text)',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
             Enable gamescope compositor wrapper
             {enableHint ? <InfoTooltip content={enableHint} /> : null}
           </span>
@@ -104,7 +118,9 @@ export function GamescopeConfigPanel({ config, onChange, isInsideGamescopeSessio
       <CollapsibleSection
         title="Gamescope Settings"
         open={isBodyOpen}
-        onToggle={(nextOpen) => { userCollapseRef.current = !nextOpen; }}
+        onToggle={(nextOpen) => {
+          userCollapseRef.current = !nextOpen;
+        }}
       >
         {/* Resolution */}
         <section style={{ display: 'grid', gap: 10 }}>

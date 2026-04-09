@@ -6,23 +6,23 @@ CrossHook collection presets use the `*.crosshook-collection.toml` file format t
 
 The top-level manifest is defined by `CollectionPresetManifest` in `src/crosshook-native/crates/crosshook-core/src/profile/collection_schema.rs`.
 
-| Field              | Type                                          | Required | Description                                                          |
-| ------------------ | --------------------------------------------- | -------- | -------------------------------------------------------------------- |
-| `schema_version`   | `String`                                      | Yes      | Must be `"1"`. Validated before any other field is read.             |
-| `name`             | `String`                                      | Yes      | Collection display name. Must be non-empty after trimming whitespace.|
-| `description`      | `Option<String>`                              | No       | Human-readable description of the collection.                        |
-| `defaults`         | `Option<CollectionDefaultsSection>`           | No       | Per-collection launch defaults (see merge-layer doc).                |
-| `profiles`         | `Vec<CollectionPresetProfileDescriptor>`      | No       | Array of profile identity descriptors for matching.                  |
+| Field            | Type                                     | Required | Description                                                           |
+| ---------------- | ---------------------------------------- | -------- | --------------------------------------------------------------------- |
+| `schema_version` | `String`                                 | Yes      | Must be `"1"`. Validated before any other field is read.              |
+| `name`           | `String`                                 | Yes      | Collection display name. Must be non-empty after trimming whitespace. |
+| `description`    | `Option<String>`                         | No       | Human-readable description of the collection.                         |
+| `defaults`       | `Option<CollectionDefaultsSection>`      | No       | Per-collection launch defaults (see merge-layer doc).                 |
+| `profiles`       | `Vec<CollectionPresetProfileDescriptor>` | No       | Array of profile identity descriptors for matching.                   |
 
 ## Profile descriptor
 
 Each entry in the `profiles` array is a `CollectionPresetProfileDescriptor` with three fields used for matching:
 
-| Field                               | Type     | Description                                                              |
-| ----------------------------------- | -------- | ------------------------------------------------------------------------ |
-| `steam_app_id`                      | `String` | Steam App ID, resolved via `resolve_art_app_id()` at export time.        |
-| `game_name`                         | `String` | The profile's `game.name` field.                                         |
-| `trainer_community_trainer_sha256`  | `String` | SHA-256 hash of the trainer binary, from `trainer.community_trainer_sha256`. |
+| Field                              | Type     | Description                                                                  |
+| ---------------------------------- | -------- | ---------------------------------------------------------------------------- |
+| `steam_app_id`                     | `String` | Steam App ID, resolved via `resolve_art_app_id()` at export time.            |
+| `game_name`                        | `String` | The profile's `game.name` field.                                             |
+| `trainer_community_trainer_sha256` | `String` | SHA-256 hash of the trainer binary, from `trainer.community_trainer_sha256`. |
 
 ## Matching order
 
@@ -76,7 +76,7 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core exp
 
 ## Source files
 
-| File                                                                                   | Purpose                                                  |
-| -------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `src/crosshook-native/crates/crosshook-core/src/profile/collection_schema.rs`         | `CollectionPresetManifest`, `CollectionPresetProfileDescriptor`, validation |
-| `src/crosshook-native/crates/crosshook-core/src/profile/collection_exchange.rs`       | Export, import preview, matching logic, `CollectionExchangeError` |
+| File                                                                            | Purpose                                                                     |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `src/crosshook-native/crates/crosshook-core/src/profile/collection_schema.rs`   | `CollectionPresetManifest`, `CollectionPresetProfileDescriptor`, validation |
+| `src/crosshook-native/crates/crosshook-core/src/profile/collection_exchange.rs` | Export, import preview, matching logic, `CollectionExchangeError`           |

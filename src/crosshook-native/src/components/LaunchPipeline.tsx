@@ -29,10 +29,7 @@ const STATUS_LABEL: Record<PipelineNodeStatus, string> = {
 };
 
 export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipelineProps) {
-  const nodes = useMemo(
-    () => derivePipelineNodes(method, profile, preview, phase),
-    [method, profile, preview, phase]
-  );
+  const nodes = useMemo(() => derivePipelineNodes(method, profile, preview, phase), [method, profile, preview, phase]);
   const liveActiveIdx = nodes.findIndex((n) => n.status === 'active');
   const firstIssueIdx = nodes.findIndex(
     (n) => n.id !== 'launch' && (n.status === 'not-configured' || n.status === 'error')
@@ -40,13 +37,7 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
   const launchIndex = nodes.findIndex((n) => n.id === 'launch');
   // Prefer the live active step, then the first blocking issue, then the launch summary node.
   const currentStepIndex =
-    liveActiveIdx >= 0
-      ? liveActiveIdx
-      : firstIssueIdx >= 0
-        ? firstIssueIdx
-        : launchIndex >= 0
-          ? launchIndex
-          : 0;
+    liveActiveIdx >= 0 ? liveActiveIdx : firstIssueIdx >= 0 ? firstIssueIdx : launchIndex >= 0 ? launchIndex : 0;
 
   return (
     <nav className="crosshook-launch-pipeline" aria-label="Launch pipeline">

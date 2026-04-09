@@ -13,10 +13,7 @@ import {
 } from '../types/launch-optimizations';
 import type { OptimizationCatalogPayload, OptimizationEntry } from '../utils/optimization-catalog';
 import { buildOptionsById, buildConflictMatrix } from '../utils/optimization-catalog';
-import {
-  BUNDLED_PRESET_KEY_PREFIX,
-  bundledOptimizationTomlKey,
-} from '../utils/launchOptimizationPresets';
+import { BUNDLED_PRESET_KEY_PREFIX, bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
 
 /** @deprecated Use `LaunchAutoSaveStatus` from `../types` instead. */
 export type LaunchOptimizationsPanelStatus = LaunchAutoSaveStatus;
@@ -356,9 +353,7 @@ export function LaunchOptimizationsPanel({
 
   const savedPresetOptionsWithOrphan = useMemo(() => {
     const active = activeOptimizationPreset.trim();
-    const catalogBundledKeys = new Set(
-      bundledOptimizationPresets.map((p) => bundledOptimizationTomlKey(p.preset_id))
-    );
+    const catalogBundledKeys = new Set(bundledOptimizationPresets.map((p) => bundledOptimizationTomlKey(p.preset_id)));
     const opts = [...savedPresetNameOptions];
     if (
       active &&
@@ -369,12 +364,7 @@ export function LaunchOptimizationsPanel({
       opts.push({ value: active, label: active });
     }
     return opts;
-  }, [
-    savedPresetNameOptions,
-    activeOptimizationPreset,
-    optimizationPresetNames,
-    bundledOptimizationPresets,
-  ]);
+  }, [savedPresetNameOptions, activeOptimizationPreset, optimizationPresetNames, bundledOptimizationPresets]);
 
   const optimizationPresetGroups = useMemo((): SelectOptionGroup[] => {
     const groups: SelectOptionGroup[] = [];
@@ -392,12 +382,7 @@ export function LaunchOptimizationsPanel({
       groups.push({ label: 'Saved', options: savedPresetOptionsWithOrphan });
     }
     return groups;
-  }, [
-    bundledOptimizationPresets,
-    onApplyBundledPreset,
-    onSelectOptimizationPreset,
-    savedPresetOptionsWithOrphan,
-  ]);
+  }, [bundledOptimizationPresets, onApplyBundledPreset, onSelectOptimizationPreset, savedPresetOptionsWithOrphan]);
 
   const presetSelectValue = useMemo(() => {
     const active = activeOptimizationPreset.trim();
@@ -539,8 +524,9 @@ export function LaunchOptimizationsPanel({
           </div>
           {showOptimizedPresetSelect ? (
             <p className="crosshook-help-text crosshook-launch-optimizations__preset-help">
-              Built-in entries apply CrossHook&apos;s curated GPU sets under <code>[launch.presets.bundled/&lt;id&gt;]</code>.
-              Saved names are profile presets; use &quot;Save preset&quot; to add more without editing TOML.
+              Built-in entries apply CrossHook&apos;s curated GPU sets under{' '}
+              <code>[launch.presets.bundled/&lt;id&gt;]</code>. Saved names are profile presets; use &quot;Save
+              preset&quot; to add more without editing TOML.
             </p>
           ) : null}
         </div>

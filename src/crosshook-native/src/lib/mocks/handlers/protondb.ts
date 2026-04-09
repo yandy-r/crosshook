@@ -17,9 +17,12 @@ function buildLookupResult(appId: string): ProtonDbLookupResult {
   const now = new Date().toISOString();
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const tierMap: Record<string, { tier: 'platinum' | 'gold' | 'silver' | 'bronze' | 'borked'; score: number; totalReports: number }> = {
+  const tierMap: Record<
+    string,
+    { tier: 'platinum' | 'gold' | 'silver' | 'bronze' | 'borked'; score: number; totalReports: number }
+  > = {
     '9999001': { tier: 'platinum', score: 0.97, totalReports: 284 },
-    '9999002': { tier: 'gold',     score: 0.82, totalReports: 142 },
+    '9999002': { tier: 'gold', score: 0.82, totalReports: 142 },
   };
 
   const data = tierMap[appId] ?? { tier: 'silver', score: 0.65, totalReports: 58 };
@@ -160,9 +163,7 @@ export function registerProtonDb(map: Map<string, Handler>): void {
     const profileName = request.profileName;
     const profile = store.profiles.get(profileName);
     if (!profile) {
-      throw new Error(
-        `[dev-mock] protondb_accept_suggestion: profile not found: ${profileName}`,
-      );
+      throw new Error(`[dev-mock] protondb_accept_suggestion: profile not found: ${profileName}`);
     }
 
     if (request.kind === 'catalog') {

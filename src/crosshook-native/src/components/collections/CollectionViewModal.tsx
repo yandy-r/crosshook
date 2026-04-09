@@ -1,13 +1,5 @@
 import { createPortal } from 'react-dom';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
 
 import type { CollectionRow } from '@/types/collections';
 import type { LibraryCardData } from '@/types/library';

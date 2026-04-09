@@ -115,7 +115,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
       activeCollectionMemberNames,
       activeCollectionMembersFetchedFor,
       activeCollectionMembersLoading,
-    ],
+    ]
   );
 
   // Edit handler: select profile then navigate to profiles page
@@ -124,7 +124,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
       await selectProfile(name);
       onNavigate?.('profiles');
     },
-    [selectProfile, onNavigate],
+    [selectProfile, onNavigate]
   );
 
   // Favorite handler: optimistic update
@@ -137,7 +137,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
       gameDetailsModal.openForCard(card);
       await selectProfile(name);
     },
-    [gameDetailsModal, selectProfile, summaries],
+    [gameDetailsModal, selectProfile, summaries]
   );
 
   const handleCardContextMenu = useCallback(
@@ -188,24 +188,20 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   const handleToggleFavorite = useCallback(
     (name: string, current: boolean) => {
       // Optimistic: immediately update local state
-      setSummaries((prev) =>
-        prev.map((s) => (s.name === name ? { ...s, isFavorite: !current } : s)),
-      );
+      setSummaries((prev) => prev.map((s) => (s.name === name ? { ...s, isFavorite: !current } : s)));
       // Fire backend call (context handles persistence)
       void toggleFavorite(name, !current).catch(() => {
         // Revert on error
-        setSummaries((prev) =>
-          prev.map((s) => (s.name === name ? { ...s, isFavorite: current } : s)),
-        );
+        setSummaries((prev) => prev.map((s) => (s.name === name ? { ...s, isFavorite: current } : s)));
       });
     },
-    [setSummaries, toggleFavorite],
+    [setSummaries, toggleFavorite]
   );
 
   const activeGameDetailsSummary =
     gameDetailsModal.summary == null
       ? null
-      : summaries.find((summary) => summary.name === gameDetailsModal.summary?.name) ?? gameDetailsModal.summary;
+      : (summaries.find((summary) => summary.name === gameDetailsModal.summary?.name) ?? gameDetailsModal.summary);
 
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--library">

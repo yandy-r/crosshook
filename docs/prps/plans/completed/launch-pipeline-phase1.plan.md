@@ -272,9 +272,7 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
               {STATUS_ICON[node.status]}
             </span>
             <span className="crosshook-launch-pipeline__node-label">{node.label}</span>
-            <span className="crosshook-launch-pipeline__node-status">
-              {STATUS_LABEL[node.status]}
-            </span>
+            <span className="crosshook-launch-pipeline__node-status">{STATUS_LABEL[node.status]}</span>
           </li>
         ))}
       </ol>
@@ -449,9 +447,7 @@ Replace the entire `<div className="crosshook-launch-panel__runner-stack">...</d
 <LaunchPipeline method={method} profile={profile} preview={null} phase={phase} />;
 
 {
-  helperLogPath ? (
-    <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span>
-  ) : null;
+  helperLogPath ? <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span> : null;
 }
 
 {

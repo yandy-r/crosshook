@@ -136,7 +136,8 @@ pub fn collection_export_to_toml(
         return Err("output_path must not be empty".to_string());
     }
     let path = PathBuf::from(output_path);
-    export_collection_preset_to_toml(&metadata_store, &profile_store, cid, &path).map_err(|e| e.to_string())
+    export_collection_preset_to_toml(&metadata_store, &profile_store, cid, &path)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
