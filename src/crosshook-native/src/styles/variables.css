@@ -15,6 +15,7 @@
   --crosshook-color-accent: #0078d4;
   --crosshook-color-accent-strong: #2da3ff;
   --crosshook-color-accent-soft: rgba(0, 120, 212, 0.18);
+  --crosshook-focus-ring-inner: rgba(255, 255, 255, 0.06);
   --crosshook-color-success: #28c76f;
   --crosshook-color-warning: #f5c542;
   --crosshook-color-danger: #ff758f;

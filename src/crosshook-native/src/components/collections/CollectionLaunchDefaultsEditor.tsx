@@ -186,10 +186,13 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
 
   return (
     <details className="crosshook-collection-launch-defaults-editor">
-      <summary className="crosshook-collection-launch-defaults-editor__summary">
+      <summary
+        className="crosshook-collection-launch-defaults-editor__summary"
+        aria-label={persistedActive ? 'Collection launch defaults (active)' : 'Collection launch defaults'}
+      >
         <span>Collection launch defaults</span>
         {persistedActive && (
-          <span className="crosshook-collection-launch-defaults-editor__badge">Active</span>
+          <span className="crosshook-collection-launch-defaults-editor__badge" aria-hidden="true">Active</span>
         )}
       </summary>
 
@@ -285,7 +288,7 @@ export function CollectionLaunchDefaultsEditor({ collectionId, onOpenInProfilesP
                   type="button"
                   className="crosshook-button crosshook-button--ghost"
                   onClick={() => removeEnvVar(row.id)}
-                  aria-label={`Remove env var row`}
+                  aria-label={`Remove env var ${row.key || 'row'}`}
                 >
                   ×
                 </button>

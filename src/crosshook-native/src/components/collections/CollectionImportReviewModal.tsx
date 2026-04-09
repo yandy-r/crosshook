@@ -5,23 +5,14 @@ import {
   useId,
   useRef,
   useState,
-  type KeyboardEvent,
   type MouseEvent,
 } from 'react';
 
 import type { CollectionImportPreview } from '@/types/collections';
 import { isCollectionDefaultsEmpty } from '@/types/profile';
-import { getFocusableElements } from '@/lib/focus-utils';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 import './CollectionImportReviewModal.css';
-
-function focusElement(element: HTMLElement | null) {
-  if (!element) {
-    return false;
-  }
-  element.focus({ preventScroll: true });
-  return document.activeElement === element;
-}
 
 const SKIP_VALUE = '__skip__';
 
@@ -51,11 +42,7 @@ export function CollectionImportReviewModal({
   const descriptionId = useId();
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const portalHostRef = useRef<HTMLElement | null>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
-  const bodyStyleRef = useRef<string>('');
-  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const [isMounted, setIsMounted] = useState(false);
 
   const [name, setName] = useState('');
@@ -87,57 +74,16 @@ export function CollectionImportReviewModal({
     };
   }, []);
 
-  useEffect(() => {
-    if (!open || typeof document === 'undefined' || !portalHostRef.current) {
-      return;
-    }
-    const { body } = document;
-    const portalHost = portalHostRef.current;
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    bodyStyleRef.current = body.style.overflow;
-    body.style.overflow = 'hidden';
-    body.classList.add('crosshook-modal-open');
+  const guardedOnClose = useCallback(() => {
+    if (!applying) onClose();
+  }, [applying, onClose]);
 
-    hiddenNodesRef.current = Array.from(body.children)
-      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
-      .map((element) => {
-        const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
-        const ariaHidden = element.getAttribute('aria-hidden');
-        (element as HTMLElement & { inert?: boolean }).inert = true;
-        element.setAttribute('aria-hidden', 'true');
-        return { element, inert: inertState, ariaHidden };
-      });
-
-    const frame = window.requestAnimationFrame(() => {
-      if (focusElement(headingRef.current ?? closeButtonRef.current)) {
-        return;
-      }
-      const focusable = surfaceRef.current ? getFocusableElements(surfaceRef.current) : [];
-      if (focusable.length > 0) {
-        focusElement(focusable[0]);
-      }
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      body.style.overflow = bodyStyleRef.current;
-      body.classList.remove('crosshook-modal-open');
-      for (const { element, inert, ariaHidden } of hiddenNodesRef.current) {
-        (element as HTMLElement & { inert?: boolean }).inert = inert;
-        if (ariaHidden === null) {
-          element.removeAttribute('aria-hidden');
-        } else {
-          element.setAttribute('aria-hidden', ariaHidden);
-        }
-      }
-      hiddenNodesRef.current = [];
-      const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
-        focusElement(restoreTarget);
-      }
-      previouslyFocusedRef.current = null;
-    };
-  }, [open]);
+  const { handleKeyDown } = useFocusTrap({
+    open: open && preview !== null,
+    panelRef: surfaceRef,
+    onClose: guardedOnClose,
+    initialFocusRef: headingRef,
+  });
 
   const ambiguousReady =
     preview !== null &&
@@ -160,45 +106,6 @@ export function CollectionImportReviewModal({
       ambiguousResolutions,
     });
   }, [ambiguousSelect, canConfirm, description, name, onConfirm, preview]);
-
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape') {
-      if (applying) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-      event.stopPropagation();
-      event.preventDefault();
-      onClose();
-      return;
-    }
-    if (event.key !== 'Tab') {
-      return;
-    }
-    const container = surfaceRef.current;
-    if (!container) {
-      return;
-    }
-    const focusable = getFocusableElements(container);
-    if (focusable.length === 0) {
-      event.preventDefault();
-      return;
-    }
-    const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
-    const lastIndex = focusable.length - 1;
-    if (event.shiftKey) {
-      if (currentIndex <= 0) {
-        event.preventDefault();
-        focusElement(focusable[lastIndex]);
-      }
-      return;
-    }
-    if (currentIndex === -1 || currentIndex === lastIndex) {
-      event.preventDefault();
-      focusElement(focusable[0]);
-    }
-  }
 
   function handleBackdropMouseDown(event: MouseEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget) {
@@ -242,7 +149,6 @@ export function CollectionImportReviewModal({
             </p>
           </div>
           <button
-            ref={closeButtonRef}
             type="button"
             className="crosshook-button crosshook-button--ghost crosshook-modal__close"
             data-crosshook-modal-close
@@ -253,7 +159,13 @@ export function CollectionImportReviewModal({
           </button>
         </header>
 
-        <div className="crosshook-modal__body crosshook-collection-import-review__body">
+        <form
+          className="crosshook-modal__body crosshook-collection-import-review__body"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleConfirm();
+          }}
+        >
           {importSessionError ? (
             <div className="crosshook-collection-import-review__alert" role="alert">
               {importSessionError}
@@ -368,29 +280,28 @@ export function CollectionImportReviewModal({
               </ul>
             </section>
           ) : null}
-        </div>
 
-        <footer className="crosshook-modal__footer">
-          <div className="crosshook-modal__footer-actions">
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--ghost"
-              data-crosshook-modal-close
-              onClick={onClose}
-              disabled={applying}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="crosshook-button"
-              onClick={handleConfirm}
-              disabled={!canConfirm}
-            >
-              Import collection
-            </button>
-          </div>
-        </footer>
+          <footer className="crosshook-modal__footer">
+            <div className="crosshook-modal__footer-actions">
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--ghost"
+                data-crosshook-modal-close
+                onClick={onClose}
+                disabled={applying}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="crosshook-button"
+                disabled={!canConfirm}
+              >
+                Import collection
+              </button>
+            </div>
+          </footer>
+        </form>
       </div>
     </div>,
     portalHostRef.current

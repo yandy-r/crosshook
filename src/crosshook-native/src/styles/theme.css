@@ -5836,7 +5836,7 @@ textarea {
   justify-content: flex-end;
 }
 
-/* Profile collections (Phase 2) */
+/* Profile collections */
 
 .crosshook-collections-sidebar__list {
   display: flex;
@@ -5845,6 +5845,9 @@ textarea {
   max-height: 320px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .crosshook-collections-sidebar__item {
@@ -5903,6 +5906,14 @@ textarea {
   padding: 4px 12px;
 }
 
+.crosshook-collections-sidebar__empty-copy {
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  margin: 0;
+  line-height: 1.5;
+}
+
 .crosshook-launch-collection-filter {
   display: inline-flex;
   align-items: center;
@@ -5914,6 +5925,11 @@ textarea {
   font-size: 0.75rem;
   color: var(--crosshook-color-text-muted);
   margin-bottom: 8px;
+}
+
+.crosshook-collection-edit-modal__description {
+  font-size: 0.85rem;
+  margin: 0;
 }
 
 .crosshook-collection-edit-modal__warn {
@@ -5984,6 +6000,24 @@ textarea {
 
 .crosshook-collection-assign-menu__create:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+/* Profile collections sidebar + assign menu focus rings */
+
+.crosshook-collections-sidebar__item:focus-visible,
+.crosshook-collections-sidebar__cta:focus-visible {
+  outline: 0;
+  box-shadow:
+    0 0 0 2px var(--crosshook-focus-ring-inner),
+    0 0 0 4px var(--crosshook-color-accent-soft);
+}
+
+.crosshook-collection-assign-menu__option:focus-within,
+.crosshook-collection-assign-menu__create:focus-visible {
+  outline: 0;
+  box-shadow:
+    0 0 0 2px var(--crosshook-focus-ring-inner),
+    0 0 0 4px var(--crosshook-color-accent-soft);
 }
 
 .crosshook-collection-assign-menu__empty {

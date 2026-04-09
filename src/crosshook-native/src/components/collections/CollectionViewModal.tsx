@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
   type MouseEvent,
 } from 'react';
 
@@ -14,6 +13,7 @@ import type { CollectionRow } from '@/types/collections';
 import type { LibraryCardData } from '@/types/library';
 import { BROWSER_DEV_EXPORT_PRESET_PATH } from '@/constants/browserDevPresetPaths';
 import { useCollectionMembers } from '@/hooks/useCollectionMembers';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useCollections } from '@/hooks/useCollections';
 import { isBrowserDevUi } from '@/lib/runtime';
 import { useLibraryProfiles } from '@/hooks/useLibraryProfiles';
@@ -23,17 +23,7 @@ import { LibraryCard } from '@/components/library/LibraryCard';
 import { BrowserDevPresetExplainerModal } from './BrowserDevPresetExplainerModal';
 import { CollectionLaunchDefaultsEditor } from './CollectionLaunchDefaultsEditor';
 import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from '@/components/library/game-details-actions';
-import { getFocusableElements } from '@/lib/focus-utils';
-
 import './CollectionViewModal.css';
-
-function focusElement(element: HTMLElement | null) {
-  if (!element) {
-    return false;
-  }
-  element.focus({ preventScroll: true });
-  return document.activeElement === element;
-}
 
 export interface CollectionViewModalProps {
   open: boolean;
@@ -69,11 +59,7 @@ export function CollectionViewModal({
   const descriptionId = useId();
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const portalHostRef = useRef<HTMLElement | null>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
-  const bodyStyleRef = useRef<string>('');
-  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const [isMounted, setIsMounted] = useState(false);
 
   const { collections, deleteCollection, exportCollectionPreset } = useCollections();
@@ -196,96 +182,12 @@ export function CollectionViewModal({
     };
   }, []);
 
-  useEffect(() => {
-    if (!open || collectionId === null || typeof document === 'undefined' || !collectionPresent) {
-      return;
-    }
-    const { body } = document;
-    const portalHost = portalHostRef.current;
-    if (!portalHost) {
-      return;
-    }
-
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    bodyStyleRef.current = body.style.overflow;
-    body.style.overflow = 'hidden';
-    body.classList.add('crosshook-modal-open');
-
-    hiddenNodesRef.current = Array.from(body.children)
-      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
-      .map((element) => {
-        const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
-        const ariaHidden = element.getAttribute('aria-hidden');
-        (element as HTMLElement & { inert?: boolean }).inert = true;
-        element.setAttribute('aria-hidden', 'true');
-        return { element, inert: inertState, ariaHidden };
-      });
-
-    const focusTarget = headingRef.current ?? closeButtonRef.current ?? null;
-    const frame = window.requestAnimationFrame(() => {
-      if (focusElement(focusTarget)) {
-        return;
-      }
-      const focusable = surfaceRef.current ? getFocusableElements(surfaceRef.current) : [];
-      if (focusable.length > 0) {
-        focusElement(focusable[0]);
-      }
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      body.style.overflow = bodyStyleRef.current;
-      body.classList.remove('crosshook-modal-open');
-      for (const { element, inert, ariaHidden } of hiddenNodesRef.current) {
-        (element as HTMLElement & { inert?: boolean }).inert = inert;
-        if (ariaHidden === null) {
-          element.removeAttribute('aria-hidden');
-        } else {
-          element.setAttribute('aria-hidden', ariaHidden);
-        }
-      }
-      hiddenNodesRef.current = [];
-      const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
-        focusElement(restoreTarget);
-      }
-      previouslyFocusedRef.current = null;
-    };
-  }, [open, collectionId, collectionPresent]);
-
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      event.preventDefault();
-      onClose();
-      return;
-    }
-    if (event.key !== 'Tab') {
-      return;
-    }
-    const container = surfaceRef.current;
-    if (!container) {
-      return;
-    }
-    const focusable = getFocusableElements(container);
-    if (focusable.length === 0) {
-      event.preventDefault();
-      return;
-    }
-    const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
-    const lastIndex = focusable.length - 1;
-    if (event.shiftKey) {
-      if (currentIndex <= 0) {
-        event.preventDefault();
-        focusElement(focusable[lastIndex]);
-      }
-      return;
-    }
-    if (currentIndex === -1 || currentIndex === lastIndex) {
-      event.preventDefault();
-      focusElement(focusable[0]);
-    }
-  }
+  const { handleKeyDown } = useFocusTrap({
+    open: open && collectionPresent,
+    panelRef: surfaceRef,
+    onClose,
+    initialFocusRef: headingRef,
+  });
 
   function handleBackdropMouseDown(event: MouseEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget) {
@@ -330,7 +232,6 @@ export function CollectionViewModal({
               Edit
             </button>
             <button
-              ref={closeButtonRef}
               type="button"
               className="crosshook-button crosshook-button--ghost crosshook-modal__close"
               data-crosshook-modal-close
