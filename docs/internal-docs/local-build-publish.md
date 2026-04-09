@@ -16,7 +16,7 @@ Start the Tauri dev server with hot-reload:
 ./scripts/dev-native.sh
 ```
 
-The script applies the `WEBKIT_DISABLE_DMABUF_RENDERER=1` workaround automatically. If the Wayland launch fails, it falls back to X11.
+The script applies the `WEBKIT_DISABLE_DMABUF_RENDERER=1` workaround automatically. If the Wayland launch fails, it falls back to X11. The release binary also undoes the linuxdeploy GTK plugin's forced `GDK_BACKEND=x11` on Wayland sessions to avoid blank-screen EGL failures on Intel+NVIDIA hybrid GPU systems.
 
 ## Build AppImage
 

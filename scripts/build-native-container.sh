@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUNTIME=""
 IMAGE="${IMAGE:-}"
-BASE_IMAGE="${BASE_IMAGE:-rust:1-bookworm}"
+BASE_IMAGE="${BASE_IMAGE:-ubuntu:24.04}"
 BUILDER_IMAGE_REPO="${BUILDER_IMAGE_REPO:-crosshook-native-builder}"
 TARGET_TRIPLE="${TARGET_TRIPLE:-x86_64-unknown-linux-gnu}"
 DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
@@ -22,7 +22,7 @@ Build the native AppImage inside a container to avoid host linuxdeploy/AppImage 
 Options:
   --runtime RUNTIME         Explicitly choose docker or podman
   --image IMAGE             Use IMAGE directly instead of the managed cached builder image
-  --base-image IMAGE        Base image for the managed cached builder image (default: rust:1-bookworm)
+  --base-image IMAGE        Base image for the managed cached builder image (default: ubuntu:24.04)
   --rebuild-image           Force rebuilding the managed cached builder image
   --install-node-modules    Force npm ci inside the container even if node_modules already exists
   --keep-worktree-artifacts Keep src/crosshook-native build artifacts after the container build

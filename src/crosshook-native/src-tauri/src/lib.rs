@@ -15,11 +15,67 @@ use tokio::time::{sleep, Duration};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // --- AppImage GPU compatibility: prefer system WebKitGTK ---
+    //
+    // The AppImage bundles WebKitGTK from the build container (Ubuntu 24.04,
+    // ~2.44). On some GPU configurations — particularly Intel+NVIDIA hybrid
+    // laptops — the bundled version fails at EGL display creation, producing
+    // a blank window. The host's WebKitGTK is compiled against matching GPU
+    // drivers and handles these setups correctly.
+    //
+    // When running from an AppImage and system WebKitGTK is present, re-exec
+    // with system library paths prepended so the dynamic linker loads the
+    // system version (and its ABI-matched GLib/GStreamer/ICU) instead of the
+    // bundled copies. The bundled libraries remain as fallbacks for hosts
+    // that lack system WebKitGTK.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("APPIMAGE").is_some()
+        && std::env::var_os("__CROSSHOOK_SYS_WEBKIT").is_none()
+    {
+        let system_webkit_paths = [
+            "/usr/lib/libwebkit2gtk-4.1.so.0",
+            "/usr/lib64/libwebkit2gtk-4.1.so.0",
+            "/usr/lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so.0",
+        ];
+        if system_webkit_paths
+            .iter()
+            .any(|p| std::path::Path::new(p).exists())
+        {
+            let current_ld = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
+            let new_ld =
+                format!("/usr/lib:/usr/lib64:/usr/lib/x86_64-linux-gnu:{current_ld}");
+
+            if let Ok(exe) = std::env::current_exe() {
+                let args: Vec<String> = std::env::args().skip(1).collect();
+                eprintln!("CrossHook: preferring system WebKitGTK for GPU compatibility");
+                use std::os::unix::process::CommandExt;
+                // exec() replaces this process; on failure fall through to bundled libs.
+                let err = std::process::Command::new(&exe)
+                    .args(&args)
+                    .env("LD_LIBRARY_PATH", &new_ld)
+                    .env("__CROSSHOOK_SYS_WEBKIT", "1")
+                    .exec();
+                eprintln!("CrossHook: re-exec failed ({err}), using bundled WebKitGTK");
+            }
+        }
+    }
+
     // Prevent GBM EGL display creation failures on multi-GPU systems (e.g. eGPU setups)
     // by disabling WebKitGTK's DMA-BUF renderer. The dev script sets this via the shell
     // environment, but the AppImage needs it set before WebKit initializes.
     if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+
+    // The linuxdeploy GTK plugin forces GDK_BACKEND=x11 to work around Wayland
+    // crashes in older WebKitGTK (tauri-apps/tauri#8541). With WebKitGTK 2.44+
+    // native Wayland is more reliable and avoids EGL rendering failures on
+    // Intel+NVIDIA hybrid GPU systems where XWayland compositing fails silently
+    // (blank window). Allow Wayland sessions to use the native backend.
+    if std::env::var_os("WAYLAND_DISPLAY").is_some()
+        && std::env::var("GDK_BACKEND").ok().as_deref() == Some("x11")
+    {
+        std::env::remove_var("GDK_BACKEND");
     }
 
     let settings_store = SettingsStore::try_new().unwrap_or_else(|error| {
