@@ -1,6 +1,7 @@
 import type { GameProfile } from '../types/profile';
 import type { LaunchPhase, LaunchPreview, PipelineNode, PipelineNodeStatus } from '../types/launch';
 import type { ResolvedLaunchMethod } from '../utils/launch';
+import { useMemo } from 'react';
 import { derivePipelineNodes } from '../utils/derivePipelineNodes';
 import '../styles/launch-pipeline.css';
 
@@ -28,9 +29,13 @@ const STATUS_LABEL: Record<PipelineNodeStatus, string> = {
 };
 
 export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipelineProps) {
-  const nodes: PipelineNode[] = derivePipelineNodes(method, profile, preview, phase);
+  const nodes = useMemo(
+    () => derivePipelineNodes(method, profile, preview, phase),
+    [method, profile, preview, phase]
+  );
   const firstIncompleteIdx = nodes.findIndex((n) => n.id !== 'launch' && n.status === 'not-configured');
   const launchIndex = nodes.findIndex((n) => n.id === 'launch');
+  // Fallback to 0 is unreachable: every pipeline ends with a 'launch' node (launchIndex always >= 0)
   const currentStepIndex =
     firstIncompleteIdx >= 0 ? firstIncompleteIdx : launchIndex >= 0 ? launchIndex : 0;
 

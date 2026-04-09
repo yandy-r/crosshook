@@ -39,7 +39,9 @@ export function derivePipelineNodes(
   return nodes;
 }
 
-const NODE_DEFS: Record<string, { label: string }> = {
+type PipelineNodeId = 'game' | 'wine-prefix' | 'proton' | 'steam' | 'trainer' | 'optimizations' | 'launch';
+
+const NODE_DEFS: Record<PipelineNodeId, { label: string }> = {
   game: { label: 'Game' },
   'wine-prefix': { label: 'Wine Prefix' },
   proton: { label: 'Proton' },
@@ -49,16 +51,16 @@ const NODE_DEFS: Record<string, { label: string }> = {
   launch: { label: 'Launch' },
 };
 
-const METHOD_NODE_IDS: Record<ResolvedLaunchMethod, readonly string[]> = {
+const METHOD_NODE_IDS: Record<ResolvedLaunchMethod, readonly PipelineNodeId[]> = {
   proton_run: ['game', 'wine-prefix', 'proton', 'trainer', 'optimizations', 'launch'],
   steam_applaunch: ['game', 'steam', 'trainer', 'optimizations', 'launch'],
   native: ['game', 'trainer', 'launch'],
 };
 
 function tier1Status(
-  nodeId: string,
+  nodeId: PipelineNodeId,
   profile: GameProfile,
-  method: ResolvedLaunchMethod
+  _method: ResolvedLaunchMethod
 ): Extract<PipelineNodeStatus, 'configured' | 'not-configured'> {
   switch (nodeId) {
     case 'game':
@@ -68,12 +70,12 @@ function tier1Status(
     case 'proton':
       return profile.runtime.proton_path.trim() !== '' ? 'configured' : 'not-configured';
     case 'steam':
-      return method === 'steam_applaunch' ? 'configured' : 'not-configured';
+      return profile.steam.app_id.trim() !== '' ? 'configured' : 'not-configured';
     case 'trainer':
       return profile.trainer.path.trim() !== '' ? 'configured' : 'not-configured';
     case 'optimizations':
-      return profile.launch.optimizations.enabled_option_ids.length > 0 ? 'configured' : 'not-configured';
-    default:
-      return 'not-configured';
+      return 'configured'; // Empty selection is valid; optimizations are optional
+    case 'launch':
+      return 'not-configured'; // Handled separately in derivePipelineNodes; included for exhaustiveness
   }
 }

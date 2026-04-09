@@ -136,6 +136,12 @@
   color: var(--crosshook-color-success);
 }
 
+/* Pulse animation for active status (Phases 2–3) */
+@keyframes crosshook-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
 /* --- Responsive: <= 1360px --- */
 @media (max-width: 1360px) {
   .crosshook-launch-pipeline__node-indicator {
@@ -181,6 +187,7 @@
 
 /* --- Compact: <1024px (matches plan / layout breakpoints) --- */
 @media (max-width: 1023px) {
+  /* Status text hidden at compact size; announced via aria-label on each <li> */
   .crosshook-launch-pipeline__node-status {
     display: none;
   }
