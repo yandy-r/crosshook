@@ -15,7 +15,10 @@
 Delivered the quality gate for profile collections: end-to-end Rust integration test
 covering the full JTBD path (create → assign → filter → defaults merge → export →
 re-import), shared `useFocusTrap` hook extracted from `GameDetailsModal` and adopted
-by all five collection modals, full `CollectionAssignMenu` keyboard navigation rewrite
+by **four** collection modals (`CollectionViewModal`, `CollectionEditModal`,
+`CollectionImportReviewModal`, `BrowserDevPresetExplainerModal`). **`CollectionAssignMenu`**
+did **not** adopt `useFocusTrap` — it keeps its own popover-specific focus handling (no
+body lock / sibling `inert`; see `CollectionAssignMenu.tsx`). Full `CollectionAssignMenu` keyboard navigation rewrite
 (ArrowUp/Down, Tab trap, focus-on-open, focus restore), keyboard invocation path for
 the assign menu (Shift+F10 / ContextMenu key on library cards), semantic HTML fix on
 the Collections sidebar (`<nav>`/`<ul>`/`<li>` replacing `<div role="list">` + `<button
@@ -65,7 +68,7 @@ Extracted from `GameDetailsModal.tsx:182-287` into `src/hooks/useFocusTrap.ts`. 
 - Escape handler calling `onClose`
 - Deterministic initial focus via `initialFocusRef`
 
-Adopted by: `CollectionViewModal`, `CollectionEditModal`, `CollectionImportReviewModal`, `BrowserDevPresetExplainerModal`. `CollectionEditModal` gains body-lock + sibling inert as a side-effect (was previously missing — fixes regression from Phase 2).
+Adopted by **four** modals: `CollectionViewModal`, `CollectionEditModal`, `CollectionImportReviewModal`, `BrowserDevPresetExplainerModal`. **`CollectionAssignMenu`** is intentionally **not** wired to `useFocusTrap`; it retains its original inline focus-trap behavior (documented in-component). `CollectionEditModal` gains body-lock + sibling inert as a side-effect (was previously missing — fixes regression from Phase 2).
 
 ### Collections sidebar semantic fix
 

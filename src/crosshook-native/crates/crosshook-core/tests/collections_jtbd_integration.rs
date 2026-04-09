@@ -214,6 +214,7 @@ fn end_to_end_collections_jtbd() {
     for entry in &preview.matched {
         // Re-register profiles in the new metadata store so FK constraints pass
         let profile = store.load(&entry.local_profile_name).unwrap();
+        // Synthetic path (same as `register_profile`): `AppWrite` does not touch the filesystem.
         metadata2
             .observe_profile_write(
                 &entry.local_profile_name,

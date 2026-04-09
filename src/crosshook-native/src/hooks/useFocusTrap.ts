@@ -38,15 +38,52 @@ export interface UseFocusTrapReturn {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Global modal stack (nested / overlapping traps)
 // ---------------------------------------------------------------------------
 
-/** Saved state for a sibling node that was made inert while the trap is open. */
-interface HiddenNodeState {
-  element: HTMLElement;
+/** Depth of open `useFocusTrap` instances that locked the body. */
+let modalBodyLockDepth = 0;
+let savedBodyOverflow = '';
+
+interface InertRegistryEntry {
+  count: number;
   inert: boolean;
   ariaHidden: string | null;
 }
+
+/** Per-element ref-count so out-of-order cleanups do not restore shared DOM too early. */
+const modalInertRegistry = new Map<HTMLElement, InertRegistryEntry>();
+
+function registerInertElement(element: HTMLElement): void {
+  const existing = modalInertRegistry.get(element);
+  if (existing) {
+    existing.count += 1;
+    return;
+  }
+  const inert = (element as HTMLElement & { inert?: boolean }).inert ?? false;
+  const ariaHidden = element.getAttribute('aria-hidden');
+  (element as HTMLElement & { inert?: boolean }).inert = true;
+  element.setAttribute('aria-hidden', 'true');
+  modalInertRegistry.set(element, { count: 1, inert, ariaHidden });
+}
+
+function unregisterInertElement(element: HTMLElement): void {
+  const entry = modalInertRegistry.get(element);
+  if (!entry) return;
+  entry.count -= 1;
+  if (entry.count > 0) return;
+  (element as HTMLElement & { inert?: boolean }).inert = entry.inert;
+  if (entry.ariaHidden === null) {
+    element.removeAttribute('aria-hidden');
+  } else {
+    element.setAttribute('aria-hidden', entry.ariaHidden);
+  }
+  modalInertRegistry.delete(element);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 /**
  * Attempt to focus an element, returning `true` when focus actually moved.
@@ -82,9 +119,10 @@ function findPortalHost(el: HTMLElement): HTMLElement | null {
  *
  * 1. Saves `document.activeElement` so focus can be restored on close.
  * 2. Sets `body.style.overflow = 'hidden'` and adds the
- *    `crosshook-modal-open` class to prevent background scroll.
+ *    `crosshook-modal-open` class to prevent background scroll (ref-counted when
+ *    multiple traps are active).
  * 3. Marks sibling elements of the portal host as `inert` / `aria-hidden`
- *    so screen readers cannot escape the modal.
+ *    so screen readers cannot escape the modal (ref-counted per element).
  * 4. Moves focus to `initialFocusRef` (or the first focusable descendant)
  *    via `requestAnimationFrame`.
  * 5. Returns a `handleKeyDown` that traps Tab cycling within the panel and
@@ -118,8 +156,8 @@ export function useFocusTrap({
   initialFocusRef,
 }: UseFocusTrapOptions): UseFocusTrapReturn {
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
-  const bodyStyleRef = useRef<string>('');
-  const hiddenNodesRef = useRef<HiddenNodeState[]>([]);
+  /** Elements this instance registered with {@link modalInertRegistry}. */
+  const touchedInertRef = useRef<HTMLElement[]>([]);
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
@@ -134,21 +172,20 @@ export function useFocusTrap({
     previouslyFocusedRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
-    // Lock body scroll
-    bodyStyleRef.current = body.style.overflow;
-    body.style.overflow = 'hidden';
-    body.classList.add('crosshook-modal-open');
+    modalBodyLockDepth += 1;
+    if (modalBodyLockDepth === 1) {
+      savedBodyOverflow = body.style.overflow;
+      body.style.overflow = 'hidden';
+      body.classList.add('crosshook-modal-open');
+    }
 
-    // Make siblings inert
-    hiddenNodesRef.current = Array.from(body.children)
-      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
-      .map((element) => {
-        const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
-        const ariaHidden = element.getAttribute('aria-hidden');
-        (element as HTMLElement & { inert?: boolean }).inert = true;
-        element.setAttribute('aria-hidden', 'true');
-        return { element, inert: inertState, ariaHidden };
-      });
+    const touched: HTMLElement[] = [];
+    for (const child of Array.from(body.children)) {
+      if (!(child instanceof HTMLElement) || child === portalHost) continue;
+      registerInertElement(child);
+      touched.push(child);
+    }
+    touchedInertRef.current = touched;
 
     // Focus initial target
     const focusTarget = initialFocusRef?.current ?? null;
@@ -162,17 +199,17 @@ export function useFocusTrap({
 
     return () => {
       window.cancelAnimationFrame(frame);
-      body.style.overflow = bodyStyleRef.current;
-      body.classList.remove('crosshook-modal-open');
-      for (const { element, inert, ariaHidden } of hiddenNodesRef.current) {
-        (element as HTMLElement & { inert?: boolean }).inert = inert;
-        if (ariaHidden === null) {
-          element.removeAttribute('aria-hidden');
-        } else {
-          element.setAttribute('aria-hidden', ariaHidden);
-        }
+      for (const el of touchedInertRef.current) {
+        unregisterInertElement(el);
       }
-      hiddenNodesRef.current = [];
+      touchedInertRef.current = [];
+
+      modalBodyLockDepth = Math.max(0, modalBodyLockDepth - 1);
+      if (modalBodyLockDepth === 0) {
+        body.style.overflow = savedBodyOverflow;
+        body.classList.remove('crosshook-modal-open');
+      }
+
       const restoreTarget = previouslyFocusedRef.current;
       if (restoreTarget && restoreTarget.isConnected) {
         focusElement(restoreTarget);

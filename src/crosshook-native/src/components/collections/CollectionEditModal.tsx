@@ -130,7 +130,10 @@ export function CollectionEditModal({
           </div>
         </header>
         <form className="crosshook-modal__body" onSubmit={(e) => void handleSubmit(e)}>
-          <p id={descriptionId} className="crosshook-muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+          <p
+            id={descriptionId}
+            className="crosshook-muted crosshook-collection-edit-modal__description"
+          >
             {mode === 'create' ? 'Enter a name for your new collection.' : 'Update the collection details.'}
           </p>
           <div className="crosshook-collection-edit-modal__fields">

@@ -4,7 +4,11 @@
 
 Ship the **quality gate** for the profile-collections feature: end-to-end Rust + Playwright test
 fixtures exercising the JTBD critical path, a shared `useFocusTrap` hook extracted from
-`GameDetailsModal.tsx` and applied to all five collection modals, a full keyboard-navigation audit
+`GameDetailsModal.tsx` and applied to **four** collection modals (`CollectionViewModal`,
+`CollectionEditModal`, `CollectionImportReviewModal`, `BrowserDevPresetExplainerModal` — see
+`src/hooks/useFocusTrap.ts`). **`CollectionAssignMenu`** keeps its **own** focus-trap implementation
+(popover semantics; no shared body-lock/inert stack — see `CollectionAssignMenu.tsx` and PR review
+**F015** in `docs/prps/reviews/pr-186-review.md`). A full keyboard-navigation audit
 (Esc/Enter/Tab/arrow keys), controller-reachable assign-menu invocation, semantic/ARIA fixes
 (sidebar `<ul>`/`<li>`/`<button>`, `aria-describedby`, deterministic heading focus), focus-visible
 CSS rules for sidebar and assign-menu surfaces, empty-state copy matching `CommunityBrowser` tone,

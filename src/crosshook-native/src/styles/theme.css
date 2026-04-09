@@ -5927,6 +5927,11 @@ textarea {
   margin-bottom: 8px;
 }
 
+.crosshook-collection-edit-modal__description {
+  font-size: 0.85rem;
+  margin: 0;
+}
+
 .crosshook-collection-edit-modal__warn {
   color: var(--crosshook-color-danger);
   font-size: 0.85rem;

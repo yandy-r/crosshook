@@ -120,6 +120,8 @@ test.describe('collections smoke', () => {
       '.crosshook-collection-assign-menu__option input[type="checkbox"]'
     );
     const newCollectionBtn = assignMenu.getByRole('button', { name: /New collection/i });
+    // Populated mock has exactly one collection — navigation wraps [checkbox] ↔ [+ New collection].
+    await expect(checkboxes).toHaveCount(1);
     await expect(checkboxes.first()).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(newCollectionBtn).toBeFocused();
