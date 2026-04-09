@@ -84,7 +84,7 @@
 /* Status: configured */
 .crosshook-launch-pipeline__node[data-status='configured'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-success);
-  color: #fff;
+  color: var(--crosshook-color-on-success);
 }
 
 .crosshook-launch-pipeline__node[data-status='configured'] .crosshook-launch-pipeline__node-label {
@@ -92,23 +92,23 @@
 }
 
 .crosshook-launch-pipeline__node[data-status='configured']::after {
-  background: color-mix(in srgb, var(--crosshook-color-success) 35%, var(--crosshook-color-border-strong));
+  background: var(--crosshook-color-pipeline-connector-success);
 }
 
 /* Status: not-configured */
 .crosshook-launch-pipeline__node[data-status='not-configured'] .crosshook-launch-pipeline__node-indicator {
-  background: rgba(224, 224, 224, 0.15);
-  color: var(--crosshook-color-text-subtle);
+  background: var(--crosshook-color-not-configured-bg);
+  color: var(--crosshook-color-not-configured-text);
 }
 
 .crosshook-launch-pipeline__node[data-status='not-configured'] .crosshook-launch-pipeline__node-label {
-  color: var(--crosshook-color-text-muted);
+  color: var(--crosshook-color-not-configured-label);
 }
 
 /* Status: error */
 .crosshook-launch-pipeline__node[data-status='error'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-danger);
-  color: #fff;
+  color: var(--crosshook-color-on-error);
 }
 
 .crosshook-launch-pipeline__node[data-status='error'] .crosshook-launch-pipeline__node-label {
@@ -118,7 +118,7 @@
 /* Status: active (Phases 2–3) */
 .crosshook-launch-pipeline__node[data-status='active'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-accent-strong);
-  color: #fff;
+  color: var(--crosshook-color-on-accent-strong);
   animation: crosshook-pulse 2s ease-in-out infinite;
 }
 
@@ -129,7 +129,7 @@
 /* Status: complete */
 .crosshook-launch-pipeline__node[data-status='complete'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-success);
-  color: #fff;
+  color: var(--crosshook-color-on-success);
 }
 
 .crosshook-launch-pipeline__node[data-status='complete'] .crosshook-launch-pipeline__node-label {
@@ -179,8 +179,8 @@
   }
 }
 
-/* --- Compact: <= 900px --- */
-@media (max-width: 900px) {
+/* --- Compact: <1024px (matches plan / layout breakpoints) --- */
+@media (max-width: 1023px) {
   .crosshook-launch-pipeline__node-status {
     display: none;
   }
