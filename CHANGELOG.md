@@ -3,33 +3,66 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+## [v0.2.9] - 2026-04-09
+
+
+### Bug Fixes
+
+- **build:** Resolve blank AppImage on Intel+NVIDIA hybrid GPU systems ([`67bd326`](https://github.com/yandy-r/crosshook/commit/67bd3262c7256115c859b23f19e21147aed4bd98))
+
+
+### Features
+
+- **ui:** Standardize route banners and launch hero layout ([#164](https://github.com/yandy-r/crosshook/issues/164)) ([`0cf831d`](https://github.com/yandy-r/crosshook/commit/0cf831d3642fa46ccd41e1253c35dbb6a80f45fb))
+
+- **ui:** Rebalance profile wizard with full field parity ([#161](https://github.com/yandy-r/crosshook/issues/161)) ([#166](https://github.com/yandy-r/crosshook/issues/166)) ([`1865d60`](https://github.com/yandy-r/crosshook/commit/1865d608c3914507913438de95b9fc8e0b4051c9))
+
+- **ui:** Install Game flow parity with wizard (phase 3) ([#167](https://github.com/yandy-r/crosshook/issues/167)) ([`6f6380a`](https://github.com/yandy-r/crosshook/commit/6f6380aac6ea471497223b451d7b9f8a4a075685))
+
+- **install:** Run EXE/MSI ad-hoc launcher under Setup tab (UI standardization phase 4) ([#168](https://github.com/yandy-r/crosshook/issues/168)) ([`7d7cbbd`](https://github.com/yandy-r/crosshook/commit/7d7cbbd4dd64127e29d6d6a276008f8b98a212a6))
+
+- **build:** Expand browser mock coverage across all domains (Phase 2) ([#173](https://github.com/yandy-r/crosshook/issues/173)) ([`78a38ba`](https://github.com/yandy-r/crosshook/commit/78a38baea1fa71469ccce5d46dadc971400d75e9))
+
+- **frontend:** Extract IPC into hooks for launch dep gate and profile verify ([#176](https://github.com/yandy-r/crosshook/issues/176)) ([`622cf31`](https://github.com/yandy-r/crosshook/commit/622cf3117f3bb5cf49a0f9ade7f8ead26c5996bc))
+
+- **core:** Profile collections backend foundation (Phase 1) ([#182](https://github.com/yandy-r/crosshook/issues/182)) ([`0fefc0c`](https://github.com/yandy-r/crosshook/commit/0fefc0c2804c2eb6aa63ca2fd2fa6e6326c9e32b))
+
+- **ui:** Profile collections sidebar, view modal, shared state ([#183](https://github.com/yandy-r/crosshook/issues/183)) ([`a8ead0c`](https://github.com/yandy-r/crosshook/commit/a8ead0cd37d67ce534a450ac48280db9db58633f))
+
+- **ui:** Per-collection launch defaults — Phase 3 ([#179](https://github.com/yandy-r/crosshook/issues/179)) ([#184](https://github.com/yandy-r/crosshook/issues/184)) ([`51e1347`](https://github.com/yandy-r/crosshook/commit/51e13475b782655a98024fcdd470d3e70879e8f3))
+
+- **collections:** Preset TOML import/export and dev modals ([#185](https://github.com/yandy-r/crosshook/issues/185)) ([`f1a5f1f`](https://github.com/yandy-r/crosshook/commit/f1a5f1f0dd263e1217ce912ecb274588fcdf5803))
+
+- **ui:** Profile collections polish, integration tests, Steam Deck validation — Phase 5 ([#181](https://github.com/yandy-r/crosshook/issues/181)) ([#186](https://github.com/yandy-r/crosshook/issues/186)) ([`842e70a`](https://github.com/yandy-r/crosshook/commit/842e70aa757f007ccfecd461144e1a46af7c250a))
+
+
 ## [v0.2.8] - 2026-04-07
 
 
 ### Bug Fixes
 
-- **discovery:** Harden external search and trainer-source validation ([`1e304fe`](https://github.com/yandy-r/crosshook/commit/1e304feeb952b0d268387390ae200a8fcce18d9a))
+- **discovery:** Harden external search and trainer-source validation ([`6cdf96d`](https://github.com/yandy-r/crosshook/commit/6cdf96d4c72ad33b771f40eefd1b5d7beeed515e))
 
 
 ### Features
 
-- **ui:** Add library game details modal ([#152](https://github.com/yandy-r/crosshook/issues/152)) ([`ceaf6e9`](https://github.com/yandy-r/crosshook/commit/ceaf6e9a4aa7fac03faf31558f67df999160bdab))
+- **ui:** Add library game details modal ([#152](https://github.com/yandy-r/crosshook/issues/152)) ([`94fa99d`](https://github.com/yandy-r/crosshook/commit/94fa99d898c9c80b06abf8cf0c0358d404400964))
 
-- Add prefix storage health monitoring and cleanup tools ([#153](https://github.com/yandy-r/crosshook/issues/153)) ([`b91fb4c`](https://github.com/yandy-r/crosshook/commit/b91fb4cc7ee67f50d50e55ed7c7f71763a203e14))
+- Add prefix storage health monitoring and cleanup tools ([#153](https://github.com/yandy-r/crosshook/issues/153)) ([`239f707`](https://github.com/yandy-r/crosshook/commit/239f7076690d895f574761acde9ab50020b58130))
 
-- **security:** Network isolation for trainers via unshare --net ([#154](https://github.com/yandy-r/crosshook/issues/154)) ([`eff0a31`](https://github.com/yandy-r/crosshook/commit/eff0a310ae68f31b35599f92da14f7062200eee3))
+- **security:** Network isolation for trainers via unshare --net ([#154](https://github.com/yandy-r/crosshook/issues/154)) ([`b317590`](https://github.com/yandy-r/crosshook/commit/b317590c3eacd6d4d34f7a233ae90dab5d6ee91c))
 
-- **protondb:** Community-driven config suggestions with catalog matching ([#155](https://github.com/yandy-r/crosshook/issues/155)) ([`bfe3bd9`](https://github.com/yandy-r/crosshook/commit/bfe3bd9edc7e5f6afad2cd8c1780aa1490e6ca0a))
+- **protondb:** Community-driven config suggestions with catalog matching ([#155](https://github.com/yandy-r/crosshook/issues/155)) ([`21a548f`](https://github.com/yandy-r/crosshook/commit/21a548f4bda3f0ae953191e827bbc15c137a12f3))
 
-- **security:** Trainer executable SHA-256 verification at launch ([#156](https://github.com/yandy-r/crosshook/issues/156)) ([`32d58f6`](https://github.com/yandy-r/crosshook/commit/32d58f6b4bff0bbfa12135f9c582f139d4174ad2))
+- **security:** Trainer executable SHA-256 verification at launch ([#156](https://github.com/yandy-r/crosshook/issues/156)) ([`b2e93fc`](https://github.com/yandy-r/crosshook/commit/b2e93fcc71681316d25ce0d4d5f5ec6e43d79fad))
 
-- **discovery:** Trainer discovery Phase A — tap-local search and UI ([#67](https://github.com/yandy-r/crosshook/issues/67)) ([`f3ae847`](https://github.com/yandy-r/crosshook/commit/f3ae847f53426a262e8e9b00d16cb3c030b60f40))
+- **discovery:** Trainer discovery Phase A — tap-local search and UI ([#67](https://github.com/yandy-r/crosshook/issues/67)) ([`060d869`](https://github.com/yandy-r/crosshook/commit/060d869a8995e9734817403e4b78b3e25d29866d))
 
-- **community:** Enhance tap URL validation to accept bare absolute paths ([`c031776`](https://github.com/yandy-r/crosshook/commit/c0317761ec23831b3e7faaf7b8837e9e8aa53354))
+- **community:** Enhance tap URL validation to accept bare absolute paths ([`7f8f196`](https://github.com/yandy-r/crosshook/commit/7f8f19633f0e0d5fba463ec2d9b45360f56bf024))
 
-- **discovery:** Trainer discovery phases A–B ([#157](https://github.com/yandy-r/crosshook/issues/157)) ([`e66f357`](https://github.com/yandy-r/crosshook/commit/e66f35750f48024efc794783df24f2c7bbe254bb))
+- **discovery:** Trainer discovery phases A–B ([#157](https://github.com/yandy-r/crosshook/issues/157)) ([`6090ad2`](https://github.com/yandy-r/crosshook/commit/6090ad2956a6d8852ad7c1bc688a52672768e467))
 
-- **protonup:** In-app Proton runtime management ([#159](https://github.com/yandy-r/crosshook/issues/159)) ([`25b9dd6`](https://github.com/yandy-r/crosshook/commit/25b9dd6622568a27ed2ff29b20748929ac2482cc))
+- **protonup:** In-app Proton runtime management ([#159](https://github.com/yandy-r/crosshook/issues/159)) ([`4b86144`](https://github.com/yandy-r/crosshook/commit/4b86144375cc194a6ebb9a94a012cf38a9c45a9e))
 
 
 ## [v0.2.7] - 2026-04-04
@@ -37,24 +70,24 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Bug Fixes
 
-- **launch:** Revert umu-run preference, use direct proton for all launch paths ([`7894353`](https://github.com/yandy-r/crosshook/commit/78943537733b389c7406cb91e0aec802308fe86a))
+- **launch:** Revert umu-run preference, use direct proton for all launch paths ([`e5f182c`](https://github.com/yandy-r/crosshook/commit/e5f182cf6d2781adfa5f7ef482c42a24154a02f3))
 
 
 ### Features
 
-- **launch:** Enable gamescope for steam_applaunch and trainer exports ([#145](https://github.com/yandy-r/crosshook/issues/145)) ([`e5362c4`](https://github.com/yandy-r/crosshook/commit/e5362c48772df3529b0871cddca1bd6e98f86d3b))
+- **launch:** Enable gamescope for steam_applaunch and trainer exports ([#145](https://github.com/yandy-r/crosshook/issues/145)) ([`8ba5b01`](https://github.com/yandy-r/crosshook/commit/8ba5b01048cf892f8981cf16ff2ecd49d652a30e))
 
-- **profiles:** Add Proton App ID and tri-art system ([#146](https://github.com/yandy-r/crosshook/issues/146)) ([`cd37b3a`](https://github.com/yandy-r/crosshook/commit/cd37b3aa35a977c5a231f880795ae5037e2dbfd9))
+- **profiles:** Add Proton App ID and tri-art system ([#146](https://github.com/yandy-r/crosshook/issues/146)) ([`8ee04a4`](https://github.com/yandy-r/crosshook/commit/8ee04a4fef25b7db0df00cda91b808eafd8850b3))
 
-- **launch:** Move environment config to launch with autosave ([#147](https://github.com/yandy-r/crosshook/issues/147)) ([`3f9e2c5`](https://github.com/yandy-r/crosshook/commit/3f9e2c5e3ad67c5f25fd9aa9a9d61ab77f6e3e24))
+- **launch:** Move environment config to launch with autosave ([#147](https://github.com/yandy-r/crosshook/issues/147)) ([`620037e`](https://github.com/yandy-r/crosshook/commit/620037eb18e531482e9b9006b2be951dd4da55d4))
 
-- **launch:** Prefer umu-run for proton helper flows ([#148](https://github.com/yandy-r/crosshook/issues/148)) ([`e31264f`](https://github.com/yandy-r/crosshook/commit/e31264fb08fe102f671e199f05f80ee0bc05e4a0))
+- **launch:** Prefer umu-run for proton helper flows ([#148](https://github.com/yandy-r/crosshook/issues/148)) ([`791b7ec`](https://github.com/yandy-r/crosshook/commit/791b7ec9ed5b92aef4222209981c02530b6ba355))
 
-- **launch:** Detect running game processes and split launch buttons ([#149](https://github.com/yandy-r/crosshook/issues/149)) ([`9003fab`](https://github.com/yandy-r/crosshook/commit/9003fab31a956975cc369572c6b900ce3055ed41))
+- **launch:** Detect running game processes and split launch buttons ([#149](https://github.com/yandy-r/crosshook/issues/149)) ([`1b01bf0`](https://github.com/yandy-r/crosshook/commit/1b01bf044dc74fce45d3db3bc3ad34b1ebf58113))
 
-- **settings:** Expand app settings with profile defaults, log filter, and UI preferences ([#150](https://github.com/yandy-r/crosshook/issues/150)) ([`fee9b36`](https://github.com/yandy-r/crosshook/commit/fee9b36513a1b0a232c7a18a9d1b9836addbcadb))
+- **settings:** Expand app settings with profile defaults, log filter, and UI preferences ([#150](https://github.com/yandy-r/crosshook/issues/150)) ([`5e37043`](https://github.com/yandy-r/crosshook/commit/5e37043f7a116f8e919bf4930af4810ac9237e50))
 
-- **launch:** Protontricks/winetricks integration for prefix dependencies ([#151](https://github.com/yandy-r/crosshook/issues/151)) ([`5049761`](https://github.com/yandy-r/crosshook/commit/50497618c291dde40fe4a9022686bcbed925e860))
+- **launch:** Protontricks/winetricks integration for prefix dependencies ([#151](https://github.com/yandy-r/crosshook/issues/151)) ([`4a2ce3d`](https://github.com/yandy-r/crosshook/commit/4a2ce3d30e91b3fed39a8f1c8c602b744490c653))
 
 
 ## [v0.2.6] - 2026-04-02
@@ -62,32 +95,32 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Bug Fixes
 
-- **profiles:** Address ProtonDB lookup review findings ([#133](https://github.com/yandy-r/crosshook/issues/133)) ([`b745f38`](https://github.com/yandy-r/crosshook/commit/b745f38affad52c4c82f778bbb578445e76c7a3d))
+- **profiles:** Address ProtonDB lookup review findings ([#133](https://github.com/yandy-r/crosshook/issues/133)) ([`74087a0`](https://github.com/yandy-r/crosshook/commit/74087a058b52cc3b4ef9f9ea7a10a782f834a227))
 
-- **ui:** Route layout, panel decor, and polish across routes ([#138](https://github.com/yandy-r/crosshook/issues/138)) ([`d9c145a`](https://github.com/yandy-r/crosshook/commit/d9c145aa1e8d6a152e014163e67c3bccd363c054))
+- **ui:** Route layout, panel decor, and polish across routes ([#138](https://github.com/yandy-r/crosshook/issues/138)) ([`883b622`](https://github.com/yandy-r/crosshook/commit/883b622812dce93472c13bac7b6a9238845967a0))
 
-- **cli:** Include mangohud in LaunchRequest from profile ([`9a821e5`](https://github.com/yandy-r/crosshook/commit/9a821e5b5522bbe3cfa09c7b1cd0181278f7c779))
+- **cli:** Include mangohud in LaunchRequest from profile ([`6bb5010`](https://github.com/yandy-r/crosshook/commit/6bb5010631ea56c09f6e30430b2e4b682a809b96))
 
 
 ### Features
 
-- **launch:** Gamescope wrapper integration with per-profile resolution and scaling ([#128](https://github.com/yandy-r/crosshook/issues/128)) ([`7dcab83`](https://github.com/yandy-r/crosshook/commit/7dcab83a6c68cfcd21fac0a032b902de7c955ff9))
+- **launch:** Gamescope wrapper integration with per-profile resolution and scaling ([#128](https://github.com/yandy-r/crosshook/issues/128)) ([`29c0934`](https://github.com/yandy-r/crosshook/commit/29c093470c73f3e0705ca45f7ccb8a711ed41d79))
 
-- **launch:** Data-driven optimization catalog loaded from TOML instead of compiled constants ([#129](https://github.com/yandy-r/crosshook/issues/129)) ([`c558f56`](https://github.com/yandy-r/crosshook/commit/c558f56f94e35123ce932bfbad3ce4761b7b46fc))
+- **launch:** Data-driven optimization catalog loaded from TOML instead of compiled constants ([#129](https://github.com/yandy-r/crosshook/issues/129)) ([`73ac69e`](https://github.com/yandy-r/crosshook/commit/73ac69ecabf2a4b1999f4c2d95ce2967a4a77d90))
 
-- **profiles:** Offline-first trainer management for Steam Deck portable use ([#130](https://github.com/yandy-r/crosshook/issues/130)) ([`6d1ca2b`](https://github.com/yandy-r/crosshook/commit/6d1ca2b0a5332f401c08dab20fbd83372968bbde))
+- **profiles:** Offline-first trainer management for Steam Deck portable use ([#130](https://github.com/yandy-r/crosshook/issues/130)) ([`77e8ca0`](https://github.com/yandy-r/crosshook/commit/77e8ca01159c1e30b1dd21c9b16d619c9c7c46e3))
 
-- **launch:** MangoHud per-profile configuration file generation ([#131](https://github.com/yandy-r/crosshook/issues/131)) ([`473cdee`](https://github.com/yandy-r/crosshook/commit/473cdeeafef9b0d6f7336714e5108058cf3b202f))
+- **launch:** MangoHud per-profile configuration file generation ([#131](https://github.com/yandy-r/crosshook/issues/131)) ([`5992557`](https://github.com/yandy-r/crosshook/commit/59925573cd4d3e6e8d6b167a35555a47e36870e4))
 
-- **profiles:** ProtonDB compatibility rating lookup by Steam App ID ([#132](https://github.com/yandy-r/crosshook/issues/132)) ([`df2915f`](https://github.com/yandy-r/crosshook/commit/df2915f7e34d8844c7376e8e950b74c2668a6fc5))
+- **profiles:** ProtonDB compatibility rating lookup by Steam App ID ([#132](https://github.com/yandy-r/crosshook/issues/132)) ([`2d21529`](https://github.com/yandy-r/crosshook/commit/2d215297bac4cede9fdab2dd570aec05bc294ea1))
 
-- **profiles:** Add game metadata, cover art, and UI restructuring ([#134](https://github.com/yandy-r/crosshook/issues/134)) ([`4a6cc6c`](https://github.com/yandy-r/crosshook/commit/4a6cc6cc12e298101b1e68103621ef0fa8fd678e))
+- **profiles:** Add game metadata, cover art, and UI restructuring ([#134](https://github.com/yandy-r/crosshook/issues/134)) ([`cf07a07`](https://github.com/yandy-r/crosshook/commit/cf07a07306a5e172196a86052befbf62ffaebabd))
 
-- **launch:** Add tabbed interface with cover art hero to Launch page ([#136](https://github.com/yandy-r/crosshook/issues/136)) ([`ca0360e`](https://github.com/yandy-r/crosshook/commit/ca0360e17f9f1119c57e6265f5a70f808ab08574))
+- **launch:** Add tabbed interface with cover art hero to Launch page ([#136](https://github.com/yandy-r/crosshook/issues/136)) ([`39c6328`](https://github.com/yandy-r/crosshook/commit/39c6328f3b91a3a94ef6639e908e5668d6450758))
 
-- **ui:** Scroll shell, install/update heroes, and compact launch optimizations ([#137](https://github.com/yandy-r/crosshook/issues/137)) ([`84775e5`](https://github.com/yandy-r/crosshook/commit/84775e53a04c9e2761908a3d8c3466d0152294d0))
+- **ui:** Scroll shell, install/update heroes, and compact launch optimizations ([#137](https://github.com/yandy-r/crosshook/issues/137)) ([`ba63297`](https://github.com/yandy-r/crosshook/commit/ba63297aab98be44970ed32f1a02d61eaaecb8da))
 
-- **ui:** Add Library Home page with poster art grid ([#139](https://github.com/yandy-r/crosshook/issues/139)) ([`5f463f8`](https://github.com/yandy-r/crosshook/commit/5f463f80bbc830707ce3768d933f704c09b9d452))
+- **ui:** Add Library Home page with poster art grid ([#139](https://github.com/yandy-r/crosshook/issues/139)) ([`1aff9c0`](https://github.com/yandy-r/crosshook/commit/1aff9c08f64195103f50b33e0d9583d0502cdbdb))
 
 
 ## [v0.2.5] - 2026-03-31
@@ -95,47 +128,47 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Bug Fixes
 
-- **community:** Add A6 bounds for version fields and pinned commit hex validation ([`586d280`](https://github.com/yandy-r/crosshook/commit/586d28064003826d4f0b8379d2e190403f370d7f))
+- **community:** Add A6 bounds for version fields and pinned commit hex validation ([`0f2b96b`](https://github.com/yandy-r/crosshook/commit/0f2b96bca49cc2cb46debbd84c32fec421cd6469))
 
-- **version:** Correct steam_applaunch version tracking and launch outcome classification ([`fc968d7`](https://github.com/yandy-r/crosshook/commit/fc968d7cf92e9c6ed18652339ec804849937bf5c))
+- **version:** Correct steam_applaunch version tracking and launch outcome classification ([`11baba2`](https://github.com/yandy-r/crosshook/commit/11baba227bda448bedfc2dfa835b709a2956b1ae))
 
-- **version:** Address PR review findings for version correlation ([`714c3a0`](https://github.com/yandy-r/crosshook/commit/714c3a0c4c99d752558d3ddc997bb7fa30350596))
+- **version:** Address PR review findings for version correlation ([`e4eefcd`](https://github.com/yandy-r/crosshook/commit/e4eefcdf78f990d6a0a747ffad8c80efcfdd8780))
 
-- **branchlet:** Update terminal command from 'zed .' to 'cursor .' in .branchlet.json ([`b80a3d9`](https://github.com/yandy-r/crosshook/commit/b80a3d9c02a0d1959cd7c9d81fa790dba00342b9))
+- **branchlet:** Update terminal command from 'zed .' to 'cursor .' in .branchlet.json ([`5687913`](https://github.com/yandy-r/crosshook/commit/56879136d67887d8ece51157845307b6756aa887))
 
-- **branchlet:** Update terminal command in .branchlet.json to use GUI editor ([`fde3d0a`](https://github.com/yandy-r/crosshook/commit/fde3d0a6a78aac3d2dc2479554620917e9340551))
+- **branchlet:** Update terminal command in .branchlet.json to use GUI editor ([`e0ece59`](https://github.com/yandy-r/crosshook/commit/e0ece592fe73c54766af83de2ca3c5c62c057a6e))
 
 
 ### Documentation
 
-- **ref:** Add feature specification and research documents for CLI command wiring ([`d0c084b`](https://github.com/yandy-r/crosshook/commit/d0c084b96d937025f5435c18ee0fea8d9fa4a7a9))
+- **ref:** Add feature specification and research documents for CLI command wiring ([`08bb988`](https://github.com/yandy-r/crosshook/commit/08bb9885b0d92e07e82f54034271d467475e5925))
 
 
 ### Features
 
-- **ui:** Add pinned profiles for quick launch on Profiles and Launch pages ([#113](https://github.com/yandy-r/crosshook/issues/113)) ([`7091937`](https://github.com/yandy-r/crosshook/commit/7091937c97a9d1323557bf10042fbb29251e51e2))
+- **ui:** Add pinned profiles for quick launch on Profiles and Launch pages ([#113](https://github.com/yandy-r/crosshook/issues/113)) ([`d345c7a`](https://github.com/yandy-r/crosshook/commit/d345c7a9471ab20051794e73706fddb889df3b63))
 
-- **profile:** Add portable/local override layers ([#114](https://github.com/yandy-r/crosshook/issues/114)) ([`2ae0ea0`](https://github.com/yandy-r/crosshook/commit/2ae0ea0c6fe6eead39ad402daf469eb02c1cb67e))
+- **profile:** Add portable/local override layers ([#114](https://github.com/yandy-r/crosshook/issues/114)) ([`252a3fd`](https://github.com/yandy-r/crosshook/commit/252a3fd757570ee30a455795d9600bce4c1ee98a))
 
-- **profile:** Add Proton version migration tool for stale path detection and replacement ([#115](https://github.com/yandy-r/crosshook/issues/115)) ([`834fd76`](https://github.com/yandy-r/crosshook/commit/834fd76b1e3185538c5d070aa79b193ab61eda9f))
+- **profile:** Add Proton version migration tool for stale path detection and replacement ([#115](https://github.com/yandy-r/crosshook/issues/115)) ([`b0d1747`](https://github.com/yandy-r/crosshook/commit/b0d1747e23ca2a929de0a8b57f0b93f7e174558e))
 
-- **community:** Add guided import wizard and live profile sync ([#116](https://github.com/yandy-r/crosshook/issues/116)) ([`d93f8cd`](https://github.com/yandy-r/crosshook/commit/d93f8cddb1941528bae9bff05cb0b4da93273c64))
+- **community:** Add guided import wizard and live profile sync ([#116](https://github.com/yandy-r/crosshook/issues/116)) ([`2f639dd`](https://github.com/yandy-r/crosshook/commit/2f639dd11865713fa5a258a46c9b4969fe591a34))
 
-- **metadata:** Add version snapshots schema, store, and steam manifest extension ([`45e9782`](https://github.com/yandy-r/crosshook/commit/45e9782d9e45aecd1c066cf06e8cf06c59631bae))
+- **metadata:** Add version snapshots schema, store, and steam manifest extension ([`e6fb130`](https://github.com/yandy-r/crosshook/commit/e6fb130ee6285712ee91823976cd4e8482475ce3))
 
-- **launch:** Named optimization presets per profile ([#121](https://github.com/yandy-r/crosshook/issues/121)) ([`6855dc9`](https://github.com/yandy-r/crosshook/commit/6855dc9c580fdea70e56a4d9924d59e592a32193))
+- **launch:** Named optimization presets per profile ([#121](https://github.com/yandy-r/crosshook/issues/121)) ([`aad839d`](https://github.com/yandy-r/crosshook/commit/aad839dc3bc8a3eda6ee33da7485ccf491ab571b))
 
-- **version:** Integrate version tracking into launch, startup, and health pipelines ([`7c58196`](https://github.com/yandy-r/crosshook/commit/7c58196303b5134b79a515ef58b9ecf8da607fdb))
+- **version:** Integrate version tracking into launch, startup, and health pipelines ([`748d85e`](https://github.com/yandy-r/crosshook/commit/748d85e362c91885b0fc17e016247b2fb27d7bca))
 
-- **version:** Add Phase 3 UX — version dashboard, warnings, and launch state persistence ([`0f07f42`](https://github.com/yandy-r/crosshook/commit/0f07f42c5aae23b4ca82aa06085d7c62396199a9))
+- **version:** Add Phase 3 UX — version dashboard, warnings, and launch state persistence ([`8cd976b`](https://github.com/yandy-r/crosshook/commit/8cd976be2786dbac07eab9cc194b21ab7bb0854e))
 
-- **profiles:** Configuration history with diff and rollback ([#124](https://github.com/yandy-r/crosshook/issues/124)) ([`79d3509`](https://github.com/yandy-r/crosshook/commit/79d3509ff5efb975d8d7148c6a0d124e79643d32))
+- **profiles:** Configuration history with diff and rollback ([#124](https://github.com/yandy-r/crosshook/issues/124)) ([`9f9212c`](https://github.com/yandy-r/crosshook/commit/9f9212ccda63c04683863c8ec6b9ea2c197d6da2))
 
-- **onboarding:** Add trainer onboarding wizard with guided profile creation ([#125](https://github.com/yandy-r/crosshook/issues/125)) ([`71c5215`](https://github.com/yandy-r/crosshook/commit/71c52151b21186d2594e9313dcfb7066041f44da))
+- **onboarding:** Add trainer onboarding wizard with guided profile creation ([#125](https://github.com/yandy-r/crosshook/issues/125)) ([`007ce95`](https://github.com/yandy-r/crosshook/commit/007ce956434c18aa3840a0f001524da8b74ee25a))
 
-- **profiles:** Support custom env vars across launch flows ([#126](https://github.com/yandy-r/crosshook/issues/126)) ([`2850e19`](https://github.com/yandy-r/crosshook/commit/2850e19814477a6ba66ef8ba39376684241b5d69))
+- **profiles:** Support custom env vars across launch flows ([#126](https://github.com/yandy-r/crosshook/issues/126)) ([`16a8e7f`](https://github.com/yandy-r/crosshook/commit/16a8e7f4b4347298c77cdf638e64233d0f609dff))
 
-- **cli:** Wire all placeholder commands to crosshook-core and extend launch support ([#127](https://github.com/yandy-r/crosshook/issues/127)) ([`14e2305`](https://github.com/yandy-r/crosshook/commit/14e2305389891b47c8186df606a09df7f8227221))
+- **cli:** Wire all placeholder commands to crosshook-core and extend launch support ([#127](https://github.com/yandy-r/crosshook/issues/127)) ([`2cba5f1`](https://github.com/yandy-r/crosshook/commit/2cba5f1d4be8f48dfbdadac05b8e1625c5a8db30))
 
 
 ## [v0.2.4] - 2026-03-29
@@ -143,59 +176,59 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Bug Fixes
 
-- **launcher:** Populate profile_id when exporting launchers ([`5a6602b`](https://github.com/yandy-r/crosshook/commit/5a6602b23d40bc00588a1644856d33b57d10dfb0))
+- **launcher:** Populate profile_id when exporting launchers ([`a4c7238`](https://github.com/yandy-r/crosshook/commit/a4c7238a2d3e0fb86628bc40305fe916d61fff0f))
 
-- **metadata:** Enhance community tap indexing with transactional UPSERT and migration improvements ([`252e65b`](https://github.com/yandy-r/crosshook/commit/252e65b53091c6f26d6e8ad13d3c6e4c07bde8fe))
+- **metadata:** Enhance community tap indexing with transactional UPSERT and migration improvements ([`d6ad04b`](https://github.com/yandy-r/crosshook/commit/d6ad04b0d81648863f058b645311503afb22afa2))
 
-- **security:** Enforce baseline Tauri CSP ([`7810d58`](https://github.com/yandy-r/crosshook/commit/7810d58754671e193b3490322bdbd6ac338120f0))
+- **security:** Enforce baseline Tauri CSP ([`e9f739e`](https://github.com/yandy-r/crosshook/commit/e9f739e5fac51895841505322e94ec2fc807f682))
 
-- **ui:** Smooth launcher preview modal scrolling ([#97](https://github.com/yandy-r/crosshook/issues/97)) ([`984537e`](https://github.com/yandy-r/crosshook/commit/984537ee03ad4dcf7e46e87aa01e99094655a28a))
+- **ui:** Smooth launcher preview modal scrolling ([#97](https://github.com/yandy-r/crosshook/issues/97)) ([`3123cdd`](https://github.com/yandy-r/crosshook/commit/3123cdd243d569725674c554048ca286306b075f))
 
 
 ### Documentation
 
-- **profile-health:** Revise health dashboard spec and integrate SQLite metadata layer ([`2294f20`](https://github.com/yandy-r/crosshook/commit/2294f20ada1333351d6575c563599e3f63ebe02e))
+- **profile-health:** Revise health dashboard spec and integrate SQLite metadata layer ([`ed0bd03`](https://github.com/yandy-r/crosshook/commit/ed0bd03d853061be8750ff7347346d52fa5b720b))
 
-- **health:** Add Health Dashboard Page for profile diagnostics ([`10f35bc`](https://github.com/yandy-r/crosshook/commit/10f35bcdf0147405def4cae99d1ce23e86342d7b))
+- **health:** Add Health Dashboard Page for profile diagnostics ([`5aca99e`](https://github.com/yandy-r/crosshook/commit/5aca99e7c05a8c7f01e82d73b6308613e6239f66))
 
-- **health:** Add implementation plan for Health Dashboard Page ([`b9150ec`](https://github.com/yandy-r/crosshook/commit/b9150ecb6bdc18f89ddceb9eec2298e697f86fb9))
+- **health:** Add implementation plan for Health Dashboard Page ([`70ae03e`](https://github.com/yandy-r/crosshook/commit/70ae03e9ac6730c410e019d46008b9997d0030b9))
 
 
 ### Features
 
-- **launch:** Add dry run / preview launch mode ([#86](https://github.com/yandy-r/crosshook/issues/86)) ([`f29e891`](https://github.com/yandy-r/crosshook/commit/f29e891448537adbdb3b5093d73e3ff1e7f0e8f6))
+- **launch:** Add dry run / preview launch mode ([#86](https://github.com/yandy-r/crosshook/issues/86)) ([`bb60051`](https://github.com/yandy-r/crosshook/commit/bb6005174259fd2ddf30b61799eb6e23d14599bf))
 
-- **launch:** Add post-launch failure diagnostics ([`82e3187`](https://github.com/yandy-r/crosshook/commit/82e31874505cb818e50bb8b0df7e73f490cdfaa8))
+- **launch:** Add post-launch failure diagnostics ([`96b7275`](https://github.com/yandy-r/crosshook/commit/96b7275aabf6eebaa499108421856d84a25fe719))
 
-- **launch:** Enhance launch state management with helper log path tracking ([`7a62b65`](https://github.com/yandy-r/crosshook/commit/7a62b65c9cf682ae387fd2e4d46e49b29c2be559))
+- **launch:** Enhance launch state management with helper log path tracking ([`7964f1e`](https://github.com/yandy-r/crosshook/commit/7964f1e8c87a1144e04805f9f6b415151ba27481))
 
-- **metadata:** Add SQLite metadata layer for stable profile identity (Phase 1) ([`062ac1f`](https://github.com/yandy-r/crosshook/commit/062ac1f8ef478fe8fcd44508e40918b6cae64067))
+- **metadata:** Add SQLite metadata layer for stable profile identity (Phase 1) ([`aaeb603`](https://github.com/yandy-r/crosshook/commit/aaeb603f6853897f4a69ca85391c9d3fcaeababe))
 
-- **metadata:** Add operational history tracking for launches and launchers (Phase 2) ([`2d8d6b7`](https://github.com/yandy-r/crosshook/commit/2d8d6b724e1463bbcd1ae6bb484ae52b163027cd))
+- **metadata:** Add operational history tracking for launches and launchers (Phase 2) ([`b5e62a5`](https://github.com/yandy-r/crosshook/commit/b5e62a5cc41d2a376cd2089a615d3d9050b0c670))
 
-- **metadata:** Add community catalog, collections, cache, and usage insights (Phase 3) ([`fffe10f`](https://github.com/yandy-r/crosshook/commit/fffe10f7472f512db0f8466fdc9f065b9fe5e7a1))
+- **metadata:** Add community catalog, collections, cache, and usage insights (Phase 3) ([`d525f1d`](https://github.com/yandy-r/crosshook/commit/d525f1daad19e1d81664ab43760b781dd68c3e88))
 
-- **health:** Add profile health dashboard MVP ([`779766c`](https://github.com/yandy-r/crosshook/commit/779766c3f087599e355d295c41d344c59de62945))
+- **health:** Add profile health dashboard MVP ([`ed73b30`](https://github.com/yandy-r/crosshook/commit/ed73b30131783188dc23c512db21ac5bb125b1a6))
 
-- **health:** Metadata enrichment + startup integration (Phases B & C) ([#98](https://github.com/yandy-r/crosshook/issues/98)) ([`3b9901c`](https://github.com/yandy-r/crosshook/commit/3b9901cea6af37b0431532e1ef3ed47e4956ef69))
+- **health:** Metadata enrichment + startup integration (Phases B & C) ([#98](https://github.com/yandy-r/crosshook/issues/98)) ([`efa1855`](https://github.com/yandy-r/crosshook/commit/efa1855749ab69296641df5ad2e732b54e617405))
 
-- **health:** Health snapshot persistence + trend analysis (Phase D) ([#100](https://github.com/yandy-r/crosshook/issues/100)) ([`125e6b1`](https://github.com/yandy-r/crosshook/commit/125e6b149e2532549c217b95dead2feafcf9d069))
+- **health:** Health snapshot persistence + trend analysis (Phase D) ([#100](https://github.com/yandy-r/crosshook/issues/100)) ([`84e8f0c`](https://github.com/yandy-r/crosshook/commit/84e8f0cbc06bef92bf68f8863a78eac78b5b618f))
 
-- **health:** Add Health Dashboard page with profile diagnostics ([#104](https://github.com/yandy-r/crosshook/issues/104)) ([`8fd4b44`](https://github.com/yandy-r/crosshook/commit/8fd4b444dd31e1dea28994d0b4eba94ee1c4f0fc))
+- **health:** Add Health Dashboard page with profile diagnostics ([#104](https://github.com/yandy-r/crosshook/issues/104)) ([`e2eda59`](https://github.com/yandy-r/crosshook/commit/e2eda599dfd1b42ea0cdb81a3dce58dbd3868846))
 
-- **health:** Expand dashboard table with sortable metadata columns ([#105](https://github.com/yandy-r/crosshook/issues/105)) ([`8d1386a`](https://github.com/yandy-r/crosshook/commit/8d1386a5fde55f183fcb786bba1ca1712567af63))
+- **health:** Expand dashboard table with sortable metadata columns ([#105](https://github.com/yandy-r/crosshook/issues/105)) ([`c3fa496`](https://github.com/yandy-r/crosshook/commit/c3fa4965285365ead1058d8a3a9bcde82b92bacb))
 
-- **export:** Detect stale launchers in manager ([#106](https://github.com/yandy-r/crosshook/issues/106)) ([`52d5e44`](https://github.com/yandy-r/crosshook/commit/52d5e448303ae71ea4d5ca6d5237b6706964ca95))
+- **export:** Detect stale launchers in manager ([#106](https://github.com/yandy-r/crosshook/issues/106)) ([`9b1592a`](https://github.com/yandy-r/crosshook/commit/9b1592af84cebc31a046704f80c864eeb467db71))
 
-- **community:** Export shareable profiles from GUI ([#107](https://github.com/yandy-r/crosshook/issues/107)) ([`740c7cd`](https://github.com/yandy-r/crosshook/commit/740c7cd20f9355b6dd5babf2a1a6481f1d7505bd))
+- **community:** Export shareable profiles from GUI ([#107](https://github.com/yandy-r/crosshook/issues/107)) ([`956f86c`](https://github.com/yandy-r/crosshook/commit/956f86c54dcaf276e55c2cfbe14371cc5cba121f))
 
-- **ui:** Adaptive Deck layout ([#54](https://github.com/yandy-r/crosshook/issues/54)) ([#108](https://github.com/yandy-r/crosshook/issues/108)) ([`efa0d5e`](https://github.com/yandy-r/crosshook/commit/efa0d5ee373b5b71bec97f6959934ca2029b02c0))
+- **ui:** Adaptive Deck layout ([#54](https://github.com/yandy-r/crosshook/issues/54)) ([#108](https://github.com/yandy-r/crosshook/issues/108)) ([`63a3cad`](https://github.com/yandy-r/crosshook/commit/63a3cadba8c13ae5bf6da885e6dfd430275630a5))
 
-- **launch:** Extend optimization catalog and vendor options UI ([#109](https://github.com/yandy-r/crosshook/issues/109)) ([`20f6b27`](https://github.com/yandy-r/crosshook/commit/20f6b27d519a77f669c0f850664e681840a740e9))
+- **launch:** Extend optimization catalog and vendor options UI ([#109](https://github.com/yandy-r/crosshook/issues/109)) ([`6ce0e38`](https://github.com/yandy-r/crosshook/commit/6ce0e389a857c491f0f938fe376249dbe988bedc))
 
-- **community:** Add tap commit pinning and pin/unpin UI ([#110](https://github.com/yandy-r/crosshook/issues/110)) ([`cc6fa44`](https://github.com/yandy-r/crosshook/commit/cc6fa440c1950d8e30c4f2aee5f46becafc397e4))
+- **community:** Add tap commit pinning and pin/unpin UI ([#110](https://github.com/yandy-r/crosshook/issues/110)) ([`cf27cff`](https://github.com/yandy-r/crosshook/commit/cf27cff95ea103bbac18fb17c47c98bc1c7a02ce))
 
-- **diagnostics:** Add diagnostic bundle export ([`f7bd08b`](https://github.com/yandy-r/crosshook/commit/f7bd08b8945b073a72baf8e2eecbfc4768ab1cbd))
+- **diagnostics:** Add diagnostic bundle export ([`01dd2ac`](https://github.com/yandy-r/crosshook/commit/01dd2ac339f734b3b55a00d7681d30fc8b692625))
 
 
 ## [v0.2.3] - 2026-03-27
@@ -203,24 +236,24 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Bug Fixes
 
-- **launch:** Add actionable validation guidance and reset page scroll ([#79](https://github.com/yandy-r/crosshook/issues/79)) ([`f6b71bc`](https://github.com/yandy-r/crosshook/commit/f6b71bcaae398fa7b48fbcf76119a1bc9f940fd3))
+- **launch:** Add actionable validation guidance and reset page scroll ([#79](https://github.com/yandy-r/crosshook/issues/79)) ([`98fdf18`](https://github.com/yandy-r/crosshook/commit/98fdf1840dc09ca86d4a0dacc66e28827e047b64))
 
 
 ### Features
 
-- **settings:** Add new commands for repository and echo output in settings.local.json ([`311dd47`](https://github.com/yandy-r/crosshook/commit/311dd47ac9edbf793bb9136270d74d43686a25e1))
+- **settings:** Add new commands for repository and echo output in settings.local.json ([`2c51e83`](https://github.com/yandy-r/crosshook/commit/2c51e83346d45e6865dcb3907c1e00c4ce430209))
 
-- **docs:** Add comprehensive research reports on emerging trends and additional features for CrossHook ([`d8961e1`](https://github.com/yandy-r/crosshook/commit/d8961e115cf011023f9cf9a10e8c7aac0698c889))
+- **docs:** Add comprehensive research reports on emerging trends and additional features for CrossHook ([`2004d11`](https://github.com/yandy-r/crosshook/commit/2004d115705ef770626d6080200f652f7cec4423))
 
-- **update:** Add update game panel for applying patches to Proton prefixes ([#81](https://github.com/yandy-r/crosshook/issues/81)) ([`0980723`](https://github.com/yandy-r/crosshook/commit/0980723b3d20a5b5e2e9d7574c273da29c8c89a3))
+- **update:** Add update game panel for applying patches to Proton prefixes ([#81](https://github.com/yandy-r/crosshook/issues/81)) ([`bd090b5`](https://github.com/yandy-r/crosshook/commit/bd090b580a88ddf46b7045ed977005f3fdf11d3d))
 
-- **settings:** Add new Bash commands for grep and npx vite in settings.local.json ([`61f6ffc`](https://github.com/yandy-r/crosshook/commit/61f6ffcb8bfdf3df082d899dec1707306084698b))
+- **settings:** Add new Bash commands for grep and npx vite in settings.local.json ([`c7851fe`](https://github.com/yandy-r/crosshook/commit/c7851fe75bfdc6b396daab3f1bb20e89b3631d83))
 
-- **ui:** Add collapsible sections to all pages for easier navigation ([`79cba3c`](https://github.com/yandy-r/crosshook/commit/79cba3cf6dd97f776c92cf21a18d8265ed9b5b2c))
+- **ui:** Add collapsible sections to all pages for easier navigation ([`240d619`](https://github.com/yandy-r/crosshook/commit/240d61912cfecc3f689adf3cfff4958f838ed882))
 
-- **profile:** Add profile duplication with unique name generation ([#82](https://github.com/yandy-r/crosshook/issues/82)) ([`fbd5325`](https://github.com/yandy-r/crosshook/commit/fbd5325284083e493804fbda39e1d03debd62ea3))
+- **profile:** Add profile duplication with unique name generation ([#82](https://github.com/yandy-r/crosshook/issues/82)) ([`c60e784`](https://github.com/yandy-r/crosshook/commit/c60e7846e9c99a29cb8a45f10e9aaa1d58b60cfe))
 
-- **profile:** Add rename with overwrite protection and launcher cascade ([#83](https://github.com/yandy-r/crosshook/issues/83)) ([`23cebd8`](https://github.com/yandy-r/crosshook/commit/23cebd80b62f165140ab7c0c9128260adc379d9e))
+- **profile:** Add rename with overwrite protection and launcher cascade ([#83](https://github.com/yandy-r/crosshook/issues/83)) ([`5866808`](https://github.com/yandy-r/crosshook/commit/5866808e3a4d0c4f2067b447593783f28b87f0e8))
 
 
 ## [v0.2.2] - 2026-03-26
@@ -228,30 +261,30 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Bug Fixes
 
-- **release:** Enforce changelog hygiene ([`a6d40ea`](https://github.com/yandy-r/crosshook/commit/a6d40ea1f794f94df7b6bc599dfe86aa0d819f38))
+- **release:** Enforce changelog hygiene ([`6f66f4b`](https://github.com/yandy-r/crosshook/commit/6f66f4b93658d4f87ddd7632e7a66d60e2764b16))
 
-- **ui:** Show launcher icon for proton profiles ([`6d62be4`](https://github.com/yandy-r/crosshook/commit/6d62be4f57ff561f6d90117fe87a7a684fcc375a))
+- **ui:** Show launcher icon for proton profiles ([`d4f5113`](https://github.com/yandy-r/crosshook/commit/d4f51134da0dcba60ce17e627f72b5e2b76c6674))
 
-- **ui:** Proton install fallback path and arrow-key scroll override ([`cc369d3`](https://github.com/yandy-r/crosshook/commit/cc369d39c014c45a847313e4811c913b8ad3f6bc))
+- **ui:** Proton install fallback path and arrow-key scroll override ([`c242301`](https://github.com/yandy-r/crosshook/commit/c242301471710c2684f3f381c179c778844e8678))
 
-- **ui:** Resolve 9 review issues from PR #34 ([`9de17a2`](https://github.com/yandy-r/crosshook/commit/9de17a2127cd9aa56a27a5256a15ec8cd371f664))
+- **ui:** Resolve 9 review issues from PR #34 ([`9268b63`](https://github.com/yandy-r/crosshook/commit/9268b637bc86d7adcf956bbfc8fdb90384599a97))
 
-- **ui:** Resolve 15 suggestion-level review items from PR #34 ([`451ce0c`](https://github.com/yandy-r/crosshook/commit/451ce0c6f4be1fe161690ffc734d965a08111b73))
+- **ui:** Resolve 15 suggestion-level review items from PR #34 ([`61e0a53`](https://github.com/yandy-r/crosshook/commit/61e0a53f1930319cb8fa5ee2d7a7ae4fe9bfa495))
 
-- **ui:** Adjust padding and border styles for content areas ([`c3bc395`](https://github.com/yandy-r/crosshook/commit/c3bc39549fc85b55fa4d8b3a0af61e1cd2481863))
+- **ui:** Adjust padding and border styles for content areas ([`1ab02da`](https://github.com/yandy-r/crosshook/commit/1ab02da9f3a07f55b9daaf6952633a496370f5ba))
 
 
 ### Features
 
-- **profile:** Add install review modal flow ([#29](https://github.com/yandy-r/crosshook/issues/29)) ([`3e1261f`](https://github.com/yandy-r/crosshook/commit/3e1261fefe026ff0caf86b984fc7f5a12cc959cd))
+- **profile:** Add install review modal flow ([#29](https://github.com/yandy-r/crosshook/issues/29)) ([`62a8f08`](https://github.com/yandy-r/crosshook/commit/62a8f08d585ebb6ed5c862b3647cc04213c4ea22))
 
-- **launch:** Add proton-run launch optimizations ([#31](https://github.com/yandy-r/crosshook/issues/31)) ([`41db070`](https://github.com/yandy-r/crosshook/commit/41db0702e07c34c9ab9d9612eb487d4071422022))
+- **launch:** Add proton-run launch optimizations ([#31](https://github.com/yandy-r/crosshook/issues/31)) ([`86f74f0`](https://github.com/yandy-r/crosshook/commit/86f74f0f96a1622ff7670119a41cf9a9b3286cde))
 
-- **ui:** Sidebar navigation, page banners, themed selects, and console drawer ([#33](https://github.com/yandy-r/crosshook/issues/33)) ([`b326bfd`](https://github.com/yandy-r/crosshook/commit/b326bfddb0fbd7cdceb7e51b8d0d812e685916df))
+- **ui:** Sidebar navigation, page banners, themed selects, and console drawer ([#33](https://github.com/yandy-r/crosshook/issues/33)) ([`36d2579`](https://github.com/yandy-r/crosshook/commit/36d25792062ef9d77568ba33a0a98445b97915f2))
 
-- **settings:** Add command to grep for specific symbols in TypeScript files ([`d453eb5`](https://github.com/yandy-r/crosshook/commit/d453eb5ffab3e7761fdcd31439b74494f95ad2bf))
+- **settings:** Add command to grep for specific symbols in TypeScript files ([`5b64467`](https://github.com/yandy-r/crosshook/commit/5b64467d84c010b1e09484832ce787b9ca940e4f))
 
-- **launch:** Add per-profile trainer loading modes ([#35](https://github.com/yandy-r/crosshook/issues/35)) ([`4d04041`](https://github.com/yandy-r/crosshook/commit/4d04041621c05f9e002d680d5a79c5c013847acf))
+- **launch:** Add per-profile trainer loading modes ([#35](https://github.com/yandy-r/crosshook/issues/35)) ([`86949dd`](https://github.com/yandy-r/crosshook/commit/86949dd8dd5c22a617cd82c4b4a6355c4b639b3d))
 
 
 ## [v0.2.1] - 2026-03-25
@@ -259,18 +292,18 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Bug Fixes
 
-- **release:** Update AppImage upload step to use specific asset path ([`dd6b5bb`](https://github.com/yandy-r/crosshook/commit/dd6b5bbaa43278fc1f66e0542be9edab147f7ffd))
+- **release:** Update AppImage upload step to use specific asset path ([`0751e87`](https://github.com/yandy-r/crosshook/commit/0751e87d42bfbe405dc3912670fc77676b877647))
 
-- **ui:** Keep launch panel anchored while logs stream ([#27](https://github.com/yandy-r/crosshook/issues/27)) ([`746672a`](https://github.com/yandy-r/crosshook/commit/746672aaf6428fa5b7d0db7e2aa41da46f727013))
+- **ui:** Keep launch panel anchored while logs stream ([#27](https://github.com/yandy-r/crosshook/issues/27)) ([`d5bedcf`](https://github.com/yandy-r/crosshook/commit/d5bedcf7537c14ab573124cc10a2464a2c8b1676))
 
-- **release:** Restore and validate native workspace manifest ([`7432cbb`](https://github.com/yandy-r/crosshook/commit/7432cbbc68b412e4fdb519609683d644b53be962))
+- **release:** Restore and validate native workspace manifest ([`6bd2589`](https://github.com/yandy-r/crosshook/commit/6bd25893d972f7b95dc0fbc21b3b1ccfca8e1fa7))
 
 
 ### Features
 
-- **native:** Implement install game workflow ([#23](https://github.com/yandy-r/crosshook/issues/23)) ([`97fc609`](https://github.com/yandy-r/crosshook/commit/97fc60901a77ab853a19cdc10de71a7c816cfdf0))
+- **native:** Implement install game workflow ([#23](https://github.com/yandy-r/crosshook/issues/23)) ([`704c478`](https://github.com/yandy-r/crosshook/commit/704c4780f32b721d1c72f0b25149bebcf3cb5517))
 
-- **launcher:** Implement launcher lifecycle management ([#25](https://github.com/yandy-r/crosshook/issues/25)) ([`28b6beb`](https://github.com/yandy-r/crosshook/commit/28b6beb45a6bf57bd8a3003f9f76b25e4750a316))
+- **launcher:** Implement launcher lifecycle management ([#25](https://github.com/yandy-r/crosshook/issues/25)) ([`fa51a74`](https://github.com/yandy-r/crosshook/commit/fa51a74f22762749ba2de7c6375050102c3fa62c))
 
 
 ## [v0.2.0] - 2026-03-23
@@ -278,14 +311,14 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Bug Fixes
 
-- **native:** Align build and release versioning ([`bbd9ed9`](https://github.com/yandy-r/crosshook/commit/bbd9ed9cd98a551c9c0b5a73e7ead0ab65aa0813))
+- **native:** Align build and release versioning ([`6624afa`](https://github.com/yandy-r/crosshook/commit/6624afaca4b408b9383ecd294d0e4d72f55ce1ca))
 
-- **native:** Restore workspace release manifest ([`dccd475`](https://github.com/yandy-r/crosshook/commit/dccd475b659c5fe48c7d29e74d44d58abfd0a609))
+- **native:** Restore workspace release manifest ([`9275fce`](https://github.com/yandy-r/crosshook/commit/9275fceaeed943e525422147b00a680eba0dfebe))
 
 
 ### Features
 
-- Implement the platform-native-ui native app feature set ([#20](https://github.com/yandy-r/crosshook/issues/20)) ([`246a5ea`](https://github.com/yandy-r/crosshook/commit/246a5ea374ab9606e9a51d79642a69e624fa8926))
+- Implement the platform-native-ui native app feature set ([#20](https://github.com/yandy-r/crosshook/issues/20)) ([`84242d4`](https://github.com/yandy-r/crosshook/commit/84242d482a399f19abb0cefe5a42bc82dfd7ba7a))
 
 
 ## [v0.1.1] - 2026-03-23
@@ -293,27 +326,14 @@ This file is generated with `git-cliff` from the repository history and release 
 
 ### Features
 
-- Add comprehensive documentation for platform-native Linux UI ([`266864e`](https://github.com/yandy-r/crosshook/commit/266864e9a3f80a9fb1bd5827492a4188a929ea86))
+- Add comprehensive documentation for platform-native Linux UI ([`5e6720a`](https://github.com/yandy-r/crosshook/commit/5e6720a4678d0ccc62ebdc1c29ef0ca048016405))
 
-- Expand platform-native UI documentation and enhance local settings ([`9ed9016`](https://github.com/yandy-r/crosshook/commit/9ed90162a882506104ad3a9d3b31db6e1bdb53b1))
+- Expand platform-native UI documentation and enhance local settings ([`cae6261`](https://github.com/yandy-r/crosshook/commit/cae6261fd4c5af79addce801669fc559618dee47))
 
-- Expand platform-native UI analysis and documentation ([`b88bd7c`](https://github.com/yandy-r/crosshook/commit/b88bd7c4d784733cf6d6759dd2c1dfc7adfbfc06))
+- Expand platform-native UI analysis and documentation ([`ca1bc92`](https://github.com/yandy-r/crosshook/commit/ca1bc927e7b0e620e83d26ec9efcf91f5e4e2a5f))
 
 
 ## [v0.1.0] - 2026-03-19
-
-
-### Release
-
-- Remove controller support and TV mode, streamline executable name ([`dafbae5`](https://github.com/yandy-r/crosshook/commit/dafbae55e7a925294313206ec5f7df760a6423e5))
-
-
-## [v5.0] - 2025-04-04
-
-
-### Features
-
-- Rename executable to choochoo.exe ([`2d953fb`](https://github.com/yandy-r/crosshook/commit/2d953fb661a86e519181d4b5b4d7316267562a88))
 
 
 <!-- generated by git-cliff -->
