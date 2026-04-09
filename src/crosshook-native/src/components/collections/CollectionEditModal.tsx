@@ -54,7 +54,6 @@ export function CollectionEditModal({
     panelRef,
     onClose: guardedOnClose,
     initialFocusRef: headingRef,
-    restoreFocusOnClose: true,
   });
 
   const handleSubmit = useCallback(

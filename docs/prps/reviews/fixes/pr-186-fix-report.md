@@ -102,19 +102,59 @@
 
 | ID | Severity | Summary |
 |----|----------|---------|
-| F013 | LOW | Orphaned `closeButtonRef` in CollectionViewModal + CollectionImportReviewModal |
-| F014 | LOW | LibraryCard keyboard context-menu casts partial to MouseEvent |
-| F015 | LOW | PR body overstates adoption scope ("all 5 collection modals") |
-| F016 | LOW | JTBD test Step 12 doesn't exercise high-level apply function |
-| F017 | LOW | `console.error` ships in production bundle |
-| F018 | LOW | `restoreFocusOnClose` option is YAGNI |
 | F019 | NIT | Rust integration test synthetic path lacks inline docs |
 | F020 | NIT | `onSubmitEdit={async () => false}` placeholder unexplained |
 
 ---
 
+## Pass 2 — LOW severity (2026-04-09)
+
+**Mode**: `--parallel --severity low`
+**Severity threshold**: LOW (CRITICAL + HIGH + MEDIUM + LOW)
+
+| Metric | Count |
+|--------|-------|
+| Findings eligible | 6 (F013–F018) |
+| Fixed | 5 |
+| Resolved by prior fix | 1 (F017, resolved by F005) |
+| Failed | 0 |
+| Skipped (below threshold) | 2 (F019–F020, NIT) |
+
+### Validation
+
+| Check | Result |
+|-------|--------|
+| `tsc --noEmit` | Pass (zero errors) |
+| `cargo test -p crosshook-core` | Pass (all tests green) |
+
+### Fixes Applied
+
+**F013** (LOW) — Removed orphaned `closeButtonRef` declarations and `ref=` JSX in `CollectionViewModal.tsx` and `CollectionImportReviewModal.tsx`.
+
+**F014** (LOW) — Changed `onContextMenu` prop from `MouseEvent<HTMLDivElement>` to `{ x: number; y: number }` across `LibraryCard.tsx`, `LibraryGrid.tsx`, and `LibraryPage.tsx`. Eliminates type-unsafe cast.
+
+**F015** (LOW) — Updated PR #186 body: "all 5 collection modals" → "four of the five collection modals" with explanation of CollectionAssignMenu's intentional divergence.
+
+**F016** (LOW) — Updated Step 12 comment in `collections_jtbd_integration.rs` to clarify simulation via building blocks (no high-level apply function exists yet).
+
+**F017** (LOW) — Resolved by F005. `BrowserDevPresetExplainerModal` is now gated behind `__WEB_DEV_MODE__`, so the `console.error` is tree-shaken in production.
+
+**F018** (LOW) — Removed YAGNI `restoreFocusOnClose` option from `useFocusTrap` interface + all 4 callers. Focus restore is now hardcoded (always on).
+
+---
+
+## Cumulative Totals
+
+| Metric | Count |
+|--------|-------|
+| Total findings | 20 |
+| Fixed | 17 |
+| Already fixed (stale) | 1 (F001) |
+| Resolved by prior fix | 1 (F017) |
+| Remaining (NIT) | 2 (F019, F020) |
+
 ## Next Steps
 
 1. Run `/ycc:code-review` to verify fixes resolved the findings.
-2. Run `/ycc:git-workflow` or `/ycc:prp-commit` to commit the fixes.
-3. Optionally address LOW/NIT findings (F013–F020) in a follow-up.
+2. Run `/ycc:prp-commit` to commit the LOW fixes.
+3. NIT findings (F019, F020) can optionally be addressed in a polish pass.

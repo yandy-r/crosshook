@@ -206,7 +206,8 @@ fn end_to_end_collections_jtbd() {
         "preview manifest defaults must carry DXVK_HUD=fps"
     );
 
-    // ── Step 12: Apply — recreate collection on new metadata store ──────────
+    // ── Step 12: Simulate fresh-store re-import via individual building blocks
+    //    (no high-level apply-import function exists yet) ─────────────────
     let new_action_cid = metadata2.create_collection("Action").unwrap();
     for entry in &preview.matched {
         // Re-register profiles in the new metadata store so FK constraints pass

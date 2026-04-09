@@ -26,12 +26,6 @@ export interface UseFocusTrapOptions {
    * first focusable descendant of `panelRef`.
    */
   initialFocusRef?: RefObject<HTMLElement | null>;
-
-  /**
-   * Whether to restore focus to the previously focused element when the trap
-   * deactivates. Defaults to `true`.
-   */
-  restoreFocusOnClose?: boolean;
 }
 
 /** Value returned by {@link useFocusTrap}. */
@@ -122,7 +116,6 @@ export function useFocusTrap({
   panelRef,
   onClose,
   initialFocusRef,
-  restoreFocusOnClose = true,
 }: UseFocusTrapOptions): UseFocusTrapReturn {
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const bodyStyleRef = useRef<string>('');
@@ -180,15 +173,13 @@ export function useFocusTrap({
         }
       }
       hiddenNodesRef.current = [];
-      if (restoreFocusOnClose) {
-        const restoreTarget = previouslyFocusedRef.current;
-        if (restoreTarget && restoreTarget.isConnected) {
-          focusElement(restoreTarget);
-        }
+      const restoreTarget = previouslyFocusedRef.current;
+      if (restoreTarget && restoreTarget.isConnected) {
+        focusElement(restoreTarget);
       }
       previouslyFocusedRef.current = null;
     };
-  }, [open, panelRef, initialFocusRef, restoreFocusOnClose]);
+  }, [open, panelRef, initialFocusRef]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape') {

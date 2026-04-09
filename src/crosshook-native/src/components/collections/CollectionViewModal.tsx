@@ -59,7 +59,6 @@ export function CollectionViewModal({
   const descriptionId = useId();
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const portalHostRef = useRef<HTMLElement | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -188,7 +187,6 @@ export function CollectionViewModal({
     panelRef: surfaceRef,
     onClose,
     initialFocusRef: headingRef,
-    restoreFocusOnClose: true,
   });
 
   function handleBackdropMouseDown(event: MouseEvent<HTMLDivElement>) {
@@ -234,7 +232,6 @@ export function CollectionViewModal({
               Edit
             </button>
             <button
-              ref={closeButtonRef}
               type="button"
               className="crosshook-button crosshook-button--ghost crosshook-modal__close"
               data-crosshook-modal-close

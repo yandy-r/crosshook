@@ -108,7 +108,6 @@ export function BrowserDevPresetExplainerModal({
     panelRef,
     onClose: guardedOnClose,
     initialFocusRef: headingRef,
-    restoreFocusOnClose: true,
   });
 
   const handleContinue = useCallback(async () => {

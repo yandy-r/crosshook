@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { LibraryCardData } from '../../types/library';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
@@ -11,7 +11,7 @@ interface LibraryCardProps {
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
   isLaunching?: boolean;
-  onContextMenu?: (event: MouseEvent<HTMLDivElement>, profileName: string) => void;
+  onContextMenu?: (position: { x: number; y: number }, profileName: string) => void;
 }
 
 /** Keyboard shortcut to open context menu: Shift+F10 or the ContextMenu key. */
@@ -84,7 +84,7 @@ export function LibraryCard({
         onContextMenu
           ? (e) => {
               e.preventDefault();
-              onContextMenu(e, profile.name);
+              onContextMenu({ x: e.clientX, y: e.clientY }, profile.name);
             }
           : undefined
       }
@@ -97,7 +97,7 @@ export function LibraryCard({
                 const rect = cardRef.current?.getBoundingClientRect();
                 const x = rect ? rect.left + rect.width / 2 : 0;
                 const y = rect ? rect.top + rect.height / 2 : 0;
-                onContextMenu({ clientX: x, clientY: y, preventDefault: () => {} } as MouseEvent<HTMLDivElement>, profile.name);
+                onContextMenu({ x, y }, profile.name);
               }
             }
           : undefined

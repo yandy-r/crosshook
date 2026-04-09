@@ -42,7 +42,6 @@ export function CollectionImportReviewModal({
   const descriptionId = useId();
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const portalHostRef = useRef<HTMLElement | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -84,7 +83,6 @@ export function CollectionImportReviewModal({
     panelRef: surfaceRef,
     onClose: guardedOnClose,
     initialFocusRef: headingRef,
-    restoreFocusOnClose: true,
   });
 
   const ambiguousReady =
@@ -151,7 +149,6 @@ export function CollectionImportReviewModal({
             </p>
           </div>
           <button
-            ref={closeButtonRef}
             type="button"
             className="crosshook-button crosshook-button--ghost crosshook-modal__close"
             data-crosshook-modal-close

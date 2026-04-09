@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import type { AppRoute } from '../layout/Sidebar';
 import type { LibraryViewMode } from '../../types/library';
@@ -134,11 +134,11 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     [gameDetailsModal, selectProfile, summaries],
   );
 
-  const handleCardContextMenu = useCallback((event: MouseEvent<HTMLDivElement>, profileName: string) => {
+  const handleCardContextMenu = useCallback((position: { x: number; y: number }, profileName: string) => {
     setAssignMenuState({
       open: true,
       profileName,
-      anchorPosition: { x: event.clientX, y: event.clientY },
+      anchorPosition: position,
     });
   }, []);
 

@@ -16,11 +16,11 @@ Phase 5 ships the quality gate for Profile Collections: a shared `useFocusTrap` 
 
 **Validation status**:
 
-| Check | Result |
-|-------|--------|
-| `cargo test -p crosshook-core` | ✅ 776 pass + 1 new JTBD integration test pass |
-| `npx tsc --noEmit` | ✅ clean |
-| Playwright smoke | ⏸ not executed (needs dev server; PR body claims 13/13 green) |
+| Check                          | Result                                                        |
+| ------------------------------ | ------------------------------------------------------------- |
+| `cargo test -p crosshook-core` | ✅ 776 pass + 1 new JTBD integration test pass                |
+| `npx tsc --noEmit`             | ✅ clean                                                      |
+| Playwright smoke               | ⏸ not executed (needs dev server; PR body claims 13/13 green) |
 
 **Why REQUEST CHANGES**: One HIGH-severity correctness bug in `useFocusTrap` was independently found by all three parallel reviewers: `onClose` is listed in the `useEffect` dependency array but never read inside the effect body. Three of the four consumers pass a new inline-arrow `onClose` on every render, which causes the effect to tear down and re-execute — unlocking and re-locking body scroll, clearing and re-applying sibling `inert`, and firing a fresh focus jump via `requestAnimationFrame` — on **every parent re-render while the modal is open**. In `CollectionEditModal` this fires on every keystroke in the name/description inputs and on every toggle of the `busy` flag. For keyboard and screen-reader users this is a directly observable regression in the feature's primary authoring flow. The fix is a one-line removal from the dep array.
 
@@ -42,9 +42,11 @@ Additionally there are four MEDIUM CSS/bundle hygiene issues and eight LOW/NIT f
 **Description**: `onClose` appears in the `useEffect` dependency array at line 191 but is **not referenced** inside the effect body (lines 131–190) or its cleanup. It is only called inside `handleKeyDown`, which is a plain function defined outside the effect. Three of the four consumers pass an inline arrow as `onClose`:
 
 - `src/crosshook-native/src/components/collections/CollectionEditModal.tsx:51-53`
+
   ```ts
   onClose: () => { if (!busy) onClose(); },
   ```
+
 - `src/crosshook-native/src/components/collections/CollectionImportReviewModal.tsx:81`
 - `src/crosshook-native/src/components/collections/BrowserDevPresetExplainerModal.tsx:105`
 
@@ -63,7 +65,9 @@ If the linter complains, store `onClose` in a `useRef` and read it from `handleK
 
 ```ts
 const onCloseRef = useRef(onClose);
-useEffect(() => { onCloseRef.current = onClose; });
+useEffect(() => {
+  onCloseRef.current = onClose;
+});
 // then in handleKeyDown: onCloseRef.current();
 ```
 
@@ -331,7 +335,7 @@ Note: `CollectionImportReviewModal.css`'s `.crosshook-collection-import-review__
 - **Files**:
   - `src/crosshook-native/src/components/collections/CollectionViewModal.tsx:62`, attached at line 237
   - `src/crosshook-native/src/components/collections/CollectionImportReviewModal.tsx:45`, attached at line 150
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: Both files declare `closeButtonRef = useRef<HTMLButtonElement>(null)`, attach `ref={closeButtonRef}` to the Close button, but never read `closeButtonRef.current` anywhere. In the pre-refactor pattern, this served as a fallback initial focus target (`headingRef.current ?? closeButtonRef.current`). After adopting `useFocusTrap`, the hook handles fallback focus internally and the ref is orphaned. Not a bug — a refactor leftover.
 
@@ -344,15 +348,12 @@ Note: `CollectionImportReviewModal.css`'s `.crosshook-collection-import-review__
 - **Severity**: LOW
 - **Category**: Type Safety
 - **File**: `src/crosshook-native/src/components/library/LibraryCard.tsx:100`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**:
 
 ```ts
-onContextMenu(
-  { clientX: x, clientY: y, preventDefault: () => {} } as MouseEvent<HTMLDivElement>,
-  profile.name
-);
+onContextMenu({ clientX: x, clientY: y, preventDefault: () => {} } as MouseEvent<HTMLDivElement>, profile.name);
 ```
 
 The cast tells TypeScript this partial object is a full `MouseEvent`. Current consumers only read `clientX`/`clientY`, so it works today. Any future access to `event.target`, `event.button`, `event.currentTarget` will silently return `undefined` at runtime with no type error.
@@ -379,11 +380,12 @@ Small refactor in `LibraryGrid.tsx` / `LibraryPage.tsx` to match.
 - **Severity**: LOW
 - **Category**: Completeness (documentation)
 - **File**: PR #186 body
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: The PR body says `useFocusTrap` is adopted in "all 5 collection modals." Actual adoption: 4 (`CollectionViewModal`, `CollectionEditModal`, `CollectionImportReviewModal`, `BrowserDevPresetExplainerModal`). `CollectionAssignMenu` intentionally keeps its own implementation. This mis-documentation may cause a future reviewer to think the hook is universal and to "fix" the assign menu unnecessarily.
 
 **Suggested fix**: Update the PR body line:
+
 > Extract shared `useFocusTrap` hook from `GameDetailsModal` and adopt in **four of the five** collection modals. `CollectionAssignMenu` retains its popover-specific focus management (no body-lock, no sibling-inert, adds ArrowUp/Down roving).
 
 ---
@@ -393,7 +395,7 @@ Small refactor in `LibraryGrid.tsx` / `LibraryPage.tsx` to match.
 - **Severity**: LOW
 - **Category**: Completeness
 - **File**: `src/crosshook-native/crates/crosshook-core/tests/collections_jtbd_integration.rs:163`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: Step 12 simulates "fresh-store re-import" by manually calling `create_collection`, `observe_profile_write`, `add_profile_to_collection`, and `set_collection_defaults` on a new in-memory store. This tests the building blocks but does not exercise any higher-level "apply import" function — if such a function exists (e.g., `apply_imported_collection`), it is not covered. The step's comment overstates coverage as "applying" the import.
 
@@ -406,7 +408,7 @@ Small refactor in `LibraryGrid.tsx` / `LibraryPage.tsx` to match.
 - **Severity**: LOW
 - **Category**: Security / Bundle Hygiene
 - **File**: `src/crosshook-native/src/components/collections/BrowserDevPresetExplainerModal.tsx:115`
-- **Status**: Open
+- **Status**: Fixed (resolved by F005 — component tree-shaken via `__WEB_DEV_MODE__` gate)
 
 **Description**: The `console.error` surfaces exception details including potential path strings to the DevTools console. In a Tauri production build DevTools is restricted, so real-world impact is minimal. Combined with F005 (this component ships in production without dead-code elimination), the log statement is dead weight.
 
@@ -419,7 +421,7 @@ Small refactor in `LibraryGrid.tsx` / `LibraryPage.tsx` to match.
 - **Severity**: LOW
 - **Category**: Maintainability
 - **File**: `src/crosshook-native/src/hooks/useFocusTrap.ts:31-34`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: All four callers pass `restoreFocusOnClose: true` explicitly (default is also `true`). No caller ever passes `false`. The option is speculative configurability.
 
@@ -460,34 +462,34 @@ Small refactor in `LibraryGrid.tsx` / `LibraryPage.tsx` to match.
 
 ## Findings Summary
 
-| Severity | Count |
-|----------|-------|
-| CRITICAL | 0 |
-| HIGH     | 2 |
-| MEDIUM   | 10 |
-| LOW      | 6 |
-| NIT      | 2 |
-| **Total**| **20** |
+| Severity  | Count  |
+| --------- | ------ |
+| CRITICAL  | 0      |
+| HIGH      | 2      |
+| MEDIUM    | 10     |
+| LOW       | 6      |
+| NIT       | 2      |
+| **Total** | **20** |
 
 **Per-file heatmap**:
 
-| File | Findings |
-|------|---------:|
-| `src/hooks/useFocusTrap.ts` | F001, F018 |
-| `src/components/collections/CollectionAssignMenu.tsx` | F002, F006 |
-| `src/components/collections/CollectionEditModal.tsx` | F009 |
-| `src/components/collections/CollectionImportReviewModal.tsx` | F009, F013 |
-| `src/components/collections/CollectionViewModal.tsx` | F013 |
-| `src/components/collections/CollectionViewModal.css` | F011 |
-| `src/components/collections/BrowserDevPresetExplainerModal.tsx` | F009, F017 |
-| `src/components/collections/CollectionsSidebar.tsx` | F005, F020 |
-| `src/components/library/LibraryCard.tsx` | F014 |
-| `src/components/library/GameDetailsModal.tsx` | F010 |
-| `src/styles/theme.css` | F004, F008, F012 |
-| `src/styles/sidebar.css` | F007 |
-| `tests/collections.spec.ts` | F003 |
-| `crates/crosshook-core/tests/collections_jtbd_integration.rs` | F016, F019 |
-| PR body (docs) | F015 |
+| File                                                            |         Findings |
+| --------------------------------------------------------------- | ---------------: |
+| `src/hooks/useFocusTrap.ts`                                     |       F001, F018 |
+| `src/components/collections/CollectionAssignMenu.tsx`           |       F002, F006 |
+| `src/components/collections/CollectionEditModal.tsx`            |             F009 |
+| `src/components/collections/CollectionImportReviewModal.tsx`    |       F009, F013 |
+| `src/components/collections/CollectionViewModal.tsx`            |             F013 |
+| `src/components/collections/CollectionViewModal.css`            |             F011 |
+| `src/components/collections/BrowserDevPresetExplainerModal.tsx` |       F009, F017 |
+| `src/components/collections/CollectionsSidebar.tsx`             |       F005, F020 |
+| `src/components/library/LibraryCard.tsx`                        |             F014 |
+| `src/components/library/GameDetailsModal.tsx`                   |             F010 |
+| `src/styles/theme.css`                                          | F004, F008, F012 |
+| `src/styles/sidebar.css`                                        |             F007 |
+| `tests/collections.spec.ts`                                     |             F003 |
+| `crates/crosshook-core/tests/collections_jtbd_integration.rs`   |       F016, F019 |
+| PR body (docs)                                                  |             F015 |
 
 ---
 
