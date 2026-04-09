@@ -382,9 +382,10 @@ Browser dev mode mocks for `preview_launch` may return validation fixtures to ex
 - Mock `preview_launch` can return validation fixtures when `game_path` is empty or
   `__MOCK_VALIDATION_ERROR__` for browser dev mode
 
-### Phase 3 — Tier 3 Live Launch Animation — **in-progress**
+### Phase 3 — Tier 3 Live Launch Animation — **complete**
 
-- Plan: [`docs/prps/plans/launch-pipeline-phase3-live-launch-animation.plan.md`](../plans/launch-pipeline-phase3-live-launch-animation.plan.md)
+- Plan (archived): [`docs/prps/plans/completed/launch-pipeline-phase3-live-launch-animation.plan.md`](../plans/completed/launch-pipeline-phase3-live-launch-animation.plan.md)
+- Report: [`docs/prps/reports/launch-pipeline-phase3-live-launch-animation-report.md`](../reports/launch-pipeline-phase3-live-launch-animation-report.md)
 
 - Map `LaunchPhase` transitions to node `active`/`complete` states
 - CSS `@keyframes` pulse animation for active nodes

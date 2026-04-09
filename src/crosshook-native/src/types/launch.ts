@@ -170,6 +170,12 @@ export type PipelineNodeId =
 /** Status of a single pipeline node. */
 export type PipelineNodeStatus = 'configured' | 'not-configured' | 'error' | 'active' | 'complete';
 
+/**
+ * Live-launch presentation hint layered on top of `PipelineNodeStatus` (e.g. trainer handoff).
+ * Does not widen `PipelineNodeStatus` so labels and CSS stay centralized.
+ */
+export type PipelineNodeTone = 'waiting';
+
 /** A node in the launch pipeline visualization. */
 export interface PipelineNode {
   /** Stable identifier (e.g., 'game', 'wine-prefix', 'proton'). */
@@ -180,4 +186,6 @@ export interface PipelineNode {
   status: PipelineNodeStatus;
   /** Optional detail text (e.g., resolved path, error message). */
   detail?: string;
+  /** Optional live-launch tone (e.g. waiting-for-trainer) while `status` remains `active`. */
+  tone?: PipelineNodeTone;
 }

@@ -11,7 +11,11 @@ interface LibraryCardProps {
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
   isLaunching?: boolean;
-  onContextMenu?: (position: { x: number; y: number }, profileName: string) => void;
+  onContextMenu?: (
+    position: { x: number; y: number },
+    profileName: string,
+    restoreFocusTo: HTMLElement
+  ) => void;
 }
 
 /** Keyboard shortcut to open context menu: Shift+F10 or the ContextMenu key. */
@@ -84,7 +88,10 @@ export function LibraryCard({
         onContextMenu
           ? (e) => {
               e.preventDefault();
-              onContextMenu({ x: e.clientX, y: e.clientY }, profile.name);
+              const el = cardRef.current;
+              if (el) {
+                onContextMenu({ x: e.clientX, y: e.clientY }, profile.name, el);
+              }
             }
           : undefined
       }
@@ -97,7 +104,10 @@ export function LibraryCard({
                 const rect = cardRef.current?.getBoundingClientRect();
                 const x = rect ? rect.left + rect.width / 2 : 0;
                 const y = rect ? rect.top + rect.height / 2 : 0;
-                onContextMenu({ x, y }, profile.name);
+                const el = cardRef.current;
+                if (el) {
+                  onContextMenu({ x, y }, profile.name, el);
+                }
               }
             }
           : undefined

@@ -126,7 +126,26 @@
   color: var(--crosshook-color-text);
 }
 
-/* Status: complete */
+/* Active + waiting tone (trainer handoff) */
+.crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting'] .crosshook-launch-pipeline__node-indicator {
+  background: var(--crosshook-color-warning);
+  color: var(--crosshook-color-surface-strong);
+  animation: crosshook-pulse-waiting 2s ease-in-out infinite;
+}
+
+.crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting'] .crosshook-launch-pipeline__node-label {
+  color: var(--crosshook-color-warning);
+}
+
+.crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting']::after {
+  background: color-mix(
+    in srgb,
+    var(--crosshook-color-warning) 40%,
+    var(--crosshook-color-border-strong)
+  );
+}
+
+/* Status: complete (live session / finished steps) */
 .crosshook-launch-pipeline__node[data-status='complete'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-success);
   color: var(--crosshook-color-on-success);
@@ -136,10 +155,29 @@
   color: var(--crosshook-color-success);
 }
 
+.crosshook-launch-pipeline__node[data-status='complete']::after {
+  background: var(--crosshook-color-pipeline-connector-success);
+}
+
 /* Pulse animation for active status (Phases 2–3) */
 @keyframes crosshook-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
+}
+
+@keyframes crosshook-pulse-waiting {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-launch-pipeline__node[data-status='active'] .crosshook-launch-pipeline__node-indicator {
+    animation: none;
+  }
+
+  .crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting'] .crosshook-launch-pipeline__node-indicator {
+    animation: none;
+  }
 }
 
 /* --- Responsive: <= 1360px --- */
