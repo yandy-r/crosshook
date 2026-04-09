@@ -209,7 +209,6 @@ export function BrowserDevPresetExplainerModal({
       await onContinue();
     } catch (error) {
       console.error('BrowserDevPresetExplainerModal: onContinue failed', error);
-      throw error;
     } finally {
       setBusy(false);
     }
