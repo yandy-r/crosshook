@@ -1,16 +1,7 @@
 import { createPortal } from 'react-dom';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 
-import { getFocusableElements } from '@/lib/focus-utils';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 export type CollectionEditMode = 'create' | 'edit';
 
@@ -37,8 +28,9 @@ export function CollectionEditModal({
   externalError,
 }: CollectionEditModalProps) {
   const titleId = useId();
+  const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription ?? '');
   const [busy, setBusy] = useState(false);
@@ -53,81 +45,15 @@ export function CollectionEditModal({
     setLocalError(null);
   }, [open, initialName, initialDescription]);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-
-    const frame = window.requestAnimationFrame(() => {
-      const panel = panelRef.current;
-      if (!panel) {
-        return;
-      }
-      const focusable = getFocusableElements(panel);
-      if (focusable.length > 0) {
-        focusable[0].focus({ preventScroll: true });
-      }
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
-        restoreTarget.focus({ preventScroll: true });
-      }
-      previouslyFocusedRef.current = null;
-    };
-  }, [open]);
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.key === 'Escape') {
-        if (busy) {
-          event.stopPropagation();
-          event.preventDefault();
-          return;
-        }
-        event.stopPropagation();
-        event.preventDefault();
-        onClose();
-        return;
-      }
-
-      if (event.key !== 'Tab') {
-        return;
-      }
-
-      const panel = panelRef.current;
-      if (!panel) {
-        return;
-      }
-
-      const focusable = getFocusableElements(panel);
-      if (focusable.length === 0) {
-        event.preventDefault();
-        return;
-      }
-
-      const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
-      const lastIndex = focusable.length - 1;
-
-      if (event.shiftKey) {
-        if (currentIndex <= 0) {
-          event.preventDefault();
-          focusable[lastIndex].focus({ preventScroll: true });
-        }
-        return;
-      }
-
-      if (currentIndex === -1 || currentIndex === lastIndex) {
-        event.preventDefault();
-        focusable[0].focus({ preventScroll: true });
-      }
+  const { handleKeyDown } = useFocusTrap({
+    open,
+    panelRef,
+    onClose: () => {
+      if (!busy) onClose();
     },
-    [busy, onClose]
-  );
+    initialFocusRef: headingRef,
+    restoreFocusOnClose: true,
+  });
 
   const handleSubmit = useCallback(
     async (event: FormEvent) => {
@@ -180,12 +106,13 @@ export function CollectionEditModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={descriptionId}
         data-crosshook-focus-root="modal"
         onKeyDown={handleKeyDown}
       >
         <header className="crosshook-modal__header">
           <div className="crosshook-modal__heading-block">
-            <h2 id={titleId} className="crosshook-modal__title">
+            <h2 ref={headingRef} id={titleId} className="crosshook-modal__title" tabIndex={-1}>
               {title}
             </h2>
           </div>
@@ -202,6 +129,9 @@ export function CollectionEditModal({
           </div>
         </header>
         <form className="crosshook-modal__body" onSubmit={(e) => void handleSubmit(e)}>
+          <p id={descriptionId} className="crosshook-muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+            {mode === 'create' ? 'Enter a name for your new collection.' : 'Update the collection details.'}
+          </p>
           <div className="crosshook-collection-edit-modal__fields">
             <label className="crosshook-label" htmlFor={`${titleId}-name`}>
               Name

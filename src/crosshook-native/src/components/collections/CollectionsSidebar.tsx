@@ -121,30 +121,34 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
 
   return (
     <>
-      <div className="crosshook-sidebar__section crosshook-collections-sidebar">
-        <div className="crosshook-sidebar__section-label">Collections</div>
+      <nav className="crosshook-sidebar__section crosshook-collections-sidebar" aria-label="Collections">
+        <h2 className="crosshook-sidebar__section-label">Collections</h2>
         {collections.length > 0 ? (
-          <div className="crosshook-sidebar__section-items crosshook-collections-sidebar__list" role="list">
+          <ul className="crosshook-sidebar__section-items crosshook-collections-sidebar__list">
             {collections.map((c) => (
-              <button
-                key={c.collection_id}
-                type="button"
-                role="listitem"
-                className="crosshook-sidebar__item crosshook-collections-sidebar__item"
-                onClick={() => handleClickCollection(c.collection_id)}
-                title={c.name}
-              >
-                <span className="crosshook-collections-sidebar__item-name">{c.name}</span>
-                <span
-                  className="crosshook-collections-sidebar__item-count"
-                  aria-label={`${c.profile_count} profiles`}
+              <li key={c.collection_id}>
+                <button
+                  type="button"
+                  className="crosshook-sidebar__item crosshook-collections-sidebar__item"
+                  onClick={() => handleClickCollection(c.collection_id)}
+                  title={c.name}
                 >
-                  {c.profile_count}
-                </span>
-              </button>
+                  <span className="crosshook-collections-sidebar__item-name">{c.name}</span>
+                  <span
+                    className="crosshook-collections-sidebar__item-count"
+                    aria-label={`${c.profile_count} profiles`}
+                  >
+                    {c.profile_count}
+                  </span>
+                </button>
+              </li>
             ))}
-          </div>
-        ) : null}
+          </ul>
+        ) : (
+          <p className="crosshook-collections-sidebar__empty-copy">
+            No collections yet. Create one or import a preset to group your profiles.
+          </p>
+        )}
 
         <button
           type="button"
@@ -171,19 +175,12 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
           <span className="crosshook-sidebar__item-label">Import Preset</span>
         </button>
 
-        {/*
-          Error precedence: the three sources are mutually exclusive in practice
-          (a user can only trigger one action at a time — create, import, or a
-          background list refresh), so we render whichever is non-null. Session
-          errors take priority over the global `error` so the most recent user
-          action surfaces first.
-        */}
         {(createSessionError ?? importSessionError ?? error) !== null && (
           <p className="crosshook-collections-sidebar__error" role="alert">
             {createSessionError ?? importSessionError ?? error}
           </p>
         )}
-      </div>
+      </nav>
 
       <CollectionEditModal
         open={createOpen}

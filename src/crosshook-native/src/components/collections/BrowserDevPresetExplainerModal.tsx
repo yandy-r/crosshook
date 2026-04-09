@@ -5,11 +5,10 @@ import {
   useId,
   useRef,
   useState,
-  type KeyboardEvent,
   type MouseEvent,
 } from 'react';
 
-import { getFocusableElements } from '@/lib/focus-utils';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 import './BrowserDevPresetExplainerModal.css';
 
@@ -75,11 +74,10 @@ export function BrowserDevPresetExplainerModal({
   onContinue,
 }: BrowserDevPresetExplainerModalProps) {
   const titleId = useId();
+  const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const portalHostRef = useRef<HTMLElement | null>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
-  const bodyStyleRef = useRef('');
-  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const [isMounted, setIsMounted] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -101,107 +99,13 @@ export function BrowserDevPresetExplainerModal({
     };
   }, []);
 
-  useEffect(() => {
-    if (!open || typeof document === 'undefined' || !portalHostRef.current) {
-      return;
-    }
-
-    const { body } = document;
-    const portalHost = portalHostRef.current;
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    bodyStyleRef.current = body.style.overflow;
-    body.style.overflow = 'hidden';
-    body.classList.add('crosshook-modal-open');
-
-    hiddenNodesRef.current = Array.from(body.children)
-      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
-      .map((element) => {
-        const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
-        const ariaHidden = element.getAttribute('aria-hidden');
-        (element as HTMLElement & { inert?: boolean }).inert = true;
-        element.setAttribute('aria-hidden', 'true');
-        return { element, inert: inertState, ariaHidden };
-      });
-
-    const frame = window.requestAnimationFrame(() => {
-      const panel = panelRef.current;
-      if (!panel) {
-        return;
-      }
-      const focusable = getFocusableElements(panel);
-      if (focusable.length > 0) {
-        focusable[0].focus({ preventScroll: true });
-      }
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      body.style.overflow = bodyStyleRef.current;
-      body.classList.remove('crosshook-modal-open');
-      for (const { element, inert, ariaHidden } of hiddenNodesRef.current) {
-        (element as HTMLElement & { inert?: boolean }).inert = inert;
-        if (ariaHidden === null) {
-          element.removeAttribute('aria-hidden');
-        } else {
-          element.setAttribute('aria-hidden', ariaHidden);
-        }
-      }
-      hiddenNodesRef.current = [];
-      const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
-        restoreTarget.focus({ preventScroll: true });
-      }
-      previouslyFocusedRef.current = null;
-    };
-  }, [open]);
-
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.key === 'Escape') {
-        if (busy) {
-          event.stopPropagation();
-          event.preventDefault();
-          return;
-        }
-        event.stopPropagation();
-        event.preventDefault();
-        onClose();
-        return;
-      }
-
-      if (event.key !== 'Tab') {
-        return;
-      }
-
-      const panel = panelRef.current;
-      if (!panel) {
-        return;
-      }
-
-      const focusable = getFocusableElements(panel);
-      if (focusable.length === 0) {
-        event.preventDefault();
-        return;
-      }
-
-      const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
-      const lastIndex = focusable.length - 1;
-
-      if (event.shiftKey) {
-        if (currentIndex <= 0) {
-          event.preventDefault();
-          focusable[lastIndex].focus({ preventScroll: true });
-        }
-        return;
-      }
-
-      if (currentIndex === -1 || currentIndex === lastIndex) {
-        event.preventDefault();
-        focusable[0].focus({ preventScroll: true });
-      }
-    },
-    [busy, onClose]
-  );
+  const { handleKeyDown } = useFocusTrap({
+    open,
+    panelRef,
+    onClose: () => { if (!busy) onClose(); },
+    initialFocusRef: headingRef,
+    restoreFocusOnClose: true,
+  });
 
   const handleContinue = useCallback(async () => {
     setBusy(true);
@@ -238,12 +142,13 @@ export function BrowserDevPresetExplainerModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={descriptionId}
         data-crosshook-focus-root="modal"
         onKeyDown={handleKeyDown}
       >
         <header className="crosshook-modal__header">
           <div className="crosshook-modal__heading-block">
-            <h2 id={titleId} className="crosshook-modal__title">
+            <h2 ref={headingRef} id={titleId} className="crosshook-modal__title" tabIndex={-1}>
               {title}
             </h2>
           </div>
@@ -259,7 +164,7 @@ export function BrowserDevPresetExplainerModal({
             </button>
           </div>
         </header>
-        <div className="crosshook-browser-dev-preset-explainer__body">
+        <div id={descriptionId} className="crosshook-browser-dev-preset-explainer__body">
           {paragraphs.map((p, i) => (
             <div key={i}>{renderParagraph(p)}</div>
           ))}

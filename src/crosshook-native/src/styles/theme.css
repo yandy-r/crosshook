@@ -5845,6 +5845,9 @@ textarea {
   max-height: 320px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .crosshook-collections-sidebar__item {
@@ -5901,6 +5904,14 @@ textarea {
   color: var(--crosshook-color-danger);
   font-size: 0.75rem;
   padding: 4px 12px;
+}
+
+.crosshook-collections-sidebar__empty-copy {
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  margin: 0;
+  line-height: 1.5;
 }
 
 .crosshook-launch-collection-filter {
@@ -5984,6 +5995,24 @@ textarea {
 
 .crosshook-collection-assign-menu__create:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+/* Phase 5: focus-visible rings for sidebar + assign menu surfaces */
+
+.crosshook-collections-sidebar__item:focus-visible,
+.crosshook-collections-sidebar__cta:focus-visible {
+  outline: 0;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.06),
+    0 0 0 4px var(--crosshook-color-accent-soft);
+}
+
+.crosshook-collection-assign-menu__option:focus-visible,
+.crosshook-collection-assign-menu__create:focus-visible {
+  outline: 0;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.06),
+    0 0 0 4px var(--crosshook-color-accent-soft);
 }
 
 .crosshook-collection-assign-menu__empty {
