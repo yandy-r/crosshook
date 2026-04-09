@@ -1,0 +1,244 @@
+/* Launch pipeline stepper (Tier 1 config status). Imported by LaunchPipeline.tsx */
+
+.crosshook-launch-pipeline {
+  width: 100%;
+}
+
+.crosshook-launch-pipeline__steps {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crosshook-launch-pipeline__node {
+  position: relative;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-width: 0;
+  transition: opacity var(--crosshook-transition-fast);
+}
+
+.crosshook-launch-pipeline__node::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: calc(50% + 18px);
+  right: calc(-50% + 18px);
+  height: 2px;
+  background: var(--crosshook-color-border-strong);
+  transition:
+    background var(--crosshook-transition-fast),
+    opacity var(--crosshook-transition-fast);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.crosshook-launch-pipeline__node:last-child::after {
+  display: none;
+}
+
+.crosshook-launch-pipeline__node-indicator {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--crosshook-radius-sm);
+  font-size: 0.85rem;
+  line-height: 1;
+  flex-shrink: 0;
+  transition:
+    background var(--crosshook-transition-fast),
+    color var(--crosshook-transition-fast);
+}
+
+.crosshook-launch-pipeline__node-label {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--crosshook-color-text);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crosshook-launch-pipeline__node-status {
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  color: var(--crosshook-color-text-muted);
+}
+
+/* Status: configured */
+.crosshook-launch-pipeline__node[data-status='configured'] .crosshook-launch-pipeline__node-indicator {
+  background: var(--crosshook-color-success);
+  color: #fff;
+}
+
+.crosshook-launch-pipeline__node[data-status='configured'] .crosshook-launch-pipeline__node-label {
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-launch-pipeline__node[data-status='configured']::after {
+  background: color-mix(in srgb, var(--crosshook-color-success) 35%, var(--crosshook-color-border-strong));
+}
+
+/* Status: not-configured */
+.crosshook-launch-pipeline__node[data-status='not-configured'] .crosshook-launch-pipeline__node-indicator {
+  background: rgba(224, 224, 224, 0.15);
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-launch-pipeline__node[data-status='not-configured'] .crosshook-launch-pipeline__node-label {
+  color: var(--crosshook-color-text-muted);
+}
+
+/* Status: error */
+.crosshook-launch-pipeline__node[data-status='error'] .crosshook-launch-pipeline__node-indicator {
+  background: var(--crosshook-color-danger);
+  color: #fff;
+}
+
+.crosshook-launch-pipeline__node[data-status='error'] .crosshook-launch-pipeline__node-label {
+  color: var(--crosshook-color-danger);
+}
+
+/* Status: active (Phases 2–3) */
+.crosshook-launch-pipeline__node[data-status='active'] .crosshook-launch-pipeline__node-indicator {
+  background: var(--crosshook-color-accent-strong);
+  color: #fff;
+  animation: crosshook-pulse 2s ease-in-out infinite;
+}
+
+.crosshook-launch-pipeline__node[data-status='active'] .crosshook-launch-pipeline__node-label {
+  color: var(--crosshook-color-text);
+}
+
+/* Status: complete */
+.crosshook-launch-pipeline__node[data-status='complete'] .crosshook-launch-pipeline__node-indicator {
+  background: var(--crosshook-color-success);
+  color: #fff;
+}
+
+.crosshook-launch-pipeline__node[data-status='complete'] .crosshook-launch-pipeline__node-label {
+  color: var(--crosshook-color-success);
+}
+
+/* --- Responsive: <= 1360px --- */
+@media (max-width: 1360px) {
+  .crosshook-launch-pipeline__node-indicator {
+    width: 24px;
+    height: 24px;
+    font-size: 0.75rem;
+  }
+
+  .crosshook-launch-pipeline__node::after {
+    top: 12px;
+    left: calc(50% + 15px);
+    right: calc(-50% + 15px);
+  }
+
+  .crosshook-launch-pipeline__node-label {
+    font-size: 0.75rem;
+  }
+
+  .crosshook-launch-pipeline__node-status {
+    font-size: 0.65rem;
+  }
+}
+
+/* --- Steam Deck height --- */
+@media (max-height: 820px) {
+  .crosshook-launch-pipeline__steps {
+    gap: 0;
+  }
+
+  .crosshook-launch-pipeline__node-label {
+    margin-top: 0.25rem;
+  }
+
+  .crosshook-launch-pipeline__node-indicator {
+    width: 24px;
+    height: 24px;
+  }
+
+  .crosshook-launch-pipeline__node::after {
+    top: 12px;
+  }
+}
+
+/* --- Compact: <= 900px --- */
+@media (max-width: 900px) {
+  .crosshook-launch-pipeline__node-status {
+    display: none;
+  }
+
+  .crosshook-launch-pipeline__node-label {
+    font-size: 0.7rem;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .crosshook-launch-pipeline__node-indicator {
+    width: 22px;
+    height: 22px;
+    font-size: 0.65rem;
+  }
+
+  .crosshook-launch-pipeline__node::after {
+    top: 11px;
+    left: calc(50% + 14px);
+    right: calc(-50% + 14px);
+  }
+}
+
+/* --- Vertical fallback: <= 640px --- */
+@media (max-width: 640px) {
+  .crosshook-launch-pipeline__steps {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .crosshook-launch-pipeline__node {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .crosshook-launch-pipeline__node::after {
+    display: none;
+  }
+
+  .crosshook-launch-pipeline__node-label {
+    margin-top: 0;
+    margin-left: 0.5rem;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    -webkit-line-clamp: unset;
+    display: block;
+  }
+
+  .crosshook-launch-pipeline__node-status {
+    display: block;
+    margin-top: 0;
+    margin-left: 0.5rem;
+    flex: 0 0 auto;
+  }
+}

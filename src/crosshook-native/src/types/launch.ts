@@ -155,3 +155,18 @@ export interface LaunchPreview {
   generated_at: string;
   display_text: string;
 }
+
+/** Status of a single pipeline node. */
+export type PipelineNodeStatus = 'configured' | 'not-configured' | 'error' | 'active' | 'complete';
+
+/** A node in the launch pipeline visualization. */
+export interface PipelineNode {
+  /** Stable identifier (e.g., 'game', 'wine-prefix', 'proton'). */
+  id: string;
+  /** Display label (e.g., 'Game', 'Wine Prefix'). */
+  label: string;
+  /** Current status for visual rendering. */
+  status: PipelineNodeStatus;
+  /** Optional detail text (e.g., resolved path, error message). */
+  detail?: string;
+}
