@@ -285,15 +285,21 @@ function useCollectionsState(): UseCollectionsResult {
         return { ok: true };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        let rollbackFailure: string | null = null;
         if (createdId !== null) {
           try {
             await callCommand('collection_delete', { collectionId: createdId });
           } catch (rollbackErr) {
+            rollbackFailure = rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr);
             console.error('collection import rollback failed', rollbackErr);
           }
         }
         await refresh();
-        return { ok: false, error: message };
+        const combined =
+          rollbackFailure !== null
+            ? `${message} (rollback also failed: ${rollbackFailure}; a partial collection may remain and require manual cleanup)`
+            : message;
+        return { ok: false, error: combined };
       }
     },
     [collections, refresh]

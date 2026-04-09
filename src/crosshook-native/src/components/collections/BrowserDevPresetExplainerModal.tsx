@@ -66,32 +66,46 @@ export function BrowserDevPresetExplainerModal({
   onContinue,
 }: BrowserDevPresetExplainerModalProps) {
   const titleId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const portalHostRef = useRef<HTMLElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const bodyStyleRef = useRef('');
   const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
+  const [isMounted, setIsMounted] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const { title, paragraphs, continueLabel } = COPY[mode];
 
   useEffect(() => {
-    if (!open || typeof document === 'undefined') {
+    if (typeof document === 'undefined') {
       return;
     }
+    const host = document.createElement('div');
+    host.className = 'crosshook-modal-portal';
+    portalHostRef.current = host;
+    document.body.appendChild(host);
+    setIsMounted(true);
+    return () => {
+      host.remove();
+      portalHostRef.current = null;
+      setIsMounted(false);
+    };
+  }, []);
 
-    const root = rootRef.current;
-    if (!root) {
+  useEffect(() => {
+    if (!open || typeof document === 'undefined' || !portalHostRef.current) {
       return;
     }
 
     const { body } = document;
+    const portalHost = portalHostRef.current;
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     bodyStyleRef.current = body.style.overflow;
     body.style.overflow = 'hidden';
+    body.classList.add('crosshook-modal-open');
 
     hiddenNodesRef.current = Array.from(body.children)
-      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== root)
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
       .map((element) => {
         const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
         const ariaHidden = element.getAttribute('aria-hidden');
@@ -114,6 +128,7 @@ export function BrowserDevPresetExplainerModal({
     return () => {
       window.cancelAnimationFrame(frame);
       body.style.overflow = bodyStyleRef.current;
+      body.classList.remove('crosshook-modal-open');
       for (const { element, inert, ariaHidden } of hiddenNodesRef.current) {
         (element as HTMLElement & { inert?: boolean }).inert = inert;
         if (ariaHidden === null) {
@@ -188,13 +203,12 @@ export function BrowserDevPresetExplainerModal({
     }
   }, [onContinue]);
 
-  if (!open) {
+  if (!open || !isMounted || !portalHostRef.current) {
     return null;
   }
 
   const node = (
     <div
-      ref={rootRef}
       className="crosshook-modal crosshook-browser-dev-preset-explainer"
       role="presentation"
     >
@@ -258,5 +272,5 @@ export function BrowserDevPresetExplainerModal({
     </div>
   );
 
-  return createPortal(node, document.body);
+  return createPortal(node, portalHostRef.current);
 }

@@ -92,7 +92,7 @@
   --crosshook-modal-width: 440px;
   --crosshook-modal-max-height: 560px;
   --crosshook-modal-offset: 32px;
-  --crosshook-gap: 12px;
+  --crosshook-modal-body-gap: 12px;
   --crosshook-modal-body-padding-inline: 20px;
   --crosshook-transition-fast: 140ms;
   --crosshook-transition-standard: 220ms;

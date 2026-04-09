@@ -13,7 +13,7 @@
 .crosshook-browser-dev-preset-explainer__body {
   display: flex;
   flex-direction: column;
-  gap: var(--crosshook-gap);
+  gap: var(--crosshook-modal-body-gap);
   padding: 0 var(--crosshook-modal-body-padding-inline) 4px;
   font-size: 0.92rem;
   line-height: 1.55;
