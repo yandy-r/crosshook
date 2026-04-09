@@ -1,5 +1,4 @@
 .crosshook-collection-modal__body {
-  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 16px;

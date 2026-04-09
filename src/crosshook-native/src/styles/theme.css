@@ -5836,7 +5836,7 @@ textarea {
   justify-content: flex-end;
 }
 
-/* Profile collections (Phase 2) */
+/* Profile collections */
 
 .crosshook-collections-sidebar__list {
   display: flex;
@@ -5997,21 +5997,21 @@ textarea {
   background: rgba(255, 255, 255, 0.05);
 }
 
-/* Phase 5: focus-visible rings for sidebar + assign menu surfaces */
+/* Profile collections sidebar + assign menu focus rings */
 
 .crosshook-collections-sidebar__item:focus-visible,
 .crosshook-collections-sidebar__cta:focus-visible {
   outline: 0;
   box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.06),
+    0 0 0 2px var(--crosshook-focus-ring-inner),
     0 0 0 4px var(--crosshook-color-accent-soft);
 }
 
-.crosshook-collection-assign-menu__option:focus-visible,
+.crosshook-collection-assign-menu__option:focus-within,
 .crosshook-collection-assign-menu__create:focus-visible {
   outline: 0;
   box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.06),
+    0 0 0 2px var(--crosshook-focus-ring-inner),
     0 0 0 4px var(--crosshook-color-accent-soft);
 }
 

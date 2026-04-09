@@ -5,6 +5,14 @@ import type { CSSProperties, KeyboardEvent } from 'react';
 import { useCollections } from '@/hooks/useCollections';
 import { getFocusableElements } from '@/lib/focus-utils';
 
+/**
+ * CollectionAssignMenu intentionally manages its own focus trap instead of
+ * adopting useFocusTrap from src/hooks/useFocusTrap.ts. Reasons:
+ * - Popover context: body-lock and sibling `inert` are inappropriate
+ * - ArrowUp/ArrowDown roving navigation over the checkbox list is unique to this component
+ * See useFocusTrap for the shared modal focus-trap implementation.
+ */
+
 export interface CollectionAssignMenuProps {
   open: boolean;
   profileName: string | null;
@@ -35,14 +43,17 @@ export function CollectionAssignMenu({
   }, [open]);
 
   useLayoutEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
+    let frame = 0;
     function onResize() {
-      setViewportTick((t) => t + 1);
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setViewportTick((t) => t + 1));
     }
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', onResize);
+    };
   }, [open]);
 
   useEffect(() => {

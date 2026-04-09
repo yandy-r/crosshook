@@ -75,10 +75,14 @@ export function CollectionImportReviewModal({
     };
   }, []);
 
+  const guardedOnClose = useCallback(() => {
+    if (!applying) onClose();
+  }, [applying, onClose]);
+
   const { handleKeyDown } = useFocusTrap({
     open: open && preview !== null,
     panelRef: surfaceRef,
-    onClose: () => { if (!applying) onClose(); },
+    onClose: guardedOnClose,
     initialFocusRef: headingRef,
     restoreFocusOnClose: true,
   });

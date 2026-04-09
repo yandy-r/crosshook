@@ -153,12 +153,11 @@ test.describe('collections smoke', () => {
     await expect(continueBtn).toBeVisible();
     await continueBtn.click();
 
-    const importReview = page.getByRole('dialog', { name: /import collection preset/i });
-    await expect(importReview).toBeVisible({ timeout: 10_000 });
+    const reviewDialog = page.getByRole('dialog', { name: /import collection preset/i });
+    await expect(reviewDialog).toBeVisible({ timeout: 5_000 });
 
     await page.keyboard.press('Escape');
-
-    await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
+    await expect(reviewDialog).not.toBeVisible({ timeout: 5_000 });
 
     expect(
       capture.errors,

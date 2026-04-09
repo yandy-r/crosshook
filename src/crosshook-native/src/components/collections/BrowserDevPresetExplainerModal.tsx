@@ -99,10 +99,14 @@ export function BrowserDevPresetExplainerModal({
     };
   }, []);
 
+  const guardedOnClose = useCallback(() => {
+    if (!busy) onClose();
+  }, [busy, onClose]);
+
   const { handleKeyDown } = useFocusTrap({
     open,
     panelRef,
-    onClose: () => { if (!busy) onClose(); },
+    onClose: guardedOnClose,
     initialFocusRef: headingRef,
     restoreFocusOnClose: true,
   });

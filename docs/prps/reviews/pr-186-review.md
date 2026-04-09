@@ -37,7 +37,7 @@ Additionally there are four MEDIUM CSS/bundle hygiene issues and eight LOW/NIT f
 - **Severity**: HIGH
 - **Category**: Correctness / Performance / Maintainability (3× reviewer consensus)
 - **File**: `src/crosshook-native/src/hooks/useFocusTrap.ts:191`
-- **Status**: Open
+- **Status**: Fixed (stale — dep array already correct before fix run)
 
 **Description**: `onClose` appears in the `useEffect` dependency array at line 191 but is **not referenced** inside the effect body (lines 131–190) or its cleanup. It is only called inside `handleKeyDown`, which is a plain function defined outside the effect. Three of the four consumers pass an inline arrow as `onClose`:
 
@@ -82,7 +82,7 @@ const guardedOnClose = useCallback(() => {
 - **Severity**: HIGH
 - **Category**: Maintainability
 - **File**: `src/crosshook-native/src/components/collections/CollectionAssignMenu.tsx:29-150`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: The PR body states `useFocusTrap` is adopted in "all 5 collection modals." In practice, four modals adopt the hook. `CollectionAssignMenu` has its own bespoke focus-management implementation: it manually saves/restores focus (lines 64–86), manually traps Tab (lines 111–132), handles ArrowUp/ArrowDown roving navigation (lines 135–149), and handles Escape (lines 104–109). The correctness-reviewer verified this implementation is functionally correct for a popover, and the divergence from a full-screen modal is defensible (no body-lock, no sibling `inert`). However:
 
@@ -104,7 +104,7 @@ Also correct the PR body: "adopted in **4 of the 5 collection modals** — `Coll
 - **Severity**: MEDIUM
 - **Category**: Correctness / Test Quality (3× reviewer consensus)
 - **File**: `src/crosshook-native/tests/collections.spec.ts:150-157`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: After clicking "Continue" in the `BrowserDevPresetExplainerModal`, the test sleeps for 1 second, then presses Escape and `.catch(() => {})` swallows any error. Consequences:
 
@@ -129,7 +129,7 @@ await expect(reviewDialog).not.toBeVisible({ timeout: 5_000 });
 - **Severity**: MEDIUM
 - **Category**: Correctness (a11y)
 - **File**: `src/crosshook-native/src/styles/theme.css:6010-6012`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: The new focus ring targets `.crosshook-collection-assign-menu__option:focus-visible`. That class is on a `<label>` (CollectionAssignMenu.tsx:215). The actual focusable element is the `<input type="checkbox">` nested inside. `:focus-visible` on the `<label>` only fires when the label itself receives focus (which it never does in keyboard navigation). The intended visual ring around the entire label row will **not** render when the user Tabs to a checkbox.
 
@@ -152,7 +152,7 @@ await expect(reviewDialog).not.toBeVisible({ timeout: 5_000 });
 - **Severity**: MEDIUM
 - **Category**: Security / Bundle Hygiene
 - **File**: `src/crosshook-native/src/components/collections/CollectionsSidebar.tsx:61`, `CollectionViewModal.tsx:93`, `src/components/collections/BrowserDevPresetExplainerModal.tsx`, `src/constants/browserDevPresetPaths.ts`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: The `isBrowserDevUi()` runtime guard is evaluated at runtime via `typeof window !== 'undefined' && !isTauri()`, not via the compile-time `__WEB_DEV_MODE__` constant. Vite cannot tree-shake branches on this check, so `BrowserDevPresetExplainerModal` and the `BROWSER_DEV_IMPORT_PRESET_PATH` / `BROWSER_DEV_EXPORT_PRESET_PATH` strings (`browser://mock-import.crosshook-collection.toml`) are included in the production AppImage.
 
@@ -177,7 +177,7 @@ Also consider adding `BrowserDevPresetExplainerModal` or `browser://mock-` to th
 - **Severity**: MEDIUM
 - **Category**: Performance
 - **File**: `src/crosshook-native/src/components/collections/CollectionAssignMenu.tsx:37-46`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: `onResize` calls `setViewportTick((t) => t + 1)` on every `resize` event with no rAF gate or debounce. Each event triggers a full re-render of the popover and its children. The only reason the state bump exists is to recalculate `Math.min(anchorPosition.x, window.innerWidth - 280)` — that only matters at the viewport edge.
 
@@ -206,7 +206,7 @@ useLayoutEffect(() => {
 - **Severity**: MEDIUM
 - **Category**: Pattern Compliance (CSS / visual regression)
 - **File**: `src/crosshook-native/src/styles/sidebar.css:81` (or wherever `.crosshook-sidebar__section-label` lives)
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: `CollectionsSidebar` was correctly upgraded from `<div>` to `<h2>`. The CSS rule for `.crosshook-sidebar__section-label` overrides `font-size`, `font-weight`, `letter-spacing`, `text-transform`, `padding`, and `margin-bottom` — but does **not** set `margin-top: 0`. There is no global heading reset. A browser-default `<h2>` carries ≈`0.83em` top margin, which will visually inflate the space above the "Collections" label in both WebKitGTK (Tauri target) and Chromium (dev).
 
@@ -227,7 +227,7 @@ useLayoutEffect(() => {
 - **Severity**: MEDIUM
 - **Category**: Pattern Compliance (CSS conventions)
 - **File**: `src/crosshook-native/src/styles/theme.css:6004-6015`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: The two new `focus-visible` blocks (sidebar item, assign menu) use a raw `rgba(255, 255, 255, 0.06)` as an inner glow color. The existing focus-visible pattern at `theme.css:919-922` uses only `var(--crosshook-color-accent-soft)` / `var(--crosshook-color-accent-strong)` — no raw rgba. The new value is not declared in `variables.css`, so a future theme change cannot update it centrally.
 
@@ -250,7 +250,7 @@ Then reference it in `theme.css`.
   - `src/crosshook-native/src/components/collections/CollectionEditModal.tsx:51-53`
   - `src/crosshook-native/src/components/collections/CollectionImportReviewModal.tsx:81-83`
   - `src/crosshook-native/src/components/collections/BrowserDevPresetExplainerModal.tsx:105`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: Even if F001 is fixed (removing `onClose` from the dep array), the three callers still create a fresh inline function on every render. `handleKeyDown` closes over that reference and reads stale `busy` on each re-render. Stabilizing with `useCallback` removes the unnecessary re-render pressure and produces a stable closure.
 
@@ -277,7 +277,7 @@ const { handleKeyDown } = useFocusTrap({
 - **Severity**: MEDIUM
 - **Category**: Maintainability
 - **File**: `src/crosshook-native/src/components/library/GameDetailsModal.tsx:27-41` vs `src/crosshook-native/src/lib/focus-utils.ts`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: The PR body explicitly notes `GameDetailsModal` was **not** migrated to `useFocusTrap` to avoid risk. Consequently there are now two copies of `FOCUSABLE_SELECTOR` + focus-walking logic in the codebase. These are currently identical but will diverge as soon as someone adds a focusable-element pattern (e.g., `[contenteditable]`) to the shared util without updating `GameDetailsModal`, or vice versa. There is no lint rule, test, or comment to prevent this.
 
@@ -297,7 +297,7 @@ Ideally file a tracking issue and link it.
 - **Severity**: MEDIUM
 - **Category**: Pattern Compliance (CSS / scroll rule)
 - **File**: `src/crosshook-native/src/components/collections/CollectionViewModal.css:2` (`.crosshook-collection-modal__body`)
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: `overscroll-behavior: contain` only takes effect on elements that are themselves scroll containers (`overflow-y: auto` or similar). `.crosshook-collection-modal__body` is a nested element inside `.crosshook-modal__body` which already handles scrolling and is correctly listed in the `SCROLLABLE` selector in `useScrollEnhance.ts`. The new property on the inner element is inert and will confuse future maintainers into thinking the nested element is a scroll container that needs registration.
 
@@ -312,7 +312,7 @@ Note: `CollectionImportReviewModal.css`'s `.crosshook-collection-import-review__
 - **Severity**: MEDIUM
 - **Category**: Pattern Compliance
 - **File**: `src/crosshook-native/src/styles/theme.css:5839, 6000`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: The CSS contains `/* Profile collections (Phase 2) */` and `/* Phase 5: focus-visible rings for sidebar + assign menu surfaces */`. The CLAUDE.md policy uses the `docs(internal):` prefix to keep phase vocabulary out of user-facing artifacts; production CSS should follow the same spirit. "Phase 5" has no meaning six months from now.
 

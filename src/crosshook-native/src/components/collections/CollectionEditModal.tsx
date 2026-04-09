@@ -45,12 +45,14 @@ export function CollectionEditModal({
     setLocalError(null);
   }, [open, initialName, initialDescription]);
 
+  const guardedOnClose = useCallback(() => {
+    if (!busy) onClose();
+  }, [busy, onClose]);
+
   const { handleKeyDown } = useFocusTrap({
     open,
     panelRef,
-    onClose: () => {
-      if (!busy) onClose();
-    },
+    onClose: guardedOnClose,
     initialFocusRef: headingRef,
     restoreFocusOnClose: true,
   });

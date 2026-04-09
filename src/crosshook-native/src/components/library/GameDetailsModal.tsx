@@ -24,6 +24,9 @@ import { GameDetailsMetadataSection } from './GameDetailsMetadataSection';
 
 import './GameDetailsModal.css';
 
+// TODO: migrate to useFocusTrap from src/hooks/useFocusTrap.ts.
+//       This file intentionally keeps a private focus-trap copy to avoid risk in PR #186.
+//       See lib/focus-utils.ts for the shared FOCUSABLE_SELECTOR.
 const FOCUSABLE_SELECTOR = [
   'a[href]',
   'button:not([disabled])',

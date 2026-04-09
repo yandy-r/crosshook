@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react';
 
 import { BROWSER_DEV_IMPORT_PRESET_PATH } from '@/constants/browserDevPresetPaths';
 import { useCollections } from '@/hooks/useCollections';
-import { isBrowserDevUi } from '@/lib/runtime';
 import { chooseFile } from '@/utils/dialog';
 import type { CollectionImportPreview } from '@/types/collections';
 
@@ -58,7 +57,7 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
 
   const handleImportPreset = useCallback(async () => {
     setImportSessionError(null);
-    if (isBrowserDevUi()) {
+    if (__WEB_DEV_MODE__) {
       setImportExplainerOpen(true);
       return;
     }
@@ -208,12 +207,14 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
         onConfirm={(input) => void handleImportConfirm(input)}
       />
 
-      <BrowserDevPresetExplainerModal
-        mode="import"
-        open={importExplainerOpen}
-        onClose={() => setImportExplainerOpen(false)}
-        onContinue={() => void handleImportExplainerContinue()}
-      />
+      {__WEB_DEV_MODE__ && (
+        <BrowserDevPresetExplainerModal
+          mode="import"
+          open={importExplainerOpen}
+          onClose={() => setImportExplainerOpen(false)}
+          onContinue={() => void handleImportExplainerContinue()}
+        />
+      )}
     </>
   );
 }
