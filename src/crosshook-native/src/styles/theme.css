@@ -3164,18 +3164,6 @@ textarea {
   white-space: nowrap;
 }
 
-.crosshook-launch-panel__status[data-phase='WaitingForTrainer'] {
-  border-color: rgba(245, 197, 66, 0.28);
-  background: rgba(245, 197, 66, 0.12);
-  color: #fde68a;
-}
-
-.crosshook-launch-panel__status[data-phase='SessionActive'] {
-  border-color: rgba(39, 209, 127, 0.28);
-  background: rgba(39, 209, 127, 0.12);
-  color: #bbf7d0;
-}
-
 .crosshook-launch-panel__info {
   padding: 18px;
   border-radius: 16px;
@@ -3343,7 +3331,6 @@ textarea {
   padding: 0 var(--crosshook-launch-panel-action-padding-inline);
 }
 
-.crosshook-launch-panel__action-guidance,
 .crosshook-launch-panel__indicator-guidance {
   margin: 0;
   color: #9fb1c8;
@@ -3364,61 +3351,6 @@ textarea {
 .crosshook-launch-panel__runner-stack {
   display: grid;
   gap: 6px;
-}
-
-/* Launch phase pill + runner line share one row; right edge aligns with action buttons above */
-.crosshook-launch-panel__runner-primary-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-}
-
-.crosshook-launch-panel__runner-primary-row .crosshook-launch-panel__indicator-row {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.crosshook-launch-panel__runner-primary-row .crosshook-launch-panel__status {
-  flex-shrink: 0;
-}
-
-.crosshook-launch-panel__indicator {
-  display: grid;
-  gap: 10px;
-  color: #9fb1c8;
-}
-
-.crosshook-launch-panel__indicator-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.crosshook-launch-panel__indicator-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #5e77ff;
-}
-
-.crosshook-launch-panel__indicator[data-state='waiting'] .crosshook-launch-panel__indicator-dot {
-  background: #f5c542;
-}
-
-.crosshook-launch-panel__indicator[data-state='active'] .crosshook-launch-panel__indicator-dot {
-  background: #27d17f;
-}
-
-.crosshook-launch-panel__indicator[data-state='running'] .crosshook-launch-panel__indicator-dot {
-  background: var(--crosshook-color-warning);
-  animation: crosshook-pulse 2s ease-in-out infinite;
-}
-
-@keyframes crosshook-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
 }
 
 .crosshook-launch-panel__indicator-copy {
@@ -4344,9 +4276,7 @@ textarea {
   .crosshook-launch-panel__header,
   .crosshook-launch-panel__actions,
   .crosshook-launch-panel__profile-row,
-  .crosshook-launch-panel__profile-row-actions,
-  .crosshook-launch-panel__runner-primary-row,
-  .crosshook-launch-panel__indicator-row {
+  .crosshook-launch-panel__profile-row-actions {
     flex-direction: column;
     align-items: flex-start;
   }

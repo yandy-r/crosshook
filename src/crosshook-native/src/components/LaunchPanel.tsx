@@ -14,6 +14,7 @@ import type {
   LaunchValidationSeverity,
   PreviewEnvVar,
 } from '../types';
+import type { GameProfile } from '../types/profile';
 import { LaunchPhase } from '../types';
 import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { usePreviewState } from '../hooks/usePreviewState';
@@ -21,6 +22,7 @@ import { useProfileHealthContext } from '../context/ProfileHealthContext';
 import { copyToClipboard } from '../utils/clipboard';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../utils/launchPanelActionButtonStyle';
 import { CollapsibleSection } from './ui/CollapsibleSection';
+import { LaunchPipeline } from './LaunchPipeline';
 import '../styles/preview.css';
 
 /* ───────── Focus-trap helpers (mirrors ProfileReviewModal) ───────── */
@@ -576,6 +578,7 @@ interface LaunchPanelProps {
   profileId: string;
   method: Exclude<LaunchMethod, ''>;
   request: LaunchRequest | null;
+  profile: GameProfile;
   /** Profile dropdown (placed in the top row next to Launch / Preview / Reset). */
   profileSelectSlot?: ReactNode;
   /** @deprecated Use `profileSelectSlot` — kept for call sites not yet migrated. */
@@ -603,6 +606,7 @@ export function LaunchPanel({
   profileId,
   method,
   request,
+  profile,
   profileSelectSlot,
   beforeActions,
   infoSlot,
@@ -662,9 +666,6 @@ export function LaunchPanel({
 
   const isIdle = phase === LaunchPhase.Idle;
   const previewDisabled = !request || !isIdle || loading;
-
-  const isWaitingForTrainer = phase === LaunchPhase.WaitingForTrainer;
-  const isSessionActive = phase === LaunchPhase.SessionActive;
   const validationFeedback = feedback?.kind === 'validation' ? feedback.issue : null;
   const diagnosticFeedback = feedback?.kind === 'diagnostic' ? feedback.report : null;
   const runtimeFeedback = feedback?.kind === 'runtime' ? feedback.message : null;
@@ -900,28 +901,10 @@ export function LaunchPanel({
           </div>
 
           <div className="crosshook-launch-panel__runner-stack">
-            <div
-              className="crosshook-launch-panel__indicator"
-              data-state={isSessionActive ? 'active' : isWaitingForTrainer ? 'waiting' : isGameRunning ? 'running' : 'idle'}
-            >
-              <div className="crosshook-launch-panel__runner-primary-row">
-                <div className="crosshook-launch-panel__indicator-row">
-                  <span className="crosshook-launch-panel__indicator-dot" aria-hidden="true" />
-                  <span className="crosshook-launch-panel__indicator-label">
-                    {method === 'steam_applaunch'
-                      ? 'Steam runner selected'
-                      : method === 'proton_run'
-                        ? 'Proton runner selected'
-                        : 'Native runner selected'}
-                  </span>
-                </div>
-                <div className="crosshook-launch-panel__status" data-phase={phase} aria-label={`Launch phase ${phase}`}>
-                  {phase}
-                </div>
-              </div>
-              {helperLogPath ? <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span> : null}
-            </div>
-
+            <LaunchPipeline method={method} profile={profile} preview={null} phase={phase} />
+            {helperLogPath ? (
+              <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span>
+            ) : null}
             {launchGuidanceText ? (
               <p id={launchGuidanceId} className="crosshook-launch-panel__indicator-guidance">
                 {launchGuidanceText}

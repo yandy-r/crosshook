@@ -348,6 +348,7 @@ export function LaunchPage() {
           profileId={profileId}
           method={profileState.launchMethod}
           request={launchRequest}
+          profile={profile}
           profileSelectSlot={
             <>
               {activeCollection !== null && (

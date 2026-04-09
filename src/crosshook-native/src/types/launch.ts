@@ -1,6 +1,7 @@
 import type { DiagnosticReport } from './diagnostics';
 import type { LaunchOptimizations } from './launch-optimizations';
 import type { GamescopeConfig, LaunchMethod, MangoHudConfig, TrainerLoadingMode } from './profile';
+import type { ResolvedLaunchMethod } from '../utils/launch';
 
 /** Tone for the auto-save status indicator shared across Launch page tabs. */
 export type LaunchAutoSaveStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
@@ -136,7 +137,7 @@ export interface PreviewValidation {
   issues: LaunchValidationIssue[];
 }
 
-export type ResolvedLaunchMethod = Exclude<LaunchMethod, ''>;
+export type { ResolvedLaunchMethod } from '../utils/launch';
 
 export interface LaunchPreview {
   resolved_method: ResolvedLaunchMethod;
@@ -154,4 +155,19 @@ export interface LaunchPreview {
   trainer: PreviewTrainerInfo | null;
   generated_at: string;
   display_text: string;
+}
+
+/** Status of a single pipeline node. */
+export type PipelineNodeStatus = 'configured' | 'not-configured' | 'error' | 'active' | 'complete';
+
+/** A node in the launch pipeline visualization. */
+export interface PipelineNode {
+  /** Stable identifier (e.g., 'game', 'wine-prefix', 'proton'). */
+  id: string;
+  /** Display label (e.g., 'Game', 'Wine Prefix'). */
+  label: string;
+  /** Current status for visual rendering. */
+  status: PipelineNodeStatus;
+  /** Optional detail text (e.g., resolved path, error message). */
+  detail?: string;
 }

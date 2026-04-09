@@ -19,6 +19,20 @@
   --crosshook-color-success: #28c76f;
   --crosshook-color-warning: #f5c542;
   --crosshook-color-danger: #ff758f;
+  /* Icons/text on solid success / danger / accent fills (launch pipeline, chips) */
+  --crosshook-color-on-success: #ffffff;
+  --crosshook-color-on-error: #ffffff;
+  --crosshook-color-on-accent-strong: #ffffff;
+  /* Pipeline: not-configured node surface (muted neutral) */
+  --crosshook-color-not-configured-bg: rgba(224, 224, 224, 0.15);
+  --crosshook-color-not-configured-text: var(--crosshook-color-text-subtle);
+  --crosshook-color-not-configured-label: var(--crosshook-color-text-muted);
+  /* Pipeline: connector segment after a configured node */
+  --crosshook-color-pipeline-connector-success: color-mix(
+    in srgb,
+    var(--crosshook-color-success) 35%,
+    var(--crosshook-color-border-strong)
+  );
   /* Soft danger surface (alerts, inline errors) */
   --crosshook-color-danger-bg: rgba(248, 113, 113, 0.08);
   /* List / section dividers (subtle slate) */
