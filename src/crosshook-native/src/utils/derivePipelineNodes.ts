@@ -31,7 +31,7 @@ export function derivePipelineNodes(
     const label = NODE_DEFS[id]?.label ?? id;
 
     if (preview && id === 'launch') {
-      nodes.push(buildLaunchNode(label, nodes, preview, issuesByNode));
+      nodes.push(buildLaunchNode(label, nodes, preview, issuesByNode!));
     } else if (preview && id !== 'launch') {
       nodes.push(buildTier2Node(id, label, preview, issuesByNode!));
     } else if (id === 'launch') {
@@ -146,9 +146,9 @@ function buildLaunchNode(
   label: string,
   priorNodes: PipelineNode[],
   preview: LaunchPreview,
-  issuesByNode: Map<PipelineNodeId, LaunchValidationIssue[]> | null
+  issuesByNode: Map<PipelineNodeId, LaunchValidationIssue[]>
 ): PipelineNode {
-  const launchIssues = issuesByNode?.get('launch') ?? [];
+  const launchIssues = issuesByNode.get('launch') ?? [];
   const fatalLaunch = launchIssues.find((issue) => issue.severity === 'fatal');
   if (fatalLaunch) {
     return { id: 'launch', label, status: 'error', detail: fatalLaunch.message };

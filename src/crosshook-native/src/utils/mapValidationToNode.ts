@@ -1,27 +1,23 @@
-import type { LaunchValidationIssue } from '../types/launch';
+import type { LaunchValidationIssue, PipelineNodeId } from '../types/launch';
 
-export type PipelineNodeId =
-  | 'game'
-  | 'wine-prefix'
-  | 'proton'
-  | 'steam'
-  | 'trainer'
-  | 'optimizations'
-  | 'launch';
+export type { PipelineNodeId } from '../types/launch';
 
-const SEVERITY_RANK: Record<LaunchValidationIssue['severity'], number> = {
+export const SEVERITY_RANK: Record<LaunchValidationIssue['severity'], number> = {
   fatal: 0,
   warning: 1,
   info: 2,
 };
 
-function sortIssuesBySeverity(issues: LaunchValidationIssue[]): LaunchValidationIssue[] {
+export function sortIssuesBySeverity(issues: LaunchValidationIssue[]): LaunchValidationIssue[] {
   return [...issues].sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
 }
 
 /**
  * Maps a validation issue to the pipeline node it belongs to.
  * Returns 'launch' (summary node) for unmapped or code-less issues.
+ *
+ * @see `crosshook-core/src/launch/request.rs` — `ValidationError::code()` produces the codes
+ * matched here. When adding a new variant there, update this mapping.
  */
 export function mapValidationToNode(issue: LaunchValidationIssue): PipelineNodeId {
   const code = issue.code?.trim();
@@ -31,7 +27,7 @@ export function mapValidationToNode(issue: LaunchValidationIssue): PipelineNodeI
   if (code.startsWith('game_path') || code.startsWith('native_windows_executable')) {
     return 'game';
   }
-  if (code.startsWith('runtime_prefix') || code.startsWith('low_disk_space')) {
+  if (code.startsWith('runtime_prefix')) {
     return 'wine-prefix';
   }
   if (code.startsWith('runtime_proton')) {

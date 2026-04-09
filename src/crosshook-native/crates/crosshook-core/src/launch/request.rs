@@ -321,6 +321,11 @@ pub enum ValidationError {
 }
 
 impl ValidationError {
+    /// Returns a stable snake_case identifier for this error variant.
+    ///
+    /// **Frontend coupling**: consumed by `src/utils/mapValidationToNode.ts` (prefix matching).
+    /// When adding a new variant, update that file's mapping table. Unmapped codes default to
+    /// the `'launch'` summary node.
     pub fn code(&self) -> &'static str {
         match self {
             Self::GamePathRequired => "game_path_required",
@@ -1770,6 +1775,27 @@ mod tests {
         assert_eq!(
             ValidationError::UnknownLaunchOptimization("foo".into()).code(),
             "unknown_launch_optimization"
+        );
+        assert_eq!(
+            ValidationError::UnsupportedMethod("x".into()).code(),
+            "unsupported_method"
+        );
+        assert_eq!(
+            ValidationError::OfflineReadinessInsufficient {
+                score: 0,
+                reasons: vec![],
+            }
+            .code(),
+            "offline_readiness_insufficient"
+        );
+        assert_eq!(
+            ValidationError::LowDiskSpaceAdvisory {
+                available_mb: 0,
+                threshold_mb: 1,
+                mount_path: "/".into(),
+            }
+            .code(),
+            "low_disk_space_advisory"
         );
 
         let issue = ValidationError::GamePathRequired.issue();

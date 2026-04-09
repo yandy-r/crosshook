@@ -20,6 +20,7 @@ import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { usePreviewState } from '../hooks/usePreviewState';
 import { useProfileHealthContext } from '../context/ProfileHealthContext';
 import { copyToClipboard } from '../utils/clipboard';
+import { sortIssuesBySeverity } from '../utils/mapValidationToNode';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../utils/launchPanelActionButtonStyle';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { LaunchPipeline } from './LaunchPipeline';
@@ -61,11 +62,6 @@ function severityIcon(severity: LaunchValidationSeverity): string {
     default:
       return '\u2713';
   }
-}
-
-function sortIssuesBySeverity(issues: LaunchValidationIssue[]): LaunchValidationIssue[] {
-  const order: Record<LaunchValidationSeverity, number> = { fatal: 0, warning: 1, info: 2 };
-  return [...issues].sort((a, b) => order[a.severity] - order[b.severity]);
 }
 
 function sortPatternMatchesBySeverity(matches: PatternMatch[]): PatternMatch[] {
