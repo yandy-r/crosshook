@@ -76,7 +76,10 @@ export function CollectionAssignMenu({
   }, [open, profileName, collectionsForProfile]);
 
   const handleClose = useCallback(() => {
-    const restoreTarget = restoreFocusTo ?? previouslyFocusedRef.current;
+    const restoreTarget =
+      restoreFocusTo && restoreFocusTo.isConnected
+        ? restoreFocusTo
+        : previouslyFocusedRef.current;
     onClose();
     if (restoreTarget && restoreTarget.isConnected) {
       restoreTarget.focus();
