@@ -44,6 +44,15 @@ const COPY: Record<
   },
 };
 
+/**
+ * Renders a paragraph with a minimal `**bold**` markdown-like parser.
+ *
+ * SECURITY: This helper MUST only receive trusted, static strings (the `COPY`
+ * constant in this file). It does NOT escape or sanitize input beyond React's
+ * default text escaping, and the pattern splitter has no notion of nested or
+ * malformed markers. Never call this with user-supplied text — if that need
+ * arises, replace it with a proper markdown renderer.
+ */
 function renderParagraph(text: string) {
   const parts = text.split(/\*\*(.+?)\*\*/g);
   return (
@@ -255,7 +264,13 @@ export function BrowserDevPresetExplainerModal({
         </div>
         <footer className="crosshook-modal__footer">
           <div className="crosshook-modal__footer-actions">
-            <button type="button" className="crosshook-button crosshook-button--ghost" disabled={busy} onClick={onClose}>
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--ghost"
+              data-crosshook-modal-close
+              disabled={busy}
+              onClick={onClose}
+            >
               Cancel
             </button>
             <button

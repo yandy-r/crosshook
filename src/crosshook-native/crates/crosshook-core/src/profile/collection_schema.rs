@@ -40,8 +40,7 @@ impl CollectionPresetManifest {
         if self.schema_version != COLLECTION_PRESET_SCHEMA_VERSION {
             return Err(format!(
                 "unsupported collection preset schema version {:?}; supported version is {:?}",
-                self.schema_version,
-                COLLECTION_PRESET_SCHEMA_VERSION
+                self.schema_version, COLLECTION_PRESET_SCHEMA_VERSION
             ));
         }
         if self.name.trim().is_empty() {

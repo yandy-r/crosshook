@@ -12,9 +12,9 @@ use crate::metadata::{MetadataStore, MetadataStoreError};
 use crate::profile::collection_schema::{
     CollectionPresetManifest, CollectionPresetProfileDescriptor, COLLECTION_PRESET_SCHEMA_VERSION,
 };
-use crate::profile::{resolve_art_app_id, GameProfile, ProfileStore, ProfileStoreError};
 #[cfg(test)]
 use crate::profile::CollectionDefaultsSection;
+use crate::profile::{resolve_art_app_id, GameProfile, ProfileStore, ProfileStoreError};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CollectionExchangeError {
@@ -130,7 +130,9 @@ struct LocalMatchIndex {
     profile_display: HashMap<String, (String, String)>,
 }
 
-fn build_local_match_index(store: &ProfileStore) -> Result<LocalMatchIndex, CollectionExchangeError> {
+fn build_local_match_index(
+    store: &ProfileStore,
+) -> Result<LocalMatchIndex, CollectionExchangeError> {
     let mut steam_to_profiles: HashMap<String, Vec<String>> = HashMap::new();
     let mut pair_to_profiles: HashMap<(String, String), Vec<String>> = HashMap::new();
     let mut profile_display: HashMap<String, (String, String)> = HashMap::new();
@@ -153,10 +155,7 @@ fn build_local_match_index(store: &ProfileStore) -> Result<LocalMatchIndex, Coll
         let game_name = profile.game.name.clone();
         let sha = profile.trainer.community_trainer_sha256.trim().to_string();
 
-        profile_display.insert(
-            profile_name.clone(),
-            (game_name.clone(), app_id.clone()),
-        );
+        profile_display.insert(profile_name.clone(), (game_name.clone(), app_id.clone()));
 
         if !app_id.is_empty() {
             steam_to_profiles
@@ -510,8 +509,10 @@ profiles = []
             .add_profile_to_collection(&cid, "elden-ring")
             .unwrap();
 
-        let mut defaults = CollectionDefaultsSection::default();
-        defaults.method = Some("proton_run".to_string());
+        let defaults = CollectionDefaultsSection {
+            method: Some("proton_run".to_string()),
+            ..CollectionDefaultsSection::default()
+        };
         metadata
             .set_collection_defaults(&cid, Some(&defaults))
             .unwrap();
@@ -526,7 +527,11 @@ profiles = []
         assert!(preview.ambiguous.is_empty());
         assert!(preview.unmatched.is_empty());
         assert_eq!(
-            preview.manifest.defaults.as_ref().and_then(|d| d.method.as_deref()),
+            preview
+                .manifest
+                .defaults
+                .as_ref()
+                .and_then(|d| d.method.as_deref()),
             Some("proton_run")
         );
     }
@@ -628,9 +633,7 @@ profiles = []
         register_profile(&metadata, &store, "gone", &p);
 
         let cid = metadata.create_collection("C").unwrap();
-        metadata
-            .add_profile_to_collection(&cid, "gone")
-            .unwrap();
+        metadata.add_profile_to_collection(&cid, "gone").unwrap();
 
         fs::remove_file(profiles_dir.join("gone.toml")).unwrap();
 

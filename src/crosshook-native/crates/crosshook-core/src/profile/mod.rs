@@ -1,7 +1,7 @@
 //! Profile data models and profile persistence helpers.
 
-pub mod collection_schema;
 mod collection_exchange;
+pub mod collection_schema;
 pub mod community_schema;
 mod creation_defaults;
 mod exchange;
@@ -12,7 +12,7 @@ mod toml_store;
 pub use collection_exchange::{
     export_collection_preset_to_toml, preview_collection_preset_import, CollectionExchangeError,
     CollectionExportResult, CollectionImportPreview, CollectionPresetAmbiguousEntry,
-    CollectionPresetMatchedEntry, CollectionPresetMatchCandidate,
+    CollectionPresetMatchCandidate, CollectionPresetMatchedEntry,
 };
 pub use collection_schema::{
     CollectionPresetManifest, CollectionPresetProfileDescriptor, COLLECTION_PRESET_SCHEMA_VERSION,

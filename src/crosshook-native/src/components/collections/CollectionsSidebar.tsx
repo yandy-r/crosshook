@@ -171,6 +171,13 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
           <span className="crosshook-sidebar__item-label">Import Preset</span>
         </button>
 
+        {/*
+          Error precedence: the three sources are mutually exclusive in practice
+          (a user can only trigger one action at a time — create, import, or a
+          background list refresh), so we render whichever is non-null. Session
+          errors take priority over the global `error` so the most recent user
+          action surfaces first.
+        */}
         {(createSessionError ?? importSessionError ?? error) !== null && (
           <p className="crosshook-collections-sidebar__error" role="alert">
             {createSessionError ?? importSessionError ?? error}

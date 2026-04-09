@@ -305,7 +305,10 @@ export function CollectionImportReviewModal({
             <section className="crosshook-collection-import-review__section" aria-label="Ambiguous matches">
               <h3 className="crosshook-collection-import-review__section-title">Choose local profile</h3>
               {preview.ambiguous.map((row, i) => (
-                <div key={i} className="crosshook-collection-import-review__ambiguous">
+                <div
+                  key={`${row.descriptor.steam_app_id}-${row.descriptor.trainer_community_trainer_sha256}-${i}`}
+                  className="crosshook-collection-import-review__ambiguous"
+                >
                   <p className="crosshook-collection-import-review__descriptor">
                     {row.descriptor.game_name || row.descriptor.steam_app_id || 'Unknown'}{' '}
                     <span className="crosshook-collection-import-review__muted">
@@ -347,7 +350,7 @@ export function CollectionImportReviewModal({
               <h3 className="crosshook-collection-import-review__section-title">Unmatched (will be skipped)</h3>
               <ul className="crosshook-collection-import-review__list">
                 {preview.unmatched.map((u, i) => (
-                  <li key={i}>
+                  <li key={`${u.steam_app_id}-${u.trainer_community_trainer_sha256}-${i}`}>
                     {u.game_name || u.steam_app_id || 'Descriptor'} — steam {u.steam_app_id || '—'}
                   </li>
                 ))}
@@ -358,7 +361,13 @@ export function CollectionImportReviewModal({
 
         <footer className="crosshook-modal__footer">
           <div className="crosshook-modal__footer-actions">
-            <button type="button" className="crosshook-button crosshook-button--ghost" onClick={onClose} disabled={applying}>
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--ghost"
+              data-crosshook-modal-close
+              onClick={onClose}
+              disabled={applying}
+            >
               Cancel
             </button>
             <button
