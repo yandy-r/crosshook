@@ -434,7 +434,7 @@ Small refactor in `LibraryGrid.tsx` / `LibraryPage.tsx` to match.
 - **Severity**: NIT
 - **Category**: Maintainability
 - **File**: `src/crosshook-native/crates/crosshook-core/tests/collections_jtbd_integration.rs:37, 205`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: The path `/profiles/fixture-00.toml` does not exist on disk. Because `SyncSource::AppWrite` bypasses `fs::metadata`, the synthetic path is only stored as a string in the in-memory SQLite. Not a bug — intentional scaffolding. A one-line comment would make the intent explicit.
 
@@ -452,7 +452,7 @@ Small refactor in `LibraryGrid.tsx` / `LibraryPage.tsx` to match.
 - **Severity**: NIT
 - **Category**: Maintainability
 - **File**: `src/crosshook-native/src/components/collections/CollectionsSidebar.tsx:193`
-- **Status**: Open
+- **Status**: Fixed
 
 **Description**: `CollectionEditModal` accepts both `onSubmitCreate` and `onSubmitEdit`; the sidebar uses `mode="create"` exclusively, and the `onSubmitEdit` prop is satisfied with `async () => false`. Correct at runtime (the `mode` guards prevent the wrong callback from firing), but misleading to a reader.
 

@@ -98,12 +98,9 @@
 
 ---
 
-## Remaining Open Findings (below threshold)
+## Remaining Open Findings
 
-| ID | Severity | Summary |
-|----|----------|---------|
-| F019 | NIT | Rust integration test synthetic path lacks inline docs |
-| F020 | NIT | `onSubmitEdit={async () => false}` placeholder unexplained |
+None — all 20 findings resolved.
 
 ---
 
@@ -143,18 +140,29 @@
 
 ---
 
+## Pass 3 — NIT severity (2026-04-09)
+
+**Mode**: `--parallel`
+
+| Metric | Count |
+|--------|-------|
+| Findings eligible | 2 (F019–F020) |
+| Fixed | 2 |
+
+**F019** (NIT) — Added comment in `collections_jtbd_integration.rs` documenting that `/profiles/fixture-00.toml` is a synthetic path (AppWrite bypasses `fs::metadata`).
+
+**F020** (NIT) — Added inline comment `// mode="create" — onSubmitEdit is never called here` in `CollectionsSidebar.tsx`.
+
+---
+
 ## Cumulative Totals
 
 | Metric | Count |
 |--------|-------|
 | Total findings | 20 |
-| Fixed | 17 |
+| Fixed | 18 |
 | Already fixed (stale) | 1 (F001) |
 | Resolved by prior fix | 1 (F017) |
-| Remaining (NIT) | 2 (F019, F020) |
+| Remaining | 0 |
 
-## Next Steps
-
-1. Run `/ycc:code-review` to verify fixes resolved the findings.
-2. Run `/ycc:prp-commit` to commit the LOW fixes.
-3. NIT findings (F019, F020) can optionally be addressed in a polish pass.
+All 20 findings from PR #186 review are resolved.

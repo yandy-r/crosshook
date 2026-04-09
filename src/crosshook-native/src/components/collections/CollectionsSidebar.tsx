@@ -189,6 +189,7 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
           setCreateOpen(false);
         }}
         onSubmitCreate={handleCreate}
+        // mode="create" — onSubmitEdit is never called here
         onSubmitEdit={async () => false}
         externalError={createSessionError}
       />

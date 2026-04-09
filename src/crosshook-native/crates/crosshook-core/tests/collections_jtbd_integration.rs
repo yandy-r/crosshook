@@ -33,6 +33,8 @@ fn register_profile(
     profile: &GameProfile,
 ) {
     store.save(filename, profile).unwrap();
+    // Synthetic path — the AppWrite sync source does not call fs::metadata,
+    // so no real file is needed; the string is only persisted in metadata.
     metadata
         .observe_profile_write(
             filename,
