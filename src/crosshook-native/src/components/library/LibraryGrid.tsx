@@ -12,7 +12,11 @@ interface LibraryGridProps {
   onToggleFavorite: (name: string, current: boolean) => void;
   launchingName?: string;
   onNavigate?: (route: AppRoute) => void;
-  onContextMenu?: (position: { x: number; y: number }, profileName: string) => void;
+  onContextMenu?: (
+    position: { x: number; y: number },
+    profileName: string,
+    returnFocusTo: HTMLElement
+  ) => void;
 }
 
 export function LibraryGrid({

@@ -17,6 +17,8 @@ export interface CollectionAssignMenuProps {
   open: boolean;
   profileName: string | null;
   anchorPosition: { x: number; y: number } | null;
+  /** Prefer this element when restoring focus after close (e.g. library card root). */
+  restoreFocusTo?: HTMLElement | null;
   onClose: () => void;
   onCreateNew: () => void;
 }
@@ -25,6 +27,7 @@ export function CollectionAssignMenu({
   open,
   profileName,
   anchorPosition,
+  restoreFocusTo = null,
   onClose,
   onCreateNew,
 }: CollectionAssignMenuProps) {
@@ -73,13 +76,13 @@ export function CollectionAssignMenu({
   }, [open, profileName, collectionsForProfile]);
 
   const handleClose = useCallback(() => {
-    const restoreTarget = previouslyFocusedRef.current;
+    const restoreTarget = restoreFocusTo ?? previouslyFocusedRef.current;
     onClose();
     if (restoreTarget && restoreTarget.isConnected) {
       restoreTarget.focus();
     }
     previouslyFocusedRef.current = null;
-  }, [onClose]);
+  }, [onClose, restoreFocusTo]);
 
   useEffect(() => {
     if (!open) return;

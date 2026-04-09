@@ -55,7 +55,8 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     open: boolean;
     profileName: string | null;
     anchorPosition: { x: number; y: number } | null;
-  }>({ open: false, profileName: null, anchorPosition: null });
+    returnFocusTo: HTMLElement | null;
+  }>({ open: false, profileName: null, anchorPosition: null, returnFocusTo: null });
   const [createCollectionFromMenuOpen, setCreateCollectionFromMenuOpen] = useState(false);
   const [createCollectionSessionError, setCreateCollectionSessionError] = useState<string | null>(null);
   const { createCollection } = useCollections();
@@ -134,16 +135,25 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     [gameDetailsModal, selectProfile, summaries],
   );
 
-  const handleCardContextMenu = useCallback((position: { x: number; y: number }, profileName: string) => {
-    setAssignMenuState({
-      open: true,
-      profileName,
-      anchorPosition: position,
-    });
-  }, []);
+  const handleCardContextMenu = useCallback(
+    (position: { x: number; y: number }, profileName: string, returnFocusTo: HTMLElement) => {
+      setAssignMenuState({
+        open: true,
+        profileName,
+        anchorPosition: position,
+        returnFocusTo,
+      });
+    },
+    []
+  );
 
   const closeAssignMenu = useCallback(() => {
-    setAssignMenuState({ open: false, profileName: null, anchorPosition: null });
+    setAssignMenuState({
+      open: false,
+      profileName: null,
+      anchorPosition: null,
+      returnFocusTo: null,
+    });
   }, []);
 
   const handleCreateFromAssignMenu = useCallback(() => {
@@ -241,6 +251,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
         open={assignMenuState.open}
         profileName={assignMenuState.profileName}
         anchorPosition={assignMenuState.anchorPosition}
+        restoreFocusTo={assignMenuState.returnFocusTo}
         onClose={closeAssignMenu}
         onCreateNew={handleCreateFromAssignMenu}
       />

@@ -1,10 +1,10 @@
 import type { GameProfile } from '../types/profile';
-import type {
+import {
   LaunchPhase,
-  LaunchPreview,
-  LaunchValidationIssue,
-  PipelineNode,
-  PipelineNodeStatus,
+  type LaunchPreview,
+  type LaunchValidationIssue,
+  type PipelineNode,
+  type PipelineNodeStatus,
 } from '../types/launch';
 import type { ResolvedLaunchMethod } from './launch';
 import {
@@ -14,34 +14,97 @@ import {
 
 /**
  * Derives pipeline nodes for the launch method. Tier 1 (config-only) when `preview` is null; Tier 2
- * (preview-derived validation and resolved paths) when `preview` is set.
+ * (preview-derived validation and resolved paths) when `preview` is set. When `phase` is not `Idle`,
+ * a live launch overlay updates active/complete nodes without mutating the base Tier 1/2 derivation.
  */
 export function derivePipelineNodes(
   method: ResolvedLaunchMethod,
   profile: GameProfile,
   preview: LaunchPreview | null,
-  _phase: LaunchPhase
+  phase: LaunchPhase
 ): PipelineNode[] {
   const ids = METHOD_NODE_IDS[method];
   const issuesByNode = preview ? groupIssuesByNode(preview.validation.issues) : null;
-  const nodes: PipelineNode[] = [];
+  const baseNodes: PipelineNode[] = [];
 
   for (let i = 0; i < ids.length; i += 1) {
     const id = ids[i];
     const label = NODE_DEFS[id]?.label ?? id;
 
     if (preview && id === 'launch') {
-      nodes.push(buildLaunchNode(label, nodes, preview, issuesByNode!));
+      baseNodes.push(buildLaunchNode(label, baseNodes, preview, issuesByNode!));
     } else if (preview && id !== 'launch') {
-      nodes.push(buildTier2Node(id, label, preview, issuesByNode!));
+      baseNodes.push(buildTier2Node(id, label, preview, issuesByNode!));
     } else if (id === 'launch') {
       const prior = ids.slice(0, i);
       const allPriorConfigured = prior.every((pid) => tier1Status(pid, profile, method) === 'configured');
       const status: PipelineNodeStatus = allPriorConfigured ? 'configured' : 'not-configured';
-      nodes.push({ id, label, status });
+      baseNodes.push({ id, label, status });
     } else {
-      nodes.push({ id, label, status: tier1Status(id, profile, method) });
+      baseNodes.push({ id, label, status: tier1Status(id, profile, method) });
     }
+  }
+
+  return applyPhaseOverlay(method, phase, baseNodes);
+}
+
+function applyPhaseOverlay(
+  method: ResolvedLaunchMethod,
+  phase: LaunchPhase,
+  base: PipelineNode[]
+): PipelineNode[] {
+  if (phase === LaunchPhase.Idle) {
+    return base;
+  }
+
+  const nodes = base.map((n) => ({ ...n }));
+  const ids = METHOD_NODE_IDS[method];
+  const twoStepTrainerFlow = method === 'proton_run' || method === 'steam_applaunch';
+
+  const patch = (id: PipelineNodeId, partial: Partial<PipelineNode>): void => {
+    const idx = nodes.findIndex((n) => n.id === id);
+    if (idx < 0) {
+      return;
+    }
+    nodes[idx] = { ...nodes[idx], ...partial };
+  };
+
+  switch (phase) {
+    case LaunchPhase.GameLaunching:
+      patch('game', { status: 'active', tone: undefined });
+      break;
+
+    case LaunchPhase.WaitingForTrainer:
+      if (method === 'native') {
+        patch('game', { status: 'complete', tone: undefined });
+        patch('trainer', { status: 'active', tone: undefined });
+      } else if (twoStepTrainerFlow) {
+        patch('game', { status: 'complete', tone: undefined });
+        patch('trainer', {
+          status: 'active',
+          tone: 'waiting',
+          detail: 'Waiting',
+        });
+      }
+      break;
+
+    case LaunchPhase.TrainerLaunching:
+      patch('game', { status: 'complete', tone: undefined });
+      if (ids.includes('trainer')) {
+        patch('trainer', { status: 'active', tone: undefined });
+      }
+      break;
+
+    case LaunchPhase.SessionActive:
+      for (let i = 0; i < nodes.length; i += 1) {
+        const n = nodes[i];
+        if (n.id === 'launch') {
+          nodes[i] = { ...n, status: 'active', tone: undefined };
+        } else {
+          nodes[i] = { ...n, status: 'complete', tone: undefined };
+        }
+      }
+      break;
   }
 
   return nodes;

@@ -95,6 +95,11 @@
   background: var(--crosshook-color-pipeline-connector-success);
 }
 
+/* Status: complete (live session / finished steps) */
+.crosshook-launch-pipeline__node[data-status='complete']::after {
+  background: var(--crosshook-color-pipeline-connector-success);
+}
+
 /* Status: not-configured */
 .crosshook-launch-pipeline__node[data-status='not-configured'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-not-configured-bg);
@@ -126,6 +131,30 @@
   color: var(--crosshook-color-text);
 }
 
+/* Active + waiting tone (trainer handoff) */
+.crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting'] .crosshook-launch-pipeline__node-indicator {
+  background: var(--crosshook-color-warning);
+  color: var(--crosshook-color-surface-strong);
+  animation: crosshook-pulse-waiting 2s ease-in-out infinite;
+}
+
+.crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting'] .crosshook-launch-pipeline__node-label {
+  color: var(--crosshook-color-warning);
+}
+
+.crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting']::after {
+  background: color-mix(
+    in srgb,
+    var(--crosshook-color-warning) 40%,
+    var(--crosshook-color-border-strong)
+  );
+}
+
+@keyframes crosshook-pulse-waiting {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 /* Status: complete */
 .crosshook-launch-pipeline__node[data-status='complete'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-success);
@@ -134,6 +163,16 @@
 
 .crosshook-launch-pipeline__node[data-status='complete'] .crosshook-launch-pipeline__node-label {
   color: var(--crosshook-color-success);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-launch-pipeline__node[data-status='active'] .crosshook-launch-pipeline__node-indicator {
+    animation: none;
+  }
+
+  .crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting'] .crosshook-launch-pipeline__node-indicator {
+    animation: none;
+  }
 }
 
 /* Pulse animation for active status (Phases 2–3) */

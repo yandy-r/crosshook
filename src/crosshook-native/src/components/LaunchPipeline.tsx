@@ -1,5 +1,5 @@
 import type { GameProfile } from '../types/profile';
-import type { LaunchPhase, LaunchPreview, PipelineNode, PipelineNodeStatus } from '../types/launch';
+import type { LaunchPhase, LaunchPreview, PipelineNodeStatus } from '../types/launch';
 import type { ResolvedLaunchMethod } from '../utils/launch';
 import { useMemo } from 'react';
 import { derivePipelineNodes } from '../utils/derivePipelineNodes';
@@ -33,13 +33,20 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
     () => derivePipelineNodes(method, profile, preview, phase),
     [method, profile, preview, phase]
   );
+  const liveActiveIdx = nodes.findIndex((n) => n.status === 'active');
   const firstIssueIdx = nodes.findIndex(
     (n) => n.id !== 'launch' && (n.status === 'not-configured' || n.status === 'error')
   );
   const launchIndex = nodes.findIndex((n) => n.id === 'launch');
-  // Fallback to 0 is unreachable: every pipeline ends with a 'launch' node (launchIndex always >= 0)
+  // Prefer the live active step, then the first blocking issue, then the launch summary node.
   const currentStepIndex =
-    firstIssueIdx >= 0 ? firstIssueIdx : launchIndex >= 0 ? launchIndex : 0;
+    liveActiveIdx >= 0
+      ? liveActiveIdx
+      : firstIssueIdx >= 0
+        ? firstIssueIdx
+        : launchIndex >= 0
+          ? launchIndex
+          : 0;
 
   return (
     <nav className="crosshook-launch-pipeline" aria-label="Launch pipeline">
@@ -51,6 +58,7 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
               key={node.id}
               className="crosshook-launch-pipeline__node"
               data-status={node.status}
+              data-tone={node.tone === 'waiting' ? 'waiting' : undefined}
               aria-current={index === currentStepIndex ? 'step' : undefined}
               aria-label={`${node.label}: ${statusText}`}
               title={node.detail}

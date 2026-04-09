@@ -211,10 +211,20 @@ export function useFocusTrap({
       }
 
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
-        focusElement(restoreTarget);
-      }
       previouslyFocusedRef.current = null;
+      // Defer restore so another modal mounted in the same React commit can render
+      // first; skip if a modal is still open so focus stays with the new trap.
+      queueMicrotask(() => {
+        if (typeof document === 'undefined') {
+          return;
+        }
+        if (document.querySelector('[data-crosshook-focus-root="modal"]')) {
+          return;
+        }
+        if (restoreTarget && restoreTarget.isConnected) {
+          focusElement(restoreTarget);
+        }
+      });
     };
   }, [open, panelRef, initialFocusRef]);
 
