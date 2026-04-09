@@ -365,12 +365,14 @@ All data needed is already available via existing types: `GameProfile`, `LaunchP
 - Integration into `LaunchPanel` (replace runner indicator)
 - Responsive compact layout
 
-### Phase 2 — Tier 2 Preview-Derived Status
+### Phase 2 — Tier 2 Preview-Derived Status — **complete**
 
-- Enhance `derivePipelineNodes()` to accept `LaunchPreview`
-- Map `LaunchPreview` sections to node status upgrades
-- Map validation issues to specific nodes
-- Handle `directives_error` for Optimizations node
+- `derivePipelineNodes()` uses `LaunchPreview` when present (Tier 1 fallback when `preview` is null)
+- `ValidationError::issue()` populates machine-readable `code` (snake_case); frontend maps `code` to
+  nodes via `mapValidationToNode` / `groupIssuesByNode` (no message-pattern matching)
+- Node `detail` shows resolved paths, validation messages, or `directives_error` on Optimizations
+- Mock `preview_launch` can return validation fixtures when `game_path` is empty or
+  `__MOCK_VALIDATION_ERROR__` for browser dev mode
 
 ### Phase 3 — Tier 3 Live Launch Animation
 

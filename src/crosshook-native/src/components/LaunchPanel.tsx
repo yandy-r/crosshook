@@ -901,7 +901,7 @@ export function LaunchPanel({
           </div>
 
           <div className="crosshook-launch-panel__runner-stack">
-            <LaunchPipeline method={method} profile={profile} preview={null} phase={phase} />
+            <LaunchPipeline method={method} profile={profile} preview={preview} phase={phase} />
             {helperLogPath ? (
               <span className="crosshook-launch-panel__indicator-copy">Log: {helperLogPath}</span>
             ) : null}

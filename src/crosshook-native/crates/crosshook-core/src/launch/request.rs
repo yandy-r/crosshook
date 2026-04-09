@@ -321,12 +321,71 @@ pub enum ValidationError {
 }
 
 impl ValidationError {
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::GamePathRequired => "game_path_required",
+            Self::GamePathMissing => "game_path_missing",
+            Self::GamePathNotFile => "game_path_not_file",
+            Self::TrainerPathRequired => "trainer_path_required",
+            Self::TrainerHostPathRequired => "trainer_host_path_required",
+            Self::TrainerHostPathMissing => "trainer_host_path_missing",
+            Self::TrainerHostPathNotFile => "trainer_host_path_not_file",
+            Self::SteamAppIdRequired => "steam_app_id_required",
+            Self::SteamCompatDataPathRequired => "steam_compat_data_path_required",
+            Self::SteamCompatDataPathMissing => "steam_compat_data_path_missing",
+            Self::SteamCompatDataPathNotDirectory => "steam_compat_data_path_not_directory",
+            Self::SteamProtonPathRequired => "steam_proton_path_required",
+            Self::SteamProtonPathMissing => "steam_proton_path_missing",
+            Self::SteamProtonPathNotExecutable => "steam_proton_path_not_executable",
+            Self::SteamClientInstallPathRequired => "steam_client_install_path_required",
+            Self::RuntimePrefixPathRequired => "runtime_prefix_path_required",
+            Self::RuntimePrefixPathMissing => "runtime_prefix_path_missing",
+            Self::RuntimePrefixPathNotDirectory => "runtime_prefix_path_not_directory",
+            Self::RuntimeProtonPathRequired => "runtime_proton_path_required",
+            Self::RuntimeProtonPathMissing => "runtime_proton_path_missing",
+            Self::RuntimeProtonPathNotExecutable => "runtime_proton_path_not_executable",
+            Self::UnknownLaunchOptimization(_) => "unknown_launch_optimization",
+            Self::DuplicateLaunchOptimization(_) => "duplicate_launch_optimization",
+            Self::LaunchOptimizationsUnsupportedForMethod(_) => {
+                "launch_optimizations_unsupported_for_method"
+            }
+            Self::LaunchOptimizationNotSupportedForMethod { .. } => {
+                "launch_optimization_not_supported_for_method"
+            }
+            Self::IncompatibleLaunchOptimizations { .. } => "incompatible_launch_optimizations",
+            Self::LaunchOptimizationDependencyMissing { .. } => {
+                "launch_optimization_dependency_missing"
+            }
+            Self::NativeWindowsExecutableNotSupported => "native_windows_executable_not_supported",
+            Self::NativeTrainerLaunchUnsupported => "native_trainer_launch_unsupported",
+            Self::UnsupportedMethod(_) => "unsupported_method",
+            Self::CustomEnvVarKeyEmpty => "custom_env_var_key_empty",
+            Self::CustomEnvVarKeyContainsEquals => "custom_env_var_key_contains_equals",
+            Self::CustomEnvVarKeyContainsNul => "custom_env_var_key_contains_nul",
+            Self::CustomEnvVarValueContainsNul => "custom_env_var_value_contains_nul",
+            Self::CustomEnvVarReservedKey(_) => "custom_env_var_reserved_key",
+            Self::GamescopeBinaryMissing => "gamescope_binary_missing",
+            Self::GamescopeNotSupportedForMethod(_) => "gamescope_not_supported_for_method",
+            Self::GamescopeNestedSession => "gamescope_nested_session",
+            Self::GamescopeResolutionPairIncomplete { .. } => {
+                "gamescope_resolution_pair_incomplete"
+            }
+            Self::GamescopeFsrSharpnessOutOfRange(_) => "gamescope_fsr_sharpness_out_of_range",
+            Self::GamescopeFullscreenBorderlessConflict => {
+                "gamescope_fullscreen_borderless_conflict"
+            }
+            Self::OfflineReadinessInsufficient { .. } => "offline_readiness_insufficient",
+            Self::UnshareNetUnavailable => "unshare_net_unavailable",
+            Self::LowDiskSpaceAdvisory { .. } => "low_disk_space_advisory",
+        }
+    }
+
     pub fn issue(&self) -> LaunchValidationIssue {
         LaunchValidationIssue {
             message: self.message(),
             help: self.help(),
             severity: self.severity(),
-            code: None,
+            code: Some(self.code().to_string()),
             trainer_hash_stored: None,
             trainer_hash_current: None,
             trainer_sha256_community: None,
@@ -1428,7 +1487,7 @@ mod tests {
                     "Change the profile launch method to 'steam_applaunch', 'proton_run', or 'native'."
                         .to_string(),
                 severity: ValidationSeverity::Fatal,
-                code: None,
+                code: Some("unsupported_method".to_string()),
                 trainer_hash_stored: None,
                 trainer_hash_current: None,
                 trainer_sha256_community: None,
@@ -1688,5 +1747,32 @@ mod tests {
                 .contains("Both width and height must be set for internal resolution.")),
             "expected trainer gamescope validation issue in: {issues:?}"
         );
+    }
+
+    #[test]
+    fn validation_error_codes_are_populated() {
+        assert_eq!(
+            ValidationError::GamePathRequired.code(),
+            "game_path_required"
+        );
+        assert_eq!(
+            ValidationError::SteamAppIdRequired.code(),
+            "steam_app_id_required"
+        );
+        assert_eq!(
+            ValidationError::RuntimePrefixPathRequired.code(),
+            "runtime_prefix_path_required"
+        );
+        assert_eq!(
+            ValidationError::RuntimeProtonPathRequired.code(),
+            "runtime_proton_path_required"
+        );
+        assert_eq!(
+            ValidationError::UnknownLaunchOptimization("foo".into()).code(),
+            "unknown_launch_optimization"
+        );
+
+        let issue = ValidationError::GamePathRequired.issue();
+        assert_eq!(issue.code.as_deref(), Some("game_path_required"));
     }
 }
