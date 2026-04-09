@@ -311,7 +311,7 @@ These are tracked but not scheduled. Revisit after Phases 1-6 based on community
 | #70 -- ProtonUp-Qt integration  | Done   | When Proton migration (#48) shows users lack the needed Proton versions          |
 | #71 -- Lutris import            |        | When user acquisition from Lutris becomes a measurable source                    |
 | #72 -- Mod management           |        | Only if directly supporting trainer coexistence, not as general mod management   |
-| #73 -- Profile collections      |        | When users have 20+ profiles and request organization                            |
+| #73 -- Profile collections      | Done   | When users have 20+ profiles and request organization                            |
 | #74 -- Pipeline visualization   |        | When the profile editor feels too complex for new users                          |
 | #75 -- Accessibility            |        | When accessibility feedback is received or before a public launch milestone      |
 | #76 -- macOS port               |        | When GPTK2 trainer viability is confirmed by community testing                   |
