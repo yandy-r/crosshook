@@ -14,7 +14,7 @@ export async function open(options?: OpenDialogOptions): Promise<string | string
     return real.open(options);
   }
   if (options?.directory) {
-    console.warn('[dev-mock] dialog.open directory suppressed in browser mode — call ignored');
+    console.warn('[plugin-stub] dialog.open directory suppressed in browser mode — call ignored');
   }
   return null;
 }

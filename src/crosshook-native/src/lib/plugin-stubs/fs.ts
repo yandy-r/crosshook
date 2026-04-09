@@ -58,7 +58,7 @@ const STUB_FILE_INFO: FileInfo = {
 };
 
 // ---------------------------------------------------------------------------
-// Read operations — return synthetic stubs with a [dev-mock] warn
+// Read operations — return synthetic stubs with a [plugin-stub] warn
 // ---------------------------------------------------------------------------
 
 /**
@@ -73,7 +73,7 @@ export async function readFile(
     const real = await import('@tauri-apps/plugin-fs');
     return real.readFile(path, options);
   }
-  console.warn('[dev-mock] fs.readFile returning empty Uint8Array for:', path);
+  console.warn('[plugin-stub] fs.readFile returning empty Uint8Array for:', path);
   return new Uint8Array(0) as Uint8Array<ArrayBuffer>;
 }
 
@@ -89,7 +89,7 @@ export async function readTextFile(
     const real = await import('@tauri-apps/plugin-fs');
     return real.readTextFile(path, options);
   }
-  console.warn('[dev-mock] fs.readTextFile returning empty string for:', path);
+  console.warn('[plugin-stub] fs.readTextFile returning empty string for:', path);
   return '';
 }
 
@@ -105,7 +105,7 @@ export async function readDir(
     const real = await import('@tauri-apps/plugin-fs');
     return real.readDir(path, options);
   }
-  console.warn('[dev-mock] fs.readDir returning empty array for:', path);
+  console.warn('[plugin-stub] fs.readDir returning empty array for:', path);
   return [];
 }
 
@@ -121,7 +121,7 @@ export async function exists(
     const real = await import('@tauri-apps/plugin-fs');
     return real.exists(path, options);
   }
-  console.warn('[dev-mock] fs.exists returning false for:', path);
+  console.warn('[plugin-stub] fs.exists returning false for:', path);
   return false;
 }
 
@@ -137,7 +137,7 @@ export async function stat(
     const real = await import('@tauri-apps/plugin-fs');
     return real.stat(path, options);
   }
-  console.warn('[dev-mock] fs.stat returning stub FileInfo for:', path);
+  console.warn('[plugin-stub] fs.stat returning stub FileInfo for:', path);
   return { ...STUB_FILE_INFO };
 }
 
@@ -153,7 +153,7 @@ export async function lstat(
     const real = await import('@tauri-apps/plugin-fs');
     return real.lstat(path, options);
   }
-  console.warn('[dev-mock] fs.lstat returning stub FileInfo for:', path);
+  console.warn('[plugin-stub] fs.lstat returning stub FileInfo for:', path);
   return { ...STUB_FILE_INFO };
 }
 
@@ -174,7 +174,7 @@ export async function writeFile(
     const real = await import('@tauri-apps/plugin-fs');
     return real.writeFile(path, data, options);
   }
-  throw new Error('[dev-mock] fs.writeFile is not available in browser dev mode');
+  throw new Error('[plugin-stub] fs.writeFile is not available in browser dev mode');
 }
 
 /**
@@ -190,7 +190,7 @@ export async function writeTextFile(
     const real = await import('@tauri-apps/plugin-fs');
     return real.writeTextFile(path, data, options);
   }
-  throw new Error('[dev-mock] fs.writeTextFile is not available in browser dev mode');
+  throw new Error('[plugin-stub] fs.writeTextFile is not available in browser dev mode');
 }
 
 /**
@@ -206,7 +206,7 @@ export async function remove(
     const real = await import('@tauri-apps/plugin-fs');
     return real.remove(path, options);
   }
-  throw new Error('[dev-mock] fs.remove is not available in browser dev mode');
+  throw new Error('[plugin-stub] fs.remove is not available in browser dev mode');
 }
 
 /**
@@ -222,7 +222,7 @@ export async function rename(
     const real = await import('@tauri-apps/plugin-fs');
     return real.rename(oldPath, newPath, options);
   }
-  throw new Error('[dev-mock] fs.rename is not available in browser dev mode');
+  throw new Error('[plugin-stub] fs.rename is not available in browser dev mode');
 }
 
 /**
@@ -238,7 +238,7 @@ export async function mkdir(
     const real = await import('@tauri-apps/plugin-fs');
     return real.mkdir(path, options);
   }
-  throw new Error('[dev-mock] fs.mkdir is not available in browser dev mode');
+  throw new Error('[plugin-stub] fs.mkdir is not available in browser dev mode');
 }
 
 /**
@@ -254,7 +254,7 @@ export async function copyFile(
     const real = await import('@tauri-apps/plugin-fs');
     return real.copyFile(fromPath, toPath, options);
   }
-  throw new Error('[dev-mock] fs.copyFile is not available in browser dev mode');
+  throw new Error('[plugin-stub] fs.copyFile is not available in browser dev mode');
 }
 
 /**
@@ -270,7 +270,7 @@ export async function truncate(
     const real = await import('@tauri-apps/plugin-fs');
     return real.truncate(path, len, options);
   }
-  throw new Error('[dev-mock] fs.truncate is not available in browser dev mode');
+  throw new Error('[plugin-stub] fs.truncate is not available in browser dev mode');
 }
 
 /**
@@ -286,7 +286,7 @@ export async function open(
     const real = await import('@tauri-apps/plugin-fs');
     return real.open(path, options);
   }
-  throw new Error('[dev-mock] fs.open is not available in browser dev mode');
+  throw new Error('[plugin-stub] fs.open is not available in browser dev mode');
 }
 
 /**
@@ -302,5 +302,5 @@ export async function create(
     const real = await import('@tauri-apps/plugin-fs');
     return real.create(path, options);
   }
-  throw new Error('[dev-mock] fs.create is not available in browser dev mode');
+  throw new Error('[plugin-stub] fs.create is not available in browser dev mode');
 }
