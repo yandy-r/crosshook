@@ -157,13 +157,23 @@ export interface LaunchPreview {
   display_text: string;
 }
 
+/** Stable identifier union for pipeline nodes. */
+export type PipelineNodeId =
+  | 'game'
+  | 'wine-prefix'
+  | 'proton'
+  | 'steam'
+  | 'trainer'
+  | 'optimizations'
+  | 'launch';
+
 /** Status of a single pipeline node. */
 export type PipelineNodeStatus = 'configured' | 'not-configured' | 'error' | 'active' | 'complete';
 
 /** A node in the launch pipeline visualization. */
 export interface PipelineNode {
   /** Stable identifier (e.g., 'game', 'wine-prefix', 'proton'). */
-  id: string;
+  id: PipelineNodeId;
   /** Display label (e.g., 'Game', 'Wine Prefix'). */
   label: string;
   /** Current status for visual rendering. */

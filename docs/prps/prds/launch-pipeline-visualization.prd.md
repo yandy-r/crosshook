@@ -313,10 +313,18 @@ interface PipelineNode {
 | `src/crosshook-native/src/components/LaunchPanel.tsx` | Replace `crosshook-launch-panel__runner-stack` div with `<LaunchPipeline>`. Pass `profile`, `preview`, `phase`, `method`. Move `helperLogPath` and `launchGuidanceText` below pipeline. |
 | `src/crosshook-native/src/hooks/useScrollEnhance.ts`  | No change needed — pipeline is not a scroll container.                                                                                                                                  |
 
-### No Backend Changes
+### Phase 1 — Backend surface
 
-All data needed is already available via existing types: `GameProfile`, `LaunchPreview`,
-`LaunchPhase`, `LaunchMethod`. No new IPC commands, no Rust changes, no schema migrations.
+For the initial pipeline UI, **no new IPC commands** and **no schema migrations** are required: the
+visualization reads existing `GameProfile`, `LaunchPreview`, `LaunchPhase`, and `LaunchMethod`
+values.
+
+**Phase 2** tightens the Rust↔TypeScript contract: the backend populates machine-readable
+`LaunchValidationIssue.code` strings (snake_case, from `ValidationError::issue()` / `code()` in
+`crosshook-core`). The frontend maps those codes to pipeline nodes with `derivePipelineNodes()` using
+`LaunchPreview`, plus `mapValidationToNode` and `groupIssuesByNode` — not message-pattern matching.
+Browser dev mode mocks for `preview_launch` may return validation fixtures to exercise Tier 2. See
+**Phase 2 — Tier 2 Preview-Derived Status** under Implementation Phases.
 
 ---
 
@@ -365,12 +373,14 @@ All data needed is already available via existing types: `GameProfile`, `LaunchP
 - Integration into `LaunchPanel` (replace runner indicator)
 - Responsive compact layout
 
-### Phase 2 — Tier 2 Preview-Derived Status
+### Phase 2 — Tier 2 Preview-Derived Status — **complete**
 
-- Enhance `derivePipelineNodes()` to accept `LaunchPreview`
-- Map `LaunchPreview` sections to node status upgrades
-- Map validation issues to specific nodes
-- Handle `directives_error` for Optimizations node
+- `derivePipelineNodes()` uses `LaunchPreview` when present (Tier 1 fallback when `preview` is null)
+- `ValidationError::issue()` populates machine-readable `code` (snake_case); frontend maps `code` to
+  nodes via `mapValidationToNode` / `groupIssuesByNode` (no message-pattern matching)
+- Node `detail` shows resolved paths, validation messages, or `directives_error` on Optimizations
+- Mock `preview_launch` can return validation fixtures when `game_path` is empty or
+  `__MOCK_VALIDATION_ERROR__` for browser dev mode
 
 ### Phase 3 — Tier 3 Live Launch Animation
 

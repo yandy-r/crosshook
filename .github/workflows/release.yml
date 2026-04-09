@@ -109,12 +109,12 @@ jobs:
             echo "::error::No JS assets found under src/crosshook-native/dist/assets/ — build output missing or glob did not match" >&2
             exit 1
           fi
-          if grep -rl '\[dev-mock\]\|getMockRegistry\|registerMocks\|MOCK MODE' \
+          if grep -rl '\[dev-mock\]\|getMockRegistry\|registerMocks\|MOCK MODE\|__MOCK_VALIDATION_ERROR__' \
               src/crosshook-native/dist/assets/*.js 2>/dev/null; then
             echo "::error::Mock code found in production bundle — refusing to ship" >&2
             echo "This is a CRITICAL security failure. The __WEB_DEV_MODE__ define" >&2
             echo "or the dynamic-import dead-branch failed to eliminate mock code." >&2
-            echo "Sentinel strings checked: [dev-mock], getMockRegistry, registerMocks, MOCK MODE" >&2
+            echo "Sentinel strings checked: [dev-mock], getMockRegistry, registerMocks, MOCK MODE, __MOCK_VALIDATION_ERROR__" >&2
             exit 1
           fi
           echo "Bundle clean — no mock strings found"

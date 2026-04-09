@@ -33,30 +33,36 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
     () => derivePipelineNodes(method, profile, preview, phase),
     [method, profile, preview, phase]
   );
-  const firstIncompleteIdx = nodes.findIndex((n) => n.id !== 'launch' && n.status === 'not-configured');
+  const firstIssueIdx = nodes.findIndex(
+    (n) => n.id !== 'launch' && (n.status === 'not-configured' || n.status === 'error')
+  );
   const launchIndex = nodes.findIndex((n) => n.id === 'launch');
   // Fallback to 0 is unreachable: every pipeline ends with a 'launch' node (launchIndex always >= 0)
   const currentStepIndex =
-    firstIncompleteIdx >= 0 ? firstIncompleteIdx : launchIndex >= 0 ? launchIndex : 0;
+    firstIssueIdx >= 0 ? firstIssueIdx : launchIndex >= 0 ? launchIndex : 0;
 
   return (
     <nav className="crosshook-launch-pipeline" aria-label="Launch pipeline">
       <ol className="crosshook-launch-pipeline__steps">
-        {nodes.map((node, index) => (
-          <li
-            key={node.id}
-            className="crosshook-launch-pipeline__node"
-            data-status={node.status}
-            aria-current={index === currentStepIndex ? 'step' : undefined}
-            aria-label={`${node.label}: ${STATUS_LABEL[node.status]}`}
-          >
-            <span className="crosshook-launch-pipeline__node-indicator" aria-hidden="true">
-              {STATUS_ICON[node.status]}
-            </span>
-            <span className="crosshook-launch-pipeline__node-label">{node.label}</span>
-            <span className="crosshook-launch-pipeline__node-status">{STATUS_LABEL[node.status]}</span>
-          </li>
-        ))}
+        {nodes.map((node, index) => {
+          const statusText = node.detail || STATUS_LABEL[node.status];
+          return (
+            <li
+              key={node.id}
+              className="crosshook-launch-pipeline__node"
+              data-status={node.status}
+              aria-current={index === currentStepIndex ? 'step' : undefined}
+              aria-label={`${node.label}: ${statusText}`}
+              title={node.detail}
+            >
+              <span className="crosshook-launch-pipeline__node-indicator" aria-hidden="true">
+                {STATUS_ICON[node.status]}
+              </span>
+              <span className="crosshook-launch-pipeline__node-label">{node.label}</span>
+              <span className="crosshook-launch-pipeline__node-status">{statusText}</span>
+            </li>
+          );
+        })}
       </ol>
     </nav>
   );
