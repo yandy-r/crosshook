@@ -10,6 +10,8 @@ This file is generated with `git-cliff` from the repository history and release 
 
 - **build:** Resolve blank AppImage on Intel+NVIDIA hybrid GPU systems ([`67bd326`](https://github.com/yandy-r/crosshook/commit/67bd3262c7256115c859b23f19e21147aed4bd98))
 
+- **build:** Rename plugin-stub sentinel prefix to avoid CI mock-code check ([`157b884`](https://github.com/yandy-r/crosshook/commit/157b884f943b82688dbef5ea78e7f864d5fba86d))
+
 
 ### Features
 
