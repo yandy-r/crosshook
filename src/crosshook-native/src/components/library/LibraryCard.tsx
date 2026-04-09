@@ -14,7 +14,7 @@ interface LibraryCardProps {
   onContextMenu?: (
     position: { x: number; y: number },
     profileName: string,
-    returnFocusTo: HTMLElement
+    restoreFocusTo: HTMLElement
   ) => void;
 }
 

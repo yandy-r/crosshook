@@ -95,11 +95,6 @@
   background: var(--crosshook-color-pipeline-connector-success);
 }
 
-/* Status: complete (live session / finished steps) */
-.crosshook-launch-pipeline__node[data-status='complete']::after {
-  background: var(--crosshook-color-pipeline-connector-success);
-}
-
 /* Status: not-configured */
 .crosshook-launch-pipeline__node[data-status='not-configured'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-not-configured-bg);
@@ -150,12 +145,7 @@
   );
 }
 
-@keyframes crosshook-pulse-waiting {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
-}
-
-/* Status: complete */
+/* Status: complete (live session / finished steps) */
 .crosshook-launch-pipeline__node[data-status='complete'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-success);
   color: var(--crosshook-color-on-success);
@@ -163,6 +153,21 @@
 
 .crosshook-launch-pipeline__node[data-status='complete'] .crosshook-launch-pipeline__node-label {
   color: var(--crosshook-color-success);
+}
+
+.crosshook-launch-pipeline__node[data-status='complete']::after {
+  background: var(--crosshook-color-pipeline-connector-success);
+}
+
+/* Pulse animation for active status (Phases 2–3) */
+@keyframes crosshook-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@keyframes crosshook-pulse-waiting {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -173,12 +178,6 @@
   .crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting'] .crosshook-launch-pipeline__node-indicator {
     animation: none;
   }
-}
-
-/* Pulse animation for active status (Phases 2–3) */
-@keyframes crosshook-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
 }
 
 /* --- Responsive: <= 1360px --- */

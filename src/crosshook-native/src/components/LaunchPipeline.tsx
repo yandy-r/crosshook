@@ -58,7 +58,7 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
               key={node.id}
               className="crosshook-launch-pipeline__node"
               data-status={node.status}
-              data-tone={node.tone === 'waiting' ? 'waiting' : undefined}
+              data-tone={node.tone}
               aria-current={index === currentStepIndex ? 'step' : undefined}
               aria-label={`${node.label}: ${statusText}`}
               title={node.detail}

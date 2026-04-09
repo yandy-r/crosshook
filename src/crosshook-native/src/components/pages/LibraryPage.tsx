@@ -51,12 +51,17 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<LibraryViewMode>(loadViewMode);
   const [launchingName, setLaunchingName] = useState<string | undefined>();
+  // `restoreFocusTo` is co-located with the open/close state so that all
+  // fields update atomically in a single setState call. The element's
+  // lifecycle matches the menu's (card stays mounted while the menu is open),
+  // so no memory-leak concern applies. CollectionAssignMenu guards against
+  // stale references with an `isConnected` check before calling `.focus()`.
   const [assignMenuState, setAssignMenuState] = useState<{
     open: boolean;
     profileName: string | null;
     anchorPosition: { x: number; y: number } | null;
-    returnFocusTo: HTMLElement | null;
-  }>({ open: false, profileName: null, anchorPosition: null, returnFocusTo: null });
+    restoreFocusTo: HTMLElement | null;
+  }>({ open: false, profileName: null, anchorPosition: null, restoreFocusTo: null });
   const [createCollectionFromMenuOpen, setCreateCollectionFromMenuOpen] = useState(false);
   const [createCollectionSessionError, setCreateCollectionSessionError] = useState<string | null>(null);
   const { createCollection } = useCollections();
@@ -136,12 +141,12 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   );
 
   const handleCardContextMenu = useCallback(
-    (position: { x: number; y: number }, profileName: string, returnFocusTo: HTMLElement) => {
+    (position: { x: number; y: number }, profileName: string, restoreFocusTo: HTMLElement) => {
       setAssignMenuState({
         open: true,
         profileName,
         anchorPosition: position,
-        returnFocusTo,
+        restoreFocusTo,
       });
     },
     []
@@ -152,7 +157,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
       open: false,
       profileName: null,
       anchorPosition: null,
-      returnFocusTo: null,
+      restoreFocusTo: null,
     });
   }, []);
 
@@ -251,7 +256,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
         open={assignMenuState.open}
         profileName={assignMenuState.profileName}
         anchorPosition={assignMenuState.anchorPosition}
-        restoreFocusTo={assignMenuState.returnFocusTo}
+        restoreFocusTo={assignMenuState.restoreFocusTo}
         onClose={closeAssignMenu}
         onCreateNew={handleCreateFromAssignMenu}
       />

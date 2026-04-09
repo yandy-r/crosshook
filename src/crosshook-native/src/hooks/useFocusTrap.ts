@@ -158,9 +158,13 @@ export function useFocusTrap({
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   /** Elements this instance registered with {@link modalInertRegistry}. */
   const touchedInertRef = useRef<HTMLElement[]>([]);
+  /** Suppresses the deferred focus-restore microtask after cleanup runs. */
+  const microtaskSuppressRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
+
+    microtaskSuppressRef.current = false;
 
     const { body } = document;
     const panel = panelRef.current;
@@ -198,6 +202,7 @@ export function useFocusTrap({
     });
 
     return () => {
+      microtaskSuppressRef.current = true;
       window.cancelAnimationFrame(frame);
       for (const el of touchedInertRef.current) {
         unregisterInertElement(el);
@@ -215,6 +220,9 @@ export function useFocusTrap({
       // Defer restore so another modal mounted in the same React commit can render
       // first; skip if a modal is still open so focus stays with the new trap.
       queueMicrotask(() => {
+        if (microtaskSuppressRef.current) {
+          return;
+        }
         if (typeof document === 'undefined') {
           return;
         }

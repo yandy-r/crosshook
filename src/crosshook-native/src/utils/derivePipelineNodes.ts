@@ -59,8 +59,6 @@ function applyPhaseOverlay(
 
   const nodes = base.map((n) => ({ ...n }));
   const ids = METHOD_NODE_IDS[method];
-  const twoStepTrainerFlow = method === 'proton_run' || method === 'steam_applaunch';
-
   const patch = (id: PipelineNodeId, partial: Partial<PipelineNode>): void => {
     const idx = nodes.findIndex((n) => n.id === id);
     if (idx < 0) {
@@ -69,21 +67,21 @@ function applyPhaseOverlay(
     nodes[idx] = { ...nodes[idx], ...partial };
   };
 
+  // Display label for the waiting state
+  const WAITING_DETAIL = 'Waiting' as const;
+
   switch (phase) {
     case LaunchPhase.GameLaunching:
       patch('game', { status: 'active', tone: undefined });
       break;
 
     case LaunchPhase.WaitingForTrainer:
-      if (method === 'native') {
-        patch('game', { status: 'complete', tone: undefined });
-        patch('trainer', { status: 'active', tone: undefined });
-      } else if (twoStepTrainerFlow) {
-        patch('game', { status: 'complete', tone: undefined });
+      patch('game', { status: 'complete', tone: undefined });
+      if (ids.includes('trainer')) {
         patch('trainer', {
           status: 'active',
           tone: 'waiting',
-          detail: 'Waiting',
+          detail: WAITING_DETAIL,
         });
       }
       break;
@@ -105,6 +103,9 @@ function applyPhaseOverlay(
         }
       }
       break;
+
+    default:
+      phase satisfies never;
   }
 
   return nodes;
