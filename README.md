@@ -176,7 +176,7 @@ libsoup3, WebKitGTK 4.1, and OpenSSL.
 ./scripts/build-native.sh
 ```
 
-The AppImage is written to `dist/`. Additional options:
+By default the AppImage is copied to `$XDG_DATA_HOME/crosshook/artifacts` (not `./dist`). CI releases still use `./dist`. Use `./scripts/build-native.sh --print-paths` to see the resolved paths, or set `DIST_DIR` / `CARGO_TARGET_DIR` to override. Additional options:
 
 ```bash
 # Build the release binary only (skip AppImage bundling)

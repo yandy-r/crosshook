@@ -27,6 +27,9 @@ build() {
   local repo_dir
   repo_dir="$(_repo_dir)"
 
+  export CARGO_TARGET_DIR="$srcdir/crosshook-cargo-target"
+  mkdir -p "$CARGO_TARGET_DIR"
+
   cd "$repo_dir/src/crosshook-native"
   npm ci
   ./node_modules/.bin/tauri build --target x86_64-unknown-linux-gnu
@@ -39,7 +42,12 @@ package() {
 
   cd "$repo_dir"
 
-  binary_path="$(find src/crosshook-native/src-tauri/target -type f -path '*/release/crosshook-native' | sort | tail -n 1)"
+  export CARGO_TARGET_DIR="$srcdir/crosshook-cargo-target"
+
+  binary_path="$(find "$CARGO_TARGET_DIR" -type f -path '*/release/crosshook-native' 2>/dev/null | sort | tail -n 1)"
+  if [[ -z "$binary_path" ]]; then
+    binary_path="$(find src/crosshook-native/src-tauri/target -type f -path '*/release/crosshook-native' | sort | tail -n 1)"
+  fi
   if [[ -z "$binary_path" ]]; then
     binary_path="$(find src/crosshook-native/target -type f -path '*/release/crosshook-native' | sort | tail -n 1)"
   fi

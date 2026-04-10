@@ -1,5 +1,6 @@
 dist/
 node_modules/
+# Cargo default when CARGO_TARGET_DIR is unset (manual invocations)
 target/
 src-tauri/gen/
 

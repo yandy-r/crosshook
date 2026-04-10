@@ -2,12 +2,18 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/build-paths.sh
+source "$ROOT_DIR/scripts/lib/build-paths.sh"
+
+# Resolve host-side defaults (XDG data/cache by default, /tmp with CROSSHOOK_BUILD_EPHEMERAL=1).
+crosshook_build_paths_init || exit 1
+CONTAINER_ARTIFACT_DIR="$DIST_DIR"
+
 RUNTIME=""
 IMAGE="${IMAGE:-}"
 BASE_IMAGE="${BASE_IMAGE:-ubuntu:24.04}"
 BUILDER_IMAGE_REPO="${BUILDER_IMAGE_REPO:-crosshook-native-builder}"
 TARGET_TRIPLE="${TARGET_TRIPLE:-x86_64-unknown-linux-gnu}"
-DIST_DIR="${DIST_DIR:-$ROOT_DIR/dist}"
 DOCKERFILE_PATH="$ROOT_DIR/scripts/build-native-container.Dockerfile"
 INSTALL_NODE_MODULES=0
 KEEP_WORKTREE_ARTIFACTS=0
@@ -136,7 +142,11 @@ fi
   -e INSTALL_NODE_MODULES="$INSTALL_NODE_MODULES" \
   -e KEEP_WORKTREE_ARTIFACTS="$KEEP_WORKTREE_ARTIFACTS" \
   -e APPIMAGE_EXTRACT_AND_RUN=1 \
+  -e DIST_DIR="$DIST_DIR" \
+  -e CARGO_TARGET_DIR="$CARGO_TARGET_DIR" \
   -v "$ROOT_DIR:/workspace" \
+  -v "$DIST_DIR:$DIST_DIR" \
+  -v "$CARGO_TARGET_DIR:$CARGO_TARGET_DIR" \
   -w /workspace \
   "$IMAGE" \
   bash -c '
@@ -147,6 +157,8 @@ fix_ownership() {
   local path
 
   for path in \
+    "$DIST_DIR" \
+    "$CARGO_TARGET_DIR" \
     /workspace/dist \
     /workspace/src/crosshook-native/dist \
     /workspace/src/crosshook-native/node_modules \
@@ -188,4 +200,4 @@ APPIMAGE_EXTRACT_AND_RUN=1 TARGET_TRIPLE="${TARGET_TRIPLE}" ./scripts/build-nati
 
 echo "Containerized native build complete."
 echo "AppImage location:"
-echo "  $DIST_DIR"
+echo "  $CONTAINER_ARTIFACT_DIR"

@@ -46,7 +46,7 @@ cd crosshook
 ./scripts/build-native.sh
 ```
 
-The AppImage is written to `dist/`. For just the release binary (faster):
+By default, build outputs go to XDG locations (`./scripts/build-native.sh --print-paths`). CI uses `./dist`. For just the release binary (faster):
 
 ```bash
 ./scripts/build-native.sh --binary-only
