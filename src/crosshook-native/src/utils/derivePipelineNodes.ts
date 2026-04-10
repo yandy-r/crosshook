@@ -214,6 +214,10 @@ function buildTier2Node(
   if (fatalIssue) {
     return { id, label, status: 'error', detail: fatalIssue.message };
   }
+  // NOTE: Only `fatal` severity issues promote a node to `error` status.
+  // `warning`-severity issues are intentionally not surfaced in the pipeline
+  // visualization yet — the mock fixture `__MOCK_VALIDATION_WARNING__` exists
+  // but the display path is a no-op. See #74 for future warning indicator work.
   if (id === 'optimizations' && preview.directives_error) {
     return { id, label, status: 'error', detail: preview.directives_error };
   }

@@ -262,6 +262,7 @@ export function registerLaunch(map: Map<string, Handler>): void {
       return previewWithIssues;
     }
 
+    // Build populated preview (shared base for both populated and warning paths)
     const preview: LaunchPreview = {
       resolved_method: method,
       validation: { issues: [] },
@@ -297,6 +298,24 @@ export function registerLaunch(map: Map<string, Handler>): void {
       generated_at: new Date().toISOString(),
       display_text: 'Mock preview: game will be launched via Proton with PROTON_LOG=1 and esync enabled.',
     };
+
+    if (gamePath === '__MOCK_VALIDATION_WARNING__') {
+      return {
+        ...preview,
+        validation: {
+          issues: [
+            {
+              message: 'Trainer binary hash does not match the community checksum.',
+              help: 'Re-download or verify the trainer file integrity.',
+              severity: 'warning' as const,
+              code: 'trainer_hash_mismatch',
+            },
+          ],
+        },
+        wrappers: ['gamescope'],
+        display_text: 'Mock preview with warning-severity validation.',
+      };
+    }
 
     return preview;
   });

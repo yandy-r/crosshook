@@ -24,13 +24,28 @@
   --crosshook-color-on-error: #ffffff;
   --crosshook-color-on-accent-strong: #ffffff;
   /* Pipeline: not-configured node surface (muted neutral) */
-  --crosshook-color-not-configured-bg: rgba(224, 224, 224, 0.15);
+  --crosshook-color-not-configured-bg: rgba(224, 224, 224, 0.22);
   --crosshook-color-not-configured-text: var(--crosshook-color-text-subtle);
   --crosshook-color-not-configured-label: var(--crosshook-color-text-muted);
   /* Pipeline: connector segment after a configured node */
   --crosshook-color-pipeline-connector-success: color-mix(
     in srgb,
     var(--crosshook-color-success) 35%,
+    var(--crosshook-color-border-strong)
+  );
+  --crosshook-color-pipeline-connector-active: color-mix(
+    in srgb,
+    var(--crosshook-color-accent-strong) 40%,
+    var(--crosshook-color-border-strong)
+  );
+  --crosshook-color-pipeline-connector-error: color-mix(
+    in srgb,
+    var(--crosshook-color-danger) 35%,
+    var(--crosshook-color-border-strong)
+  );
+  --crosshook-color-pipeline-connector-waiting: color-mix(
+    in srgb,
+    var(--crosshook-color-warning) 40%,
     var(--crosshook-color-border-strong)
   );
   /* Soft danger surface (alerts, inline errors) */

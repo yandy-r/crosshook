@@ -1,7 +1,8 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 import type { AppRoute } from '../src/components/layout/Sidebar';
 import { ROUTE_NAV_LABEL } from '../src/components/layout/routeMetadata';
+import { attachConsoleCapture, type ConsoleCapture } from './helpers';
 
 /**
  * Smoke test the 9 application routes in browser dev mode.
@@ -47,23 +48,6 @@ const ROUTES: readonly RouteDef[] = ROUTE_ORDER.map((route) => ({
   navLabel: ROUTE_NAV_LABEL[route],
 }));
 
-interface ConsoleCapture {
-  errors: string[];
-}
-
-function attachConsoleCapture(page: Page): ConsoleCapture {
-  const capture: ConsoleCapture = { errors: [] };
-  page.on('pageerror', (err) => {
-    capture.errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      capture.errors.push(`console.error: ${msg.text()}`);
-    }
-  });
-  return capture;
-}
-
 test.describe('browser dev mode smoke', () => {
   for (const { route, navLabel } of ROUTES) {
     test(`route: ${route} (${navLabel})`, async ({ page }) => {
@@ -100,4 +84,20 @@ test.describe('browser dev mode smoke', () => {
       expect(capture.errors, `Uncaught errors on route "${route}":\n${capture.errors.join('\n')}`).toEqual([]);
     });
   }
+});
+
+test.describe('launch pipeline smoke', () => {
+  test('pipeline renders on launch page', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.goto('/?fixture=populated');
+    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
+    await launchTab.click();
+    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+
+    await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
+    await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
+
+    expect(capture.errors).toEqual([]);
+  });
 });

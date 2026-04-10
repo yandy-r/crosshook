@@ -312,7 +312,7 @@ These are tracked but not scheduled. Revisit after Phases 1-6 based on community
 | #71 -- Lutris import            |        | When user acquisition from Lutris becomes a measurable source                    |
 | #72 -- Mod management           |        | Only if directly supporting trainer coexistence, not as general mod management   |
 | #73 -- Profile collections      | Done   | When users have 20+ profiles and request organization                            |
-| #74 -- Pipeline visualization   |        | When the profile editor feels too complex for new users                          |
+| #74 -- Pipeline visualization   | Done   | When the profile editor feels too complex for new users                          |
 | #75 -- Accessibility            |        | When accessibility feedback is received or before a public launch milestone      |
 | #76 -- macOS port               |        | When GPTK2 trainer viability is confirmed by community testing                   |
 | #77 -- Community Suggestions    | Done   | After #53 (ProtonDB) is live and generating data for pattern extraction          |

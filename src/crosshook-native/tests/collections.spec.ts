@@ -11,24 +11,8 @@
  * for a clean store per test case.
  */
 
-import { test, expect, type Page } from '@playwright/test';
-
-interface ConsoleCapture {
-  errors: string[];
-}
-
-function attachConsoleCapture(page: Page): ConsoleCapture {
-  const capture: ConsoleCapture = { errors: [] };
-  page.on('pageerror', (err) => {
-    capture.errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      capture.errors.push(`console.error: ${msg.text()}`);
-    }
-  });
-  return capture;
-}
+import { test, expect } from '@playwright/test';
+import { attachConsoleCapture, type ConsoleCapture } from './helpers';
 
 test.describe('collections smoke', () => {
   let capture: ConsoleCapture;
