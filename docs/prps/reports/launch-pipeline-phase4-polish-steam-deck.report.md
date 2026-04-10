@@ -25,6 +25,7 @@ the final phase of the pipeline visualization feature (issue #74).
 ## Features Implemented
 
 ### Accessibility (WCAG 2.1 AA)
+
 - **`aria-live` region**: Visually-hidden `<div aria-live="polite" aria-atomic="true">` announces
   pipeline status summary when nodes change. Follows PatternFly Progress Stepper pattern (separate
   element, not on the `<ol>`).
@@ -34,6 +35,7 @@ the final phase of the pipeline visualization feature (issue #74).
   non-text contrast toward WCAG 1.4.11 3:1 threshold.
 
 ### Visual Polish
+
 - **Active connectors**: Blue-tinted (`color-mix` 40% accent-strong) connector after active nodes.
 - **Error connectors**: Red-tinted (`color-mix` 35% danger) connector after error nodes.
 - **Waiting connectors**: Existing amber connector preserved (more specific selector overrides).
@@ -41,12 +43,14 @@ the final phase of the pipeline visualization feature (issue #74).
   stacked nodes, restoring visual continuity in vertical layout.
 
 ### Radix Tooltips
+
 - Replaced browser `title` attribute with `@radix-ui/react-tooltip` on detail-bearing nodes.
 - Only renders tooltip markup when `node.detail` is truthy — clean DOM for nodes without detail.
 - Styled consistently with `InfoTooltip.tsx` pattern (dark surface, border, shadow, arrow).
 - Provider at app root handles 200ms delay.
 
 ### Mock Fixtures
+
 - `__MOCK_VALIDATION_WARNING__` sentinel returns a valid preview with a single
   `trainer_hash_mismatch` warning (non-fatal). Tests Tier 2 warning-severity rendering path.
 - CI sentinel grep in `release.yml` updated to prevent production leakage.
@@ -63,9 +67,11 @@ the final phase of the pipeline visualization feature (issue #74).
 ## Testing Guidance
 
 ### Automated
+
 - `npm run test:smoke` (requires `npx playwright install`) — runs smoke + pipeline specs.
 
 ### Manual Checklist
+
 - [ ] Browser dev mode (`./scripts/dev-native.sh --browser`): populated profile → 6 nodes, green connectors
 - [ ] Hover configured node → Radix tooltip with resolved path
 - [ ] Tab through nodes → tooltip on focus, Escape dismisses

@@ -18,7 +18,10 @@ function attachConsoleCapture(page: Page): ConsoleCapture {
 }
 
 test.describe('launch pipeline visualization', () => {
+  let capture: ConsoleCapture;
+
   test.beforeEach(async ({ page }) => {
+    capture = attachConsoleCapture(page);
     await page.goto('/?fixture=populated');
     // Navigate to Launch page
     const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
@@ -28,8 +31,6 @@ test.describe('launch pipeline visualization', () => {
   });
 
   test('renders correct number of pipeline nodes for proton_run method', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     const pipeline = page.locator('.crosshook-launch-pipeline');
     await expect(pipeline).toBeVisible();
 
@@ -41,8 +42,6 @@ test.describe('launch pipeline visualization', () => {
   });
 
   test('all nodes have data-status attributes', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     const nodes = page.locator('.crosshook-launch-pipeline__node');
     const count = await nodes.count();
 
@@ -56,8 +55,6 @@ test.describe('launch pipeline visualization', () => {
   });
 
   test('nodes have accessible aria-labels', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     const nodes = page.locator('.crosshook-launch-pipeline__node');
     const count = await nodes.count();
 
@@ -72,8 +69,6 @@ test.describe('launch pipeline visualization', () => {
   });
 
   test('aria-live region exists for status announcements', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     const liveRegion = page.locator('.crosshook-launch-pipeline .crosshook-visually-hidden[aria-live="polite"]');
     await expect(liveRegion).toBeAttached();
 
@@ -84,29 +79,23 @@ test.describe('launch pipeline visualization', () => {
   });
 
   test('tooltip appears on hover for detail-bearing nodes', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     // Wait for pipeline to be visible
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
 
-    // Find a node with a tooltip trigger (nodes with detail text have triggers)
+    // Populated fixture with proton_run has detail-bearing nodes — triggers must exist
     const triggers = page.locator('.crosshook-launch-pipeline__node-trigger');
-    const triggerCount = await triggers.count();
+    expect(await triggers.count()).toBeGreaterThan(0);
 
-    if (triggerCount > 0) {
-      // Hover the first trigger to open tooltip
-      await triggers.first().hover();
-      // Radix tooltip appears in a portal with role="tooltip"
-      const tooltip = page.getByRole('tooltip');
-      await expect(tooltip).toBeVisible({ timeout: 3000 });
-    }
+    // Hover the first trigger to open tooltip
+    await triggers.first().hover();
+    // Radix tooltip appears in a portal with role="tooltip"
+    const tooltip = page.getByRole('tooltip');
+    await expect(tooltip).toBeVisible({ timeout: 3000 });
 
     expect(capture.errors).toEqual([]);
   });
 
   test('no console errors on launch page', async ({ page }) => {
-    const capture = attachConsoleCapture(page);
-
     // Wait for pipeline to settle
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
     await page.waitForTimeout(1000);
