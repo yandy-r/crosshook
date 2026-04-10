@@ -46,7 +46,7 @@ cd crosshook
 ./scripts/build-native.sh
 ```
 
-By default, build outputs go to XDG locations (`./scripts/build-native.sh --print-paths`). CI uses `./dist`. For just the release binary (faster):
+By default, build outputs go to XDG locations (`./scripts/build-native.sh --print-paths`). CI uses `./dist`. Full AppImage builds run `./scripts/generate-assets.sh` first (needs `rsvg-convert` and ImageMagick); `install-native-build-deps.sh` installs those where available. For just the release binary (faster, skips icon regeneration and AppImage):
 
 ```bash
 ./scripts/build-native.sh --binary-only

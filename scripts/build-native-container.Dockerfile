@@ -17,6 +17,8 @@ RUN apt-get update && \
       git \
       libayatana-appindicator3-dev \
       libgtk-3-dev \
+      imagemagick \
+      librsvg2-bin \
       librsvg2-dev \
       libsoup-3.0-dev \
       libssl-dev \

@@ -168,13 +168,19 @@ Install build dependencies automatically using the included script:
 ```
 
 Or install manually. You need: `cargo`, `npm`, `patchelf`, and development libraries for GTK3,
-libsoup3, WebKitGTK 4.1, and OpenSSL.
+libsoup3, WebKitGTK 4.1, and OpenSSL. AppImage builds also need `rsvg-convert` (e.g. `librsvg2-bin`
+on Debian/Ubuntu) and ImageMagick for regenerating icons from `assets/*.svg` before bundling.
 
 ### Build the AppImage
 
 ```bash
 ./scripts/build-native.sh
 ```
+
+Before `tauri build`, this runs `./scripts/generate-assets.sh` and copies the generated monogram
+(`assets/icon-512.png`) into `src/crosshook-native/src-tauri/icons/icon.png`, which is what Tauri
+uses for the AppImage icon. To refresh branding only: run those two scripts, or edit SVGs under
+`assets/` and run `./scripts/generate-assets.sh` followed by `./scripts/lib/sync-tauri-icons.sh`.
 
 By default the AppImage is copied to `$XDG_DATA_HOME/crosshook/artifacts` (not `./dist`). CI releases still use `./dist`. Use `./scripts/build-native.sh --print-paths` to see the resolved paths, or set `DIST_DIR` / `CARGO_TARGET_DIR` to override. Additional options:
 

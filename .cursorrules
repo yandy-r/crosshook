@@ -54,7 +54,7 @@ For storage changes, plans must also:
 ```bash
 ./scripts/dev-native.sh
 ./scripts/dev-native.sh --browser    # browser-only dev mode (no Rust toolchain), loopback only
-./scripts/build-native.sh                    # AppImage copy: XDG data dir by default; CI uses ./dist
+./scripts/build-native.sh                    # AppImage: runs generate-assets + sync to src-tauri/icons, then tauri build
 ./scripts/build-native-container.sh          # uses host DIST_DIR/CARGO_TARGET_DIR (XDG by default)
 ./scripts/build-native.sh --binary-only
 ./scripts/install-native-build-deps.sh

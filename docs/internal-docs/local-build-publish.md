@@ -7,6 +7,16 @@ This document captures the local build and publish workflow for CrossHook Native
 - Rust toolchain (stable)
 - Node.js 20+ and npm
 - Linux build dependencies: `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`
+- For AppImage bundling: `librsvg2-bin` (`rsvg-convert`) and ImageMagick (`magick` or `convert`) so `./scripts/generate-assets.sh` can run before `tauri build` (see **AppImage icon** below). `install-native-build-deps.sh` includes these where the package manager provides them.
+
+## AppImage icon and branding assets
+
+The shipped AppImage icon comes from Tauri’s `bundle.icon` entry (`src/crosshook-native/src-tauri/tauri.conf.json` → `icons/icon.png`). **`./scripts/build-native.sh` does not use a stale checked-in icon in isolation**: it runs `./scripts/generate-assets.sh` (SVG sources under `assets/`) and then `./scripts/lib/sync-tauri-icons.sh`, which copies `assets/icon-512.png` to `src-tauri/icons/icon.png` immediately before `cargo tauri build`.
+
+- **Manual refresh**: `./scripts/generate-assets.sh` then `./scripts/lib/sync-tauri-icons.sh`.
+- **Override source file**: set `CROSSHOOK_TAURI_ICON_SOURCE` to a PNG path when calling `sync-tauri-icons.sh` (advanced). Absolute paths are used as-is; relative paths are resolved from the repository root, not the shell cwd.
+
+Release CI (`.github/workflows/release.yml`) installs `librsvg2-bin` and `imagemagick` so the same path works on tagged builds. The container builder image (`scripts/build-native-container.Dockerfile`) includes the same tools.
 
 ## Development
 
@@ -31,7 +41,7 @@ CI and release builds still use `DIST_DIR=$GITHUB_WORKSPACE/dist` explicitly.
 ./scripts/build-native.sh
 ```
 
-Requires `cargo`, `npm`, and `patchelf`.
+Requires `cargo`, `npm`, `patchelf`, and the icon toolchain above (`rsvg-convert` + ImageMagick).
 
 Override locations when needed:
 
@@ -55,7 +65,7 @@ Generate a desktop launcher for local testing:
 ./scripts/generate-crosshook-desktop.sh
 ```
 
-By default it writes `~/.local/share/applications/crosshook.desktop` and points to the stable alias in `DIST_DIR`. Use `--appimage` and `--output` to customize per machine.
+By default it writes `~/.local/share/applications/crosshook.desktop`, points `Exec=` at the stable alias in `DIST_DIR`, then extracts the embedded icon from the target AppImage and installs it into `~/.local/share/icons/hicolor/.../apps/` before writing `Icon=crosshook-native`. This avoids blank-launcher icons on systems where the theme cache does not already contain the icon name. Use `--appimage`, `--icon`, and `--output` to customize per machine.
 
 Options:
 
@@ -94,9 +104,9 @@ Container builds now use host-resolved `DIST_DIR` and `CARGO_TARGET_DIR` (XDG de
 `.github/workflows/release.yml` runs on `v*` tag push:
 
 1. Sets up Node.js 20 and Rust stable
-2. Installs Linux build prerequisites
+2. Installs Linux build prerequisites (including `librsvg2-bin` and `imagemagick` for asset generation)
 3. Runs `cargo test -p crosshook-core`
-4. Builds AppImage via `./scripts/build-native.sh`
+4. Builds AppImage via `./scripts/build-native.sh` (regenerates icons from `assets/` then bundles)
 5. Extracts the matching tagged section from `CHANGELOG.md`
 6. Uploads the AppImage and publishes that changelog section as the GitHub Release body
 

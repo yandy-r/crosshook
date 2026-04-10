@@ -6,7 +6,7 @@ arch=('x86_64')
 url="https://github.com/yandy-r/crosshook"
 license=('MIT')
 depends=('bash' 'glib2' 'gtk3' 'webkit2gtk-4.1' 'libsoup-3.0' 'libayatana-appindicator')
-makedepends=('cargo' 'rust' 'nodejs' 'npm' 'pkgconf' 'glib2' 'gtk3' 'webkit2gtk-4.1' 'libsoup-3.0' 'libayatana-appindicator')
+makedepends=('cargo' 'rust' 'nodejs' 'npm' 'pkgconf' 'glib2' 'gtk3' 'webkit2gtk-4.1' 'libsoup-3.0' 'libayatana-appindicator' 'librsvg' 'imagemagick')
 source=("crosshook-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz")
 sha256sums=('SKIP')
 
@@ -30,6 +30,9 @@ build() {
   export CARGO_TARGET_DIR="$srcdir/crosshook-cargo-target"
   mkdir -p "$CARGO_TARGET_DIR"
 
+  cd "$repo_dir"
+  ./scripts/generate-assets.sh
+  ./scripts/lib/sync-tauri-icons.sh
   cd "$repo_dir/src/crosshook-native"
   npm ci
   ./node_modules/.bin/tauri build --target x86_64-unknown-linux-gnu

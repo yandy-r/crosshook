@@ -148,6 +148,10 @@ if (( BINARY_ONLY )); then
   exit 0
 fi
 
+echo "Generating branding assets and syncing Tauri AppImage icon..."
+"$ROOT_DIR/scripts/generate-assets.sh"
+"$ROOT_DIR/scripts/lib/sync-tauri-icons.sh"
+
 echo "Building CrossHook Native AppImage for $TARGET_TRIPLE..."
 echo "  CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
 echo "  DIST_DIR=$DIST_DIR"

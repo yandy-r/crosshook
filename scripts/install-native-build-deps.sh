@@ -52,7 +52,9 @@ install_with_pacman() {
     curl
     file
     gtk3
+    imagemagick
     libsoup3
+    librsvg
     nodejs
     npm
     openssl
@@ -72,10 +74,12 @@ install_with_apt() {
     build-essential
     curl
     file
+    imagemagick
     libgtk-3-dev
     libsoup-3.0-dev
     libssl-dev
     libwebkit2gtk-4.1-dev
+    librsvg2-bin
     nodejs
     npm
     patchelf
@@ -98,7 +102,9 @@ install_with_dnf() {
     gcc
     gcc-c++
     gtk3-devel
+    ImageMagick
     libsoup3-devel
+    librsvg2-tools
     make
     nodejs
     npm
