@@ -1,3 +1,4 @@
+pub mod app_id_migration;
 pub mod community;
 pub mod discovery;
 pub mod export;

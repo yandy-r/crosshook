@@ -2,6 +2,7 @@ mod commands;
 mod paths;
 mod startup;
 
+use crosshook_core::app_id_migration::migrate_legacy_tauri_app_id_xdg_directories;
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::launch::{initialize_catalog, load_catalog};
 use crosshook_core::logging;
@@ -15,6 +16,9 @@ use tokio::time::{sleep, Duration};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // One-time XDG root migration after Tauri app `identifier` change (legacy -> current).
+    migrate_legacy_tauri_app_id_xdg_directories();
+
     // --- AppImage GPU compatibility: prefer system WebKitGTK ---
     //
     // The AppImage bundles WebKitGTK from the build container (Ubuntu 24.04,
