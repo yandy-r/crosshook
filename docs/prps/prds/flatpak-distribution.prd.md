@@ -135,7 +135,7 @@ Start with GNOME 48 (current stable). Track the latest stable release — bump w
 
 ### 4.7 Prototype Cleanup
 
-Remove `packaging/flatpak/build-dir/` entirely as task #1 before any new Flatpak work. The prototype was a `flatpak build-init` output, not a reproducible build definition. New committed artifacts replace it completely.
+**Done — [#195](https://github.com/yandy-r/crosshook/issues/195).** `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/` were removed. The prototype was a `flatpak build-init` output and ad hoc local repo, not a reproducible build definition. New committed artifacts replace them.
 
 ---
 
@@ -147,7 +147,7 @@ Remove `packaging/flatpak/build-dir/` entirely as task #1 before any new Flatpak
 
 | #     | Requirement                                                                                                                                                                   | Priority |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| F1.1  | Remove `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/`                                                                                                           | P0       |
+| F1.1  | Remove `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/` (**done — [#195](https://github.com/yandy-r/crosshook/issues/195)**)                                        | P0       |
 | F1.2  | Create committed `packaging/flatpak/io.github.yandy_r.CrossHook.yml` manifest with `--filesystem=home` + explicit mount paths                                                 | P0       |
 | F1.3  | Create committed `packaging/flatpak/io.github.yandy_r.CrossHook.desktop` static desktop entry                                                                                 | P0       |
 | F1.4  | Create committed `packaging/flatpak/io.github.yandy_r.CrossHook.metainfo.xml` with all Flathub-required fields (developer, screenshots placeholder, content rating, releases) | P0       |
@@ -439,7 +439,7 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 **Gate**: Working `.flatpak` bundle that installs, launches, discovers Steam libraries on all drives.
 
-1. Clean up: Remove `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/`
+1. **Done (#195):** Removed `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/`
 2. Change Tauri app ID to `io.github.yandy-r.crosshook` across all configs
 3. Implement data migration for old app ID paths
 4. Add `is_flatpak()` + `host_command()` to `crosshook-core/src/platform.rs`

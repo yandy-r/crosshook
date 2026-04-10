@@ -24,17 +24,9 @@ AppImage remains the primary distribution format. Flatpak is a secondary target.
 
 ### 2.1 What Already Exists
 
-A local Flatpak build has been prototyped. The following artifacts exist in `packaging/flatpak/build-dir/`:
+The previous `flatpak build-init` staging tree (`packaging/flatpak/build-dir/`) and local Flatpak repository (`packaging/flatpak/repo/`) were **removed** in [GH-195](https://github.com/yandy-r/crosshook/issues/195). They were not reproducible build definitions (JSON build output vs a committed YAML manifest). Phase 1 work adds committed source artifacts under `packaging/flatpak/` instead.
 
-| Artifact                  | Path                                                              | Status                                                           |
-| ------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Manifest                  | `files/manifest.json`                                             | Pre-built binary approach; GNOME 48 runtime; `--filesystem=host` |
-| MetaInfo XML              | `files/share/metainfo/com.crosshook.native.metainfo.xml`          | Incomplete — missing `<developer>`, screenshots, release dates   |
-| Desktop file              | `files/share/applications/com.crosshook.native.desktop`           | Valid, minimal                                                   |
-| Icon (512px)              | `files/share/icons/hicolor/512x512/apps/com.crosshook.native.png` | Present                                                          |
-| `.flatpak-builder/` cache | Root of repo (gitignored)                                         | Checksum for `x86_64-com.crosshook.native.yml` exists            |
-
-The `build-dir/` layout is a staging directory approach — not a source-buildable manifest. No committed top-level `.yml` manifest exists.
+No Flatpak YAML manifest, desktop file, or metainfo is committed yet. Local `flatpak-builder` cache at `.flatpak-builder/` is listed in `.gitignore`.
 
 ### 2.2 Current Build Pipeline
 
@@ -361,7 +353,7 @@ The existing prototype is missing required fields. Complete metainfo must includ
 
 **Goal**: Produce a working `.flatpak` bundle from the existing pre-built binary.
 
-1. Move prototype artifacts from `build-dir/` to committed source files in `packaging/flatpak/`
+1. Add committed manifest, desktop entry, metainfo, and helper assets under `packaging/flatpak/` (prototype directories already removed; see §2.1)
 2. Create `scripts/build-flatpak.sh` that:
    - Runs the normal Tauri build (or accepts a pre-built binary)
    - Stages binary, runtime helpers, icon, desktop file, metainfo into a staging dir
@@ -422,7 +414,7 @@ The existing prototype is missing required fields. Complete metainfo must includ
 3. **GNOME runtime version pinning**: The prototype uses GNOME 48. Should the manifest track the latest stable (currently 48) or pin to a specific version for stability?
 4. **`flatpak-spawn` latency**: The D-Bus round-trip for `flatpak-spawn --host` adds overhead to process launches. Is the trainer launch timing (delay between game and trainer start) sensitive enough that this matters?
 5. **Self-hosted Flatpak repo**: Should CrossHook maintain a Flatpak repo (via `flat-manager`) for updates, or just ship `.flatpak` bundles on GitHub Releases?
-6. **`build-dir/` cleanup**: Should the existing prototype staging directory be removed and replaced with the committed manifest approach?
+6. **`build-dir/` cleanup**: **Resolved (#195)** — prototype `build-dir/` and `repo/` were removed; new work uses committed manifests only.
 
 ---
 
@@ -433,7 +425,7 @@ The existing prototype is missing required fields. Complete metainfo must includ
 - Issue: [#69 — Flatpak distribution target](https://github.com/yandy-r/crosshook/issues/69)
 - Research: `docs/research/additional-features/deep-research-report.md` (P3 classification)
 - Implementation guide: `docs/research/additional-features/implementation-guide.md` (Phase 7, trigger: immutable distro user reports)
-- Existing prototype: `packaging/flatpak/build-dir/`
+- Prototype cleanup: `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/` removed in [#195](https://github.com/yandy-r/crosshook/issues/195)
 
 ### External
 
