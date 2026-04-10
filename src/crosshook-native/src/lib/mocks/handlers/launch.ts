@@ -262,6 +262,53 @@ export function registerLaunch(map: Map<string, Handler>): void {
       return previewWithIssues;
     }
 
+    if (gamePath === '__MOCK_VALIDATION_WARNING__') {
+      const issues: LaunchPreview['validation']['issues'] = [
+        {
+          message: 'Trainer binary hash does not match the community checksum.',
+          help: 'Re-download or verify the trainer file integrity.',
+          severity: 'warning' as const,
+          code: 'trainer_hash_mismatch',
+        },
+      ];
+      const previewWithWarnings: LaunchPreview = {
+        resolved_method: method,
+        validation: { issues },
+        environment: makePreviewEnvVars(),
+        cleared_variables: ['LD_PRELOAD'],
+        wrappers: ['gamescope'],
+        effective_command:
+          '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton run /home/devuser/Games/TestGameAlpha/game.exe',
+        directives_error: null,
+        steam_launch_options: method === 'steam_applaunch' ? 'PROTON_LOG=1 %command%' : null,
+        proton_setup:
+          method !== 'native'
+            ? {
+                wine_prefix_path: '/home/devuser/.local/share/mock-prefix',
+                compat_data_path: '/home/devuser/.steam/steam/steamapps/compatdata/9999001',
+                steam_client_install_path: getStore().defaultSteamClientInstallPath,
+                proton_executable: '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton',
+                umu_run_path: null,
+              }
+            : null,
+        working_directory: '/home/devuser/Games/TestGameAlpha',
+        game_executable: '/home/devuser/Games/TestGameAlpha/game.exe',
+        game_executable_name: 'game.exe',
+        trainer:
+          method !== 'native'
+            ? {
+                path: '/home/devuser/Trainers/mock-trainer.exe',
+                host_path: '/home/devuser/Trainers/mock-trainer.exe',
+                loading_mode: 'source_directory',
+                staged_path: null,
+              }
+            : null,
+        generated_at: new Date().toISOString(),
+        display_text: 'Mock preview with warning-severity validation.',
+      };
+      return previewWithWarnings;
+    }
+
     const preview: LaunchPreview = {
       resolved_method: method,
       validation: { issues: [] },

@@ -101,3 +101,19 @@ test.describe('browser dev mode smoke', () => {
     });
   }
 });
+
+test.describe('launch pipeline smoke', () => {
+  test('pipeline renders on launch page', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.goto('/?fixture=populated');
+    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
+    await launchTab.click();
+    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+
+    await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
+    await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
+
+    expect(capture.errors).toEqual([]);
+  });
+});

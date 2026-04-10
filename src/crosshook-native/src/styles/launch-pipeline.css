@@ -81,6 +81,21 @@
   color: var(--crosshook-color-text-muted);
 }
 
+/* Tooltip trigger wrapper — inherits node flex layout */
+.crosshook-launch-pipeline__node-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  cursor: help;
+}
+
+.crosshook-launch-pipeline__node-trigger:focus-visible {
+  outline: 2px solid var(--crosshook-color-accent-strong);
+  outline-offset: 2px;
+  border-radius: var(--crosshook-radius-sm);
+}
+
 /* Status: configured */
 .crosshook-launch-pipeline__node[data-status='configured'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-success);
@@ -115,6 +130,10 @@
   color: var(--crosshook-color-danger);
 }
 
+.crosshook-launch-pipeline__node[data-status='error']::after {
+  background: var(--crosshook-color-pipeline-connector-error);
+}
+
 /* Status: active (Phases 2–3) */
 .crosshook-launch-pipeline__node[data-status='active'] .crosshook-launch-pipeline__node-indicator {
   background: var(--crosshook-color-accent-strong);
@@ -124,6 +143,10 @@
 
 .crosshook-launch-pipeline__node[data-status='active'] .crosshook-launch-pipeline__node-label {
   color: var(--crosshook-color-text);
+}
+
+.crosshook-launch-pipeline__node[data-status='active']::after {
+  background: var(--crosshook-color-pipeline-connector-active);
 }
 
 /* Active + waiting tone (trainer handoff) */
@@ -278,6 +301,16 @@
     display: none;
   }
 
+  .crosshook-launch-pipeline__node + .crosshook-launch-pipeline__node::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    top: -0.5rem;
+    height: 0.5rem;
+    width: 2px;
+    background: var(--crosshook-color-border-strong);
+  }
+
   .crosshook-launch-pipeline__node-label {
     margin-top: 0;
     margin-left: 0.5rem;
@@ -292,5 +325,11 @@
     margin-top: 0;
     margin-left: 0.5rem;
     flex: 0 0 auto;
+  }
+
+  .crosshook-launch-pipeline__node-trigger {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
   }
 }
