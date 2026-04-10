@@ -303,19 +303,19 @@ Acceptance criteria for `#62` planning must include explicit persistence rationa
 
 These are tracked but not scheduled. Revisit after Phases 1-6 based on community demand and maintainer capacity.
 
-| Issue                           | Status | Trigger to Revisit                                                               |
-| ------------------------------- | ------ | -------------------------------------------------------------------------------- |
-| #67 -- Trainer discovery        | Done   | When community taps reach 50+ profiles and users still struggle to find trainers |
-| #68 -- Protontricks integration | Done   | When trainer failure diagnostics (#36) show missing dependencies as a top cause  |
-| #69 -- Flatpak distribution     |        | When immutable distro users report AppImage issues                               |
-| #70 -- ProtonUp-Qt integration  | Done   | When Proton migration (#48) shows users lack the needed Proton versions          |
-| #71 -- Lutris import            |        | When user acquisition from Lutris becomes a measurable source                    |
-| #72 -- Mod management           |        | Only if directly supporting trainer coexistence, not as general mod management   |
-| #73 -- Profile collections      | Done   | When users have 20+ profiles and request organization                            |
-| #74 -- Pipeline visualization   | Done   | When the profile editor feels too complex for new users                          |
-| #75 -- Accessibility            |        | When accessibility feedback is received or before a public launch milestone      |
-| #76 -- macOS port               |        | When GPTK2 trainer viability is confirmed by community testing                   |
-| #77 -- Community Suggestions    | Done   | After #53 (ProtonDB) is live and generating data for pattern extraction          |
+| Issue                           | Status   | Trigger to Revisit                                                               |
+| ------------------------------- | -------- | -------------------------------------------------------------------------------- |
+| #67 -- Trainer discovery        | Done     | When community taps reach 50+ profiles and users still struggle to find trainers |
+| #68 -- Protontricks integration | Done     | When trainer failure diagnostics (#36) show missing dependencies as a top cause  |
+| #69 -- Flatpak distribution     |          | When immutable distro users report AppImage issues                               |
+| #70 -- ProtonUp-Qt integration  | Done     | When Proton migration (#48) shows users lack the needed Proton versions          |
+| #71 -- Lutris import            |          | When user acquisition from Lutris becomes a measurable source                    |
+| #72 -- Mod management           | Deferred | Only if directly supporting trainer coexistence, not as general mod management   |
+| #73 -- Profile collections      | Done     | When users have 20+ profiles and request organization                            |
+| #74 -- Pipeline visualization   | Done     | When the profile editor feels too complex for new users                          |
+| #75 -- Accessibility            |          | When accessibility feedback is received or before a public launch milestone      |
+| #76 -- macOS port               |          | When GPTK2 trainer viability is confirmed by community testing                   |
+| #77 -- Community Suggestions    | Done     | After #53 (ProtonDB) is live and generating data for pattern extraction          |
 
 ---
 
