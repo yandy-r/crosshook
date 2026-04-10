@@ -1,7 +1,8 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 import type { AppRoute } from '../src/components/layout/Sidebar';
 import { ROUTE_NAV_LABEL } from '../src/components/layout/routeMetadata';
+import { attachConsoleCapture, type ConsoleCapture } from './helpers';
 
 /**
  * Smoke test the 9 application routes in browser dev mode.
@@ -46,23 +47,6 @@ const ROUTES: readonly RouteDef[] = ROUTE_ORDER.map((route) => ({
   route,
   navLabel: ROUTE_NAV_LABEL[route],
 }));
-
-interface ConsoleCapture {
-  errors: string[];
-}
-
-function attachConsoleCapture(page: Page): ConsoleCapture {
-  const capture: ConsoleCapture = { errors: [] };
-  page.on('pageerror', (err) => {
-    capture.errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      capture.errors.push(`console.error: ${msg.text()}`);
-    }
-  });
-  return capture;
-}
 
 test.describe('browser dev mode smoke', () => {
   for (const { route, navLabel } of ROUTES) {

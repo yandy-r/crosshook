@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { GameProfile } from '../types/profile';
 import type { LaunchPhase, LaunchPreview, PipelineNodeStatus } from '../types/launch';
 import type { ResolvedLaunchMethod } from '../utils/launch';
@@ -27,6 +28,23 @@ const STATUS_LABEL: Record<PipelineNodeStatus, string> = {
   error: 'Error',
   active: 'Running',
   complete: 'Done',
+};
+
+const TOOLTIP_CONTENT_STYLE: CSSProperties = {
+  maxWidth: 280,
+  padding: '6px 10px',
+  borderRadius: 8,
+  fontSize: '0.8rem',
+  lineHeight: 1.4,
+  color: 'var(--crosshook-color-text)',
+  background: 'var(--crosshook-color-surface-raised, #2a2a2e)',
+  border: '1px solid var(--crosshook-color-border-strong)',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
+  zIndex: 9999,
+};
+
+const TOOLTIP_ARROW_STYLE: CSSProperties = {
+  fill: 'var(--crosshook-color-surface-raised, #2a2a2e)',
 };
 
 export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipelineProps) {
@@ -83,7 +101,7 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
               {hasDetail ? (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <span className="crosshook-launch-pipeline__node-trigger" tabIndex={0}>
+                    <span className="crosshook-launch-pipeline__node-trigger" tabIndex={0} aria-label={`${node.label}: ${statusText}`}>
                       {nodeContent}
                     </span>
                   </Tooltip.Trigger>
@@ -91,21 +109,10 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
                     <Tooltip.Content
                       side="top"
                       sideOffset={6}
-                      style={{
-                        maxWidth: 280,
-                        padding: '6px 10px',
-                        borderRadius: 8,
-                        fontSize: '0.8rem',
-                        lineHeight: 1.4,
-                        color: 'var(--crosshook-color-text)',
-                        background: 'var(--crosshook-color-surface-raised, #2a2a2e)',
-                        border: '1px solid var(--crosshook-color-border-strong)',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
-                        zIndex: 9999,
-                      }}
+                      style={TOOLTIP_CONTENT_STYLE}
                     >
                       {node.detail}
-                      <Tooltip.Arrow style={{ fill: 'var(--crosshook-color-surface-raised, #2a2a2e)' }} />
+                      <Tooltip.Arrow style={TOOLTIP_ARROW_STYLE} />
                     </Tooltip.Content>
                   </Tooltip.Portal>
                 </Tooltip.Root>

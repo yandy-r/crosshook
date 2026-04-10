@@ -1,21 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
-
-interface ConsoleCapture {
-  errors: string[];
-}
-
-function attachConsoleCapture(page: Page): ConsoleCapture {
-  const capture: ConsoleCapture = { errors: [] };
-  page.on('pageerror', (err) => {
-    capture.errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      capture.errors.push(`console.error: ${msg.text()}`);
-    }
-  });
-  return capture;
-}
+import { test, expect } from '@playwright/test';
+import { attachConsoleCapture, type ConsoleCapture } from './helpers';
 
 test.describe('launch pipeline visualization', () => {
   let capture: ConsoleCapture;
@@ -99,6 +83,27 @@ test.describe('launch pipeline visualization', () => {
     // Wait for pipeline to settle
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
     await page.waitForTimeout(1000);
+
+    expect(capture.errors).toEqual([]);
+  });
+
+  test('warning-severity validation does not produce error nodes', async ({ page }) => {
+    // Navigate with a game path that triggers the __MOCK_VALIDATION_WARNING__ fixture.
+    // The mock preview_launch handler returns warning-severity issues, but
+    // derivePipelineNodes only promotes `fatal` to `error` — trainer stays `configured`.
+    capture = attachConsoleCapture(page);
+    await page.goto('/?fixture=populated&gamePath=__MOCK_VALIDATION_WARNING__');
+    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
+    await expect(launchTab).toBeVisible();
+    await launchTab.click();
+    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+
+    const pipeline = page.locator('.crosshook-launch-pipeline');
+    await expect(pipeline).toBeVisible();
+
+    // No nodes should have error status (warning-severity doesn't promote to error)
+    const errorNodes = page.locator('.crosshook-launch-pipeline__node[data-status="error"]');
+    await expect(errorNodes).toHaveCount(0);
 
     expect(capture.errors).toEqual([]);
   });

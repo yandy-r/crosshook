@@ -161,7 +161,7 @@
 }
 
 .crosshook-launch-pipeline__node[data-status='active'][data-tone='waiting']::after {
-  background: color-mix(in srgb, var(--crosshook-color-warning) 40%, var(--crosshook-color-border-strong));
+  background: var(--crosshook-color-pipeline-connector-waiting);
 }
 
 /* Status: complete (live session / finished steps) */
@@ -304,7 +304,7 @@
   .crosshook-launch-pipeline__node + .crosshook-launch-pipeline__node::before {
     content: '';
     position: absolute;
-    left: 14px;
+    left: 11px;
     top: -0.5rem;
     height: 0.5rem;
     width: 2px;

@@ -43,6 +43,11 @@
     var(--crosshook-color-danger) 35%,
     var(--crosshook-color-border-strong)
   );
+  --crosshook-color-pipeline-connector-waiting: color-mix(
+    in srgb,
+    var(--crosshook-color-warning) 40%,
+    var(--crosshook-color-border-strong)
+  );
   /* Soft danger surface (alerts, inline errors) */
   --crosshook-color-danger-bg: rgba(248, 113, 113, 0.08);
   /* List / section dividers (subtle slate) */

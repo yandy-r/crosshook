@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import '@/lib/plugin-stubs/convertFileSrc';
 import App from './App';
 import './styles/theme.css';
+import './styles/utilities.css';
 import './styles/focus.css';
 import './styles/layout.css';
 import './styles/sidebar.css';
