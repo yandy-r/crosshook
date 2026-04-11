@@ -418,20 +418,42 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 ### 10.1 Data Classification
 
-| Datum                               | Storage            | Location (Flatpak)                                         |
-| ----------------------------------- | ------------------ | ---------------------------------------------------------- |
-| User settings (TOML)                | TOML settings file | `~/.var/app/dev.crosshook.CrossHook/config/crosshook/` |
-| Game metadata, profiles (SQLite)    | SQLite metadata DB | `~/.var/app/dev.crosshook.CrossHook/data/crosshook/`   |
-| Image cache                         | Runtime cache      | `~/.var/app/dev.crosshook.CrossHook/cache/crosshook/`  |
+| Datum                               | Storage            | Location (Phase 1 Flatpak, host-shared)   |
+| ----------------------------------- | ------------------ | ------------------------------------------ |
+| User settings (TOML)                | TOML settings file | `~/.config/crosshook/` (host-shared)       |
+| Game metadata, profiles (SQLite)    | SQLite metadata DB | `~/.local/share/crosshook/` (host-shared)  |
+| Wine prefixes                       | On-disk prefix dir | `~/.local/share/crosshook/prefixes/` (host-shared) |
+| Community taps                      | Git clone          | `~/.local/share/crosshook/community/`      |
+| Image cache                         | Runtime cache      | `~/.cache/crosshook/` (host-shared)        |
 | `is_flatpak()` result               | Runtime-only       | Memory (`FLATPAK_ID` / `/.flatpak-info` in `platform.rs`) |
 | Flatpak host spawns                 | Runtime-only       | `host_command()` when `is_flatpak()` (not in shell helpers) |
 
-### 10.2 Migration & Backward Compatibility
+### 10.2 Migration & Backward Compatibility (Phase 1 decision)
 
-- **AppImage → Flatpak**: XDG paths change from `~/.config/crosshook/` to `~/.var/app/dev.crosshook.CrossHook/config/crosshook/`. Flatpak remaps automatically via `XDG_CONFIG_HOME` — no code change needed if the app uses `directories::BaseDirs` (which it does).
-- **App ID change (`com.crosshook.native` → `dev.crosshook.CrossHook`)**: The Tauri identifier change affects native (non-Flatpak) XDG paths. Existing AppImage users will have data at the old path. A one-time migration check on startup should copy/move data from the old path if the new path is empty.
-- **Offline behavior**: All persistence is local. No network dependency for settings or DB.
-- **Degraded behavior**: If SQLite DB is inaccessible (permission issue), the app should fail with a clear error rather than silently losing data.
+**Decision**: Phase 1 shares XDG state between the AppImage and the Flatpak build instead of following Flatpak's per-app isolation. On startup inside a Flatpak sandbox, `crosshook_core::platform::override_xdg_for_flatpak_host_access()` rewrites `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` back to their host defaults (`$HOME/.config`, `$HOME/.local/share`, `$HOME/.cache`). `--filesystem=home` exposes those paths to the sandbox, and `directories::BaseDirs` resolves them on first access. The effect: every store (`SettingsStore`, `ProfileStore`, `MetadataStore`, `CommunityTapStore`, image cache, wine prefixes) points at the same directory tree the AppImage uses.
+
+**Why not per-app isolation for Phase 1?** Per-app isolation would require (a) copying or symlinking `~/.config/crosshook/` into the sandbox, (b) choosing which of `~/.local/share/crosshook/`'s subtrees to migrate (the metadata DB and community taps are small; wine prefixes can be 10–100 GB), (c) a prefix root override so the Flatpak continues to use the host prefix location, and (d) a "flip the switch" mechanism for users who want to migrate between the two modes. That is a multi-file refactor that belongs in its own tracking issue, not Phase 1 MVP.
+
+**Why not silent data-less first run?** The earlier text in this section — *"XDG paths change from `~/.config/crosshook/` to `~/.var/app/…/config/crosshook/`. Flatpak remaps automatically via `XDG_CONFIG_HOME` — no code change needed if the app uses `directories::BaseDirs`"* — was wrong in practice. The remap does happen, but it silently orphans the user's existing profiles, settings, game metadata, and wine prefixes. An AppImage user installing the Flatpak saw an empty UI even though their data was visible to the sandbox at the absolute host path. The override corrects this.
+
+**Legacy app-id migration** (`com.crosshook.native → dev.crosshook.CrossHook`): The one-time XDG migration in `app_id_migration.rs` runs against whatever `BaseDirs` resolves to at the time. With the host override in place, both the source and destination are host paths. In practice this is a no-op for existing AppImage installs because `crosshook-core` has always written directly to `$XDG_CONFIG_HOME/crosshook/` (no app-id parent segment); the migration exists only to catch any stale Tauri-managed state at `$XDG_CONFIG_HOME/com.crosshook.native/`.
+
+**Offline behavior**: All persistence is local. No network dependency for settings or DB.
+
+**Degraded behavior**: If SQLite DB is inaccessible (permission issue), the app should fail with a clear error rather than silently losing data.
+
+**Caveat**: Sharing data means the AppImage and Flatpak must not run concurrently with conflicting writes. Both use a process-local `io_lock` on settings; neither has cross-process file locking. Two concurrent instances can corrupt `settings.toml` (this is not a new risk — two AppImage instances have the same problem). Users running both should pick one as primary.
+
+### 10.3 Phase 4 follow-up — per-app isolation (deferred)
+
+Phase 4 (Flathub submission) will replace the host-shared model with proper per-app isolation:
+
+1. On first Flatpak launch, copy `~/.config/crosshook/` into `$XDG_CONFIG_HOME/crosshook/` (inside the sandbox).
+2. Selectively copy `~/.local/share/crosshook/` into `$XDG_DATA_HOME/crosshook/`, excluding large subtrees (`prefixes/`, `artifacts/`, `cache/`).
+3. Override the wine prefix root so existing host prefixes remain usable without a multi-gigabyte copy.
+4. Keep `override_xdg_for_flatpak_host_access()` as a fallback for users who prefer host-shared state (config flag or env var).
+
+Flathub is expected to require isolation because it is the standard sandbox contract every other Flathub app honours. Tracked in the Phase 4 sub-issue created alongside the commit that introduces the Phase 1 override (see the issue linked from #210).
 
 ---
 
