@@ -95,7 +95,7 @@ finish-args:
 
 This covers the critical multi-drive use case (games on `/mnt/nvme1`, USB SSDs at `/run/media/user/`, etc.) without the "enormous hole" of `--filesystem=host`.
 
-### 4.3 Process Execution: Centralized `spawn_host_command()`
+### 4.3 Process Execution: Centralized `host_command()`
 
 All external binary calls go through a single abstraction in `crosshook-core/src/platform.rs` that conditionally wraps commands with `flatpak-spawn --host` when `is_flatpak()` returns true.
 
@@ -178,8 +178,8 @@ The committed manifest uses **`runtime-version: "50"`** in `packaging/flatpak/de
 
 | #    | Requirement                                                                                                                                                                                                                    | Priority |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| F3.1 | Implement `spawn_host_command()` in `crosshook-core/src/platform.rs` — conditionally wraps `Command::new` with `flatpak-spawn --host` when `is_flatpak()` is true                                                              | P0       |
-| F3.2 | Migrate all 12 external binary call sites to use `spawn_host_command()`                                                                                                                                                        | P0       |
+| F3.1 | Implement `host_command()` in `crosshook-core/src/platform.rs` — conditionally wraps `Command::new` with `flatpak-spawn --host` when `is_flatpak()` is true                                                              | P0       |
+| F3.2 | Migrate all 12 external binary call sites to use `host_command()`                                                                                                                                                        | P0       |
 | F3.3 | Replace `/usr/bin/rm` calls in `run_executable.rs` with `std::fs::remove_dir_all`                                                                                                                                              | P0       |
 | F3.4 | Add `FLATPAK_ID` detection to all three bundled helper scripts; prefix host commands with `flatpak-spawn --host`                                                                                                               | P0       |
 | F3.5 | Make Proton/compatibility-tool discovery Flatpak-aware — system paths (`/usr/share/steam/compatibilitytools.d/`, `/usr/lib/steam/`) are invisible inside the sandbox; use `flatpak-spawn --host` to enumerate and resolve them | P0       |
@@ -224,9 +224,6 @@ finish-args:
 
   # WebKitGTK NVIDIA workaround
   - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
-
-  # Flatpak detection
-  - --env=FLATPAK_ID=dev.crosshook.CrossHook
 
   # Filesystem — home + external drives
   - --filesystem=home
@@ -367,8 +364,8 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 | T10  | GE-Proton download and install                                               | Downloads and extracts to correct path                                  | P1       | 3     |
 | T11  | Community tap clone                                                          | `git clone` succeeds via `flatpak-spawn --host git`                     | P1       | 3     |
 | T12  | Trainer network isolation (`unshare`)                                        | Degrades gracefully — badge shown, launch proceeds                      | P1       | 3     |
-| T13  | Settings persistence across restarts                                         | Settings at `~/.var/app/dev.crosshook.CrossHook/config/`            | P1       | 1     |
-| T14  | SQLite DB persistence                                                        | DB at `~/.var/app/dev.crosshook.CrossHook/data/`                    | P1       | 1     |
+| T13  | Settings persistence across restarts                                         | Settings at `~/.config/crosshook/`                                  | P1       | 1     |
+| T14  | SQLite DB persistence                                                        | DB at `~/.local/share/crosshook/`                                   | P1       | 1     |
 | T15  | NVIDIA GPU with Wayland                                                      | No blank screen (DMABUF workaround active)                              | P2       | 1     |
 | T16  | `gamescope` wrapper launch                                                   | Compositor wraps game via `flatpak-spawn --host gamescope`              | P2       | 3     |
 | T17  | Diagnostics export with `lspci`                                              | GPU info captured via `flatpak-spawn --host lspci`                      | P2       | 3     |
@@ -409,7 +406,7 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 | Risk                                            | Impact                               | Mitigation                                                                     |
 | ----------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
 | **CI build time increase**                      | Longer releases                      | Flatpak job runs in parallel with AppImage job                                 |
-| **XDG path confusion**                          | Users look for config in wrong place | Document that Flatpak stores data at `~/.var/app/dev.crosshook.CrossHook/` |
+| **XDG path confusion**                          | Users look for config/data/cache in wrong place | Document that Phase 1 uses host-shared XDG paths: `~/.config/crosshook/`, `~/.local/share/crosshook/`, and `~/.cache/crosshook/` |
 | **GNOME runtime version bump breaks something** | Rendering or dependency issue        | Document upgrade path; pin to specific version in manifest                     |
 
 ---
@@ -486,7 +483,7 @@ Flathub is expected to require isolation because it is the standard sandbox cont
 
 **Gate**: All 12 external binaries verified working inside sandbox. Helper scripts Flatpak-aware.
 
-1. Implement `spawn_host_command()` abstraction
+1. Implement `host_command()` abstraction
 2. Migrate all `Command::new` call sites
 3. Replace `/usr/bin/rm` with `std::fs::remove_dir_all`
 4. Add `FLATPAK_ID` detection + `run_host()` wrapper to all three helper scripts
@@ -521,9 +518,7 @@ Flathub is expected to require isolation because it is the standard sandbox cont
 
 | #   | Question                                                                                                                | Decision Needed By | Owner |
 | --- | ----------------------------------------------------------------------------------------------------------------------- | ------------------ | ----- |
-| 1   | Should AppImage users also migrate to the new app ID (`dev.crosshook.CrossHook`), or only Flatpak?                  | Phase 1 start      | Yandy |
 | 2   | Are publishable screenshots available, or do they need to be created for Phase 4?                                       | Phase 4 start      | Yandy |
-| 3   | Should `FLATPAK_ID` be used instead of `FLATPAK=1` for detection (more specific, set automatically by Flatpak runtime)? | Phase 1 start      | Yandy |
 | 4   | Is `/opt` a common Steam library mount point that should be added to filesystem permissions?                            | Phase 1 testing    | Yandy |
 
 ---

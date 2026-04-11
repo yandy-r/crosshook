@@ -25,7 +25,9 @@ pub fn run() {
     // Phase 1 shares data between AppImage and Flatpak via --filesystem=home.
     // Phase 4 will replace this with per-app isolation + a first-run
     // migration. See docs/prps/prds/flatpak-distribution.prd.md §10.2.
-    override_xdg_for_flatpak_host_access();
+    // SAFETY: this is the top of startup before any worker threads or Tauri
+    // builder state exist; no concurrent env readers/writers are active.
+    unsafe { override_xdg_for_flatpak_host_access() };
 
     // One-time XDG root migration after Tauri app `identifier` change (legacy -> current).
     migrate_legacy_tauri_app_id_xdg_directories();

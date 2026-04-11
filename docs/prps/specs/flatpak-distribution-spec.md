@@ -214,7 +214,7 @@ finish-args:
   - --filesystem=~/.var/app/com.valvesoftware.Steam:ro
 
 modules:
-  - name: crosshook-native
+  - name: crosshook
     buildsystem: simple
     sources:
       - type: dir

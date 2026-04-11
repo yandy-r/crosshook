@@ -159,7 +159,8 @@ pub fn migrate_legacy_tauri_app_id_xdg_directories() {
 pub fn migrate_legacy_tauri_app_id_xdg_directories() {}
 
 /// Test helper: run the same triple of migrations using arbitrary base paths (e.g. temp dirs).
-pub fn migrate_legacy_tauri_app_id_xdg_directories_for_roots(
+#[cfg(test)]
+fn migrate_legacy_tauri_app_id_xdg_directories_for_roots(
     config_dir: &Path,
     data_local_dir: &Path,
     cache_dir: &Path,

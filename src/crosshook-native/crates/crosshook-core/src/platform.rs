@@ -51,7 +51,14 @@ pub fn host_command(program: &str) -> Command {
 /// Phase 4 (Flathub submission) will replace this with a proper per-app
 /// isolation model and a first-run migration — see the tracking issue linked
 /// from `docs/prps/prds/flatpak-distribution.prd.md` §10.2.
-pub fn override_xdg_for_flatpak_host_access() {
+///
+/// # Safety
+///
+/// Must only be called during single-threaded process startup, before any
+/// threads are spawned and before any code reads XDG env vars. This function
+/// mutates process environment variables through `SystemEnv::set`; see that
+/// method's SAFETY note for the concrete preconditions.
+pub unsafe fn override_xdg_for_flatpak_host_access() {
     if !is_flatpak() {
         return;
     }
