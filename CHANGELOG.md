@@ -3,18 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
-
 ## [v0.2.10-flatpak] - 2026-04-11
+
+
+### Bug Fixes
+
+- **ci:** Build flatpak from staged native assets ([`c0c6d08`](https://github.com/yandy-r/crosshook/commit/c0c6d08e07409845e90f4dc5704724c4d5e53efc))
 
 
 ### Build
 
 - **icons:** Automate AppImage icon sync pipeline ([`bf56733`](https://github.com/yandy-r/crosshook/commit/bf567336f00afce8eb0ee3acf2903a3d387449cd))
-
-
-### CI
-
-- **flatpak:** Add release workflow job and runtime docs ([`fd5eab5`](https://github.com/yandy-r/crosshook/commit/fd5eab5a7a8eff08746821fad5d78e690f3eaa9e))
 
 
 ### Features
