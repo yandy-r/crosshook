@@ -2,10 +2,16 @@
 
 ## 2026-04-11 - flatpak phase 3 PRP plan
 
-- [ ] Read the Flatpak PRD phase, issue `#209`, and the relevant Phase 3 code paths.
-- [ ] Create `docs/prps/plans/flatpak-phase-3-process-execution-hardening.plan.md`.
-- [ ] Update `docs/prps/prds/flatpak-distribution.prd.md` to mark Phase 3 in progress and link the plan.
-- [ ] Run the PRP plan validator and record the outcome.
+- [x] Read the Flatpak PRD phase, issue `#209`, and the relevant Phase 3 code paths.
+- [x] Create `docs/prps/plans/flatpak-phase-3-process-execution-hardening.plan.md`.
+- [x] Update `docs/prps/prds/flatpak-distribution.prd.md` to mark Phase 3 in progress and link the plan.
+- [x] Run the PRP plan validator and record the outcome.
+
+### Review
+
+- Created `docs/prps/plans/flatpak-phase-3-process-execution-hardening.plan.md` with 8 implementation tasks covering sync/async host execution, env-bearing command refactors, Proton discovery, helper-script hardening, UI badge wiring, and the full Flatpak verification matrix.
+- Updated `docs/prps/prds/flatpak-distribution.prd.md` so Phase 3 is explicitly marked in progress and linked to the new plan plus tracking issue `#209`.
+- Validation outcome: the PRP validator confirmed all required/recommended sections and task fields, but both runs reported a false missing-title error caused by the validator's broken-pipe title check (`echo "$CONTENT" | head -5 | grep -q "^# "` under `pipefail`). The plan file itself starts with `# Plan: Flatpak Phase 3 Process Execution Hardening`.
 
 ## 2026-04-06 - protonup-integration plan-workflow
 

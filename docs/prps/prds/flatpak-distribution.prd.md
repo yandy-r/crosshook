@@ -481,6 +481,10 @@ Flathub is expected to require isolation because it is the standard sandbox cont
 
 ### Phase 3: Process Execution Hardening
 
+**Status**: In progress
+**Plan**: [`docs/prps/plans/flatpak-phase-3-process-execution-hardening.plan.md`](../plans/flatpak-phase-3-process-execution-hardening.plan.md)
+**Tracking Issue**: [#209 — Flatpak Phase 3](https://github.com/yandy-r/crosshook/issues/209)
+
 **Gate**: All 12 external binaries verified working inside sandbox. Helper scripts Flatpak-aware.
 
 1. Implement `host_command()` abstraction
