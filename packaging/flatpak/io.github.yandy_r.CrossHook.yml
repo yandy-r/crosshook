@@ -1,0 +1,80 @@
+# Flatpak manifest for CrossHook (Phase 1 — pre-built binary)
+#
+# This manifest is invoked from a staging directory populated by
+# scripts/build-flatpak.sh. The staging directory contains:
+#   - a committed copy of this manifest, the desktop entry, and the
+#     metainfo XML (copied from packaging/flatpak/)
+#   - the release binary (crosshook-native)
+#   - the three runtime helper scripts under runtime-helpers/
+#   - icon-128.png, icon-256.png, icon-512.png
+#
+# The flatpak-builder `type: dir` source below resolves to the
+# staging directory because the manifest is copied into it; the
+# build script then runs flatpak-builder with this file as the
+# manifest argument. A CI/Flathub variant that builds from source
+# lives in Phase 4 work.
+#
+# For the GNOME runtime upgrade path, see packaging/flatpak/README.md
+# (added in Phase 2 alongside the CI job).
+
+app-id: io.github.yandy_r.CrossHook
+runtime: org.gnome.Platform
+runtime-version: "50"
+sdk: org.gnome.Sdk
+command: crosshook-native
+
+finish-args:
+  # Display
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+
+  # Audio — games via Proton need PulseAudio
+  - --socket=pulseaudio
+
+  # Network — ProtonDB, SteamGridDB, GE-Proton downloads, community tap git clone
+  - --share=network
+
+  # Host command execution via flatpak-spawn --host
+  # Required for Proton, Wine, Steam, gamescope, git, and system-installed
+  # compatibility tools whose host /usr paths are masked by the runtime.
+  - --talk-name=org.freedesktop.Flatpak
+
+  # WebKitGTK workaround for NVIDIA Wayland (Tauri/WebKitGTK blank screen)
+  - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
+
+  # Filesystem — home + external drives where Steam libraries live
+  - --filesystem=home
+  - --filesystem=/mnt
+  - --filesystem=/run/media
+  - --filesystem=/media
+
+  # Flatpak Steam installation discovery (read-only)
+  - --filesystem=~/.var/app/com.valvesoftware.Steam:ro
+
+modules:
+  - name: crosshook
+    buildsystem: simple
+    build-commands:
+      # Binary
+      - install -Dm755 crosshook-native /app/bin/crosshook-native
+
+      # Bundled runtime helper scripts (resolved via the /app/resources/
+      # fallback in src-tauri/src/paths.rs when is_flatpak() is true).
+      - install -Dm755 runtime-helpers/steam-launch-helper.sh -t /app/resources/
+      - install -Dm755 runtime-helpers/steam-launch-trainer.sh -t /app/resources/
+      - install -Dm755 runtime-helpers/steam-host-trainer-runner.sh -t /app/resources/
+
+      # Desktop entry and AppStream metadata
+      - install -Dm644 io.github.yandy_r.CrossHook.desktop /app/share/applications/io.github.yandy_r.CrossHook.desktop
+      - install -Dm644 io.github.yandy_r.CrossHook.metainfo.xml /app/share/metainfo/io.github.yandy_r.CrossHook.metainfo.xml
+
+      # Hicolor icon theme entries
+      - install -Dm644 icon-128.png /app/share/icons/hicolor/128x128/apps/io.github.yandy_r.CrossHook.png
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/io.github.yandy_r.CrossHook.png
+      - install -Dm644 icon-512.png /app/share/icons/hicolor/512x512/apps/io.github.yandy_r.CrossHook.png
+
+    sources:
+      - type: dir
+        path: .

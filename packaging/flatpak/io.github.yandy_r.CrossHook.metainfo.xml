@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.yandy_r.CrossHook</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>CrossHook</name>
+  <summary>Launch Windows game trainers alongside Steam/Proton titles</summary>
+  <description>
+    <p>
+      CrossHook is a native Linux launcher for Windows game trainers. It
+      discovers Steam libraries across every mounted drive, matches trainers
+      to their target games, and coordinates the launch of both the game
+      (via Proton or Wine) and the trainer so they share a prefix, wine
+      server, and runtime environment.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Automatic Steam library discovery, including external drives</li>
+      <li>Per-profile Proton / GE-Proton selection and download manager</li>
+      <li>Community trainer tap support with git-backed updates</li>
+      <li>ProtonDB and SteamGridDB integration</li>
+      <li>Optional network isolation via user namespaces for untrusted trainers</li>
+      <li>Gamescope wrapper and Steam Deck friendly layout</li>
+    </ul>
+    <p>
+      CrossHook itself is a native Linux application. It orchestrates
+      Proton/Wine to launch Windows executables — it does not run under
+      Wine or Proton.
+    </p>
+  </description>
+
+  <developer id="io.github.yandy_r">
+    <name>Yandy Ramirez</name>
+  </developer>
+
+  <launchable type="desktop-id">io.github.yandy_r.CrossHook.desktop</launchable>
+
+  <url type="homepage">https://github.com/yandy-r/crosshook</url>
+  <url type="bugtracker">https://github.com/yandy-r/crosshook/issues</url>
+  <url type="vcs-browser">https://github.com/yandy-r/crosshook</url>
+  <url type="donation">https://github.com/sponsors/yandy-r</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <caption>CrossHook main window</caption>
+      <image>https://raw.githubusercontent.com/yandy-r/crosshook/main/assets/steam/steam-wide-cover.png</image>
+    </screenshot>
+  </screenshots>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#f4f0ea</color>
+    <color type="primary" scheme_preference="dark">#1a1a1f</color>
+  </branding>
+
+  <categories>
+    <category>Game</category>
+    <category>Utility</category>
+  </categories>
+
+  <keywords>
+    <keyword>trainer</keyword>
+    <keyword>proton</keyword>
+    <keyword>wine</keyword>
+    <keyword>steam</keyword>
+    <keyword>launcher</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="0.2.9" date="2026-04-09">
+      <description>
+        <p>Pre-Flatpak maintenance release. See the CHANGELOG for full details.</p>
+      </description>
+      <url>https://github.com/yandy-r/crosshook/releases/tag/v0.2.9</url>
+    </release>
+  </releases>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+    <control>gamepad</control>
+  </supports>
+
+  <recommends>
+    <display_length compare="ge">768</display_length>
+  </recommends>
+</component>
