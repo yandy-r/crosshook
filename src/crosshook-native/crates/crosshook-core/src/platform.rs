@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn returns_true_when_env_var_set_and_file_absent() {
-        let _guard = ScopedEnv::set(TEST_ENV_KEY, "io.github.yandy_r.CrossHook");
+        let _guard = ScopedEnv::set(TEST_ENV_KEY, "dev.crosshook.CrossHook");
         let tmp = tempdir().unwrap();
         let missing = tmp.path().join("does-not-exist");
         assert!(is_flatpak_with(TEST_ENV_KEY, &missing));
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn returns_true_when_both_present() {
-        let _guard = ScopedEnv::set(TEST_ENV_KEY, "io.github.yandy_r.CrossHook");
+        let _guard = ScopedEnv::set(TEST_ENV_KEY, "dev.crosshook.CrossHook");
         let tmp = tempdir().unwrap();
         let present = tmp.path().join(".flatpak-info");
         fs::write(&present, b"[Application]\nname=test\n").unwrap();

@@ -17,7 +17,7 @@
 # For the GNOME runtime upgrade path, see packaging/flatpak/README.md
 # (added in Phase 2 alongside the CI job).
 
-app-id: io.github.yandy_r.CrossHook
+app-id: dev.crosshook.CrossHook
 runtime: org.gnome.Platform
 runtime-version: "50"
 sdk: org.gnome.Sdk
@@ -67,13 +67,13 @@ modules:
       - install -Dm755 runtime-helpers/steam-host-trainer-runner.sh -t /app/resources/
 
       # Desktop entry and AppStream metadata
-      - install -Dm644 io.github.yandy_r.CrossHook.desktop /app/share/applications/io.github.yandy_r.CrossHook.desktop
-      - install -Dm644 io.github.yandy_r.CrossHook.metainfo.xml /app/share/metainfo/io.github.yandy_r.CrossHook.metainfo.xml
+      - install -Dm644 dev.crosshook.CrossHook.desktop /app/share/applications/dev.crosshook.CrossHook.desktop
+      - install -Dm644 dev.crosshook.CrossHook.metainfo.xml /app/share/metainfo/dev.crosshook.CrossHook.metainfo.xml
 
       # Hicolor icon theme entries
-      - install -Dm644 icon-128.png /app/share/icons/hicolor/128x128/apps/io.github.yandy_r.CrossHook.png
-      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/io.github.yandy_r.CrossHook.png
-      - install -Dm644 icon-512.png /app/share/icons/hicolor/512x512/apps/io.github.yandy_r.CrossHook.png
+      - install -Dm644 icon-128.png /app/share/icons/hicolor/128x128/apps/dev.crosshook.CrossHook.png
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/dev.crosshook.CrossHook.png
+      - install -Dm644 icon-512.png /app/share/icons/hicolor/512x512/apps/dev.crosshook.CrossHook.png
 
     sources:
       - type: dir

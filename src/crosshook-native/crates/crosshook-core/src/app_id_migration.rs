@@ -11,23 +11,52 @@ use std::path::{Path, PathBuf};
 /// Legacy Tauri `identifier` segment used before Flathub-compliant app ID adoption.
 pub const LEGACY_TAURI_APP_ID_DIR: &str = "com.crosshook.native";
 /// Current Tauri `identifier` directory segment (must match `tauri.conf.json`).
-pub const CURRENT_TAURI_APP_ID_DIR: &str = "io.github.yandy_r.CrossHook";
+pub const CURRENT_TAURI_APP_ID_DIR: &str = "dev.crosshook.CrossHook";
 
 fn dir_is_empty(path: &Path) -> Result<bool, std::io::Error> {
     let mut it = fs::read_dir(path)?;
     Ok(it.next().is_none())
 }
 
+fn copy_symlink(link: &Path, dest: &Path) -> std::io::Result<()> {
+    let target = fs::read_link(link)?;
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&target, dest)
+    }
+    #[cfg(windows)]
+    {
+        let target_is_dir = fs::metadata(link)?.is_dir();
+        if target_is_dir {
+            std::os::windows::fs::symlink_dir(target, dest)
+        } else {
+            std::os::windows::fs::symlink_file(target, dest)
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (link, dest);
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "symlink copy not supported on this platform",
+        ))
+    }
+}
+
 fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     fs::create_dir_all(dst)?;
     for entry in fs::read_dir(src)? {
         let entry = entry?;
-        let file_type = entry.file_type()?;
+        let path = entry.path();
+        let meta = path.symlink_metadata()?;
+        let file_type = meta.file_type();
         let dest = dst.join(entry.file_name());
-        if file_type.is_dir() {
-            copy_dir_recursive(&entry.path(), &dest)?;
+        if file_type.is_symlink() {
+            copy_symlink(&path, &dest)?;
+        } else if file_type.is_dir() {
+            copy_dir_recursive(&path, &dest)?;
         } else {
-            fs::copy(entry.path(), &dest)?;
+            fs::copy(&path, &dest)?;
         }
     }
     Ok(())
@@ -257,5 +286,24 @@ mod tests {
         assert!(cfg.join(CURRENT_TAURI_APP_ID_DIR).join("settings.toml").exists());
         assert!(old_d.exists());
         assert!(new_d.join("b/keep.txt").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copy_dir_recursive_preserves_symlink_to_file() {
+        use std::os::unix::fs::symlink;
+
+        let t = tempdir().unwrap();
+        let src = t.path().join("src");
+        let dst = t.path().join("dst");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(src.join("a.txt"), b"hello").unwrap();
+        symlink("a.txt", src.join("link.txt")).unwrap();
+
+        super::copy_dir_recursive(&src, &dst).unwrap();
+
+        assert!(dst.join("a.txt").exists());
+        assert!(dst.join("link.txt").is_symlink());
+        assert_eq!(fs::read_link(dst.join("link.txt")).unwrap(), PathBuf::from("a.txt"));
     }
 }

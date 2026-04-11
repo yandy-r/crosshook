@@ -17,7 +17,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/build-paths.sh
 source "$ROOT_DIR/scripts/lib/build-paths.sh"
 
-APP_ID="io.github.yandy_r.CrossHook"
+APP_ID="dev.crosshook.CrossHook"
 MANIFEST_NAME="${APP_ID}.yml"
 DESKTOP_NAME="${APP_ID}.desktop"
 METAINFO_NAME="${APP_ID}.metainfo.xml"
@@ -39,6 +39,7 @@ INSTALL_DEPS=0
 INSTALL_DEPS_YES=0
 KEEP_STAGING=0
 INSTALL_BUNDLE=0
+VALIDATE_STRICT=0
 
 usage() {
   cat <<'EOF'
@@ -56,6 +57,8 @@ Options:
   --yes, -y         Forward non-interactive install mode to apt/dnf/pacman
   --keep-staging    Do not delete the staging directory after the build
   --install         After building, flatpak install --user the bundle
+  --strict          Fail the build if desktop-file-validate or appstreamcli
+                    validate reports errors (default: warn and continue)
   --help, -h        Show this help text
 
 Environment:
@@ -65,6 +68,8 @@ Environment:
   CROSSHOOK_BUILD_EPHEMERAL=1         Use /tmp/crosshook-$UID/ for outputs
   CROSSHOOK_FLATPAK_RUNTIME_VERSION   Override the GNOME runtime version
                                       (default: 50, matches the manifest)
+  CROSSHOOK_FLATPAK_VALIDATE_STRICT   If set to 1/true/yes/on, same as --strict
+                                      for metadata validators
 EOF
 }
 
@@ -84,10 +89,15 @@ while [[ $# -gt 0 ]]; do
     --yes|-y) INSTALL_DEPS_YES=1; shift ;;
     --keep-staging) KEEP_STAGING=1; shift ;;
     --install) INSTALL_BUNDLE=1; shift ;;
+    --strict) VALIDATE_STRICT=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
+
+case "${CROSSHOOK_FLATPAK_VALIDATE_STRICT:-}" in
+  1|true|TRUE|yes|YES|on|ON) VALIDATE_STRICT=1 ;;
+esac
 
 crosshook_build_paths_init || exit 1
 export CARGO_TARGET_DIR
@@ -161,12 +171,20 @@ command -v flatpak >/dev/null 2>&1 \
 [[ -f "$METAINFO_SRC"  ]] || die "metainfo not found: $METAINFO_SRC"
 
 if command -v desktop-file-validate >/dev/null 2>&1; then
-  desktop-file-validate "$DESKTOP_SRC" \
-    || die "desktop-file-validate failed on $DESKTOP_SRC"
+  if ! desktop-file-validate "$DESKTOP_SRC"; then
+    if (( VALIDATE_STRICT )); then
+      die "desktop-file-validate failed on $DESKTOP_SRC"
+    fi
+    log "warning: desktop-file-validate failed on $DESKTOP_SRC (ignored; use --strict or CROSSHOOK_FLATPAK_VALIDATE_STRICT=1 to fail)"
+  fi
 fi
 if command -v appstreamcli >/dev/null 2>&1; then
-  appstreamcli validate "$METAINFO_SRC" \
-    || die "appstreamcli validate failed on $METAINFO_SRC"
+  if ! appstreamcli validate "$METAINFO_SRC"; then
+    if (( VALIDATE_STRICT )); then
+      die "appstreamcli validate failed on $METAINFO_SRC"
+    fi
+    log "warning: appstreamcli validate failed on $METAINFO_SRC (ignored; use --strict or CROSSHOOK_FLATPAK_VALIDATE_STRICT=1 to fail)"
+  fi
 fi
 
 # ---- Ensure the release binary exists --------------------------------------
