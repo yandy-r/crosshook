@@ -147,18 +147,18 @@ The committed manifest uses **`runtime-version: "50"`** in `packaging/flatpak/de
 
 **Goal**: Produce a working `.flatpak` bundle from the pre-built binary.
 
-| #     | Requirement                                                                                                                                                                   | Priority |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| F1.1  | Remove `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/` (**done — [#195](https://github.com/yandy-r/crosshook/issues/195)**)                                        | P0       |
+| #     | Requirement                                                                                                                                                               | Priority |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| F1.1  | Remove `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/` (**done — [#195](https://github.com/yandy-r/crosshook/issues/195)**)                                  | P0       |
 | F1.2  | Create committed `packaging/flatpak/dev.crosshook.CrossHook.yml` manifest with `--filesystem=home` + explicit mount paths                                                 | P0       |
 | F1.3  | Create committed `packaging/flatpak/dev.crosshook.CrossHook.desktop` static desktop entry                                                                                 | P0       |
 | F1.4  | Create committed `packaging/flatpak/dev.crosshook.CrossHook.metainfo.xml` with all Flathub-required fields (developer, screenshots placeholder, content rating, releases) | P0       |
-| F1.5  | Create `scripts/build-flatpak.sh` — stages binary + resources, runs `flatpak-builder`, produces `.flatpak` bundle                                                             | P0       |
-| F1.6  | Add `is_flatpak()` detection to `crosshook-core/src/platform.rs` (checks `FLATPAK_ID` env var and `/.flatpak-info` file)                                                      | P0       |
-| F1.7  | Add `/app/resources/` fallback to resource path resolution in `paths.rs`                                                                                                      | P0       |
-| F1.8  | Add 128x128 icon size to `scripts/generate-assets.sh` pipeline                                                                                                                | P1       |
+| F1.5  | Create `scripts/build-flatpak.sh` — stages binary + resources, runs `flatpak-builder`, produces `.flatpak` bundle                                                         | P0       |
+| F1.6  | Add `is_flatpak()` detection to `crosshook-core/src/platform.rs` (checks `FLATPAK_ID` env var and `/.flatpak-info` file)                                                  | P0       |
+| F1.7  | Add `/app/resources/` fallback to resource path resolution in `paths.rs`                                                                                                  | P0       |
+| F1.8  | Add 128x128 icon size to `scripts/generate-assets.sh` pipeline                                                                                                            | P1       |
 | F1.9  | Change Tauri `identifier` from `com.crosshook.native` to `dev.crosshook.CrossHook` across all config files                                                                | P0       |
-| F1.10 | Update all `Cargo.toml`, desktop entry, metainfo, and CI references to new app ID                                                                                             | P0       |
+| F1.10 | Update all `Cargo.toml`, desktop entry, metainfo, and CI references to new app ID                                                                                         | P0       |
 
 ### 5.2 Phase 2 — CI Integration
 
@@ -178,8 +178,8 @@ The committed manifest uses **`runtime-version: "50"`** in `packaging/flatpak/de
 
 | #    | Requirement                                                                                                                                                                                                                    | Priority |
 | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
-| F3.1 | Implement `host_command()` in `crosshook-core/src/platform.rs` — conditionally wraps `Command::new` with `flatpak-spawn --host` when `is_flatpak()` is true                                                              | P0       |
-| F3.2 | Migrate all 12 external binary call sites to use `host_command()`                                                                                                                                                        | P0       |
+| F3.1 | Implement `host_command()` in `crosshook-core/src/platform.rs` — conditionally wraps `Command::new` with `flatpak-spawn --host` when `is_flatpak()` is true                                                                    | P0       |
+| F3.2 | Migrate all 12 external binary call sites to use `host_command()`                                                                                                                                                              | P0       |
 | F3.3 | Replace `/usr/bin/rm` calls in `run_executable.rs` with `std::fs::remove_dir_all`                                                                                                                                              | P0       |
 | F3.4 | Add `FLATPAK_ID` detection to all three bundled helper scripts; prefix host commands with `flatpak-spawn --host`                                                                                                               | P0       |
 | F3.5 | Make Proton/compatibility-tool discovery Flatpak-aware — system paths (`/usr/share/steam/compatibilitytools.d/`, `/usr/lib/steam/`) are invisible inside the sandbox; use `flatpak-spawn --host` to enumerate and resolve them | P0       |
@@ -364,20 +364,20 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 | T10  | GE-Proton download and install                                               | Downloads and extracts to correct path                                  | P1       | 3     |
 | T11  | Community tap clone                                                          | `git clone` succeeds via `flatpak-spawn --host git`                     | P1       | 3     |
 | T12  | Trainer network isolation (`unshare`)                                        | Degrades gracefully — badge shown, launch proceeds                      | P1       | 3     |
-| T13  | Settings persistence across restarts                                         | Settings at `~/.config/crosshook/`                                  | P1       | 1     |
-| T14  | SQLite DB persistence                                                        | DB at `~/.local/share/crosshook/`                                   | P1       | 1     |
+| T13  | Settings persistence across restarts                                         | Settings at `~/.config/crosshook/`                                      | P1       | 1     |
+| T14  | SQLite DB persistence                                                        | DB at `~/.local/share/crosshook/`                                       | P1       | 1     |
 | T15  | NVIDIA GPU with Wayland                                                      | No blank screen (DMABUF workaround active)                              | P2       | 1     |
 | T16  | `gamescope` wrapper launch                                                   | Compositor wraps game via `flatpak-spawn --host gamescope`              | P2       | 3     |
 | T17  | Diagnostics export with `lspci`                                              | GPU info captured via `flatpak-spawn --host lspci`                      | P2       | 3     |
 
 ### 8.2 CI Validation
 
-| Step                          | Tool                                                             | Phase |
-| ----------------------------- | ---------------------------------------------------------------- | ----- |
+| Step                          | Tool                                                         | Phase |
+| ----------------------------- | ------------------------------------------------------------ | ----- |
 | MetaInfo validation           | `appstreamcli validate dev.crosshook.CrossHook.metainfo.xml` | 2     |
 | Desktop file validation       | `desktop-file-validate dev.crosshook.CrossHook.desktop`      | 2     |
-| Bundle builds without error   | `flatpak-builder` exit code 0                                    | 2     |
-| Bundle installs without error | `flatpak install --user <bundle>`                                | 2     |
+| Bundle builds without error   | `flatpak-builder` exit code 0                                | 2     |
+| Bundle installs without error | `flatpak install --user <bundle>`                            | 2     |
 
 ---
 
@@ -403,11 +403,11 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 ### Low Risk
 
-| Risk                                            | Impact                               | Mitigation                                                                     |
-| ----------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
-| **CI build time increase**                      | Longer releases                      | Flatpak job runs in parallel with AppImage job                                 |
+| Risk                                            | Impact                                          | Mitigation                                                                                                                       |
+| ----------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **CI build time increase**                      | Longer releases                                 | Flatpak job runs in parallel with AppImage job                                                                                   |
 | **XDG path confusion**                          | Users look for config/data/cache in wrong place | Document that Phase 1 uses host-shared XDG paths: `~/.config/crosshook/`, `~/.local/share/crosshook/`, and `~/.cache/crosshook/` |
-| **GNOME runtime version bump breaks something** | Rendering or dependency issue        | Document upgrade path; pin to specific version in manifest                     |
+| **GNOME runtime version bump breaks something** | Rendering or dependency issue                   | Document upgrade path; pin to specific version in manifest                                                                       |
 
 ---
 
@@ -415,15 +415,15 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 ### 10.1 Data Classification
 
-| Datum                               | Storage            | Location (Phase 1 Flatpak, host-shared)   |
-| ----------------------------------- | ------------------ | ------------------------------------------ |
-| User settings (TOML)                | TOML settings file | `~/.config/crosshook/` (host-shared)       |
-| Game metadata, profiles (SQLite)    | SQLite metadata DB | `~/.local/share/crosshook/` (host-shared)  |
-| Wine prefixes                       | On-disk prefix dir | `~/.local/share/crosshook/prefixes/` (host-shared) |
-| Community taps                      | Git clone          | `~/.local/share/crosshook/community/`      |
-| Image cache                         | Runtime cache      | `~/.cache/crosshook/` (host-shared)        |
-| `is_flatpak()` result               | Runtime-only       | Memory (`FLATPAK_ID` / `/.flatpak-info` in `platform.rs`) |
-| Flatpak host spawns                 | Runtime-only       | `host_command()` when `is_flatpak()` (not in shell helpers) |
+| Datum                            | Storage            | Location (Phase 1 Flatpak, host-shared)                     |
+| -------------------------------- | ------------------ | ----------------------------------------------------------- |
+| User settings (TOML)             | TOML settings file | `~/.config/crosshook/` (host-shared)                        |
+| Game metadata, profiles (SQLite) | SQLite metadata DB | `~/.local/share/crosshook/` (host-shared)                   |
+| Wine prefixes                    | On-disk prefix dir | `~/.local/share/crosshook/prefixes/` (host-shared)          |
+| Community taps                   | Git clone          | `~/.local/share/crosshook/community/`                       |
+| Image cache                      | Runtime cache      | `~/.cache/crosshook/` (host-shared)                         |
+| `is_flatpak()` result            | Runtime-only       | Memory (`FLATPAK_ID` / `/.flatpak-info` in `platform.rs`)   |
+| Flatpak host spawns              | Runtime-only       | `host_command()` when `is_flatpak()` (not in shell helpers) |
 
 ### 10.2 Migration & Backward Compatibility (Phase 1 decision)
 
@@ -431,7 +431,7 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 **Why not per-app isolation for Phase 1?** Per-app isolation would require (a) copying or symlinking `~/.config/crosshook/` into the sandbox, (b) choosing which of `~/.local/share/crosshook/`'s subtrees to migrate (the metadata DB and community taps are small; wine prefixes can be 10–100 GB), (c) a prefix root override so the Flatpak continues to use the host prefix location, and (d) a "flip the switch" mechanism for users who want to migrate between the two modes. That is a multi-file refactor that belongs in its own tracking issue, not Phase 1 MVP.
 
-**Why not silent data-less first run?** The earlier text in this section — *"XDG paths change from `~/.config/crosshook/` to `~/.var/app/…/config/crosshook/`. Flatpak remaps automatically via `XDG_CONFIG_HOME` — no code change needed if the app uses `directories::BaseDirs`"* — was wrong in practice. The remap does happen, but it silently orphans the user's existing profiles, settings, game metadata, and wine prefixes. An AppImage user installing the Flatpak saw an empty UI even though their data was visible to the sandbox at the absolute host path. The override corrects this.
+**Why not silent data-less first run?** The earlier text in this section — _"XDG paths change from `~/.config/crosshook/` to `~/.var/app/…/config/crosshook/`. Flatpak remaps automatically via `XDG_CONFIG_HOME` — no code change needed if the app uses `directories::BaseDirs`"_ — was wrong in practice. The remap does happen, but it silently orphans the user's existing profiles, settings, game metadata, and wine prefixes. An AppImage user installing the Flatpak saw an empty UI even though their data was visible to the sandbox at the absolute host path. The override corrects this.
 
 **Legacy app-id migration** (`com.crosshook.native → dev.crosshook.CrossHook`): The one-time XDG migration in `app_id_migration.rs` runs against whatever `BaseDirs` resolves to at the time. With the host override in place, both the source and destination are host paths. In practice this is a no-op for existing AppImage installs because `crosshook-core` has always written directly to `$XDG_CONFIG_HOME/crosshook/` (no app-id parent segment); the migration exists only to catch any stale Tauri-managed state at `$XDG_CONFIG_HOME/com.crosshook.native/`.
 
@@ -516,10 +516,10 @@ Flathub is expected to require isolation because it is the standard sandbox cont
 
 ## 13. Open Questions
 
-| #   | Question                                                                                                                | Decision Needed By | Owner |
-| --- | ----------------------------------------------------------------------------------------------------------------------- | ------------------ | ----- |
-| 2   | Are publishable screenshots available, or do they need to be created for Phase 4?                                       | Phase 4 start      | Yandy |
-| 4   | Is `/opt` a common Steam library mount point that should be added to filesystem permissions?                            | Phase 1 testing    | Yandy |
+| #   | Question                                                                                     | Decision Needed By | Owner |
+| --- | -------------------------------------------------------------------------------------------- | ------------------ | ----- |
+| 2   | Are publishable screenshots available, or do they need to be created for Phase 4?            | Phase 4 start      | Yandy |
+| 4   | Is `/opt` a common Steam library mount point that should be added to filesystem permissions? | Phase 1 testing    | Yandy |
 
 ---
 

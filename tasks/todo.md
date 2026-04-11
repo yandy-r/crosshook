@@ -1,5 +1,12 @@
 # Task Plan
 
+## 2026-04-11 - flatpak phase 3 PRP plan
+
+- [ ] Read the Flatpak PRD phase, issue `#209`, and the relevant Phase 3 code paths.
+- [ ] Create `docs/prps/plans/flatpak-phase-3-process-execution-hardening.plan.md`.
+- [ ] Update `docs/prps/prds/flatpak-distribution.prd.md` to mark Phase 3 in progress and link the plan.
+- [ ] Run the PRP plan validator and record the outcome.
+
 ## 2026-04-06 - protonup-integration plan-workflow
 
 - [x] Run plan-workflow state detection for `protonup-integration`.

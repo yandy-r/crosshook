@@ -64,10 +64,10 @@ No Flatpak YAML manifest, desktop file, or metainfo is committed yet. Local `fla
 
 ### 3.1 App ID Decision
 
-| Option | ID | Pros | Cons |
-| ------ | -- | ---- | ---- |
-| Legacy (pre-[#196](https://github.com/yandy-r/crosshook/issues/196)) | `com.crosshook.native` | Matched early prototype / old Tauri `identifier` | Requires `crosshook.com` domain ownership for Flathub |
-| **Adopted** | `dev.crosshook.CrossHook` | Flathub-compliant GitHub reverse-DNS; matches current Tauri `identifier` | — |
+| Option                                                               | ID                        | Pros                                                                     | Cons                                                  |
+| -------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
+| Legacy (pre-[#196](https://github.com/yandy-r/crosshook/issues/196)) | `com.crosshook.native`    | Matched early prototype / old Tauri `identifier`                         | Requires `crosshook.com` domain ownership for Flathub |
+| **Adopted**                                                          | `dev.crosshook.CrossHook` | Flathub-compliant GitHub reverse-DNS; matches current Tauri `identifier` | —                                                     |
 
 **Status**: Tauri `identifier` and packaging use **`dev.crosshook.CrossHook`** ([GH-196](https://github.com/yandy-r/crosshook/issues/196)). A one-time startup migration moves legacy `com.crosshook.native` XDG app roots to the new name when the destination is empty.
 
@@ -141,10 +141,10 @@ CrossHook requires broad path visibility (the committed manifest uses `--filesys
 
 CrossHook spawns host processes extensively. Inside the Flatpak sandbox, host `/usr` and tools are masked; **`flatpak-spawn --host`** (via `host_command()` in `crosshook-core/src/platform.rs` when `is_flatpak()` is true) reaches the host environment. Detection uses **`FLATPAK_ID`** (set by `flatpak run`) and **`/.flatpak-info`**, not `FLATPAK=1`.
 
-| Approach                           | Mechanism                                                                           | Complexity | Compatibility                                             |
-| ---------------------------------- | ----------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------- |
-| A: Targeted `--filesystem` mounts  | Grants paths for Steam libraries, removable media, etc. (current manifest)          | Medium     | Host tools still need `flatpak-spawn --host` where masked |
-| B: `flatpak-spawn --host` wrapper  | Core wraps host spawns when `is_flatpak()` is true (`FLATPAK_ID` / `/.flatpak-info`) | Medium     | Full host access including `/proc` for `pgrep` where needed |
+| Approach                          | Mechanism                                                                            | Complexity | Compatibility                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------ | ---------- | ----------------------------------------------------------- |
+| A: Targeted `--filesystem` mounts | Grants paths for Steam libraries, removable media, etc. (current manifest)           | Medium     | Host tools still need `flatpak-spawn --host` where masked   |
+| B: `flatpak-spawn --host` wrapper | Core wraps host spawns when `is_flatpak()` is true (`FLATPAK_ID` / `/.flatpak-info`) | Medium     | Full host access including `/proc` for `pgrep` where needed |
 
 **Recommendation**: Keep the manifest’s targeted filesystem permissions; rely on `host_command()` / `flatpak-spawn --host` for host binaries. If specific failures appear during testing, adjust helpers or spawns selectively.
 
@@ -194,7 +194,7 @@ fn resolve_bundled_script_path(app: &tauri::AppHandle, script_name: &str) -> Opt
 # dev.crosshook.CrossHook.yml (abbreviated — see repo for full modules/sources)
 app-id: dev.crosshook.CrossHook
 runtime: org.gnome.Platform
-runtime-version: "50"
+runtime-version: '50'
 sdk: org.gnome.Sdk
 command: crosshook-native
 
@@ -236,13 +236,13 @@ modules:
 
 ### 4.1 New Files
 
-| File                                                  | Purpose                                                                | Location                       |
-| ----------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
+| File                                                     | Purpose                                                                | Location                       |
+| -------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
 | `packaging/flatpak/dev.crosshook.CrossHook.yml`          | Flatpak manifest (committed, not build-dir staging)                    | Top-level of Flatpak packaging |
 | `packaging/flatpak/dev.crosshook.CrossHook.desktop`      | Static desktop entry                                                   | Committed source-of-truth      |
 | `packaging/flatpak/dev.crosshook.CrossHook.metainfo.xml` | AppStream metadata (Flathub-complete)                                  | Committed source-of-truth      |
-| `scripts/build-flatpak.sh`                            | Build script that stages binary + resources and runs `flatpak-builder` | Build tooling                  |
-| `.github/workflows/release.yml` (modify)              | Add Flatpak build job alongside existing AppImage job                  | CI                             |
+| `scripts/build-flatpak.sh`                               | Build script that stages binary + resources and runs `flatpak-builder` | Build tooling                  |
+| `.github/workflows/release.yml` (modify)                 | Add Flatpak build job alongside existing AppImage job                  | CI                             |
 
 ### 4.2 MetaInfo Requirements
 
@@ -313,25 +313,25 @@ The existing prototype is missing required fields. Complete metainfo must includ
 
 ### 5.1 High Risk
 
-| Risk                                                                                                                                                  | Impact                                      | Mitigation                                                                                                                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Process execution fails in sandbox** — helper scripts call `steam`, Proton, `pgrep`, `unshare` which may not be visible despite filesystem mounts | Core launch workflow broken                 | Test early with `flatpak run --command=bash dev.crosshook.CrossHook` to verify binary visibility. Use `flatpak-spawn --host` via `host_command()` where needed. |
-| **Flathub rejects broad filesystem permissions**                                                                                                               | Cannot publish to Flathub                   | Maintain self-hosted distribution (GitHub Releases). The current manifest already avoids full `--filesystem=host`; negotiate further tightening with reviewers if required.                                       |
-| **`unshare --user --net` blocked by Flatpak seccomp** — trainer network isolation relies on user namespaces                                           | Network isolation feature broken in Flatpak | Detect Flatpak and gracefully degrade — skip network isolation with a user-visible warning. The `is_unshare_net_available()` probe should catch this.  |
+| Risk                                                                                                                                                | Impact                                      | Mitigation                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Process execution fails in sandbox** — helper scripts call `steam`, Proton, `pgrep`, `unshare` which may not be visible despite filesystem mounts | Core launch workflow broken                 | Test early with `flatpak run --command=bash dev.crosshook.CrossHook` to verify binary visibility. Use `flatpak-spawn --host` via `host_command()` where needed.             |
+| **Flathub rejects broad filesystem permissions**                                                                                                    | Cannot publish to Flathub                   | Maintain self-hosted distribution (GitHub Releases). The current manifest already avoids full `--filesystem=host`; negotiate further tightening with reviewers if required. |
+| **`unshare --user --net` blocked by Flatpak seccomp** — trainer network isolation relies on user namespaces                                         | Network isolation feature broken in Flatpak | Detect Flatpak and gracefully degrade — skip network isolation with a user-visible warning. The `is_unshare_net_available()` probe should catch this.                       |
 
 ### 5.2 Medium Risk
 
-| Risk                                                                                                   | Impact                                                  | Mitigation                                                                                             |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Tauri resource paths don't resolve in `/app/`**                                                      | Bundled scripts not found → launch fails                | Add explicit `/app/resources/` fallback in `resolve_bundled_script_path()`                             |
-| **WebKitGTK rendering issues on NVIDIA**                                                               | Blank screen or flickering                              | `WEBKIT_DISABLE_DMABUF_RENDERER=1` in `finish-args` (matches Lutris approach)                          |
-| **Steam Flatpak interop** — reading `~/.var/app/com.valvesoftware.Steam/` when both apps are sandboxed | Cannot discover Steam libraries for Flatpak Steam users | Manifest includes `--filesystem=~/.var/app/com.valvesoftware.Steam:ro` |
+| Risk                                                                                                   | Impact                                                  | Mitigation                                                                    |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Tauri resource paths don't resolve in `/app/`**                                                      | Bundled scripts not found → launch fails                | Add explicit `/app/resources/` fallback in `resolve_bundled_script_path()`    |
+| **WebKitGTK rendering issues on NVIDIA**                                                               | Blank screen or flickering                              | `WEBKIT_DISABLE_DMABUF_RENDERER=1` in `finish-args` (matches Lutris approach) |
+| **Steam Flatpak interop** — reading `~/.var/app/com.valvesoftware.Steam/` when both apps are sandboxed | Cannot discover Steam libraries for Flatpak Steam users | Manifest includes `--filesystem=~/.var/app/com.valvesoftware.Steam:ro`        |
 
 ### 5.3 Low Risk
 
-| Risk                                                 | Impact                              | Mitigation                                                              |
-| ---------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
-| **Build time increase** — Flatpak build adds CI time | Longer releases                     | Run Flatpak build in parallel with AppImage build in CI                 |
+| Risk                                                 | Impact                              | Mitigation                                                                 |
+| ---------------------------------------------------- | ----------------------------------- | -------------------------------------------------------------------------- |
+| **Build time increase** — Flatpak build adds CI time | Longer releases                     | Run Flatpak build in parallel with AppImage build in CI                    |
 | **XDG path remapping confusion**                     | Config at unexpected path for users | Document that Flatpak stores data at `~/.var/app/dev.crosshook.CrossHook/` |
 
 ---
@@ -340,21 +340,21 @@ The existing prototype is missing required fields. Complete metainfo must includ
 
 ### 6.1 Manual Verification Matrix
 
-| Test Case                                        | Expected Result                                                 | Priority |
-| ------------------------------------------------ | --------------------------------------------------------------- | -------- |
-| Install Flatpak bundle and launch app            | App window opens, no blank screen                               | P0       |
-| Steam library auto-detection (native Steam)      | Discovers `~/.local/share/Steam`                                | P0       |
-| Steam library auto-detection (Flatpak Steam)     | Discovers `~/.var/app/com.valvesoftware.Steam/data/Steam`       | P0       |
-| Create profile and launch game via Proton        | Game launches, trainer launches after delay                     | P0       |
-| ProtonDB integration                             | Ratings load from network                                       | P1       |
-| GE-Proton download and install                   | Archive downloads and extracts to correct path                  | P1       |
-| Community tap clone                              | `git clone` succeeds from within sandbox                        | P1       |
-| Trainer network isolation (`unshare`)            | Either works or degrades gracefully with warning                | P1       |
-| `pgrep` game process detection in helper scripts | Process detected, trainer timing works                          | P0       |
+| Test Case                                        | Expected Result                                                    | Priority |
+| ------------------------------------------------ | ------------------------------------------------------------------ | -------- |
+| Install Flatpak bundle and launch app            | App window opens, no blank screen                                  | P0       |
+| Steam library auto-detection (native Steam)      | Discovers `~/.local/share/Steam`                                   | P0       |
+| Steam library auto-detection (Flatpak Steam)     | Discovers `~/.var/app/com.valvesoftware.Steam/data/Steam`          | P0       |
+| Create profile and launch game via Proton        | Game launches, trainer launches after delay                        | P0       |
+| ProtonDB integration                             | Ratings load from network                                          | P1       |
+| GE-Proton download and install                   | Archive downloads and extracts to correct path                     | P1       |
+| Community tap clone                              | `git clone` succeeds from within sandbox                           | P1       |
+| Trainer network isolation (`unshare`)            | Either works or degrades gracefully with warning                   | P1       |
+| `pgrep` game process detection in helper scripts | Process detected, trainer timing works                             | P0       |
 | Settings persistence across app restarts         | Settings at `~/.var/app/dev.crosshook.CrossHook/config/crosshook/` | P1       |
 | SQLite metadata DB persistence                   | DB at `~/.var/app/dev.crosshook.CrossHook/data/crosshook/`         | P1       |
-| Game image cache                                 | Images cached and displayed via asset protocol                  | P2       |
-| NVIDIA GPU with Wayland                          | No blank screen (DMABUF workaround active)                      | P2       |
+| Game image cache                                 | Images cached and displayed via asset protocol                     | P2       |
+| NVIDIA GPU with Wayland                          | No blank screen (DMABUF workaround active)                         | P2       |
 
 ### 6.2 Automated CI Validation
 
