@@ -34,7 +34,8 @@ ASSETS_DIR="$ROOT_DIR/assets"
 TARGET_TRIPLE="${TARGET_TRIPLE:-x86_64-unknown-linux-gnu}"
 RUNTIME_VERSION="${CROSSHOOK_FLATPAK_RUNTIME_VERSION:-50}"
 
-BINARY_ONLY=0
+REBUILD=0
+SKIP_BUILD=0
 INSTALL_DEPS=0
 INSTALL_DEPS_YES=0
 KEEP_STAGING=0
@@ -45,21 +46,32 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/build-flatpak.sh [options]
 
-Build a Flatpak bundle for CrossHook from the pre-built native release
-binary. If the binary is missing, falls back to running
-./scripts/build-native.sh --binary-only first.
+Build a Flatpak bundle for CrossHook.
+
+By default the script reuses an existing release binary at
+$DIST_DIR/crosshook-native when one is present (fast path, packaging
+only). If the binary is missing it auto-runs ./scripts/build-native.sh
+--binary-only once. Pass --rebuild to always re-run the native build
+first (for the code-change → test loop), or --skip-build to fail if
+the cached binary is missing (for explicit "package what I already
+built" workflows).
 
 Options:
-  --binary-only     Skip automatic build-native.sh invocation; require the
-                    binary to exist at $DIST_DIR/crosshook-native already
-  --install-deps    Install flatpak, flatpak-builder, and the GNOME runtime
-                    + SDK on the host before building
-  --yes, -y         Forward non-interactive install mode to apt/dnf/pacman
-  --keep-staging    Do not delete the staging directory after the build
-  --install         After building, flatpak install --user the bundle
-  --strict          Fail the build if desktop-file-validate or appstreamcli
-                    validate reports errors (default: warn and continue)
-  --help, -h        Show this help text
+  --rebuild         Always run ./scripts/build-native.sh --binary-only
+                    before packaging, even if a cached binary exists.
+                    Use this after Rust code changes.
+  --skip-build      Never auto-run build-native.sh; require the binary
+                    at $DIST_DIR/crosshook-native to already exist.
+                    Mutually exclusive with --rebuild.
+  --install-deps    Install flatpak, flatpak-builder, and the GNOME
+                    runtime + SDK on the host before building.
+  --yes, -y         Forward non-interactive install mode to apt/dnf/pacman.
+  --keep-staging    Do not delete the staging directory after the build.
+  --install         After building, flatpak install --user the bundle.
+  --strict          Fail the build if desktop-file-validate or
+                    appstreamcli validate reports errors (default:
+                    warn and continue).
+  --help, -h        Show this help text.
 
 Environment:
   DIST_DIR                            Output directory for the bundle
@@ -84,7 +96,8 @@ log() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --binary-only) BINARY_ONLY=1; shift ;;
+    --rebuild) REBUILD=1; shift ;;
+    --skip-build) SKIP_BUILD=1; shift ;;
     --install-deps) INSTALL_DEPS=1; shift ;;
     --yes|-y) INSTALL_DEPS_YES=1; shift ;;
     --keep-staging) KEEP_STAGING=1; shift ;;
@@ -94,6 +107,10 @@ while [[ $# -gt 0 ]]; do
     *) die "unknown argument: $1" ;;
   esac
 done
+
+if (( REBUILD && SKIP_BUILD )); then
+  die "--rebuild and --skip-build are mutually exclusive"
+fi
 
 case "${CROSSHOOK_FLATPAK_VALIDATE_STRICT:-}" in
   1|true|TRUE|yes|YES|on|ON) VALIDATE_STRICT=1 ;;
@@ -189,12 +206,18 @@ fi
 
 # ---- Ensure the release binary exists --------------------------------------
 BINARY_PATH="$DIST_DIR/crosshook-native"
-if [[ ! -x "$BINARY_PATH" ]]; then
-  if (( BINARY_ONLY )); then
-    die "release binary not found at $BINARY_PATH and --binary-only was set"
+if (( REBUILD )); then
+  log "--rebuild: running build-native.sh --binary-only"
+  "$ROOT_DIR/scripts/build-native.sh" --binary-only
+elif [[ ! -x "$BINARY_PATH" ]]; then
+  if (( SKIP_BUILD )); then
+    die "release binary not found at $BINARY_PATH and --skip-build was set"
   fi
   log "release binary missing, running build-native.sh --binary-only"
   "$ROOT_DIR/scripts/build-native.sh" --binary-only
+else
+  log "reusing cached release binary: $BINARY_PATH"
+  log "(pass --rebuild to re-run build-native.sh after Rust changes)"
 fi
 [[ -x "$BINARY_PATH" ]] || die "release binary still missing at $BINARY_PATH"
 
