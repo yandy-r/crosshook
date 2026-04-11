@@ -65,11 +65,11 @@ AppImage remains the primary distribution format. Flatpak is a secondary target.
 
 ## 4. Key Decisions
 
-### 4.1 App ID: `io.github.yandy-r.CrossHook`
+### 4.1 App ID: `io.github.yandy_r.CrossHook`
 
 Use the GitHub-based reverse-DNS ID from the start. This is Flathub-compliant without requiring domain ownership and avoids a breaking migration later (app ID change = user data path change).
 
-**Impact**: The Tauri `identifier` in `tauri.conf.json` changes globally from `com.crosshook.native` to `io.github.yandy-r.CrossHook`. This affects XDG data paths, DBus names, and the binary name. All references across `Cargo.toml` files, desktop entries, metainfo, and CI must be updated.
+**Impact**: The Tauri `identifier` in `tauri.conf.json` changes globally from `com.crosshook.native` to `io.github.yandy_r.CrossHook`. This affects XDG data paths, DBus names, and the binary name. All references across `Cargo.toml` files, desktop entries, metainfo, and CI must be updated.
 
 **Domain acquisition**: Optional. If `crosshook.com` is acquired later, the app ID can migrate to `com.crosshook.CrossHook` — but this is a future decision, not a blocker.
 
@@ -148,14 +148,14 @@ Start with GNOME 48 (current stable). Track the latest stable release — bump w
 | #     | Requirement                                                                                                                                                                   | Priority |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | F1.1  | Remove `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/` (**done — [#195](https://github.com/yandy-r/crosshook/issues/195)**)                                        | P0       |
-| F1.2  | Create committed `packaging/flatpak/io.github.yandy-r.CrossHook.yml` manifest with `--filesystem=home` + explicit mount paths                                                 | P0       |
-| F1.3  | Create committed `packaging/flatpak/io.github.yandy-r.CrossHook.desktop` static desktop entry                                                                                 | P0       |
-| F1.4  | Create committed `packaging/flatpak/io.github.yandy-r.CrossHook.metainfo.xml` with all Flathub-required fields (developer, screenshots placeholder, content rating, releases) | P0       |
+| F1.2  | Create committed `packaging/flatpak/io.github.yandy_r.CrossHook.yml` manifest with `--filesystem=home` + explicit mount paths                                                 | P0       |
+| F1.3  | Create committed `packaging/flatpak/io.github.yandy_r.CrossHook.desktop` static desktop entry                                                                                 | P0       |
+| F1.4  | Create committed `packaging/flatpak/io.github.yandy_r.CrossHook.metainfo.xml` with all Flathub-required fields (developer, screenshots placeholder, content rating, releases) | P0       |
 | F1.5  | Create `scripts/build-flatpak.sh` — stages binary + resources, runs `flatpak-builder`, produces `.flatpak` bundle                                                             | P0       |
 | F1.6  | Add `is_flatpak()` detection to `crosshook-core/src/platform.rs` (checks `FLATPAK_ID` env var and `/.flatpak-info` file)                                                      | P0       |
 | F1.7  | Add `/app/resources/` fallback to resource path resolution in `paths.rs`                                                                                                      | P0       |
 | F1.8  | Add 128x128 icon size to `scripts/generate-assets.sh` pipeline                                                                                                                | P1       |
-| F1.9  | Change Tauri `identifier` from `com.crosshook.native` to `io.github.yandy-r.CrossHook` across all config files                                                                | P0       |
+| F1.9  | Change Tauri `identifier` from `com.crosshook.native` to `io.github.yandy_r.CrossHook` across all config files                                                                | P0       |
 | F1.10 | Update all `Cargo.toml`, desktop entry, metainfo, and CI references to new app ID                                                                                             | P0       |
 
 ### 5.2 Phase 2 — CI Integration
@@ -224,7 +224,7 @@ finish-args:
   - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
 
   # Flatpak detection
-  - --env=FLATPAK_ID=io.github.yandy-r.CrossHook
+  - --env=FLATPAK_ID=io.github.yandy_r.CrossHook
 
   # Filesystem — home + external drives
   - --filesystem=home
@@ -365,8 +365,8 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 | T10  | GE-Proton download and install                                               | Downloads and extracts to correct path                                  | P1       | 3     |
 | T11  | Community tap clone                                                          | `git clone` succeeds via `flatpak-spawn --host git`                     | P1       | 3     |
 | T12  | Trainer network isolation (`unshare`)                                        | Degrades gracefully — badge shown, launch proceeds                      | P1       | 3     |
-| T13  | Settings persistence across restarts                                         | Settings at `~/.var/app/io.github.yandy-r.CrossHook/config/`            | P1       | 1     |
-| T14  | SQLite DB persistence                                                        | DB at `~/.var/app/io.github.yandy-r.CrossHook/data/`                    | P1       | 1     |
+| T13  | Settings persistence across restarts                                         | Settings at `~/.var/app/io.github.yandy_r.CrossHook/config/`            | P1       | 1     |
+| T14  | SQLite DB persistence                                                        | DB at `~/.var/app/io.github.yandy_r.CrossHook/data/`                    | P1       | 1     |
 | T15  | NVIDIA GPU with Wayland                                                      | No blank screen (DMABUF workaround active)                              | P2       | 1     |
 | T16  | `gamescope` wrapper launch                                                   | Compositor wraps game via `flatpak-spawn --host gamescope`              | P2       | 3     |
 | T17  | Diagnostics export with `lspci`                                              | GPU info captured via `flatpak-spawn --host lspci`                      | P2       | 3     |
@@ -375,8 +375,8 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 | Step                          | Tool                                                             | Phase |
 | ----------------------------- | ---------------------------------------------------------------- | ----- |
-| MetaInfo validation           | `appstreamcli validate io.github.yandy-r.CrossHook.metainfo.xml` | 2     |
-| Desktop file validation       | `desktop-file-validate io.github.yandy-r.CrossHook.desktop`      | 2     |
+| MetaInfo validation           | `appstreamcli validate io.github.yandy_r.CrossHook.metainfo.xml` | 2     |
+| Desktop file validation       | `desktop-file-validate io.github.yandy_r.CrossHook.desktop`      | 2     |
 | Bundle builds without error   | `flatpak-builder` exit code 0                                    | 2     |
 | Bundle installs without error | `flatpak install --user <bundle>`                                | 2     |
 
@@ -407,7 +407,7 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 | Risk                                            | Impact                               | Mitigation                                                                     |
 | ----------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
 | **CI build time increase**                      | Longer releases                      | Flatpak job runs in parallel with AppImage job                                 |
-| **XDG path confusion**                          | Users look for config in wrong place | Document that Flatpak stores data at `~/.var/app/io.github.yandy-r.CrossHook/` |
+| **XDG path confusion**                          | Users look for config in wrong place | Document that Flatpak stores data at `~/.var/app/io.github.yandy_r.CrossHook/` |
 | **GNOME runtime version bump breaks something** | Rendering or dependency issue        | Document upgrade path; pin to specific version in manifest                     |
 
 ---
@@ -418,16 +418,16 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 | Datum                               | Storage            | Location (Flatpak)                                         |
 | ----------------------------------- | ------------------ | ---------------------------------------------------------- |
-| User settings (TOML)                | TOML settings file | `~/.var/app/io.github.yandy-r.CrossHook/config/crosshook/` |
-| Game metadata, profiles (SQLite)    | SQLite metadata DB | `~/.var/app/io.github.yandy-r.CrossHook/data/crosshook/`   |
-| Image cache                         | Runtime cache      | `~/.var/app/io.github.yandy-r.CrossHook/cache/crosshook/`  |
+| User settings (TOML)                | TOML settings file | `~/.var/app/io.github.yandy_r.CrossHook/config/crosshook/` |
+| Game metadata, profiles (SQLite)    | SQLite metadata DB | `~/.var/app/io.github.yandy_r.CrossHook/data/crosshook/`   |
+| Image cache                         | Runtime cache      | `~/.var/app/io.github.yandy_r.CrossHook/cache/crosshook/`  |
 | `is_flatpak()` result               | Runtime-only       | Memory (env var / file check)                              |
 | Flatpak detection in helper scripts | Runtime-only       | `$FLATPAK_ID` env var                                      |
 
 ### 10.2 Migration & Backward Compatibility
 
-- **AppImage → Flatpak**: XDG paths change from `~/.config/crosshook/` to `~/.var/app/io.github.yandy-r.CrossHook/config/crosshook/`. Flatpak remaps automatically via `XDG_CONFIG_HOME` — no code change needed if the app uses `directories::BaseDirs` (which it does).
-- **App ID change (`com.crosshook.native` → `io.github.yandy-r.CrossHook`)**: The Tauri identifier change affects native (non-Flatpak) XDG paths. Existing AppImage users will have data at the old path. A one-time migration check on startup should copy/move data from the old path if the new path is empty.
+- **AppImage → Flatpak**: XDG paths change from `~/.config/crosshook/` to `~/.var/app/io.github.yandy_r.CrossHook/config/crosshook/`. Flatpak remaps automatically via `XDG_CONFIG_HOME` — no code change needed if the app uses `directories::BaseDirs` (which it does).
+- **App ID change (`com.crosshook.native` → `io.github.yandy_r.CrossHook`)**: The Tauri identifier change affects native (non-Flatpak) XDG paths. Existing AppImage users will have data at the old path. A one-time migration check on startup should copy/move data from the old path if the new path is empty.
 - **Offline behavior**: All persistence is local. No network dependency for settings or DB.
 - **Degraded behavior**: If SQLite DB is inaccessible (permission issue), the app should fail with a clear error rather than silently losing data.
 
@@ -440,7 +440,7 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 **Gate**: Working `.flatpak` bundle that installs, launches, discovers Steam libraries on all drives.
 
 1. **Done (#195):** Removed `packaging/flatpak/build-dir/` and `packaging/flatpak/repo/`
-2. Change Tauri app ID to `io.github.yandy-r.CrossHook` across all configs
+2. Change Tauri app ID to `io.github.yandy_r.CrossHook` across all configs
 3. Implement data migration for old app ID paths
 4. Add `is_flatpak()` + `host_command()` to `crosshook-core/src/platform.rs`
 5. Add `/app/resources/` fallback to `paths.rs`
@@ -497,7 +497,7 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 | #   | Question                                                                                                                | Decision Needed By | Owner |
 | --- | ----------------------------------------------------------------------------------------------------------------------- | ------------------ | ----- |
-| 1   | Should AppImage users also migrate to the new app ID (`io.github.yandy-r.CrossHook`), or only Flatpak?                  | Phase 1 start      | Yandy |
+| 1   | Should AppImage users also migrate to the new app ID (`io.github.yandy_r.CrossHook`), or only Flatpak?                  | Phase 1 start      | Yandy |
 | 2   | Are publishable screenshots available, or do they need to be created for Phase 4?                                       | Phase 4 start      | Yandy |
 | 3   | Should `FLATPAK_ID` be used instead of `FLATPAK=1` for detection (more specific, set automatically by Flatpak runtime)? | Phase 1 start      | Yandy |
 | 4   | Is `/opt` a common Steam library mount point that should be added to filesystem permissions?                            | Phase 1 testing    | Yandy |

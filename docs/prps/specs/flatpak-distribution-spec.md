@@ -32,7 +32,7 @@ No Flatpak YAML manifest, desktop file, or metainfo is committed yet. Local `fla
 
 - **Primary format**: AppImage only (`tauri.conf.json` → `bundle.targets: ["appimage"]`)
 - **CI**: `.github/workflows/release.yml` — triggered by `v*` tag push, builds AppImage + CLI tarball, publishes to GitHub Releases
-- **App ID**: `io.github.yandy-r.CrossHook` (used in Tauri config and existing Flatpak prototype)
+- **App ID**: `io.github.yandy_r.CrossHook` (used in Tauri config and existing Flatpak prototype)
 
 ### 2.3 Codebase Flatpak Readiness
 
@@ -57,9 +57,9 @@ No Flatpak YAML manifest, desktop file, or metainfo is committed yet. Local `fla
 | Option | ID | Pros | Cons |
 | ------ | -- | ---- | ---- |
 | Legacy (pre-[#196](https://github.com/yandy-r/crosshook/issues/196)) | `com.crosshook.native` | Matched early prototype / old Tauri `identifier` | Requires `crosshook.com` domain ownership for Flathub |
-| **Adopted** | `io.github.yandy-r.CrossHook` | Flathub-compliant GitHub reverse-DNS; matches current Tauri `identifier` | — |
+| **Adopted** | `io.github.yandy_r.CrossHook` | Flathub-compliant GitHub reverse-DNS; matches current Tauri `identifier` | — |
 
-**Status**: Tauri `identifier` and packaging use **`io.github.yandy-r.CrossHook`** ([GH-196](https://github.com/yandy-r/crosshook/issues/196)). A one-time startup migration moves legacy `com.crosshook.native` XDG app roots to the new name when the destination is empty.
+**Status**: Tauri `identifier` and packaging use **`io.github.yandy_r.CrossHook`** ([GH-196](https://github.com/yandy-r/crosshook/issues/196)). A one-time startup migration moves legacy `com.crosshook.native` XDG app roots to the new name when the destination is empty.
 
 ### 3.2 Distribution Strategy (Two Phases)
 
@@ -74,7 +74,7 @@ No Flatpak YAML manifest, desktop file, or metainfo is committed yet. Local `fla
 
 - Requires `flatpak-cargo-generator.py` for offline Cargo dependencies
 - Requires `flatpak-node-generator` for offline npm dependencies
-- Manifest lives in `flathub/io.github.yandy-r.CrossHook` repo
+- Manifest lives in `flathub/io.github.yandy_r.CrossHook` repo
 - Significantly more CI complexity — defer until demand justifies it
 
 ### 3.3 Sandbox Permissions
@@ -176,8 +176,8 @@ fn resolve_bundled_script_path(app: &tauri::AppHandle, script_name: &str) -> Opt
 ### 3.7 Manifest Structure (Phase 1)
 
 ```yaml
-# io.github.yandy-r.CrossHook.yml
-id: io.github.yandy-r.CrossHook
+# io.github.yandy_r.CrossHook.yml
+id: io.github.yandy_r.CrossHook
 runtime: org.gnome.Platform
 runtime-version: '48'
 sdk: org.gnome.Sdk
@@ -205,11 +205,11 @@ modules:
       - install -Dm755 crosshook-native /app/bin/crosshook-native
       - mkdir -p /app/resources
       - install -Dm755 runtime-helpers/*.sh /app/resources/
-      - install -Dm644 icon-512.png /app/share/icons/hicolor/512x512/apps/io.github.yandy-r.CrossHook.png
-      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/io.github.yandy-r.CrossHook.png
-      - install -Dm644 icon-128.png /app/share/icons/hicolor/128x128/apps/io.github.yandy-r.CrossHook.png
-      - install -Dm644 io.github.yandy-r.CrossHook.desktop /app/share/applications/io.github.yandy-r.CrossHook.desktop
-      - install -Dm644 io.github.yandy-r.CrossHook.metainfo.xml /app/share/metainfo/io.github.yandy-r.CrossHook.metainfo.xml
+      - install -Dm644 icon-512.png /app/share/icons/hicolor/512x512/apps/io.github.yandy_r.CrossHook.png
+      - install -Dm644 icon-256.png /app/share/icons/hicolor/256x256/apps/io.github.yandy_r.CrossHook.png
+      - install -Dm644 icon-128.png /app/share/icons/hicolor/128x128/apps/io.github.yandy_r.CrossHook.png
+      - install -Dm644 io.github.yandy_r.CrossHook.desktop /app/share/applications/io.github.yandy_r.CrossHook.desktop
+      - install -Dm644 io.github.yandy_r.CrossHook.metainfo.xml /app/share/metainfo/io.github.yandy_r.CrossHook.metainfo.xml
 ```
 
 ---
@@ -220,9 +220,9 @@ modules:
 
 | File                                                  | Purpose                                                                | Location                       |
 | ----------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
-| `packaging/flatpak/io.github.yandy-r.CrossHook.yml`          | Flatpak manifest (committed, not build-dir staging)                    | Top-level of Flatpak packaging |
-| `packaging/flatpak/io.github.yandy-r.CrossHook.desktop`      | Static desktop entry                                                   | Committed source-of-truth      |
-| `packaging/flatpak/io.github.yandy-r.CrossHook.metainfo.xml` | AppStream metadata (Flathub-complete)                                  | Committed source-of-truth      |
+| `packaging/flatpak/io.github.yandy_r.CrossHook.yml`          | Flatpak manifest (committed, not build-dir staging)                    | Top-level of Flatpak packaging |
+| `packaging/flatpak/io.github.yandy_r.CrossHook.desktop`      | Static desktop entry                                                   | Committed source-of-truth      |
+| `packaging/flatpak/io.github.yandy_r.CrossHook.metainfo.xml` | AppStream metadata (Flathub-complete)                                  | Committed source-of-truth      |
 | `scripts/build-flatpak.sh`                            | Build script that stages binary + resources and runs `flatpak-builder` | Build tooling                  |
 | `.github/workflows/release.yml` (modify)              | Add Flatpak build job alongside existing AppImage job                  | CI                             |
 
@@ -233,7 +233,7 @@ The existing prototype is missing required fields. Complete metainfo must includ
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.yandy-r.CrossHook</id>
+  <id>io.github.yandy_r.CrossHook</id>
   <metadata_license>MIT</metadata_license>
   <project_license>MIT</project_license>
   <name>CrossHook</name>
@@ -255,7 +255,7 @@ The existing prototype is missing required fields. Complete metainfo must includ
   <url type="bugtracker">https://github.com/yandy-r/crosshook/issues</url>
   <url type="vcs-browser">https://github.com/yandy-r/crosshook</url>
 
-  <launchable type="desktop-id">io.github.yandy-r.CrossHook.desktop</launchable>
+  <launchable type="desktop-id">io.github.yandy_r.CrossHook.desktop</launchable>
 
   <screenshots>
     <!-- Required: at least one screenshot with caption -->
@@ -297,7 +297,7 @@ The existing prototype is missing required fields. Complete metainfo must includ
 
 | Risk                                                                                                                                                  | Impact                                      | Mitigation                                                                                                                                             |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Process execution fails in sandbox** — helper scripts call `steam`, Proton, `pgrep`, `unshare` which may not be visible despite `--filesystem=host` | Core launch workflow broken                 | Test early with `flatpak run --command=bash io.github.yandy-r.CrossHook` to verify binary visibility. Fall back to `flatpak-spawn --host` wrappers if needed. |
+| **Process execution fails in sandbox** — helper scripts call `steam`, Proton, `pgrep`, `unshare` which may not be visible despite `--filesystem=host` | Core launch workflow broken                 | Test early with `flatpak run --command=bash io.github.yandy_r.CrossHook` to verify binary visibility. Fall back to `flatpak-spawn --host` wrappers if needed. |
 | **Flathub rejects `--filesystem=host`**                                                                                                               | Cannot publish to Flathub                   | Maintain self-hosted distribution (GitHub Releases). Prepare a tighter permission set using Lutris as precedent.                                       |
 | **`unshare --user --net` blocked by Flatpak seccomp** — trainer network isolation relies on user namespaces                                           | Network isolation feature broken in Flatpak | Detect Flatpak and gracefully degrade — skip network isolation with a user-visible warning. The `is_unshare_net_available()` probe should catch this.  |
 
@@ -314,7 +314,7 @@ The existing prototype is missing required fields. Complete metainfo must includ
 | Risk                                                 | Impact                              | Mitigation                                                              |
 | ---------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
 | **Build time increase** — Flatpak build adds CI time | Longer releases                     | Run Flatpak build in parallel with AppImage build in CI                 |
-| **XDG path remapping confusion**                     | Config at unexpected path for users | Document that Flatpak stores data at `~/.var/app/io.github.yandy-r.CrossHook/` |
+| **XDG path remapping confusion**                     | Config at unexpected path for users | Document that Flatpak stores data at `~/.var/app/io.github.yandy_r.CrossHook/` |
 
 ---
 
@@ -333,16 +333,16 @@ The existing prototype is missing required fields. Complete metainfo must includ
 | Community tap clone                              | `git clone` succeeds from within sandbox                        | P1       |
 | Trainer network isolation (`unshare`)            | Either works or degrades gracefully with warning                | P1       |
 | `pgrep` game process detection in helper scripts | Process detected, trainer timing works                          | P0       |
-| Settings persistence across app restarts         | Settings at `~/.var/app/io.github.yandy-r.CrossHook/config/crosshook/` | P1       |
-| SQLite metadata DB persistence                   | DB at `~/.var/app/io.github.yandy-r.CrossHook/data/crosshook/`         | P1       |
+| Settings persistence across app restarts         | Settings at `~/.var/app/io.github.yandy_r.CrossHook/config/crosshook/` | P1       |
+| SQLite metadata DB persistence                   | DB at `~/.var/app/io.github.yandy_r.CrossHook/data/crosshook/`         | P1       |
 | Game image cache                                 | Images cached and displayed via asset protocol                  | P2       |
 | NVIDIA GPU with Wayland                          | No blank screen (DMABUF workaround active)                      | P2       |
 
 ### 6.2 Automated CI Validation
 
 - Build the Flatpak bundle in CI and upload as artifact
-- Validate MetaInfo with `appstreamcli validate io.github.yandy-r.CrossHook.metainfo.xml`
-- Validate desktop file with `desktop-file-validate io.github.yandy-r.CrossHook.desktop`
+- Validate MetaInfo with `appstreamcli validate io.github.yandy_r.CrossHook.metainfo.xml`
+- Validate desktop file with `desktop-file-validate io.github.yandy_r.CrossHook.desktop`
 - Verify bundle installs without errors: `flatpak install --user <bundle>`
 
 ---
@@ -409,7 +409,7 @@ The existing prototype is missing required fields. Complete metainfo must includ
 
 ## 9. Open Questions
 
-1. **Domain ownership**: Does the project control `crosshook.com`? If not, Flathub submission uses the GitHub-based app ID `io.github.yandy-r.CrossHook` (see [#196](https://github.com/yandy-r/crosshook/issues/196)).
+1. **Domain ownership**: Does the project control `crosshook.com`? If not, Flathub submission uses the GitHub-based app ID `io.github.yandy_r.CrossHook` (see [#196](https://github.com/yandy-r/crosshook/issues/196)).
 2. **Screenshot availability**: Flathub requires screenshots in the MetaInfo. Do publishable screenshots exist, or do they need to be created?
 3. **GNOME runtime version pinning**: The prototype uses GNOME 48. Should the manifest track the latest stable (currently 48) or pin to a specific version for stability?
 4. **`flatpak-spawn` latency**: The D-Bus round-trip for `flatpak-spawn --host` adds overhead to process launches. Is the trainer launch timing (delay between game and trainer start) sensitive enough that this matters?
