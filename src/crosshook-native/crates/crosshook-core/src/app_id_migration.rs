@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 /// Legacy Tauri `identifier` segment used before Flathub-compliant app ID adoption.
 pub const LEGACY_TAURI_APP_ID_DIR: &str = "com.crosshook.native";
 /// Current Tauri `identifier` directory segment (must match `tauri.conf.json`).
-pub const CURRENT_TAURI_APP_ID_DIR: &str = "io.github.yandy-r.crosshook";
+pub const CURRENT_TAURI_APP_ID_DIR: &str = "io.github.yandy-r.CrossHook";
 
 fn dir_is_empty(path: &Path) -> Result<bool, std::io::Error> {
     let mut it = fs::read_dir(path)?;
