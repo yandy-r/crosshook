@@ -186,7 +186,6 @@ jobs:
         with:
           bundle: ${{ env.FLATPAK_BUNDLE_NAME }}
           manifest-path: packaging/flatpak/dev.crosshook.CrossHook.yml
-          cache-key: flatpak-builder-${{ github.sha }}
           upload-artifact: false
 
       - name: Upload Flatpak artifact

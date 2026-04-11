@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 This file is generated with `git-cliff` from the repository history and release tags.
+
 ## [v0.2.10-flatpak] - 2026-04-11
 
 

@@ -22,6 +22,30 @@ Release automation is defined in `.github/workflows/release.yml`:
 
 When a new stable GNOME runtime is adopted, update all runtime-coupled locations in the same PR.
 
+### Local prerequisites (clean machine)
+
+The committed manifest [`dev.crosshook.CrossHook.yml`](dev.crosshook.CrossHook.yml) sets `runtime-version` (currently `50`). The local helper [`scripts/build-flatpak.sh`](../../scripts/build-flatpak.sh) defaults `CROSSHOOK_FLATPAK_RUNTIME_VERSION` to the same value (`50` unless overridden). Install matching `org.gnome.Platform` and `org.gnome.Sdk` for that version before building.
+
+**Packages / tools**
+
+- **Required:** `flatpak`, `flatpak-builder` (most distros pull `ostree` as a dependency of the Flatpak stack).
+- **Required for `./scripts/build-flatpak.sh --strict`:** `desktop-file-validate` (often in `desktop-file-utils`) and `appstreamcli` (often in `appstream` / `appstream-cli`, name varies by distro).
+
+**Flathub and GNOME runtime/SDK**
+
+Ensure the Flathub remote exists and install the Platform and Sdk that match the manifest (replace `50` if you bump the runtime):
+
+```bash
+flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install --user flathub org.gnome.Platform//50 org.gnome.Sdk//50
+```
+
+Alternatively, `./scripts/build-flatpak.sh --install-deps` installs `flatpak` + `flatpak-builder` via your package manager, adds Flathub if missing, and runs the `flatpak install` for `org.gnome.Platform` and `org.gnome.Sdk` at version `${CROSSHOOK_FLATPAK_RUNTIME_VERSION:-50}`.
+
+**Smoke test**
+
+After a successful `./scripts/build-flatpak.sh --strict`, install and run the bundle using the commands in step 5 below.
+
 1. **Manifest runtime**  
    Update `runtime-version` in `packaging/flatpak/dev.crosshook.CrossHook.yml`.
 2. **CI container image**  
