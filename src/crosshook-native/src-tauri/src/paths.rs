@@ -29,9 +29,29 @@ fn resolve_bundled_script_path(app: &tauri::AppHandle, script_name: &str) -> Opt
     use tauri::path::BaseDirectory;
     use tauri::Manager;
 
-    app.path()
-        .resolve(script_name, BaseDirectory::Resource)
-        .ok()
+    if let Ok(path) = app.path().resolve(script_name, BaseDirectory::Resource) {
+        return Some(path);
+    }
+
+    // Flatpak fallback: Tauri's BaseDirectory::Resource resolution may fail
+    // inside the Flatpak sandbox where bundled resources live at /app/resources/.
+    // Only return Some when the file actually exists so a missing script
+    // surfaces as a clear ENOENT at spawn time rather than a silently bogus path.
+    // This branch is covered end-to-end by the Flatpak build smoke test under
+    // #69; the inner is_flatpak() decision is unit-tested in crosshook-core.
+    if crosshook_core::platform::is_flatpak() {
+        let flatpak_path = PathBuf::from("/app/resources").join(script_name);
+        if flatpak_path.exists() {
+            tracing::debug!(
+                path = %flatpak_path.display(),
+                script_name,
+                "resolved bundled script via Flatpak /app/resources fallback"
+            );
+            return Some(flatpak_path);
+        }
+    }
+
+    None
 }
 
 fn development_script_path(script_name: &str) -> PathBuf {

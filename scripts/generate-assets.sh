@@ -18,7 +18,8 @@ else
 fi
 
 # --- Monogram icon PNGs ---
-for size in 16 32 48 256 512; do
+# 128px is required for Flatpak hicolor theme (see packaging/flatpak/).
+for size in 16 32 48 128 256 512; do
   rsvg-convert -w "$size" -h "$size" "$ASSETS/logo-monogram.svg" \
     -o "$ASSETS/icon-${size}.png"
 done

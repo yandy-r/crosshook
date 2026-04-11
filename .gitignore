@@ -38,6 +38,9 @@ docs/**/.cache/
 docs/**/.DS_Store
 docs/**/Thumbs.db
 
+# Flatpak local build cache (flatpak-builder)
+.flatpak-builder/
+
 # Misc
 .playwright/
 .playwright-mcp/

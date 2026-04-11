@@ -129,11 +129,22 @@ if (( BINARY_ONLY )); then
   echo "Building CrossHook Native release binary for $TARGET_TRIPLE..."
   echo "  CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
   echo "  DIST_DIR=$DIST_DIR"
-  npm run build
-  cargo build \
-    --manifest-path src-tauri/Cargo.toml \
-    --release \
-    --target "$TARGET_TRIPLE"
+
+  # Invoke `tauri build --no-bundle` so Tauri's generate_context!() macro
+  # embeds the production frontendDist into the binary. A plain
+  # `cargo build --release` does not: the resulting binary falls back
+  # to the devUrl at runtime (http://localhost:5173) and fails with
+  # "Could not connect to localhost: Connection refused" under the
+  # AppImage or inside the Flatpak sandbox.
+  if cargo tauri --help >/dev/null 2>&1; then
+    cargo tauri build --target "$TARGET_TRIPLE" --no-bundle
+  elif [[ -x "$NATIVE_DIR/node_modules/.bin/tauri" ]]; then
+    "$NATIVE_DIR/node_modules/.bin/tauri" build --target "$TARGET_TRIPLE" --no-bundle
+  elif command -v npx >/dev/null 2>&1; then
+    npx tauri build --target "$TARGET_TRIPLE" --no-bundle
+  else
+    die "neither cargo-tauri nor a local tauri CLI is available"
+  fi
 
   BINARY_PATH="$CARGO_TARGET_DIR/$TARGET_TRIPLE/release/crosshook-native"
   [[ -x "$BINARY_PATH" ]] || die "release binary not found at $BINARY_PATH"

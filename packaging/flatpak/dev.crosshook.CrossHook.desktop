@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=CrossHook
+GenericName=Game Trainer Launcher
+Comment=Launch Windows game trainers alongside Steam/Proton titles
+Exec=crosshook-native
+Icon=dev.crosshook.CrossHook
+Terminal=false
+Categories=Game;
+Keywords=game;trainer;proton;steam;wine;launcher;mod;
+StartupNotify=true
+StartupWMClass=CrossHook

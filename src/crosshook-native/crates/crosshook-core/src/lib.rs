@@ -1,3 +1,4 @@
+pub mod app_id_migration;
 pub mod community;
 pub mod discovery;
 pub mod export;
@@ -8,6 +9,7 @@ pub mod logging;
 pub mod metadata;
 pub mod offline;
 pub mod onboarding;
+pub mod platform;
 pub mod prefix_deps;
 pub mod profile;
 pub mod protondb;

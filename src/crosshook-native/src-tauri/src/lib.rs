@@ -2,11 +2,13 @@ mod commands;
 mod paths;
 mod startup;
 
+use crosshook_core::app_id_migration::migrate_legacy_tauri_app_id_xdg_directories;
 use crosshook_core::community::CommunityTapStore;
 use crosshook_core::launch::{initialize_catalog, load_catalog};
 use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::offline::{initialize_trainer_type_catalog, load_trainer_type_catalog};
+use crosshook_core::platform::override_xdg_for_flatpak_host_access;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore};
 pub use paths::resolve_script_path;
@@ -15,6 +17,21 @@ use tokio::time::{sleep, Duration};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Redirect XDG_{CONFIG,DATA,CACHE}_HOME back to the host's defaults when
+    // running inside a Flatpak sandbox. Must run before any `BaseDirs::new()`
+    // call (including the migration below and every store `try_new`), because
+    // `directories` crate reads XDG env vars at construction time.
+    //
+    // Phase 1 shares data between AppImage and Flatpak via --filesystem=home.
+    // Phase 4 will replace this with per-app isolation + a first-run
+    // migration. See docs/prps/prds/flatpak-distribution.prd.md §10.2.
+    // SAFETY: this is the top of startup before any worker threads or Tauri
+    // builder state exist; no concurrent env readers/writers are active.
+    unsafe { override_xdg_for_flatpak_host_access() };
+
+    // One-time XDG root migration after Tauri app `identifier` change (legacy -> current).
+    migrate_legacy_tauri_app_id_xdg_directories();
+
     // --- AppImage GPU compatibility: prefer system WebKitGTK ---
     //
     // The AppImage bundles WebKitGTK from the build container (Ubuntu 24.04,
