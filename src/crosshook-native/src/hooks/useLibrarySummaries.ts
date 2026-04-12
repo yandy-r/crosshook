@@ -16,8 +16,12 @@ export interface UseLibrarySummariesResult {
  * triggered by favorite toggles, while a separate effect keeps the favorite
  * flag in sync when `favoriteProfiles` changes independently.
  */
-export function useLibrarySummaries(profiles: string[], favoriteProfiles: string[]): UseLibrarySummariesResult {
-  const [summaries, setSummaries] = useState<LibraryCardData[]>([]);
+export function useLibrarySummaries(
+  profiles: string[],
+  favoriteProfiles: string[],
+  collectionId?: string | null
+): UseLibrarySummariesResult {
+    const [summaries, setSummaries] = useState<LibraryCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,7 +32,8 @@ export function useLibrarySummaries(profiles: string[], favoriteProfiles: string
 
   const fetchSummaries = useCallback(async () => {
     try {
-      const result = await callCommand<ProfileSummary[]>('profile_list_summaries');
+      const cid = collectionId?.trim() || undefined;
+      const result = await callCommand<ProfileSummary[]>('profile_list_summaries', { collectionId: cid });
       const favoriteSet = new Set(favoriteProfilesRef.current);
       setSummaries(
         result.map((s) => ({
@@ -47,7 +52,7 @@ export function useLibrarySummaries(profiles: string[], favoriteProfiles: string
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [collectionId]);
 
   // Fetch on mount and whenever the profile list changes.
   useEffect(() => {

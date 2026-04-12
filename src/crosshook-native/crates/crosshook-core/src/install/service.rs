@@ -123,6 +123,7 @@ fn build_install_command(
         &[],
         &env,
         effective_working_directory.as_deref(),
+        &std::collections::BTreeMap::new(),
     );
     command.arg(normalized_installer_path.trim());
     if !crate::platform::is_flatpak() {

@@ -22,10 +22,19 @@ function normalizeHostDialogPath(path: string | null): string | null {
   return path;
 }
 
+/** Matches Flatpak document-portal paths (`platform.rs` `looks_like_document_portal_path`). */
+function looksLikeDocumentPortalPath(path: string): boolean {
+  return path.startsWith('/run/user/') && path.includes('/doc/');
+}
+
 async function resolveDialogPath(path: string | null): Promise<string | null> {
   const normalized = normalizeHostDialogPath(path);
   if (normalized === null) {
     return null;
+  }
+
+  if (looksLikeDocumentPortalPath(normalized)) {
+    return normalized;
   }
 
   try {

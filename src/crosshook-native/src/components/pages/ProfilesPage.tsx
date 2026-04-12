@@ -127,7 +127,7 @@ export function ProfilesPage() {
   }, [profiles, activeCollectionId, memberNames, membersLoading, membersForCollectionId]);
 
   const launchPlatform = useLaunchPlatformStatus();
-  const { summaries: profileSummaries } = useProfileSummaries(profiles);
+  const { summaries: profileSummaries } = useProfileSummaries(profiles, activeCollectionId);
   const profileNetworkIsolation = useMemo(() => {
     const next: Record<string, boolean> = {};
     for (const row of profileSummaries) {

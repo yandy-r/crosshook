@@ -9,7 +9,10 @@ export interface UseProfileSummariesResult {
   error: string | null;
 }
 
-export function useProfileSummaries(profiles: string[]): UseProfileSummariesResult {
+export function useProfileSummaries(
+  profiles: string[],
+  collectionId?: string | null
+): UseProfileSummariesResult {
   const [summaries, setSummaries] = useState<ProfileSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +20,8 @@ export function useProfileSummaries(profiles: string[]): UseProfileSummariesResu
   const fetchSummaries = useCallback(async () => {
     setLoading(true);
     try {
-      const rows = await callCommand<ProfileSummary[]>('profile_list_summaries');
+      const cid = collectionId?.trim() || undefined;
+      const rows = await callCommand<ProfileSummary[]>('profile_list_summaries', { collectionId: cid });
       setSummaries(rows);
       setError(null);
     } catch (err) {
@@ -27,7 +31,7 @@ export function useProfileSummaries(profiles: string[]): UseProfileSummariesResu
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [collectionId]);
 
   useEffect(() => {
     void fetchSummaries();

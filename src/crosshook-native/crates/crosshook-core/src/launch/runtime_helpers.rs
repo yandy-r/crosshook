@@ -33,7 +33,13 @@ pub fn build_direct_proton_command_with_wrappers(
     wrappers: &[String],
     env: &BTreeMap<String, String>,
 ) -> Command {
-    build_direct_proton_command_with_wrappers_in_directory(proton_path, wrappers, env, None)
+    build_direct_proton_command_with_wrappers_in_directory(
+        proton_path,
+        wrappers,
+        env,
+        None,
+        &BTreeMap::new(),
+    )
 }
 
 pub fn build_direct_proton_command_with_wrappers_in_directory(
@@ -41,6 +47,7 @@ pub fn build_direct_proton_command_with_wrappers_in_directory(
     wrappers: &[String],
     env: &BTreeMap<String, String>,
     working_directory: Option<&str>,
+    custom_env_vars: &BTreeMap<String, String>,
 ) -> Command {
     let trimmed_proton = normalize_host_command_entry(proton_path);
     let normalized_wrappers = wrappers
@@ -48,14 +55,22 @@ pub fn build_direct_proton_command_with_wrappers_in_directory(
         .map(|wrapper| normalize_host_command_entry(wrapper))
         .collect::<Vec<_>>();
     if wrappers.is_empty() {
-        let mut command =
-            host_command_with_env_and_directory(trimmed_proton.as_str(), env, working_directory);
+        let mut command = host_command_with_env_and_directory(
+            trimmed_proton.as_str(),
+            env,
+            working_directory,
+            custom_env_vars,
+        );
         command.arg("run");
         return command;
     }
 
-    let mut command =
-        host_command_with_env_and_directory(normalized_wrappers[0].as_str(), env, working_directory);
+    let mut command = host_command_with_env_and_directory(
+        normalized_wrappers[0].as_str(),
+        env,
+        working_directory,
+        custom_env_vars,
+    );
     for wrapper in normalized_wrappers.iter().skip(1) {
         command.arg(wrapper);
     }
@@ -144,6 +159,7 @@ pub fn build_proton_command_with_gamescope(
         gamescope_args,
         env,
         None,
+        &BTreeMap::new(),
     )
 }
 
@@ -153,10 +169,15 @@ pub fn build_proton_command_with_gamescope_in_directory(
     gamescope_args: &[String],
     env: &BTreeMap<String, String>,
     working_directory: Option<&str>,
+    custom_env_vars: &BTreeMap<String, String>,
 ) -> Command {
     let normalized_proton = normalize_host_command_entry(proton_path);
-    let mut command =
-        host_command_with_env_and_directory("gamescope", env, working_directory);
+    let mut command = host_command_with_env_and_directory(
+        "gamescope",
+        env,
+        working_directory,
+        custom_env_vars,
+    );
     for arg in gamescope_args {
         command.arg(arg.trim());
     }

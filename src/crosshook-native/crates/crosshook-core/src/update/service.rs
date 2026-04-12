@@ -44,6 +44,7 @@ pub fn build_update_command(
         &[],
         &env,
         effective_working_directory.as_deref(),
+        &std::collections::BTreeMap::new(),
     );
     command.arg(normalized_updater_path.trim());
     if !crate::platform::is_flatpak() {

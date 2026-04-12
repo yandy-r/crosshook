@@ -514,7 +514,7 @@ fn git_command() -> Command {
         env.insert(key.to_string(), value.to_string());
     }
     if platform::is_flatpak() {
-        host_std_command_with_env("git", &env)
+        host_std_command_with_env("git", &env, &BTreeMap::new())
     } else {
         let mut command = Command::new("git");
         command.envs(&env);

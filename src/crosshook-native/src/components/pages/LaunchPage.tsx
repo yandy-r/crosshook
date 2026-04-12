@@ -86,7 +86,8 @@ export function LaunchPage() {
 
   useEffect(() => {
     let active = true;
-    void callCommand<ProfileSummary[]>('profile_list_summaries')
+    const collectionId = activeCollectionId?.trim() || undefined;
+    void callCommand<ProfileSummary[]>('profile_list_summaries', { collectionId })
       .then((rows) => {
         if (!active) {
           return;
@@ -105,7 +106,7 @@ export function LaunchPage() {
     return () => {
       active = false;
     };
-  }, [profileState.profiles]);
+  }, [profileState.profiles, activeCollectionId]);
 
   const showFlatpakNetworkIsolationBadge = useCallback(
     (profileName: string) => {

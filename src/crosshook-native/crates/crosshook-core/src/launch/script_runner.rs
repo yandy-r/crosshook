@@ -67,12 +67,15 @@ fn should_skip_gamescope(config: &GamescopeConfig) -> bool {
 fn build_flatpak_unshare_bash_command(
     script_path: &Path,
     env: &BTreeMap<String, String>,
+    custom_env: &BTreeMap<String, String>,
 ) -> std::io::Result<Command> {
-    let script_contents = fs::read_to_string(script_path)?;
-    let mut cmd = host_command_with_env("unshare", env);
-    cmd.args(["--user", "--net", BASH_EXECUTABLE, "-c"]);
-    cmd.arg(script_contents);
-    cmd.arg("--");
+    let mut base = env.clone();
+    for key in custom_env.keys() {
+        base.remove(key);
+    }
+    let mut cmd = host_command_with_env("unshare", &base, custom_env);
+    cmd.args(["--user", "--net", BASH_EXECUTABLE]);
+    cmd.arg(script_path);
     Ok(cmd)
 }
 
@@ -152,7 +155,11 @@ pub fn build_helper_command(
 ) -> std::io::Result<Command> {
     let mut env = host_environment_map();
     merge_steam_helper_env_into(&mut env, request);
-    merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
+    merge_optimization_and_custom_into_map(&mut env, &[], &BTreeMap::new());
+    let mut base_for_flatpak = env.clone();
+    for key in request.custom_env_vars.keys() {
+        base_for_flatpak.remove(key);
+    }
     let resolved_proton_path = resolve_launch_proton_path(
         request.steam.proton_path.as_str(),
         request.steam.steam_client_install_path.as_str(),
@@ -175,8 +182,13 @@ pub fn build_helper_command(
         && super::runtime_helpers::is_unshare_net_available()
     {
         if platform::is_flatpak() {
-            build_flatpak_unshare_bash_command(script_path, &env)?
+            build_flatpak_unshare_bash_command(
+                script_path,
+                &base_for_flatpak,
+                &request.custom_env_vars,
+            )?
         } else {
+            merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
             let mut cmd = Command::new("unshare");
             cmd.envs(&env);
             cmd.args(["--user", "--net", BASH_EXECUTABLE]);
@@ -184,6 +196,7 @@ pub fn build_helper_command(
             cmd
         }
     } else {
+        merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
         let mut cmd = Command::new(BASH_EXECUTABLE);
         cmd.arg(script_path);
         cmd.envs(&env);
@@ -205,7 +218,11 @@ pub fn build_trainer_command(
 ) -> std::io::Result<Command> {
     let mut env = host_environment_map();
     merge_steam_helper_env_into(&mut env, request);
-    merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
+    merge_optimization_and_custom_into_map(&mut env, &[], &BTreeMap::new());
+    let mut base_for_flatpak = env.clone();
+    for key in request.custom_env_vars.keys() {
+        base_for_flatpak.remove(key);
+    }
     let resolved_proton_path = resolve_launch_proton_path(
         request.steam.proton_path.as_str(),
         request.steam.steam_client_install_path.as_str(),
@@ -225,8 +242,13 @@ pub fn build_trainer_command(
     let mut command =
         if request.network_isolation && super::runtime_helpers::is_unshare_net_available() {
             if platform::is_flatpak() {
-                build_flatpak_unshare_bash_command(script_path, &env)?
+                build_flatpak_unshare_bash_command(
+                    script_path,
+                    &base_for_flatpak,
+                    &request.custom_env_vars,
+                )?
             } else {
+                merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
                 let mut cmd = Command::new("unshare");
                 cmd.envs(&env);
                 cmd.args(["--user", "--net", BASH_EXECUTABLE]);
@@ -234,6 +256,7 @@ pub fn build_trainer_command(
                 cmd
             }
         } else {
+            merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
             let mut cmd = Command::new(BASH_EXECUTABLE);
             cmd.arg(script_path);
             cmd.envs(&env);
@@ -262,9 +285,12 @@ pub fn build_proton_game_command(
         request.runtime.prefix_path.trim(),
         request.steam.steam_client_install_path.trim(),
     );
-    merge_optimization_and_custom_into_map(&mut env, &directives.env, &request.custom_env_vars);
+    merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
     env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
     merge_mangohud_config_env_into_map(&mut env, request, gamescope_active, wrappers_had_mangohud);
+    for key in request.custom_env_vars.keys() {
+        env.remove(key);
+    }
 
     let normalized_game_path = normalize_flatpak_host_path(&request.game_path);
     let normalized_working_directory =
@@ -302,6 +328,7 @@ pub fn build_proton_game_command(
             &gamescope_args,
             &env,
             effective_working_directory.as_deref(),
+            &request.custom_env_vars,
         )
     } else {
         build_direct_proton_command_with_wrappers_in_directory(
@@ -309,6 +336,7 @@ pub fn build_proton_game_command(
             &directives.wrappers,
             &env,
             effective_working_directory.as_deref(),
+            &request.custom_env_vars,
         )
     };
     command.arg(normalized_game_path.trim());
@@ -359,9 +387,12 @@ pub fn build_proton_trainer_command(
         request.runtime.prefix_path.trim(),
         request.steam.steam_client_install_path.trim(),
     );
-    merge_optimization_and_custom_into_map(&mut env, &directives.env, &request.custom_env_vars);
+    merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
     env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
     merge_mangohud_config_env_into_map(&mut env, request, gamescope_active, wrappers_had_mangohud);
+    for key in request.custom_env_vars.keys() {
+        env.remove(key);
+    }
     let resolved_proton_path = resolve_launch_proton_path(
         request.runtime.proton_path.trim(),
         request.steam.steam_client_install_path.trim(),
@@ -393,6 +424,7 @@ pub fn build_proton_trainer_command(
             &gamescope_args,
             &env,
             effective_working_directory.as_deref(),
+            &request.custom_env_vars,
         )
     } else {
         build_direct_proton_command_with_wrappers_in_directory(
@@ -400,6 +432,7 @@ pub fn build_proton_trainer_command(
             &effective_wrappers,
             &env,
             effective_working_directory.as_deref(),
+            &request.custom_env_vars,
         )
     };
     command.arg(trainer_launch_path);

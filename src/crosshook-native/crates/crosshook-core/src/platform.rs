@@ -8,11 +8,13 @@
 
 use std::collections::BTreeMap;
 use std::ffi::{CStr, CString, OsString};
-use std::io;
+use std::fs::OpenOptions;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command as StdCommand, Stdio};
 
 use tokio::process::Command;
+use uuid::Uuid;
 
 const FLATPAK_ID_ENV: &str = "FLATPAK_ID";
 const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
@@ -145,8 +147,15 @@ pub fn host_command(program: &str) -> Command {
 ///
 /// Phase 3 Proton/Wine callers should use this helper unconditionally so the
 /// code behaves correctly in both AppImage and Flatpak deployments.
-pub fn host_command_with_env(program: &str, envs: &BTreeMap<String, String>) -> Command {
-    host_command_with_env_inner(program, envs, is_flatpak())
+/// `custom_env_vars` are user-controlled launch overrides. Under Flatpak they are applied via a
+/// short-lived `0600` env file and `bash` so values are not exposed on the `flatpak-spawn --env=`
+/// argv.
+pub fn host_command_with_env(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> Command {
+    host_command_with_env_inner(program, envs, custom_env_vars, is_flatpak())
 }
 
 /// Like [`host_command_with_env`], but also sets the host working directory
@@ -155,8 +164,9 @@ pub fn host_command_with_env_and_directory(
     program: &str,
     envs: &BTreeMap<String, String>,
     directory: Option<&str>,
+    custom_env_vars: &BTreeMap<String, String>,
 ) -> Command {
-    host_command_with_env_and_directory_inner(program, envs, directory, is_flatpak())
+    host_command_with_env_and_directory_inner(program, envs, directory, is_flatpak(), custom_env_vars)
 }
 
 /// Redirects `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` to the
@@ -217,9 +227,10 @@ fn host_command_with(program: &str, flatpak: bool) -> Command {
 fn host_command_with_env_inner(
     program: &str,
     envs: &BTreeMap<String, String>,
+    custom_env_vars: &BTreeMap<String, String>,
     flatpak: bool,
 ) -> Command {
-    host_command_with_env_and_directory_inner(program, envs, None, flatpak)
+    host_command_with_env_and_directory_inner(program, envs, None, flatpak, custom_env_vars)
 }
 
 fn host_command_with_env_and_directory_inner(
@@ -227,6 +238,7 @@ fn host_command_with_env_and_directory_inner(
     envs: &BTreeMap<String, String>,
     directory: Option<&str>,
     flatpak: bool,
+    custom_env_vars: &BTreeMap<String, String>,
 ) -> Command {
     let normalized_directory = normalize_host_working_directory(directory);
     if flatpak {
@@ -242,16 +254,76 @@ fn host_command_with_env_and_directory_inner(
         for (key, value) in envs {
             cmd.arg(format!("--env={key}={value}"));
         }
-        cmd.arg(program);
+        if custom_env_vars.is_empty() {
+            cmd.arg(program);
+        } else {
+            let env_path = match write_flatpak_custom_env_file(custom_env_vars) {
+                Ok(path) => path,
+                Err(error) => {
+                    tracing::error!(?error, "failed to write custom env file for flatpak host spawn");
+                    cmd.arg(program);
+                    return cmd;
+                }
+            };
+            cmd.arg("bash");
+            cmd.arg("-c");
+            cmd.arg("set -a; source \"$1\"; rm -f \"$1\"; set +a; shift; exec \"$@\"");
+            cmd.arg("bash");
+            cmd.arg(env_path);
+            cmd.arg(program);
+        }
         cmd
     } else {
+        let mut combined = envs.clone();
+        for (key, value) in custom_env_vars {
+            combined.insert(key.clone(), value.clone());
+        }
         let mut cmd = Command::new(program);
-        cmd.envs(envs);
+        cmd.envs(&combined);
         if let Some(directory) = normalized_directory {
             cmd.current_dir(directory);
         }
         cmd
     }
+}
+
+fn is_valid_shell_env_key(key: &str) -> bool {
+    !key.is_empty()
+        && key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+fn shell_single_quote_escape(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn write_flatpak_custom_env_file(custom_env_vars: &BTreeMap<String, String>) -> io::Result<PathBuf> {
+    let path = std::env::temp_dir().join(format!("crosshook-host-env-{}.env", Uuid::new_v4()));
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .truncate(true)
+        .open(&path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = file.metadata()?.permissions();
+        perms.set_mode(0o600);
+        file.set_permissions(perms)?;
+    }
+    for (key, value) in custom_env_vars {
+        if !is_valid_shell_env_key(key) {
+            tracing::warn!(
+                key = %key,
+                "skipping invalid custom env key for flatpak host env file handoff"
+            );
+            continue;
+        }
+        writeln!(file, "{}={}", key, shell_single_quote_escape(value))?;
+    }
+    file.sync_all()?;
+    Ok(path)
 }
 
 fn normalize_host_working_directory(directory: Option<&str>) -> Option<String> {
@@ -285,13 +357,18 @@ fn host_std_command_with(program: &str, flatpak: bool) -> StdCommand {
 }
 
 /// Like [`host_command_with_env`], but for synchronous [`std::process::Command`].
-pub fn host_std_command_with_env(program: &str, envs: &BTreeMap<String, String>) -> StdCommand {
-    host_std_command_with_env_inner(program, envs, is_flatpak())
+pub fn host_std_command_with_env(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> StdCommand {
+    host_std_command_with_env_inner(program, envs, custom_env_vars, is_flatpak())
 }
 
 fn host_std_command_with_env_inner(
     program: &str,
     envs: &BTreeMap<String, String>,
+    custom_env_vars: &BTreeMap<String, String>,
     flatpak: bool,
 ) -> StdCommand {
     if flatpak {
@@ -304,11 +381,32 @@ fn host_std_command_with_env_inner(
         for (key, value) in envs {
             cmd.arg(format!("--env={key}={value}"));
         }
-        cmd.arg(program);
+        if custom_env_vars.is_empty() {
+            cmd.arg(program);
+        } else {
+            let env_path = match write_flatpak_custom_env_file(custom_env_vars) {
+                Ok(path) => path,
+                Err(error) => {
+                    tracing::error!(?error, "failed to write custom env file for flatpak host spawn");
+                    cmd.arg(program);
+                    return cmd;
+                }
+            };
+            cmd.arg("bash");
+            cmd.arg("-c");
+            cmd.arg("set -a; source \"$1\"; rm -f \"$1\"; set +a; shift; exec \"$@\"");
+            cmd.arg("bash");
+            cmd.arg(env_path);
+            cmd.arg(program);
+        }
         cmd
     } else {
+        let mut combined = envs.clone();
+        for (key, value) in custom_env_vars {
+            combined.insert(key.clone(), value.clone());
+        }
         let mut cmd = StdCommand::new(program);
-        cmd.envs(envs);
+        cmd.envs(&combined);
         cmd
     }
 }
@@ -838,7 +936,7 @@ mod tests {
             ("WINEPREFIX".to_string(), "/home/alice/.wine".to_string()),
             ("DXVK_ASYNC".to_string(), "1".to_string()),
         ]);
-        let cmd = host_command_with_env_inner("wine", &envs, true);
+        let cmd = host_command_with_env_inner("wine", &envs, &BTreeMap::new(), true);
         let std_cmd = cmd.as_std();
         assert_eq!(std_cmd.get_program(), "flatpak-spawn");
         let args: Vec<&std::ffi::OsStr> = std_cmd.get_args().collect();
@@ -866,6 +964,7 @@ mod tests {
             &envs,
             Some("/run/host/mnt/games/The Witcher 3"),
             true,
+            &BTreeMap::new(),
         );
         let std_cmd = cmd.as_std();
         assert_eq!(std_cmd.get_program(), "flatpak-spawn");
@@ -894,6 +993,7 @@ mod tests {
             &envs,
             Some("/tmp/workdir"),
             false,
+            &BTreeMap::new(),
         );
         let std_cmd = cmd.as_std();
         assert_eq!(std_cmd.get_program(), "wine");
@@ -910,7 +1010,7 @@ mod tests {
         // Outside Flatpak, env vars should be forwarded via .envs(), not as
         // --env=K=V arguments (there is no flatpak-spawn wrapper).
         let envs = BTreeMap::from([("DXVK_ASYNC".to_string(), "1".to_string())]);
-        let cmd = host_command_with_env_inner("wine", &envs, false);
+        let cmd = host_command_with_env_inner("wine", &envs, &BTreeMap::new(), false);
         let std_cmd = cmd.as_std();
         assert_eq!(std_cmd.get_program(), "wine");
         // No --env= style args; the env var is set on the Command directly.
@@ -954,7 +1054,7 @@ mod tests {
             ("WINEPREFIX".to_string(), "/home/alice/.wine".to_string()),
             ("DXVK_ASYNC".to_string(), "1".to_string()),
         ]);
-        let cmd = host_std_command_with_env_inner("wine", &envs, true);
+        let cmd = host_std_command_with_env_inner("wine", &envs, &BTreeMap::new(), true);
         assert_eq!(cmd.get_program(), "flatpak-spawn");
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert_eq!(args[0], std::ffi::OsStr::new("--host"));
@@ -974,7 +1074,7 @@ mod tests {
     #[test]
     fn host_std_command_with_env_uses_envs_method_when_not_flatpak() {
         let envs = BTreeMap::from([("DXVK_ASYNC".to_string(), "1".to_string())]);
-        let cmd = host_std_command_with_env_inner("wine", &envs, false);
+        let cmd = host_std_command_with_env_inner("wine", &envs, &BTreeMap::new(), false);
         assert_eq!(cmd.get_program(), "wine");
         let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
         assert!(
