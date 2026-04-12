@@ -212,12 +212,13 @@ export function registerProfile(map: Map<string, Handler>): void {
     const fixture = getActiveFixture();
     if (fixture === 'empty') return [];
     seedDemoProfiles();
-    return Array.from(getStore().profiles.values()).map((p) => ({
-      name: p.game.name,
+    return Array.from(getStore().profiles.entries()).map(([name, p]) => ({
+      name,
       gameName: p.game.name,
       steamAppId: p.steam.app_id,
       customCoverArtPath: p.game.custom_cover_art_path,
       customPortraitArtPath: p.game.custom_portrait_art_path,
+      networkIsolation: p.launch.network_isolation ?? true,
     }));
   });
 

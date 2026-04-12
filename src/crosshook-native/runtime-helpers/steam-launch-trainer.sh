@@ -37,6 +37,35 @@ ensure_standard_path() {
   esac
 }
 
+run_host() {
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    flatpak-spawn --host "$@"
+  else
+    "$@"
+  fi
+}
+
+host_test() {
+  local flag="$1"
+  local path="$2"
+
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    run_host test "$flag" "$path"
+  else
+    test "$flag" "$path"
+  fi
+}
+
+host_realpath() {
+  local path="$1"
+
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    run_host realpath "$path"
+  else
+    realpath "$path"
+  fi
+}
+
 resolve_runner_script() {
   local script_dir
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -114,15 +143,15 @@ runner_script="$(resolve_runner_script)"
 mkdir -p "$(dirname "$log_file")"
 exec >>"$log_file" 2>&1
 
-compatdata="$(realpath "$compatdata")"
-proton="$(realpath "$proton")"
-steam_client="$(realpath "$steam_client")"
-trainer_host_path="$(realpath "$trainer_host_path")"
+compatdata="$(host_realpath "$compatdata")" || fail "Failed to resolve compatdata path: $compatdata"
+proton="$(host_realpath "$proton")" || fail "Failed to resolve Proton path: $proton"
+steam_client="$(host_realpath "$steam_client")" || fail "Failed to resolve Steam client path: $steam_client"
+trainer_host_path="$(host_realpath "$trainer_host_path")" || fail "Failed to resolve trainer host path: $trainer_host_path"
 runner_script="$(realpath "$runner_script")"
 
-[[ -d "$compatdata" ]] || fail "Compatdata path does not exist: $compatdata"
-[[ -x "$proton" ]] || fail "Proton path is not executable: $proton"
-[[ -f "$trainer_host_path" ]] || fail "Trainer host path does not exist: $trainer_host_path"
+host_test -d "$compatdata" || fail "Compatdata path does not exist: $compatdata"
+host_test -x "$proton" || fail "Proton path is not executable: $proton"
+host_test -f "$trainer_host_path" || fail "Trainer host path does not exist: $trainer_host_path"
 
 log "Launching detached host runner."
 
@@ -151,6 +180,7 @@ if runner_pid="$(
     USER="${USER:-}" \
     LOGNAME="${LOGNAME:-}" \
     SHELL="${SHELL:-/bin/bash}" \
+    FLATPAK_ID="${FLATPAK_ID:-}" \
     PATH="/usr/bin:/bin" \
     DISPLAY="${DISPLAY:-}" \
     WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \

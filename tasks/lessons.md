@@ -1,5 +1,14 @@
 # Lessons
 
+## 2026-04-11
+
+- When manually reproducing a `proton_run` failure, verify the target game is fully closed before trusting the exit code. A duplicate launch against an already-running Windows game can exit immediately and mimic the original failure, which makes the repro useless for root-cause analysis.
+- When a direct host Proton repro succeeds under `env -i ... proton run ...` but the same launch fails through `flatpak-spawn --host`, suspect sandbox env contamination before blaming paths again. For Flatpak host launches, prefer `--clear-env` plus an explicit allowlist of env vars, rather than inheriting the full sandbox environment into the host child.
+- When a Flatpak `proton_run` failure survives after helper-side host path validation is fixed, stop assuming the helper scripts are still on the critical path. For direct `proton_run`, inspect the actual `flatpak-spawn --host` child command and its env, and do not treat the lack of a host-visible `/tmp/crosshook-logs/...` file as “no logs” until you account for Flatpak’s sandbox-private `/tmp`.
+- When a Flatpak launch failure reproduces only with a system compat tool under `/usr/share/steam/compatibilitytools.d` and disappears when the same profile uses a user-local Proton install under `~/.local/share/Steam/compatibilitytools.d`, stop debugging the launch method in the abstract. Treat the compat-tool location as the primary axis, prefer the user-local tool in Flatpak launch resolution, and do not preserve the `/usr` path just because discovery found it.
+- When normalizing Flatpak-selected host paths, do not stop at `/run/host/...`. Tauri/portal file pickers can return document-portal mounts under `/run/user/<uid>/doc/...`; resolve those through the `user.document-portal.host-path` xattr before persisting or host-executing the path, or Proton/tool directories will launch from incomplete portal mirrors and fail in non-obvious ways.
+- When adding a new Tauri command module under `src-tauri/src/commands/`, do not forget the module visibility contract used by `src-tauri/src/lib.rs`. If `generate_handler!` references `commands::foo::bar`, the `foo` module must be publicly reachable from `commands/mod.rs`, or the native build will fail with a private-module error even though the command function itself is public.
+
 ## 2026-04-04
 
 - When rendering profile data loaded over IPC, do not trust frontend-required nested objects like `profile.runtime` to exist on every saved profile. Guard nested reads in the UI, because legacy or sparse TOML profiles can deserialize without those sections and crash render paths that dereference them directly.

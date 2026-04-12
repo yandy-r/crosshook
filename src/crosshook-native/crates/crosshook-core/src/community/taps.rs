@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 use std::fs;
@@ -6,6 +7,8 @@ use std::process::Command;
 
 use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
+
+use crate::platform::{self, host_std_command_with_env};
 
 use super::index::{self, CommunityProfileIndex, CommunityProfileIndexError};
 
@@ -506,11 +509,17 @@ fn git_security_env_pairs() -> [(&'static str, &'static str); 5] {
 }
 
 fn git_command() -> Command {
-    let mut command = Command::new("git");
+    let mut env = BTreeMap::new();
     for (key, value) in git_security_env_pairs() {
-        command.env(key, value);
+        env.insert(key.to_string(), value.to_string());
     }
-    command
+    if platform::is_flatpak() {
+        host_std_command_with_env("git", &env)
+    } else {
+        let mut command = Command::new("git");
+        command.envs(&env);
+        command
+    }
 }
 
 /// Best-effort total size of files under `path` (recursive).

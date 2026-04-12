@@ -7,6 +7,9 @@ use std::sync::OnceLock;
 
 use tokio::process::Command;
 
+use crate::platform::{
+    self, host_command_with_env_and_directory, normalize_flatpak_host_path,
+};
 use crate::profile::{GamescopeConfig, GamescopeFilter};
 
 /// Default `PATH` used when the host environment does not set `PATH` (matches `apply_host_environment`).
@@ -19,26 +22,47 @@ pub struct ResolvedProtonPaths {
     pub compat_data_path: PathBuf,
 }
 
-pub fn new_direct_proton_command(proton_path: &str) -> Command {
-    new_direct_proton_command_with_wrappers(proton_path, &[])
+/// Builds a direct Proton `run` command with wrappers, threading `env` through
+/// [`host_command_with_env`] so Flatpak preserves `WINEPREFIX` / `STEAM_COMPAT_*`.
+pub fn build_direct_proton_command_with_wrappers(
+    proton_path: &str,
+    wrappers: &[String],
+    env: &BTreeMap<String, String>,
+) -> Command {
+    build_direct_proton_command_with_wrappers_in_directory(proton_path, wrappers, env, None)
 }
 
-pub fn new_direct_proton_command_with_wrappers(proton_path: &str, wrappers: &[String]) -> Command {
+pub fn build_direct_proton_command_with_wrappers_in_directory(
+    proton_path: &str,
+    wrappers: &[String],
+    env: &BTreeMap<String, String>,
+    working_directory: Option<&str>,
+) -> Command {
+    let normalized_proton = normalize_flatpak_host_path(proton_path);
+    let trimmed_proton = normalized_proton.trim();
     if wrappers.is_empty() {
-        let mut command = Command::new(proton_path.trim());
+        let mut command =
+            host_command_with_env_and_directory(trimmed_proton, env, working_directory);
         command.arg("run");
-        command.env_clear();
         return command;
     }
 
-    let mut command = Command::new(wrappers[0].trim());
+    let mut command =
+        host_command_with_env_and_directory(wrappers[0].trim(), env, working_directory);
     for wrapper in wrappers.iter().skip(1) {
         command.arg(wrapper.trim());
     }
-    command.arg(proton_path.trim());
+    command.arg(trimmed_proton);
     command.arg("run");
-    command.env_clear();
     command
+}
+
+pub fn new_direct_proton_command(proton_path: &str) -> Command {
+    build_direct_proton_command_with_wrappers(proton_path, &[], &BTreeMap::new())
+}
+
+pub fn new_direct_proton_command_with_wrappers(proton_path: &str, wrappers: &[String]) -> Command {
+    build_direct_proton_command_with_wrappers(proton_path, wrappers, &BTreeMap::new())
 }
 
 pub fn build_gamescope_args(config: &GamescopeConfig) -> Vec<String> {
@@ -101,12 +125,31 @@ pub fn build_gamescope_args(config: &GamescopeConfig) -> Vec<String> {
     args
 }
 
-pub fn new_proton_command_with_gamescope(
+pub fn build_proton_command_with_gamescope(
     proton_path: &str,
     wrappers: &[String],
     gamescope_args: &[String],
+    env: &BTreeMap<String, String>,
 ) -> Command {
-    let mut command = Command::new("gamescope");
+    build_proton_command_with_gamescope_in_directory(
+        proton_path,
+        wrappers,
+        gamescope_args,
+        env,
+        None,
+    )
+}
+
+pub fn build_proton_command_with_gamescope_in_directory(
+    proton_path: &str,
+    wrappers: &[String],
+    gamescope_args: &[String],
+    env: &BTreeMap<String, String>,
+    working_directory: Option<&str>,
+) -> Command {
+    let normalized_proton = normalize_flatpak_host_path(proton_path);
+    let mut command =
+        host_command_with_env_and_directory("gamescope", env, working_directory);
     for arg in gamescope_args {
         command.arg(arg.trim());
     }
@@ -114,10 +157,17 @@ pub fn new_proton_command_with_gamescope(
     for wrapper in wrappers {
         command.arg(wrapper.trim());
     }
-    command.arg(proton_path.trim());
+    command.arg(normalized_proton.trim());
     command.arg("run");
-    command.env_clear();
     command
+}
+
+pub fn new_proton_command_with_gamescope(
+    proton_path: &str,
+    wrappers: &[String],
+    gamescope_args: &[String],
+) -> Command {
+    build_proton_command_with_gamescope(proton_path, wrappers, gamescope_args, &BTreeMap::new())
 }
 
 pub fn apply_launch_optimization_environment(
@@ -151,20 +201,78 @@ pub fn apply_optimization_and_custom_environment(
     apply_custom_env_vars(command, custom_env_vars);
 }
 
-pub fn apply_host_environment(command: &mut Command) {
-    set_env(command, "HOME", env_value("HOME", ""));
-    set_env(command, "USER", env_value("USER", ""));
-    set_env(command, "LOGNAME", env_value("LOGNAME", ""));
-    set_env(command, "SHELL", env_value("SHELL", DEFAULT_SHELL));
-    set_env(command, "PATH", env_value("PATH", DEFAULT_HOST_PATH));
-    set_env(command, "DISPLAY", env_value("DISPLAY", ""));
-    set_env(command, "WAYLAND_DISPLAY", env_value("WAYLAND_DISPLAY", ""));
-    set_env(command, "XDG_RUNTIME_DIR", env_value("XDG_RUNTIME_DIR", ""));
-    set_env(
-        command,
-        "DBUS_SESSION_BUS_ADDRESS",
+/// Host-style environment keys shared by Proton helpers and trainer/game launches.
+pub fn host_environment_map() -> BTreeMap<String, String> {
+    let mut m = BTreeMap::new();
+    m.insert("HOME".to_string(), env_value("HOME", ""));
+    m.insert("USER".to_string(), env_value("USER", ""));
+    m.insert("LOGNAME".to_string(), env_value("LOGNAME", ""));
+    m.insert("SHELL".to_string(), env_value("SHELL", DEFAULT_SHELL));
+    m.insert("PATH".to_string(), env_value("PATH", DEFAULT_HOST_PATH));
+    m.insert("DISPLAY".to_string(), env_value("DISPLAY", ""));
+    m.insert(
+        "WAYLAND_DISPLAY".to_string(),
+        env_value("WAYLAND_DISPLAY", ""),
+    );
+    m.insert(
+        "XDG_RUNTIME_DIR".to_string(),
+        env_value("XDG_RUNTIME_DIR", ""),
+    );
+    m.insert(
+        "DBUS_SESSION_BUS_ADDRESS".to_string(),
         env_value("DBUS_SESSION_BUS_ADDRESS", ""),
     );
+    m
+}
+
+pub fn merge_runtime_proton_into_map(
+    map: &mut BTreeMap<String, String>,
+    prefix_path: &str,
+    steam_client_install_path: &str,
+) {
+    let normalized_prefix_path = normalize_flatpak_host_path(prefix_path);
+    let resolved_paths = resolve_proton_paths(Path::new(normalized_prefix_path.trim()));
+    map.insert(
+        "WINEPREFIX".to_string(),
+        resolved_paths
+            .wine_prefix_path
+            .to_string_lossy()
+            .into_owned(),
+    );
+    map.insert(
+        "STEAM_COMPAT_DATA_PATH".to_string(),
+        resolved_paths
+            .compat_data_path
+            .to_string_lossy()
+            .into_owned(),
+    );
+    if let Some(steam_client_install_path) =
+        resolve_steam_client_install_path(steam_client_install_path)
+    {
+        map.insert(
+            "STEAM_COMPAT_CLIENT_INSTALL_PATH".to_string(),
+            steam_client_install_path,
+        );
+    }
+}
+
+pub fn merge_optimization_and_custom_into_map(
+    map: &mut BTreeMap<String, String>,
+    optimization_env: &[(String, String)],
+    custom_env_vars: &BTreeMap<String, String>,
+) {
+    for (key, value) in optimization_env {
+        map.insert(key.clone(), value.clone());
+    }
+    for (key, value) in custom_env_vars {
+        map.insert(key.clone(), value.clone());
+    }
+}
+
+pub fn apply_host_environment(command: &mut Command) {
+    for (key, value) in host_environment_map() {
+        set_env(command, &key, &value);
+    }
 }
 
 pub fn apply_runtime_proton_environment(
@@ -172,27 +280,10 @@ pub fn apply_runtime_proton_environment(
     prefix_path: &str,
     steam_client_install_path: &str,
 ) {
-    let resolved_paths = resolve_proton_paths(Path::new(prefix_path.trim()));
-    set_env(
-        command,
-        "WINEPREFIX",
-        resolved_paths.wine_prefix_path.to_string_lossy().as_ref(),
-    );
-
-    set_env(
-        command,
-        "STEAM_COMPAT_DATA_PATH",
-        resolved_paths.compat_data_path.to_string_lossy().as_ref(),
-    );
-
-    if let Some(steam_client_install_path) =
-        resolve_steam_client_install_path(steam_client_install_path)
-    {
-        set_env(
-            command,
-            "STEAM_COMPAT_CLIENT_INSTALL_PATH",
-            steam_client_install_path.as_str(),
-        );
+    let mut m = BTreeMap::new();
+    merge_runtime_proton_into_map(&mut m, prefix_path, steam_client_install_path);
+    for (k, v) in m {
+        set_env(command, &k, &v);
     }
 }
 
@@ -238,16 +329,27 @@ pub fn apply_working_directory(
     configured_directory: &str,
     primary_path: &Path,
 ) {
-    if !configured_directory.is_empty() {
-        command.current_dir(configured_directory);
-        return;
+    if let Some(directory) = resolve_effective_working_directory(configured_directory, primary_path) {
+        command.current_dir(directory);
+    }
+}
+
+pub fn resolve_effective_working_directory(
+    configured_directory: &str,
+    primary_path: &Path,
+) -> Option<String> {
+    let trimmed = configured_directory.trim();
+    if !trimmed.is_empty() {
+        return Some(trimmed.to_string());
     }
 
     if let Some(parent) = primary_path.parent() {
         if !parent.as_os_str().is_empty() {
-            command.current_dir(parent);
+            return Some(parent.to_string_lossy().into_owned());
         }
     }
+
+    None
 }
 
 pub fn attach_log_stdio(command: &mut Command, log_path: &Path) -> std::io::Result<()> {
@@ -269,30 +371,63 @@ pub fn attach_log_stdio(command: &mut Command, log_path: &Path) -> std::io::Resu
 }
 
 pub fn resolve_steam_client_install_path(configured_path: &str) -> Option<String> {
-    let trimmed_configured_path = configured_path.trim();
-    if !trimmed_configured_path.is_empty() {
-        return Some(trimmed_configured_path.to_string());
+    let steam_client_install_path = env::var("STEAM_COMPAT_CLIENT_INSTALL_PATH").ok();
+    resolve_steam_client_install_path_with_home(
+        configured_path,
+        steam_client_install_path.as_deref(),
+        env::var_os("HOME").map(PathBuf::from),
+    )
+}
+
+fn resolve_steam_client_install_path_with_home(
+    configured_path: &str,
+    env_steam_client_install_path: Option<&str>,
+    home_path: Option<PathBuf>,
+) -> Option<String> {
+    if let Some(path) = validated_steam_client_install_path(configured_path) {
+        return Some(path);
     }
 
-    if let Ok(steam_client_install_path) = env::var("STEAM_COMPAT_CLIENT_INSTALL_PATH") {
-        let trimmed = steam_client_install_path.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
+    if let Some(path) =
+        env_steam_client_install_path.and_then(validated_steam_client_install_path)
+    {
+        return Some(path);
     }
 
-    let home_path = env::var_os("HOME").map(PathBuf::from)?;
+    let home_path = home_path?;
     for candidate in [
         home_path.join(".local/share/Steam"),
         home_path.join(".steam/root"),
         home_path.join(".var/app/com.valvesoftware.Steam/data/Steam"),
     ] {
-        if candidate.join("steamapps").is_dir() {
+        if is_steam_client_install_root(&candidate) {
             return Some(candidate.to_string_lossy().into_owned());
         }
     }
 
     None
+}
+
+fn validated_steam_client_install_path(raw_path: &str) -> Option<String> {
+    let normalized = normalize_flatpak_host_path(raw_path);
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let candidate = Path::new(trimmed);
+    if is_steam_client_install_root(candidate) {
+        Some(trimmed.to_string())
+    } else {
+        None
+    }
+}
+
+fn is_steam_client_install_root(path: &Path) -> bool {
+    path.join("steamapps").is_dir()
+        && (path.join("config").is_dir()
+            || path.join("steam.sh").is_file()
+            || path.join("ubuntu12_32").is_dir())
 }
 
 pub(crate) fn env_value(key: &str, default: &str) -> String {
@@ -339,17 +474,35 @@ pub(crate) fn is_executable_file(path: &Path) -> bool {
 ///
 /// The result is cached for the lifetime of the process via `OnceLock` since
 /// kernel policy does not change within a single application session.
+/// Runtime facts for Flatpak UI badges and launch validation (not persisted).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchPlatformCapabilities {
+    pub is_flatpak: bool,
+    pub unshare_net_available: bool,
+}
+
+/// Returns whether CrossHook is sandboxed as Flatpak and whether host `unshare --user --net` works.
+pub fn launch_platform_capabilities() -> LaunchPlatformCapabilities {
+    LaunchPlatformCapabilities {
+        is_flatpak: platform::is_flatpak(),
+        unshare_net_available: is_unshare_net_available(),
+    }
+}
+
 pub fn is_unshare_net_available() -> bool {
     static AVAILABLE: OnceLock<bool> = OnceLock::new();
     *AVAILABLE.get_or_init(|| {
-        std::process::Command::new("unshare")
-            .args(["--user", "--net", "true"])
+        let mut cmd = if platform::is_flatpak() {
+            platform::host_std_command("unshare")
+        } else {
+            std::process::Command::new("unshare")
+        };
+        cmd.args(["--user", "--net", "true"])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+            .stderr(std::process::Stdio::null());
+        cmd.status().map(|s| s.success()).unwrap_or(false)
     })
 }
 
@@ -361,6 +514,12 @@ fn set_env(command: &mut Command, key: &str, value: impl AsRef<str>) {
 mod tests {
     use super::*;
     use crate::profile::GamescopeFilter;
+    use std::fs;
+
+    fn write_steam_client_root(path: &Path) {
+        fs::create_dir_all(path.join("steamapps")).expect("steamapps");
+        fs::create_dir_all(path.join("config")).expect("config");
+    }
 
     #[test]
     fn build_gamescope_args_default_returns_empty() {
@@ -418,5 +577,40 @@ mod tests {
         };
         let args = build_gamescope_args(&config);
         assert_eq!(args, vec!["--expose-wayland", "--rt"]);
+    }
+
+    #[test]
+    fn resolve_steam_client_install_path_accepts_valid_configured_root() {
+        let temp_home = tempfile::tempdir().expect("temp home");
+        let configured_root = temp_home.path().join("steam-root");
+        write_steam_client_root(&configured_root);
+
+        let resolved = resolve_steam_client_install_path_with_home(
+            configured_root.to_string_lossy().as_ref(),
+            None,
+            Some(temp_home.path().to_path_buf()),
+        );
+
+        assert_eq!(
+            resolved,
+            Some(configured_root.to_string_lossy().into_owned())
+        );
+    }
+
+    #[test]
+    fn resolve_steam_client_install_path_rejects_library_root_and_falls_back_to_default() {
+        let temp_home = tempfile::tempdir().expect("temp home");
+        let library_root = temp_home.path().join("SteamLibrary");
+        let default_root = temp_home.path().join(".local/share/Steam");
+        fs::create_dir_all(library_root.join("steamapps")).expect("library steamapps");
+        write_steam_client_root(&default_root);
+
+        let resolved = resolve_steam_client_install_path_with_home(
+            library_root.to_string_lossy().as_ref(),
+            None,
+            Some(temp_home.path().to_path_buf()),
+        );
+
+        assert_eq!(resolved, Some(default_root.to_string_lossy().into_owned()));
     }
 }

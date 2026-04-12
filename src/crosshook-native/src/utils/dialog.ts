@@ -1,7 +1,38 @@
 import { open, save } from '@/lib/plugin-stubs/dialog';
+import { callCommand } from '@/lib/ipc';
 
 function dialogFailureMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function normalizeHostDialogPath(path: string | null): string | null {
+  if (path === null) {
+    return null;
+  }
+
+  const trimmed = path.trim();
+  if (trimmed === '/run/host') {
+    return '/';
+  }
+
+  if (trimmed.startsWith('/run/host/')) {
+    return `/${trimmed.slice('/run/host/'.length).replace(/^\/+/, '')}`;
+  }
+
+  return trimmed;
+}
+
+async function resolveDialogPath(path: string | null): Promise<string | null> {
+  const normalized = normalizeHostDialogPath(path);
+  if (normalized === null) {
+    return null;
+  }
+
+  try {
+    return await callCommand<string>('normalize_host_path', { path: normalized });
+  } catch {
+    return normalized;
+  }
 }
 
 export async function chooseFile(
@@ -17,10 +48,10 @@ export async function chooseFile(
     });
 
     if (Array.isArray(result)) {
-      return result[0] ?? null;
+      return resolveDialogPath(result[0] ?? null);
     }
 
-    return result ?? null;
+    return resolveDialogPath(result ?? null);
   } catch (err) {
     console.error('chooseFile failed', err);
     window.alert(`Could not open file dialog: ${dialogFailureMessage(err)}`);
@@ -38,7 +69,7 @@ export async function chooseSaveFile(
       defaultPath: options?.defaultPath,
       filters: options?.filters,
     });
-    return result ?? null;
+    return resolveDialogPath(result ?? null);
   } catch (err) {
     console.error('chooseSaveFile failed', err);
     window.alert(`Could not open save dialog: ${dialogFailureMessage(err)}`);
@@ -55,10 +86,10 @@ export async function chooseDirectory(title: string): Promise<string | null> {
     });
 
     if (Array.isArray(result)) {
-      return result[0] ?? null;
+      return resolveDialogPath(result[0] ?? null);
     }
 
-    return result ?? null;
+    return resolveDialogPath(result ?? null);
   } catch (err) {
     console.error('chooseDirectory failed', err);
     window.alert(`Could not open folder dialog: ${dialogFailureMessage(err)}`);

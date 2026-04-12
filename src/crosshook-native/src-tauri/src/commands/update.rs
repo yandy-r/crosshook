@@ -73,7 +73,7 @@ pub async fn cancel_update(state: tauri::State<'_, UpdateProcessState>) -> Resul
     let pid = state.pid.lock().unwrap().take();
 
     if let Some(pid) = pid {
-        let _ = std::process::Command::new("kill")
+        let _ = crosshook_core::platform::host_std_command("kill")
             .arg(pid.to_string())
             .status();
     }

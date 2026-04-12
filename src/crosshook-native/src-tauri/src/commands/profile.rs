@@ -308,6 +308,8 @@ pub struct ProfileSummary {
     pub steam_app_id: String,
     pub custom_cover_art_path: Option<String>,
     pub custom_portrait_art_path: Option<String>,
+    /// Effective `launch.network_isolation` (default true) for Flatpak capability badges.
+    pub network_isolation: bool,
 }
 
 #[tauri::command]
@@ -336,6 +338,7 @@ pub fn profile_list_summaries(
                     } else {
                         Some(portrait_art.to_string())
                     },
+                    network_isolation: effective.launch.network_isolation,
                 });
             }
             Err(e) => {

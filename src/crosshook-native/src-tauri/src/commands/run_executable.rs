@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
+use crosshook_core::platform::host_std_command;
 use crosshook_core::run_executable::{
     is_throwaway_prefix_path, run_executable as run_executable_core,
     validate_run_executable_request as validate_run_executable_request_core, RunExecutableError,
@@ -12,12 +13,6 @@ use tauri::{AppHandle, Manager};
 
 use super::log_stream::spawn_log_stream;
 use super::shared::{create_log_path, slugify_target};
-
-/// Pinned absolute path for the `rm -rf` final-fallback in
-/// [`cleanup_throwaway_prefix`]. Pinning prevents a hostile or misconfigured
-/// `PATH` from resolving `rm` to an attacker-controlled binary in the rare
-/// edge cases where `std::fs::remove_dir_all` cannot finish the job.
-const RM_BINARY_PATH: &str = "/usr/bin/rm";
 
 #[derive(Debug, Clone)]
 struct RunningProcessInfo {
@@ -188,9 +183,7 @@ pub async fn cancel_run_executable(
     let info = lock_info(&state).take();
 
     if let Some(info) = info {
-        let _ = std::process::Command::new("kill")
-            .arg(info.pid.to_string())
-            .status();
+        let _ = host_std_command("kill").arg(info.pid.to_string()).status();
     }
 
     Ok(())
@@ -218,7 +211,7 @@ pub async fn stop_run_executable(
     };
 
     tauri::async_runtime::spawn_blocking(move || {
-        let _ = std::process::Command::new("kill")
+        let _ = host_std_command("kill")
             .arg("-KILL")
             .arg(info.pid.to_string())
             .status();
@@ -271,30 +264,19 @@ fn cleanup_throwaway_prefix(prefix_path: &Path) {
         return;
     }
 
-    // Last-ditch fallback: shell out to a pinned `rm -rf` which handles
-    // edge cases (read-only bits, etc.) better than
-    // `std::fs::remove_dir_all`. The path is hard-coded so a hostile
-    // `PATH` cannot redirect us to an attacker-controlled binary.
-    let rm_status = std::process::Command::new(RM_BINARY_PATH)
-        .arg("-rf")
-        .arg(prefix_path)
-        .status();
-
-    match rm_status {
-        Ok(status) if status.success() => tracing::info!(
+    // Last-ditch: retry remove_dir_all after a short settle (handles a few edge cases
+    // where the first attempt races with lingering file handles).
+    std::thread::sleep(Duration::from_millis(200));
+    if try_remove_dir(prefix_path) {
+        tracing::info!(
             prefix = %prefix_path.display(),
-            "cleanup_throwaway_prefix: removed via rm -rf fallback"
-        ),
-        Ok(status) => tracing::warn!(
-            ?status,
+            "cleanup_throwaway_prefix: removed on retry without rm"
+        );
+    } else {
+        tracing::warn!(
             prefix = %prefix_path.display(),
-            "cleanup_throwaway_prefix: rm -rf fallback returned non-zero status"
-        ),
-        Err(error) => tracing::warn!(
-            %error,
-            prefix = %prefix_path.display(),
-            "cleanup_throwaway_prefix: rm -rf fallback failed to spawn"
-        ),
+            "cleanup_throwaway_prefix: could not remove prefix after retries; user may delete manually"
+        );
     }
 }
 
@@ -385,10 +367,7 @@ fn kill_processes_using_prefix(prefix_path: &Path) {
             prefix = %target_str,
             "kill_processes_using_prefix: SIGKILL"
         );
-        let _ = std::process::Command::new("kill")
-            .arg("-KILL")
-            .arg(name)
-            .status();
+        let _ = host_std_command("kill").arg("-KILL").arg(name).status();
         killed += 1;
     }
 

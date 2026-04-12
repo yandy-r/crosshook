@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use tar::Builder;
 
 use crate::logging;
+use crate::platform;
 use crate::profile::health::batch_check_health;
 use crate::profile::ProfileStore;
 use crate::settings::SettingsStore;
@@ -244,7 +245,12 @@ fn collect_system_info() -> String {
     lines.push(String::new());
 
     lines.push("=== GPU ===".to_string());
-    match Command::new("lspci").output() {
+    let lspci_output = if platform::is_flatpak() {
+        platform::host_std_command("lspci").output()
+    } else {
+        Command::new("lspci").output()
+    };
+    match lspci_output {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let gpu_lines: Vec<&str> = stdout

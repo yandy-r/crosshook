@@ -1,9 +1,9 @@
+use std::fs;
 use std::collections::BTreeMap;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::time::Duration;
-
-use std::fs;
 
 use crosshook_core::launch::{
     analyze, build_launch_preview,
@@ -28,7 +28,8 @@ use crosshook_core::steam::manifest::parse_manifest_full;
 use crosshook_core::storage::{check_low_disk_warning, DEFAULT_LOW_DISK_WARNING_MB};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader};
+use tokio::sync::mpsc;
 
 use super::shared::{create_log_path, sanitize_display_path};
 
@@ -73,6 +74,12 @@ pub fn build_steam_launch_options_command(
 #[tauri::command]
 pub fn check_gamescope_session() -> bool {
     crosshook_core::launch::is_inside_gamescope_session()
+}
+
+/// Returns Flatpak sandbox and host capability flags for launch UI (not persisted).
+#[tauri::command]
+pub fn launch_platform_status() -> crosshook_core::launch::LaunchPlatformCapabilities {
+    crosshook_core::launch::launch_platform_capabilities()
 }
 
 /// Checks whether a process whose name matches `exe_name` is currently running.
@@ -296,8 +303,13 @@ pub async fn launch_game(
             let script_path = resolve_script_path(&app, "steam-launch-helper.sh")?;
             build_helper_command(&request, &script_path, &log_path)
         }
-        METHOD_PROTON_RUN => build_proton_game_command(&request, &log_path)
-            .map_err(|error| format!("failed to build Proton game launch: {error}"))?,
+        METHOD_PROTON_RUN => {
+            let mut command = build_proton_game_command(&request, &log_path)
+                .map_err(|error| format!("failed to build Proton game launch: {error}"))?;
+            command.stdout(Stdio::piped());
+            command.stderr(Stdio::piped());
+            command
+        }
         METHOD_NATIVE => build_native_game_command(&request, &log_path)
             .map_err(|error| format!("failed to build native game launch: {error}"))?,
         other => return Err(format!("unsupported launch method: {other}")),
@@ -389,8 +401,13 @@ pub async fn launch_trainer(
             let script_path = resolve_script_path(&app, "steam-launch-trainer.sh")?;
             build_trainer_command(&request, &script_path, &log_path)
         }
-        METHOD_PROTON_RUN => build_proton_trainer_command(&request, &log_path)
-            .map_err(|error| format!("failed to build Proton trainer launch: {error}"))?,
+        METHOD_PROTON_RUN => {
+            let mut command = build_proton_trainer_command(&request, &log_path)
+                .map_err(|error| format!("failed to build Proton trainer launch: {error}"))?;
+            command.stdout(Stdio::piped());
+            command.stderr(Stdio::piped());
+            command
+        }
         METHOD_NATIVE => return Err("native launch does not support trainer launch.".to_string()),
         other => return Err(format!("unsupported launch method: {other}")),
     };
@@ -453,11 +470,13 @@ fn spawn_log_stream(
     profile_name: Option<String>,
     steam_client_path: String,
 ) {
+    let child_uses_pipe_capture = child.stdout.is_some() || child.stderr.is_some();
     let handle = tauri::async_runtime::spawn(async move {
         stream_log_lines(
             app,
             log_path,
             child,
+            child_uses_pipe_capture,
             method,
             metadata_store,
             operation_id,
@@ -508,7 +527,8 @@ async fn record_launch_start(
 async fn stream_log_lines(
     app: AppHandle,
     log_path: PathBuf,
-    mut child: tokio::process::Child,
+    child: tokio::process::Child,
+    child_uses_pipe_capture: bool,
     method: &'static str,
     metadata_store: MetadataStore,
     operation_id: Option<String>,
@@ -517,6 +537,25 @@ async fn stream_log_lines(
     profile_name: Option<String>,
     steam_client_path: String,
 ) {
+    if child_uses_pipe_capture {
+        let exit_status = stream_log_pipes(&app, &log_path, child).await;
+        finalize_launch_stream(
+            app,
+            log_path,
+            exit_status,
+            method,
+            metadata_store,
+            operation_id,
+            steam_app_id,
+            trainer_host_path,
+            profile_name,
+            steam_client_path,
+        )
+        .await;
+        return;
+    }
+
+    let mut child = child;
     let mut last_len = 0usize;
     let mut exit_status: Option<std::process::ExitStatus> = None;
 
@@ -572,6 +611,115 @@ async fn stream_log_lines(
         }
     }
 
+    finalize_launch_stream(
+        app,
+        log_path,
+        exit_status,
+        method,
+        metadata_store,
+        operation_id,
+        steam_app_id,
+        trainer_host_path,
+        profile_name,
+        steam_client_path,
+    )
+    .await;
+}
+
+async fn stream_log_pipes(
+    app: &AppHandle,
+    log_path: &Path,
+    mut child: tokio::process::Child,
+) -> Option<std::process::ExitStatus> {
+    let Some(stdout) = child.stdout.take() else {
+        return child.wait().await.ok();
+    };
+    let stderr = child.stderr.take();
+    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+
+    tauri::async_runtime::spawn(pipe_reader_task(stdout, tx.clone()));
+    if let Some(stderr) = stderr {
+        tauri::async_runtime::spawn(pipe_reader_task(stderr, tx.clone()));
+    }
+    drop(tx);
+
+    let wait_handle = tauri::async_runtime::spawn(async move { child.wait().await.ok() });
+
+    let mut log_file = match tokio::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)
+        .await
+    {
+        Ok(file) => Some(file),
+        Err(error) => {
+            tracing::warn!(%error, path = %log_path.display(), "failed to open pipe-backed launch log");
+            None
+        }
+    };
+    while let Some(line) = rx.recv().await {
+        if let Some(file) = log_file.as_mut() {
+            if let Err(error) = file.write_all(format!("{line}\n").as_bytes()).await {
+                tracing::warn!(%error, path = %log_path.display(), "failed to append pipe-backed launch log line");
+                log_file = None;
+            }
+        }
+        if !line.is_empty() {
+            if let Err(error) = app.emit("launch-log", line) {
+                tracing::warn!(%error, "failed to emit launch log line; stopping stream");
+                return None;
+            }
+        }
+    }
+
+    if let Some(file) = log_file.as_mut() {
+        if let Err(error) = file.flush().await {
+            tracing::warn!(%error, path = %log_path.display(), "failed to flush pipe-backed launch log");
+        }
+    }
+
+    match wait_handle.await {
+        Ok(status) => status,
+        Err(error) => {
+            tracing::warn!(%error, "pipe-backed child wait task failed");
+            None
+        }
+    }
+}
+
+async fn pipe_reader_task<R>(reader: R, tx: mpsc::UnboundedSender<String>)
+where
+    R: AsyncRead + Unpin + Send + 'static,
+{
+    let mut lines = BufReader::new(reader).lines();
+    loop {
+        match lines.next_line().await {
+            Ok(Some(line)) => {
+                if tx.send(line).is_err() {
+                    break;
+                }
+            }
+            Ok(None) => break,
+            Err(error) => {
+                let _ = tx.send(format!("crosshook log capture error: {error}"));
+                break;
+            }
+        }
+    }
+}
+
+async fn finalize_launch_stream(
+    app: AppHandle,
+    log_path: PathBuf,
+    exit_status: Option<std::process::ExitStatus>,
+    method: &'static str,
+    metadata_store: MetadataStore,
+    operation_id: Option<String>,
+    steam_app_id: String,
+    trainer_host_path: Option<String>,
+    profile_name: Option<String>,
+    steam_client_path: String,
+) {
     let exit_code = exit_status.as_ref().and_then(|status| status.code());
     let signal = exit_status.as_ref().and_then(|status| status.signal());
 
@@ -601,8 +749,6 @@ async fn stream_log_lines(
         }
     }
 
-    // Version snapshot — record on clean exit or indeterminate (steam_applaunch helper
-    // exits before the game, so its exit code 0 is Indeterminate, not CleanExit).
     if matches!(
         report.exit_info.failure_mode,
         FailureMode::CleanExit | FailureMode::Indeterminate
@@ -688,14 +834,7 @@ async fn stream_log_lines(
             }
         }
 
-        // Known-good tagging — mark the most recent config revision as known-good.
-        // Uses the same success heuristic: CleanExit or Indeterminate (steam_applaunch
-        // helper exits before the game, so its code 0 is Indeterminate, not CleanExit).
-        // Reuses the profile_id already resolved by the version snapshot block above.
-        // If metadata is unavailable or no revisions exist yet, log and continue.
         if let Some(ref pname) = profile_name {
-            // Reuse the profile_id from the version snapshot block if available.
-            // Re-lookup only when version snapshot was skipped or lookup failed.
             let ms = metadata_store.clone();
             let pname_c = pname.clone();
             let result = tauri::async_runtime::spawn_blocking(move || {

@@ -27,6 +27,12 @@ import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../../utils/launchPanelActionButtonStyle';
 import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
+import { useLaunchPlatformStatus } from '../../hooks/useLaunchPlatformStatus';
+import type { ProfileSummary } from '../../types/library';
+
+const FLATPAK_NET_BADGE = 'No network isolation';
+const FLATPAK_NET_BADGE_TITLE =
+  'Flatpak cannot enforce network isolation (unshare) on this system. The profile still launches; traffic is not isolated.';
 
 /** Minimal shape of a row returned by `community_list_indexed_profiles`. */
 interface CommunityIndexedProfileRow {
@@ -120,6 +126,9 @@ export function ProfilesPage() {
     return profiles.filter((name) => set.has(name));
   }, [profiles, activeCollectionId, memberNames, membersLoading, membersForCollectionId]);
 
+  const launchPlatform = useLaunchPlatformStatus();
+  const [profileNetworkIsolation, setProfileNetworkIsolation] = useState<Record<string, boolean>>({});
+
   useEffect(() => {
     if (activeCollectionId === null) {
       return;
@@ -138,6 +147,43 @@ export function ProfilesPage() {
       void selectProfile(filteredProfiles[0]);
     }
   }, [activeCollectionId, membersLoading, membersForCollectionId, filteredProfiles, selectedProfile, selectProfile]);
+
+  useEffect(() => {
+    let active = true;
+    void callCommand<ProfileSummary[]>('profile_list_summaries')
+      .then((rows) => {
+        if (!active) {
+          return;
+        }
+        const next: Record<string, boolean> = {};
+        for (const row of rows) {
+          next[row.name] = row.networkIsolation;
+        }
+        setProfileNetworkIsolation(next);
+      })
+      .catch(() => {
+        if (active) {
+          setProfileNetworkIsolation({});
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [profiles]);
+
+  const showFlatpakNetworkIsolationBadge = useCallback(
+    (profileName: string) => {
+      if (
+        !launchPlatform?.isFlatpak ||
+        launchPlatform.unshareNetAvailable ||
+        !profileName.trim()
+      ) {
+        return false;
+      }
+      return profileNetworkIsolation[profileName] === true;
+    },
+    [launchPlatform, profileNetworkIsolation]
+  );
 
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
@@ -665,7 +711,12 @@ export function ProfilesPage() {
                     placeholder="Create New"
                     options={[
                       { value: '', label: 'Create New' },
-                      ...filteredProfiles.map((name) => ({ value: name, label: name })),
+                      ...filteredProfiles.map((name) => ({
+                        value: name,
+                        label: name,
+                        badge: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE : undefined,
+                        badgeTitle: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE_TITLE : undefined,
+                      })),
                     ]}
                   />
                 </div>
@@ -706,6 +757,14 @@ export function ProfilesPage() {
                   </span>
                 ) : null}
                 {renderVersionStatusBadge()}
+                {showFlatpakNetworkIsolationBadge(selectedProfile) ? (
+                  <span
+                    className="crosshook-status-chip crosshook-version-badge crosshook-version-badge--warning"
+                    title={FLATPAK_NET_BADGE_TITLE}
+                  >
+                    {FLATPAK_NET_BADGE}
+                  </span>
+                ) : null}
                 {summary !== null && summary.stale_count + summary.broken_count > 0 ? (
                   <span className="crosshook-status-chip">
                     {summary.stale_count + summary.broken_count} of {summary.total_count} profile

@@ -18,7 +18,7 @@ pub mod protondb;
 pub mod protonup;
 pub mod run_executable;
 pub mod settings;
-mod shared;
+pub mod shared;
 pub mod steam;
 pub mod storage;
 pub mod update;

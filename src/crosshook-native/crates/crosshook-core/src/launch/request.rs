@@ -1,13 +1,15 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
-use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
 use super::optimizations::{
     is_command_available, resolve_launch_directives, resolve_launch_directives_for_method,
+};
+use crate::platform::{
+    normalize_flatpak_host_path, normalized_path_is_dir, normalized_path_is_executable_file,
 };
 use crate::profile::{GamescopeConfig, MangoHudConfig, TrainerLoadingMode};
 
@@ -1078,7 +1080,8 @@ fn require_game_path_if_needed(
         return Ok(());
     }
 
-    let game_path = request.game_path.trim();
+    let normalized_game_path = normalize_flatpak_host_path(&request.game_path);
+    let game_path = normalized_game_path.trim();
     if game_path.is_empty() {
         return Err(ValidationError::GamePathRequired);
     }
@@ -1105,7 +1108,8 @@ fn require_trainer_paths_if_needed(request: &LaunchRequest) -> Result<(), Valida
         return Err(ValidationError::TrainerPathRequired);
     }
 
-    let trainer_host_path = request.trainer_host_path.trim();
+    let normalized_trainer_host_path = normalize_flatpak_host_path(&request.trainer_host_path);
+    let trainer_host_path = normalized_trainer_host_path.trim();
     if trainer_host_path.is_empty() {
         return Err(ValidationError::TrainerHostPathRequired);
     }
@@ -1121,25 +1125,26 @@ fn require_trainer_paths_if_needed(request: &LaunchRequest) -> Result<(), Valida
     Ok(())
 }
 
-pub(crate) fn require_directory<'a>(
-    value: &'a str,
+pub(crate) fn require_directory(
+    value: &str,
     required_error: ValidationError,
     missing_error: ValidationError,
     not_directory_error: ValidationError,
-) -> Result<&'a Path, ValidationError> {
+) -> Result<(), ValidationError> {
     if value.is_empty() {
         return Err(required_error);
     }
 
-    let path = Path::new(value);
-    if !path.exists() {
-        return Err(missing_error);
-    }
-    if !path.is_dir() {
+    let normalized_value = normalize_flatpak_host_path(value);
+    let path = Path::new(normalized_value.trim());
+    if !normalized_path_is_dir(normalized_value.trim()) {
+        if !path.exists() {
+            return Err(missing_error);
+        }
         return Err(not_directory_error);
     }
 
-    Ok(path)
+    Ok(())
 }
 
 pub(crate) fn require_executable_file(
@@ -1152,34 +1157,16 @@ pub(crate) fn require_executable_file(
         return Err(required_error);
     }
 
-    let path = Path::new(value);
-    if !path.exists() {
-        return Err(missing_error);
-    }
-    if !is_executable_file(path) {
+    let normalized_value = normalize_flatpak_host_path(value);
+    let path = Path::new(normalized_value.trim());
+    if !normalized_path_is_executable_file(normalized_value.trim()) {
+        if !path.exists() {
+            return Err(missing_error);
+        }
         return Err(not_executable_error);
     }
 
     Ok(())
-}
-
-pub(crate) fn is_executable_file(path: &Path) -> bool {
-    let metadata = match fs::metadata(path) {
-        Ok(metadata) => metadata,
-        Err(_) => return false,
-    };
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
-    }
-
-    #[cfg(not(unix))]
-    {
-        metadata.is_file()
-    }
 }
 
 fn looks_like_windows_executable(path: &str) -> bool {
@@ -1189,6 +1176,7 @@ fn looks_like_windows_executable(path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::fs;
 
     use super::*;
 
@@ -1302,6 +1290,16 @@ mod tests {
     }
 
     #[test]
+    fn validates_steam_applaunch_request_with_flatpak_host_mounted_paths() {
+        let (_temp_dir, mut request) = steam_request();
+        request.trainer_host_path = format!("/run/host{}", request.trainer_host_path);
+        request.steam.compatdata_path = format!("/run/host{}", request.steam.compatdata_path);
+        request.steam.proton_path = format!("/run/host{}", request.steam.proton_path);
+
+        assert_eq!(validate(&request), Ok(()));
+    }
+
+    #[test]
     fn steam_applaunch_rejects_unknown_launch_optimization() {
         let (_temp_dir, mut request) = steam_request();
         request.optimizations.enabled_option_ids = vec!["unknown_toggle".to_string()];
@@ -1341,6 +1339,17 @@ mod tests {
     #[test]
     fn validates_proton_run_request() {
         let (_temp_dir, request) = proton_request();
+        assert_eq!(validate(&request), Ok(()));
+    }
+
+    #[test]
+    fn validates_proton_run_request_with_flatpak_host_mounted_paths() {
+        let (_temp_dir, mut request) = proton_request();
+        request.game_path = format!("/run/host{}", request.game_path);
+        request.trainer_host_path = format!("/run/host{}", request.trainer_host_path);
+        request.runtime.prefix_path = format!("/run/host{}", request.runtime.prefix_path);
+        request.runtime.proton_path = format!("/run/host{}", request.runtime.proton_path);
+
         assert_eq!(validate(&request), Ok(()));
     }
 

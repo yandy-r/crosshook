@@ -37,6 +37,7 @@ export function useLibrarySummaries(profiles: string[], favoriteProfiles: string
           steamAppId: s.steamAppId,
           customCoverArtPath: s.customCoverArtPath,
           customPortraitArtPath: s.customPortraitArtPath,
+          networkIsolation: s.networkIsolation,
           isFavorite: favoriteSet.has(s.name),
         }))
       );

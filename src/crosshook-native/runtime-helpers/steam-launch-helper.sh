@@ -38,6 +38,50 @@ ensure_standard_path() {
   esac
 }
 
+# Host-only executables (steam, pgrep, Proton) must run on the host when CrossHook is sandboxed.
+run_host() {
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    flatpak-spawn --host "$@"
+  else
+    "$@"
+  fi
+}
+
+run_host_in_directory() {
+  local directory="$1"
+  shift
+
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    flatpak-spawn --host --directory="$directory" "$@"
+  else
+    (
+      cd "$directory"
+      "$@"
+    )
+  fi
+}
+
+host_test() {
+  local flag="$1"
+  local path="$2"
+
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    run_host test "$flag" "$path"
+  else
+    test "$flag" "$path"
+  fi
+}
+
+host_realpath() {
+  local path="$1"
+
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    run_host realpath "$path"
+  else
+    realpath "$path"
+  fi
+}
+
 log_shell_process() {
   if [[ -x /usr/bin/ps ]]; then
     log "shell_process=$(/usr/bin/ps -o pid=,ppid=,comm=,args= -p $$)"
@@ -231,24 +275,24 @@ done
 [[ -n "$steam_client" ]] || fail "Missing Steam client install path."
 [[ -n "$game_exe_name" ]] || fail "Missing game executable name."
 [[ -n "$log_file" ]] || fail "Missing helper log path."
-[[ -d "$compatdata" ]] || fail "Compatdata path does not exist: $compatdata"
-[[ -x "$proton" ]] || fail "Proton path is not executable: $proton"
+host_test -d "$compatdata" || fail "Compatdata path does not exist: $compatdata"
+host_test -x "$proton" || fail "Proton path is not executable: $proton"
 
 if [[ "$game_only" != "1" ]]; then
   [[ -n "$trainer_path" ]] || fail "Missing trainer path."
   [[ -n "$trainer_host_path" ]] || fail "Missing trainer host path."
-  [[ -f "$trainer_host_path" ]] || fail "Trainer host path does not exist: $trainer_host_path"
+  host_test -f "$trainer_host_path" || fail "Trainer host path does not exist: $trainer_host_path"
 fi
 
 mkdir -p "$(dirname "$log_file")"
 exec >>"$log_file" 2>&1
 
-compatdata="$(realpath "$compatdata")"
-proton="$(realpath "$proton")"
-steam_client="$(realpath "$steam_client")"
+compatdata="$(host_realpath "$compatdata")" || fail "Failed to resolve compatdata path: $compatdata"
+proton="$(host_realpath "$proton")" || fail "Failed to resolve Proton path: $proton"
+steam_client="$(host_realpath "$steam_client")" || fail "Failed to resolve Steam client path: $steam_client"
 
 if [[ "$game_only" != "1" ]]; then
-  trainer_host_path="$(realpath "$trainer_host_path")"
+  trainer_host_path="$(host_realpath "$trainer_host_path")" || fail "Failed to resolve trainer host path: $trainer_host_path"
 fi
 
 case "$trainer_loading_mode" in
@@ -259,13 +303,21 @@ case "$trainer_loading_mode" in
     ;;
 esac
 
-if command -v steam >/dev/null 2>&1; then
-  steam_command="steam"
-elif [[ -x "$steam_client/steam.sh" ]]; then
-  steam_command="$steam_client/steam.sh"
+steam_command=""
+if [[ -n "${FLATPAK_ID:-}" ]]; then
+  if run_host sh -c 'command -v steam' >/dev/null 2>&1; then
+    steam_command="steam"
+  elif run_host test -x "$steam_client/steam.sh"; then
+    steam_command="$steam_client/steam.sh"
+  fi
 else
-  fail "Could not find a Steam CLI launch command."
+  if command -v steam >/dev/null 2>&1; then
+    steam_command="steam"
+  elif [[ -x "$steam_client/steam.sh" ]]; then
+    steam_command="$steam_client/steam.sh"
+  fi
 fi
+[[ -n "$steam_command" ]] || fail "Could not find a Steam CLI launch command."
 
 export STEAM_COMPAT_DATA_PATH="$compatdata"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam_client"
@@ -277,12 +329,20 @@ linux_process_visible() {
   local process_name="$1"
   local process_name_without_extension="${process_name%.exe}"
 
-  if pgrep -x -- "$process_name" >/dev/null 2>&1; then
-    return 0
-  fi
-
-  if [[ "$process_name_without_extension" != "$process_name" ]] && pgrep -x -- "$process_name_without_extension" >/dev/null 2>&1; then
-    return 0
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    if run_host pgrep -x -- "$process_name" >/dev/null 2>&1; then
+      return 0
+    fi
+    if [[ "$process_name_without_extension" != "$process_name" ]] && run_host pgrep -x -- "$process_name_without_extension" >/dev/null 2>&1; then
+      return 0
+    fi
+  else
+    if pgrep -x -- "$process_name" >/dev/null 2>&1; then
+      return 0
+    fi
+    if [[ "$process_name_without_extension" != "$process_name" ]] && pgrep -x -- "$process_name_without_extension" >/dev/null 2>&1; then
+      return 0
+    fi
   fi
 
   return 1
@@ -332,6 +392,7 @@ wait_for_startup_delay() {
 run_proton_with_clean_env() {
   local target_path="$1"
   local target_working_directory="${2:-}"
+  local run_directory=""
 
   # Close all file descriptors inherited from CrossHook's wineserver.
   local fd_num
@@ -377,8 +438,19 @@ run_proton_with_clean_env() {
     cd "$target_working_directory"
     log "Changed trainer working directory to $target_working_directory"
   fi
+  run_directory="${PWD}"
 
   log "Launching trainer with direct proton run."
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    if run_host_in_directory "$run_directory" setsid "$proton" run "$target_path"; then
+      log "Trainer proton run exited successfully."
+      return 0
+    else
+      local exit_code=$?
+      log "Trainer proton run exited with code $exit_code"
+      return "$exit_code"
+    fi
+  fi
   if setsid "$proton" run "$target_path"; then
     log "Trainer proton run exited successfully."
     return 0
@@ -399,7 +471,11 @@ if process_visible "$game_exe_name"; then
   log "Game process already visible in compatdata for $game_exe_name"
 else
   log "Launching Steam AppID $appid"
-  "$steam_command" -applaunch "$appid" >/dev/null 2>&1 &
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    run_host "$steam_command" -applaunch "$appid" >/dev/null 2>&1 &
+  else
+    "$steam_command" -applaunch "$appid" >/dev/null 2>&1 &
+  fi
 
   log "Allowing ${game_startup_delay_seconds}s for Steam startup before trainer launch"
   wait_for_startup_delay "$game_startup_delay_seconds"

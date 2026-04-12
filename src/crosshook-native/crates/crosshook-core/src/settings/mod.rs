@@ -66,10 +66,14 @@ fn current_user_home() -> Result<PathBuf, String> {
 fn resolve_user_home(username: &str) -> Result<PathBuf, String> {
     use std::process::Command;
 
-    let output = Command::new("getent")
-        .args(["passwd", username])
-        .output()
-        .map_err(|e| format!("failed to look up user '{username}': {e}"))?;
+    let output = if crate::platform::is_flatpak() {
+        crate::platform::host_std_command("getent")
+    } else {
+        Command::new("getent")
+    }
+    .args(["passwd", username])
+    .output()
+    .map_err(|e| format!("failed to look up user '{username}': {e}"))?;
 
     if !output.status.success() {
         return Err(format!("user '{username}' not found"));

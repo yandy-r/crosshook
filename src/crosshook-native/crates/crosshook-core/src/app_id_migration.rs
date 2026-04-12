@@ -160,10 +160,7 @@ pub fn migrate_one_app_id_root(
             // Derive the staging path as a sibling of `new_root` so the final rename is same-fs.
             let stage_name = format!(
                 "{}.migrating",
-                new_root
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
+                new_root.file_name().unwrap_or_default().to_string_lossy()
             );
             let stage = new_root
                 .parent()
@@ -329,7 +326,11 @@ mod tests {
 
         let errs = migrate_legacy_tauri_app_id_xdg_directories_for_roots(&cfg, &data, &cache);
         // A non-empty destination is reported as DestinationNotEmpty, not silently swallowed.
-        assert_eq!(errs.len(), 1, "expected exactly one DestinationNotEmpty error");
+        assert_eq!(
+            errs.len(),
+            1,
+            "expected exactly one DestinationNotEmpty error"
+        );
         assert!(
             matches!(&errs[0], AppIdMigrationError::DestinationNotEmpty(_)),
             "expected DestinationNotEmpty, got: {:?}",
@@ -379,14 +380,21 @@ mod tests {
 
         let errs = migrate_legacy_tauri_app_id_xdg_directories_for_roots(&cfg, &data, &cache);
         // The data root returns DestinationNotEmpty; config and cache complete without error.
-        assert_eq!(errs.len(), 1, "expected exactly one DestinationNotEmpty error");
+        assert_eq!(
+            errs.len(),
+            1,
+            "expected exactly one DestinationNotEmpty error"
+        );
         assert!(
             matches!(&errs[0], AppIdMigrationError::DestinationNotEmpty(_)),
             "expected DestinationNotEmpty, got: {:?}",
             errs[0]
         );
 
-        assert!(cfg.join(CURRENT_TAURI_APP_ID_DIR).join("settings.toml").exists());
+        assert!(cfg
+            .join(CURRENT_TAURI_APP_ID_DIR)
+            .join("settings.toml")
+            .exists());
         assert!(old_d.exists());
         assert!(new_d.join("b/keep.txt").exists());
     }
@@ -407,7 +415,10 @@ mod tests {
 
         assert!(dst.join("a.txt").exists());
         assert!(dst.join("link.txt").is_symlink());
-        assert_eq!(fs::read_link(dst.join("link.txt")).unwrap(), PathBuf::from("a.txt"));
+        assert_eq!(
+            fs::read_link(dst.join("link.txt")).unwrap(),
+            PathBuf::from("a.txt")
+        );
     }
 
     /// Invariant: new_root non-empty ⇒ migration succeeded.
@@ -437,7 +448,10 @@ mod tests {
         // invariant: new_root is non-empty only after a fully successful migration.
 
         // First: assert new_root is absent before migration.
-        assert!(!new_root.exists(), "new_root must not exist before migration");
+        assert!(
+            !new_root.exists(),
+            "new_root must not exist before migration"
+        );
 
         // The stale stage should not block migration (it is a sibling, not new_root itself).
         let result = super::migrate_one_app_id_root(&old_root, &new_root);
@@ -449,6 +463,9 @@ mod tests {
         assert!(!old_root.exists());
         // The stale stage is still present (migrate_one_app_id_root doesn't clean up alien dirs).
         // But crucially new_root was never partially populated — it is either absent or complete.
-        assert!(new_root.exists(), "new_root must exist after successful migration");
+        assert!(
+            new_root.exists(),
+            "new_root must exist after successful migration"
+        );
     }
 }

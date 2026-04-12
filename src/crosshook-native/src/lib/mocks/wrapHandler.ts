@@ -49,6 +49,7 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   'profile_export_toml',
   'check_game_running',
   'check_gamescope_session',
+  'launch_platform_status',
   'check_readiness',
   'preview_launch',
   'validate_launch',

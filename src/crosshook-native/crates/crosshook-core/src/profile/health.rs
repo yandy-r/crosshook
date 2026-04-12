@@ -6,6 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::launch::request::{METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
 use crate::metadata::PrefixDependencyStateRow;
+use crate::platform::{
+    normalize_flatpak_host_path, normalized_path_is_dir, normalized_path_is_executable_file,
+    normalized_path_is_file,
+};
 use crate::profile::models::{resolve_launch_method, GameProfile};
 use crate::profile::toml_store::ProfileStore;
 
@@ -66,11 +70,17 @@ fn check_file_path(
     path: &str,
     severity_on_broken: HealthIssueSeverity,
 ) -> Option<(HealthIssue, bool /* is_stale */)> {
-    if path.trim().is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    let display_path = normalized_path.trim();
+    if display_path.is_empty() {
         return None;
     }
 
-    match fs::metadata(path) {
+    if normalized_path_is_file(display_path) {
+        return None;
+    }
+
+    match fs::metadata(display_path) {
         Ok(meta) if meta.is_file() => {
             // Exists and is a file — healthy
             None
@@ -80,8 +90,8 @@ fn check_file_path(
             Some((
                 HealthIssue {
                     field: field.to_string(),
-                    path: path.to_string(),
-                    message: format!("Path exists but is not a file: {path}"),
+                    path: display_path.to_string(),
+                    message: format!("Path exists but is not a file: {display_path}"),
                     remediation: "Select the file itself, not a directory or other path type."
                         .to_string(),
                     severity: severity_on_broken,
@@ -94,8 +104,8 @@ fn check_file_path(
             Some((
                 HealthIssue {
                     field: field.to_string(),
-                    path: path.to_string(),
-                    message: format!("Path does not exist: {path}"),
+                    path: display_path.to_string(),
+                    message: format!("Path does not exist: {display_path}"),
                     remediation: "Re-browse to the file or verify the path is correct.".to_string(),
                     severity: HealthIssueSeverity::Warning,
                 },
@@ -105,8 +115,8 @@ fn check_file_path(
         Err(err) if err.kind() == ErrorKind::PermissionDenied => Some((
             HealthIssue {
                 field: field.to_string(),
-                path: path.to_string(),
-                message: format!("Path is not accessible (permission denied): {path}"),
+                path: display_path.to_string(),
+                message: format!("Path is not accessible (permission denied): {display_path}"),
                 remediation: "Check file permissions (e.g. chmod a+r).".to_string(),
                 severity: severity_on_broken,
             },
@@ -117,7 +127,7 @@ fn check_file_path(
             Some((
                 HealthIssue {
                     field: field.to_string(),
-                    path: path.to_string(),
+                    path: display_path.to_string(),
                     message: format!("Could not access path: {err}"),
                     remediation: "Verify the path is valid and accessible.".to_string(),
                     severity: severity_on_broken,
@@ -147,7 +157,9 @@ fn check_required_file(field: &str, path: &str) -> Option<(HealthIssue, bool)> {
 
 /// Check a required directory field. Empty → `Broken`. Missing → `Stale`. Wrong type → `Broken`.
 fn check_required_directory(field: &str, path: &str) -> Option<(HealthIssue, bool)> {
-    if path.trim().is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    let display_path = normalized_path.trim();
+    if display_path.is_empty() {
         return Some((
             HealthIssue {
                 field: field.to_string(),
@@ -160,13 +172,17 @@ fn check_required_directory(field: &str, path: &str) -> Option<(HealthIssue, boo
         ));
     }
 
-    match fs::metadata(path) {
+    if normalized_path_is_dir(display_path) {
+        return None;
+    }
+
+    match fs::metadata(display_path) {
         Ok(meta) if meta.is_dir() => None,
         Ok(_) => Some((
             HealthIssue {
                 field: field.to_string(),
-                path: path.to_string(),
-                message: format!("Path exists but is not a directory: {path}"),
+                path: display_path.to_string(),
+                message: format!("Path exists but is not a directory: {display_path}"),
                 remediation: "Select the directory itself, not a file inside it.".to_string(),
                 severity: HealthIssueSeverity::Error,
             },
@@ -175,8 +191,8 @@ fn check_required_directory(field: &str, path: &str) -> Option<(HealthIssue, boo
         Err(err) if err.kind() == ErrorKind::NotFound => Some((
             HealthIssue {
                 field: field.to_string(),
-                path: path.to_string(),
-                message: format!("Directory does not exist: {path}"),
+                path: display_path.to_string(),
+                message: format!("Directory does not exist: {display_path}"),
                 remediation: "Re-browse to the directory or verify the path is correct."
                     .to_string(),
                 severity: HealthIssueSeverity::Warning,
@@ -186,8 +202,8 @@ fn check_required_directory(field: &str, path: &str) -> Option<(HealthIssue, boo
         Err(err) if err.kind() == ErrorKind::PermissionDenied => Some((
             HealthIssue {
                 field: field.to_string(),
-                path: path.to_string(),
-                message: format!("Directory is not accessible (permission denied): {path}"),
+                path: display_path.to_string(),
+                message: format!("Directory is not accessible (permission denied): {display_path}"),
                 remediation: "Check directory permissions (e.g. chmod a+rx).".to_string(),
                 severity: HealthIssueSeverity::Error,
             },
@@ -196,7 +212,7 @@ fn check_required_directory(field: &str, path: &str) -> Option<(HealthIssue, boo
         Err(err) => Some((
             HealthIssue {
                 field: field.to_string(),
-                path: path.to_string(),
+                path: display_path.to_string(),
                 message: format!("Could not access directory: {err}"),
                 remediation: "Verify the path is valid and accessible.".to_string(),
                 severity: HealthIssueSeverity::Error,
@@ -208,7 +224,9 @@ fn check_required_directory(field: &str, path: &str) -> Option<(HealthIssue, boo
 
 /// Check a required executable file field. Empty → `Broken`. Missing → `Stale`. Not executable → `Broken`.
 fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bool)> {
-    if path.trim().is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    let display_path = normalized_path.trim();
+    if display_path.is_empty() {
         return Some((
             HealthIssue {
                 field: field.to_string(),
@@ -221,7 +239,11 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
         ));
     }
 
-    match fs::metadata(path) {
+    if normalized_path_is_executable_file(display_path) {
+        return None;
+    }
+
+    match fs::metadata(display_path) {
         Ok(meta) => {
             #[cfg(unix)]
             {
@@ -230,8 +252,8 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
                     return Some((
                         HealthIssue {
                             field: field.to_string(),
-                            path: path.to_string(),
-                            message: format!("Path exists but is not a file: {path}"),
+                            path: display_path.to_string(),
+                            message: format!("Path exists but is not a file: {display_path}"),
                             remediation: "Select the executable file itself.".to_string(),
                             severity: HealthIssueSeverity::Error,
                         },
@@ -242,9 +264,9 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
                     return Some((
                         HealthIssue {
                             field: field.to_string(),
-                            path: path.to_string(),
+                            path: display_path.to_string(),
                             message: format!(
-                                "File is not executable (no execute permission): {path}"
+                                "File is not executable (no execute permission): {display_path}"
                             ),
                             remediation: "Run 'chmod +x' on the file to make it executable."
                                 .to_string(),
@@ -261,8 +283,8 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
                     return Some((
                         HealthIssue {
                             field: field.to_string(),
-                            path: path.to_string(),
-                            message: format!("Path exists but is not a file: {path}"),
+                            path: display_path.to_string(),
+                            message: format!("Path exists but is not a file: {display_path}"),
                             remediation: "Select the executable file itself.".to_string(),
                             severity: HealthIssueSeverity::Error,
                         },
@@ -275,8 +297,8 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
         Err(err) if err.kind() == ErrorKind::NotFound => Some((
             HealthIssue {
                 field: field.to_string(),
-                path: path.to_string(),
-                message: format!("Executable does not exist: {path}"),
+                path: display_path.to_string(),
+                message: format!("Executable does not exist: {display_path}"),
                 remediation: "Re-browse to the executable or verify the path is correct."
                     .to_string(),
                 severity: HealthIssueSeverity::Warning,
@@ -286,8 +308,10 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
         Err(err) if err.kind() == ErrorKind::PermissionDenied => Some((
             HealthIssue {
                 field: field.to_string(),
-                path: path.to_string(),
-                message: format!("Executable is not accessible (permission denied): {path}"),
+                path: display_path.to_string(),
+                message: format!(
+                    "Executable is not accessible (permission denied): {display_path}"
+                ),
                 remediation: "Check file permissions (e.g. chmod a+rx).".to_string(),
                 severity: HealthIssueSeverity::Error,
             },
@@ -296,7 +320,7 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
         Err(err) => Some((
             HealthIssue {
                 field: field.to_string(),
-                path: path.to_string(),
+                path: display_path.to_string(),
                 message: format!("Could not access executable: {err}"),
                 remediation: "Verify the path is valid and accessible.".to_string(),
                 severity: HealthIssueSeverity::Error,
@@ -308,23 +332,29 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
 
 /// Check an optional path field. Empty → no issue. Missing or inaccessible → `Info`.
 fn check_optional_path(field: &str, path: &str) -> Option<HealthIssue> {
-    if path.trim().is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    let display_path = normalized_path.trim();
+    if display_path.is_empty() {
         return None;
     }
 
-    match fs::metadata(path) {
+    if normalized_path_is_file(display_path) || normalized_path_is_dir(display_path) {
+        return None;
+    }
+
+    match fs::metadata(display_path) {
         Ok(_) => None,
         Err(err) if err.kind() == ErrorKind::NotFound => Some(HealthIssue {
             field: field.to_string(),
-            path: path.to_string(),
-            message: format!("Optional path does not exist: {path}"),
+            path: display_path.to_string(),
+            message: format!("Optional path does not exist: {display_path}"),
             remediation: format!("Browse to or clear the '{field}' field if no longer needed."),
             severity: HealthIssueSeverity::Info,
         }),
         Err(_) => Some(HealthIssue {
             field: field.to_string(),
-            path: path.to_string(),
-            message: format!("Optional path is not accessible: {path}"),
+            path: display_path.to_string(),
+            message: format!("Optional path is not accessible: {display_path}"),
             remediation: format!("Verify the '{field}' path or clear it if no longer needed."),
             severity: HealthIssueSeverity::Info,
         }),
@@ -920,6 +950,53 @@ mod tests {
         assert!(
             matches!(report.status, HealthStatus::Healthy),
             "expected Healthy for proton_run profile with all paths present, got {:?}; issues: {:?}",
+            report.status,
+            report.issues
+        );
+    }
+
+    #[test]
+    fn host_mounted_runtime_proton_path_is_healthy() {
+        let tmp = tempdir().expect("tempdir");
+
+        let game_exe = tmp.path().join("game.exe");
+        make_executable(&game_exe);
+
+        let prefix = tmp.path().join("pfx");
+        fs::create_dir_all(&prefix).expect("mkdir prefix");
+
+        let proton = tmp.path().join("proton");
+        make_executable(&proton);
+
+        let profile = GameProfile {
+            game: GameSection {
+                name: "Proton Game".to_string(),
+                executable_path: game_exe.to_string_lossy().to_string(),
+                custom_cover_art_path: String::new(),
+                custom_portrait_art_path: String::new(),
+                custom_background_art_path: String::new(),
+            },
+            trainer: TrainerSection::default(),
+            injection: InjectionSection::default(),
+            steam: SteamSection::default(),
+            runtime: RuntimeSection {
+                prefix_path: format!("/run/host{}", prefix.to_string_lossy()),
+                proton_path: format!("/run/host{}", proton.to_string_lossy()),
+                working_directory: String::new(),
+                steam_app_id: String::new(),
+            },
+            launch: LaunchSection {
+                method: "proton_run".to_string(),
+                ..Default::default()
+            },
+            local_override: crate::profile::LocalOverrideSection::default(),
+        };
+
+        let report = check_profile_health("proton-run-host-mounted", &profile);
+
+        assert!(
+            matches!(report.status, HealthStatus::Healthy),
+            "expected Healthy for host-mounted proton_run profile, got {:?}; issues: {:?}",
             report.status,
             report.issues
         );

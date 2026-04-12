@@ -6,6 +6,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::launch::runtime_helpers::build_gamescope_args;
+use crate::platform::normalize_flatpak_host_path;
 use crate::profile::{GamescopeConfig, TrainerLoadingMode};
 use serde::{Deserialize, Serialize};
 
@@ -670,7 +671,8 @@ fn resolve_desktop_icon_value(launcher_icon_path: &str) -> String {
 }
 
 fn normalize_host_unix_path(path: &str) -> String {
-    path.trim().replace('\\', "/")
+    let normalized = path.trim().replace('\\', "/");
+    normalize_flatpak_host_path(&normalized)
 }
 
 fn looks_like_usable_host_unix_path(path: &str) -> bool {

@@ -44,3 +44,4 @@ docs/**/Thumbs.db
 # Misc
 .playwright/
 .playwright-mcp/
+temp.md
