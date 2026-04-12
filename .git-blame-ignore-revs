@@ -1,0 +1,4 @@
+# Bulk formatting commits — run `git config blame.ignoreRevsFile .git-blame-ignore-revs`
+# to exclude these from git blame output.
+#
+# Populate with commit SHAs after the initial formatting PR is merged.

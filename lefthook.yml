@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: true
+  commands:
+    rust-fmt:
+      glob: "src/crosshook-native/**/*.rs"
+      run: cargo fmt --manifest-path src/crosshook-native/Cargo.toml --all -- --check
+    biome-check:
+      glob: "src/crosshook-native/src/**/*.{ts,tsx}"
+      root: "src/crosshook-native/"
+      run: npx @biomejs/biome check --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+    typecheck:
+      glob: "src/crosshook-native/src/**/*.{ts,tsx}"
+      root: "src/crosshook-native/"
+      run: npx tsc --noEmit

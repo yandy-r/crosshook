@@ -8,3 +8,23 @@ resolver = "2"
 
 [workspace.package]
 version = "0.2.10-flatpak"
+
+[workspace.lints.clippy]
+# Correctness (deny — these are bugs)
+enum_glob_use = "deny"
+lossy_float_literal = "deny"
+# Style (warn — enforced via -D warnings in CI)
+cloned_instead_of_copied = "warn"
+flat_map_option = "warn"
+redundant_closure_for_method_calls = "warn"
+semicolon_if_nothing_returned = "warn"
+uninlined_format_args = "warn"
+# Tauri commands must be async even when the body is sync
+unused_async = "allow"
+# These have many existing violations — allow now, tighten later
+manual_let_else = "allow"
+needless_pass_by_value = "allow"
+too_many_arguments = "allow"
+field_reassign_with_default = "allow"
+type_complexity = "allow"
+result_large_err = "allow"

@@ -49,6 +49,15 @@ For storage changes, plans must also:
 - `status:` needs-triage, in-progress, blocked, needs-info
 - Standalone: `good first issue`, `help wanted`, `duplicate`, `wontfix`
 
+## Code quality tooling
+
+- **Rust formatting**: `cargo fmt` via `rustfmt.toml` at `src/crosshook-native/`
+- **Rust linting**: `cargo clippy` with workspace lints in `Cargo.toml` (`-D warnings` in CI)
+- **TypeScript linting/formatting**: Biome (`biome.json` at `src/crosshook-native/`)
+- **Markdown/JSON formatting**: Prettier (`.prettierrc` at repo root)
+- **Pre-commit**: lefthook (`lefthook.yml` at repo root) — install via `cargo install lefthook`, then `lefthook install`
+- **CI**: `.github/workflows/lint.yml` runs Rust, TypeScript, and ShellCheck on every PR
+
 ## Commands (short reference)
 
 ```bash
@@ -59,6 +68,9 @@ For storage changes, plans must also:
 ./scripts/build-native.sh --binary-only
 ./scripts/install-native-build-deps.sh
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
+./scripts/lint.sh                    # check all linters
+./scripts/lint.sh --fix              # auto-fix all
+./scripts/format.sh                  # format all
 ```
 
-Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`. See [`AGENTS.md`](AGENTS.md) § _Browser Dev Mode_ for the mock layer, loopback-only binding, and the `verify:no-mocks` CI sentinel.
+Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`. CI lint workflow: `.github/workflows/lint.yml`. See [`AGENTS.md`](AGENTS.md) § _Browser Dev Mode_ for the mock layer, loopback-only binding, and the `verify:no-mocks` CI sentinel.

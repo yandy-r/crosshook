@@ -49,6 +49,19 @@ For storage changes, plans must also:
 - `status:` needs-triage, in-progress, blocked, needs-info
 - Standalone: `good first issue`, `help wanted`, `duplicate`, `wontfix`
 
+## Code quality tooling
+
+| Tool | Scope | Config |
+|------|-------|--------|
+| **rustfmt** | Rust formatting | `src/crosshook-native/rustfmt.toml` |
+| **clippy** | Rust linting | Workspace lints in `src/crosshook-native/Cargo.toml` |
+| **Biome** | TS/TSX lint + format | `src/crosshook-native/biome.json` |
+| **Prettier** | Markdown/JSON | `.prettierrc` at repo root |
+| **lefthook** | Pre-commit hooks | `lefthook.yml` at repo root |
+| **ShellCheck** | Shell scripts | CI only |
+
+Pre-commit setup: `cargo install lefthook && lefthook install`
+
 ## Commands (short reference)
 
 ```bash
@@ -59,9 +72,12 @@ For storage changes, plans must also:
 ./scripts/build-native.sh --binary-only
 ./scripts/install-native-build-deps.sh
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
+./scripts/lint.sh                    # check all linters
+./scripts/lint.sh --fix              # auto-fix all linters
+./scripts/format.sh                  # format all code
 ```
 
-Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`.
+Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`. CI lint workflow: `.github/workflows/lint.yml`.
 
 ### Browser Dev Mode
 

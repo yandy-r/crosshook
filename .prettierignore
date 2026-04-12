@@ -9,3 +9,6 @@ dist/
 build/
 tmp/
 temp/
+
+# Biome handles TS/TSX formatting
+src/crosshook-native/src/
