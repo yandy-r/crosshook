@@ -11,8 +11,8 @@ use crate::launch::runtime_helpers::{
     merge_runtime_proton_into_map, resolve_effective_working_directory,
 };
 use crate::platform::{
-    normalize_flatpak_host_path, normalized_path_is_dir, normalized_path_is_executable_file,
-    normalized_path_is_file,
+    normalize_flatpak_host_path, normalized_path_exists_on_host, normalized_path_is_dir,
+    normalized_path_is_dir_on_host, normalized_path_is_executable_file, normalized_path_is_file,
 };
 use crate::profile::validate_name;
 
@@ -310,8 +310,12 @@ fn validate_prefix_path(path: &str) -> Result<(), InstallGameValidationError> {
         return Err(InstallGameValidationError::PrefixPathRequired);
     }
 
-    let path = Path::new(normalized_path.trim());
-    if !normalized_path_is_dir(normalized_path.trim()) && path.exists() {
+    let trimmed = normalized_path.trim();
+    let path = Path::new(trimmed);
+    if !normalized_path_is_dir(trimmed)
+        && !normalized_path_is_dir_on_host(trimmed)
+        && (path.exists() || normalized_path_exists_on_host(trimmed))
+    {
         return Err(InstallGameValidationError::PrefixPathNotDirectory);
     }
 

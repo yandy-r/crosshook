@@ -835,7 +835,8 @@ async fn spawn_helper(
     helper_script: &Path,
     log_path: &Path,
 ) -> Result<tokio::process::Child, Box<dyn Error>> {
-    let mut command = launch::script_runner::build_helper_command(request, helper_script, log_path);
+    let mut command =
+        launch::script_runner::build_helper_command(request, helper_script, log_path)?;
     command.stdout(Stdio::null());
     command.stderr(Stdio::null());
     Ok(command.spawn()?)

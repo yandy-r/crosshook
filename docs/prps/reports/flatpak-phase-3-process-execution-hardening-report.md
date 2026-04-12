@@ -23,7 +23,7 @@ Phase 3 hardening is implemented: sync/async host wrappers in `platform.rs`, env
 | 5   | Harden helper scripts                             | Complete        | `steam-launch-helper.sh`, `steam-host-trainer-runner.sh`; trainer launcher unchanged (delegates to runner) |
 | 6   | Remove `rm` fallback, host-safe kill              | Complete        | `run_executable`, `update`                                            |
 | 7   | Persistent Flatpak unshare / network isolation UI | Complete        | `ProfilesPage` hook order fixed for `tsc`                             |
-| 8   | Manual Flatpak matrix                             | Not run in CI   | Requires installed Flatpak bundle per plan                            |
+| 8   | Manual Flatpak matrix                             | Not run in CI   | Requires Flatpak to be installed and the bundle available per plan    |
 
 ## Validation Results
 

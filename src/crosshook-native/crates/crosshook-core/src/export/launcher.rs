@@ -814,6 +814,20 @@ mod tests {
     }
 
     #[test]
+    fn normalize_host_unix_path_rewrites_flatpak_host_mount_paths() {
+        assert_eq!(
+            normalize_host_unix_path("/run/host/home/alice/.local/share/icons/cover.png"),
+            "/home/alice/.local/share/icons/cover.png"
+        );
+    }
+
+    #[test]
+    fn normalize_host_unix_path_leaves_regular_host_paths_unchanged() {
+        let path = "/home/alice/.local/share/icons/cover.png";
+        assert_eq!(normalize_host_unix_path(path), path);
+    }
+
+    #[test]
     fn export_writes_expected_paths_and_content() {
         let temp_home = tempdir().expect("temp home");
         let icon_path = temp_home.path().join("launcher icon.png");

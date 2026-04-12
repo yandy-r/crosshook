@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::launch::request::{METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
 use crate::metadata::PrefixDependencyStateRow;
 use crate::platform::{
-    normalize_flatpak_host_path, normalized_path_is_dir, normalized_path_is_executable_file,
-    normalized_path_is_file,
+    normalize_flatpak_host_path, normalized_path_exists_on_host, normalized_path_is_dir,
+    normalized_path_is_dir_on_host, normalized_path_is_executable_file,
+    normalized_path_is_executable_file_on_host, normalized_path_is_file_on_host,
 };
 use crate::profile::models::{resolve_launch_method, GameProfile};
 use crate::profile::toml_store::ProfileStore;
@@ -62,6 +63,100 @@ pub struct HealthCheckSummary {
     pub validated_at: String,
 }
 
+fn normalized_host_probe_path(raw_path: &str) -> String {
+    normalize_flatpak_host_path(raw_path).trim().to_string()
+}
+
+fn display_path(raw_path: &str) -> String {
+    let original = raw_path.trim();
+    if !original.is_empty() {
+        return original.to_string();
+    }
+    normalized_host_probe_path(raw_path)
+}
+
+fn path_exists_visible_or_host(raw_path: &str) -> bool {
+    let original = raw_path.trim();
+    if original.is_empty() {
+        return false;
+    }
+
+    if std::path::Path::new(original).exists() {
+        return true;
+    }
+
+    let normalized = normalized_host_probe_path(raw_path);
+    !normalized.is_empty()
+        && (std::path::Path::new(&normalized).exists() || normalized_path_exists_on_host(&normalized))
+}
+
+fn path_is_file_visible_or_host(raw_path: &str) -> bool {
+    let original = raw_path.trim();
+    if original.is_empty() {
+        return false;
+    }
+
+    if std::path::Path::new(original).is_file() {
+        return true;
+    }
+
+    let normalized = normalized_host_probe_path(raw_path);
+    !normalized.is_empty()
+        && (std::path::Path::new(&normalized).is_file() || normalized_path_is_file_on_host(&normalized))
+}
+
+fn path_is_dir_visible_or_host(raw_path: &str) -> bool {
+    let original = raw_path.trim();
+    if original.is_empty() {
+        return false;
+    }
+
+    if std::path::Path::new(original).is_dir() {
+        return true;
+    }
+
+    let normalized = normalized_host_probe_path(raw_path);
+    !normalized.is_empty()
+        && (normalized_path_is_dir(normalized.as_str())
+            || normalized_path_is_dir_on_host(normalized.as_str()))
+}
+
+fn path_is_executable_file(path: &str) -> bool {
+    let Ok(metadata) = fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
+}
+
+fn path_is_executable_visible_or_host(raw_path: &str) -> bool {
+    let original = raw_path.trim();
+    if original.is_empty() {
+        return false;
+    }
+
+    if path_is_executable_file(original) {
+        return true;
+    }
+
+    let normalized = normalized_host_probe_path(raw_path);
+    !normalized.is_empty()
+        && (normalized_path_is_executable_file(normalized.as_str())
+            || normalized_path_is_executable_file_on_host(normalized.as_str()))
+}
+
 /// Classify a path check result (missing file vs. wrong type / inaccessible) into a `HealthIssue`.
 ///
 /// Returns `None` when the path is healthy (present, correct type, accessible).
@@ -70,17 +165,48 @@ fn check_file_path(
     path: &str,
     severity_on_broken: HealthIssueSeverity,
 ) -> Option<(HealthIssue, bool /* is_stale */)> {
-    let normalized_path = normalize_flatpak_host_path(path);
-    let display_path = normalized_path.trim();
+    let display_path = display_path(path);
     if display_path.is_empty() {
         return None;
     }
 
-    if normalized_path_is_file(display_path) {
+    let original = path.trim();
+    if let Ok(meta) = fs::metadata(original) {
+        if meta.is_file() {
+            return None;
+        }
+        return Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display_path.clone(),
+                message: format!("Path exists but is not a file: {display_path}"),
+                remediation: "Select the file itself, not a directory or other path type."
+                    .to_string(),
+                severity: severity_on_broken,
+            },
+            false,
+        ));
+    }
+
+    if path_is_file_visible_or_host(path) {
         return None;
     }
 
-    match fs::metadata(display_path) {
+    if path_exists_visible_or_host(path) {
+        return Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display_path.clone(),
+                message: format!("Path exists but is not a file: {display_path}"),
+                remediation: "Select the file itself, not a directory or other path type."
+                    .to_string(),
+                severity: severity_on_broken,
+            },
+            false,
+        ));
+    }
+
+    match fs::metadata(original) {
         Ok(meta) if meta.is_file() => {
             // Exists and is a file — healthy
             None
@@ -157,8 +283,7 @@ fn check_required_file(field: &str, path: &str) -> Option<(HealthIssue, bool)> {
 
 /// Check a required directory field. Empty → `Broken`. Missing → `Stale`. Wrong type → `Broken`.
 fn check_required_directory(field: &str, path: &str) -> Option<(HealthIssue, bool)> {
-    let normalized_path = normalize_flatpak_host_path(path);
-    let display_path = normalized_path.trim();
+    let display_path = display_path(path);
     if display_path.is_empty() {
         return Some((
             HealthIssue {
@@ -172,11 +297,41 @@ fn check_required_directory(field: &str, path: &str) -> Option<(HealthIssue, boo
         ));
     }
 
-    if normalized_path_is_dir(display_path) {
+    let original = path.trim();
+    if let Ok(meta) = fs::metadata(original) {
+        if meta.is_dir() {
+            return None;
+        }
+        return Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display_path.clone(),
+                message: format!("Path exists but is not a directory: {display_path}"),
+                remediation: "Select the directory itself, not a file inside it.".to_string(),
+                severity: HealthIssueSeverity::Error,
+            },
+            false,
+        ));
+    }
+
+    if path_is_dir_visible_or_host(path) {
         return None;
     }
 
-    match fs::metadata(display_path) {
+    if path_exists_visible_or_host(path) {
+        return Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display_path.clone(),
+                message: format!("Path exists but is not a directory: {display_path}"),
+                remediation: "Select the directory itself, not a file inside it.".to_string(),
+                severity: HealthIssueSeverity::Error,
+            },
+            false,
+        ));
+    }
+
+    match fs::metadata(original) {
         Ok(meta) if meta.is_dir() => None,
         Ok(_) => Some((
             HealthIssue {
@@ -224,8 +379,7 @@ fn check_required_directory(field: &str, path: &str) -> Option<(HealthIssue, boo
 
 /// Check a required executable file field. Empty → `Broken`. Missing → `Stale`. Not executable → `Broken`.
 fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bool)> {
-    let normalized_path = normalize_flatpak_host_path(path);
-    let display_path = normalized_path.trim();
+    let display_path = display_path(path);
     if display_path.is_empty() {
         return Some((
             HealthIssue {
@@ -239,11 +393,89 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
         ));
     }
 
-    if normalized_path_is_executable_file(display_path) {
+    let original = path.trim();
+    if let Ok(meta) = fs::metadata(original) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if !meta.is_file() {
+                return Some((
+                    HealthIssue {
+                        field: field.to_string(),
+                        path: display_path.clone(),
+                        message: format!("Path exists but is not a file: {display_path}"),
+                        remediation: "Select the executable file itself.".to_string(),
+                        severity: HealthIssueSeverity::Error,
+                    },
+                    false,
+                ));
+            }
+            if meta.permissions().mode() & 0o111 == 0 {
+                return Some((
+                    HealthIssue {
+                        field: field.to_string(),
+                        path: display_path.clone(),
+                        message: format!(
+                            "File is not executable (no execute permission): {display_path}"
+                        ),
+                        remediation: "Run 'chmod +x' on the file to make it executable."
+                            .to_string(),
+                        severity: HealthIssueSeverity::Error,
+                    },
+                    false,
+                ));
+            }
+            return None;
+        }
+        #[cfg(not(unix))]
+        {
+            if meta.is_file() {
+                return None;
+            }
+            return Some((
+                HealthIssue {
+                    field: field.to_string(),
+                    path: display_path.clone(),
+                    message: format!("Path exists but is not a file: {display_path}"),
+                    remediation: "Select the executable file itself.".to_string(),
+                    severity: HealthIssueSeverity::Error,
+                },
+                false,
+            ));
+        }
+    }
+
+    if path_is_executable_visible_or_host(path) {
         return None;
     }
 
-    match fs::metadata(display_path) {
+    if path_is_file_visible_or_host(path) {
+        return Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display_path.clone(),
+                message: format!("File is not executable (no execute permission): {display_path}"),
+                remediation: "Run 'chmod +x' on the file to make it executable.".to_string(),
+                severity: HealthIssueSeverity::Error,
+            },
+            false,
+        ));
+    }
+
+    if path_exists_visible_or_host(path) {
+        return Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display_path.clone(),
+                message: format!("Path exists but is not a file: {display_path}"),
+                remediation: "Select the executable file itself.".to_string(),
+                severity: HealthIssueSeverity::Error,
+            },
+            false,
+        ));
+    }
+
+    match fs::metadata(original) {
         Ok(meta) => {
             #[cfg(unix)]
             {
@@ -332,17 +564,20 @@ fn check_required_executable(field: &str, path: &str) -> Option<(HealthIssue, bo
 
 /// Check an optional path field. Empty → no issue. Missing or inaccessible → `Info`.
 fn check_optional_path(field: &str, path: &str) -> Option<HealthIssue> {
-    let normalized_path = normalize_flatpak_host_path(path);
-    let display_path = normalized_path.trim();
+    let display_path = display_path(path);
     if display_path.is_empty() {
         return None;
     }
 
-    if normalized_path_is_file(display_path) || normalized_path_is_dir(display_path) {
+    if path_is_file_visible_or_host(path) || path_is_dir_visible_or_host(path) {
         return None;
     }
 
-    match fs::metadata(display_path) {
+    if path_exists_visible_or_host(path) {
+        return None;
+    }
+
+    match fs::metadata(path.trim()) {
         Ok(_) => None,
         Err(err) if err.kind() == ErrorKind::NotFound => Some(HealthIssue {
             field: field.to_string(),

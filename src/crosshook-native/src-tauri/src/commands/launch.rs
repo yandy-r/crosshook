@@ -302,6 +302,7 @@ pub async fn launch_game(
         METHOD_STEAM_APPLAUNCH => {
             let script_path = resolve_script_path(&app, "steam-launch-helper.sh")?;
             build_helper_command(&request, &script_path, &log_path)
+                .map_err(|error| format!("failed to build Steam helper launch: {error}"))?
         }
         METHOD_PROTON_RUN => {
             let mut command = build_proton_game_command(&request, &log_path)
@@ -400,6 +401,7 @@ pub async fn launch_trainer(
         METHOD_STEAM_APPLAUNCH => {
             let script_path = resolve_script_path(&app, "steam-launch-trainer.sh")?;
             build_trainer_command(&request, &script_path, &log_path)
+                .map_err(|error| format!("failed to build Steam trainer launch: {error}"))?
         }
         METHOD_PROTON_RUN => {
             let mut command = build_proton_trainer_command(&request, &log_path)
@@ -666,8 +668,7 @@ async fn stream_log_pipes(
         }
         if !line.is_empty() {
             if let Err(error) = app.emit("launch-log", line) {
-                tracing::warn!(%error, "failed to emit launch log line; stopping stream");
-                return None;
+                tracing::warn!(%error, "failed to emit launch log line");
             }
         }
     }

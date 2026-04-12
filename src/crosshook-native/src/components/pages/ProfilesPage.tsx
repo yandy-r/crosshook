@@ -18,6 +18,7 @@ import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useCollections } from '../../hooks/useCollections';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
+import { useProfileSummaries } from '../../hooks/useProfileSummaries';
 import { resolveProtonUpProviderForVersion, useProtonUp } from '../../hooks/useProtonUp';
 import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
 import type { ProtonInstallOption } from '../../types/proton';
@@ -28,7 +29,6 @@ import { formatRelativeTime } from '../../utils/format';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../../utils/launchPanelActionButtonStyle';
 import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
 import { useLaunchPlatformStatus } from '../../hooks/useLaunchPlatformStatus';
-import type { ProfileSummary } from '../../types/library';
 
 const FLATPAK_NET_BADGE = 'No network isolation';
 const FLATPAK_NET_BADGE_TITLE =
@@ -127,7 +127,14 @@ export function ProfilesPage() {
   }, [profiles, activeCollectionId, memberNames, membersLoading, membersForCollectionId]);
 
   const launchPlatform = useLaunchPlatformStatus();
-  const [profileNetworkIsolation, setProfileNetworkIsolation] = useState<Record<string, boolean>>({});
+  const { summaries: profileSummaries } = useProfileSummaries(profiles);
+  const profileNetworkIsolation = useMemo(() => {
+    const next: Record<string, boolean> = {};
+    for (const row of profileSummaries) {
+      next[row.name] = row.networkIsolation;
+    }
+    return next;
+  }, [profileSummaries]);
 
   useEffect(() => {
     if (activeCollectionId === null) {
@@ -148,41 +155,23 @@ export function ProfilesPage() {
     }
   }, [activeCollectionId, membersLoading, membersForCollectionId, filteredProfiles, selectedProfile, selectProfile]);
 
-  useEffect(() => {
-    let active = true;
-    void callCommand<ProfileSummary[]>('profile_list_summaries')
-      .then((rows) => {
-        if (!active) {
-          return;
-        }
-        const next: Record<string, boolean> = {};
-        for (const row of rows) {
-          next[row.name] = row.networkIsolation;
-        }
-        setProfileNetworkIsolation(next);
-      })
-      .catch(() => {
-        if (active) {
-          setProfileNetworkIsolation({});
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [profiles]);
-
   const showFlatpakNetworkIsolationBadge = useCallback(
-    (profileName: string) => {
+    (candidateProfileName: string) => {
       if (
         !launchPlatform?.isFlatpak ||
         launchPlatform.unshareNetAvailable ||
-        !profileName.trim()
+        !candidateProfileName.trim()
       ) {
         return false;
       }
-      return profileNetworkIsolation[profileName] === true;
+
+      if (candidateProfileName.trim() === selectedProfile.trim()) {
+        return profile.launch.network_isolation ?? true;
+      }
+
+      return profileNetworkIsolation[candidateProfileName] === true;
     },
-    [launchPlatform, profileNetworkIsolation]
+    [launchPlatform, profile.launch.network_isolation, profileNetworkIsolation, selectedProfile]
   );
 
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);

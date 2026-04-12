@@ -10,16 +10,16 @@ function normalizeHostDialogPath(path: string | null): string | null {
     return null;
   }
 
-  const trimmed = path.trim();
-  if (trimmed === '/run/host') {
+  if (path === '/run/host' || path === '/run/host/') {
     return '/';
   }
 
-  if (trimmed.startsWith('/run/host/')) {
-    return `/${trimmed.slice('/run/host/'.length).replace(/^\/+/, '')}`;
+  if (path.startsWith('/run/host/')) {
+    const remainder = path.slice('/run/host/'.length);
+    return `/${remainder.replace(/^\/+/, '')}`;
   }
 
-  return trimmed;
+  return path;
 }
 
 async function resolveDialogPath(path: string | null): Promise<string | null> {

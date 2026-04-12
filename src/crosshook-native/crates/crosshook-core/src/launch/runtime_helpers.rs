@@ -22,6 +22,10 @@ pub struct ResolvedProtonPaths {
     pub compat_data_path: PathBuf,
 }
 
+fn normalize_host_command_entry(raw_entry: &str) -> String {
+    normalize_flatpak_host_path(raw_entry).trim().to_string()
+}
+
 /// Builds a direct Proton `run` command with wrappers, threading `env` through
 /// [`host_command_with_env`] so Flatpak preserves `WINEPREFIX` / `STEAM_COMPAT_*`.
 pub fn build_direct_proton_command_with_wrappers(
@@ -38,19 +42,22 @@ pub fn build_direct_proton_command_with_wrappers_in_directory(
     env: &BTreeMap<String, String>,
     working_directory: Option<&str>,
 ) -> Command {
-    let normalized_proton = normalize_flatpak_host_path(proton_path);
-    let trimmed_proton = normalized_proton.trim();
+    let trimmed_proton = normalize_host_command_entry(proton_path);
+    let normalized_wrappers = wrappers
+        .iter()
+        .map(|wrapper| normalize_host_command_entry(wrapper))
+        .collect::<Vec<_>>();
     if wrappers.is_empty() {
         let mut command =
-            host_command_with_env_and_directory(trimmed_proton, env, working_directory);
+            host_command_with_env_and_directory(trimmed_proton.as_str(), env, working_directory);
         command.arg("run");
         return command;
     }
 
     let mut command =
-        host_command_with_env_and_directory(wrappers[0].trim(), env, working_directory);
-    for wrapper in wrappers.iter().skip(1) {
-        command.arg(wrapper.trim());
+        host_command_with_env_and_directory(normalized_wrappers[0].as_str(), env, working_directory);
+    for wrapper in normalized_wrappers.iter().skip(1) {
+        command.arg(wrapper);
     }
     command.arg(trimmed_proton);
     command.arg("run");
@@ -147,7 +154,7 @@ pub fn build_proton_command_with_gamescope_in_directory(
     env: &BTreeMap<String, String>,
     working_directory: Option<&str>,
 ) -> Command {
-    let normalized_proton = normalize_flatpak_host_path(proton_path);
+    let normalized_proton = normalize_host_command_entry(proton_path);
     let mut command =
         host_command_with_env_and_directory("gamescope", env, working_directory);
     for arg in gamescope_args {
@@ -155,9 +162,9 @@ pub fn build_proton_command_with_gamescope_in_directory(
     }
     command.arg("--");
     for wrapper in wrappers {
-        command.arg(wrapper.trim());
+        command.arg(normalize_host_command_entry(wrapper));
     }
-    command.arg(normalized_proton.trim());
+    command.arg(normalized_proton);
     command.arg("run");
     command
 }
@@ -612,5 +619,59 @@ mod tests {
         );
 
         assert_eq!(resolved, Some(default_root.to_string_lossy().into_owned()));
+    }
+
+    #[test]
+    fn direct_proton_command_normalizes_wrappers_and_proton_path() {
+        let command = build_direct_proton_command_with_wrappers(
+            "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
+            &[
+                " /run/host/usr/bin/env ".to_string(),
+                " /run/host/usr/bin/mangohud ".to_string(),
+            ],
+            &BTreeMap::new(),
+        );
+
+        assert_eq!(command.as_std().get_program(), "/usr/bin/env");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            vec![
+                "/usr/bin/mangohud".to_string(),
+                "/usr/share/steam/compatibilitytools.d/proton/proton".to_string(),
+                "run".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn gamescope_proton_command_normalizes_wrappers_and_proton_path() {
+        let command = build_proton_command_with_gamescope(
+            "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
+            &[" /run/host/usr/bin/mangohud ".to_string()],
+            &["-f".to_string()],
+            &BTreeMap::new(),
+        );
+
+        assert_eq!(command.as_std().get_program(), "gamescope");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            vec![
+                "-f".to_string(),
+                "--".to_string(),
+                "/usr/bin/mangohud".to_string(),
+                "/usr/share/steam/compatibilitytools.d/proton/proton".to_string(),
+                "run".to_string(),
+            ]
+        );
     }
 }

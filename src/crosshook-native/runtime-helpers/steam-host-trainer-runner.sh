@@ -180,6 +180,7 @@ stage_trainer_into_compatdata() {
   stage_trainer_support_files "$trainer_source_dir" "$staged_trainer_directory_path" "$trainer_file_name" "$trainer_base_name"
 
   trainer_path="$staged_trainer_windows_path"
+  run_directory="$staged_trainer_directory_path"
   log "Staged Steam trainer to $trainer_path"
 }
 
@@ -304,12 +305,12 @@ unset VKD3D_CONFIG VKD3D_DEBUG
 export STEAM_COMPAT_DATA_PATH="$compatdata"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam_client"
 export WINEPREFIX="$compatdata/pfx"
-run_directory="$(dirname "$trainer_host_path")"
 
 if [[ "$trainer_loading_mode" == "copy_to_prefix" ]]; then
   stage_trainer_into_compatdata
 else
   trainer_path="$trainer_host_path"
+  run_directory="$(dirname "$trainer_host_path")"
   log "Using trainer from source directory: $trainer_path"
   cd "$run_directory"
   log "Changed trainer working directory to $(pwd)"

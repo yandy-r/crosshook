@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
+use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -9,7 +10,9 @@ use super::optimizations::{
     is_command_available, resolve_launch_directives, resolve_launch_directives_for_method,
 };
 use crate::platform::{
-    normalize_flatpak_host_path, normalized_path_is_dir, normalized_path_is_executable_file,
+    normalize_flatpak_host_path, normalized_path_exists_on_host, normalized_path_is_dir,
+    normalized_path_is_dir_on_host, normalized_path_is_executable_file,
+    normalized_path_is_executable_file_on_host, normalized_path_is_file_on_host,
 };
 use crate::profile::{GamescopeConfig, MangoHudConfig, TrainerLoadingMode};
 
@@ -1080,18 +1083,16 @@ fn require_game_path_if_needed(
         return Ok(());
     }
 
-    let normalized_game_path = normalize_flatpak_host_path(&request.game_path);
-    let game_path = normalized_game_path.trim();
+    let game_path = request.game_path.trim();
     if game_path.is_empty() {
         return Err(ValidationError::GamePathRequired);
     }
 
     if must_exist {
-        let path = Path::new(game_path);
-        if !path.exists() {
+        if !path_exists_visible_or_host(&request.game_path) {
             return Err(ValidationError::GamePathMissing);
         }
-        if !path.is_file() {
+        if !path_is_file_visible_or_host(&request.game_path) {
             return Err(ValidationError::GamePathNotFile);
         }
     }
@@ -1108,17 +1109,15 @@ fn require_trainer_paths_if_needed(request: &LaunchRequest) -> Result<(), Valida
         return Err(ValidationError::TrainerPathRequired);
     }
 
-    let normalized_trainer_host_path = normalize_flatpak_host_path(&request.trainer_host_path);
-    let trainer_host_path = normalized_trainer_host_path.trim();
+    let trainer_host_path = request.trainer_host_path.trim();
     if trainer_host_path.is_empty() {
         return Err(ValidationError::TrainerHostPathRequired);
     }
 
-    let trainer_host = Path::new(trainer_host_path);
-    if !trainer_host.exists() {
+    if !path_exists_visible_or_host(&request.trainer_host_path) {
         return Err(ValidationError::TrainerHostPathMissing);
     }
-    if !trainer_host.is_file() {
+    if !path_is_file_visible_or_host(&request.trainer_host_path) {
         return Err(ValidationError::TrainerHostPathNotFile);
     }
 
@@ -1135,10 +1134,8 @@ pub(crate) fn require_directory(
         return Err(required_error);
     }
 
-    let normalized_value = normalize_flatpak_host_path(value);
-    let path = Path::new(normalized_value.trim());
-    if !normalized_path_is_dir(normalized_value.trim()) {
-        if !path.exists() {
+    if !path_is_dir_visible_or_host(value) {
+        if !path_exists_visible_or_host(value) {
             return Err(missing_error);
         }
         return Err(not_directory_error);
@@ -1157,16 +1154,101 @@ pub(crate) fn require_executable_file(
         return Err(required_error);
     }
 
-    let normalized_value = normalize_flatpak_host_path(value);
-    let path = Path::new(normalized_value.trim());
-    if !normalized_path_is_executable_file(normalized_value.trim()) {
-        if !path.exists() {
+    if !path_is_executable_visible_or_host(value) {
+        if !path_exists_visible_or_host(value) {
             return Err(missing_error);
         }
         return Err(not_executable_error);
     }
 
     Ok(())
+}
+
+fn normalized_host_probe_path(raw_path: &str) -> String {
+    normalize_flatpak_host_path(raw_path).trim().to_string()
+}
+
+fn path_exists_visible_or_host(raw_path: &str) -> bool {
+    let original = raw_path.trim();
+    if original.is_empty() {
+        return false;
+    }
+
+    if Path::new(original).exists() {
+        return true;
+    }
+
+    let normalized = normalized_host_probe_path(raw_path);
+    !normalized.is_empty()
+        && (Path::new(&normalized).exists() || normalized_path_exists_on_host(&normalized))
+}
+
+fn path_is_file_visible_or_host(raw_path: &str) -> bool {
+    let original = raw_path.trim();
+    if original.is_empty() {
+        return false;
+    }
+
+    if Path::new(original).is_file() {
+        return true;
+    }
+
+    let normalized = normalized_host_probe_path(raw_path);
+    !normalized.is_empty()
+        && (Path::new(&normalized).is_file() || normalized_path_is_file_on_host(&normalized))
+}
+
+fn path_is_dir_visible_or_host(raw_path: &str) -> bool {
+    let original = raw_path.trim();
+    if original.is_empty() {
+        return false;
+    }
+
+    if Path::new(original).is_dir() {
+        return true;
+    }
+
+    let normalized = normalized_host_probe_path(raw_path);
+    !normalized.is_empty()
+        && (normalized_path_is_dir(normalized.as_str())
+            || normalized_path_is_dir_on_host(normalized.as_str()))
+}
+
+fn path_is_executable_visible_or_host(raw_path: &str) -> bool {
+    let original = raw_path.trim();
+    if original.is_empty() {
+        return false;
+    }
+
+    if path_is_executable_file(original) {
+        return true;
+    }
+
+    let normalized = normalized_host_probe_path(raw_path);
+    !normalized.is_empty()
+        && (normalized_path_is_executable_file(normalized.as_str())
+            || normalized_path_is_executable_file_on_host(normalized.as_str()))
+}
+
+fn path_is_executable_file(path: &str) -> bool {
+    let path = Path::new(path);
+    let Ok(metadata) = fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+
+    #[cfg(not(unix))]
+    {
+        true
+    }
 }
 
 fn looks_like_windows_executable(path: &str) -> bool {

@@ -64,6 +64,18 @@ fn should_skip_gamescope(config: &GamescopeConfig) -> bool {
     !config.allow_nested && std::env::var("GAMESCOPE_WAYLAND_DISPLAY").is_ok()
 }
 
+fn build_flatpak_unshare_bash_command(
+    script_path: &Path,
+    env: &BTreeMap<String, String>,
+) -> std::io::Result<Command> {
+    let script_contents = fs::read_to_string(script_path)?;
+    let mut cmd = host_command_with_env("unshare", env);
+    cmd.args(["--user", "--net", BASH_EXECUTABLE, "-c"]);
+    cmd.arg(script_contents);
+    cmd.arg("--");
+    Ok(cmd)
+}
+
 /// Injects `MANGOHUD_CONFIGFILE` (and optionally `MANGOHUD_CONFIG=read_cfg`) into a command when
 /// the profile has MangoHud config enabled.
 ///
@@ -137,7 +149,7 @@ pub fn build_helper_command(
     request: &LaunchRequest,
     script_path: &Path,
     log_path: &Path,
-) -> Command {
+) -> std::io::Result<Command> {
     let mut env = host_environment_map();
     merge_steam_helper_env_into(&mut env, request);
     merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
@@ -163,10 +175,7 @@ pub fn build_helper_command(
         && super::runtime_helpers::is_unshare_net_available()
     {
         if platform::is_flatpak() {
-            let mut cmd = host_command_with_env("unshare", &env);
-            cmd.args(["--user", "--net", BASH_EXECUTABLE]);
-            cmd.arg(script_path);
-            cmd
+            build_flatpak_unshare_bash_command(script_path, &env)?
         } else {
             let mut cmd = Command::new("unshare");
             cmd.envs(&env);
@@ -186,14 +195,14 @@ pub fn build_helper_command(
         resolved_proton_path.trim(),
         normalized_steam_client_install_path.trim(),
     ));
-    command
+    Ok(command)
 }
 
 pub fn build_trainer_command(
     request: &LaunchRequest,
     script_path: &Path,
     log_path: &Path,
-) -> Command {
+) -> std::io::Result<Command> {
     let mut env = host_environment_map();
     merge_steam_helper_env_into(&mut env, request);
     merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
@@ -216,10 +225,7 @@ pub fn build_trainer_command(
     let mut command =
         if request.network_isolation && super::runtime_helpers::is_unshare_net_available() {
             if platform::is_flatpak() {
-                let mut cmd = host_command_with_env("unshare", &env);
-                cmd.args(["--user", "--net", BASH_EXECUTABLE]);
-                cmd.arg(script_path);
-                cmd
+                build_flatpak_unshare_bash_command(script_path, &env)?
             } else {
                 let mut cmd = Command::new("unshare");
                 cmd.envs(&env);
@@ -239,7 +245,7 @@ pub fn build_trainer_command(
         resolved_proton_path.trim(),
         normalized_steam_client_install_path.trim(),
     ));
-    command
+    Ok(command)
 }
 
 pub fn build_proton_game_command(
@@ -1039,7 +1045,8 @@ mod tests {
         let log_path = temp_dir.path().join("log.txt");
         let request = steam_request();
 
-        let command = build_helper_command(&request, &script_path, &log_path);
+        let command = build_helper_command(&request, &script_path, &log_path)
+            .expect("helper command");
 
         let args = command
             .as_std()
@@ -1087,7 +1094,8 @@ mod tests {
         let log_path = temp_dir.path().join("trainer.log");
         let request = steam_request();
 
-        let command = build_trainer_command(&request, &script_path, &log_path);
+        let command = build_trainer_command(&request, &script_path, &log_path)
+            .expect("trainer command");
 
         let args = command
             .as_std()
@@ -1126,7 +1134,8 @@ mod tests {
         write_steam_client_root(&steam_root);
 
         let proton_path =
-            "/usr/share/steam/compatibilitytools.d/Proton-CachyOS-SLR/proton".to_string();
+            "/usr/share/steam/compatibilitytools.d/crosshook-missing-system-tool/proton"
+                .to_string();
 
         let resolved = resolve_launch_proton_path_with_mode(
             &proton_path,
@@ -1360,7 +1369,8 @@ mod tests {
         };
         request.trainer_gamescope = Some(crate::profile::GamescopeConfig::default());
 
-        let command = build_trainer_command(&request, &script_path, &log_path);
+        let command = build_trainer_command(&request, &script_path, &log_path)
+            .expect("trainer command");
         let args = command
             .as_std()
             .get_args()

@@ -536,6 +536,56 @@ pub fn normalized_path_is_executable_file(path: &str) -> bool {
     }
 }
 
+fn normalized_path_host_test(path: &str, flag: &str) -> bool {
+    let normalized = normalize_flatpak_host_path(path);
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let path = Path::new(trimmed);
+    if !is_flatpak() {
+        return match flag {
+            "-e" => path.exists(),
+            "-f" => path.is_file(),
+            "-d" => path.is_dir(),
+            "-x" => is_executable_file_sync(path),
+            _ => false,
+        };
+    }
+
+    if !path.is_absolute() {
+        return false;
+    }
+
+    let mut cmd = host_std_command("test");
+    cmd.arg(flag).arg(path);
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
+    cmd.status().map(|status| status.success()).unwrap_or(false)
+}
+
+/// Returns whether `path` exists on the host-visible filesystem after Flatpak normalization.
+pub fn normalized_path_exists_on_host(path: &str) -> bool {
+    normalized_path_host_test(path, "-e")
+}
+
+/// Returns whether `path` is a regular file on the host-visible filesystem after Flatpak normalization.
+pub fn normalized_path_is_file_on_host(path: &str) -> bool {
+    normalized_path_host_test(path, "-f")
+}
+
+/// Returns whether `path` is a directory on the host-visible filesystem after Flatpak normalization.
+pub fn normalized_path_is_dir_on_host(path: &str) -> bool {
+    normalized_path_host_test(path, "-d")
+}
+
+/// Returns whether `path` is an executable regular file on the host-visible filesystem after Flatpak normalization.
+pub fn normalized_path_is_executable_file_on_host(path: &str) -> bool {
+    normalized_path_host_test(path, "-f") && normalized_path_host_test(path, "-x")
+}
+
 /// Indirection for env-var access so unit tests can observe writes and
 /// inject reads without mutating the real process environment.
 trait EnvSink {
@@ -728,6 +778,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn normalize_flatpak_host_path_resolves_document_portal_host_path_xattr() {
         let temp_dir = tempdir().unwrap();

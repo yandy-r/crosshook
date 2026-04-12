@@ -1,5 +1,23 @@
 # Task Plan
 
+## 2026-04-12 - verify follow-up flatpak/process review findings
+
+- [x] Verify each cited finding against the current code and document which ones are still valid.
+- [x] Apply minimal fixes only for findings that still reproduce in the current tree.
+- [x] Run focused validation for touched Rust/TS/docs surfaces and record the outcome.
+
+### Review
+
+- Verified every cited finding against the current tree before editing. Fifteen findings were still valid and were patched across docs, Rust backend, helper shell, and frontend state handling. One cited mock finding was already stale: `launch_platform_status` intentionally serializes as camelCase in Rust via `#[serde(rename_all = "camelCase")]`, so the existing browser-dev mock shape already matched production and was left unchanged.
+- Added shared Flatpak host-path probes for existence/file/dir/executable checks, then reused them where the current code was incorrectly normalizing to host paths too early or falling back to sandbox-local `Path::exists()` checks. That covered install prefix validation, launch request validation, and profile health checks without changing unrelated persistence or launch contracts.
+- Hardened process construction and cancellation paths: wrapper entries are now normalized before host execution, Flatpak `unshare` host launches read helper script contents instead of passing unreadable sandbox paths, non-zero `lspci` exits now surface as failures instead of “no GPU found,” trainer staging updates the runtime working directory, launch-log streaming no longer aborts early on UI emit failures, and update cancellation only clears the tracked PID after a successful `kill`.
+- Adjusted Proton/tooling behavior to preserve configured compat-tool paths unless discovery proves they are missing, emit ambiguity diagnostics instead of silently rewriting across multiple local matches, and added focused regression tests for wrapper normalization plus launcher-export path normalization.
+- Verification:
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+  - `bash -n src/crosshook-native/runtime-helpers/steam-host-trainer-runner.sh`
+  - `git diff --check` still reports `indent-with-non-tab` because this repo’s Git whitespace config expects tabs while the existing Rust/TS sources in `HEAD` are already space-indented; no trailing-whitespace or syntax issues remained after the code changes.
+
 ## 2026-04-12 - flatpak system proton helper regression
 
 - [x] Replace sandbox-side helper validation/canonicalization for host-only Proton and Steam client paths with Flatpak-aware host probes.
