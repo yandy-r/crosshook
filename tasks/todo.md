@@ -1,5 +1,23 @@
 # Task Plan
 
+## 2026-04-12 - fix lint workflow biome regressions
+
+- [x] Confirm the reported Biome findings against the current frontend sources.
+- [x] Patch the affected components, hook cleanup, and pipeline helper typing without changing behavior.
+- [x] Run focused frontend lint/type verification and record the outcome.
+
+### Review
+
+- Confirmed the newly reported findings were real in the current tree: unsupported `aria-label` usage on generic spans, a faux-button span in the pinned profile strip, a `forEach` cleanup callback returning a value, an array-index note key, a non-memoized update cleanup listener, and `issuesByNode!` non-null assertions in the pipeline node derivation.
+- Replaced unsupported ARIA on [OfflineStatusBadge.tsx](/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/components/OfflineStatusBadge.tsx:85) with a `title`, converted the pinned-strip unpin affordance to a real button in [PinnedProfilesStrip.tsx](/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/components/PinnedProfilesStrip.tsx:33) and reset its default browser chrome in [theme.css](/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/styles/theme.css:2123).
+- Cleaned the ProtonDB card by making the timeout cleanup callback statement-only and replacing the note index key with a content-derived key in [ProtonDbLookupCard.tsx](/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/components/ProtonDbLookupCard.tsx:83), memoized `cleanupListener` in [useUpdateGame.ts](/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/hooks/useUpdateGame.ts:104), and removed the preview-map non-null assertions in [derivePipelineNodes.ts](/home/yandy/Projects/github.com/yandy-r/crosshook/src/crosshook-native/src/utils/derivePipelineNodes.ts:24).
+- A follow-up full `biome ci src/` run exposed an unrelated formatter mismatch in `ProfilesPage.tsx`; formatting that file cleared the only error. The repository still reports 106 Biome warnings outside this patch set, but the CI lint step now exits successfully because those warnings are not configured as errors.
+- Verification:
+  - `npx @biomejs/biome check src/components/OfflineStatusBadge.tsx src/components/PinnedProfilesStrip.tsx src/components/ProtonDbLookupCard.tsx src/hooks/useUpdateGame.ts src/utils/derivePipelineNodes.ts src/styles/theme.css` in `src/crosshook-native`
+  - `npx @biomejs/biome format --write src/components/pages/ProfilesPage.tsx` in `src/crosshook-native`
+  - `npx @biomejs/biome ci src/` in `src/crosshook-native`
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
 ## 2026-04-12 - fix lint workflow first-run TypeScript failures
 
 - [x] Confirm the TypeScript failures against the current frontend sources and config.

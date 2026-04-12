@@ -21,7 +21,9 @@ export function derivePipelineNodes(
   phase: LaunchPhase
 ): PipelineNode[] {
   const ids = METHOD_NODE_IDS[method];
-  const issuesByNode = preview ? groupIssuesByNode(preview.validation.issues) : null;
+  const issuesByNode = preview
+    ? groupIssuesByNode(preview.validation.issues)
+    : new Map<PipelineNodeId, LaunchValidationIssue[]>();
   const baseNodes: PipelineNode[] = [];
 
   for (let i = 0; i < ids.length; i += 1) {
@@ -29,9 +31,9 @@ export function derivePipelineNodes(
     const label = NODE_DEFS[id]?.label ?? id;
 
     if (preview && id === 'launch') {
-      baseNodes.push(buildLaunchNode(label, baseNodes, preview, issuesByNode!));
+      baseNodes.push(buildLaunchNode(label, baseNodes, preview, issuesByNode));
     } else if (preview && id !== 'launch') {
-      baseNodes.push(buildTier2Node(id, label, preview, issuesByNode!));
+      baseNodes.push(buildTier2Node(id, label, preview, issuesByNode));
     } else if (id === 'launch') {
       const prior = ids.slice(0, i);
       const allPriorConfigured = prior.every((pid) => tier1Status(pid, profile, method) === 'configured');

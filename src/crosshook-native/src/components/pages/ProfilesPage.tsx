@@ -634,7 +634,9 @@ export function ProfilesPage() {
           trend={selectedTrend}
           tooltip={issueTooltip}
           onClick={
-            issueCount > 0 ? () => healthIssuesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : undefined
+            issueCount > 0
+              ? () => healthIssuesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              : undefined
           }
         />
       );

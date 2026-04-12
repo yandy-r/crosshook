@@ -30,9 +30,8 @@ export function PinnedProfilesStrip({
               >
                 <span className="crosshook-pinned-strip__chip-name">{name}</span>
               </button>
-              <span
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
                 className="crosshook-pinned-strip__unpin"
                 aria-label={`Unpin ${name}`}
                 title="Remove from pinned"
@@ -40,16 +39,9 @@ export function PinnedProfilesStrip({
                   e.stopPropagation();
                   void onToggleFavorite(name, false);
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    void onToggleFavorite(name, false);
-                  }
-                }}
               >
                 &times;
-              </span>
+              </button>
             </div>
           );
         })}

@@ -85,7 +85,7 @@ export function OfflineStatusBadge({
     <span
       className={`crosshook-status-chip crosshook-offline-badge crosshook-offline-badge--${classSuffix}${compact ? ' crosshook-offline-badge--compact' : ''}`}
       data-crosshook-focus-root="true"
-      aria-label={aria}
+      title={aria}
       style={{
         border: `1px solid ${border}`,
         background,

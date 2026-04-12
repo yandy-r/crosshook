@@ -82,7 +82,9 @@ export function ProtonDbLookupCard({
 
   useEffect(() => {
     return () => {
-      copyTimeouts.current.forEach((id) => clearTimeout(id));
+      copyTimeouts.current.forEach((id) => {
+        clearTimeout(id);
+      });
     };
   }, []);
   const { snapshot, cache, recommendationGroups } = lookup;
@@ -311,8 +313,11 @@ export function ProtonDbLookupCard({
 
         {notes.length > 0 ? (
           <div className="crosshook-protondb-card__recommendation-list">
-            {notes.map((note, index) => (
-              <div key={`${groupId}:note:${index}`} className="crosshook-protondb-card__recommendation-item">
+            {notes.map((note) => (
+              <div
+                key={`${groupId}:note:${note.kind}:${note.source_label ?? ''}:${note.text ?? ''}`}
+                className="crosshook-protondb-card__recommendation-item"
+              >
                 <p className="crosshook-protondb-card__recommendation-note">{note.text}</p>
                 {note.source_label ? (
                   <p className="crosshook-protondb-card__recommendation-note">{note.source_label}</p>

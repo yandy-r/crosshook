@@ -101,10 +101,10 @@ export function useUpdateGame(): UseUpdateGameResult {
   const [profileCoverSource, setProfileCoverSource] = useState<UpdateGameProfileCoverSource | null>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
 
-  function cleanupListener() {
+  const cleanupListener = useCallback(() => {
     unlistenRef.current?.();
     unlistenRef.current = null;
-  }
+  }, []);
 
   const loadProfiles = useCallback(async () => {
     setIsLoadingProfiles(true);

@@ -2126,6 +2126,9 @@ textarea {
   justify-content: center;
   width: 20px;
   height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   border-radius: 50%;
   font-size: 0.85rem;
   line-height: 1;
