@@ -573,8 +573,7 @@ async fn stream_log_lines(
                     for line in chunk.lines() {
                         if !line.is_empty() {
                             if let Err(error) = app.emit("launch-log", line.to_string()) {
-                                tracing::warn!(%error, "failed to emit launch log line; stopping stream");
-                                return;
+                                tracing::warn!(%error, "failed to emit launch log line; continuing stream");
                             }
                         }
                     }
@@ -607,7 +606,6 @@ async fn stream_log_lines(
             for line in content[last_len..].lines().filter(|l| !l.is_empty()) {
                 if let Err(error) = app.emit("launch-log", line.to_string()) {
                     tracing::warn!(%error, "failed to emit final launch log line");
-                    break;
                 }
             }
         }

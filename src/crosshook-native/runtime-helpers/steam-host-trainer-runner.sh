@@ -308,6 +308,10 @@ export WINEPREFIX="$compatdata/pfx"
 
 if [[ "$trainer_loading_mode" == "copy_to_prefix" ]]; then
   stage_trainer_into_compatdata
+  trainer_path="$staged_trainer_host_path"
+  cd "$run_directory" || fail "Failed to cd to staged trainer directory: $run_directory"
+  log "Changed trainer working directory to $(pwd)"
+  run_directory="$PWD"
 else
   trainer_path="$trainer_host_path"
   run_directory="$(dirname "$trainer_host_path")"

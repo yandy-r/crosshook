@@ -50,11 +50,12 @@ pub fn build_direct_proton_command_with_wrappers_in_directory(
     custom_env_vars: &BTreeMap<String, String>,
 ) -> Command {
     let trimmed_proton = normalize_host_command_entry(proton_path);
-    let normalized_wrappers = wrappers
+    let normalized_wrappers: Vec<_> = wrappers
         .iter()
         .map(|wrapper| normalize_host_command_entry(wrapper))
-        .collect::<Vec<_>>();
-    if wrappers.is_empty() {
+        .filter(|entry| !entry.is_empty())
+        .collect();
+    if normalized_wrappers.is_empty() {
         let mut command = host_command_with_env_and_directory(
             trimmed_proton.as_str(),
             env,
@@ -183,7 +184,10 @@ pub fn build_proton_command_with_gamescope_in_directory(
     }
     command.arg("--");
     for wrapper in wrappers {
-        command.arg(normalize_host_command_entry(wrapper));
+        let entry = normalize_host_command_entry(wrapper);
+        if !entry.is_empty() {
+            command.arg(entry);
+        }
     }
     command.arg(normalized_proton);
     command.arg("run");
@@ -640,6 +644,23 @@ mod tests {
         );
 
         assert_eq!(resolved, Some(default_root.to_string_lossy().into_owned()));
+    }
+
+    #[test]
+    fn direct_proton_command_skips_empty_wrappers() {
+        let command = build_direct_proton_command_with_wrappers(
+            "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
+            &["   ".to_string(), " \t ".to_string()],
+            &BTreeMap::new(),
+        );
+
+        assert_eq!(command.as_std().get_program(), "/usr/share/steam/compatibilitytools.d/proton/proton");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(args, vec!["run".to_string()]);
     }
 
     #[test]

@@ -82,7 +82,6 @@ pub async fn cancel_update(state: tauri::State<'_, UpdateProcessState>) -> Resul
                 "failed to signal updater process {pid}: kill exited with {status}"
             ));
         }
-        *state.pid.lock().unwrap() = None;
     }
 
     Ok(())

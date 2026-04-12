@@ -1168,7 +1168,7 @@ fn normalized_host_probe_path(raw_path: &str) -> String {
     normalize_flatpak_host_path(raw_path).trim().to_string()
 }
 
-fn path_exists_visible_or_host(raw_path: &str) -> bool {
+pub(crate) fn path_exists_visible_or_host(raw_path: &str) -> bool {
     let original = raw_path.trim();
     if original.is_empty() {
         return false;
@@ -1214,7 +1214,7 @@ fn path_is_dir_visible_or_host(raw_path: &str) -> bool {
             || normalized_path_is_dir_on_host(normalized.as_str()))
 }
 
-fn path_is_executable_visible_or_host(raw_path: &str) -> bool {
+pub(crate) fn path_is_executable_visible_or_host(raw_path: &str) -> bool {
     let original = raw_path.trim();
     if original.is_empty() {
         return false;

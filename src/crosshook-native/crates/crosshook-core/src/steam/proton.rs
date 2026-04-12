@@ -233,11 +233,15 @@ fn prefer_user_local_compat_tool_path_with_roots<I>(
 where
     I: IntoIterator<Item = PathBuf>,
 {
-    if !path_is_under_any_root(configured_proton_path, &system_roots) {
+    let normalized_path = PathBuf::from(
+        platform::normalize_flatpak_host_path(&configured_proton_path.to_string_lossy()).trim(),
+    );
+
+    if !path_is_under_any_root(&normalized_path, &system_roots) {
         return configured_proton_path.to_path_buf();
     }
 
-    let Some(requested_tool_name) = configured_proton_path
+    let Some(requested_tool_name) = normalized_path
         .parent()
         .and_then(|path| path.file_name())
         .and_then(|value| value.to_str())
@@ -250,16 +254,21 @@ where
     let installed_tools =
         discover_compat_tools_with_roots(steam_root_candidates, system_roots.clone(), diagnostics);
     let matching_tools = resolve_compat_tool_by_name(requested_tool_name, &installed_tools);
-    if matching_tools
-        .iter()
-        .any(|tool| tool.path == configured_proton_path)
-    {
+    if matching_tools.iter().any(|tool| {
+        PathBuf::from(platform::normalize_flatpak_host_path(&tool.path.to_string_lossy()).trim())
+            == normalized_path
+    }) {
         return configured_proton_path.to_path_buf();
     }
 
     let local_matches = matching_tools
         .iter()
-        .filter(|tool| !path_is_under_any_root(&tool.path, &system_roots))
+        .filter(|tool| {
+            let tool_path = PathBuf::from(
+                platform::normalize_flatpak_host_path(&tool.path.to_string_lossy()).trim(),
+            );
+            !path_is_under_any_root(&tool_path, &system_roots)
+        })
         .collect::<Vec<_>>();
     if let [preferred_tool] = local_matches.as_slice() {
         diagnostics.push(format!(

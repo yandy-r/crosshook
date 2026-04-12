@@ -5,6 +5,7 @@ use directories::BaseDirs;
 use tokio::process::Command;
 use tokio::runtime::Handle;
 
+use crate::launch::request::{path_exists_visible_or_host, path_is_executable_visible_or_host};
 use crate::launch::runtime_helpers::{
     apply_working_directory, attach_log_stdio,
     build_direct_proton_command_with_wrappers_in_directory, host_environment_map,
@@ -12,7 +13,7 @@ use crate::launch::runtime_helpers::{
 };
 use crate::platform::{
     normalize_flatpak_host_path, normalized_path_exists_on_host, normalized_path_is_dir,
-    normalized_path_is_dir_on_host, normalized_path_is_executable_file, normalized_path_is_file,
+    normalized_path_is_dir_on_host, normalized_path_is_file,
 };
 use crate::profile::validate_name;
 
@@ -275,15 +276,14 @@ fn validate_proton_path(path: &str) -> Result<(), InstallGameValidationError> {
         return Err(InstallGameValidationError::ProtonPathRequired);
     }
 
-    let path = Path::new(normalized_path.trim());
-    if !normalized_path_is_executable_file(normalized_path.trim()) {
-        if !path.exists() {
-            return Err(InstallGameValidationError::ProtonPathMissing);
-        }
-        return Err(InstallGameValidationError::ProtonPathNotExecutable);
+    if path_is_executable_visible_or_host(path) {
+        return Ok(());
     }
 
-    Ok(())
+    if !path_exists_visible_or_host(path) {
+        return Err(InstallGameValidationError::ProtonPathMissing);
+    }
+    Err(InstallGameValidationError::ProtonPathNotExecutable)
 }
 
 fn validate_optional_installed_game_executable_path(
