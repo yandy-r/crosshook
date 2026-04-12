@@ -30,7 +30,7 @@ const INSTALL_FLOW_TAB_LABELS: Record<InstallFlowTabId, string> = {
 };
 
 function isInstallFlowTabId(value: string): value is InstallFlowTabId {
-  return Object.hasOwn(INSTALL_FLOW_TAB_LABELS, value);
+  return Object.prototype.hasOwnProperty.call(INSTALL_FLOW_TAB_LABELS, value);
 }
 
 function InstallFlowTabContent({

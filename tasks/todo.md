@@ -1,5 +1,19 @@
 # Task Plan
 
+## 2026-04-12 - fix lint workflow first-run TypeScript failures
+
+- [x] Confirm the TypeScript failures against the current frontend sources and config.
+- [x] Patch the ES2020-incompatible `Object.hasOwn` usage and the `HealthBadge` call-site typing mismatch.
+- [x] Run focused frontend verification and record the outcome.
+
+### Review
+
+- Confirmed the workflow failure was not a GitHub-only environment issue: `src/crosshook-native/tsconfig.json` targets `ES2020`, so `Object.hasOwn(...)` in `InstallGamePanel.tsx` was invalid for the configured lib, and `ProfilesPage.tsx` was passing a maybe-undefined `status` into `HealthBadge`, which violated the badge's discriminated prop contract.
+- Replaced the tab-id guard with `Object.prototype.hasOwnProperty.call(...)` to stay compatible with the current TS/lib target instead of broadening the project's runtime target just for one helper.
+- Split the profile-health badge rendering into explicit live-report and cached-snapshot branches. Live reports now pass `report={selectedReport}` and `metadata={selectedReport.metadata}` directly to `HealthBadge`, while cached snapshots only render when a concrete cached `status` exists.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
 ## 2026-04-12 - verify follow-up flatpak/process review findings
 
 - [x] Verify each cited finding against the current code and document which ones are still valid.

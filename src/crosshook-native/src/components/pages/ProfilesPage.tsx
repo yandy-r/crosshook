@@ -617,17 +617,36 @@ export function ProfilesPage() {
       return null;
     }
 
-    const badgeStatus = selectedReport ? selectedReport.status : selectedCachedSnapshot?.status;
-    const issueCount = selectedReport?.issues.length ?? selectedCachedSnapshot?.issue_count ?? 0;
-    const issueTooltip =
-      issueCount > 0
-        ? selectedReport
+    if (selectedReport) {
+      const issueCount = selectedReport.issues.length;
+      const issueTooltip =
+        issueCount > 0
           ? `${issueCount} issue${issueCount !== 1 ? 's' : ''}: ${selectedReport.issues
               .slice(0, 3)
               .map((i) => `${i.field} \u2014 ${i.message}`)
               .join('; ')}${issueCount > 3 ? ` (+${issueCount - 3} more)` : ''}`
-          : `${issueCount} issue${issueCount !== 1 ? 's' : ''} in cached snapshot`
-        : null;
+          : null;
+
+      return (
+        <HealthBadge
+          report={selectedReport}
+          metadata={selectedReport.metadata}
+          trend={selectedTrend}
+          tooltip={issueTooltip}
+          onClick={
+            issueCount > 0 ? () => healthIssuesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : undefined
+          }
+        />
+      );
+    }
+
+    const badgeStatus = selectedCachedSnapshot?.status;
+    if (!badgeStatus) {
+      return null;
+    }
+
+    const issueCount = selectedCachedSnapshot.issue_count;
+    const issueTooltip = issueCount > 0 ? `${issueCount} issue${issueCount !== 1 ? 's' : ''} in cached snapshot` : null;
 
     return (
       <HealthBadge
