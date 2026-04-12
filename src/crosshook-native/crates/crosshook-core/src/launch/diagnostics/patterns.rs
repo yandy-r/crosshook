@@ -146,6 +146,21 @@ fn applies_to_method(definition: &FailurePatternDef, method: &str) -> bool {
 }
 
 fn find_matching_line(log_tail: &str, markers: &[&str]) -> Option<String> {
+    if markers.is_empty() {
+        return None;
+    }
+
+    if let Some(line) = log_tail
+        .lines()
+        .find(|line| markers.iter().all(|marker| line.contains(marker)))
+    {
+        return Some(line.to_string());
+    }
+
+    if !markers.iter().all(|marker| log_tail.contains(marker)) {
+        return None;
+    }
+
     log_tail
         .lines()
         .find(|line| markers.iter().any(|marker| line.contains(marker)))
@@ -279,6 +294,18 @@ DXVK: State cache loaded successfully\n";
         assert_eq!(
             matches.last().map(|entry| entry.pattern_id.as_str()),
             Some("pattern-49")
+        );
+    }
+
+    #[test]
+    fn multi_marker_patterns_require_all_markers_somewhere_in_log() {
+        let log = "[gamescope] Directory '/etc/gamescope/scripts' does not exist\n";
+        let matches = scan_log_patterns(log, "proton_run");
+        assert!(
+            !matches
+                .iter()
+                .any(|m| m.pattern_id == "wine_prefix_missing"),
+            "wine_prefix_missing should not match unrelated single-marker lines: {matches:?}"
         );
     }
 }

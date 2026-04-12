@@ -6,8 +6,11 @@ export interface ProfileSummary {
   steamAppId: string;
   customCoverArtPath?: string;
   customPortraitArtPath?: string;
+  /** Effective launch network isolation (for Flatpak capability UI). */
+  networkIsolation: boolean;
 }
 
 export interface LibraryCardData extends ProfileSummary {
   isFavorite: boolean;
 }
+

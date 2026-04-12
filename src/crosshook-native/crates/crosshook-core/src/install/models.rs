@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::platform::normalize_flatpak_host_path;
 use crate::profile::{
     GameProfile, GameSection, LaunchSection, LauncherSection, RuntimeSection, SteamSection,
     TrainerLoadingMode, TrainerSection,
@@ -130,8 +131,14 @@ impl InstallGameRequest {
     pub fn reviewable_profile(&self, prefix_path: &Path) -> GameProfile {
         let method = normalized_install_launch_method(&self.runner_method);
         let prefix_owned = prefix_path.to_string_lossy().into_owned();
-        let proton = self.proton_path.trim().to_string();
-        let icon_path = self.launcher_icon_path.trim().to_string();
+        let proton = normalize_flatpak_host_path(&self.proton_path);
+        let icon_path = normalize_flatpak_host_path(&self.launcher_icon_path);
+        let working_directory = normalize_flatpak_host_path(&self.working_directory);
+        let custom_cover_art_path = normalize_flatpak_host_path(&self.custom_cover_art_path);
+        let custom_portrait_art_path = normalize_flatpak_host_path(&self.custom_portrait_art_path);
+        let custom_background_art_path =
+            normalize_flatpak_host_path(&self.custom_background_art_path);
+        let trainer_path = normalize_flatpak_host_path(&self.trainer_path);
 
         let steam = if method == "steam_applaunch" {
             SteamSection {
@@ -165,14 +172,14 @@ impl InstallGameRequest {
             RuntimeSection {
                 prefix_path: prefix_owned.clone(),
                 proton_path: String::new(),
-                working_directory: self.working_directory.trim().to_string(),
+                working_directory: working_directory.trim().to_string(),
                 steam_app_id: String::new(),
             }
         } else {
             RuntimeSection {
                 prefix_path: prefix_owned.clone(),
                 proton_path: proton.clone(),
-                working_directory: self.working_directory.trim().to_string(),
+                working_directory: working_directory.trim().to_string(),
                 steam_app_id: self.steam_app_id.trim().to_string(),
             }
         };
@@ -181,12 +188,12 @@ impl InstallGameRequest {
             game: GameSection {
                 name: self.resolved_display_name().to_string(),
                 executable_path: String::new(),
-                custom_cover_art_path: self.custom_cover_art_path.trim().to_string(),
-                custom_portrait_art_path: self.custom_portrait_art_path.trim().to_string(),
-                custom_background_art_path: self.custom_background_art_path.trim().to_string(),
+                custom_cover_art_path: custom_cover_art_path.trim().to_string(),
+                custom_portrait_art_path: custom_portrait_art_path.trim().to_string(),
+                custom_background_art_path: custom_background_art_path.trim().to_string(),
             },
             trainer: TrainerSection {
-                path: self.trainer_path.trim().to_string(),
+                path: trainer_path.trim().to_string(),
                 kind: String::new(),
                 loading_mode: TrainerLoadingMode::SourceDirectory,
                 trainer_type: "unknown".to_string(),

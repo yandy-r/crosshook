@@ -9,6 +9,7 @@ import { createContext, useContext, type ReactNode } from 'react';
 
 import { useLaunchState } from '../hooks/useLaunchState';
 import { useProfileContext } from './ProfileContext';
+import { usePreferencesContext } from './PreferencesContext';
 import { buildProfileLaunchRequest } from '../utils/launch';
 
 type LaunchStateContextValue = ReturnType<typeof useLaunchState>;
@@ -17,12 +18,15 @@ const LaunchStateContext = createContext<LaunchStateContextValue | null>(null);
 
 export function LaunchStateProvider({ children }: { children: ReactNode }) {
   const profileState = useProfileContext();
+  const { defaultSteamClientInstallPath } = usePreferencesContext();
   const selectedName = profileState.selectedProfile || '';
   const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
+  const effectiveSteamClientInstallPath =
+    defaultSteamClientInstallPath || profileState.steamClientInstallPath;
   const request = buildProfileLaunchRequest(
     profileState.profile,
     profileState.launchMethod,
-    profileState.steamClientInstallPath,
+    effectiveSteamClientInstallPath,
     selectedName
   );
 

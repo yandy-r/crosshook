@@ -7,13 +7,21 @@
 //! that decision.
 
 use std::collections::BTreeMap;
-use std::ffi::OsString;
+use std::ffi::{CStr, CString, OsString};
+use std::fs::OpenOptions;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::process::{Command as StdCommand, Stdio};
 
 use tokio::process::Command;
+use uuid::Uuid;
 
 const FLATPAK_ID_ENV: &str = "FLATPAK_ID";
 const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
+const FLATPAK_HOST_ROOT_PREFIX: &str = "/run/host";
+const FLATPAK_DOCUMENT_PORTAL_PREFIX: &str = "/run/user/";
+const FLATPAK_DOCUMENT_PORTAL_SEGMENT: &str = "/doc/";
+const DOCUMENT_PORTAL_HOST_PATH_XATTR: &[u8] = b"user.document-portal.host-path\0";
 
 /// Returns `true` when running inside a Flatpak sandbox.
 ///
@@ -22,6 +30,86 @@ const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
 /// and the presence of `/.flatpak-info` (always mounted inside the sandbox).
 pub fn is_flatpak() -> bool {
     is_flatpak_with(FLATPAK_ID_ENV, Path::new(FLATPAK_INFO_PATH))
+}
+
+/// Normalizes a Flatpak host-mount path like `/run/host/usr/bin/foo` back to
+/// the corresponding host path (`/usr/bin/foo`).
+///
+/// This repair is applied unconditionally so paths persisted by the Flatpak
+/// build continue to work when reused later by the native/AppImage build.
+/// Non-Unix paths (for example `C:\Games\foo.exe`) and relative paths are
+/// returned unchanged aside from trimming outer whitespace.
+pub fn normalize_flatpak_host_path(path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    if trimmed == FLATPAK_HOST_ROOT_PREFIX {
+        return "/".to_string();
+    }
+
+    if let Some(stripped) = trimmed.strip_prefix(&format!("{FLATPAK_HOST_ROOT_PREFIX}/")) {
+        return format!("/{}", stripped.trim_start_matches('/'));
+    }
+
+    if let Some(host_path) = read_document_portal_host_path(trimmed) {
+        return host_path;
+    }
+
+    path.to_string()
+}
+
+fn looks_like_document_portal_path(path: &str) -> bool {
+    path.starts_with(FLATPAK_DOCUMENT_PORTAL_PREFIX)
+        && path.contains(FLATPAK_DOCUMENT_PORTAL_SEGMENT)
+}
+
+fn read_document_portal_host_path(path: &str) -> Option<String> {
+    if !looks_like_document_portal_path(path) {
+        return None;
+    }
+
+    read_document_portal_host_path_xattr(path)
+}
+
+fn read_document_portal_host_path_xattr(path: &str) -> Option<String> {
+    #[cfg(target_os = "linux")]
+    {
+        let c_path = CString::new(path.as_bytes()).ok()?;
+        let attr_name = CStr::from_bytes_with_nul(DOCUMENT_PORTAL_HOST_PATH_XATTR).ok()?;
+
+        // SAFETY: `c_path` and `attr_name` are NUL-terminated and live across
+        // both libc calls. We first probe for the required buffer size, then
+        // allocate exactly that many bytes before reading the xattr value.
+        unsafe {
+            let size =
+                nix::libc::getxattr(c_path.as_ptr(), attr_name.as_ptr(), std::ptr::null_mut(), 0);
+            if size <= 0 {
+                return None;
+            }
+
+            let mut buffer = vec![0u8; size as usize];
+            let written = nix::libc::getxattr(
+                c_path.as_ptr(),
+                attr_name.as_ptr(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+            );
+            if written <= 0 {
+                return None;
+            }
+
+            buffer.truncate(written as usize);
+            Some(String::from_utf8_lossy(&buffer).trim().to_string())
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = path;
+        None
+    }
 }
 
 /// Creates a [`tokio::process::Command`] that executes on the host when
@@ -52,14 +140,33 @@ pub fn host_command(program: &str) -> Command {
 ///
 /// Inside Flatpak, `flatpak-spawn --host` does not propagate env vars set via
 /// `.env()` / `.envs()` on the `Command`. This helper threads every entry from
-/// `envs` through explicit `--env=KEY=VALUE` arguments before the program name,
-/// which is the only reliable way to pass env vars through `flatpak-spawn`.
+/// `envs` through explicit `--env=KEY=VALUE` arguments before the program name.
+/// It also uses `--clear-env` so the host child does not inherit sandbox-only
+/// variables that can poison Proton/Wine launches.
 /// Outside Flatpak the vars are forwarded normally via `.envs()`.
 ///
 /// Phase 3 Proton/Wine callers should use this helper unconditionally so the
 /// code behaves correctly in both AppImage and Flatpak deployments.
-pub fn host_command_with_env(program: &str, envs: &BTreeMap<String, String>) -> Command {
-    host_command_with_env_inner(program, envs, is_flatpak())
+/// `custom_env_vars` are user-controlled launch overrides. Under Flatpak they are applied via a
+/// short-lived `0600` env file and `bash` so values are not exposed on the `flatpak-spawn --env=`
+/// argv.
+pub fn host_command_with_env(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> Command {
+    host_command_with_env_inner(program, envs, custom_env_vars, is_flatpak())
+}
+
+/// Like [`host_command_with_env`], but also sets the host working directory
+/// explicitly via Flatpak's documented `--directory=DIR` option.
+pub fn host_command_with_env_and_directory(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    directory: Option<&str>,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> Command {
+    host_command_with_env_and_directory_inner(program, envs, directory, is_flatpak(), custom_env_vars)
 }
 
 /// Redirects `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` to the
@@ -120,22 +227,461 @@ fn host_command_with(program: &str, flatpak: bool) -> Command {
 fn host_command_with_env_inner(
     program: &str,
     envs: &BTreeMap<String, String>,
+    custom_env_vars: &BTreeMap<String, String>,
     flatpak: bool,
 ) -> Command {
+    host_command_with_env_and_directory_inner(program, envs, None, flatpak, custom_env_vars)
+}
+
+fn host_command_with_env_and_directory_inner(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    directory: Option<&str>,
+    flatpak: bool,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> Command {
+    let normalized_directory = normalize_host_working_directory(directory);
     if flatpak {
-        tracing::debug!(program, "wrapping command with flatpak-spawn --host (with env)");
+        tracing::debug!(
+            program,
+            "wrapping command with flatpak-spawn --host (with env)"
+        );
         let mut cmd = Command::new("flatpak-spawn");
-        cmd.arg("--host");
+        cmd.arg("--host").arg("--clear-env");
+        if let Some(directory) = normalized_directory.as_deref() {
+            cmd.arg(format!("--directory={directory}"));
+        }
         for (key, value) in envs {
             cmd.arg(format!("--env={key}={value}"));
         }
-        cmd.arg(program);
+        if custom_env_vars.is_empty() {
+            cmd.arg(program);
+        } else {
+            let env_path = match write_flatpak_custom_env_file(custom_env_vars) {
+                Ok(path) => path,
+                Err(error) => {
+                    tracing::error!(?error, "failed to write custom env file for flatpak host spawn");
+                    cmd.arg(program);
+                    return cmd;
+                }
+            };
+            cmd.arg("bash");
+            cmd.arg("-c");
+            cmd.arg("set -a; source \"$1\"; rm -f \"$1\"; set +a; shift; exec \"$@\"");
+            cmd.arg("bash");
+            cmd.arg(env_path);
+            cmd.arg(program);
+        }
         cmd
     } else {
+        let mut combined = envs.clone();
+        for (key, value) in custom_env_vars {
+            combined.insert(key.clone(), value.clone());
+        }
         let mut cmd = Command::new(program);
-        cmd.envs(envs);
+        cmd.envs(&combined);
+        if let Some(directory) = normalized_directory {
+            cmd.current_dir(directory);
+        }
         cmd
     }
+}
+
+fn is_valid_shell_env_key(key: &str) -> bool {
+    !key.is_empty()
+        && key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+fn shell_single_quote_escape(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn write_flatpak_custom_env_file(custom_env_vars: &BTreeMap<String, String>) -> io::Result<PathBuf> {
+    let path = std::env::temp_dir().join(format!("crosshook-host-env-{}.env", Uuid::new_v4()));
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .truncate(true)
+        .open(&path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = file.metadata()?.permissions();
+        perms.set_mode(0o600);
+        file.set_permissions(perms)?;
+    }
+    for (key, value) in custom_env_vars {
+        if !is_valid_shell_env_key(key) {
+            tracing::warn!(
+                key = %key,
+                "skipping invalid custom env key for flatpak host env file handoff"
+            );
+            continue;
+        }
+        writeln!(file, "{}={}", key, shell_single_quote_escape(value))?;
+    }
+    file.sync_all()?;
+    Ok(path)
+}
+
+fn normalize_host_working_directory(directory: Option<&str>) -> Option<String> {
+    let directory = directory?;
+    let normalized = normalize_flatpak_host_path(directory);
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+/// Sync [`std::process::Command`] that runs on the host under Flatpak (see [`host_command`]).
+///
+/// Do not call `.env()` / `.envs()` after construction in Flatpak; use
+/// [`host_std_command_with_env`] instead.
+pub fn host_std_command(program: &str) -> StdCommand {
+    host_std_command_with(program, is_flatpak())
+}
+
+fn host_std_command_with(program: &str, flatpak: bool) -> StdCommand {
+    if flatpak {
+        tracing::debug!(program, "wrapping std command with flatpak-spawn --host");
+        let mut cmd = StdCommand::new("flatpak-spawn");
+        cmd.arg("--host").arg(program);
+        cmd
+    } else {
+        StdCommand::new(program)
+    }
+}
+
+/// Like [`host_command_with_env`], but for synchronous [`std::process::Command`].
+pub fn host_std_command_with_env(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> StdCommand {
+    host_std_command_with_env_inner(program, envs, custom_env_vars, is_flatpak())
+}
+
+fn host_std_command_with_env_inner(
+    program: &str,
+    envs: &BTreeMap<String, String>,
+    custom_env_vars: &BTreeMap<String, String>,
+    flatpak: bool,
+) -> StdCommand {
+    if flatpak {
+        tracing::debug!(
+            program,
+            "wrapping std command with flatpak-spawn --host (with env)"
+        );
+        let mut cmd = StdCommand::new("flatpak-spawn");
+        cmd.arg("--host").arg("--clear-env");
+        for (key, value) in envs {
+            cmd.arg(format!("--env={key}={value}"));
+        }
+        if custom_env_vars.is_empty() {
+            cmd.arg(program);
+        } else {
+            let env_path = match write_flatpak_custom_env_file(custom_env_vars) {
+                Ok(path) => path,
+                Err(error) => {
+                    tracing::error!(?error, "failed to write custom env file for flatpak host spawn");
+                    cmd.arg(program);
+                    return cmd;
+                }
+            };
+            cmd.arg("bash");
+            cmd.arg("-c");
+            cmd.arg("set -a; source \"$1\"; rm -f \"$1\"; set +a; shift; exec \"$@\"");
+            cmd.arg("bash");
+            cmd.arg(env_path);
+            cmd.arg(program);
+        }
+        cmd
+    } else {
+        let mut combined = envs.clone();
+        for (key, value) in custom_env_vars {
+            combined.insert(key.clone(), value.clone());
+        }
+        let mut cmd = StdCommand::new(program);
+        cmd.envs(&combined);
+        cmd
+    }
+}
+
+/// Returns true when `name` is a single PATH-style binary name (no `/`, no shell metacharacters).
+pub(crate) fn is_safe_host_path_lookup_name(name: &str) -> bool {
+    let name = name.trim();
+    if name.is_empty() || name.contains('/') || name.contains("..") {
+        return false;
+    }
+    name.chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '+'))
+}
+
+/// Returns whether `binary` exists on the **host** when running in Flatpak (via `which` on the host),
+/// otherwise checks the current process `PATH` like a normal native binary probe.
+pub fn host_command_exists(binary: &str) -> bool {
+    if !is_safe_host_path_lookup_name(binary) {
+        return false;
+    }
+    if is_flatpak() {
+        let mut cmd = host_std_command("which");
+        cmd.arg(binary);
+        cmd.stdin(Stdio::null());
+        cmd.stdout(Stdio::null());
+        cmd.stderr(Stdio::null());
+        return cmd.status().map(|s| s.success()).unwrap_or(false);
+    }
+    let path_value = std::env::var_os("PATH").unwrap_or_else(|| OsString::from("/usr/bin:/bin"));
+    for directory in std::env::split_paths(&path_value) {
+        let candidate = directory.join(binary);
+        if is_executable_file_sync(&candidate) {
+            return true;
+        }
+    }
+    false
+}
+
+fn is_executable_file_sync(path: &Path) -> bool {
+    let metadata = match std::fs::metadata(path) {
+        Ok(m) => m,
+        Err(_) => return false,
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        metadata.is_file()
+    }
+}
+
+/// Returns true if `path` may be probed on the host for system Steam compat-tool directories.
+/// Only absolute paths under `/usr` or `/usr/local` (no `..`) are allowed.
+pub fn is_allowed_host_system_compat_listing_path(path: &Path) -> bool {
+    if !path.is_absolute() {
+        return false;
+    }
+    if path
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return false;
+    }
+    let root = Path::new("/usr");
+    let local = Path::new("/usr/local");
+    path.starts_with(root) || path.starts_with(local)
+}
+
+/// Returns whether `path` exists as a directory on the host when in Flatpak.
+pub fn host_path_is_dir(path: &Path) -> bool {
+    if !is_allowed_host_system_compat_listing_path(path) {
+        return false;
+    }
+    if !is_flatpak() {
+        return path.is_dir();
+    }
+    let mut cmd = host_std_command("test");
+    cmd.arg("-d").arg(path);
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
+    cmd.status().map(|s| s.success()).unwrap_or(false)
+}
+
+/// Reads directory entry names from a fixed system location on the host (Flatpak) or locally.
+pub fn host_read_dir_names(path: &Path) -> io::Result<Vec<OsString>> {
+    if !is_allowed_host_system_compat_listing_path(path) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "path is not an allowed host system compat listing root",
+        ));
+    }
+    if !is_flatpak() {
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            out.push(entry.file_name());
+        }
+        out.sort();
+        return Ok(out);
+    }
+    let mut cmd = host_std_command("ls");
+    cmd.arg("-1").arg("--").arg(path);
+    cmd.stdin(Stdio::null());
+    let output = cmd.output()?;
+    if !output.status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!(
+                "host ls failed with status {}",
+                output.status.code().unwrap_or(-1)
+            ),
+        ));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut names: Vec<OsString> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(OsString::from)
+        .collect();
+    names.sort();
+    Ok(names)
+}
+
+/// Reads a file from the host filesystem when in Flatpak (via `cat`); `path` must pass
+/// [`is_allowed_host_system_compat_listing_path`] and include a final component (tool directory).
+pub fn host_read_file_bytes_if_system_path(path: &Path) -> io::Result<Vec<u8>> {
+    if !is_allowed_host_system_compat_listing_path(path) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "path is not under an allowed host system prefix",
+        ));
+    }
+    if !is_flatpak() {
+        return std::fs::read(path);
+    }
+    let mut cmd = host_std_command("cat");
+    cmd.arg(path);
+    cmd.stdin(Stdio::null());
+    let output = cmd.output()?;
+    if !output.status.success() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("host cat failed: {}", output.status),
+        ));
+    }
+    Ok(output.stdout)
+}
+
+/// True if `path` points to a regular file on the host (Flatpak) or locally.
+pub fn host_path_is_file(path: &Path) -> bool {
+    if !is_allowed_host_system_compat_listing_path(path) {
+        return false;
+    }
+    if !is_flatpak() {
+        return path.is_file();
+    }
+    let mut cmd = host_std_command("test");
+    cmd.arg("-f").arg(path);
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
+    cmd.status().map(|s| s.success()).unwrap_or(false)
+}
+
+/// True if `path` points to an executable file on the host (Flatpak) or locally.
+pub fn host_path_is_executable_file(path: &Path) -> bool {
+    if !is_allowed_host_system_compat_listing_path(path) {
+        return false;
+    }
+    if !is_flatpak() {
+        return is_executable_file_sync(path);
+    }
+    let mut cmd = host_std_command("test");
+    cmd.arg("-x").arg(path);
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
+    cmd.status().map(|s| s.success()).unwrap_or(false)
+}
+
+pub fn normalized_path_is_file(path: &str) -> bool {
+    let normalized = normalize_flatpak_host_path(path);
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let path = Path::new(trimmed);
+    if is_allowed_host_system_compat_listing_path(path) {
+        host_path_is_file(path)
+    } else {
+        path.is_file()
+    }
+}
+
+pub fn normalized_path_is_dir(path: &str) -> bool {
+    let normalized = normalize_flatpak_host_path(path);
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let path = Path::new(trimmed);
+    if is_allowed_host_system_compat_listing_path(path) {
+        host_path_is_dir(path)
+    } else {
+        path.is_dir()
+    }
+}
+
+pub fn normalized_path_is_executable_file(path: &str) -> bool {
+    let normalized = normalize_flatpak_host_path(path);
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let path = Path::new(trimmed);
+    if is_allowed_host_system_compat_listing_path(path) {
+        host_path_is_executable_file(path)
+    } else {
+        is_executable_file_sync(path)
+    }
+}
+
+fn normalized_path_host_test(path: &str, flag: &str) -> bool {
+    let normalized = normalize_flatpak_host_path(path);
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let path = Path::new(trimmed);
+    if !is_flatpak() {
+        return match flag {
+            "-e" => path.exists(),
+            "-f" => path.is_file(),
+            "-d" => path.is_dir(),
+            "-x" => is_executable_file_sync(path),
+            _ => false,
+        };
+    }
+
+    if !path.is_absolute() {
+        return false;
+    }
+
+    let mut cmd = host_std_command("test");
+    cmd.arg(flag).arg(path);
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
+    cmd.status().map(|status| status.success()).unwrap_or(false)
+}
+
+/// Returns whether `path` exists on the host-visible filesystem after Flatpak normalization.
+pub fn normalized_path_exists_on_host(path: &str) -> bool {
+    normalized_path_host_test(path, "-e")
+}
+
+/// Returns whether `path` is a regular file on the host-visible filesystem after Flatpak normalization.
+pub fn normalized_path_is_file_on_host(path: &str) -> bool {
+    normalized_path_host_test(path, "-f")
+}
+
+/// Returns whether `path` is a directory on the host-visible filesystem after Flatpak normalization.
+pub fn normalized_path_is_dir_on_host(path: &str) -> bool {
+    normalized_path_host_test(path, "-d")
+}
+
+/// Returns whether `path` is an executable regular file on the host-visible filesystem after Flatpak normalization.
+pub fn normalized_path_is_executable_file_on_host(path: &str) -> bool {
+    normalized_path_host_test(path, "-f") && normalized_path_host_test(path, "-x")
 }
 
 /// Indirection for env-var access so unit tests can observe writes and
@@ -305,12 +851,72 @@ mod tests {
     }
 
     #[test]
+    fn normalize_flatpak_host_path_strips_host_mount_prefix() {
+        assert_eq!(
+            normalize_flatpak_host_path(
+                "/run/host/usr/share/steam/compatibilitytools.d/proton/proton"
+            ),
+            "/usr/share/steam/compatibilitytools.d/proton/proton"
+        );
+        assert_eq!(
+            normalize_flatpak_host_path("/run/host/home/alice/Games/test.exe"),
+            "/home/alice/Games/test.exe"
+        );
+    }
+
+    #[test]
+    fn normalize_flatpak_host_path_leaves_non_host_paths_unchanged() {
+        assert_eq!(
+            normalize_flatpak_host_path(r"C:\Games\Test Game\game.exe"),
+            r"C:\Games\Test Game\game.exe"
+        );
+        assert_eq!(
+            normalize_flatpak_host_path("relative/path/to/file"),
+            "relative/path/to/file"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn normalize_flatpak_host_path_resolves_document_portal_host_path_xattr() {
+        let temp_dir = tempdir().unwrap();
+        let portal_file = temp_dir.path().join("proton");
+        std::fs::write(&portal_file, b"test").unwrap();
+
+        let target_host_path = "/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton";
+        let c_path = CString::new(portal_file.to_string_lossy().as_bytes()).unwrap();
+        let attr_name = CStr::from_bytes_with_nul(DOCUMENT_PORTAL_HOST_PATH_XATTR).unwrap();
+        let attr_value = CString::new(target_host_path).unwrap();
+
+        // SAFETY: all pointers are valid NUL-terminated strings for the
+        // duration of the call; the path names a temp file owned by the test.
+        let rc = unsafe {
+            nix::libc::setxattr(
+                c_path.as_ptr(),
+                attr_name.as_ptr(),
+                attr_value.as_ptr().cast(),
+                target_host_path.len(),
+                0,
+            )
+        };
+        assert_eq!(rc, 0, "setxattr should succeed for test portal path");
+
+        assert_eq!(
+            read_document_portal_host_path_xattr(&portal_file.to_string_lossy()),
+            Some(target_host_path.to_string())
+        );
+    }
+
+    #[test]
     fn host_command_wraps_program_when_flatpak() {
         let cmd = host_command_with("ls", true);
         let std_cmd = cmd.as_std();
         assert_eq!(std_cmd.get_program(), "flatpak-spawn");
         let args: Vec<&std::ffi::OsStr> = std_cmd.get_args().collect();
-        assert_eq!(args, vec![std::ffi::OsStr::new("--host"), std::ffi::OsStr::new("ls")]);
+        assert_eq!(
+            args,
+            vec![std::ffi::OsStr::new("--host"), std::ffi::OsStr::new("ls")]
+        );
     }
 
     #[test]
@@ -330,7 +936,7 @@ mod tests {
             ("WINEPREFIX".to_string(), "/home/alice/.wine".to_string()),
             ("DXVK_ASYNC".to_string(), "1".to_string()),
         ]);
-        let cmd = host_command_with_env_inner("wine", &envs, true);
+        let cmd = host_command_with_env_inner("wine", &envs, &BTreeMap::new(), true);
         let std_cmd = cmd.as_std();
         assert_eq!(std_cmd.get_program(), "flatpak-spawn");
         let args: Vec<&std::ffi::OsStr> = std_cmd.get_args().collect();
@@ -338,7 +944,8 @@ mod tests {
         // sorted so DXVK_ASYNC < WINEPREFIX); last arg is the program.
         assert_eq!(args[0], std::ffi::OsStr::new("--host"));
         assert!(
-            args.iter().any(|a| *a == std::ffi::OsStr::new("--env=DXVK_ASYNC=1")),
+            args.iter()
+                .any(|a| *a == std::ffi::OsStr::new("--env=DXVK_ASYNC=1")),
             "expected --env=DXVK_ASYNC=1 in args, got: {args:?}"
         );
         assert!(
@@ -350,11 +957,60 @@ mod tests {
     }
 
     #[test]
+    fn host_command_with_env_and_directory_threads_directory_in_flatpak() {
+        let envs = BTreeMap::from([("DXVK_ASYNC".to_string(), "1".to_string())]);
+        let cmd = host_command_with_env_and_directory_inner(
+            "wine",
+            &envs,
+            Some("/run/host/mnt/games/The Witcher 3"),
+            true,
+            &BTreeMap::new(),
+        );
+        let std_cmd = cmd.as_std();
+        assert_eq!(std_cmd.get_program(), "flatpak-spawn");
+        let args: Vec<&std::ffi::OsStr> = std_cmd.get_args().collect();
+        assert_eq!(args[0], std::ffi::OsStr::new("--host"));
+        assert!(
+            args.iter().any(
+                |arg| *arg
+                    == std::ffi::OsStr::new("--directory=/mnt/games/The Witcher 3")
+            ),
+            "expected normalized --directory arg, got: {args:?}"
+        );
+        assert!(
+            args.iter()
+                .any(|arg| *arg == std::ffi::OsStr::new("--env=DXVK_ASYNC=1")),
+            "expected env passthrough, got: {args:?}"
+        );
+        assert_eq!(*args.last().unwrap(), std::ffi::OsStr::new("wine"));
+    }
+
+    #[test]
+    fn host_command_with_env_and_directory_sets_current_dir_when_not_flatpak() {
+        let envs = BTreeMap::from([("DXVK_ASYNC".to_string(), "1".to_string())]);
+        let cmd = host_command_with_env_and_directory_inner(
+            "wine",
+            &envs,
+            Some("/tmp/workdir"),
+            false,
+            &BTreeMap::new(),
+        );
+        let std_cmd = cmd.as_std();
+        assert_eq!(std_cmd.get_program(), "wine");
+        assert_eq!(
+            std_cmd
+                .get_current_dir()
+                .map(|path| path.to_string_lossy().into_owned()),
+            Some("/tmp/workdir".to_string())
+        );
+    }
+
+    #[test]
     fn host_command_with_env_uses_envs_method_when_not_flatpak() {
         // Outside Flatpak, env vars should be forwarded via .envs(), not as
         // --env=K=V arguments (there is no flatpak-spawn wrapper).
         let envs = BTreeMap::from([("DXVK_ASYNC".to_string(), "1".to_string())]);
-        let cmd = host_command_with_env_inner("wine", &envs, false);
+        let cmd = host_command_with_env_inner("wine", &envs, &BTreeMap::new(), false);
         let std_cmd = cmd.as_std();
         assert_eq!(std_cmd.get_program(), "wine");
         // No --env= style args; the env var is set on the Command directly.
@@ -365,6 +1021,68 @@ mod tests {
         );
         let envs_on_cmd: Vec<(&std::ffi::OsStr, Option<&std::ffi::OsStr>)> =
             std_cmd.get_envs().collect();
+        assert!(
+            envs_on_cmd
+                .iter()
+                .any(|(k, v)| *k == std::ffi::OsStr::new("DXVK_ASYNC")
+                    && *v == Some(std::ffi::OsStr::new("1"))),
+            "expected DXVK_ASYNC=1 in command envs, got: {envs_on_cmd:?}"
+        );
+    }
+
+    #[test]
+    fn host_std_command_wraps_program_when_flatpak() {
+        let cmd = host_std_command_with("ls", true);
+        assert_eq!(cmd.get_program(), "flatpak-spawn");
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert_eq!(
+            args,
+            vec![std::ffi::OsStr::new("--host"), std::ffi::OsStr::new("ls")]
+        );
+    }
+
+    #[test]
+    fn host_std_command_passes_through_when_not_flatpak() {
+        let cmd = host_std_command_with("ls", false);
+        assert_eq!(cmd.get_program(), "ls");
+        assert_eq!(cmd.get_args().count(), 0);
+    }
+
+    #[test]
+    fn host_std_command_with_env_threads_envs_as_env_args_in_flatpak() {
+        let envs = BTreeMap::from([
+            ("WINEPREFIX".to_string(), "/home/alice/.wine".to_string()),
+            ("DXVK_ASYNC".to_string(), "1".to_string()),
+        ]);
+        let cmd = host_std_command_with_env_inner("wine", &envs, &BTreeMap::new(), true);
+        assert_eq!(cmd.get_program(), "flatpak-spawn");
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert_eq!(args[0], std::ffi::OsStr::new("--host"));
+        assert!(
+            args.iter()
+                .any(|a| *a == std::ffi::OsStr::new("--env=DXVK_ASYNC=1")),
+            "expected --env=DXVK_ASYNC=1 in args, got: {args:?}"
+        );
+        assert!(
+            args.iter()
+                .any(|a| *a == std::ffi::OsStr::new("--env=WINEPREFIX=/home/alice/.wine")),
+            "expected --env=WINEPREFIX=/home/alice/.wine in args, got: {args:?}"
+        );
+        assert_eq!(*args.last().unwrap(), std::ffi::OsStr::new("wine"));
+    }
+
+    #[test]
+    fn host_std_command_with_env_uses_envs_method_when_not_flatpak() {
+        let envs = BTreeMap::from([("DXVK_ASYNC".to_string(), "1".to_string())]);
+        let cmd = host_std_command_with_env_inner("wine", &envs, &BTreeMap::new(), false);
+        assert_eq!(cmd.get_program(), "wine");
+        let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+        assert!(
+            args.is_empty(),
+            "expected no extra args for non-flatpak, got: {args:?}"
+        );
+        let envs_on_cmd: Vec<(&std::ffi::OsStr, Option<&std::ffi::OsStr>)> =
+            cmd.get_envs().collect();
         assert!(
             envs_on_cmd
                 .iter()
@@ -404,9 +1122,18 @@ mod tests {
         assert_eq!(
             env.writes,
             vec![
-                ("XDG_CONFIG_HOME".to_string(), OsString::from("/home/alice/.config")),
-                ("XDG_DATA_HOME".to_string(), OsString::from("/home/alice/.local/share")),
-                ("XDG_CACHE_HOME".to_string(), OsString::from("/home/alice/.cache")),
+                (
+                    "XDG_CONFIG_HOME".to_string(),
+                    OsString::from("/home/alice/.config")
+                ),
+                (
+                    "XDG_DATA_HOME".to_string(),
+                    OsString::from("/home/alice/.local/share")
+                ),
+                (
+                    "XDG_CACHE_HOME".to_string(),
+                    OsString::from("/home/alice/.cache")
+                ),
             ]
         );
     }
@@ -434,10 +1161,7 @@ mod tests {
         // (containers, per-user mount points, etc.) — honour it as-is.
         let mut env = FakeEnv::default();
         apply_xdg_host_override(Some(PathBuf::from("/var/home/charlie")), &mut env);
-        assert_eq!(
-            env.writes[0].1,
-            OsString::from("/var/home/charlie/.config")
-        );
+        assert_eq!(env.writes[0].1, OsString::from("/var/home/charlie/.config"));
     }
 
     #[test]
@@ -494,7 +1218,10 @@ mod tests {
         assert_eq!(
             env.writes,
             vec![
-                ("XDG_CONFIG_HOME".to_string(), OsString::from("/data/configs")),
+                (
+                    "XDG_CONFIG_HOME".to_string(),
+                    OsString::from("/data/configs")
+                ),
                 ("XDG_DATA_HOME".to_string(), OsString::from("/data/share")),
                 ("XDG_CACHE_HOME".to_string(), OsString::from("/data/cache")),
             ]

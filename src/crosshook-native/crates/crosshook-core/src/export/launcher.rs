@@ -6,6 +6,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::launch::runtime_helpers::build_gamescope_args;
+use crate::platform::normalize_flatpak_host_path;
 use crate::profile::{GamescopeConfig, TrainerLoadingMode};
 use serde::{Deserialize, Serialize};
 
@@ -670,7 +671,8 @@ fn resolve_desktop_icon_value(launcher_icon_path: &str) -> String {
 }
 
 fn normalize_host_unix_path(path: &str) -> String {
-    path.trim().replace('\\', "/")
+    let normalized = path.trim().replace('\\', "/");
+    normalize_flatpak_host_path(&normalized)
 }
 
 fn looks_like_usable_host_unix_path(path: &str) -> bool {
@@ -809,6 +811,20 @@ mod tests {
             escape_desktop_exec_argument("/opt/trainers/%u/trainer.exe"),
             "/opt/trainers/%%u/trainer.exe"
         );
+    }
+
+    #[test]
+    fn normalize_host_unix_path_rewrites_flatpak_host_mount_paths() {
+        assert_eq!(
+            normalize_host_unix_path("/run/host/home/alice/.local/share/icons/cover.png"),
+            "/home/alice/.local/share/icons/cover.png"
+        );
+    }
+
+    #[test]
+    fn normalize_host_unix_path_leaves_regular_host_paths_unchanged() {
+        let path = "/home/alice/.local/share/icons/cover.png";
+        assert_eq!(normalize_host_unix_path(path), path);
     }
 
     #[test]

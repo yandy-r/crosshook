@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::launch::request::{METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
 use crate::metadata::offline_store;
 use crate::metadata::MetadataStoreError;
+use crate::platform::{
+    normalize_flatpak_host_path, normalized_path_is_dir, normalized_path_is_file,
+};
 use crate::profile::health::{HealthIssue, HealthIssueSeverity, ProfileHealthReport};
 use crate::profile::{resolve_launch_method, GameProfile};
 
@@ -231,8 +234,9 @@ pub fn check_offline_preflight(
     let network_required = entry.map(|e| e.requires_network).unwrap_or(false);
     let score_cap = entry.and_then(|e| e.score_cap);
 
-    let trainer_path = effective.trainer.path.trim();
-    let trainer_present = !trainer_path.is_empty() && Path::new(trainer_path).is_file();
+    let normalized_trainer_path = normalize_flatpak_host_path(&effective.trainer.path);
+    let trainer_path = normalized_trainer_path.trim();
+    let trainer_present = normalized_path_is_file(trainer_path);
 
     let trainer_hash_valid = if trainer_present {
         let path = Path::new(trainer_path);
@@ -241,8 +245,9 @@ pub fn check_offline_preflight(
         false
     };
 
-    let game_path = effective.game.executable_path.trim();
-    let game_present = !game_path.is_empty() && Path::new(game_path).is_file();
+    let normalized_game_path = normalize_flatpak_host_path(&effective.game.executable_path);
+    let game_path = normalized_game_path.trim();
+    let game_present = normalized_path_is_file(game_path);
 
     let (_proton_path, proton_available) = match resolved_method {
         METHOD_PROTON_RUN => {
@@ -255,11 +260,11 @@ pub fn check_offline_preflight(
                     effective.steam.proton_path.trim()
                 }
             };
-            (p, !p.is_empty() && Path::new(p).exists())
+            (p, normalized_path_is_file(p))
         }
         METHOD_STEAM_APPLAUNCH => {
             let p = effective.steam.proton_path.trim();
-            (p, !p.is_empty() && Path::new(p).exists())
+            (p, normalized_path_is_file(p))
         }
         // Non-compat methods don't use Proton; mark as satisfied.
         _ => ("", true),
@@ -276,11 +281,11 @@ pub fn check_offline_preflight(
                     effective.steam.compatdata_path.trim()
                 }
             };
-            (p, !p.is_empty() && Path::new(p).is_dir())
+            (p, normalized_path_is_dir(p))
         }
         METHOD_STEAM_APPLAUNCH => {
             let p = effective.steam.compatdata_path.trim();
-            (p, !p.is_empty() && Path::new(p).is_dir())
+            (p, normalized_path_is_dir(p))
         }
         // Non-compat methods don't use Wine prefix; mark as satisfied.
         _ => ("", true),
@@ -395,6 +400,49 @@ mod tests {
             .expect("prefix check");
         assert!(matches!(proton.severity, HealthIssueSeverity::Info));
         assert!(matches!(prefix.severity, HealthIssueSeverity::Info));
+    }
+
+    #[test]
+    fn preflight_accepts_host_mounted_runtime_paths() {
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let db_path = tmp.path().join("meta.db");
+        let conn = Connection::open(db_path).expect("open sqlite");
+
+        let proton_exec = tmp.path().join("runtime_proton");
+        std::fs::write(&proton_exec, b"#!/bin/sh\necho proton").expect("write proton");
+        let prefix_dir = tmp.path().join("prefix");
+        std::fs::create_dir_all(&prefix_dir).expect("create prefix");
+        let game = tmp.path().join("game.exe");
+        std::fs::write(&game, b"game").expect("write game");
+
+        let mut profile = GameProfile::default();
+        profile.launch.method = METHOD_PROTON_RUN.to_string();
+        profile.steam.app_id = "123".to_string();
+        profile.steam.proton_path.clear();
+        profile.runtime.proton_path = format!("/run/host{}", proton_exec.to_string_lossy());
+        profile.runtime.prefix_path = format!("/run/host{}", prefix_dir.to_string_lossy());
+        profile.trainer.path.clear();
+        profile.game.executable_path = format!("/run/host{}", game.to_string_lossy());
+
+        let report = check_offline_preflight("p", "id-host", &profile, &conn).expect("preflight");
+        let proton = report
+            .checks
+            .iter()
+            .find(|c| c.field == "proton_available")
+            .expect("proton check");
+        let prefix = report
+            .checks
+            .iter()
+            .find(|c| c.field == "prefix_exists")
+            .expect("prefix check");
+        let game = report
+            .checks
+            .iter()
+            .find(|c| c.field == "game_present")
+            .expect("game check");
+        assert!(matches!(proton.severity, HealthIssueSeverity::Info));
+        assert!(matches!(prefix.severity, HealthIssueSeverity::Info));
+        assert!(matches!(game.severity, HealthIssueSeverity::Info));
     }
 
     #[test]

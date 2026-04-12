@@ -44,7 +44,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     loading: activeCollectionMembersLoading,
   } = useCollectionMembers(activeCollectionId);
 
-  const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles);
+  const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
   const offlineReadiness = useOfflineReadiness();
   const gameDetailsModal = useGameDetailsModalState();

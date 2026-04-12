@@ -15,6 +15,8 @@ export interface SelectOption {
   disabled?: boolean;
   /** Shown in the dropdown row only (not in the closed trigger). */
   badge?: string;
+  /** Optional tooltip for `badge` (e.g. Flatpak capability explanations). */
+  badgeTitle?: string;
 }
 
 export interface SelectOptionGroup {
@@ -50,7 +52,11 @@ function SelectItemNode({
     <Select.Item value={toRadix(opt.value)} disabled={opt.disabled} className="crosshook-themed-select__item">
       <span className="crosshook-themed-select__item-lead">
         <Select.ItemText className="crosshook-themed-select__item-text">{opt.label}</Select.ItemText>
-        {opt.badge ? <span className="crosshook-themed-select__item-badge">{opt.badge}</span> : null}
+        {opt.badge ? (
+          <span className="crosshook-themed-select__item-badge" title={opt.badgeTitle}>
+            {opt.badge}
+          </span>
+        ) : null}
       </span>
       {onTogglePin ? (
         <span

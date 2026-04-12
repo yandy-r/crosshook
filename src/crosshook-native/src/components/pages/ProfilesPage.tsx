@@ -18,6 +18,7 @@ import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useCollections } from '../../hooks/useCollections';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
+import { useProfileSummaries } from '../../hooks/useProfileSummaries';
 import { resolveProtonUpProviderForVersion, useProtonUp } from '../../hooks/useProtonUp';
 import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
 import type { ProtonInstallOption } from '../../types/proton';
@@ -27,6 +28,11 @@ import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../../utils/launchPanelActionButtonStyle';
 import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
+import { useLaunchPlatformStatus } from '../../hooks/useLaunchPlatformStatus';
+
+const FLATPAK_NET_BADGE = 'No network isolation';
+const FLATPAK_NET_BADGE_TITLE =
+  'Flatpak cannot enforce network isolation (unshare) on this system. The profile still launches; traffic is not isolated.';
 
 /** Minimal shape of a row returned by `community_list_indexed_profiles`. */
 interface CommunityIndexedProfileRow {
@@ -120,6 +126,16 @@ export function ProfilesPage() {
     return profiles.filter((name) => set.has(name));
   }, [profiles, activeCollectionId, memberNames, membersLoading, membersForCollectionId]);
 
+  const launchPlatform = useLaunchPlatformStatus();
+  const { summaries: profileSummaries } = useProfileSummaries(profiles, activeCollectionId);
+  const profileNetworkIsolation = useMemo(() => {
+    const next: Record<string, boolean> = {};
+    for (const row of profileSummaries) {
+      next[row.name] = row.networkIsolation;
+    }
+    return next;
+  }, [profileSummaries]);
+
   useEffect(() => {
     if (activeCollectionId === null) {
       return;
@@ -138,6 +154,25 @@ export function ProfilesPage() {
       void selectProfile(filteredProfiles[0]);
     }
   }, [activeCollectionId, membersLoading, membersForCollectionId, filteredProfiles, selectedProfile, selectProfile]);
+
+  const showFlatpakNetworkIsolationBadge = useCallback(
+    (candidateProfileName: string) => {
+      if (
+        !launchPlatform?.isFlatpak ||
+        launchPlatform.unshareNetAvailable ||
+        !candidateProfileName.trim()
+      ) {
+        return false;
+      }
+
+      if (candidateProfileName.trim() === selectedProfile.trim()) {
+        return profile.launch.network_isolation ?? true;
+      }
+
+      return profileNetworkIsolation[candidateProfileName] === true;
+    },
+    [launchPlatform, profile.launch.network_isolation, profileNetworkIsolation, selectedProfile]
+  );
 
   const [protonInstalls, setProtonInstalls] = useState<ProtonInstallOption[]>([]);
   const [protonInstallsError, setProtonInstallsError] = useState<string | null>(null);
@@ -665,7 +700,12 @@ export function ProfilesPage() {
                     placeholder="Create New"
                     options={[
                       { value: '', label: 'Create New' },
-                      ...filteredProfiles.map((name) => ({ value: name, label: name })),
+                      ...filteredProfiles.map((name) => ({
+                        value: name,
+                        label: name,
+                        badge: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE : undefined,
+                        badgeTitle: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE_TITLE : undefined,
+                      })),
                     ]}
                   />
                 </div>
@@ -706,6 +746,14 @@ export function ProfilesPage() {
                   </span>
                 ) : null}
                 {renderVersionStatusBadge()}
+                {showFlatpakNetworkIsolationBadge(selectedProfile) ? (
+                  <span
+                    className="crosshook-status-chip crosshook-version-badge crosshook-version-badge--warning"
+                    title={FLATPAK_NET_BADGE_TITLE}
+                  >
+                    {FLATPAK_NET_BADGE}
+                  </span>
+                ) : null}
                 {summary !== null && summary.stale_count + summary.broken_count > 0 ? (
                   <span className="crosshook-status-chip">
                     {summary.stale_count + summary.broken_count} of {summary.total_count} profile

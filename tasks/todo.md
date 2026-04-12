@@ -1,5 +1,81 @@
 # Task Plan
 
+## 2026-04-12 - verify follow-up flatpak/process review findings
+
+- [x] Verify each cited finding against the current code and document which ones are still valid.
+- [x] Apply minimal fixes only for findings that still reproduce in the current tree.
+- [x] Run focused validation for touched Rust/TS/docs surfaces and record the outcome.
+
+### Review
+
+- Verified every cited finding against the current tree before editing. Fifteen findings were still valid and were patched across docs, Rust backend, helper shell, and frontend state handling. One cited mock finding was already stale: `launch_platform_status` intentionally serializes as camelCase in Rust via `#[serde(rename_all = "camelCase")]`, so the existing browser-dev mock shape already matched production and was left unchanged.
+- Added shared Flatpak host-path probes for existence/file/dir/executable checks, then reused them where the current code was incorrectly normalizing to host paths too early or falling back to sandbox-local `Path::exists()` checks. That covered install prefix validation, launch request validation, and profile health checks without changing unrelated persistence or launch contracts.
+- Hardened process construction and cancellation paths: wrapper entries are now normalized before host execution, Flatpak `unshare` host launches read helper script contents instead of passing unreadable sandbox paths, non-zero `lspci` exits now surface as failures instead of “no GPU found,” trainer staging updates the runtime working directory, launch-log streaming no longer aborts early on UI emit failures, and update cancellation only clears the tracked PID after a successful `kill`.
+- Adjusted Proton/tooling behavior to preserve configured compat-tool paths unless discovery proves they are missing, emit ambiguity diagnostics instead of silently rewriting across multiple local matches, and added focused regression tests for wrapper normalization plus launcher-export path normalization.
+- Verification:
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+  - `bash -n src/crosshook-native/runtime-helpers/steam-host-trainer-runner.sh`
+  - `git diff --check` still reports `indent-with-non-tab` because this repo’s Git whitespace config expects tabs while the existing Rust/TS sources in `HEAD` are already space-indented; no trailing-whitespace or syntax issues remained after the code changes.
+
+## 2026-04-12 - flatpak system proton helper regression
+
+- [x] Replace sandbox-side helper validation/canonicalization for host-only Proton and Steam client paths with Flatpak-aware host probes.
+- [x] Add focused backend logging for the resolved Proton and Steam client launch inputs used by `proton_run` and Steam helper launches.
+- [x] Extend targeted regression coverage for system `/usr/...` Proton handling in the launch path.
+- [x] Run focused verification and record the outcome.
+
+### Review
+
+- Patched `steam-launch-helper.sh` and `steam-host-trainer-runner.sh` to use Flatpak-aware `host_test` / `host_realpath` wrappers before validating or canonicalizing incoming host paths, so `/usr/.../compatibilitytools.d/.../proton` and the Steam client root are now checked on the host instead of being rejected inside the sandbox.
+- Added launch-side tracing in `launch/script_runner.rs` so both Steam helper launches and direct `proton_run` launches emit the configured Proton path, resolved Proton path, and resolved Steam client install path before spawn.
+- Added targeted unit coverage for Flatpak system-Proton path resolution: one test preserves a `/usr/...` compat-tool path when no user-local override exists, and one test verifies the existing user-local preference when a matching compat tool is present under the Steam root.
+- Follow-up debugging showed the remaining `proton_run` failure was no longer helper preflight: the live Flatpak sandbox log only contained ProtonFixes/Vulkan warnings, while the host-side repro changed behavior when launched from the wrong working directory. Patched the shared host-command layer to pass Flatpak’s documented `--directory=DIR` option and updated the direct Proton launch builders plus helper scripts to use explicit host working directories instead of assuming sandbox-side `.current_dir()` / `cd` propagates to the host child.
+- Additional debugging showed the host repro also succeeds under `env -i`, which points away from missing env vars and toward sandbox-env contamination. Patched the Flatpak host-command wrappers to add `--clear-env` before the explicit `--env=...` allowlist so direct `proton_run` launches no longer inherit arbitrary sandbox variables into the host Proton process.
+- Verification:
+  - `bash -n src/crosshook-native/runtime-helpers/steam-launch-helper.sh`
+  - `bash -n src/crosshook-native/runtime-helpers/steam-host-trainer-runner.sh`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core resolve_launch_proton_path_with_mode -- --nocapture`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core host_command_with_env_and_directory -- --nocapture`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core host_command_with_env_threads_envs_as_env_args_in_flatpak -- --nocapture`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+- Remaining validation is live Flatpak-only: rebuild/run the updated Flatpak and re-test the failing profile with both the system `/usr` Proton and the user-local `~/` Proton to confirm host-directory propagation fixes the early `245` exit.
+
+## 2026-04-12 - proton_run exit 245 steam client root fix
+
+- [x] Confirm the failing Proton launch request is using an invalid Steam client install path.
+- [x] Patch launch request assembly to prefer the backend-discovered Steam client root over compatdata-derived library roots.
+- [x] Harden backend Steam client path resolution so invalid library roots fall back to a real Steam client install.
+- [x] Run focused verification and record the outcome.
+
+### Review
+
+- Confirmed from live Flatpak runs that the `245` launch failure tracked the selected Proton install path, not just the launch method: the system `/usr/share/steam/compatibilitytools.d/proton-cachyos-slr/proton` path failed, while the user-local Proton install under `~/.local/share/Steam/compatibilitytools.d/...` launched successfully.
+- Updated the launch page and shared launch-state provider to prefer the backend-discovered default Steam client install path over the profile-derived compatdata root when building live launch requests.
+- Hardened `resolve_steam_client_install_path()` so bogus configured values such as bare library roots are rejected unless they look like a real Steam client install (for example `steamapps` plus `config`, `steam.sh`, or `ubuntu12_32`), then it falls back to the standard Steam roots.
+- Added a Flatpak-only Proton resolution step in the launch path that rewrites saved `/usr/.../compatibilitytools.d/.../proton` selections to a matching user-local Steam compat-tool install when one is available. This applies to both direct `proton_run` launches and the Steam helper path, so existing profiles do not need manual path edits just to avoid the broken system-compat branch.
+- Fixed the existing missing `std::fs` import in `launch/request.rs` tests and updated one script-runner test fixture so the full crate test suite matches the stricter Steam-root contract.
+- Verification:
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+
+## 2026-04-11 - flatpak host path normalization follow-up
+
+- [x] Add a shared core helper that normalizes Flatpak host mount paths like `/run/host/...`.
+- [x] Apply the normalizer across launch validation, command construction, and adjacent Proton workflows (`install`, `update`, `run_executable`, launcher export).
+- [x] Normalize file-dialog-selected host paths in the frontend so new values persist cleanly.
+- [x] Run focused verification and record the outcome.
+
+### Review
+
+- Added a shared `normalize_flatpak_host_path()` helper in `crosshook-core` and reused it at launch-validation and command-construction boundaries so legacy Flatpak-saved `/run/host/...` paths and document-portal picker mounts under `/run/user/<uid>/doc/...` are converted back to real host paths before existence checks, env assembly, and host execution.
+- Applied the same normalization to adjacent Proton-driven flows: install, update, ad-hoc executable runs, generated reviewable install profiles, and launcher export path handling.
+- Normalized dialog-selected paths in the frontend through a backend resolver so new file and directory picks stop persisting portal or `/run/host/...` values into settings and profiles.
+- Verification:
+  - `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`
+  - `npm exec --yes tsc -- --noEmit` in `src/crosshook-native`
+
 ## 2026-04-11 - flatpak phase 3 PRP plan
 
 - [x] Read the Flatpak PRD phase, issue `#209`, and the relevant Phase 3 code paths.

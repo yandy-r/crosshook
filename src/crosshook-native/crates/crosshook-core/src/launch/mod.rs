@@ -31,6 +31,7 @@ pub use request::{
     RuntimeLaunchConfig, SteamLaunchConfig, SteamLaunchRequest, ValidationError,
     ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
+pub use runtime_helpers::{launch_platform_capabilities, LaunchPlatformCapabilities};
 pub use trainer_hash::{
     collect_trainer_hash_launch_warnings, launch_issues_from_trainer_hash_outcome,
 };

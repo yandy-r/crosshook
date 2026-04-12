@@ -208,17 +208,28 @@ export function registerProfile(map: Map<string, Handler>): void {
   });
 
   // profile_list_summaries — SHELL-CRITICAL (BR-11): same rationale as above.
-  map.set('profile_list_summaries', async (): Promise<ProfileSummary[]> => {
+  map.set('profile_list_summaries', async (args): Promise<ProfileSummary[]> => {
     const fixture = getActiveFixture();
     if (fixture === 'empty') return [];
     seedDemoProfiles();
-    return Array.from(getStore().profiles.values()).map((p) => ({
-      name: p.game.name,
-      gameName: p.game.name,
-      steamAppId: p.steam.app_id,
-      customCoverArtPath: p.game.custom_cover_art_path,
-      customPortraitArtPath: p.game.custom_portrait_art_path,
-    }));
+    const { collectionId } = (args ?? {}) as { collectionId?: string };
+    return Array.from(getStore().profiles.entries()).map(([name, p]) => {
+      let profile = p;
+      if (collectionId !== undefined && collectionId !== null && collectionId.trim() !== '') {
+        const defaults = getMockCollectionDefaults(collectionId);
+        if (defaults) {
+          profile = applyMockCollectionDefaults(p, defaults);
+        }
+      }
+      return {
+        name,
+        gameName: profile.game.name,
+        steamAppId: profile.steam.app_id,
+        customCoverArtPath: profile.game.custom_cover_art_path,
+        customPortraitArtPath: profile.game.custom_portrait_art_path,
+        networkIsolation: profile.launch.network_isolation ?? true,
+      };
+    });
   });
 
   map.set('profile_list_favorites', async () => {

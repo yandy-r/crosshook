@@ -2,6 +2,11 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[tauri::command]
+pub fn normalize_host_path(path: String) -> String {
+    crosshook_core::platform::normalize_flatpak_host_path(&path)
+}
+
 pub fn create_log_path(prefix: &str, target_slug: &str) -> Result<PathBuf, String> {
     let log_dir = PathBuf::from("/tmp/crosshook-logs");
     std::fs::create_dir_all(&log_dir).map_err(|error| error.to_string())?;

@@ -2,6 +2,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::platform;
+
 use super::models::ProtonInstall;
 use super::models::SteamAutoPopulateFieldState;
 use super::vdf::parse_vdf;
@@ -205,6 +207,111 @@ pub fn resolve_proton_path(
     }
 }
 
+pub fn prefer_user_local_compat_tool_path(
+    configured_proton_path: &Path,
+    steam_root_candidates: &[PathBuf],
+    diagnostics: &mut Vec<String>,
+) -> PathBuf {
+    let system_roots = SYSTEM_COMPAT_TOOL_ROOTS
+        .iter()
+        .map(PathBuf::from)
+        .collect::<Vec<_>>();
+    prefer_user_local_compat_tool_path_with_roots(
+        configured_proton_path,
+        steam_root_candidates.iter().cloned(),
+        system_roots,
+        diagnostics,
+    )
+}
+
+fn prefer_user_local_compat_tool_path_with_roots<I>(
+    configured_proton_path: &Path,
+    steam_root_candidates: I,
+    system_roots: Vec<PathBuf>,
+    diagnostics: &mut Vec<String>,
+) -> PathBuf
+where
+    I: IntoIterator<Item = PathBuf>,
+{
+    let normalized_path = PathBuf::from(
+        platform::normalize_flatpak_host_path(&configured_proton_path.to_string_lossy()).trim(),
+    );
+
+    if !path_is_under_any_root(&normalized_path, &system_roots) {
+        return configured_proton_path.to_path_buf();
+    }
+
+    let Some(requested_tool_name) = normalized_path
+        .parent()
+        .and_then(|path| path.file_name())
+        .and_then(|value| value.to_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return configured_proton_path.to_path_buf();
+    };
+
+    let installed_tools =
+        discover_compat_tools_with_roots(steam_root_candidates, system_roots.clone(), diagnostics);
+    let matching_tools = resolve_compat_tool_by_name(requested_tool_name, &installed_tools);
+    if matching_tools.iter().any(|tool| {
+        PathBuf::from(platform::normalize_flatpak_host_path(&tool.path.to_string_lossy()).trim())
+            == normalized_path
+    }) {
+        return configured_proton_path.to_path_buf();
+    }
+
+    let local_matches = matching_tools
+        .iter()
+        .filter(|tool| {
+            let tool_path = PathBuf::from(
+                platform::normalize_flatpak_host_path(&tool.path.to_string_lossy()).trim(),
+            );
+            !path_is_under_any_root(&tool_path, &system_roots)
+        })
+        .collect::<Vec<_>>();
+    if let [preferred_tool] = local_matches.as_slice() {
+        diagnostics.push(format!(
+            "Flatpak launch preferred user-local compat tool '{}' over system path '{}'.",
+            preferred_tool.path.display(),
+            configured_proton_path.display()
+        ));
+        return preferred_tool.path.clone();
+    }
+
+    if local_matches.len() > 1 {
+        let mut local_paths = local_matches
+            .iter()
+            .map(|tool| tool.path.display().to_string())
+            .collect::<Vec<_>>();
+        local_paths.sort();
+        let mut installed_paths = installed_tools
+            .iter()
+            .map(|tool| tool.path.display().to_string())
+            .collect::<Vec<_>>();
+        installed_paths.sort();
+        diagnostics.push(format!(
+            "Configured Proton path '{}' did not match an installed compat tool for '{}', and multiple user-local matches were found ({}). Keeping the configured path to avoid a silent rewrite. Installed tools: {}.",
+            configured_proton_path.display(),
+            requested_tool_name,
+            local_paths.join(", "),
+            installed_paths.join(", "),
+        ));
+        return configured_proton_path.to_path_buf();
+    }
+
+    if let [preferred_tool] = matching_tools.as_slice() {
+        diagnostics.push(format!(
+            "Flatpak launch replaced missing configured compat tool '{}' with discovered install '{}'.",
+            configured_proton_path.display(),
+            preferred_tool.path.display()
+        ));
+        return preferred_tool.path.clone();
+    }
+
+    configured_proton_path.to_path_buf()
+}
+
 pub(crate) fn discover_compat_tools_with_roots<I, J>(
     steam_root_candidates: I,
     system_compat_tool_roots: J,
@@ -229,6 +336,7 @@ where
             &mut tools,
             &mut seen_proton_paths,
             diagnostics,
+            false,
         );
 
         let custom_tools_root = steam_root_candidate.join("compatibilitytools.d");
@@ -238,11 +346,17 @@ where
             &mut tools,
             &mut seen_proton_paths,
             diagnostics,
+            false,
         );
     }
 
     for system_compat_tool_root in system_compat_tool_roots {
-        if !system_compat_tool_root.is_dir() {
+        let use_host_fs = platform::is_flatpak();
+        if use_host_fs {
+            if !platform::host_path_is_dir(&system_compat_tool_root) {
+                continue;
+            }
+        } else if !system_compat_tool_root.is_dir() {
             continue;
         }
 
@@ -257,6 +371,7 @@ where
             &mut tools,
             &mut seen_proton_paths,
             diagnostics,
+            use_host_fs,
         );
     }
 
@@ -315,14 +430,38 @@ fn discover_tools_in_root(
     tools: &mut Vec<ProtonInstall>,
     seen_proton_paths: &mut HashSet<PathBuf>,
     diagnostics: &mut Vec<String>,
+    use_host_fs: bool,
 ) {
-    for tool_directory_path in safe_enumerate_directories(tool_root, diagnostics) {
+    let directories: Vec<PathBuf> = if use_host_fs {
+        if !platform::host_path_is_dir(tool_root) {
+            return;
+        }
+        match platform::host_read_dir_names(tool_root) {
+            Ok(names) => names
+                .into_iter()
+                .map(|n| tool_root.join(n))
+                .filter(|p| platform::host_path_is_dir(p))
+                .collect(),
+            Err(error) => {
+                diagnostics.push(format!(
+                    "Failed to list host compat-tool directory '{}': {error}",
+                    tool_root.display()
+                ));
+                return;
+            }
+        }
+    } else {
+        safe_enumerate_directories(tool_root, diagnostics)
+    };
+
+    for tool_directory_path in directories {
         try_add_compat_tool_install(
             tools,
             seen_proton_paths,
             &tool_directory_path,
             is_official,
             diagnostics,
+            use_host_fs,
         );
     }
 }
@@ -333,9 +472,15 @@ fn try_add_compat_tool_install(
     tool_directory_path: &Path,
     is_official: bool,
     diagnostics: &mut Vec<String>,
+    use_host_fs: bool,
 ) {
     let proton_path = tool_directory_path.join("proton");
-    if !proton_path.is_file() || !seen_proton_paths.insert(proton_path.clone()) {
+    let proton_ok = if use_host_fs {
+        platform::host_path_is_file(&proton_path)
+    } else {
+        proton_path.is_file()
+    };
+    if !proton_ok || !seen_proton_paths.insert(proton_path.clone()) {
         return;
     }
 
@@ -352,8 +497,19 @@ fn try_add_compat_tool_install(
     push_alias(&mut aliases, &mut seen_aliases, &name);
 
     let compatibility_tool_definition_path = tool_directory_path.join("compatibilitytool.vdf");
-    if compatibility_tool_definition_path.is_file() {
-        match fs::read_to_string(&compatibility_tool_definition_path) {
+    let vdf_is_file = if use_host_fs {
+        platform::host_path_is_file(&compatibility_tool_definition_path)
+    } else {
+        compatibility_tool_definition_path.is_file()
+    };
+    if vdf_is_file {
+        let read_result = if use_host_fs {
+            platform::host_read_file_bytes_if_system_path(&compatibility_tool_definition_path)
+                .map(|b| String::from_utf8_lossy(&b).into_owned())
+        } else {
+            fs::read_to_string(&compatibility_tool_definition_path)
+        };
+        match read_result {
             Ok(content) => match parse_vdf(&content) {
                 Ok(definition_root) => {
                     if let Some(compat_tools) = definition_root.find_descendant("compat_tools") {
@@ -455,6 +611,10 @@ fn tool_matches_requested_name_heuristically(
     false
 }
 
+fn path_is_under_any_root(path: &Path, roots: &[PathBuf]) -> bool {
+    roots.iter().any(|root| path.starts_with(root))
+}
+
 fn safe_enumerate_directories(
     directory_path: &Path,
     diagnostics: &mut Vec<String>,
@@ -500,7 +660,7 @@ fn safe_enumerate_directories(
 mod tests {
     use super::{
         collect_compat_tool_mappings, discover_compat_tools_with_roots, normalize_alias,
-        resolve_proton_path,
+        prefer_user_local_compat_tool_path_with_roots, resolve_proton_path,
     };
     use std::fs;
     use std::path::Path;
@@ -799,5 +959,135 @@ mod tests {
             resolve_proton_path("222", &[steam_root.path().to_path_buf()], &mut diagnostics);
         assert_eq!(missing.state, super::SteamAutoPopulateFieldState::NotFound);
         assert!(missing.proton_path.as_os_str().is_empty());
+    }
+
+    #[test]
+    fn flatpak_preference_preserves_matching_configured_system_tool() {
+        let steam_root = tempdir().expect("steam root");
+        let system_root = tempdir().expect("system root");
+        let local_tool = steam_root
+            .path()
+            .join("compatibilitytools.d/Proton-CachyOS-SLR-Home");
+        let system_tool = system_root.path().join("proton-cachyos-slr");
+
+        create_tool(
+            &local_tool,
+            Some(
+                r#"
+                "compat_tools"
+                {
+                    "proton-cachyos-slr"
+                    {
+                        "display_name" "Proton CachyOS SLR"
+                    }
+                }
+                "#,
+            ),
+        );
+        create_tool(
+            &system_tool,
+            Some(
+                r#"
+                "compat_tools"
+                {
+                    "proton-cachyos-slr"
+                    {
+                        "display_name" "Proton CachyOS SLR"
+                    }
+                }
+                "#,
+            ),
+        );
+
+        let mut diagnostics = Vec::new();
+        let preferred = prefer_user_local_compat_tool_path_with_roots(
+            &system_tool.join("proton"),
+            vec![steam_root.path().to_path_buf()],
+            vec![system_root.path().to_path_buf()],
+            &mut diagnostics,
+        );
+
+        assert_eq!(preferred, system_tool.join("proton"));
+        assert!(!diagnostics
+            .iter()
+            .any(|entry| entry.contains("preferred user-local compat tool")));
+    }
+
+    #[test]
+    fn flatpak_preference_redirects_missing_configured_system_tool_to_single_local_install() {
+        let steam_root = tempdir().expect("steam root");
+        let system_root = tempdir().expect("system root");
+        let local_tool = steam_root
+            .path()
+            .join("compatibilitytools.d/Proton-CachyOS-SLR-Home");
+
+        create_tool(
+            &local_tool,
+            Some(
+                r#"
+                "compat_tools"
+                {
+                    "proton-cachyos-slr"
+                    {
+                        "display_name" "Proton CachyOS SLR"
+                    }
+                }
+                "#,
+            ),
+        );
+
+        let mut diagnostics = Vec::new();
+        let preferred = prefer_user_local_compat_tool_path_with_roots(
+            &system_root.path().join("proton-cachyos-slr/proton"),
+            vec![steam_root.path().to_path_buf()],
+            vec![system_root.path().to_path_buf()],
+            &mut diagnostics,
+        );
+
+        assert_eq!(preferred, local_tool.join("proton"));
+        assert!(diagnostics
+            .iter()
+            .any(|entry| entry.contains("preferred user-local compat tool")));
+    }
+
+    #[test]
+    fn flatpak_preference_keeps_configured_path_when_local_matches_are_ambiguous() {
+        let steam_root = tempdir().expect("steam root");
+        let system_root = tempdir().expect("system root");
+        let local_tool_one = steam_root
+            .path()
+            .join("compatibilitytools.d/Proton-CachyOS-SLR-One");
+        let local_tool_two = steam_root
+            .path()
+            .join("compatibilitytools.d/Proton-CachyOS-SLR-Two");
+
+        let alias_definition = Some(
+            r#"
+            "compat_tools"
+            {
+                "proton-cachyos-slr"
+                {
+                    "display_name" "Proton CachyOS SLR"
+                }
+            }
+            "#,
+        );
+        create_tool(&local_tool_one, alias_definition);
+        create_tool(&local_tool_two, alias_definition);
+
+        let configured_path = system_root.path().join("proton-cachyos-slr/proton");
+        let mut diagnostics = Vec::new();
+        let preferred = prefer_user_local_compat_tool_path_with_roots(
+            &configured_path,
+            vec![steam_root.path().to_path_buf()],
+            vec![system_root.path().to_path_buf()],
+            &mut diagnostics,
+        );
+
+        assert_eq!(preferred, configured_path);
+        assert!(diagnostics.iter().any(|entry| {
+            entry.contains("multiple user-local matches were found")
+                && entry.contains("Keeping the configured path")
+        }));
     }
 }

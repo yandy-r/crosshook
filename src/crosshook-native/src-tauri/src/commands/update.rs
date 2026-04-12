@@ -70,12 +70,18 @@ pub async fn update_game(
 
 #[tauri::command]
 pub async fn cancel_update(state: tauri::State<'_, UpdateProcessState>) -> Result<(), String> {
-    let pid = state.pid.lock().unwrap().take();
+    let pid = *state.pid.lock().unwrap();
 
     if let Some(pid) = pid {
-        let _ = std::process::Command::new("kill")
+        let status = crosshook_core::platform::host_std_command("kill")
             .arg(pid.to_string())
-            .status();
+            .status()
+            .map_err(|error| format!("failed to signal updater process {pid}: {error}"))?;
+        if !status.success() {
+            return Err(format!(
+                "failed to signal updater process {pid}: kill exited with {status}"
+            ));
+        }
     }
 
     Ok(())

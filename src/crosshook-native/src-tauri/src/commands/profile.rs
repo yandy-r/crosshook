@@ -308,17 +308,23 @@ pub struct ProfileSummary {
     pub steam_app_id: String,
     pub custom_cover_art_path: Option<String>,
     pub custom_portrait_art_path: Option<String>,
+    /// Effective `launch.network_isolation` (default true) for Flatpak capability badges.
+    pub network_isolation: bool,
 }
 
 #[tauri::command]
 pub fn profile_list_summaries(
+    collection_id: Option<String>,
     store: State<'_, ProfileStore>,
+    metadata_store: State<'_, MetadataStore>,
 ) -> Result<Vec<ProfileSummary>, String> {
     let names = store.list().map_err(map_error)?;
     let mut summaries = Vec::with_capacity(names.len());
     for name in names {
         match store.load(&name) {
             Ok(profile) => {
+                let profile = apply_collection_defaults(profile, metadata_store.inner(), collection_id.as_deref())
+                    .map_err(|e| e.to_string())?;
                 let effective = profile.effective_profile();
                 let cover_art = effective.game.custom_cover_art_path.trim();
                 let portrait_art = effective.game.custom_portrait_art_path.trim();
@@ -336,6 +342,7 @@ pub fn profile_list_summaries(
                     } else {
                         Some(portrait_art.to_string())
                     },
+                    network_isolation: effective.launch.network_isolation,
                 });
             }
             Err(e) => {

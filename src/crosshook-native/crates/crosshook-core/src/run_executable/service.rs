@@ -5,8 +5,13 @@ use directories::BaseDirs;
 use tokio::process::Command;
 
 use crate::launch::runtime_helpers::{
-    apply_host_environment, apply_runtime_proton_environment, apply_working_directory,
-    attach_log_stdio, new_direct_proton_command,
+    apply_working_directory, attach_log_stdio,
+    build_direct_proton_command_with_wrappers_in_directory, host_environment_map,
+    merge_runtime_proton_into_map, resolve_effective_working_directory,
+};
+use crate::platform::{
+    normalize_flatpak_host_path, normalized_path_is_dir, normalized_path_is_executable_file,
+    normalized_path_is_file,
 };
 
 use super::models::{
@@ -80,8 +85,26 @@ pub fn build_run_executable_command(
     prefix_path: &Path,
     log_path: &Path,
 ) -> Result<Command, RunExecutableError> {
-    let executable_path = request.executable_path.trim();
-    let mut command = new_direct_proton_command(request.proton_path.trim());
+    let normalized_executable_path = normalize_flatpak_host_path(&request.executable_path);
+    let normalized_working_directory = normalize_flatpak_host_path(&request.working_directory);
+    let executable_path = normalized_executable_path.trim();
+    let mut env = host_environment_map();
+    merge_runtime_proton_into_map(
+        &mut env,
+        prefix_path.to_string_lossy().as_ref(),
+        request.steam_client_install_path.trim(),
+    );
+    let effective_working_directory = resolve_effective_working_directory(
+        normalized_working_directory.trim(),
+        Path::new(executable_path),
+    );
+    let mut command = build_direct_proton_command_with_wrappers_in_directory(
+        request.proton_path.trim(),
+        &[],
+        &env,
+        effective_working_directory.as_deref(),
+        &std::collections::BTreeMap::new(),
+    );
 
     if is_msi_path(Path::new(executable_path)) {
         // `msiexec` ships with every Proton/Wine prefix; the `/qb` flag asks for
@@ -94,18 +117,13 @@ pub fn build_run_executable_command(
     } else {
         command.arg(executable_path);
     }
-
-    apply_host_environment(&mut command);
-    apply_runtime_proton_environment(
-        &mut command,
-        prefix_path.to_string_lossy().as_ref(),
-        request.steam_client_install_path.trim(),
-    );
-    apply_working_directory(
-        &mut command,
-        request.working_directory.trim(),
-        Path::new(executable_path),
-    );
+    if !crate::platform::is_flatpak() {
+        apply_working_directory(
+            &mut command,
+            normalized_working_directory.trim(),
+            Path::new(executable_path),
+        );
+    }
     attach_log_stdio(&mut command, log_path).map_err(|error| {
         RunExecutableError::LogAttachmentFailed {
             path: log_path.to_path_buf(),
@@ -123,9 +141,10 @@ pub fn run_executable(
     validate_run_executable_request(request)?;
 
     let prefix_path = if request.prefix_path.trim().is_empty() {
-        resolve_default_adhoc_prefix_path(Path::new(request.executable_path.trim()))?
+        let normalized_executable_path = normalize_flatpak_host_path(&request.executable_path);
+        resolve_default_adhoc_prefix_path(Path::new(normalized_executable_path.trim()))?
     } else {
-        PathBuf::from(request.prefix_path.trim())
+        PathBuf::from(normalize_flatpak_host_path(&request.prefix_path))
     };
 
     provision_prefix(&prefix_path)?;
@@ -192,15 +211,16 @@ fn provision_prefix(prefix_path: &Path) -> Result<(), RunExecutableError> {
 }
 
 fn validate_executable_path(path: &str) -> Result<(), RunExecutableValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Err(RunExecutableValidationError::ExecutablePathRequired);
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(RunExecutableValidationError::ExecutablePathMissing);
-    }
-    if !path.is_file() {
+    let path = Path::new(normalized_path.trim());
+    if !normalized_path_is_file(normalized_path.trim()) {
+        if !path.exists() {
+            return Err(RunExecutableValidationError::ExecutablePathMissing);
+        }
         return Err(RunExecutableValidationError::ExecutablePathNotFile);
     }
     if !is_windows_runnable_executable(path) {
@@ -211,15 +231,16 @@ fn validate_executable_path(path: &str) -> Result<(), RunExecutableValidationErr
 }
 
 fn validate_proton_path(path: &str) -> Result<(), RunExecutableValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Err(RunExecutableValidationError::ProtonPathRequired);
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(RunExecutableValidationError::ProtonPathMissing);
-    }
-    if !is_executable_file(path) {
+    let path = Path::new(normalized_path.trim());
+    if !normalized_path_is_executable_file(normalized_path.trim()) {
+        if !path.exists() {
+            return Err(RunExecutableValidationError::ProtonPathMissing);
+        }
         return Err(RunExecutableValidationError::ProtonPathNotExecutable);
     }
 
@@ -227,15 +248,16 @@ fn validate_proton_path(path: &str) -> Result<(), RunExecutableValidationError> 
 }
 
 fn validate_optional_prefix_path(path: &str) -> Result<(), RunExecutableValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Ok(());
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(RunExecutableValidationError::PrefixPathMissing);
-    }
-    if !path.is_dir() {
+    let path = Path::new(normalized_path.trim());
+    if !normalized_path_is_dir(normalized_path.trim()) {
+        if !path.exists() {
+            return Err(RunExecutableValidationError::PrefixPathMissing);
+        }
         return Err(RunExecutableValidationError::PrefixPathNotDirectory);
     }
 
@@ -254,25 +276,6 @@ fn is_msi_path(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("msi"))
-}
-
-fn is_executable_file(path: &Path) -> bool {
-    let metadata = match fs::metadata(path) {
-        Ok(metadata) => metadata,
-        Err(_) => return false,
-    };
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
-    }
-
-    #[cfg(not(unix))]
-    {
-        metadata.is_file()
-    }
 }
 
 fn slugify(name: &str) -> String {
@@ -576,6 +579,35 @@ mod tests {
         assert!(
             debug_output.contains(&request.proton_path),
             "Command should reference the proton path, got: {debug_output}"
+        );
+    }
+
+    #[test]
+    fn build_run_executable_command_normalizes_flatpak_host_mounted_paths() {
+        let temp_dir = tempdir().expect("temp dir");
+        let mut request = valid_request(temp_dir.path());
+        let normalized_executable_path = request.executable_path.clone();
+        let normalized_proton_path = request.proton_path.clone();
+        request.executable_path = format!("/run/host{}", request.executable_path);
+        request.proton_path = format!("/run/host{}", request.proton_path);
+        let prefix_path = PathBuf::from(&request.prefix_path);
+        let log_path = temp_dir.path().join("test-flatpak.log");
+        std::fs::File::create(&log_path).unwrap();
+
+        let command = build_run_executable_command(&request, &prefix_path, &log_path).unwrap();
+        let debug_output = format!("{command:?}");
+
+        assert!(
+            debug_output.contains(&normalized_executable_path),
+            "Command should reference the normalized executable path, got: {debug_output}"
+        );
+        assert!(
+            debug_output.contains(&normalized_proton_path),
+            "Command should reference the normalized proton path, got: {debug_output}"
+        );
+        assert!(
+            !debug_output.contains("/run/host"),
+            "Command should not retain the Flatpak host prefix, got: {debug_output}"
         );
     }
 

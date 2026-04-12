@@ -127,6 +127,11 @@ function scheduleLaunchLogSequence(
 // ---------------------------------------------------------------------------
 
 export function registerLaunch(map: Map<string, Handler>): void {
+  map.set('launch_platform_status', async () => ({
+    isFlatpak: false,
+    unshareNetAvailable: true,
+  }));
+
   // -------------------------------------------------------------------------
   // launch_game — returns LaunchResult immediately then emits event sequence
   // -------------------------------------------------------------------------

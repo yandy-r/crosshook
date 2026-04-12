@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use tar::Builder;
 
 use crate::logging;
+use crate::platform;
 use crate::profile::health::batch_check_health;
 use crate::profile::ProfileStore;
 use crate::settings::SettingsStore;
@@ -244,25 +245,39 @@ fn collect_system_info() -> String {
     lines.push(String::new());
 
     lines.push("=== GPU ===".to_string());
-    match Command::new("lspci").output() {
+    let lspci_output = if platform::is_flatpak() {
+        platform::host_std_command("lspci").output()
+    } else {
+        Command::new("lspci").output()
+    };
+    match lspci_output {
         Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let gpu_lines: Vec<&str> = stdout
-                .lines()
-                .filter(|line| {
-                    let lower = line.to_lowercase();
-                    lower.contains("vga") || lower.contains("3d controller")
-                })
-                .collect();
-            if gpu_lines.is_empty() {
-                lines.push("(no VGA/3D devices found)".to_string());
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                if stderr.is_empty() {
+                    lines.push(format!("(lspci failed: {})", output.status));
+                } else {
+                    lines.push(format!("(lspci failed: {}: {stderr})", output.status));
+                }
             } else {
-                for gpu_line in gpu_lines {
-                    lines.push(gpu_line.to_string());
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let gpu_lines: Vec<&str> = stdout
+                    .lines()
+                    .filter(|line| {
+                        let lower = line.to_lowercase();
+                        lower.contains("vga") || lower.contains("3d controller")
+                    })
+                    .collect();
+                if gpu_lines.is_empty() {
+                    lines.push("(no VGA/3D devices found)".to_string());
+                } else {
+                    for gpu_line in gpu_lines {
+                        lines.push(gpu_line.to_string());
+                    }
                 }
             }
         }
-        Err(_) => lines.push("(lspci not available)".to_string()),
+        Err(error) => lines.push(format!("(lspci not available: {error})")),
     }
 
     if let Some(nvidia) = read_file_lossy("/proc/driver/nvidia/version") {

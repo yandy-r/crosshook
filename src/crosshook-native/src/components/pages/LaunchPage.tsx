@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
+import { callCommand } from '@/lib/ipc';
 import { useLaunchPrefixDependencyGate } from '../../hooks/useLaunchPrefixDependencyGate';
+import { useLaunchPlatformStatus } from '../../hooks/useLaunchPlatformStatus';
 
 import LaunchPanel from '../LaunchPanel';
 import { RouteBanner } from '../layout/RouteBanner';
@@ -22,9 +24,16 @@ import {
   mergeProtonDbEnvVarGroup,
   type PendingProtonDbOverwrite,
 } from '../../utils/protondb';
+import type { ProfileSummary } from '../../types/library';
+
+const FLATPAK_NET_BADGE = 'No network isolation';
+const FLATPAK_NET_BADGE_TITLE =
+  'Flatpak cannot enforce network isolation (unshare) on this system. The profile still launches; traffic is not isolated.';
 
 export function LaunchPage() {
   const profileState = useProfileContext();
+  const launchPlatform = useLaunchPlatformStatus();
+  const [profileNetworkIsolation, setProfileNetworkIsolation] = useState<Record<string, boolean>>({});
   const { activeCollectionId, setActiveCollectionId } = profileState;
   const { collections } = useCollections();
   const { memberNames, membersForCollectionId, loading: membersLoading } = useCollectionMembers(activeCollectionId);
@@ -75,16 +84,58 @@ export function LaunchPage() {
     profileState.selectProfile,
   ]);
 
+  useEffect(() => {
+    let active = true;
+    const collectionId = activeCollectionId?.trim() || undefined;
+    void callCommand<ProfileSummary[]>('profile_list_summaries', { collectionId })
+      .then((rows) => {
+        if (!active) {
+          return;
+        }
+        const next: Record<string, boolean> = {};
+        for (const row of rows) {
+          next[row.name] = row.networkIsolation;
+        }
+        setProfileNetworkIsolation(next);
+      })
+      .catch(() => {
+        if (active) {
+          setProfileNetworkIsolation({});
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [profileState.profiles, activeCollectionId]);
+
+  const showFlatpakNetworkIsolationBadge = useCallback(
+    (profileName: string) => {
+      if (
+        !launchPlatform?.isFlatpak ||
+        launchPlatform.unshareNetAvailable ||
+        !profileName.trim()
+      ) {
+        return false;
+      }
+      return profileNetworkIsolation[profileName] === true;
+    },
+    [launchPlatform, profileNetworkIsolation]
+  );
+
   const { healthByName } = useProfileHealthContext();
-  const { settings } = usePreferencesContext();
+  const { settings, defaultSteamClientInstallPath } = usePreferencesContext();
   const { launchGame, launchTrainer } = useLaunchStateContext();
   const { getDependencyStatus, installPrefixDependency, isGamescopeRunning } = useLaunchPrefixDependencyGate();
   const profile = profileState.profile;
   const selectedName = profileState.selectedProfile || '';
+  const effectiveSteamClientInstallPath = useMemo(
+    () => defaultSteamClientInstallPath || profileState.steamClientInstallPath,
+    [defaultSteamClientInstallPath, profileState.steamClientInstallPath]
+  );
   const launchRequest = buildProfileLaunchRequest(
     profile,
     profileState.launchMethod,
-    profileState.steamClientInstallPath,
+    effectiveSteamClientInstallPath,
     selectedName
   );
   const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
@@ -390,7 +441,12 @@ export function LaunchPage() {
                 pinnedValues={pinnedSet}
                 onTogglePin={handleTogglePin}
                 ariaLabelledby="launch-active-profile-label"
-                options={filteredProfiles.map((name) => ({ value: name, label: name }))}
+                options={filteredProfiles.map((name) => ({
+                  value: name,
+                  label: name,
+                  badge: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE : undefined,
+                  badgeTitle: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE_TITLE : undefined,
+                }))}
               />
             </>
           }

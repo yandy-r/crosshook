@@ -5,9 +5,15 @@ use directories::BaseDirs;
 use tokio::process::Command;
 use tokio::runtime::Handle;
 
+use crate::launch::request::{path_exists_visible_or_host, path_is_executable_visible_or_host};
 use crate::launch::runtime_helpers::{
-    apply_host_environment, apply_runtime_proton_environment, apply_working_directory,
-    attach_log_stdio, new_direct_proton_command,
+    apply_working_directory, attach_log_stdio,
+    build_direct_proton_command_with_wrappers_in_directory, host_environment_map,
+    merge_runtime_proton_into_map, resolve_effective_working_directory,
+};
+use crate::platform::{
+    normalize_flatpak_host_path, normalized_path_exists_on_host, normalized_path_is_dir,
+    normalized_path_is_dir_on_host, normalized_path_is_file,
 };
 use crate::profile::validate_name;
 
@@ -51,7 +57,7 @@ pub fn install_game(
 ) -> Result<InstallGameResult, InstallGameError> {
     validate_install_request(request)?;
 
-    let prefix_path = PathBuf::from(request.prefix_path.trim());
+    let prefix_path = PathBuf::from(normalize_flatpak_host_path(&request.prefix_path));
     provision_prefix(&prefix_path)?;
     let runtime_handle = Handle::try_current().map_err(|_| InstallGameError::RuntimeUnavailable)?;
 
@@ -78,7 +84,7 @@ pub fn install_game(
         &prefix_path,
         request.resolved_profile_name(),
         request.resolved_display_name(),
-        request.installer_path.trim(),
+        normalize_flatpak_host_path(&request.installer_path).trim(),
     );
     let confirmed_game_executable_path =
         resolve_confirmed_game_executable_path(request, &discovered_game_executable_candidates);
@@ -107,12 +113,27 @@ fn build_install_command(
     prefix_path: &Path,
     log_path: &Path,
 ) -> Result<Command, InstallGameError> {
-    let mut command = new_direct_proton_command(request.proton_path.trim());
-    command.arg(request.installer_path.trim());
-    apply_host_environment(&mut command);
+    let normalized_installer_path = normalize_flatpak_host_path(&request.installer_path);
+    let mut env = host_environment_map();
     let prefix_path_string = prefix_path.to_string_lossy().into_owned();
-    apply_runtime_proton_environment(&mut command, &prefix_path_string, "");
-    apply_working_directory(&mut command, "", Path::new(request.installer_path.trim()));
+    merge_runtime_proton_into_map(&mut env, &prefix_path_string, "");
+    let effective_working_directory =
+        resolve_effective_working_directory("", Path::new(normalized_installer_path.trim()));
+    let mut command = build_direct_proton_command_with_wrappers_in_directory(
+        request.proton_path.trim(),
+        &[],
+        &env,
+        effective_working_directory.as_deref(),
+        &std::collections::BTreeMap::new(),
+    );
+    command.arg(normalized_installer_path.trim());
+    if !crate::platform::is_flatpak() {
+        apply_working_directory(
+            &mut command,
+            "",
+            Path::new(normalized_installer_path.trim()),
+        );
+    }
     attach_log_stdio(&mut command, log_path).map_err(|error| {
         InstallGameError::LogAttachmentFailed {
             path: log_path.to_path_buf(),
@@ -158,15 +179,16 @@ fn validate_profile_name(profile_name: &str) -> Result<(), InstallGameValidation
 }
 
 fn validate_installer_path(path: &str) -> Result<(), InstallGameValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Err(InstallGameValidationError::InstallerPathRequired);
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(InstallGameValidationError::InstallerPathMissing);
-    }
-    if !path.is_file() {
+    let path = Path::new(normalized_path.trim());
+    if !normalized_path_is_file(normalized_path.trim()) {
+        if !path.exists() {
+            return Err(InstallGameValidationError::InstallerPathMissing);
+        }
         return Err(InstallGameValidationError::InstallerPathNotFile);
     }
     if !is_windows_executable(path) {
@@ -177,15 +199,16 @@ fn validate_installer_path(path: &str) -> Result<(), InstallGameValidationError>
 }
 
 fn validate_optional_trainer_path(path: &str) -> Result<(), InstallGameValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Ok(());
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(InstallGameValidationError::TrainerPathMissing);
-    }
-    if !path.is_file() {
+    let path = Path::new(normalized_path.trim());
+    if !normalized_path_is_file(normalized_path.trim()) {
+        if !path.exists() {
+            return Err(InstallGameValidationError::TrainerPathMissing);
+        }
         return Err(InstallGameValidationError::TrainerPathNotFile);
     }
 
@@ -193,15 +216,16 @@ fn validate_optional_trainer_path(path: &str) -> Result<(), InstallGameValidatio
 }
 
 fn validate_optional_custom_cover_art_path(path: &str) -> Result<(), InstallGameValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Ok(());
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(InstallGameValidationError::CustomCoverArtPathMissing);
-    }
-    if !path.is_file() {
+    let path = Path::new(normalized_path.trim());
+    if !normalized_path_is_file(normalized_path.trim()) {
+        if !path.exists() {
+            return Err(InstallGameValidationError::CustomCoverArtPathMissing);
+        }
         return Err(InstallGameValidationError::CustomCoverArtPathNotFile);
     }
 
@@ -211,15 +235,16 @@ fn validate_optional_custom_cover_art_path(path: &str) -> Result<(), InstallGame
 fn validate_optional_custom_portrait_art_path(
     path: &str,
 ) -> Result<(), InstallGameValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Ok(());
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(InstallGameValidationError::CustomPortraitArtPathMissing);
-    }
-    if !path.is_file() {
+    let path = Path::new(normalized_path.trim());
+    if !normalized_path_is_file(normalized_path.trim()) {
+        if !path.exists() {
+            return Err(InstallGameValidationError::CustomPortraitArtPathMissing);
+        }
         return Err(InstallGameValidationError::CustomPortraitArtPathNotFile);
     }
 
@@ -229,15 +254,16 @@ fn validate_optional_custom_portrait_art_path(
 fn validate_optional_custom_background_art_path(
     path: &str,
 ) -> Result<(), InstallGameValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Ok(());
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(InstallGameValidationError::CustomBackgroundArtPathMissing);
-    }
-    if !path.is_file() {
+    let path = Path::new(normalized_path.trim());
+    if !normalized_path_is_file(normalized_path.trim()) {
+        if !path.exists() {
+            return Err(InstallGameValidationError::CustomBackgroundArtPathMissing);
+        }
         return Err(InstallGameValidationError::CustomBackgroundArtPathNotFile);
     }
 
@@ -245,33 +271,34 @@ fn validate_optional_custom_background_art_path(
 }
 
 fn validate_proton_path(path: &str) -> Result<(), InstallGameValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Err(InstallGameValidationError::ProtonPathRequired);
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(InstallGameValidationError::ProtonPathMissing);
-    }
-    if !is_executable_file(path) {
-        return Err(InstallGameValidationError::ProtonPathNotExecutable);
+    if path_is_executable_visible_or_host(path) {
+        return Ok(());
     }
 
-    Ok(())
+    if !path_exists_visible_or_host(path) {
+        return Err(InstallGameValidationError::ProtonPathMissing);
+    }
+    Err(InstallGameValidationError::ProtonPathNotExecutable)
 }
 
 fn validate_optional_installed_game_executable_path(
     path: &str,
 ) -> Result<(), InstallGameValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Ok(());
     }
 
-    let path = Path::new(path);
-    if !path.exists() {
-        return Err(InstallGameValidationError::InstalledGameExecutablePathMissing);
-    }
-    if !path.is_file() {
+    let path = Path::new(normalized_path.trim());
+    if !normalized_path_is_file(normalized_path.trim()) {
+        if !path.exists() {
+            return Err(InstallGameValidationError::InstalledGameExecutablePathMissing);
+        }
         return Err(InstallGameValidationError::InstalledGameExecutablePathNotFile);
     }
 
@@ -279,15 +306,18 @@ fn validate_optional_installed_game_executable_path(
 }
 
 fn validate_prefix_path(path: &str) -> Result<(), InstallGameValidationError> {
-    if path.is_empty() {
+    let normalized_path = normalize_flatpak_host_path(path);
+    if normalized_path.is_empty() {
         return Err(InstallGameValidationError::PrefixPathRequired);
     }
 
-    let path = Path::new(path);
-    if let Ok(metadata) = fs::metadata(path) {
-        if !metadata.is_dir() {
-            return Err(InstallGameValidationError::PrefixPathNotDirectory);
-        }
+    let trimmed = normalized_path.trim();
+    let path = Path::new(trimmed);
+    if !normalized_path_is_dir(trimmed)
+        && !normalized_path_is_dir_on_host(trimmed)
+        && (path.exists() || normalized_path_exists_on_host(trimmed))
+    {
+        return Err(InstallGameValidationError::PrefixPathNotDirectory);
     }
 
     Ok(())
@@ -297,7 +327,9 @@ fn resolve_confirmed_game_executable_path(
     request: &InstallGameRequest,
     discovered_candidates: &[PathBuf],
 ) -> Option<PathBuf> {
-    let configured_path = request.installed_game_executable_path.trim();
+    let normalized_configured_path =
+        normalize_flatpak_host_path(&request.installed_game_executable_path);
+    let configured_path = normalized_configured_path.trim();
     if !configured_path.is_empty() {
         let path = PathBuf::from(configured_path);
         return Some(path);
@@ -348,25 +380,6 @@ fn is_windows_executable(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("exe"))
-}
-
-fn is_executable_file(path: &Path) -> bool {
-    let metadata = match fs::metadata(path) {
-        Ok(metadata) => metadata,
-        Err(_) => return false,
-    };
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
-    }
-
-    #[cfg(not(unix))]
-    {
-        metadata.is_file()
-    }
 }
 
 #[cfg(test)]
@@ -493,6 +506,18 @@ mod tests {
             validate_install_request(&request),
             Err(InstallGameValidationError::CustomCoverArtPathNotFile)
         ));
+    }
+
+    #[test]
+    fn validate_install_request_accepts_flatpak_host_mounted_paths() {
+        let temp_dir = tempdir().expect("temp dir");
+        let mut request = valid_request(temp_dir.path());
+        request.installer_path = format!("/run/host{}", request.installer_path);
+        request.trainer_path = format!("/run/host{}", request.trainer_path);
+        request.proton_path = format!("/run/host{}", request.proton_path);
+        request.prefix_path = format!("/run/host{}", request.prefix_path);
+
+        assert!(validate_install_request(&request).is_ok());
     }
 
     #[test]

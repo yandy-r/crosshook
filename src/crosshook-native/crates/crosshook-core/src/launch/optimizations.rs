@@ -15,6 +15,7 @@ use super::{
     request::{LaunchRequest, ValidationError, METHOD_PROTON_RUN},
     runtime_helpers::{build_gamescope_args, DEFAULT_HOST_PATH},
 };
+use crate::platform;
 use crate::profile::GamescopeConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -259,6 +260,10 @@ pub(crate) fn is_command_available(binary: &str) -> bool {
         if let Some(search_path) = guard.as_ref() {
             return is_executable_file(&search_path.join(binary));
         }
+    }
+
+    if platform::is_flatpak() {
+        return platform::host_command_exists(binary);
     }
 
     let path_value = env::var_os("PATH").unwrap_or_else(|| OsString::from(DEFAULT_HOST_PATH));

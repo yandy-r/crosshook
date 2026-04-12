@@ -39,6 +39,49 @@ ensure_standard_path() {
   esac
 }
 
+run_host() {
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    flatpak-spawn --host "$@"
+  else
+    "$@"
+  fi
+}
+
+run_host_in_directory() {
+  local directory="$1"
+  shift
+
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    flatpak-spawn --host --directory="$directory" "$@"
+  else
+    (
+      cd "$directory"
+      "$@"
+    )
+  fi
+}
+
+host_test() {
+  local flag="$1"
+  local path="$2"
+
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    run_host test "$flag" "$path"
+  else
+    test "$flag" "$path"
+  fi
+}
+
+host_realpath() {
+  local path="$1"
+
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    run_host realpath "$path"
+  else
+    realpath "$path"
+  fi
+}
+
 log_shell_process() {
   if [[ -x /usr/bin/ps ]]; then
     log "shell_process=$(/usr/bin/ps -o pid=,ppid=,comm=,args= -p $$)"
@@ -137,6 +180,7 @@ stage_trainer_into_compatdata() {
   stage_trainer_support_files "$trainer_source_dir" "$staged_trainer_directory_path" "$trainer_file_name" "$trainer_base_name"
 
   trainer_path="$staged_trainer_windows_path"
+  run_directory="$staged_trainer_directory_path"
   log "Staged Steam trainer to $trainer_path"
 }
 
@@ -216,14 +260,14 @@ ensure_standard_path
 mkdir -p "$(dirname "$log_file")"
 exec >>"$log_file" 2>&1
 
-compatdata="$(realpath "$compatdata")"
-proton="$(realpath "$proton")"
-steam_client="$(realpath "$steam_client")"
-trainer_host_path="$(realpath "$trainer_host_path")"
+compatdata="$(host_realpath "$compatdata")" || fail "Failed to resolve compatdata path: $compatdata"
+proton="$(host_realpath "$proton")" || fail "Failed to resolve Proton path: $proton"
+steam_client="$(host_realpath "$steam_client")" || fail "Failed to resolve Steam client path: $steam_client"
+trainer_host_path="$(host_realpath "$trainer_host_path")" || fail "Failed to resolve trainer host path: $trainer_host_path"
 
-[[ -d "$compatdata" ]] || fail "Compatdata path does not exist: $compatdata"
-[[ -x "$proton" ]] || fail "Proton path is not executable: $proton"
-[[ -f "$trainer_host_path" ]] || fail "Trainer host path does not exist: $trainer_host_path"
+host_test -d "$compatdata" || fail "Compatdata path does not exist: $compatdata"
+host_test -x "$proton" || fail "Proton path is not executable: $proton"
+host_test -f "$trainer_host_path" || fail "Trainer host path does not exist: $trainer_host_path"
 
 case "$trainer_loading_mode" in
   source_directory|copy_to_prefix)
@@ -264,16 +308,42 @@ export WINEPREFIX="$compatdata/pfx"
 
 if [[ "$trainer_loading_mode" == "copy_to_prefix" ]]; then
   stage_trainer_into_compatdata
+  trainer_path="$staged_trainer_host_path"
+  cd "$run_directory" || fail "Failed to cd to staged trainer directory: $run_directory"
+  log "Changed trainer working directory to $(pwd)"
+  run_directory="$PWD"
 else
   trainer_path="$trainer_host_path"
+  run_directory="$(dirname "$trainer_host_path")"
   log "Using trainer from source directory: $trainer_path"
-  cd "$(dirname "$trainer_host_path")"
+  cd "$run_directory"
   log "Changed trainer working directory to $(pwd)"
+  run_directory="$PWD"
 fi
 
 log_runtime_context
 
 log "Launching trainer with direct proton run."
+if [[ -n "${FLATPAK_ID:-}" ]]; then
+  if [[ "$gamescope_enabled" == "1" ]]; then
+    if run_host_in_directory "$run_directory" gamescope "${gamescope_args[@]}" -- "$proton" run "$trainer_path"; then
+      log "Trainer proton run exited successfully."
+      exit 0
+    else
+      exit_code=$?
+      log "Trainer proton run exited with code $exit_code"
+      exit "$exit_code"
+    fi
+  fi
+  if run_host_in_directory "$run_directory" "$proton" run "$trainer_path"; then
+    log "Trainer proton run exited successfully."
+    exit 0
+  else
+    exit_code=$?
+    log "Trainer proton run exited with code $exit_code"
+    exit "$exit_code"
+  fi
+fi
 if [[ "$gamescope_enabled" == "1" ]]; then
   launch_command=(gamescope "${gamescope_args[@]}" -- "$proton" run "$trainer_path")
 else
