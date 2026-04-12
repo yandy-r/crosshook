@@ -404,9 +404,7 @@ fn cached_result_from_row(
     }
 
     let mut result = serde_json::from_str::<ProtonDbLookupResult>(&row.payload_json).ok()?;
-    if result.snapshot.is_none() {
-        return None;
-    }
+    result.snapshot.as_ref()?;
 
     result.app_id = app_id.to_string();
     result.state = if is_stale {

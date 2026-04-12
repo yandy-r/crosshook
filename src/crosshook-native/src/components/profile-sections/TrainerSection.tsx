@@ -1,12 +1,11 @@
 import { useId, useState } from 'react';
-
-import { FieldRow, OptionalSection, TrainerVersionSetField } from '../ProfileFormSections';
-import { OfflineTrainerInfoModal, type TrainerInfoModalKey } from '../OfflineTrainerInfoModal';
-import { InfoTooltip } from '../ui/InfoTooltip';
-import { ThemedSelect } from '../ui/ThemedSelect';
-import { chooseFile } from '../../utils/dialog';
 import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
 import type { GameProfile, LaunchMethod } from '../../types';
+import { chooseFile } from '../../utils/dialog';
+import { OfflineTrainerInfoModal, type TrainerInfoModalKey } from '../OfflineTrainerInfoModal';
+import { FieldRow, OptionalSection, TrainerVersionSetField } from '../ProfileFormSections';
+import { InfoTooltip } from '../ui/InfoTooltip';
+import { ThemedSelect } from '../ui/ThemedSelect';
 
 function isSupportedTrainerInfoModal(value: string | undefined | null): value is TrainerInfoModalKey {
   return value === 'aurora_offline_setup' || value === 'wemod_offline_info';

@@ -1,13 +1,12 @@
-import { useCallback, useMemo, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-
-import CompatibilityViewer, { type CompatibilityDatabaseEntry } from '../CompatibilityViewer';
-import { RouteBanner } from '../layout/RouteBanner';
-import { CollapsibleSection } from '../ui/CollapsibleSection';
+import { useCallback, useMemo, useState } from 'react';
 import { useCommunityProfiles } from '../../hooks/useCommunityProfiles';
 import { useProtonInstalls } from '../../hooks/useProtonInstalls';
 import { useProtonUp } from '../../hooks/useProtonUp';
 import type { ProtonUpAvailableVersion, ProtonUpInstallResult, ProtonUpProvider } from '../../types/protonup';
+import CompatibilityViewer, { type CompatibilityDatabaseEntry } from '../CompatibilityViewer';
+import { RouteBanner } from '../layout/RouteBanner';
+import { CollapsibleSection } from '../ui/CollapsibleSection';
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
 const DEFAULT_COMPAT_TOOLS_DIR = '~/.local/share/Steam/compatibilitytools.d';

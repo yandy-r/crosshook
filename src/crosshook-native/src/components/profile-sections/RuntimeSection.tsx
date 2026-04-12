@@ -1,12 +1,11 @@
 import type { ReactNode } from 'react';
-
-import AutoPopulate from '../AutoPopulate';
-import { FieldRow, LauncherMetadataFields, OptionalSection, ProtonPathField } from '../ProfileFormSections';
-import type { ProtonInstallOption } from '../ProfileFormSections';
+import type { GameProfile, LaunchMethod } from '../../types';
+import { validateSteamAppId } from '../../utils/art';
 import { chooseDirectory, chooseFile } from '../../utils/dialog';
 import { deriveSteamClientInstallPath } from '../../utils/steam';
-import { validateSteamAppId } from '../../utils/art';
-import type { GameProfile, LaunchMethod } from '../../types';
+import AutoPopulate from '../AutoPopulate';
+import type { ProtonInstallOption } from '../ProfileFormSections';
+import { FieldRow, LauncherMetadataFields, OptionalSection, ProtonPathField } from '../ProfileFormSections';
 
 export interface RuntimeSectionProps {
   profile: GameProfile;

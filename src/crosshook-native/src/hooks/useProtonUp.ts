@@ -157,7 +157,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
           communityVersion,
           steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
         });
-      } catch (error) {
+      } catch (_error) {
         return {
           status: 'unknown',
           community_version: communityVersion.trim().length > 0 ? communityVersion : undefined,

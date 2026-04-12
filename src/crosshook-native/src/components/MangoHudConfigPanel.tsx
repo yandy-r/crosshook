@@ -1,8 +1,8 @@
-import { useId, type ChangeEvent } from 'react';
+import { type ChangeEvent, useId } from 'react';
+import { type MangoHudPreset, useMangoHudPresets } from '../hooks/useMangoHudPresets';
 import type { MangoHudConfig, MangoHudPosition } from '../types/profile';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { ThemedSelect } from './ui/ThemedSelect';
-import { useMangoHudPresets, type MangoHudPreset } from '../hooks/useMangoHudPresets';
 
 export interface MangoHudConfigPanelProps {
   config: MangoHudConfig;
@@ -38,7 +38,7 @@ function parseMangoHudPosition(value: string | undefined): MangoHudPosition | un
 function parseOptionalInt(value: string): number | undefined {
   if (value === '') return undefined;
   const parsed = parseInt(value, 10);
-  return isNaN(parsed) ? undefined : parsed;
+  return Number.isNaN(parsed) ? undefined : parsed;
 }
 
 function detectActivePreset(config: MangoHudConfig, presets: MangoHudPreset[]): string {

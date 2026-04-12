@@ -551,7 +551,7 @@ mod tests {
             result
                 .discovered_game_executable_candidates
                 .first()
-                .map(|path| path.as_str()),
+                .map(std::string::String::as_str),
             Some(expected_game_path.as_str())
         );
         assert_eq!(result.profile.game.executable_path, expected_game_path);

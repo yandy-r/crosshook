@@ -227,7 +227,6 @@ async fn fetch_expected_checksum(
 /// top-level directory extracted (the tool directory).
 ///
 /// Blocking I/O runs in `spawn_blocking` via [`extract_archive`] / [`peek_archive`].
-
 fn extract_tar_read_sync<R: std::io::Read>(
     read: R,
     dest_dir: &Path,

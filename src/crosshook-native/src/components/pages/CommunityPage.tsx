@@ -1,6 +1,6 @@
+import { useCommunityProfiles } from '../../hooks/useCommunityProfiles';
 import CommunityBrowser from '../CommunityBrowser';
 import { RouteBanner } from '../layout/RouteBanner';
-import { useCommunityProfiles } from '../../hooks/useCommunityProfiles';
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
 

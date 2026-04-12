@@ -1,28 +1,27 @@
-import { useEffect, useId, useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
-
-import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
-import ProtonDbOverwriteConfirmation from './ProtonDbOverwriteConfirmation';
-import ProtonDbLookupCard from './ProtonDbLookupCard';
-import { ThemedSelect } from './ui/ThemedSelect';
-import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
-import { GameSection } from './profile-sections/GameSection';
-import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
-import { TrainerSection } from './profile-sections/TrainerSection';
-import { RuntimeSection } from './profile-sections/RuntimeSection';
+import { type ChangeEvent, type ReactNode, useEffect, useId, useMemo, useState } from 'react';
+import { useProtonDbSuggestions } from '../hooks/useProtonDbSuggestions';
 import { useSetTrainerVersion } from '../hooks/useSetTrainerVersion';
 import type { GameProfile, LaunchMethod } from '../types';
 import type { ProtonInstallOption } from '../types/proton';
 import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../types/protondb';
 import type { VersionCorrelationStatus } from '../types/version';
-import { useProtonDbSuggestions } from '../hooks/useProtonDbSuggestions';
 import { resolveArtAppId } from '../utils/art';
+import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
+import { formatProtonInstallLabel } from '../utils/proton';
 import {
   applyProtonDbGroupToProfile,
   mergeProtonDbEnvVarGroup,
   type PendingProtonDbOverwrite,
 } from '../utils/protondb';
-import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
-import { formatProtonInstallLabel } from '../utils/proton';
+import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
+import ProtonDbLookupCard from './ProtonDbLookupCard';
+import ProtonDbOverwriteConfirmation from './ProtonDbOverwriteConfirmation';
+import { GameSection } from './profile-sections/GameSection';
+import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
+import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
+import { RuntimeSection } from './profile-sections/RuntimeSection';
+import { TrainerSection } from './profile-sections/TrainerSection';
+import { ThemedSelect } from './ui/ThemedSelect';
 
 export type ProfileFormSectionsProfileSelector = {
   profiles: string[];
@@ -106,9 +105,9 @@ export function updateGameExecutablePath(current: GameProfile, nextExecutablePat
   };
 }
 
-export { deriveSteamClientInstallPath } from '../utils/steam';
-export { formatProtonInstallLabel } from '../utils/proton';
 export type { ProtonInstallOption } from '../types/proton';
+export { formatProtonInstallLabel } from '../utils/proton';
+export { deriveSteamClientInstallPath } from '../utils/steam';
 
 export function FieldRow(props: {
   label: string;
@@ -410,7 +409,7 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     setPendingProtonDbOverwrite(null);
     setApplyingProtonDbGroupId(null);
     setProtonDbStatusMessage(null);
-  }, [profileName, resolvedAppId, launchMethod]);
+  }, []);
 
   const applyProtonDbGroup = (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
     const result = { appliedKeys: [] as string[], unchangedKeys: [] as string[], toggledOptionIds: [] as string[] };

@@ -75,13 +75,13 @@ pub fn record_launch_finished(
     };
 
     // Extract promoted columns regardless of JSON truncation
-    let severity = serde_json::to_value(&report.severity)
+    let severity = serde_json::to_value(report.severity)
         .ok()
-        .and_then(|v| v.as_str().map(|s| s.to_owned()));
+        .and_then(|v| v.as_str().map(std::borrow::ToOwned::to_owned));
 
     let failure_mode = serde_json::to_value(&report.exit_info.failure_mode)
         .ok()
-        .and_then(|v| v.as_str().map(|s| s.to_owned()));
+        .and_then(|v| v.as_str().map(std::borrow::ToOwned::to_owned));
 
     let rows_affected = conn
         .execute(

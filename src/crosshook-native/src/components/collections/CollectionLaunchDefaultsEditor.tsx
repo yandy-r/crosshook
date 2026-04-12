@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { useCollectionDefaults } from '@/hooks/useCollectionDefaults';
-import { isCollectionDefaultsEmpty, type CollectionDefaults, type LaunchMethod } from '@/types/profile';
+import { type CollectionDefaults, isCollectionDefaultsEmpty, type LaunchMethod } from '@/types/profile';
 
 import './CollectionLaunchDefaultsEditor.css';
 

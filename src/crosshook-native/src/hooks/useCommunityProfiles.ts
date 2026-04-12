@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { callCommand } from '@/lib/ipc';
 import { subscribeEvent } from '@/lib/events';
+import { callCommand } from '@/lib/ipc';
 import type { AppSettingsData, GameProfile } from '../types';
 import { toSettingsSaveRequest } from '../types/settings';
 
@@ -204,7 +204,7 @@ function dedupeTaps(taps: CommunityTapSubscription[]): CommunityTapSubscription[
   return unique;
 }
 
-export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseCommunityProfilesResult {
+export function useCommunityProfiles(_options: UseCommunityProfilesOptions): UseCommunityProfilesResult {
   const [taps, setTaps] = useState<CommunityTapSubscription[]>([]);
   const [index, setIndex] = useState<CommunityProfileIndex>({
     entries: [],
@@ -452,7 +452,7 @@ export function useCommunityProfiles(options: UseCommunityProfilesOptions): UseC
     void refreshProfiles().catch((refreshError) => {
       setError(refreshError instanceof Error ? refreshError.message : String(refreshError));
     });
-  }, [loading, refreshProfiles, taps]);
+  }, [loading, refreshProfiles]);
 
   return {
     taps,

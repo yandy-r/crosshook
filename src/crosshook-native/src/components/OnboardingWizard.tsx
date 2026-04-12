@@ -1,25 +1,24 @@
+import { type KeyboardEvent, type MouseEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
-
-import { ControllerPrompts } from './layout/ControllerPrompts';
+import { usePreferencesContext } from '../context/PreferencesContext';
+import { useProfileContext } from '../context/ProfileContext';
+import { useOnboarding } from '../hooks/useOnboarding';
+import { useProtonInstalls } from '../hooks/useProtonInstalls';
+import type { ResolvedLaunchMethod } from '../types';
+import type { OnboardingWizardStage } from '../types/onboarding';
+import { resolveLaunchMethod } from '../utils/launch';
+import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
-import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
+import { ControllerPrompts } from './layout/ControllerPrompts';
 import { GameSection } from './profile-sections/GameSection';
+import { MediaSection } from './profile-sections/MediaSection';
+import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
 import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
 import { RuntimeSection } from './profile-sections/RuntimeSection';
 import { TrainerSection } from './profile-sections/TrainerSection';
-import { MediaSection } from './profile-sections/MediaSection';
 import { WizardPresetPicker } from './wizard/WizardPresetPicker';
 import { WizardReviewSummary } from './wizard/WizardReviewSummary';
 import { evaluateWizardRequiredFields } from './wizard/wizardValidation';
-import { useOnboarding } from '../hooks/useOnboarding';
-import { useProfileContext } from '../context/ProfileContext';
-import { usePreferencesContext } from '../context/PreferencesContext';
-import { resolveLaunchMethod } from '../utils/launch';
-import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
-import type { OnboardingWizardStage } from '../types/onboarding';
-import { useProtonInstalls } from '../hooks/useProtonInstalls';
-import type { ResolvedLaunchMethod } from '../types';
 
 export interface OnboardingWizardProps {
   open: boolean;
@@ -213,7 +212,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
       hiddenNodesRef.current = [];
 
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) focusElement(restoreTarget);
+      if (restoreTarget?.isConnected) focusElement(restoreTarget);
       previouslyFocusedRef.current = null;
     };
   }, [open]);

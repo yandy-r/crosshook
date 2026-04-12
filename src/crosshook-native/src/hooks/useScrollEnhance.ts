@@ -55,7 +55,7 @@ export function useScrollEnhance(): void {
     }
 
     function tick() {
-      if (!activeContainer || !activeContainer.isConnected) {
+      if (!activeContainer?.isConnected) {
         resetMomentum();
         return;
       }

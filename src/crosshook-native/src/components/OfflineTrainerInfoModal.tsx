@@ -1,5 +1,5 @@
+import { type KeyboardEvent, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useEffect, useRef, type KeyboardEvent } from 'react';
 
 import { isSteamDeckRuntime } from '../hooks/useGamepadNav';
 
@@ -50,7 +50,7 @@ export function OfflineTrainerInfoModal({ open, onClose, modalKey }: OfflineTrai
     return () => {
       window.cancelAnimationFrame(frame);
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
+      if (restoreTarget?.isConnected) {
         restoreTarget.focus({ preventScroll: true });
       }
       previouslyFocusedRef.current = null;

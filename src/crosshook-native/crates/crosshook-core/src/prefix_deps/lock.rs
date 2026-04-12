@@ -10,6 +10,12 @@ pub struct PrefixDepsInstallLock {
     active: Arc<Mutex<Option<String>>>,
 }
 
+impl Default for PrefixDepsInstallLock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PrefixDepsInstallLock {
     pub fn new() -> Self {
         Self {
@@ -25,7 +31,10 @@ impl PrefixDepsInstallLock {
         &self,
         prefix_path: String,
     ) -> Result<PrefixDepsLockGuard, PrefixDepsError> {
-        let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(ref existing) = *guard {
             return Err(PrefixDepsError::AlreadyInstalling {
                 prefix_path: existing.clone(),
@@ -41,7 +50,7 @@ impl PrefixDepsInstallLock {
     pub async fn is_locked(&self) -> bool {
         self.active
             .lock()
-            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .is_some()
     }
 
@@ -49,7 +58,7 @@ impl PrefixDepsInstallLock {
     pub async fn active_prefix(&self) -> Option<String> {
         self.active
             .lock()
-            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
 }
@@ -62,7 +71,10 @@ pub struct PrefixDepsLockGuard {
 
 impl Drop for PrefixDepsLockGuard {
     fn drop(&mut self) {
-        let mut guard = self.active.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self
+            .active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         *guard = None;
     }
 }

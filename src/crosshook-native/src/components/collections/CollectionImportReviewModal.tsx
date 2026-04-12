@@ -1,9 +1,8 @@
+import { type MouseEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useId, useRef, useState, type MouseEvent } from 'react';
-
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { CollectionImportPreview } from '@/types/collections';
 import { isCollectionDefaultsEmpty } from '@/types/profile';
-import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 import './CollectionImportReviewModal.css';
 

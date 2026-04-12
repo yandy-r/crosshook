@@ -1,6 +1,4 @@
 import type { ComponentType, SVGProps } from 'react';
-
-import type { AppRoute } from './Sidebar';
 import {
   CommunityArt,
   CompatibilityArt,
@@ -12,6 +10,7 @@ import {
   ProfilesArt,
   SettingsArt,
 } from './PageBanner';
+import type { AppRoute } from './Sidebar';
 
 export interface RouteMetadataEntry {
   /** Label shown in the sidebar and status row — must stay in sync with navigation. */

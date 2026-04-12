@@ -1,9 +1,9 @@
-import { callCommand } from '@/lib/ipc';
 import { useEffect, useMemo, useState } from 'react';
+import { callCommand } from '@/lib/ipc';
 import type { CommunityImportPreview } from '../hooks/useCommunityProfiles';
 import { isLaunchValidationIssue, type LaunchPreview, type LaunchRequest, type LaunchValidationIssue } from '../types';
-import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
 import type { GameProfile, LaunchMethod } from '../types/profile';
+import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
 import ProfileReviewModal from './ProfileReviewModal';
 
 type SteamFieldState = 'Idle' | 'Saved' | 'NotFound' | 'Found' | 'Ambiguous';
@@ -142,7 +142,6 @@ function toStatusClass(state: SteamFieldState): string {
       return 'ambiguous';
     case 'Saved':
       return 'saved';
-    case 'Idle':
     default:
       return 'idle';
   }
@@ -298,7 +297,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
     void runAutoPopulate();
     // Auto-run once when entering step 2.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, step]);
+  }, [open, step, profile, runAutoPopulate]);
 
   const validateDraft = async (): Promise<LaunchValidationIssue[]> => {
     if (!profile) {
@@ -336,6 +335,8 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
     profile?.steam.compatdata_path,
     profile?.steam.proton_path,
     profile?.runtime.prefix_path,
+    validateDraft,
+    profile,
   ]);
 
   const fatalCount = validationIssues.filter((issue) => issue.severity === 'fatal').length;

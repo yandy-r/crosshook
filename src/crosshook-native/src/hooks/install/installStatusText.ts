@@ -33,7 +33,6 @@ export function deriveStatusText(
       return 'Final executable confirmed. The profile is ready for the later save handoff.';
     case 'failed':
       return result?.message || 'Install failed. Review the errors and try again.';
-    case 'idle':
     default:
       return defaultPrefixPath.trim().length > 0
         ? 'Install fields are ready. CrossHook will use the suggested default prefix unless you override it.'
@@ -43,7 +42,7 @@ export function deriveStatusText(
 
 export function deriveHintText(
   stage: InstallGameStage,
-  result: InstallGameResult | null,
+  _result: InstallGameResult | null,
   defaultPrefixPath: string,
   defaultPrefixPathError: string | null
 ): string {
@@ -62,7 +61,6 @@ export function deriveHintText(
       return 'The install result is ready to hand off to the save flow in the next task.';
     case 'failed':
       return 'The install request failed. Review the error message and adjust the inputs before retrying.';
-    case 'idle':
     default:
       return defaultPrefixPath.trim().length > 0
         ? 'CrossHook keeps the suggested prefix path editable so you can override it before running the installer.'

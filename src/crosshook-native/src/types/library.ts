@@ -13,4 +13,3 @@ export interface ProfileSummary {
 export interface LibraryCardData extends ProfileSummary {
   isFavorite: boolean;
 }
-

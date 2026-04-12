@@ -187,18 +187,18 @@ impl LaunchPreview {
         // [command]
         lines.push("[command]".to_string());
         if let Some(ref cmd) = self.effective_command {
-            lines.push(format!("effective = \"{}\"", cmd));
+            lines.push(format!("effective = \"{cmd}\""));
         }
         if let Some(ref opts) = self.steam_launch_options {
-            lines.push(format!("steam_launch_options = \"{}\"", opts));
+            lines.push(format!("steam_launch_options = \"{opts}\""));
         }
         if let Some(ref wrappers) = self.wrappers {
             if !wrappers.is_empty() {
-                lines.push(format!("wrappers = {:?}", wrappers));
+                lines.push(format!("wrappers = {wrappers:?}"));
             }
         }
         if let Some(ref err) = self.directives_error {
-            lines.push(format!("error = \"{}\"", err));
+            lines.push(format!("error = \"{err}\""));
         }
         lines.push(String::new());
 
@@ -231,7 +231,7 @@ impl LaunchPreview {
                 trainer.loading_mode.as_str()
             ));
             if let Some(ref staged) = trainer.staged_path {
-                lines.push(format!("staged_path = \"{}\"", staged));
+                lines.push(format!("staged_path = \"{staged}\""));
             }
             lines.push(String::new());
         }
@@ -252,7 +252,7 @@ impl LaunchPreview {
                 self.cleared_variables.len()
             ));
             for var in &self.cleared_variables {
-                lines.push(format!("  {}", var));
+                lines.push(format!("  {var}"));
             }
         }
 
@@ -380,7 +380,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     let cleared_variables = if resolved_method != ResolvedLaunchMethod::Native {
         WINE_ENV_VARS_TO_CLEAR
             .iter()
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .collect()
     } else {
         Vec::new()
@@ -703,10 +703,7 @@ fn resolve_trainer_launch_path_for_preview(request: &LaunchRequest) -> String {
             if file_stem.is_empty() || file_name.is_empty() {
                 request.trainer_host_path.trim().to_string()
             } else {
-                format!(
-                    "C:\\CrossHook\\StagedTrainers\\{}\\{}",
-                    file_stem, file_name
-                )
+                format!("C:\\CrossHook\\StagedTrainers\\{file_stem}\\{file_name}")
             }
         }
     }
@@ -788,8 +785,7 @@ fn build_trainer_info(request: &LaunchRequest, method: &str) -> Option<PreviewTr
             .unwrap_or_default();
         if !file_stem.is_empty() && !file_name.is_empty() {
             Some(format!(
-                "C:\\CrossHook\\StagedTrainers\\{}\\{}",
-                file_stem, file_name
+                "C:\\CrossHook\\StagedTrainers\\{file_stem}\\{file_name}"
             ))
         } else {
             None

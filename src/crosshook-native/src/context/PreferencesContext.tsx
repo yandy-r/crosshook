@@ -4,7 +4,7 @@
  * PreferencesContext owns app settings (auto-load, community taps) and recent file
  * paths. Profile CRUD and selection are handled by ProfileContext.
  */
-import React, { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import React, { createContext, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { AppSettingsData, RecentFilesData } from '../types';
 import { DEFAULT_APP_SETTINGS, toSettingsSaveRequest } from '../types/settings';

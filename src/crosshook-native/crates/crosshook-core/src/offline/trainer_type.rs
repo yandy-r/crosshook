@@ -86,8 +86,7 @@ pub fn parse_trainer_type_catalog_toml(
         Ok(raw) => raw,
         Err(err) => {
             warnings.push(format!(
-                "trainer type catalog '{}' failed to parse: {}",
-                source_label, err
+                "trainer type catalog '{source_label}' failed to parse: {err}"
             ));
             return (Vec::new(), warnings);
         }

@@ -1,6 +1,5 @@
-use std::fs;
 use std::collections::BTreeMap;
-use std::os::unix::process::ExitStatusExt;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
@@ -118,7 +117,7 @@ fn is_process_running(exe_name: &str) -> bool {
 
         if let Ok(comm) = fs::read_to_string(pid_path.join("comm")) {
             let comm = comm.trim_end_matches('\n');
-            if candidates.iter().any(|c| *c == comm) {
+            if candidates.contains(&comm) {
                 return true;
             }
 
@@ -128,7 +127,7 @@ fn is_process_running(exe_name: &str) -> bool {
                     let argv0 = cmdline.split('\0').next().unwrap_or("");
                     let basename = argv0.rsplit('/').next().unwrap_or(argv0);
                     let basename = basename.rsplit('\\').next().unwrap_or(basename);
-                    if candidates.iter().any(|c| *c == basename) {
+                    if candidates.contains(&basename) {
                         return true;
                     }
                 }
@@ -719,8 +718,12 @@ async fn finalize_launch_stream(
     profile_name: Option<String>,
     steam_client_path: String,
 ) {
-    let exit_code = exit_status.as_ref().and_then(|status| status.code());
-    let signal = exit_status.as_ref().and_then(|status| status.signal());
+    let exit_code = exit_status
+        .as_ref()
+        .and_then(std::process::ExitStatus::code);
+    let signal = exit_status
+        .as_ref()
+        .and_then(std::os::unix::process::ExitStatusExt::signal);
 
     let log_tail = safe_read_tail(
         &log_path,
@@ -899,10 +902,9 @@ fn resolve_script_path(app: &AppHandle, script_name: &str) -> Result<PathBuf, St
         format!("runtime-helpers/{script_name}"),
         format!("_up_/runtime-helpers/{script_name}"),
     ] {
-        if let Some(path) = app
+        if let Ok(path) = app
             .path()
             .resolve(&resource_name, tauri::path::BaseDirectory::Resource)
-            .ok()
         {
             if path.exists() {
                 tracing::debug!(path = %path.display(), script_name, resource_name, "resolved bundled launch script");

@@ -109,7 +109,7 @@ pub fn discovery_remove_external_source(
                 .retain(|s| s.source_id != source_id);
 
             if settings.external_trainer_sources.len() == before {
-                return Err(format!("no source with id {:?} found", source_id));
+                return Err(format!("no source with id {source_id:?} found"));
             }
 
             Ok(settings.external_trainer_sources.clone())

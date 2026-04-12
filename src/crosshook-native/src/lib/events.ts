@@ -11,7 +11,7 @@ export async function subscribeEvent<T>(name: string, handler: EventCallback<T>)
   }
   const wrapped: Listener = (payload) => handler({ event: name, id: 0, payload: payload as T });
   if (!browserBus.has(name)) browserBus.set(name, new Set());
-  browserBus.get(name)!.add(wrapped);
+  browserBus.get(name)?.add(wrapped);
   return () => {
     browserBus.get(name)?.delete(wrapped);
   };

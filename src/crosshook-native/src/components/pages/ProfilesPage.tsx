@@ -1,34 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-
-import ConfigHistoryPanel from '../ConfigHistoryPanel';
-import { PrefixDepsPanel } from '../PrefixDepsPanel';
-import ProfileActions from '../ProfileActions';
-import { OnboardingWizard } from '../OnboardingWizard';
-import ProfilePreviewModal from '../ProfilePreviewModal';
-import ProfileSubTabs from '../ProfileSubTabs';
-import { CollapsibleSection } from '../ui/CollapsibleSection';
-import { RouteBanner } from '../layout/RouteBanner';
-import { ThemedSelect } from '../ui/ThemedSelect';
-import { HealthBadge } from '../HealthBadge';
-import { OfflineStatusBadge } from '../OfflineStatusBadge';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useCollections } from '../../hooks/useCollections';
+import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
+import { useLaunchPlatformStatus } from '../../hooks/useLaunchPlatformStatus';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
 import { useProfileSummaries } from '../../hooks/useProfileSummaries';
 import { resolveProtonUpProviderForVersion, useProtonUp } from '../../hooks/useProtonUp';
-import type { CommunityExportResult } from '../../hooks/useCommunityProfiles';
+import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
 import type { ProtonInstallOption } from '../../types/proton';
 import type { ProtonUpSuggestion } from '../../types/protonup';
 import { chooseSaveFile } from '../../utils/dialog';
-import { deriveTargetHomePath } from '../../utils/steam';
 import { formatRelativeTime } from '../../utils/format';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../../utils/launchPanelActionButtonStyle';
-import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
-import { useLaunchPlatformStatus } from '../../hooks/useLaunchPlatformStatus';
+import { deriveTargetHomePath } from '../../utils/steam';
+import ConfigHistoryPanel from '../ConfigHistoryPanel';
+import { HealthBadge } from '../HealthBadge';
+import { RouteBanner } from '../layout/RouteBanner';
+import { OfflineStatusBadge } from '../OfflineStatusBadge';
+import { OnboardingWizard } from '../OnboardingWizard';
+import { PrefixDepsPanel } from '../PrefixDepsPanel';
+import ProfileActions from '../ProfileActions';
+import ProfilePreviewModal from '../ProfilePreviewModal';
+import ProfileSubTabs from '../ProfileSubTabs';
+import { CollapsibleSection } from '../ui/CollapsibleSection';
+import { ThemedSelect } from '../ui/ThemedSelect';
 
 const FLATPAK_NET_BADGE = 'No network isolation';
 const FLATPAK_NET_BADGE_TITLE =
@@ -157,11 +156,7 @@ export function ProfilesPage() {
 
   const showFlatpakNetworkIsolationBadge = useCallback(
     (candidateProfileName: string) => {
-      if (
-        !launchPlatform?.isFlatpak ||
-        launchPlatform.unshareNetAvailable ||
-        !candidateProfileName.trim()
-      ) {
+      if (!launchPlatform?.isFlatpak || launchPlatform.unshareNetAvailable || !candidateProfileName.trim()) {
         return false;
       }
 
@@ -314,7 +309,7 @@ export function ProfilesPage() {
             row.proton_version.trim().length > 0
         );
 
-        if (!match || !match.proton_version) {
+        if (!match?.proton_version) {
           return;
         }
 
@@ -343,7 +338,7 @@ export function ProfilesPage() {
   useEffect(() => {
     setCommunityExportError(null);
     setCommunityExportSuccess(null);
-  }, [selectedProfile]);
+  }, []);
 
   // F2 keyboard shortcut: open rename dialog when a profile is selected and no modal is open
   useEffect(() => {
@@ -622,14 +617,14 @@ export function ProfilesPage() {
       return null;
     }
 
-    const badgeStatus = selectedReport ? selectedReport.status : selectedCachedSnapshot!.status;
+    const badgeStatus = selectedReport ? selectedReport.status : selectedCachedSnapshot?.status;
     const issueCount = selectedReport?.issues.length ?? selectedCachedSnapshot?.issue_count ?? 0;
     const issueTooltip =
       issueCount > 0
         ? selectedReport
           ? `${issueCount} issue${issueCount !== 1 ? 's' : ''}: ${selectedReport.issues
               .slice(0, 3)
-              .map((i) => i.field + ' \u2014 ' + i.message)
+              .map((i) => `${i.field} \u2014 ${i.message}`)
               .join('; ')}${issueCount > 3 ? ` (+${issueCount - 3} more)` : ''}`
           : `${issueCount} issue${issueCount !== 1 ? 's' : ''} in cached snapshot`
         : null;

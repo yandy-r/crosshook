@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-import type {
-  GameProfile,
-  GamescopeConfig,
-  LaunchMethod,
-  LauncherDeleteResult,
-  LauncherInfo,
-  TrainerLoadingMode,
-} from '../types';
+import type { GameProfile, GamescopeConfig, LauncherDeleteResult, LauncherInfo, TrainerLoadingMode } from '../types';
 
 export interface SteamExternalLauncherExportRequest {
   method: string;

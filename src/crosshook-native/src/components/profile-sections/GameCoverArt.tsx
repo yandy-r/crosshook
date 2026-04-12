@@ -13,7 +13,7 @@ export function GameCoverArt({ steamAppId, customCoverArtPath }: GameCoverArtPro
 
   useEffect(() => {
     setFailed(false);
-  }, [coverArtUrl]);
+  }, []);
 
   if (!steamAppId && !customCoverArtPath?.trim()) {
     return null;

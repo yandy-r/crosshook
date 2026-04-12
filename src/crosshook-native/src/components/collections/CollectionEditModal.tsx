@@ -1,5 +1,5 @@
+import { type FormEvent, type MouseEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 

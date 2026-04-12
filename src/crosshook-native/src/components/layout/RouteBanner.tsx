@@ -1,5 +1,5 @@
-import type { AppRoute } from './Sidebar';
 import { ROUTE_METADATA } from './routeMetadata';
+import type { AppRoute } from './Sidebar';
 
 export interface RouteBannerProps {
   route: AppRoute;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 
 import type { GameProfile } from '../types';
 

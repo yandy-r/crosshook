@@ -69,7 +69,10 @@ mod tests {
     use std::path::PathBuf;
 
     fn test_install(name: &str, aliases: &[&str]) -> ProtonInstall {
-        let aliases_vec: Vec<String> = aliases.iter().map(|s| s.to_string()).collect();
+        let aliases_vec: Vec<String> = aliases
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect();
         let normalized = aliases_vec
             .iter()
             .filter_map(|a| normalize_alias(a))

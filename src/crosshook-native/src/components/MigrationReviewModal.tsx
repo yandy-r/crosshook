@@ -1,7 +1,7 @@
+import { Fragment, type KeyboardEvent, type MouseEvent, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
-import { CollapsibleSection } from './ui/CollapsibleSection';
 import type { ApplyMigrationRequest, BatchMigrationResult, MigrationScanResult, MigrationSuggestion } from '../types';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 import '../styles/preview.css';
 
 /* ───────── Focus-trap helpers (mirrors LauncherPreviewModal) ───────── */
@@ -168,7 +168,7 @@ export function MigrationReviewModal({
       hiddenNodesRef.current = [];
 
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
+      if (restoreTarget?.isConnected) {
         focusElement(restoreTarget);
       }
       previouslyFocusedRef.current = null;
@@ -524,23 +524,13 @@ function MigrationTable({
   return (
     <table className="crosshook-health-dashboard-table" style={{ width: '100%', fontSize: '0.875em' }}>
       <thead>
-        <tr role="row">
-          <th role="columnheader" scope="col" style={{ width: '32px' }}></th>
-          <th role="columnheader" scope="col">
-            Profile
-          </th>
-          <th role="columnheader" scope="col">
-            Field
-          </th>
-          <th role="columnheader" scope="col">
-            Current
-          </th>
-          <th role="columnheader" scope="col">
-            Suggested
-          </th>
-          <th role="columnheader" scope="col">
-            Confidence
-          </th>
+        <tr>
+          <th scope="col" style={{ width: '32px' }}></th>
+          <th scope="col">Profile</th>
+          <th scope="col">Field</th>
+          <th scope="col">Current</th>
+          <th scope="col">Suggested</th>
+          <th scope="col">Confidence</th>
         </tr>
       </thead>
       <tbody>
@@ -550,7 +540,7 @@ function MigrationTable({
           const badge = getConfidenceInfo(s);
           return (
             <Fragment key={key}>
-              <tr role="row">
+              <tr>
                 <td>
                   <input
                     type="checkbox"
@@ -577,7 +567,7 @@ function MigrationTable({
                   <span style={{ color: badge.color, fontWeight: 600 }}>{badge.text}</span>
                 </td>
               </tr>
-              <tr role="row" aria-hidden="true">
+              <tr>
                 <td colSpan={6} style={{ padding: '0 0 4px 32px' }}>
                   <CollapsibleSection title="Show full path" defaultOpen={false}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

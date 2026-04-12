@@ -256,7 +256,7 @@ pub(crate) fn is_command_available(binary: &str) -> bool {
     {
         let guard = test_command_search_path()
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(search_path) = guard.as_ref() {
             return is_executable_file(&search_path.join(binary));
         }
@@ -281,7 +281,7 @@ fn test_command_search_path() -> &'static Mutex<Option<PathBuf>> {
 pub(crate) fn swap_test_command_search_path(next: Option<PathBuf>) -> Option<PathBuf> {
     let mut guard = test_command_search_path()
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     std::mem::replace(&mut *guard, next)
 }
 

@@ -324,7 +324,7 @@ fn is_generic_install_token(token: &str) -> bool {
 fn path_segments_lower(path: &Path) -> Vec<String> {
     path.components()
         .filter_map(|component| component.as_os_str().to_str())
-        .map(|segment| segment.to_lowercase())
+        .map(str::to_lowercase)
         .collect()
 }
 

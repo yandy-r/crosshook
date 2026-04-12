@@ -3,11 +3,10 @@
 // `.github/workflows/release.yml` "Verify no mock code in production bundle"
 // sentinel.
 
-import type { Handler } from './types';
-import { getStore } from '../store';
-
 import type { CollectionExportResult, CollectionImportPreview } from '../../../types/collections';
 import type { CollectionDefaults } from '../../../types/profile';
+import { getStore } from '../store';
+import type { Handler } from './types';
 
 // Shape mirrors Rust `CollectionRow` in
 // crates/crosshook-core/src/metadata/models.rs (snake_case per serde default).

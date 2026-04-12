@@ -2,9 +2,9 @@ import { callCommand } from '@/lib/ipc';
 import { convertFileSrc } from '@/lib/plugin-stubs/convertFileSrc';
 
 import type { GameProfile, LaunchMethod } from '../../types';
-import { FieldRow } from '../ProfileFormSections';
-import { chooseFile } from '../../utils/dialog';
 import { resolveArtAppId } from '../../utils/art';
+import { chooseFile } from '../../utils/dialog';
+import { FieldRow } from '../ProfileFormSections';
 
 export interface MediaSectionProps {
   profile: GameProfile;

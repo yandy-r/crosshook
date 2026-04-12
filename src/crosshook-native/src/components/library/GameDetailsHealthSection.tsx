@@ -1,5 +1,5 @@
-import type { EnrichedProfileHealthReport } from '../../types/health';
 import type { OfflineReadinessReport } from '../../types';
+import type { EnrichedProfileHealthReport } from '../../types/health';
 
 export interface GameDetailsHealthSectionProps {
   profileName: string;

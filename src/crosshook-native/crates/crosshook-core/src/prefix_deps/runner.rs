@@ -56,7 +56,7 @@ fn sanitize_stderr(raw: &str) -> String {
         }
         if !matched {
             // Advance one character safely.
-            let ch_len = raw[i..].chars().next().map(|c| c.len_utf8()).unwrap_or(1);
+            let ch_len = raw[i..].chars().next().map(char::len_utf8).unwrap_or(1);
             result.push_str(&raw[i..i + ch_len]);
             i += ch_len;
         }
@@ -132,7 +132,7 @@ pub async fn check_installed(
     let packages: Vec<String> = stdout
         .split_whitespace()
         .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
 
     Ok(packages)

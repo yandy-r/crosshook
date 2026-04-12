@@ -1,7 +1,7 @@
+import { type KeyboardEvent, type MouseEvent, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
-import { CollapsibleSection } from './ui/CollapsibleSection';
 import { copyToClipboard } from '../utils/clipboard';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 import '../styles/preview.css';
 
 /* ───────── Focus-trap helpers (mirrors LaunchPanel PreviewModal) ───────── */
@@ -118,7 +118,7 @@ export function LauncherPreviewModal({
       hiddenNodesRef.current = [];
 
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
+      if (restoreTarget?.isConnected) {
         focusElement(restoreTarget);
       }
       previouslyFocusedRef.current = null;

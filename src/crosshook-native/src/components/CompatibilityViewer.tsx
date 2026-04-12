@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState, type ChangeEvent } from 'react';
+import { type ChangeEvent, useDeferredValue, useMemo, useState } from 'react';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 
 export type CompatibilityRating = 'unknown' | 'broken' | 'partial' | 'working' | 'platinum';
@@ -67,7 +67,6 @@ function getCompatibilityRatingLabel(rating: CompatibilityRating): string {
       return 'Working';
     case 'platinum':
       return 'Platinum';
-    case 'unknown':
     default:
       return 'Unknown';
   }

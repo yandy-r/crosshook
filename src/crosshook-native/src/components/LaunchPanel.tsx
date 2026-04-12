@@ -1,29 +1,28 @@
+import { type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useLaunchStateContext } from '../context/LaunchStateContext';
+import { useProfileHealthContext } from '../context/ProfileHealthContext';
 import {
   presentAcknowledgeVersionChangeOutcome,
   useAcknowledgeVersionChange,
 } from '../hooks/useAcknowledgeVersionChange';
+import { usePreviewState } from '../hooks/usePreviewState';
 import type {
-  PatternMatch,
   EnvVarSource,
   LaunchMethod,
   LaunchPreview,
   LaunchRequest,
-  LaunchValidationIssue,
   LaunchValidationSeverity,
+  PatternMatch,
   PreviewEnvVar,
 } from '../types';
-import type { GameProfile } from '../types/profile';
 import { LaunchPhase } from '../types';
-import { useLaunchStateContext } from '../context/LaunchStateContext';
-import { usePreviewState } from '../hooks/usePreviewState';
-import { useProfileHealthContext } from '../context/ProfileHealthContext';
+import type { GameProfile } from '../types/profile';
 import { copyToClipboard } from '../utils/clipboard';
-import { sortIssuesBySeverity } from '../utils/mapValidationToNode';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../utils/launchPanelActionButtonStyle';
-import { CollapsibleSection } from './ui/CollapsibleSection';
+import { sortIssuesBySeverity } from '../utils/mapValidationToNode';
 import { LaunchPipeline } from './LaunchPipeline';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 import '../styles/preview.css';
 
 /* ───────── Focus-trap helpers (mirrors ProfileReviewModal) ───────── */
@@ -58,7 +57,6 @@ function severityIcon(severity: LaunchValidationSeverity): string {
       return '\u2717';
     case 'warning':
       return '!';
-    case 'info':
     default:
       return '\u2713';
   }
@@ -247,7 +245,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
       hiddenNodesRef.current = [];
 
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
+      if (restoreTarget?.isConnected) {
         focusElement(restoreTarget);
       }
       previouslyFocusedRef.current = null;
@@ -445,23 +443,21 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
               meta={<span style={{ fontSize: '0.82rem' }}>{envCount} vars</span>}
             >
               {preview.environment && preview.environment.length > 0 ? (
-                <>
-                  {groupEnvBySource(preview.environment).map(([group, vars]) => (
-                    <div key={group} className="crosshook-preview-modal__env-group">
-                      <div className="crosshook-preview-modal__env-group-title">{group}</div>
-                      <table className="crosshook-preview-modal__env-table">
-                        <tbody>
-                          {vars.map((v) => (
-                            <tr key={v.key}>
-                              <td>{v.key}</td>
-                              <td>{v.value}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ))}
-                </>
+                groupEnvBySource(preview.environment).map(([group, vars]) => (
+                  <div key={group} className="crosshook-preview-modal__env-group">
+                    <div className="crosshook-preview-modal__env-group-title">{group}</div>
+                    <table className="crosshook-preview-modal__env-table">
+                      <tbody>
+                        {vars.map((v) => (
+                          <tr key={v.key}>
+                            <td>{v.key}</td>
+                            <td>{v.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))
               ) : (
                 <p className="crosshook-preview-modal__empty">No environment variables resolved.</p>
               )}
@@ -674,7 +670,7 @@ export function LaunchPanel({
   useEffect(() => {
     setDiagnosticExpanded(false);
     setDiagnosticCopyLabel('Copy Report');
-  }, [diagnosticFeedback?.analyzed_at]);
+  }, []);
 
   function handleClosePreview() {
     setShowPreview(false);

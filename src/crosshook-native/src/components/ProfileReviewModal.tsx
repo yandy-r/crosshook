@@ -1,15 +1,15 @@
-import { createPortal } from 'react-dom';
 import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
   useEffect,
   useId,
   useRef,
   useState,
-  type CSSProperties,
-  type MouseEvent,
-  type ReactNode,
-  type RefObject,
-  type KeyboardEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 export type ProfileReviewModalStatusTone = 'neutral' | 'success' | 'warning' | 'danger';
 
@@ -215,7 +215,7 @@ export function ProfileReviewModal({
       hiddenNodesRef.current = [];
 
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
+      if (restoreTarget?.isConnected) {
         focusElement(restoreTarget);
       }
       previouslyFocusedRef.current = null;

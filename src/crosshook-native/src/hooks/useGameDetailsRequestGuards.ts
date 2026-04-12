@@ -1,4 +1,4 @@
-import { useRef, type MutableRefObject } from 'react';
+import { type MutableRefObject, useRef } from 'react';
 
 /**
  * Monotonic counter for modal-scoped async work. Capture `next()` when starting an

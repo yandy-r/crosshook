@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
-
-import type { DepState, PrefixDependencyStatus } from '../types/prefix-deps';
 import { usePrefixDeps } from '../hooks/usePrefixDeps';
+import type { DepState, PrefixDependencyStatus } from '../types/prefix-deps';
 
 interface PrefixDepsPanelProps {
   profileName: string;

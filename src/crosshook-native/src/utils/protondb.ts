@@ -1,5 +1,5 @@
-import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { GameProfile } from '../types/profile';
+import type { ProtonDbRecommendationGroup } from '../types/protondb';
 import type { OptimizationCatalogPayload } from './optimization-catalog';
 
 export interface ProtonDbEnvVarConflict {

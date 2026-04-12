@@ -56,9 +56,9 @@ fn end_to_end_collections_jtbd() {
 
     // ── Step 2: Seed 50 profiles ────────────────────────────────────────────
     for i in 0..50 {
-        let name = format!("fixture-{:02}", i);
+        let name = format!("fixture-{i:02}");
         let app_id = (1_000_000 + i as u64).to_string();
-        let sha = format!("{:064x}", i);
+        let sha = format!("{i:064x}");
         let profile = sample_profile_named(&name, &app_id, &sha);
         register_profile(&metadata, &store, &name, &profile);
     }
@@ -71,21 +71,21 @@ fn end_to_end_collections_jtbd() {
     // ── Step 4: Assign 10 profiles each (some multi-membership) ─────────────
     // Action: fixture-00 through fixture-09
     for i in 0..10 {
-        let name = format!("fixture-{:02}", i);
+        let name = format!("fixture-{i:02}");
         metadata
             .add_profile_to_collection(&action_cid, &name)
             .unwrap();
     }
     // Stable: fixture-05 through fixture-14 (overlaps Action at 05-09)
     for i in 5..15 {
-        let name = format!("fixture-{:02}", i);
+        let name = format!("fixture-{i:02}");
         metadata
             .add_profile_to_collection(&stable_cid, &name)
             .unwrap();
     }
     // WIP: fixture-10 through fixture-19
     for i in 10..20 {
-        let name = format!("fixture-{:02}", i);
+        let name = format!("fixture-{i:02}");
         metadata.add_profile_to_collection(&wip_cid, &name).unwrap();
     }
 

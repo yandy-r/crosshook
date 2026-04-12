@@ -1,4 +1,4 @@
-import type { GameProfile, GamescopeConfig, LaunchMethod, LaunchRequest } from '../types';
+import type { GameProfile, LaunchMethod, LaunchRequest } from '../types';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
 
 export type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;

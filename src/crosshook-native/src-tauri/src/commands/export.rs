@@ -45,7 +45,7 @@ fn build_export_request_for_profile(
         steam_app_id: profile.steam.app_id.clone(),
         steam_client_install_path: steam_client_install_path.to_string(),
         target_home_path: target_home_path.to_string(),
-        profile_name: profile_name.map(|name| name.to_string()),
+        profile_name: profile_name.map(std::string::ToString::to_string),
         network_isolation: profile.launch.network_isolation,
         gamescope: profile.launch.trainer_gamescope.clone(),
     })

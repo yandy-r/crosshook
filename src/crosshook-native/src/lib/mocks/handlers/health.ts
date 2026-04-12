@@ -1,6 +1,3 @@
-import type { Handler } from './types';
-import { getStore } from '../store';
-import { emitMockEvent } from '../eventBus';
 import type {
   CachedHealthSnapshot,
   EnrichedHealthSummary,
@@ -10,6 +7,9 @@ import type {
 } from '../../../types/health';
 import type { CachedOfflineReadinessSnapshot } from '../../../types/offline';
 import type { VersionCheckResult, VersionCorrelationStatus, VersionSnapshotInfo } from '../../../types/version';
+import { emitMockEvent } from '../eventBus';
+import { getStore } from '../store';
+import type { Handler } from './types';
 
 // ---------------------------------------------------------------------------
 // Module-scope health state

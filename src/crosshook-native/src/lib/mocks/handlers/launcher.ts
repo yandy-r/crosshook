@@ -1,5 +1,5 @@
-import type { Handler } from './types';
 import type { LauncherDeleteResult, LauncherInfo, LauncherRenameResult } from '../../../types/launcher';
+import type { Handler } from './types';
 
 // ---- Synthetic data (BR-10 / W-3: fictional names, /home/devuser paths) ----
 

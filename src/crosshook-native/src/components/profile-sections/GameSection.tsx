@@ -1,6 +1,6 @@
 import type { GameProfile, LaunchMethod } from '../../types';
-import { FieldRow, updateGameExecutablePath } from '../ProfileFormSections';
 import { chooseFile } from '../../utils/dialog';
+import { FieldRow, updateGameExecutablePath } from '../ProfileFormSections';
 
 export interface GameSectionProps {
   profile: GameProfile;

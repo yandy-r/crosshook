@@ -1,5 +1,3 @@
-import type { Handler } from './types';
-import type { ProtonInstallOption } from '../../../types/proton';
 import type {
   ApplyMigrationRequest,
   BatchMigrationRequest,
@@ -7,6 +5,8 @@ import type {
   MigrationApplyResult,
   MigrationScanResult,
 } from '../../../types/migration';
+import type { ProtonInstallOption } from '../../../types/proton';
+import type { Handler } from './types';
 
 const MOCK_PROTON_INSTALLS: ProtonInstallOption[] = [
   {

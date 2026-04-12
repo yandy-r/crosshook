@@ -1,17 +1,17 @@
-import type { ComponentType, SVGProps } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
+import type { ComponentType, SVGProps } from 'react';
+import { CollectionsSidebar } from '../collections/CollectionsSidebar';
 import {
+  BrowseIcon,
+  CompatibilityIcon,
+  DiscoverIcon,
+  HealthIcon,
+  InstallIcon,
+  LaunchIcon,
   LibraryIcon,
   ProfilesIcon,
-  LaunchIcon,
-  InstallIcon,
-  BrowseIcon,
-  DiscoverIcon,
-  CompatibilityIcon,
   SettingsIcon,
-  HealthIcon,
 } from '../icons/SidebarIcons';
-import { CollectionsSidebar } from '../collections/CollectionsSidebar';
 import { ROUTE_NAV_LABEL } from './routeMetadata';
 
 export type AppRoute =

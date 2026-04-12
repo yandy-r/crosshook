@@ -113,7 +113,7 @@ fn looks_like_version(s: &str) -> bool {
         return false;
     }
     // Must start with a digit and contain only digits and dots
-    after_v.chars().next().map_or(false, |c| c.is_ascii_digit())
+    after_v.chars().next().is_some_and(|c| c.is_ascii_digit())
         && after_v.chars().all(|c| c.is_ascii_digit() || c == '.')
 }
 

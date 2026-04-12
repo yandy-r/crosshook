@@ -207,6 +207,7 @@ pub fn export_diagnostic_bundle(
 // ---------------------------------------------------------------------------
 
 /// Collects system information from `/proc` and environment variables.
+#[allow(clippy::vec_init_then_push)]
 fn collect_system_info() -> String {
     let mut lines = Vec::new();
 
@@ -501,9 +502,8 @@ fn collect_steam_diagnostics() -> (String, String, usize) {
 
 /// Runs batch health check across all profiles and serializes the result.
 fn collect_health_summary(store: &ProfileStore) -> String {
-    match batch_check_health(store) {
-        summary => serde_json::to_string_pretty(&summary).unwrap_or_else(|_| "{}".to_string()),
-    }
+    let summary = batch_check_health(store);
+    serde_json::to_string_pretty(&summary).unwrap_or_else(|_| "{}".to_string())
 }
 
 // ---------------------------------------------------------------------------

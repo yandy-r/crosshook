@@ -1,14 +1,13 @@
 import { type CSSProperties, useState } from 'react';
-
+import { useGameCoverArt } from '../hooks/useGameCoverArt';
+import { useImageDominantColor } from '../hooks/useImageDominantColor';
+import { useUpdateGame } from '../hooks/useUpdateGame';
+import type { UpdateGameStage } from '../types';
 import type { ProtonInstallOption } from './ProfileFormSections';
 import { GameMetadataBar } from './profile-sections/GameMetadataBar';
 import { InstallField } from './ui/InstallField';
 import { ProtonPathField } from './ui/ProtonPathField';
 import { ThemedSelect } from './ui/ThemedSelect';
-import { useGameCoverArt } from '../hooks/useGameCoverArt';
-import { useImageDominantColor } from '../hooks/useImageDominantColor';
-import { useUpdateGame } from '../hooks/useUpdateGame';
-import type { UpdateGameStage } from '../types';
 
 export interface UpdateGamePanelProps {
   protonInstalls: ProtonInstallOption[];
@@ -30,7 +29,6 @@ function stageLabel(stage: UpdateGameStage): string {
       return 'Complete';
     case 'failed':
       return 'Failed';
-    case 'idle':
     default:
       return 'Idle';
   }
@@ -242,7 +240,6 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
                 type="button"
                 className="crosshook-button crosshook-button--secondary"
                 onClick={() => setShowConfirmation(false)}
-                autoFocus
               >
                 Cancel
               </button>

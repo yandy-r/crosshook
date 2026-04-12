@@ -22,7 +22,7 @@ pub fn cache_key_for_app_id(app_id: &str) -> String {
 }
 
 /// Exact ProtonDB tier labels preserved as remote strings.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum ProtonDbTier {
     Platinum,
     Gold,
@@ -30,15 +30,10 @@ pub enum ProtonDbTier {
     Bronze,
     Borked,
     Native,
+    #[default]
     Unknown,
     /// Any future or undocumented tier value should round-trip unchanged.
     Other(String),
-}
-
-impl Default for ProtonDbTier {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 impl ProtonDbTier {

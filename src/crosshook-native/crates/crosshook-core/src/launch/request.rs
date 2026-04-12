@@ -769,10 +769,7 @@ fn validate_custom_env_entry(key: &str, value: &str) -> Result<String, Validatio
     if value.contains('\0') {
         return Err(ValidationError::CustomEnvVarValueContainsNul);
     }
-    if RESERVED_CUSTOM_ENV_KEYS
-        .iter()
-        .any(|reserved| *reserved == trimmed_key)
-    {
+    if RESERVED_CUSTOM_ENV_KEYS.contains(&trimmed_key) {
         return Err(ValidationError::CustomEnvVarReservedKey(
             trimmed_key.to_string(),
         ));
@@ -1000,10 +997,11 @@ fn collect_steam_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidati
         issues.push(e.issue());
     }
 
-    if request.network_isolation && !request.launch_game_only {
-        if !super::runtime_helpers::is_unshare_net_available() {
-            issues.push(ValidationError::UnshareNetUnavailable.issue());
-        }
+    if request.network_isolation
+        && !request.launch_game_only
+        && !super::runtime_helpers::is_unshare_net_available()
+    {
+        issues.push(ValidationError::UnshareNetUnavailable.issue());
     }
 }
 
@@ -1037,10 +1035,11 @@ fn collect_proton_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidat
         issues.push(e.issue());
     }
 
-    if request.network_isolation && !request.launch_game_only {
-        if !super::runtime_helpers::is_unshare_net_available() {
-            issues.push(ValidationError::UnshareNetUnavailable.issue());
-        }
+    if request.network_isolation
+        && !request.launch_game_only
+        && !super::runtime_helpers::is_unshare_net_available()
+    {
+        issues.push(ValidationError::UnshareNetUnavailable.issue());
     }
 }
 

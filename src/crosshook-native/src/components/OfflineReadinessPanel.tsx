@@ -7,7 +7,6 @@ function healthSeverityLabel(severity: HealthIssue['severity']): string {
       return 'Error';
     case 'warning':
       return 'Warning';
-    case 'info':
     default:
       return 'Info';
   }
@@ -19,7 +18,6 @@ function checkIcon(severity: HealthIssue['severity']): string {
       return '\u2715';
     case 'warning':
       return '!';
-    case 'info':
     default:
       return '\u2713';
   }

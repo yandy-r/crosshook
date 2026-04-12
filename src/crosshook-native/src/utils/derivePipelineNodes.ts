@@ -1,4 +1,3 @@
-import type { GameProfile } from '../types/profile';
 import {
   LaunchPhase,
   type LaunchPreview,
@@ -6,6 +5,7 @@ import {
   type PipelineNode,
   type PipelineNodeStatus,
 } from '../types/launch';
+import type { GameProfile } from '../types/profile';
 import type { ResolvedLaunchMethod } from './launch';
 import { groupIssuesByNode, type PipelineNodeId } from './mapValidationToNode';
 

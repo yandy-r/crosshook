@@ -194,7 +194,7 @@ fn extract_app_id_from_manifest_path(manifest_path: &Path) -> Option<String> {
 
     file_name
         .strip_prefix(PREFIX)
-        .map(|value| value.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 fn safe_manifest_paths(steamapps_path: &Path, diagnostics: &mut Vec<String>) -> Vec<PathBuf> {

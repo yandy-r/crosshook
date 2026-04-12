@@ -1,6 +1,6 @@
-import type { Handler } from './types';
-import { emitMockEvent } from '../eventBus';
 import type { UpdateGameRequest, UpdateGameResult } from '../../../types/update';
+import { emitMockEvent } from '../eventBus';
+import type { Handler } from './types';
 
 /** Tracks the profile name of the in-flight update, or null when idle. */
 let updateInFlight: string | null = null;

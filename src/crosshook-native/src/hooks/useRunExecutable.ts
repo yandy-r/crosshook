@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { callCommand } from '@/lib/ipc';
 import { subscribeEvent } from '@/lib/events';
+import { callCommand } from '@/lib/ipc';
 
 import {
   isRunCommandError,
@@ -223,7 +223,7 @@ export function useRunExecutable(): UseRunExecutableResult {
       }
       cleanupListener();
     }
-  }, [applyCommandError, request]);
+  }, [applyCommandError, request, cleanupListener]);
 
   const reset = useCallback(() => {
     if (stage === 'running' || stage === 'preparing') {
@@ -235,11 +235,11 @@ export function useRunExecutable(): UseRunExecutableResult {
     setStage('idle');
     setResult(null);
     setError(null);
-  }, [stage, cancelRun]);
+  }, [stage, cancelRun, cleanupListener]);
 
   useEffect(() => {
     return () => cleanupListener();
-  }, []);
+  }, [cleanupListener]);
 
   const statusText = (() => {
     switch (stage) {
@@ -252,7 +252,6 @@ export function useRunExecutable(): UseRunExecutableResult {
       case 'failed':
         // Failure detail lives in the danger banner; do not duplicate it here.
         return '';
-      case 'idle':
       default:
         return '';
     }
@@ -266,7 +265,6 @@ export function useRunExecutable(): UseRunExecutableResult {
         return 'The executable finished. Review the log for details.';
       case 'failed':
         return 'Check the console drawer log for details.';
-      case 'idle':
       default:
         return '';
     }

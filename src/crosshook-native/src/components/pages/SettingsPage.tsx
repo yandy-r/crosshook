@@ -1,10 +1,10 @@
 import { useCallback, useMemo } from 'react';
-import SettingsPanel from '../SettingsPanel';
-import { RouteBanner } from '../layout/RouteBanner';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { chooseDirectory } from '../../utils/dialog';
 import { deriveTargetHomePath } from '../../utils/steam';
+import { RouteBanner } from '../layout/RouteBanner';
+import SettingsPanel from '../SettingsPanel';
 
 export function SettingsPage() {
   const {
@@ -30,7 +30,7 @@ export function SettingsPage() {
 
   const handleBrowseProfilesDirectory = useCallback(async () => {
     const dir = await chooseDirectory('Select profiles directory');
-    if (dir && dir.trim()) {
+    if (dir?.trim()) {
       await persistSettings({ profiles_directory: dir.trim() });
     }
   }, [persistSettings]);

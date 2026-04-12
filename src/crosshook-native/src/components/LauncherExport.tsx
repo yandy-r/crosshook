@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { GameProfile, GamescopeConfig, LaunchMethod, TrainerLoadingMode } from '../types';
-import { useLauncherExport, type SteamExternalLauncherExportRequest } from '../hooks/useLauncherExport';
+import { type SteamExternalLauncherExportRequest, useLauncherExport } from '../hooks/useLauncherExport';
+import type { GameProfile, LaunchMethod } from '../types';
 import { LauncherPreviewModal } from './LauncherPreviewModal';
 
 interface LauncherExportProps {

@@ -1,7 +1,7 @@
-import type { Handler } from './types';
-import { emitMockEvent } from '../eventBus';
 import type { InstallGameRequest, InstallGameResult } from '../../../types/install';
 import { createDefaultProfile } from '../../../types/profile';
+import { emitMockEvent } from '../eventBus';
+import type { Handler } from './types';
 
 /** Tracks the profile name of the currently in-flight install, if any. */
 let installInFlight: string | null = null;

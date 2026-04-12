@@ -1,22 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { callCommand } from '@/lib/ipc';
-import { useLaunchPrefixDependencyGate } from '../../hooks/useLaunchPrefixDependencyGate';
-import { useLaunchPlatformStatus } from '../../hooks/useLaunchPlatformStatus';
-
-import LaunchPanel from '../LaunchPanel';
-import { RouteBanner } from '../layout/RouteBanner';
-import { LaunchSubTabs } from '../LaunchSubTabs';
-import { ThemedSelect } from '../ui/ThemedSelect';
-import { useCollectionMembers } from '../../hooks/useCollectionMembers';
-import { useCollections } from '../../hooks/useCollections';
+import { useLaunchStateContext } from '../../context/LaunchStateContext';
+import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
-import { usePreferencesContext } from '../../context/PreferencesContext';
-import { useLaunchStateContext } from '../../context/LaunchStateContext';
-import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../../types/protondb';
-import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
+import { useCollectionMembers } from '../../hooks/useCollectionMembers';
+import { useCollections } from '../../hooks/useCollections';
+import { useLaunchPlatformStatus } from '../../hooks/useLaunchPlatformStatus';
+import { useLaunchPrefixDependencyGate } from '../../hooks/useLaunchPrefixDependencyGate';
 import { useProtonDbSuggestions } from '../../hooks/useProtonDbSuggestions';
+import type { ProfileSummary } from '../../types/library';
+import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
+import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../../types/protondb';
 import { resolveArtAppId } from '../../utils/art';
 import { buildProfileLaunchRequest } from '../../utils/launch';
 import {
@@ -24,7 +20,10 @@ import {
   mergeProtonDbEnvVarGroup,
   type PendingProtonDbOverwrite,
 } from '../../utils/protondb';
-import type { ProfileSummary } from '../../types/library';
+import LaunchPanel from '../LaunchPanel';
+import { LaunchSubTabs } from '../LaunchSubTabs';
+import { RouteBanner } from '../layout/RouteBanner';
+import { ThemedSelect } from '../ui/ThemedSelect';
 
 const FLATPAK_NET_BADGE = 'No network isolation';
 const FLATPAK_NET_BADGE_TITLE =
@@ -106,15 +105,11 @@ export function LaunchPage() {
     return () => {
       active = false;
     };
-  }, [profileState.profiles, activeCollectionId]);
+  }, [activeCollectionId]);
 
   const showFlatpakNetworkIsolationBadge = useCallback(
     (profileName: string) => {
-      if (
-        !launchPlatform?.isFlatpak ||
-        launchPlatform.unshareNetAvailable ||
-        !profileName.trim()
-      ) {
+      if (!launchPlatform?.isFlatpak || launchPlatform.unshareNetAvailable || !profileName.trim()) {
         return false;
       }
       return profileNetworkIsolation[profileName] === true;
@@ -215,12 +210,12 @@ export function LaunchPage() {
     };
   }, []);
 
-  const resolvedSteamAppId = resolveArtAppId(profile);
+  const _resolvedSteamAppId = resolveArtAppId(profile);
   useEffect(() => {
     setPendingProtonDbOverwrite(null);
     setApplyingProtonDbGroupId(null);
     setProtonDbStatusMessage(null);
-  }, [profileState.profileName, resolvedSteamAppId, profileState.launchMethod]);
+  }, []);
 
   // Dep gate: listen for prefix-dep-complete while installing
   useEffect(() => {

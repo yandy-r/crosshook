@@ -1,5 +1,5 @@
-import TrainerDiscoveryPanel from '../TrainerDiscoveryPanel';
 import { RouteBanner } from '../layout/RouteBanner';
+import TrainerDiscoveryPanel from '../TrainerDiscoveryPanel';
 
 export function DiscoverPage() {
   return (

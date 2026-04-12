@@ -1,21 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-
-import type { AppRoute } from '../layout/Sidebar';
-import type { LibraryViewMode } from '../../types/library';
+import { useCollections } from '@/hooks/useCollections';
+import { useProfileContext } from '../../context/ProfileContext';
+import { useProfileHealthContext } from '../../context/ProfileHealthContext';
 import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
-import { useProfileContext } from '../../context/ProfileContext';
-import { useProfileHealthContext } from '../../context/ProfileHealthContext';
+import type { LibraryViewMode } from '../../types/library';
 import { CollectionAssignMenu } from '../collections/CollectionAssignMenu';
 import { CollectionEditModal } from '../collections/CollectionEditModal';
-import { LibraryToolbar } from '../library/LibraryToolbar';
-import { LibraryGrid } from '../library/LibraryGrid';
-import { GameDetailsModal } from '../library/GameDetailsModal';
-import { useGameDetailsModalState } from '../library/useGameDetailsModalState';
 import { RouteBanner } from '../layout/RouteBanner';
-import { useCollections } from '@/hooks/useCollections';
+import type { AppRoute } from '../layout/Sidebar';
+import { GameDetailsModal } from '../library/GameDetailsModal';
+import { LibraryGrid } from '../library/LibraryGrid';
+import { LibraryToolbar } from '../library/LibraryToolbar';
+import { useGameDetailsModalState } from '../library/useGameDetailsModalState';
 
 const VIEW_MODE_KEY = 'crosshook.library.viewMode';
 

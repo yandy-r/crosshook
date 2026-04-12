@@ -7,9 +7,7 @@ use std::sync::OnceLock;
 
 use tokio::process::Command;
 
-use crate::platform::{
-    self, host_command_with_env_and_directory, normalize_flatpak_host_path,
-};
+use crate::platform::{self, host_command_with_env_and_directory, normalize_flatpak_host_path};
 use crate::profile::{GamescopeConfig, GamescopeFilter};
 
 /// Default `PATH` used when the host environment does not set `PATH` (matches `apply_host_environment`).
@@ -173,12 +171,8 @@ pub fn build_proton_command_with_gamescope_in_directory(
     custom_env_vars: &BTreeMap<String, String>,
 ) -> Command {
     let normalized_proton = normalize_host_command_entry(proton_path);
-    let mut command = host_command_with_env_and_directory(
-        "gamescope",
-        env,
-        working_directory,
-        custom_env_vars,
-    );
+    let mut command =
+        host_command_with_env_and_directory("gamescope", env, working_directory, custom_env_vars);
     for arg in gamescope_args {
         command.arg(arg.trim());
     }
@@ -361,7 +355,8 @@ pub fn apply_working_directory(
     configured_directory: &str,
     primary_path: &Path,
 ) {
-    if let Some(directory) = resolve_effective_working_directory(configured_directory, primary_path) {
+    if let Some(directory) = resolve_effective_working_directory(configured_directory, primary_path)
+    {
         command.current_dir(directory);
     }
 }
@@ -420,8 +415,7 @@ fn resolve_steam_client_install_path_with_home(
         return Some(path);
     }
 
-    if let Some(path) =
-        env_steam_client_install_path.and_then(validated_steam_client_install_path)
+    if let Some(path) = env_steam_client_install_path.and_then(validated_steam_client_install_path)
     {
         return Some(path);
     }
@@ -654,7 +648,10 @@ mod tests {
             &BTreeMap::new(),
         );
 
-        assert_eq!(command.as_std().get_program(), "/usr/share/steam/compatibilitytools.d/proton/proton");
+        assert_eq!(
+            command.as_std().get_program(),
+            "/usr/share/steam/compatibilitytools.d/proton/proton"
+        );
         let args = command
             .as_std()
             .get_args()

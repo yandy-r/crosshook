@@ -363,7 +363,6 @@ mod launch_preset_metadata_tests {
             .expect("query")
             .flatten();
 
-        let mut launch = launch;
         launch
             .presets
             .get_mut("p")

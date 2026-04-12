@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { callCommand } from '@/lib/ipc';
 import { subscribeEvent } from '@/lib/events';
+import { callCommand } from '@/lib/ipc';
 import type {
   AppSettingsData,
   BundledOptimizationPreset,
@@ -14,22 +14,21 @@ import type {
   SerializedDuplicateProfileResult,
   SerializedGameProfile,
 } from '../types';
-import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
-import { normalizeSerializedGameProfile } from '../types/profile';
 import {
   getConflictingLaunchOptimizationIds,
   type LaunchOptimizationId,
   type LaunchOptimizations,
 } from '../types/launch-optimizations';
+import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG, normalizeSerializedGameProfile } from '../types/profile';
 import { toSettingsSaveRequest } from '../types/settings';
-import { resolveLaunchMethod, type ResolvedLaunchMethod } from '../utils/launch';
-import { useLaunchOptimizationCatalog } from './useLaunchOptimizationCatalog';
+import { type ResolvedLaunchMethod, resolveLaunchMethod } from '../utils/launch';
 import {
-  buildOptionsById,
   buildConflictMatrix,
+  buildOptionsById,
   type OptimizationCatalogPayload,
   type OptimizationEntry,
 } from '../utils/optimization-catalog';
+import { useLaunchOptimizationCatalog } from './useLaunchOptimizationCatalog';
 
 export interface PendingDelete {
   name: string;

@@ -1,7 +1,7 @@
+import type { ResolvedLaunchMethod } from '../utils/launch';
 import type { DiagnosticReport } from './diagnostics';
 import type { LaunchOptimizations } from './launch-optimizations';
 import type { GamescopeConfig, LaunchMethod, MangoHudConfig, TrainerLoadingMode } from './profile';
-import type { ResolvedLaunchMethod } from '../utils/launch';
 
 /** Tone for the auto-save status indicator shared across Launch page tabs. */
 export type LaunchAutoSaveStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';

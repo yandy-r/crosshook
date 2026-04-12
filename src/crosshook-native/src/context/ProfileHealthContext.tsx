@@ -4,7 +4,7 @@
  * Wraps useProfileHealth in a context so health data persists across
  * route changes instead of re-fetching on every page mount.
  */
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, type ReactNode, useContext } from 'react';
 
 import { useProfileHealth } from '../hooks/useProfileHealth';
 

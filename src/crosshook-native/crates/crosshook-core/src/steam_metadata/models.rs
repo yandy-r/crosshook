@@ -11,7 +11,7 @@ pub fn normalize_app_id(app_id: &str) -> Option<String> {
 
 pub fn cache_key_for_app_id(app_id: &str) -> Option<String> {
     normalize_app_id(app_id)
-        .map(|normalized| format!("{}:{}", STEAM_METADATA_CACHE_NAMESPACE, normalized))
+        .map(|normalized| format!("{STEAM_METADATA_CACHE_NAMESPACE}:{normalized}"))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]

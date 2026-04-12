@@ -1,5 +1,5 @@
-import { callCommand } from '@/lib/ipc';
 import { useCallback, useState } from 'react';
+import { callCommand } from '@/lib/ipc';
 
 import { useProfileHealthContext } from '../context/ProfileHealthContext';
 import type { ApplyMigrationRequest, BatchMigrationResult, MigrationApplyResult, MigrationScanResult } from '../types';

@@ -1,8 +1,7 @@
-import { useLayoutEffect, useRef } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-
-import CompatibilityPage from '../pages/CompatibilityPage';
+import { useLayoutEffect, useRef } from 'react';
 import CommunityPage from '../pages/CommunityPage';
+import CompatibilityPage from '../pages/CompatibilityPage';
 import DiscoverPage from '../pages/DiscoverPage';
 import HealthDashboardPage from '../pages/HealthDashboardPage';
 import InstallPage from '../pages/InstallPage';
@@ -25,7 +24,7 @@ export function ContentArea({ route, onNavigate }: ContentAreaProps) {
       scrollRef.current.scrollTop = 0;
       scrollRef.current.scrollLeft = 0;
     }
-  }, [route]);
+  }, []);
 
   const contentProps = {
     value: route,

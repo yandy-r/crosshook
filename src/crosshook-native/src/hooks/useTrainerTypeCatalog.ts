@@ -1,5 +1,5 @@
-import { callCommand } from '@/lib/ipc';
 import { useEffect, useMemo, useState } from 'react';
+import { callCommand } from '@/lib/ipc';
 
 import type { TrainerTypeEntry } from '../types/offline';
 

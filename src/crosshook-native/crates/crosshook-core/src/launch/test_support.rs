@@ -15,7 +15,7 @@ impl ScopedCommandSearchPath {
     pub(crate) fn new(value: &Path) -> Self {
         let guard = path_lock()
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let previous =
             crate::launch::optimizations::swap_test_command_search_path(Some(value.to_path_buf()));
 

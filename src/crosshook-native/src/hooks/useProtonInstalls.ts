@@ -30,7 +30,7 @@ function sortProtonInstalls(installs: ProtonInstallOption[]): ProtonInstallOptio
 export function useProtonInstalls(options: UseProtonInstallsOptions = {}): UseProtonInstallsResult {
   const [installs, setInstalls] = useState<ProtonInstallOption[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [reloadVersion, setReloadVersion] = useState(0);
+  const [_reloadVersion, setReloadVersion] = useState(0);
   const steamClientInstallPath = options.steamClientInstallPath?.trim() ?? '';
 
   const reload = useCallback(() => {
@@ -67,7 +67,7 @@ export function useProtonInstalls(options: UseProtonInstallsOptions = {}): UsePr
     return () => {
       active = false;
     };
-  }, [reloadVersion, steamClientInstallPath]);
+  }, [steamClientInstallPath]);
 
   return {
     installs,

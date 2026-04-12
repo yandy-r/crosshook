@@ -1,5 +1,5 @@
-import type { Handler } from './types';
 import type { SteamMetadataLookupResult } from '../../../types/game-metadata';
+import type { Handler } from './types';
 
 // Synthetic Steam auto-populate result shapes (BR-10 / W-3)
 type SteamFieldState = 'Idle' | 'Saved' | 'NotFound' | 'Found' | 'Ambiguous';

@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-
+import { useRunExecutable } from '../hooks/useRunExecutable';
+import type { RunExecutableStage } from '../types/run-executable';
 import type { ProtonInstallOption } from './ProfileFormSections';
 import { InstallField } from './ui/InstallField';
 import { ProtonPathField } from './ui/ProtonPathField';
-import { useRunExecutable } from '../hooks/useRunExecutable';
-import type { RunExecutableStage } from '../types/run-executable';
 
 const RUNNING_WARNING_ID = 'run-executable-running-warning';
 
@@ -28,7 +27,6 @@ function stageLabel(stage: RunExecutableStage): string {
       return 'Complete';
     case 'failed':
       return 'Failed';
-    case 'idle':
     default:
       return 'Idle';
   }

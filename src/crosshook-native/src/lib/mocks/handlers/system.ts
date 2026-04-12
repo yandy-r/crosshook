@@ -1,22 +1,22 @@
-import type { Handler } from './types';
+import type { DiagnosticBundleResult } from '../../../types/diagnostics';
 
 import type {
-  TrainerSearchResponse,
   ExternalTrainerSearchResponse,
   ExternalTrainerSourceSubscription,
+  TrainerSearchResponse,
   VersionMatchResult,
 } from '../../../types/discovery';
+import type { HashVerifyResult, OfflineReadinessReport, TrainerTypeEntry } from '../../../types/offline';
+import type { BinaryDetectionResult, PrefixDependencyStatus } from '../../../types/prefix-deps';
 import type {
-  PrefixStorageScanResult,
   PrefixCleanupResult,
-  PrefixStorageHistoryResponse,
   PrefixCleanupTarget,
+  PrefixStorageHistoryResponse,
+  PrefixStorageScanResult,
 } from '../../../types/prefix-storage';
 import type { RunExecutableResult } from '../../../types/run-executable';
-import type { BinaryDetectionResult, PrefixDependencyStatus } from '../../../types/prefix-deps';
-import type { DiagnosticBundleResult } from '../../../types/diagnostics';
 import type { OptimizationCatalogPayload, OptimizationEntry } from '../../../utils/optimization-catalog';
-import type { OfflineReadinessReport, HashVerifyResult, TrainerTypeEntry } from '../../../types/offline';
+import type { Handler } from './types';
 
 // --- Module-scope state ---
 

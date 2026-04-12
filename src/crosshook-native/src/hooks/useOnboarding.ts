@@ -1,5 +1,5 @@
-import { callCommand } from '@/lib/ipc';
 import { useCallback, useState } from 'react';
+import { callCommand } from '@/lib/ipc';
 
 import type { OnboardingWizardStage, ReadinessCheckResult } from '../types/onboarding';
 import type { VersionCheckResult } from '../types/version';

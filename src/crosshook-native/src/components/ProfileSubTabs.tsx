@@ -1,6 +1,10 @@
-import { type CSSProperties, useEffect, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-
+import { type CSSProperties, useEffect, useState } from 'react';
+import { useGameCoverArt } from '../hooks/useGameCoverArt';
+import { useImageDominantColor } from '../hooks/useImageDominantColor';
+import type { GameProfile, LaunchMethod } from '../types';
+import type { ProtonInstallOption } from '../types/proton';
+import { resolveArtAppId } from '../utils/art';
 import { GamescopeConfigPanel } from './GamescopeConfigPanel';
 import LauncherExport from './LauncherExport';
 import { GameMetadataBar } from './profile-sections/GameMetadataBar';
@@ -10,11 +14,6 @@ import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySectio
 import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
 import { RuntimeSection } from './profile-sections/RuntimeSection';
 import { TrainerSection } from './profile-sections/TrainerSection';
-import { useGameCoverArt } from '../hooks/useGameCoverArt';
-import { useImageDominantColor } from '../hooks/useImageDominantColor';
-import { resolveArtAppId } from '../utils/art';
-import type { GameProfile, LaunchMethod } from '../types';
-import type { ProtonInstallOption } from '../types/proton';
 
 type SubTabId = 'setup' | 'runtime' | 'game_art' | 'trainer' | 'gamescope' | 'export';
 
@@ -89,7 +88,7 @@ export function ProfileSubTabs({
     if (tabs.length > 0 && !tabs.includes(activeTab)) {
       setActiveTab(tabs[0]);
     }
-  }, [tabs.join(','), activeTab]);
+  }, [activeTab, tabs[0]]);
 
   // Apply game color as CSS custom properties for the themed tab bar
   const gameColorStyle: CSSProperties | undefined = dominantColor

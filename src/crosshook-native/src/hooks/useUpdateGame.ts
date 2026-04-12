@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { callCommand } from '@/lib/ipc';
 import { subscribeEvent } from '@/lib/events';
-
+import { callCommand } from '@/lib/ipc';
+import type { UpdateGameRequest, UpdateGameResult, UpdateGameStage, UpdateGameValidationState } from '../types';
+import { UPDATE_GAME_VALIDATION_FIELD, UPDATE_GAME_VALIDATION_MESSAGES } from '../types';
 import type { SerializedGameProfile } from '../types/profile';
 import { normalizeSerializedGameProfile } from '../types/profile';
-import type { UpdateGameRequest, UpdateGameResult, UpdateGameStage, UpdateGameValidationState } from '../types';
-import { UPDATE_GAME_VALIDATION_MESSAGES, UPDATE_GAME_VALIDATION_FIELD } from '../types';
 import type { UpdateGameValidationError } from '../types/update';
 
 /** Steam / custom art used to show cover hero after a profile is loaded for update. */
@@ -265,7 +264,7 @@ export function useUpdateGame(): UseUpdateGameResult {
       setError(message);
       cleanupListener();
     }
-  }, [request]);
+  }, [request, cleanupListener]);
 
   const cancelUpdate = useCallback(async () => {
     try {
@@ -288,7 +287,7 @@ export function useUpdateGame(): UseUpdateGameResult {
     setProfilesError(null);
     setSelectedProfile('');
     setProfileCoverSource(null);
-  }, [stage, cancelUpdate]);
+  }, [stage, cancelUpdate, cleanupListener]);
 
   useEffect(() => {
     void loadProfiles();
@@ -296,7 +295,7 @@ export function useUpdateGame(): UseUpdateGameResult {
 
   useEffect(() => {
     return () => cleanupListener();
-  }, []);
+  }, [cleanupListener]);
 
   const statusText = (() => {
     switch (stage) {
@@ -308,7 +307,6 @@ export function useUpdateGame(): UseUpdateGameResult {
         return result?.message || 'Update complete.';
       case 'failed':
         return error || 'Update failed.';
-      case 'idle':
       default:
         return '';
     }
@@ -322,7 +320,6 @@ export function useUpdateGame(): UseUpdateGameResult {
         return 'The update was applied successfully.';
       case 'failed':
         return 'Check the console log for details.';
-      case 'idle':
       default:
         return 'Select a profile and update executable.';
     }

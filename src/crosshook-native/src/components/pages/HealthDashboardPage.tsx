@@ -1,22 +1,21 @@
-import { Fragment, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useProfileContext } from '../../context/ProfileContext';
+import { useProfileHealthContext } from '../../context/ProfileHealthContext';
+import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
+import type { TrendDirection } from '../../hooks/useProfileHealth';
+import { useProtonMigration } from '../../hooks/useProtonMigration';
 import { useVersionCheck } from '../../hooks/useVersionCheck';
+import type { MigrationSuggestion, OfflineReadinessReport, ProtonPathField } from '../../types';
+import type { EnrichedProfileHealthReport, HealthIssue, HealthStatus } from '../../types/health';
+import type { VersionCorrelationStatus } from '../../types/version';
+import { formatRelativeTime } from '../../utils/format';
+import { HealthBadge } from '../HealthBadge';
 import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
-import { useProfileHealthContext } from '../../context/ProfileHealthContext';
-import type { TrendDirection } from '../../hooks/useProfileHealth';
-import { HealthBadge } from '../HealthBadge';
+import { MigrationReviewModal } from '../MigrationReviewModal';
 import { OfflineReadinessPanel } from '../OfflineReadinessPanel';
 import { OfflineStatusBadge } from '../OfflineStatusBadge';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
-import { formatRelativeTime } from '../../utils/format';
-import { useProfileContext } from '../../context/ProfileContext';
-import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
-import type { OfflineReadinessReport } from '../../types';
-import type { EnrichedProfileHealthReport, HealthIssue, HealthStatus } from '../../types/health';
-import type { VersionCorrelationStatus } from '../../types/version';
-import { useProtonMigration } from '../../hooks/useProtonMigration';
-import type { MigrationSuggestion, ProtonPathField } from '../../types';
-import { MigrationReviewModal } from '../MigrationReviewModal';
 
 type IssueCategory =
   | 'missing_executable'
@@ -368,12 +367,12 @@ function SkeletonCards() {
   );
 }
 
-function SkeletonRows() {
+function _SkeletonRows() {
   const widths = ['60%', '80%', '70%', '55%', '75%', '65%'];
   return (
     <>
       {[0, 1, 2, 3, 4, 5].map((i) => (
-        <tr key={i} className="crosshook-health-dashboard-skeleton-row" aria-hidden="true">
+        <tr key={i} className="crosshook-health-dashboard-skeleton-row">
           <td>
             <span
               className="crosshook-health-dashboard-skeleton crosshook-health-dashboard-skeleton-cell"
@@ -419,7 +418,7 @@ function RecentFailuresPanel({ profiles }: { profiles: EnrichedProfileHealthRepo
           <li key={report.name} className="crosshook-health-dashboard-failures-item">
             <span className="crosshook-health-dashboard-failures-item__name">{report.name}</span>
             <span className="crosshook-status-chip crosshook-health-dashboard-failures-item__count">
-              {report.metadata!.failure_count_30d} failure{report.metadata!.failure_count_30d !== 1 ? 's' : ''} (30d)
+              {report.metadata?.failure_count_30d} failure{report.metadata?.failure_count_30d !== 1 ? 's' : ''} (30d)
             </span>
             <span className="crosshook-muted crosshook-health-dashboard-failures-item__last-success">
               {report.metadata?.last_success
@@ -454,7 +453,7 @@ function LauncherDriftPanel({ profiles }: { profiles: EnrichedProfileHealthRepor
       ) : (
         <ul className="crosshook-health-dashboard-issues-list">
           {driftProfiles.map((r) => {
-            const state = r.metadata!.launcher_drift_state!;
+            const state = r.metadata?.launcher_drift_state!;
             const message = DRIFT_STATE_MESSAGES[state] ?? state;
             return (
               <li key={r.name} className="crosshook-health-dashboard-issue">
@@ -1091,7 +1090,6 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
   function renderSortHeader(field: SortField, label: string) {
     return (
       <th
-        role="columnheader"
         scope="col"
         aria-sort={getAriaSortAttr(field)}
         onClick={() => handleSortClick(field)}
@@ -1186,46 +1184,23 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
           <div className="crosshook-panel">
             <p className="crosshook-muted">Cached — checking...</p>
             <table
-              role="grid"
               aria-label="Profile health status (cached)"
               aria-rowcount={cachedSnapshotList.length}
               className="crosshook-health-dashboard-table"
             >
               <thead>
-                <tr role="row">
-                  <th role="columnheader" scope="col">
-                    Status
-                  </th>
-                  <th role="columnheader" scope="col">
-                    Name
-                  </th>
-                  <th role="columnheader" scope="col">
-                    Issues
-                  </th>
-                  <th role="columnheader" scope="col">
-                    Last Success
-                  </th>
-                  <th role="columnheader" scope="col">
-                    Method
-                  </th>
-                  <th role="columnheader" scope="col">
-                    Failures
-                  </th>
-                  <th role="columnheader" scope="col">
-                    &#9733;
-                  </th>
-                  <th role="columnheader" scope="col">
-                    Version
-                  </th>
-                  <th role="columnheader" scope="col">
-                    Offline
-                  </th>
-                  <th role="columnheader" scope="col">
-                    Source
-                  </th>
-                  <th role="columnheader" scope="col">
-                    Actions
-                  </th>
+                <tr>
+                  <th scope="col">Status</th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Issues</th>
+                  <th scope="col">Last Success</th>
+                  <th scope="col">Method</th>
+                  <th scope="col">Failures</th>
+                  <th scope="col">&#9733;</th>
+                  <th scope="col">Version</th>
+                  <th scope="col">Offline</th>
+                  <th scope="col">Source</th>
+                  <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1235,7 +1210,6 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                     <tr
                       key={snap.profile_name}
                       tabIndex={0}
-                      role="row"
                       aria-label={`${snap.profile_name} — ${snap.status}, ${snap.issue_count} issues`}
                       onClick={() => {
                         if (snap.status !== 'healthy') {
@@ -1297,13 +1271,12 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
             />
 
             <table
-              role="grid"
               aria-label="Profile health status"
               aria-rowcount={filteredProfiles.length}
               className="crosshook-health-dashboard-table"
             >
               <thead>
-                <tr role="row">
+                <tr>
                   {renderSortHeader('status', 'Status')}
                   {renderSortHeader('name', 'Name')}
                   {renderSortHeader('issues', 'Issues')}
@@ -1313,14 +1286,10 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                   {renderSortHeader('favorite', '★')}
                   {renderSortHeader('version_status', 'Version')}
                   {renderSortHeader('offline_score', 'Offline')}
-                  <th role="columnheader" scope="col" className="crosshook-health-dashboard-th">
+                  <th scope="col" className="crosshook-health-dashboard-th">
                     Source
                   </th>
-                  <th
-                    role="columnheader"
-                    scope="col"
-                    className="crosshook-health-dashboard-th crosshook-health-dashboard-th--actions"
-                  >
+                  <th scope="col" className="crosshook-health-dashboard-th crosshook-health-dashboard-th--actions">
                     Actions
                   </th>
                 </tr>
@@ -1340,7 +1309,6 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                     <Fragment key={report.name}>
                       <tr
                         tabIndex={0}
-                        role="row"
                         aria-label={`${report.name} — ${report.status}, ${report.issues.length} issues`}
                         aria-expanded={isExpanded}
                         onClick={() => handleRowClick(report)}

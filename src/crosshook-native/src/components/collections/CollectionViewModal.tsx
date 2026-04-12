@@ -1,20 +1,19 @@
+import { type MouseEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from 'react';
-
-import type { CollectionRow } from '@/types/collections';
-import type { LibraryCardData } from '@/types/library';
+import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from '@/components/library/game-details-actions';
+import { LibraryCard } from '@/components/library/LibraryCard';
 import { BROWSER_DEV_EXPORT_PRESET_PATH } from '@/constants/browserDevPresetPaths';
+import { useProfileContext } from '@/context/ProfileContext';
 import { useCollectionMembers } from '@/hooks/useCollectionMembers';
-import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useCollections } from '@/hooks/useCollections';
-import { isBrowserDevUi } from '@/lib/runtime';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useLibraryProfiles } from '@/hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '@/hooks/useLibrarySummaries';
-import { useProfileContext } from '@/context/ProfileContext';
-import { LibraryCard } from '@/components/library/LibraryCard';
+import { isBrowserDevUi } from '@/lib/runtime';
+import type { CollectionRow } from '@/types/collections';
+import type { LibraryCardData } from '@/types/library';
 import { BrowserDevPresetExplainerModal } from './BrowserDevPresetExplainerModal';
 import { CollectionLaunchDefaultsEditor } from './CollectionLaunchDefaultsEditor';
-import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from '@/components/library/game-details-actions';
 import './CollectionViewModal.css';
 
 export interface CollectionViewModalProps {
@@ -66,7 +65,7 @@ export function CollectionViewModal({
 
   useEffect(() => {
     setSearchQuery('');
-  }, [open, collectionId]);
+  }, []);
 
   useEffect(() => {
     if (!open) {

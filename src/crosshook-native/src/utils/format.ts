@@ -3,7 +3,7 @@ export function formatRelativeTime(isoString: string): string {
   if (Number.isNaN(then)) {
     return 'Invalid date';
   }
-  const nowMs = new Date().getTime();
+  const nowMs = Date.now();
   const diffDays = Math.floor((nowMs - then) / (1000 * 60 * 60 * 24));
 
   if (diffDays <= 0) return 'today';

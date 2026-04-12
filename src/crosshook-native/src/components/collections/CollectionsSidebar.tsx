@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react';
 
 import { BROWSER_DEV_IMPORT_PRESET_PATH } from '@/constants/browserDevPresetPaths';
 import { useCollections } from '@/hooks/useCollections';
-import { chooseFile } from '@/utils/dialog';
 import type { CollectionImportPreview } from '@/types/collections';
+import { chooseFile } from '@/utils/dialog';
 
 import { BrowserDevPresetExplainerModal } from './BrowserDevPresetExplainerModal';
 import { CollectionEditModal } from './CollectionEditModal';

@@ -89,7 +89,7 @@ fn evaluate_checks(
         let compatdata = root.join("steamapps").join("compatdata");
         match fs::read_dir(&compatdata) {
             Ok(entries) => entries
-                .filter_map(|e| e.ok())
+                .filter_map(std::result::Result::ok)
                 .any(|entry| entry.path().join("pfx").is_dir()),
             Err(_) => false,
         }

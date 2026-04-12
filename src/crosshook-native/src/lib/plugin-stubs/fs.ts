@@ -1,10 +1,12 @@
-import { isTauri } from '../runtime';
 import type {
-  CreateOptions,
-  OpenOptions,
   CopyFileOptions,
-  MkdirOptions,
+  CreateOptions,
   DirEntry,
+  ExistsOptions,
+  FileHandle,
+  FileInfo,
+  MkdirOptions,
+  OpenOptions,
   ReadDirOptions,
   ReadFileOptions,
   RemoveOptions,
@@ -12,17 +14,18 @@ import type {
   StatOptions,
   TruncateOptions,
   WriteFileOptions,
-  ExistsOptions,
-  FileInfo,
-  FileHandle,
 } from '@tauri-apps/plugin-fs';
+import { isTauri } from '../runtime';
 
 export type {
-  CreateOptions,
-  OpenOptions,
   CopyFileOptions,
-  MkdirOptions,
+  CreateOptions,
   DirEntry,
+  ExistsOptions,
+  FileHandle,
+  FileInfo,
+  MkdirOptions,
+  OpenOptions,
   ReadDirOptions,
   ReadFileOptions,
   RemoveOptions,
@@ -30,9 +33,6 @@ export type {
   StatOptions,
   TruncateOptions,
   WriteFileOptions,
-  ExistsOptions,
-  FileInfo,
-  FileHandle,
 };
 
 // Minimal synthetic FileInfo returned by stat/lstat in browser mode.

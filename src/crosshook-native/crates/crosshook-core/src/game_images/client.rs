@@ -39,7 +39,7 @@ static GAME_IMAGES_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 /// Returns true if the given host is in the redirect allow-list.
 pub fn is_allowed_redirect_host(host: &str) -> bool {
-    ALLOWED_REDIRECT_HOSTS.iter().any(|&h| h == host)
+    ALLOWED_REDIRECT_HOSTS.contains(&host)
 }
 
 pub(super) fn http_client() -> Result<&'static reqwest::Client, GameImageError> {

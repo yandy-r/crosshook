@@ -1,9 +1,8 @@
 import type { ChangeEvent } from 'react';
-
+import { chooseFile } from '../../utils/dialog';
 import { formatProtonInstallLabel } from '../../utils/proton';
 import type { ProtonInstallOption } from '../ProfileFormSections';
 import { ThemedSelect } from './ThemedSelect';
-import { chooseFile } from '../../utils/dialog';
 
 export function ProtonPathField(props: {
   value: string;

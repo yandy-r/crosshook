@@ -165,7 +165,9 @@ mod tests {
 
     impl ScopedPath {
         fn new(path: &str) -> Self {
-            let guard = PATH_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let guard = PATH_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let original = env::var_os("PATH");
             // SAFETY: single-threaded access is guaranteed by the mutex.
             unsafe { env::set_var("PATH", path) };

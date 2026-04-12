@@ -1,18 +1,18 @@
 import { useMemo, useState } from 'react';
 import { open } from '@/lib/plugin-stubs/dialog';
 import {
-  deriveCommunityImportProfileName,
-  type CommunityImportPreview,
   type CommunityCompatibilityRating,
+  type CommunityImportPreview,
   type CommunityProfileIndexEntry,
   type CommunityTapSubscription,
   type CommunityTapSyncResult,
+  deriveCommunityImportProfileName,
   type UseCommunityProfilesResult,
   useCommunityProfiles,
 } from '../hooks/useCommunityProfiles';
+import CommunityImportWizardModal from './CommunityImportWizardModal';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { ThemedSelect } from './ui/ThemedSelect';
-import CommunityImportWizardModal from './CommunityImportWizardModal';
 
 export interface CommunityBrowserProps {
   profilesDirectoryPath?: string;

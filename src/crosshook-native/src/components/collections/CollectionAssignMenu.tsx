@@ -1,6 +1,6 @@
+import type { CSSProperties, KeyboardEvent } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { CSSProperties, KeyboardEvent } from 'react';
 
 import { useCollections } from '@/hooks/useCollections';
 import { getFocusableElements } from '@/lib/focus-utils';
@@ -76,9 +76,9 @@ export function CollectionAssignMenu({
   }, [open, profileName, collectionsForProfile]);
 
   const handleClose = useCallback(() => {
-    const restoreTarget = restoreFocusTo && restoreFocusTo.isConnected ? restoreFocusTo : previouslyFocusedRef.current;
+    const restoreTarget = restoreFocusTo?.isConnected ? restoreFocusTo : previouslyFocusedRef.current;
     onClose();
-    if (restoreTarget && restoreTarget.isConnected) {
+    if (restoreTarget?.isConnected) {
       restoreTarget.focus();
     }
     previouslyFocusedRef.current = null;

@@ -401,7 +401,7 @@ fn derive_import_name(manifest: &CommunityProfileManifest, json_path: &Path) -> 
         .parent()
         .and_then(|parent| parent.file_name())
         .and_then(|name| name.to_str())
-        .map(|name| sanitize_profile_name(name))
+        .map(sanitize_profile_name)
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "community-profile".to_string())
 }

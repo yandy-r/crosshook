@@ -164,7 +164,7 @@ fn find_matching_line(log_tail: &str, markers: &[&str]) -> Option<String> {
     log_tail
         .lines()
         .find(|line| markers.iter().any(|marker| line.contains(marker)))
-        .map(|line| line.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 fn truncate_line(line: &str) -> String {

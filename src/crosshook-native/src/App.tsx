@@ -1,29 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Tooltip from '@radix-ui/react-tooltip';
-import { Group, Panel, Separator, type PanelImperativeHandle } from 'react-resizable-panels';
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Group, Panel, type PanelImperativeHandle, Separator } from 'react-resizable-panels';
+import { DevModeBanner } from '@/lib/DevModeBanner';
 import { subscribeEvent } from '@/lib/events';
-
-import ContentArea from './components/layout/ContentArea';
-import ControllerPrompts from './components/layout/ControllerPrompts';
-import ConsoleDrawer from './components/layout/ConsoleDrawer';
+import { getActiveFixture } from '@/lib/fixture';
+import { getActiveToggles, togglesToChipFragments } from '@/lib/toggles';
 import { CollectionEditModal } from './components/collections/CollectionEditModal';
 import { CollectionViewModal } from './components/collections/CollectionViewModal';
 import { useCollectionViewModalState } from './components/collections/useCollectionViewModalState';
+import ConsoleDrawer from './components/layout/ConsoleDrawer';
+import ContentArea from './components/layout/ContentArea';
+import ControllerPrompts from './components/layout/ControllerPrompts';
 import Sidebar, { type AppRoute } from './components/layout/Sidebar';
 import { OnboardingWizard } from './components/OnboardingWizard';
-import { DevModeBanner } from '@/lib/DevModeBanner';
-import { getActiveFixture } from '@/lib/fixture';
-import { getActiveToggles, togglesToChipFragments } from '@/lib/toggles';
-import type { OnboardingCheckPayload } from './types/onboarding';
+import { CollectionsProvider } from './context/CollectionsContext';
 import { LaunchStateProvider } from './context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from './context/PreferencesContext';
-import { CollectionsProvider } from './context/CollectionsContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
 import { ProfileHealthProvider } from './context/ProfileHealthContext';
-import { useGamepadNav } from './hooks/useGamepadNav';
 import { useCollections } from './hooks/useCollections';
+import { useGamepadNav } from './hooks/useGamepadNav';
 import { useScrollEnhance } from './hooks/useScrollEnhance';
+import type { OnboardingCheckPayload } from './types/onboarding';
 
 const VALID_APP_ROUTES: Record<AppRoute, true> = {
   library: true,
@@ -125,7 +124,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
 
   useEffect(() => {
     setEditSessionError(null);
-  }, [editingCollectionId]);
+  }, []);
 
   const handleSubmitEditCollection = useCallback(
     async (name: string, description: string | null): Promise<boolean> => {

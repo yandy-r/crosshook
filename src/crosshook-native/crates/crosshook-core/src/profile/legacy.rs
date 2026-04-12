@@ -38,11 +38,11 @@ pub fn load(profiles_dir: &Path, name: &str) -> io::Result<LegacyProfileData> {
             }
             "SteamAppId" => data.steam_app_id = value.trim().to_string(),
             "SteamCompatDataPath" => {
-                data.steam_compat_data_path = normalize_legacy_windows_path(value)
+                data.steam_compat_data_path = normalize_legacy_windows_path(value);
             }
             "SteamProtonPath" => data.steam_proton_path = normalize_legacy_windows_path(value),
             "SteamLauncherIconPath" => {
-                data.steam_launcher_icon_path = normalize_legacy_windows_path(value)
+                data.steam_launcher_icon_path = normalize_legacy_windows_path(value);
             }
             _ => {}
         }

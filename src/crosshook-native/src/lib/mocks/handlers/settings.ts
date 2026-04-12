@@ -1,7 +1,7 @@
-import type { Handler } from './types';
-import { getStore } from '../store';
-import type { AppSettingsData, RecentFilesData } from '../../../types';
+import type { RecentFilesData } from '../../../types';
 import type { SettingsSaveRequest } from '../../../types/settings';
+import { getStore } from '../store';
+import type { Handler } from './types';
 
 export function registerSettings(map: Map<string, Handler>): void {
   map.set('settings_load', async () => structuredClone(getStore().settings));

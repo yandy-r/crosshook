@@ -1,18 +1,18 @@
-import type { Handler } from './types';
-import { getActiveFixture } from '../../fixture';
-import { getStore } from '../store';
-import { emitMockEvent } from '../eventBus';
 import type { ProfileSummary } from '../../../types/library';
 import type {
-  GameProfile,
-  DuplicateProfileResult,
   BundledOptimizationPreset,
+  DuplicateProfileResult,
+  GameProfile,
   GamescopeConfig,
   MangoHudConfig,
 } from '../../../types/profile';
 import { createDefaultProfile } from '../../../types/profile';
+import type { ConfigDiffResult, ConfigRevisionSummary, ConfigRollbackResult } from '../../../types/profile-history';
+import { getActiveFixture } from '../../fixture';
+import { emitMockEvent } from '../eventBus';
+import { getStore } from '../store';
 import { getMockCollectionDefaults, type MockCollectionDefaults } from './collections';
-import type { ConfigRevisionSummary, ConfigDiffResult, ConfigRollbackResult } from '../../../types/profile-history';
+import type { Handler } from './types';
 
 // Module-scope state for features not tracked in MockStore
 const profileFavorites = new Set<string>();

@@ -1,5 +1,5 @@
-import type { HealthStatus, ProfileHealthReport, ProfileHealthMetadata } from '../types/health';
 import type { TrendDirection } from '../hooks/useProfileHealth';
+import type { HealthStatus, ProfileHealthMetadata, ProfileHealthReport } from '../types/health';
 
 type HealthBadgeProps = {
   metadata?: ProfileHealthMetadata | null;

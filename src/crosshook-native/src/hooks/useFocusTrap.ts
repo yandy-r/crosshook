@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent, type RefObject } from 'react';
+import { type KeyboardEvent, type RefObject, useEffect, useRef } from 'react';
 
 import { getFocusableElements } from '@/lib/focus-utils';
 
@@ -223,7 +223,7 @@ export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFo
         if (document.querySelector('[data-crosshook-focus-root="modal"]')) {
           return;
         }
-        if (restoreTarget && restoreTarget.isConnected) {
+        if (restoreTarget?.isConnected) {
           focusElement(restoreTarget);
         }
       });

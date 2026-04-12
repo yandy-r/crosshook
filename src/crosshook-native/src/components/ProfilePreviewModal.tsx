@@ -1,5 +1,5 @@
+import { type KeyboardEvent, type MouseEvent, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { copyToClipboard } from '../utils/clipboard';
 import '../styles/preview.css';
 
@@ -105,7 +105,7 @@ export function ProfilePreviewModal({ tomlContent, profileName, onClose }: Profi
       hiddenNodesRef.current = [];
 
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
+      if (restoreTarget?.isConnected) {
         focusElement(restoreTarget);
       }
       previouslyFocusedRef.current = null;

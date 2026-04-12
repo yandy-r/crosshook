@@ -38,7 +38,7 @@ mod integration_tests {
         let store = setup_store();
 
         // Simulate a check result: some packages installed, one missing
-        let known_installed = vec!["vcrun2019".to_string(), "dotnet48".to_string()];
+        let known_installed = ["vcrun2019".to_string(), "dotnet48".to_string()];
         let required = vec![
             "vcrun2019".to_string(),
             "dotnet48".to_string(),

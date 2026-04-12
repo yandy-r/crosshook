@@ -1,7 +1,7 @@
-import { callCommand } from '@/lib/ipc';
-import { subscribeEvent } from '@/lib/events';
 import { useEffect, useReducer, useRef, useState } from 'react';
-
+import { subscribeEvent } from '@/lib/events';
+import { callCommand } from '@/lib/ipc';
+import { MIN_OFFLINE_READINESS_SCORE } from '../constants/offline';
 import type {
   DiagnosticReport,
   HashVerifyResult,
@@ -12,9 +12,7 @@ import type {
   LaunchValidationIssue,
   OfflineReadinessReport,
 } from '../types';
-import { LaunchPhase } from '../types';
-import { isDiagnosticReport, isLaunchValidationIssue } from '../types';
-import { MIN_OFFLINE_READINESS_SCORE } from '../constants/offline';
+import { isDiagnosticReport, isLaunchValidationIssue, LaunchPhase } from '../types';
 
 type LaunchState = {
   phase: LaunchPhase;
@@ -157,7 +155,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     setOfflineReadinessError(null);
     setLaunchPathWarnings([]);
     setTrainerHashUpdateBusy(false);
-  }, [method, profileId, profileName]);
+  }, []);
 
   useEffect(() => {
     if (!profileName.trim() || !request?.trainer_host_path?.trim() || method === 'native') {
@@ -191,7 +189,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     return () => {
       cancelled = true;
     };
-  }, [profileName, method, request?.trainer_host_path, profileId]);
+  }, [profileName, method, request?.trainer_host_path]);
 
   useEffect(() => {
     activeHelperLogPathRef.current = state.helperLogPath;
@@ -429,7 +427,6 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
           return 'Select a game executable and Steam metadata to start the Steam launch flow.';
         case 'proton_run':
           return 'Select a game executable and Proton runtime details to start the Proton launch flow.';
-        case 'native':
         default:
           return 'Select a Linux-native game executable to enable launch.';
       }
@@ -452,7 +449,6 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
         return 'Launching the trainer through Proton.';
       case LaunchPhase.SessionActive:
         return method === 'native' ? 'Native game session is active.' : 'Session is active.';
-      case LaunchPhase.Idle:
       default:
         return method === 'native' ? 'Ready to launch the native game.' : 'Ready to launch the game.';
     }
@@ -465,7 +461,6 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
           return 'Steam launch needs App ID, compatdata, Proton, and a game path before it can run.';
         case 'proton_run':
           return 'Proton launch needs a game path, prefix path, Proton path, and trainer path for the second step.';
-        case 'native':
         default:
           return 'Native launch only supports Linux executables and does not use the trainer runner flow.';
       }

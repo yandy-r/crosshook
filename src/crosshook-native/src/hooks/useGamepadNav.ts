@@ -11,7 +11,7 @@
  * and face buttons. Bumpers (L1/R1) cycle sidebar views. Keyboard arrow keys, Tab,
  * Enter, Space, and Escape are handled in the capture phase.
  */
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
 
 export interface GamepadNavOptions {
   enabled?: boolean;
@@ -213,7 +213,7 @@ function getCurrentIndex(elements: HTMLElement[], activeElement: Element | null)
     return -1;
   }
 
-  const index = elements.findIndex((element) => element === activeElement);
+  const index = elements.indexOf(activeElement as HTMLElement);
   if (index >= 0) {
     return index;
   }
@@ -543,7 +543,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const root = getRootElement(rootRef);
-      if (!root || !root.contains(document.activeElement)) {
+      if (!root?.contains(document.activeElement)) {
         return;
       }
 
@@ -650,7 +650,7 @@ export function useGamepadNav(options: GamepadNavOptions = {}): GamepadNavState 
       const gamepads = navigator.getGamepads?.() ?? [];
 
       for (const gamepad of gamepads) {
-        if (!gamepad || !gamepad.connected) {
+        if (!gamepad?.connected) {
           continue;
         }
 

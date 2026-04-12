@@ -104,10 +104,7 @@ pub fn parse_catalog_toml(
     let raw: RawCatalogFile = match toml::from_str(toml_text) {
         Ok(raw) => raw,
         Err(err) => {
-            warnings.push(format!(
-                "catalog '{}' failed to parse: {}",
-                source_label, err
-            ));
+            warnings.push(format!("catalog '{source_label}' failed to parse: {err}"));
             return (Vec::new(), warnings);
         }
     };
@@ -260,7 +257,7 @@ mod tests {
             wrappers: Vec::new(),
             conflicts_with: Vec::new(),
             required_binary: String::new(),
-            label: format!("Test {}", id),
+            label: format!("Test {id}"),
             description: "test description".to_string(),
             help_text: "test help".to_string(),
             category: "graphics".to_string(),
@@ -272,10 +269,7 @@ mod tests {
     }
 
     fn make_toml_entry(id: &str, label: &str, category: &str) -> String {
-        format!(
-            "[[optimization]]\nid = \"{}\"\nlabel = \"{}\"\ncategory = \"{}\"\n",
-            id, label, category
-        )
+        format!("[[optimization]]\nid = \"{id}\"\nlabel = \"{label}\"\ncategory = \"{category}\"\n")
     }
 
     #[test]
@@ -372,8 +366,7 @@ mod tests {
         let (entries, warnings) = parse_catalog_toml(DEFAULT_CATALOG_TOML, "embedded default");
         assert!(
             warnings.is_empty(),
-            "default catalog had warnings: {:?}",
-            warnings
+            "default catalog had warnings: {warnings:?}"
         );
         assert!(!entries.is_empty(), "default catalog should have entries");
     }
@@ -408,8 +401,7 @@ mod tests {
         let first_id = default_entries[0].id.clone();
 
         let override_toml = format!(
-            "[[optimization]]\nid = \"{}\"\nlabel = \"User Override Label\"\ncategory = \"graphics\"\n",
-            first_id
+            "[[optimization]]\nid = \"{first_id}\"\nlabel = \"User Override Label\"\ncategory = \"graphics\"\n"
         );
         let override_path = temp_dir.path().join("optimization_catalog.toml");
         let mut f = std::fs::File::create(&override_path).expect("create override file");

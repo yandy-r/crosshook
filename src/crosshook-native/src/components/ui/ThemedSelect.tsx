@@ -1,5 +1,5 @@
-import { Fragment } from 'react';
 import * as Select from '@radix-ui/react-select';
+import { Fragment } from 'react';
 
 /**
  * Radix Select does not allow empty-string values; map them to a sentinel.

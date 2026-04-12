@@ -821,7 +821,7 @@ impl MetadataStore {
                 |row| row.get::<_, Option<String>>(0),
             )
             .optional()
-            .map(|opt| opt.flatten())
+            .map(std::option::Option::flatten)
             .map_err(|source| MetadataStoreError::Database {
                 action: "query profile source",
                 source,
@@ -1955,8 +1955,7 @@ mod tests {
         let small_json_len = serde_json::to_string(&small_report).unwrap().len();
         assert!(
             small_json_len < MAX_DIAGNOSTIC_JSON_BYTES,
-            "small report ({} bytes) must be under 4KB for this test",
-            small_json_len
+            "small report ({small_json_len} bytes) must be under 4KB for this test"
         );
 
         let op_id_small = store.record_launch_started(None, "native", None).unwrap();
@@ -1988,10 +1987,9 @@ mod tests {
         // (b) Large report — diagnostic_json should be NULL but severity/failure_mode still populated
         let large_suggestions: Vec<ActionableSuggestion> = (0..100)
             .map(|i| ActionableSuggestion {
-                title: format!("Suggestion title number {} with extra padding to push over 4KB boundary", i),
+                title: format!("Suggestion title number {i} with extra padding to push over 4KB boundary"),
                 description: format!(
-                    "Suggestion description number {} with a lot of extra text to ensure that the serialized JSON grows large enough to exceed the 4096-byte limit imposed by MAX_DIAGNOSTIC_JSON_BYTES",
-                    i
+                    "Suggestion description number {i} with a lot of extra text to ensure that the serialized JSON grows large enough to exceed the 4096-byte limit imposed by MAX_DIAGNOSTIC_JSON_BYTES"
                 ),
                 severity: ValidationSeverity::Warning,
             })
@@ -2019,8 +2017,7 @@ mod tests {
         let large_json_len = serde_json::to_string(&large_report).unwrap().len();
         assert!(
             large_json_len > MAX_DIAGNOSTIC_JSON_BYTES,
-            "large report ({} bytes) must exceed 4KB for this test",
-            large_json_len
+            "large report ({large_json_len} bytes) must exceed 4KB for this test"
         );
 
         let op_id_large = store.record_launch_started(None, "native", None).unwrap();

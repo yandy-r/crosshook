@@ -9,10 +9,7 @@ export interface UseProfileSummariesResult {
   error: string | null;
 }
 
-export function useProfileSummaries(
-  profiles: string[],
-  collectionId?: string | null
-): UseProfileSummariesResult {
+export function useProfileSummaries(_profiles: string[], collectionId?: string | null): UseProfileSummariesResult {
   const [summaries, setSummaries] = useState<ProfileSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +32,7 @@ export function useProfileSummaries(
 
   useEffect(() => {
     void fetchSummaries();
-  }, [profiles, fetchSummaries]);
+  }, [fetchSummaries]);
 
   return { summaries, loading, error };
 }

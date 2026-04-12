@@ -152,8 +152,7 @@ pub fn resolve_proton_path(
 
     let Some(requested_tool_name) = requested_tool_name else {
         diagnostics.push(format!(
-            "No Proton mapping was found for App ID {}.",
-            steam_app_id
+            "No Proton mapping was found for App ID {steam_app_id}."
         ));
         return ProtonResolution {
             state: SteamAutoPopulateFieldState::NotFound,
@@ -176,8 +175,7 @@ pub fn resolve_proton_path(
         }
         count if count > 1 => {
             diagnostics.push(format!(
-                "Proton tool '{}' resolved to multiple installs. Auto-populate will not guess the Proton path.",
-                requested_tool_name
+                "Proton tool '{requested_tool_name}' resolved to multiple installs. Auto-populate will not guess the Proton path."
             ));
             let mut conflicting_paths = matching_tools
                 .iter()
@@ -196,8 +194,7 @@ pub fn resolve_proton_path(
         }
         _ => {
             diagnostics.push(format!(
-                "CrossHook could not resolve Proton mapping '{}' to an installed Proton executable.",
-                requested_tool_name
+                "CrossHook could not resolve Proton mapping '{requested_tool_name}' to an installed Proton executable."
             ));
             ProtonResolution {
                 state: SteamAutoPopulateFieldState::NotFound,
@@ -255,8 +252,8 @@ where
         discover_compat_tools_with_roots(steam_root_candidates, system_roots.clone(), diagnostics);
     let matching_tools = resolve_compat_tool_by_name(requested_tool_name, &installed_tools);
     if matching_tools.iter().any(|tool| {
-        PathBuf::from(platform::normalize_flatpak_host_path(&tool.path.to_string_lossy()).trim())
-            == normalized_path
+        *normalized_path
+            == *platform::normalize_flatpak_host_path(&tool.path.to_string_lossy()).trim()
     }) {
         return configured_proton_path.to_path_buf();
     }
@@ -487,7 +484,7 @@ fn try_add_compat_tool_install(
     let Some(name) = tool_directory_path
         .file_name()
         .and_then(|value| value.to_str())
-        .map(|value| value.to_string())
+        .map(std::string::ToString::to_string)
     else {
         return;
     };
@@ -567,7 +564,7 @@ fn push_alias(aliases: &mut Vec<String>, seen_aliases: &mut HashSet<String>, ali
 pub(crate) fn normalize_alias(alias: &str) -> Option<String> {
     let normalized = alias
         .chars()
-        .filter(|character| character.is_ascii_alphanumeric())
+        .filter(char::is_ascii_alphanumeric)
         .map(|character| character.to_ascii_lowercase())
         .collect::<String>();
 
@@ -597,7 +594,7 @@ fn tool_matches_requested_name_heuristically(
     if normalized_requested_tool_name.starts_with("proton") {
         let requested_version = normalized_requested_tool_name
             .chars()
-            .filter(|character| character.is_ascii_digit())
+            .filter(char::is_ascii_digit)
             .collect::<String>();
 
         if !requested_version.is_empty() {

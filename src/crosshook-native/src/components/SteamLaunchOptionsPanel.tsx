@@ -25,21 +25,21 @@ export function SteamLaunchOptionsPanel({
   const [loading, setLoading] = useState(false);
   const [copyLabel, setCopyLabel] = useState('Copy');
 
-  const serializedCustomEnv = JSON.stringify(customEnvVars ?? null);
+  const _serializedCustomEnv = JSON.stringify(customEnvVars ?? null);
   const stableCustomEnv = useMemo<Readonly<Record<string, string>>>(() => {
     if (customEnvVars == null) {
       return {};
     }
     return { ...customEnvVars };
-  }, [serializedCustomEnv]);
+  }, [customEnvVars]);
 
-  const serializedGamescope = JSON.stringify(gamescopeConfig ?? null);
+  const _serializedGamescope = JSON.stringify(gamescopeConfig ?? null);
   const stableGamescope = useMemo<GamescopeConfig | null>(() => {
     if (gamescopeConfig == null) {
       return null;
     }
     return { ...gamescopeConfig };
-  }, [serializedGamescope]);
+  }, [gamescopeConfig]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +74,7 @@ export function SteamLaunchOptionsPanel({
     return () => {
       cancelled = true;
     };
-  }, [enabledOptionIds, serializedCustomEnv, stableCustomEnv, serializedGamescope, stableGamescope]);
+  }, [enabledOptionIds, stableCustomEnv, stableGamescope]);
 
   async function handleCopy() {
     if (!command.trim()) {

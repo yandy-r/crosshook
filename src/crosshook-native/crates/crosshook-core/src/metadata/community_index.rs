@@ -373,7 +373,7 @@ fn get_tap_head_commit(
         |row| row.get(0),
     )
     .optional()
-    .map(|opt| opt.flatten())
+    .map(std::option::Option::flatten)
     .map_err(|source| MetadataStoreError::Database {
         action: "look up tap HEAD commit watermark",
         source,

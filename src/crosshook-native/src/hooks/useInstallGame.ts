@@ -1,18 +1,17 @@
-import { callCommand } from '@/lib/ipc';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
+import { callCommand } from '@/lib/ipc';
+import { mergeInstallGameResultIntoDraft } from '../components/install/mergeInstallGameResultIntoDraft';
+import type {
+  InstallGameExecutableCandidate,
+  InstallGamePrefixPathState,
+  InstallGameRequest,
+  InstallGameResult,
+  InstallGameStage,
+  InstallGameValidationState,
+} from '../types/install';
 import type { GameProfile } from '../types/profile';
 import { createDefaultProfile } from '../types/profile';
-import {
-  type InstallGameExecutableCandidate,
-  type InstallGamePrefixPathState,
-  type InstallGameRequest,
-  type InstallGameResult,
-  type InstallGameStage,
-  type InstallGameValidationState,
-} from '../types/install';
 import { resolveLaunchMethod } from '../utils/launch';
-import { mergeInstallGameResultIntoDraft } from '../components/install/mergeInstallGameResultIntoDraft';
 import { buildInstallGameRequest } from './install/installRequestBuild';
 import { deriveHintText, deriveResultStage, deriveStatusText } from './install/installStatusText';
 import { mapValidationErrorToField } from './install/installValidationMapping';
@@ -373,8 +372,6 @@ export function useInstallGame(): UseInstallGameResult {
         return 'Retry Install';
       case 'failed':
         return 'Retry Install';
-      case 'preparing':
-      case 'idle':
       default:
         return 'Install Game';
     }

@@ -5,12 +5,12 @@
  * listeners persist across route changes instead of resetting on every
  * Launch page mount.
  */
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, type ReactNode, useContext } from 'react';
 
 import { useLaunchState } from '../hooks/useLaunchState';
-import { useProfileContext } from './ProfileContext';
-import { usePreferencesContext } from './PreferencesContext';
 import { buildProfileLaunchRequest } from '../utils/launch';
+import { usePreferencesContext } from './PreferencesContext';
+import { useProfileContext } from './ProfileContext';
 
 type LaunchStateContextValue = ReturnType<typeof useLaunchState>;
 
@@ -21,8 +21,7 @@ export function LaunchStateProvider({ children }: { children: ReactNode }) {
   const { defaultSteamClientInstallPath } = usePreferencesContext();
   const selectedName = profileState.selectedProfile || '';
   const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
-  const effectiveSteamClientInstallPath =
-    defaultSteamClientInstallPath || profileState.steamClientInstallPath;
+  const effectiveSteamClientInstallPath = defaultSteamClientInstallPath || profileState.steamClientInstallPath;
   const request = buildProfileLaunchRequest(
     profileState.profile,
     profileState.launchMethod,

@@ -1,4 +1,3 @@
-import type { Handler } from './types';
 import type {
   ProtonUpAvailableVersion,
   ProtonUpCatalogResponse,
@@ -6,6 +5,7 @@ import type {
   ProtonUpInstallResult,
   ProtonUpSuggestion,
 } from '../../../types/protonup';
+import type { Handler } from './types';
 
 const GE_PROTON_VERSIONS: ProtonUpAvailableVersion[] = [
   {

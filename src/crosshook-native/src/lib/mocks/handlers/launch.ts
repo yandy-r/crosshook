@@ -1,10 +1,9 @@
-import type { Handler } from './types';
-import { getActiveFixture } from '../../fixture';
-import { getStore } from '../store';
-import { emitMockEvent } from '../eventBus';
 import type { DiagnosticReport } from '../../../types/diagnostics';
-import type { LaunchRequest, LaunchResult, LaunchPreview, LaunchValidationIssue } from '../../../types/launch';
-import type { HashVerifyResult, OfflineReadinessReport } from '../../../types/offline';
+import type { LaunchPreview, LaunchRequest, LaunchResult, LaunchValidationIssue } from '../../../types/launch';
+import { getActiveFixture } from '../../fixture';
+import { emitMockEvent } from '../eventBus';
+import { getStore } from '../store';
+import type { Handler } from './types';
 
 // ---------------------------------------------------------------------------
 // Module-scope state (NOT on MockStore — avoids cross-file write conflicts)
@@ -12,7 +11,7 @@ import type { HashVerifyResult, OfflineReadinessReport } from '../../../types/of
 
 let lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
 let lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
-let runningGames: Set<string> = new Set();
+const runningGames: Set<string> = new Set();
 
 // ---------------------------------------------------------------------------
 // Fixture helpers (BR-11)

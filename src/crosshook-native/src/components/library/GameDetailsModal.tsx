@@ -1,18 +1,17 @@
+import { type KeyboardEvent, type MouseEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
-
-import type { LibraryCardData } from '../../types/library';
-import type { EnrichedProfileHealthReport } from '../../types/health';
-import type { OfflineReadinessReport } from '../../types';
-import { useGameDetailsProfile } from '../../hooks/useGameDetailsProfile';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
+import { useGameDetailsProfile } from '../../hooks/useGameDetailsProfile';
 import { useGameMetadata } from '../../hooks/useGameMetadata';
+import type { OfflineReadinessReport } from '../../types';
+import type { EnrichedProfileHealthReport } from '../../types/health';
+import type { LibraryCardData } from '../../types/library';
 import { resolveLaunchMethod } from '../../utils/launch';
 import { effectiveGameArtPath } from '../../utils/profile-art';
-import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from './game-details-actions';
 import { GameDetailsCompatibilitySection } from './GameDetailsCompatibilitySection';
 import { GameDetailsHealthSection } from './GameDetailsHealthSection';
 import { GameDetailsMetadataSection } from './GameDetailsMetadataSection';
+import { gameDetailsEditThenNavigate, gameDetailsLaunchThenNavigate } from './game-details-actions';
 
 import './GameDetailsModal.css';
 
@@ -167,11 +166,11 @@ export function GameDetailsModal({
 
   useEffect(() => {
     setHeroImgBroken(false);
-  }, [heroResolved.url]);
+  }, []);
 
   useEffect(() => {
     setPortraitImgBroken(false);
-  }, [portraitArt.coverArtUrl]);
+  }, []);
 
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -239,7 +238,7 @@ export function GameDetailsModal({
       }
       hiddenNodesRef.current = [];
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
+      if (restoreTarget?.isConnected) {
         focusElement(restoreTarget);
       }
       previouslyFocusedRef.current = null;

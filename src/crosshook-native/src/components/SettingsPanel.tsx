@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import { open as openShell } from '@/lib/plugin-stubs/shell';
 import { useLauncherManagement } from '../hooks/useLauncherManagement';
+import type { ScanSource } from '../hooks/usePrefixStorageManagement';
 import { usePrefixStorageManagement } from '../hooks/usePrefixStorageManagement';
-import { chooseDirectory, chooseFile } from '../utils/dialog';
-import { CollapsibleSection } from './ui/CollapsibleSection';
 import type { AppSettingsData, DiagnosticBundleResult } from '../types';
 import type {
   PrefixCleanupResult,
@@ -13,7 +12,8 @@ import type {
   PrefixStorageEntry,
   StaleStagedTrainerEntry,
 } from '../types/prefix-storage';
-import type { ScanSource } from '../hooks/usePrefixStorageManagement';
+import { chooseDirectory, chooseFile } from '../utils/dialog';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 
 interface RecentFilesState {
   gamePaths: string[];
@@ -904,7 +904,7 @@ export function SettingsPanel({
     return () => {
       active = false;
     };
-  }, [settings.protontricks_binary_path]);
+  }, []);
 
   return (
     <section className="crosshook-card crosshook-settings-panel" aria-label="Settings">

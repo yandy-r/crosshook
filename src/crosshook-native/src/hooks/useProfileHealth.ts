@@ -1,6 +1,6 @@
-import { callCommand } from '@/lib/ipc';
-import { subscribeEvent } from '@/lib/events';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { subscribeEvent } from '@/lib/events';
+import { callCommand } from '@/lib/ipc';
 
 import type { CachedHealthSnapshot, EnrichedHealthSummary, EnrichedProfileHealthReport, HealthStatus } from '../types';
 import { countProfileStatuses } from '../utils/health';

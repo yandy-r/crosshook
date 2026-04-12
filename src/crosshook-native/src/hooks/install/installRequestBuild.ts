@@ -1,5 +1,5 @@
-import type { GameProfile, LaunchMethod } from '../../types/profile';
 import type { InstallGameRequest } from '../../types/install';
+import type { GameProfile, LaunchMethod } from '../../types/profile';
 
 export function buildInstallGameRequest(
   profileName: string,

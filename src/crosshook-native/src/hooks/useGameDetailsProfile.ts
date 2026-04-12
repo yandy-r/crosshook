@@ -1,5 +1,5 @@
-import { callCommand } from '@/lib/ipc';
 import { useEffect, useState } from 'react';
+import { callCommand } from '@/lib/ipc';
 
 import type { GameProfile, SerializedGameProfile } from '../types';
 import { normalizeSerializedGameProfile } from '../types';

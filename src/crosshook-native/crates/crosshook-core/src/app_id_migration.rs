@@ -432,7 +432,7 @@ mod tests {
         let parent = t.path().join("config");
         let old_root = parent.join(LEGACY_TAURI_APP_ID_DIR);
         let new_root = parent.join(CURRENT_TAURI_APP_ID_DIR);
-        let stage = parent.join(format!("{}.migrating", CURRENT_TAURI_APP_ID_DIR));
+        let stage = parent.join(format!("{CURRENT_TAURI_APP_ID_DIR}.migrating"));
 
         // Set up source data.
         fs::create_dir_all(old_root.join("subdir")).unwrap();

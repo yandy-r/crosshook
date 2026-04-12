@@ -13,8 +13,7 @@ use super::{
         build_direct_proton_command_with_wrappers_in_directory, build_gamescope_args,
         build_proton_command_with_gamescope_in_directory, host_environment_map,
         merge_optimization_and_custom_into_map, merge_runtime_proton_into_map,
-        resolve_effective_working_directory,
-        resolve_wine_prefix_path,
+        resolve_effective_working_directory, resolve_wine_prefix_path,
     },
     LaunchRequest, ValidationError,
 };
@@ -499,10 +498,13 @@ fn resolve_launch_proton_path_with_mode(
         return normalized_proton_path;
     }
 
-    let configured_steam_client_install_path = normalize_flatpak_host_path(steam_client_install_path);
+    let configured_steam_client_install_path =
+        normalize_flatpak_host_path(steam_client_install_path);
     let mut diagnostics = Vec::new();
-    let steam_root_candidates =
-        discover_steam_root_candidates(configured_steam_client_install_path.as_str(), &mut diagnostics);
+    let steam_root_candidates = discover_steam_root_candidates(
+        configured_steam_client_install_path.as_str(),
+        &mut diagnostics,
+    );
     let resolved_path = prefer_user_local_compat_tool_path(
         Path::new(trimmed_proton_path),
         &steam_root_candidates,
@@ -1078,8 +1080,8 @@ mod tests {
         let log_path = temp_dir.path().join("log.txt");
         let request = steam_request();
 
-        let command = build_helper_command(&request, &script_path, &log_path)
-            .expect("helper command");
+        let command =
+            build_helper_command(&request, &script_path, &log_path).expect("helper command");
 
         let args = command
             .as_std()
@@ -1127,8 +1129,8 @@ mod tests {
         let log_path = temp_dir.path().join("trainer.log");
         let request = steam_request();
 
-        let command = build_trainer_command(&request, &script_path, &log_path)
-            .expect("trainer command");
+        let command =
+            build_trainer_command(&request, &script_path, &log_path).expect("trainer command");
 
         let args = command
             .as_std()
@@ -1402,8 +1404,8 @@ mod tests {
         };
         request.trainer_gamescope = Some(crate::profile::GamescopeConfig::default());
 
-        let command = build_trainer_command(&request, &script_path, &log_path)
-            .expect("trainer command");
+        let command =
+            build_trainer_command(&request, &script_path, &log_path).expect("trainer command");
         let args = command
             .as_std()
             .get_args()
@@ -1425,7 +1427,8 @@ mod tests {
         let steam_client_path = temp_dir.path().join("steam");
 
         fs::create_dir_all(prefix_path.join("drive_c")).expect("prefix dir");
-        fs::create_dir_all(steam_client_path.join("steamapps")).expect("steam client steamapps dir");
+        fs::create_dir_all(steam_client_path.join("steamapps"))
+            .expect("steam client steamapps dir");
         fs::create_dir_all(steam_client_path.join("config")).expect("steam client config dir");
         write_executable_file(&proton_path);
         fs::write(&game_path, b"game").expect("game exe");

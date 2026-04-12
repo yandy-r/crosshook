@@ -1,27 +1,26 @@
-import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-
-import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
-import GamescopeConfigPanel from './GamescopeConfigPanel';
-import MangoHudConfigPanel from './MangoHudConfigPanel';
-import LaunchOptimizationsPanel from './LaunchOptimizationsPanel';
-import { OfflineReadinessPanel } from './OfflineReadinessPanel';
-import { OfflineStatusBadge } from './OfflineStatusBadge';
-import ProtonDbOverwriteConfirmation from './ProtonDbOverwriteConfirmation';
-import ProtonDbLookupCard from './ProtonDbLookupCard';
-import SteamLaunchOptionsPanel from './SteamLaunchOptionsPanel';
-import { GameMetadataBar } from './profile-sections/GameMetadataBar';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
-import { LAUNCH_OPTIMIZATION_APPLICABLE_METHODS } from '../types/launch-optimizations';
 import type { BundledOptimizationPreset, GameProfile, LaunchAutoSaveStatus, LaunchMethod } from '../types';
-import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup, ProtonDbSuggestionSet } from '../types/protondb';
-import type { GamescopeConfig, MangoHudConfig } from '../types/profile';
-import type { LaunchOptimizationsPanelStatus } from './LaunchOptimizationsPanel';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
+import { LAUNCH_OPTIMIZATION_APPLICABLE_METHODS } from '../types/launch-optimizations';
+import type { GamescopeConfig, MangoHudConfig } from '../types/profile';
+import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup, ProtonDbSuggestionSet } from '../types/protondb';
 import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
 import type { PendingProtonDbOverwrite } from '../utils/protondb';
+import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
+import GamescopeConfigPanel from './GamescopeConfigPanel';
+import type { LaunchOptimizationsPanelStatus } from './LaunchOptimizationsPanel';
+import LaunchOptimizationsPanel from './LaunchOptimizationsPanel';
+import MangoHudConfigPanel from './MangoHudConfigPanel';
+import { OfflineReadinessPanel } from './OfflineReadinessPanel';
+import { OfflineStatusBadge } from './OfflineStatusBadge';
+import ProtonDbLookupCard from './ProtonDbLookupCard';
+import ProtonDbOverwriteConfirmation from './ProtonDbOverwriteConfirmation';
+import { GameMetadataBar } from './profile-sections/GameMetadataBar';
+import SteamLaunchOptionsPanel from './SteamLaunchOptionsPanel';
 
 export type LaunchSubTabId = 'offline' | 'environment' | 'gamescope' | 'mangohud' | 'optimizations' | 'steam-options';
 
@@ -191,14 +190,14 @@ export function LaunchSubTabs({
     return () => {
       if (chipTimerRef.current !== null) clearTimeout(chipTimerRef.current);
     };
-  }, [combinedAutoSaveStatus.tone, combinedAutoSaveStatus.label]);
+  }, [combinedAutoSaveStatus.tone]);
 
   useEffect(() => {
     if (tabs.length > 0 && !tabs.includes(activeTab)) {
       setActiveTab(tabs[0]);
       autoSwitchedRef.current = false;
     }
-  }, [tabs.join(','), activeTab]);
+  }, [activeTab, tabs.length, tabs[0]]);
 
   const {
     offlineReadiness,

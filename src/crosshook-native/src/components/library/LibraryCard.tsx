@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import type { LibraryCardData } from '../../types/library';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
+import type { LibraryCardData } from '../../types/library';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
 
 interface LibraryCardProps {
@@ -58,7 +58,7 @@ export function LibraryCard({
   );
 
   const [imgFailed, setImgFailed] = useState(false);
-  useEffect(() => setImgFailed(false), [coverArtUrl]);
+  useEffect(() => setImgFailed(false), []);
 
   const hasMedia = !!(coverArtUrl && !imgFailed);
   const showTitle = !hasMedia && !loading;
@@ -78,7 +78,6 @@ export function LibraryCard({
       ref={cardRef}
       className={cardClass}
       role="listitem"
-      tabIndex={0}
       onContextMenu={
         onContextMenu
           ? (e) => {

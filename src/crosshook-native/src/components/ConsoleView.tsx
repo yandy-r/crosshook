@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type UIEvent } from 'react';
+import { type UIEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 
-import { normalizeLogMessage, type LogPayload } from '../utils/log';
+import { type LogPayload, normalizeLogMessage } from '../utils/log';
 
 type ConsoleLine = {
   id: number;
@@ -76,7 +76,7 @@ export function ConsoleView() {
     if (!collapsed && shouldFollowRef.current) {
       scrollToBottom();
     }
-  }, [collapsed, lines.length]);
+  }, [collapsed, scrollToBottom]);
 
   return (
     <section aria-label="Console log" className="crosshook-console">

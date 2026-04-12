@@ -1,5 +1,5 @@
-import { isTauri } from '../runtime';
 import type { OpenDialogOptions, SaveDialogOptions } from '@tauri-apps/plugin-dialog';
+import { isTauri } from '../runtime';
 
 export type { OpenDialogOptions, SaveDialogOptions };
 

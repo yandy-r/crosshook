@@ -1,11 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { open as shellOpen } from '@/lib/plugin-stubs/shell';
+import { usePreferencesContext } from '../context/PreferencesContext';
+import { useExternalTrainerSearch } from '../hooks/useExternalTrainerSearch';
 import { useImportCommunityProfile } from '../hooks/useImportCommunityProfile';
 import { useTrainerDiscovery } from '../hooks/useTrainerDiscovery';
-import { useExternalTrainerSearch } from '../hooks/useExternalTrainerSearch';
-import { usePreferencesContext } from '../context/PreferencesContext';
-import { ExternalResultsSection } from './ExternalResultsSection';
 import type { TrainerSearchResult } from '../types/discovery';
+import { ExternalResultsSection } from './ExternalResultsSection';
 
 export interface TrainerDiscoveryPanelProps {
   initialQuery?: string;
@@ -221,21 +221,24 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
     setQuery('');
   }, []);
 
-  const handleImport = useCallback(async (result: TrainerSearchResult) => {
-    setImportingId(result.id);
-    setImportError(null);
-    setImportNotice(null);
+  const handleImport = useCallback(
+    async (result: TrainerSearchResult) => {
+      setImportingId(result.id);
+      setImportError(null);
+      setImportNotice(null);
 
-    const profilePath = `${result.tapLocalPath}/${result.relativePath}/community-profile.json`;
-    try {
-      await importCommunityProfile(profilePath);
-      setImportNotice(`Imported profile for ${result.gameName}.`);
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setImportingId(null);
-    }
-  }, []);
+      const profilePath = `${result.tapLocalPath}/${result.relativePath}/community-profile.json`;
+      try {
+        await importCommunityProfile(profilePath);
+        setImportNotice(`Imported profile for ${result.gameName}.`);
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setImportingId(null);
+      }
+    },
+    [importCommunityProfile]
+  );
 
   return (
     <section className="crosshook-card crosshook-discovery-panel" aria-label="Trainer Discovery">

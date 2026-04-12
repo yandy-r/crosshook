@@ -1,6 +1,6 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import { convertFileSrc } from '@/lib/plugin-stubs/convertFileSrc';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 function normalizeAppId(appId: string): string {
   return appId.trim();

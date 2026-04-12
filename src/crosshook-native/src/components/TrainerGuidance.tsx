@@ -1,5 +1,5 @@
-import { CollapsibleSection } from './ui/CollapsibleSection';
 import type { TrainerGuidanceContent } from '../types/onboarding';
+import { CollapsibleSection } from './ui/CollapsibleSection';
 
 type TrainerLoadingMode = 'source_directory' | 'copy_to_prefix';
 

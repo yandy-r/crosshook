@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 /// Supported ProtonUp providers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum ProtonUpProvider {
+    #[default]
     GeProton,
     ProtonCachyos,
 }
@@ -33,12 +35,6 @@ pub fn parse_protonup_provider(s: Option<&str>) -> ProtonUpProvider {
         None | Some("ge-proton") => ProtonUpProvider::GeProton,
         Some("proton-cachyos") => ProtonUpProvider::ProtonCachyos,
         Some(_) => ProtonUpProvider::GeProton,
-    }
-}
-
-impl Default for ProtonUpProvider {
-    fn default() -> Self {
-        Self::GeProton
     }
 }
 
@@ -129,16 +125,12 @@ pub struct ProtonUpInstallResult {
 /// Advisory match status for recommendation UI.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum ProtonUpMatchStatus {
     Matched,
     Missing,
+    #[default]
     Unknown,
-}
-
-impl Default for ProtonUpMatchStatus {
-    fn default() -> Self {
-        Self::Unknown
-    }
 }
 
 /// Suggestion result comparing community requirement to installed runtimes.

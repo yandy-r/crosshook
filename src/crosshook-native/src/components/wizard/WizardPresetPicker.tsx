@@ -2,7 +2,7 @@ import { useCallback, useId, useMemo } from 'react';
 
 import type { BundledOptimizationPreset } from '../../types';
 import { BUNDLED_PRESET_KEY_PREFIX, bundledOptimizationTomlKey } from '../../utils/launchOptimizationPresets';
-import { ThemedSelect, type SelectOptionGroup } from '../ui/ThemedSelect';
+import { type SelectOptionGroup, ThemedSelect } from '../ui/ThemedSelect';
 
 export interface WizardPresetPickerProps {
   bundledPresets: readonly BundledOptimizationPreset[];

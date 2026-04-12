@@ -220,7 +220,7 @@ pub fn derive_suggestions(
     launch_option_suggestions
         .sort_by(|a, b| b.supporting_report_count.cmp(&a.supporting_report_count));
 
-    let is_stale = lookup.cache.as_ref().map_or(false, |c| c.is_stale);
+    let is_stale = lookup.cache.as_ref().is_some_and(|c| c.is_stale);
     let tier = snapshot.tier.clone();
     let total_reports = snapshot.total_reports.unwrap_or(0);
 

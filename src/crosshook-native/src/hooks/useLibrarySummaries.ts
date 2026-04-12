@@ -17,11 +17,11 @@ export interface UseLibrarySummariesResult {
  * flag in sync when `favoriteProfiles` changes independently.
  */
 export function useLibrarySummaries(
-  profiles: string[],
+  _profiles: string[],
   favoriteProfiles: string[],
   collectionId?: string | null
 ): UseLibrarySummariesResult {
-    const [summaries, setSummaries] = useState<LibraryCardData[]>([]);
+  const [summaries, setSummaries] = useState<LibraryCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +57,7 @@ export function useLibrarySummaries(
   // Fetch on mount and whenever the profile list changes.
   useEffect(() => {
     void fetchSummaries();
-  }, [profiles, fetchSummaries]);
+  }, [fetchSummaries]);
 
   // Enrich with favorite state when favorites change (no network call).
   useEffect(() => {

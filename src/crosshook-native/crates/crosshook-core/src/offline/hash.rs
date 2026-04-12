@@ -95,9 +95,10 @@ pub fn normalize_sha256_hex(input: &str) -> Option<String> {
 }
 
 /// Result of comparing the on-disk trainer digest to the cached baseline.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TrainerHashBaselineResult {
     /// Trainer path missing or not a file.
+    #[default]
     SkippedNoTrainerPath,
     /// File exists but could not be hashed.
     Unverifiable,
@@ -110,12 +111,6 @@ pub enum TrainerHashBaselineResult {
         stored_hash: String,
         current_hash: String,
     },
-}
-
-impl Default for TrainerHashBaselineResult {
-    fn default() -> Self {
-        Self::SkippedNoTrainerPath
-    }
 }
 
 /// Advisory-only comparison against a community manifest digest.

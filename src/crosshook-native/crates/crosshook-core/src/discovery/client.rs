@@ -130,6 +130,11 @@ pub async fn search_external_trainers(
     }
 
     let force_refresh = query.force_refresh.unwrap_or(false);
+    let source_label = if enabled.len() == 1 {
+        enabled[0].source_id.clone()
+    } else {
+        "multi".to_string()
+    };
     let mut all_results: Vec<ExternalTrainerResult> = Vec::new();
     let mut any_offline = false;
     let mut all_offline = true;
@@ -141,7 +146,7 @@ pub async fn search_external_trainers(
     let mut in_flight = 0usize;
     let game_name_owned = game_name.to_string();
 
-    for source in enabled.iter().cloned() {
+    for source in enabled.into_iter() {
         while in_flight >= MAX_SOURCE_CONCURRENCY {
             if let Some(joined) = join_set.join_next().await {
                 in_flight -= 1;
@@ -211,12 +216,6 @@ pub async fn search_external_trainers(
             .then_with(|| a.game_name.cmp(&b.game_name))
             .then_with(|| a.source_url.cmp(&b.source_url))
     });
-
-    let source_label = if enabled.len() == 1 {
-        enabled[0].source_id.clone()
-    } else {
-        "multi".to_string()
-    };
 
     ExternalTrainerSearchResponse {
         results: all_results,

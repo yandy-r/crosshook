@@ -44,7 +44,7 @@ fn lock_info(state: &RunExecutableProcessState) -> MutexGuard<'_, Option<Running
     state
         .info
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// Structured error envelope returned to the frontend by every `run_executable`

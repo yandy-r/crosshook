@@ -166,7 +166,13 @@ pub fn host_command_with_env_and_directory(
     directory: Option<&str>,
     custom_env_vars: &BTreeMap<String, String>,
 ) -> Command {
-    host_command_with_env_and_directory_inner(program, envs, directory, is_flatpak(), custom_env_vars)
+    host_command_with_env_and_directory_inner(
+        program,
+        envs,
+        directory,
+        is_flatpak(),
+        custom_env_vars,
+    )
 }
 
 /// Redirects `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, and `XDG_CACHE_HOME` to the
@@ -260,7 +266,10 @@ fn host_command_with_env_and_directory_inner(
             let env_path = match write_flatpak_custom_env_file(custom_env_vars) {
                 Ok(path) => path,
                 Err(error) => {
-                    tracing::error!(?error, "failed to write custom env file for flatpak host spawn");
+                    tracing::error!(
+                        ?error,
+                        "failed to write custom env file for flatpak host spawn"
+                    );
                     cmd.arg(program);
                     return cmd;
                 }
@@ -288,17 +297,16 @@ fn host_command_with_env_and_directory_inner(
 }
 
 fn is_valid_shell_env_key(key: &str) -> bool {
-    !key.is_empty()
-        && key
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 fn shell_single_quote_escape(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
-fn write_flatpak_custom_env_file(custom_env_vars: &BTreeMap<String, String>) -> io::Result<PathBuf> {
+fn write_flatpak_custom_env_file(
+    custom_env_vars: &BTreeMap<String, String>,
+) -> io::Result<PathBuf> {
     let path = std::env::temp_dir().join(format!("crosshook-host-env-{}.env", Uuid::new_v4()));
     let mut file = OpenOptions::new()
         .create_new(true)
@@ -387,7 +395,10 @@ fn host_std_command_with_env_inner(
             let env_path = match write_flatpak_custom_env_file(custom_env_vars) {
                 Ok(path) => path,
                 Err(error) => {
-                    tracing::error!(?error, "failed to write custom env file for flatpak host spawn");
+                    tracing::error!(
+                        ?error,
+                        "failed to write custom env file for flatpak host spawn"
+                    );
                     cmd.arg(program);
                     return cmd;
                 }
@@ -516,13 +527,10 @@ pub fn host_read_dir_names(path: &Path) -> io::Result<Vec<OsString>> {
     cmd.stdin(Stdio::null());
     let output = cmd.output()?;
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!(
-                "host ls failed with status {}",
-                output.status.code().unwrap_or(-1)
-            ),
-        ));
+        return Err(io::Error::other(format!(
+            "host ls failed with status {}",
+            output.status.code().unwrap_or(-1)
+        )));
     }
     let text = String::from_utf8_lossy(&output.stdout);
     let mut names: Vec<OsString> = text
@@ -552,10 +560,10 @@ pub fn host_read_file_bytes_if_system_path(path: &Path) -> io::Result<Vec<u8>> {
     cmd.stdin(Stdio::null());
     let output = cmd.output()?;
     if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("host cat failed: {}", output.status),
-        ));
+        return Err(io::Error::other(format!(
+            "host cat failed: {}",
+            output.status
+        )));
     }
     Ok(output.stdout)
 }
@@ -782,7 +790,9 @@ mod tests {
 
     impl ScopedEnv {
         fn set(key: &'static str, value: &str) -> Self {
-            let guard = FLATPAK_ID_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let guard = FLATPAK_ID_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let original = env::var_os(key);
             // SAFETY: single-threaded access guaranteed by the mutex.
             unsafe { env::set_var(key, value) };
@@ -794,7 +804,9 @@ mod tests {
         }
 
         fn unset(key: &'static str) -> Self {
-            let guard = FLATPAK_ID_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let guard = FLATPAK_ID_LOCK
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let original = env::var_os(key);
             // SAFETY: single-threaded access guaranteed by the mutex.
             unsafe { env::remove_var(key) };
@@ -971,10 +983,8 @@ mod tests {
         let args: Vec<&std::ffi::OsStr> = std_cmd.get_args().collect();
         assert_eq!(args[0], std::ffi::OsStr::new("--host"));
         assert!(
-            args.iter().any(
-                |arg| *arg
-                    == std::ffi::OsStr::new("--directory=/mnt/games/The Witcher 3")
-            ),
+            args.iter()
+                .any(|arg| *arg == std::ffi::OsStr::new("--directory=/mnt/games/The Witcher 3")),
             "expected normalized --directory arg, got: {args:?}"
         );
         assert!(

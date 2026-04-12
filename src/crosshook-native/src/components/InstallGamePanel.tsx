@@ -1,24 +1,23 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-
+import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useProfileContext } from '../context/ProfileContext';
+import { useInstallGame } from '../hooks/useInstallGame';
+import { useProtonInstalls } from '../hooks/useProtonInstalls';
+import type { InstallProfileReviewPayload, ProfileReviewSource } from '../types/install';
+import type { GameProfile } from '../types/profile';
+import { resolveLaunchMethod } from '../utils/launch';
+import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
-import { InstallField } from './ui/InstallField';
 import { InstallReviewSummary } from './install/InstallReviewSummary';
 import { prefixStateLabel } from './install/installLabels';
+import { evaluateInstallRequiredFields } from './install/installValidation';
+import { MediaSection } from './profile-sections/MediaSection';
 import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
 import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
 import { RuntimeSection } from './profile-sections/RuntimeSection';
 import { TrainerSection } from './profile-sections/TrainerSection';
-import { MediaSection } from './profile-sections/MediaSection';
+import { InstallField } from './ui/InstallField';
 import { WizardPresetPicker } from './wizard/WizardPresetPicker';
-import { useInstallGame } from '../hooks/useInstallGame';
-import { useProtonInstalls } from '../hooks/useProtonInstalls';
-import { useProfileContext } from '../context/ProfileContext';
-import type { GameProfile } from '../types/profile';
-import type { InstallProfileReviewPayload, ProfileReviewSource } from '../types/install';
-import { resolveLaunchMethod } from '../utils/launch';
-import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
-import { evaluateInstallRequiredFields } from './install/installValidation';
 
 type InstallFlowTabId = 'identity' | 'runtime' | 'trainer' | 'media' | 'installer_review';
 
@@ -31,7 +30,7 @@ const INSTALL_FLOW_TAB_LABELS: Record<InstallFlowTabId, string> = {
 };
 
 function isInstallFlowTabId(value: string): value is InstallFlowTabId {
-  return Object.prototype.hasOwnProperty.call(INSTALL_FLOW_TAB_LABELS, value);
+  return Object.hasOwn(INSTALL_FLOW_TAB_LABELS, value);
 }
 
 function InstallFlowTabContent({
@@ -59,7 +58,7 @@ function InstallFlowTabContent({
 }
 
 export interface InstallGamePanelProps {
-  onOpenProfileReview: (payload: InstallProfileReviewPayload) => void | Promise<boolean>;
+  onOpenProfileReview: (payload: InstallProfileReviewPayload) => undefined | Promise<boolean>;
   onRequestInstallAction?: (action: 'retry' | 'reset') => boolean | Promise<boolean>;
 }
 

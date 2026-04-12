@@ -1,30 +1,31 @@
-import { registerSettings } from './handlers/settings';
-import { registerProfile } from './handlers/profile';
 import { registerLaunch } from './handlers/launch';
+import { registerProfile } from './handlers/profile';
+import { registerSettings } from './handlers/settings';
 
+export type { FixtureState } from '../fixture';
 // Re-export the fixture switcher and orthogonal debug toggles. Handlers import
 // `Handler` from `./handlers/types` and `getActiveFixture` from `../../fixture` to
 // avoid a circular dependency with this barrel. Logic lives in `../fixture` and
 // `../toggles` so they stay statically importable from production code without
 // dragging this dev-only module into the bundle.
 export { getActiveFixture } from '../fixture';
-export type { FixtureState } from '../fixture';
-export { getActiveToggles, togglesToChipFragments } from '../toggles';
 export type { DebugToggles } from '../toggles';
-import { registerInstall } from './handlers/install';
-import { registerUpdate } from './handlers/update';
-import { registerHealth } from './handlers/health';
-import { registerOnboarding } from './handlers/onboarding';
-import { registerProton } from './handlers/proton';
-import { registerProtonUp } from './handlers/protonup';
-import { registerProtonDb } from './handlers/protondb';
+export { getActiveToggles, togglesToChipFragments } from '../toggles';
+
+import { registerCollections } from './handlers/collections';
 import { registerCommunity } from './handlers/community';
+import { registerHealth } from './handlers/health';
+import { registerInstall } from './handlers/install';
 import { registerLauncher } from './handlers/launcher';
 import { registerLibrary } from './handlers/library';
+import { registerOnboarding } from './handlers/onboarding';
+import { registerProton } from './handlers/proton';
+import { registerProtonDb } from './handlers/protondb';
+import { registerProtonUp } from './handlers/protonup';
 import { registerSystem } from './handlers/system';
-import { registerCollections } from './handlers/collections';
-import { wrapAllHandlers } from './wrapHandler';
 import type { Handler } from './handlers/types';
+import { registerUpdate } from './handlers/update';
+import { wrapAllHandlers } from './wrapHandler';
 
 export type { Handler };
 

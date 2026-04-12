@@ -1,13 +1,13 @@
-import { createPortal } from 'react-dom';
 import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
   useId,
   useRef,
   useState,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 import type { ConfigDiffResult, ConfigRevisionSource, ConfigRevisionSummary } from '../types/profile-history';
 import { formatRelativeTime } from '../utils/format';
 
@@ -224,7 +224,7 @@ export function ConfigHistoryPanel({
       hiddenNodesRef.current = [];
 
       const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget && restoreTarget.isConnected) {
+      if (restoreTarget?.isConnected) {
         focusElement(restoreTarget);
       }
       previouslyFocusedRef.current = null;

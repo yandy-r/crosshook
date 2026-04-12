@@ -87,7 +87,8 @@ fn path_exists_visible_or_host(raw_path: &str) -> bool {
 
     let normalized = normalized_host_probe_path(raw_path);
     !normalized.is_empty()
-        && (std::path::Path::new(&normalized).exists() || normalized_path_exists_on_host(&normalized))
+        && (std::path::Path::new(&normalized).exists()
+            || normalized_path_exists_on_host(&normalized))
 }
 
 fn path_is_file_visible_or_host(raw_path: &str) -> bool {
@@ -102,7 +103,8 @@ fn path_is_file_visible_or_host(raw_path: &str) -> bool {
 
     let normalized = normalized_host_probe_path(raw_path);
     !normalized.is_empty()
-        && (std::path::Path::new(&normalized).is_file() || normalized_path_is_file_on_host(&normalized))
+        && (std::path::Path::new(&normalized).is_file()
+            || normalized_path_is_file_on_host(&normalized))
 }
 
 fn path_is_dir_visible_or_host(raw_path: &str) -> bool {
@@ -664,15 +666,13 @@ pub fn check_profile_health(name: &str, profile: &GameProfile) -> ProfileHealthR
     }
 
     // Process required-field results
-    for result in required_results {
-        if let Some((issue, stale)) = result {
-            if stale {
-                has_stale = true;
-            } else {
-                has_broken = true;
-            }
-            issues.push(issue);
+    for (issue, stale) in required_results.into_iter().flatten() {
+        if stale {
+            has_stale = true;
+        } else {
+            has_broken = true;
         }
+        issues.push(issue);
     }
 
     // Optional fields — checked at Info severity regardless of method

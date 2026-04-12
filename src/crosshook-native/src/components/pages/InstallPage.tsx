@@ -1,11 +1,5 @@
-import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
-
-import InstallGamePanel from '../InstallGamePanel';
-import ProfileFormSections from '../ProfileFormSections';
-import RunExecutablePanel from '../RunExecutablePanel';
-import UpdateGamePanel from '../UpdateGamePanel';
-import ProfileReviewModal, { type ProfileReviewModalConfirmation } from '../ProfileReviewModal';
+import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from 'react';
 import { usePreferencesContext } from '../../context/PreferencesContext';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProtonInstalls } from '../../hooks/useProtonInstalls';
@@ -13,8 +7,13 @@ import type { GameProfile } from '../../types';
 import type { InstallProfileReviewPayload } from '../../types/install';
 import type { ProfileReviewSession } from '../../types/profile-review';
 import { profilesEqual } from '../../utils/profile-compare';
+import InstallGamePanel from '../InstallGamePanel';
 import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
+import ProfileFormSections from '../ProfileFormSections';
+import ProfileReviewModal, { type ProfileReviewModalConfirmation } from '../ProfileReviewModal';
+import RunExecutablePanel from '../RunExecutablePanel';
+import UpdateGamePanel from '../UpdateGamePanel';
 
 type InstallPageTab = 'install' | 'update' | 'run_executable';
 

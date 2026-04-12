@@ -6,12 +6,12 @@
  *
  * Listens for `auto-load-profile` events emitted by the Tauri backend at startup.
  */
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 
-import { useProfile, type UseProfileResult } from '../hooks/useProfile';
+import { type UseProfileResult, useProfile } from '../hooks/useProfile';
+import { type ResolvedLaunchMethod, resolveLaunchMethod } from '../utils/launch';
 import { deriveSteamClientInstallPath, deriveTargetHomePath } from '../utils/steam';
-import { resolveLaunchMethod, type ResolvedLaunchMethod } from '../utils/launch';
 
 export interface ProfileContextValue extends UseProfileResult {
   launchMethod: ResolvedLaunchMethod;

@@ -1,7 +1,7 @@
 import type { LibraryCardData } from '../../types/library';
 import type { AppRoute } from '../layout/Sidebar';
-import type { LibraryOpenDetailsHandler } from './library-card-interactions';
 import { LibraryCard } from './LibraryCard';
+import type { LibraryOpenDetailsHandler } from './library-card-interactions';
 
 interface LibraryGridProps {
   profiles: LibraryCardData[];

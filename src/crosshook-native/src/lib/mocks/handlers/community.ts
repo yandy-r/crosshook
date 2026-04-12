@@ -1,15 +1,15 @@
-import type { Handler } from './types';
-import type { CommunityTapSubscription } from '../../../types/settings';
 import type {
+  CommunityExportResult,
+  CommunityImportPreview,
+  CommunityImportResult,
   CommunityProfileIndex,
   CommunityProfileIndexEntry,
   CommunityProfileManifest,
   CommunityTapSyncResult,
-  CommunityImportPreview,
-  CommunityImportResult,
-  CommunityExportResult,
 } from '../../../hooks/useCommunityProfiles';
 import { createDefaultProfile } from '../../../types/profile';
+import type { CommunityTapSubscription } from '../../../types/settings';
+import type { Handler } from './types';
 
 // ---------------------------------------------------------------------------
 // Synthetic data fixtures

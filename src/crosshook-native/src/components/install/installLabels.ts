@@ -8,7 +8,6 @@ export function prefixStateLabel(state: InstallGamePrefixPathState): string {
       return 'Default prefix resolved';
     case 'failed':
       return 'Default prefix unavailable';
-    case 'idle':
     default:
       return 'Awaiting profile name';
   }

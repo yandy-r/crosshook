@@ -1,5 +1,5 @@
-import { callCommand } from '@/lib/ipc';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { callCommand } from '@/lib/ipc';
 
 import type {
   ProtonDbCacheState,

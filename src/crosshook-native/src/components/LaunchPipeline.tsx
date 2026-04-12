@@ -1,10 +1,10 @@
-import type { CSSProperties } from 'react';
-import type { GameProfile } from '../types/profile';
-import type { LaunchPhase, LaunchPreview, PipelineNodeStatus } from '../types/launch';
-import type { ResolvedLaunchMethod } from '../utils/launch';
-import { useMemo } from 'react';
 import * as Tooltip from '@radix-ui/react-tooltip';
+import type { CSSProperties } from 'react';
+import { useMemo } from 'react';
+import type { LaunchPhase, LaunchPreview, PipelineNodeStatus } from '../types/launch';
+import type { GameProfile } from '../types/profile';
 import { derivePipelineNodes } from '../utils/derivePipelineNodes';
+import type { ResolvedLaunchMethod } from '../utils/launch';
 import '../styles/launch-pipeline.css';
 
 interface LaunchPipelineProps {
@@ -59,18 +59,14 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
     liveActiveIdx >= 0 ? liveActiveIdx : firstIssueIdx >= 0 ? firstIssueIdx : launchIndex >= 0 ? launchIndex : 0;
 
   const announcement = useMemo(() => {
-    const issues = nodes.filter(
-      (n) => n.status === 'error' || n.status === 'not-configured' || n.status === 'active'
-    );
+    const issues = nodes.filter((n) => n.status === 'error' || n.status === 'not-configured' || n.status === 'active');
     if (issues.length === 0) return 'All pipeline steps configured.';
-    return (
-      issues
-        .map((n) => {
-          const text = n.detail || STATUS_LABEL[n.status];
-          return `${n.label}: ${text}`;
-        })
-        .join('. ') + '.'
-    );
+    return `${issues
+      .map((n) => {
+        const text = n.detail || STATUS_LABEL[n.status];
+        return `${n.label}: ${text}`;
+      })
+      .join('. ')}.`;
   }, [nodes]);
 
   return (
@@ -101,16 +97,15 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
               {hasDetail ? (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <span className="crosshook-launch-pipeline__node-trigger" tabIndex={0} aria-label={`${node.label}: ${statusText}`}>
+                    <span
+                      className="crosshook-launch-pipeline__node-trigger"
+                      aria-label={`${node.label}: ${statusText}`}
+                    >
                       {nodeContent}
                     </span>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
-                    <Tooltip.Content
-                      side="top"
-                      sideOffset={6}
-                      style={TOOLTIP_CONTENT_STYLE}
-                    >
+                    <Tooltip.Content side="top" sideOffset={6} style={TOOLTIP_CONTENT_STYLE}>
                       {node.detail}
                       <Tooltip.Arrow style={TOOLTIP_ARROW_STYLE} />
                     </Tooltip.Content>

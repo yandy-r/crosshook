@@ -1,9 +1,8 @@
-import { useEffect, useId, useState, type RefObject } from 'react';
-import { subscribeEvent } from '@/lib/events';
+import { type RefObject, useEffect, useId, useState } from 'react';
 import type { PanelImperativeHandle } from 'react-resizable-panels';
-
+import { subscribeEvent } from '@/lib/events';
+import { type LogPayload, normalizeLogMessage } from '../../utils/log';
 import ConsoleView from '../ConsoleView';
-import { normalizeLogMessage, type LogPayload } from '../../utils/log';
 
 function countLogLines(payload: unknown): number {
   const text = normalizeLogMessage(payload).trimEnd();

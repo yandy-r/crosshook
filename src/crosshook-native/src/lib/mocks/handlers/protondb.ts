@@ -1,12 +1,12 @@
-import type { Handler } from './types';
-import { getStore } from '../store';
+import type { GameProfile } from '../../../types/profile';
 import type {
   AcceptSuggestionRequest,
   AcceptSuggestionResult,
   ProtonDbLookupResult,
   ProtonDbSuggestionSet,
 } from '../../../types/protondb';
-import type { GameProfile } from '../../../types/profile';
+import { getStore } from '../store';
+import type { Handler } from './types';
 
 // Tracks dismissed suggestion keys across handler calls within a browser session.
 // Key format: `${profileName}:${appId}:${suggestionKey}`

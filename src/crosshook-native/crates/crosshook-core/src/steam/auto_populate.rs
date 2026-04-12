@@ -196,8 +196,7 @@ fn add_default_manual_hints(
 
     if !steam_app_id.is_empty() {
         collector.add_hint(format!(
-            "If Steam matched the game, the App ID should be {}.",
-            steam_app_id
+            "If Steam matched the game, the App ID should be {steam_app_id}."
         ));
     }
 }

@@ -1,8 +1,8 @@
-import type { Handler } from './types';
+import type { OnboardingCheckPayload, ReadinessCheckResult, TrainerGuidanceContent } from '../../../types/onboarding';
 import { getActiveToggles } from '../../toggles';
-import { getStore } from '../store';
 import { emitMockEvent } from '../eventBus';
-import type { ReadinessCheckResult, TrainerGuidanceContent, OnboardingCheckPayload } from '../../../types/onboarding';
+import { getStore } from '../store';
+import type { Handler } from './types';
 
 let onboardingDismissed = false;
 

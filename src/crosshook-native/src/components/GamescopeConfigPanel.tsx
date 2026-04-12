@@ -1,7 +1,7 @@
-import { useId, useRef, type ChangeEvent } from 'react';
+import { type ChangeEvent, useId, useRef } from 'react';
 import type { GamescopeConfig, GamescopeFilter } from '../types/profile';
-import { InfoTooltip } from './ui/InfoTooltip';
 import { CollapsibleSection } from './ui/CollapsibleSection';
+import { InfoTooltip } from './ui/InfoTooltip';
 import { ThemedSelect } from './ui/ThemedSelect';
 
 export interface GamescopeConfigPanelProps {
@@ -48,7 +48,7 @@ const UPSCALE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
 function parseOptionalInt(value: string): number | undefined {
   if (value === '') return undefined;
   const parsed = parseInt(value, 10);
-  return isNaN(parsed) ? undefined : parsed;
+  return Number.isNaN(parsed) ? undefined : parsed;
 }
 
 export function GamescopeConfigPanel({

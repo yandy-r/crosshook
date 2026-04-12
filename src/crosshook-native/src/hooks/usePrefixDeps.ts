@@ -20,7 +20,7 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
   const [deps, setDeps] = useState<PrefixDependencyStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [reloadVersion, setReloadVersion] = useState(0);
+  const [_reloadVersion, setReloadVersion] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -56,7 +56,7 @@ export function usePrefixDeps(profileName: string, prefixPath: string): UsePrefi
     return () => {
       active = false;
     };
-  }, [profileName, prefixPath, reloadVersion]);
+  }, [profileName, prefixPath]);
 
   const checkDeps = useCallback(
     async (packages: string[]) => {
