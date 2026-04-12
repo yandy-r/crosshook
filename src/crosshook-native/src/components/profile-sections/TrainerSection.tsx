@@ -186,7 +186,7 @@ export function TrainerSection({
                   content={
                     trainerRequiresNetwork
                       ? `Disabled \u2014 ${selectedTrainerTypeEntry?.display_name ?? 'This trainer type'} requires network access.`
-                      : 'Isolates the trainer in a network namespace via unshare --user --net, blocking outbound connections like telemetry and update checks.'
+                      : 'Isolates the trainer in a network namespace via unshare --net, blocking outbound connections like telemetry and update checks. This function may not work on all platforms.'
                   }
                 />
               </span>

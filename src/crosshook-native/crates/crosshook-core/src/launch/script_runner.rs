@@ -73,7 +73,7 @@ fn build_flatpak_unshare_bash_command(
         base.remove(key);
     }
     let mut cmd = host_command_with_env("unshare", &base, custom_env);
-    cmd.args(["--user", "--net", BASH_EXECUTABLE]);
+    cmd.args(["--net", BASH_EXECUTABLE]);
     cmd.arg(script_path);
     Ok(cmd)
 }
@@ -190,7 +190,7 @@ pub fn build_helper_command(
             merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
             let mut cmd = Command::new("unshare");
             cmd.envs(&env);
-            cmd.args(["--user", "--net", BASH_EXECUTABLE]);
+            cmd.args(["--net", BASH_EXECUTABLE]);
             cmd.arg(script_path);
             cmd
         }
@@ -250,7 +250,7 @@ pub fn build_trainer_command(
                 merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
                 let mut cmd = Command::new("unshare");
                 cmd.envs(&env);
-                cmd.args(["--user", "--net", BASH_EXECUTABLE]);
+                cmd.args(["--net", BASH_EXECUTABLE]);
                 cmd.arg(script_path);
                 cmd
             }
@@ -365,11 +365,7 @@ pub fn build_proton_trainer_command(
 
     let effective_wrappers =
         if request.network_isolation && super::runtime_helpers::is_unshare_net_available() {
-            let mut w = vec![
-                "unshare".to_string(),
-                "--user".to_string(),
-                "--net".to_string(),
-            ];
+            let mut w = vec!["unshare".to_string(), "--net".to_string()];
             w.extend(directives.wrappers.iter().cloned());
             w
         } else {
@@ -1580,12 +1576,11 @@ mod tests {
 
     #[test]
     fn proton_trainer_command_prepends_unshare_net_when_isolation_enabled() {
-        // Only meaningful when unshare --user --net is available (requires unprivileged
-        // user namespaces).  CI containers and hardened kernels may not support this.
+        // Only meaningful when unshare --net is available. CI containers and
+        // hardened kernels may not support this.
         if !crate::launch::runtime_helpers::is_unshare_net_available() {
             eprintln!(
-                "SKIP: unshare --user --net not available on this system \
-                 (unprivileged user namespaces may be disabled)"
+                "SKIP: unshare --net not available on this system"
             );
             return;
         }
@@ -1638,8 +1633,7 @@ mod tests {
             .get_args()
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
-        assert_eq!(args[0], "--user", "first arg should be --user");
-        assert_eq!(args[1], "--net", "second arg should be --net");
+        assert_eq!(args[0], "--net", "first arg should be --net");
     }
 
     #[test]

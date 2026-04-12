@@ -300,11 +300,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                 && request.network_isolation
                 && super::runtime_helpers::is_unshare_net_available()
             {
-                let mut w = vec![
-                    "unshare".to_string(),
-                    "--user".to_string(),
-                    "--net".to_string(),
-                ];
+                let mut w = vec!["unshare".to_string(), "--net".to_string()];
                 w.extend(directives.wrappers.iter().cloned());
                 w
             } else {
