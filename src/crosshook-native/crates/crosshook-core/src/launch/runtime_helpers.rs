@@ -491,11 +491,9 @@ pub(crate) fn is_executable_file(path: &Path) -> bool {
     }
 }
 
-/// Returns `true` if `unshare --user --net` is available for the current user.
+/// Returns `true` if `unshare --net` is available for the current user.
 ///
-/// Probes by running `unshare --user --net true` (which immediately exits).
-/// `--user` is required because most kernels only allow unprivileged network
-/// namespace creation inside a user namespace.
+/// Probes by running `unshare --net true` (which immediately exits).
 /// Returns `false` if the binary is missing or the kernel blocks the operation.
 ///
 /// The result is cached for the lifetime of the process via `OnceLock` since
@@ -508,7 +506,7 @@ pub struct LaunchPlatformCapabilities {
     pub unshare_net_available: bool,
 }
 
-/// Returns whether CrossHook is sandboxed as Flatpak and whether host `unshare --user --net` works.
+/// Returns whether CrossHook is sandboxed as Flatpak and whether host `unshare --net` works.
 pub fn launch_platform_capabilities() -> LaunchPlatformCapabilities {
     LaunchPlatformCapabilities {
         is_flatpak: platform::is_flatpak(),
@@ -524,7 +522,7 @@ pub fn is_unshare_net_available() -> bool {
         } else {
             std::process::Command::new("unshare")
         };
-        cmd.args(["--user", "--net", "true"])
+        cmd.args(["--net", "true"])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());

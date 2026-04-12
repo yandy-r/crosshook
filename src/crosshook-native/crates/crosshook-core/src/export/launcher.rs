@@ -345,7 +345,7 @@ pub(crate) fn build_trainer_script_content(
     content.push_str(&format!(
         "# Network isolation: {}\n",
         if request.network_isolation {
-            "enabled (unshare --user --net)"
+            "enabled (unshare --net)"
         } else {
             "disabled"
         }
@@ -531,10 +531,10 @@ fn build_exec_line(gamescope_enabled: bool, network_isolation: bool, target_path
     let mut block = String::new();
     block.push_str(
         r#"_NET_PREFIX=()
-if unshare --user --net true >/dev/null 2>&1; then
-  _NET_PREFIX=(unshare --user --net)
+if unshare --net true >/dev/null 2>&1; then
+  _NET_PREFIX=(unshare --net)
 else
-  echo "[CrossHook] WARNING: unshare --user --net unavailable — launching without network isolation" >&2
+  echo "[CrossHook] WARNING: unshare --net unavailable — launching without network isolation" >&2
 fi
 "#,
     );
@@ -1225,15 +1225,15 @@ mod tests {
             "script header should indicate network isolation: {content}"
         );
         assert!(
-            content.contains("if unshare --user --net true"),
+            content.contains("if unshare --net true"),
             "script should probe unshare availability: {content}"
         );
         assert!(
-            content.contains("_NET_PREFIX=(unshare --user --net)"),
+            content.contains("_NET_PREFIX=(unshare --net)"),
             "script should set _NET_PREFIX on success: {content}"
         );
         assert!(
-            content.contains("WARNING: unshare --user --net unavailable"),
+            content.contains("WARNING: unshare --net unavailable"),
             "script should warn on failure: {content}"
         );
         assert!(

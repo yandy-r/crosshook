@@ -29,9 +29,9 @@ import ProfileSubTabs from '../ProfileSubTabs';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
 
-const FLATPAK_NET_BADGE = 'No network isolation';
-const FLATPAK_NET_BADGE_TITLE =
-  'Flatpak cannot enforce network isolation (unshare) on this system. The profile still launches; traffic is not isolated.';
+const NETWORK_ISOLATION_BADGE = 'No network isolation';
+const NETWORK_ISOLATION_BADGE_TITLE =
+  'This system cannot enforce network isolation (unshare --net). The profile still launches; traffic is not isolated.';
 
 /** Minimal shape of a row returned by `community_list_indexed_profiles`. */
 interface CommunityIndexedProfileRow {
@@ -154,9 +154,9 @@ export function ProfilesPage() {
     }
   }, [activeCollectionId, membersLoading, membersForCollectionId, filteredProfiles, selectedProfile, selectProfile]);
 
-  const showFlatpakNetworkIsolationBadge = useCallback(
+  const showNetworkIsolationBadge = useCallback(
     (candidateProfileName: string) => {
-      if (!launchPlatform?.isFlatpak || launchPlatform.unshareNetAvailable || !candidateProfileName.trim()) {
+      if (!launchPlatform || launchPlatform.unshareNetAvailable || !candidateProfileName.trim()) {
         return false;
       }
 
@@ -719,8 +719,10 @@ export function ProfilesPage() {
                       ...filteredProfiles.map((name) => ({
                         value: name,
                         label: name,
-                        badge: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE : undefined,
-                        badgeTitle: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE_TITLE : undefined,
+                        badge: showNetworkIsolationBadge(name) ? NETWORK_ISOLATION_BADGE : undefined,
+                        badgeTitle: showNetworkIsolationBadge(name)
+                          ? NETWORK_ISOLATION_BADGE_TITLE
+                          : undefined,
                       })),
                     ]}
                   />
@@ -762,12 +764,12 @@ export function ProfilesPage() {
                   </span>
                 ) : null}
                 {renderVersionStatusBadge()}
-                {showFlatpakNetworkIsolationBadge(selectedProfile) ? (
+                {showNetworkIsolationBadge(selectedProfile) ? (
                   <span
                     className="crosshook-status-chip crosshook-version-badge crosshook-version-badge--warning"
-                    title={FLATPAK_NET_BADGE_TITLE}
+                    title={NETWORK_ISOLATION_BADGE_TITLE}
                   >
-                    {FLATPAK_NET_BADGE}
+                    {NETWORK_ISOLATION_BADGE}
                   </span>
                 ) : null}
                 {summary !== null && summary.stale_count + summary.broken_count > 0 ? (

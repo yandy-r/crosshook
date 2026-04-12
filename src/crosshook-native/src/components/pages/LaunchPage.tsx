@@ -25,9 +25,9 @@ import { LaunchSubTabs } from '../LaunchSubTabs';
 import { RouteBanner } from '../layout/RouteBanner';
 import { ThemedSelect } from '../ui/ThemedSelect';
 
-const FLATPAK_NET_BADGE = 'No network isolation';
-const FLATPAK_NET_BADGE_TITLE =
-  'Flatpak cannot enforce network isolation (unshare) on this system. The profile still launches; traffic is not isolated.';
+const NETWORK_ISOLATION_BADGE = 'No network isolation';
+const NETWORK_ISOLATION_BADGE_TITLE =
+  'This system cannot enforce network isolation (unshare --net). The profile still launches; traffic is not isolated.';
 
 export function LaunchPage() {
   const profileState = useProfileContext();
@@ -107,9 +107,9 @@ export function LaunchPage() {
     };
   }, [activeCollectionId]);
 
-  const showFlatpakNetworkIsolationBadge = useCallback(
+  const showNetworkIsolationBadge = useCallback(
     (profileName: string) => {
-      if (!launchPlatform?.isFlatpak || launchPlatform.unshareNetAvailable || !profileName.trim()) {
+      if (!launchPlatform || launchPlatform.unshareNetAvailable || !profileName.trim()) {
         return false;
       }
       return profileNetworkIsolation[profileName] === true;
@@ -439,8 +439,10 @@ export function LaunchPage() {
                 options={filteredProfiles.map((name) => ({
                   value: name,
                   label: name,
-                  badge: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE : undefined,
-                  badgeTitle: showFlatpakNetworkIsolationBadge(name) ? FLATPAK_NET_BADGE_TITLE : undefined,
+                  badge: showNetworkIsolationBadge(name) ? NETWORK_ISOLATION_BADGE : undefined,
+                  badgeTitle: showNetworkIsolationBadge(name)
+                    ? NETWORK_ISOLATION_BADGE_TITLE
+                    : undefined,
                 }))}
               />
             </>

@@ -60,7 +60,7 @@ pub struct LaunchRequest {
     )]
     pub custom_env_vars: BTreeMap<String, String>,
     /// When true, trainer processes are launched in an isolated network namespace
-    /// via `unshare --user --net`.
+    /// via `unshare --net`.
     #[serde(default = "default_network_isolation")]
     pub network_isolation: bool,
     #[serde(default, skip_serializing_if = "GamescopeConfig::is_default")]
@@ -522,7 +522,7 @@ impl ValidationError {
                 "Fullscreen and borderless cannot both be enabled in gamescope.".to_string()
             }
             Self::UnshareNetUnavailable => {
-                "Network isolation (unshare --user --net) is not available on this system.".to_string()
+                "Network isolation (unshare --net) is not available on this system.".to_string()
             }
             Self::OfflineReadinessInsufficient { score, reasons } => {
                 let detail = if reasons.is_empty() {
@@ -713,7 +713,7 @@ impl ValidationError {
                 "Choose either fullscreen or borderless, not both.".to_string()
             }
             Self::UnshareNetUnavailable => {
-                "Unprivileged user namespaces may be disabled by kernel policy. The trainer will launch without network isolation."
+                "Kernel policy or missing capabilities may block unshare --net on this system. The trainer will launch without network isolation."
                     .to_string()
             }
             Self::OfflineReadinessInsufficient { .. } => {
@@ -1754,8 +1754,8 @@ mod tests {
         let issue = err.issue();
         assert_eq!(issue.severity, ValidationSeverity::Warning);
         assert!(issue.message.contains("unshare"));
-        assert!(issue.help.contains("kernel policy"));
-        assert!(issue.message.contains("--user --net"));
+        assert!(issue.help.contains("Kernel policy"));
+        assert!(issue.message.contains("--net"));
     }
 
     #[test]
