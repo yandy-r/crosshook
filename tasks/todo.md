@@ -1,5 +1,17 @@
 # Task Plan
 
+## 2026-04-12 - track steam trainer gamescope inheritance bug
+
+- [x] Confirm the issue template requirements, label taxonomy, and duplicate status for the reported Steam trainer launch bug.
+- [x] Create a structured GitHub bug issue that captures the repro matrix, runtime discrepancy, and expected gamescope inheritance behavior.
+- [x] Record the created issue and filing summary in this task tracker.
+
+### Review
+
+- Confirmed the repo requires the YAML bug form shape and colon-prefixed taxonomy labels, and verified there was no obvious duplicate via a focused GitHub issue search before filing.
+- Created issue `#225` for the Steam trainer gamescope inheritance/runtime discrepancy, using a structured body that mirrors the bug form fields and captures the reported repro matrix: native dev runtime succeeds, generated/desktop launcher fails only when the game uses gamescope and the trainer profile does not.
+- Applied labels `type:bug`, `area:launch`, `area:profiles`, `platform:linux`, `priority:high`, and `status:needs-triage` so the issue is triage-ready and correctly scoped to Steam trainer launch behavior rather than generic Proton launch failures.
+
 ## 2026-04-12 - fix lint workflow biome regressions
 
 - [x] Confirm the reported Biome findings against the current frontend sources.
