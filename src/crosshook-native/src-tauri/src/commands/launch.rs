@@ -32,6 +32,52 @@ use tokio::sync::mpsc;
 
 use super::shared::{create_log_path, sanitize_display_path};
 
+const GAMESCOPE_XDG_BACKEND_SOURCE_MARKER: &str = "xdg_backend:";
+const GAMESCOPE_XDG_BACKEND_MESSAGE_MARKER: &str =
+    "Compositor released us but we were not acquired";
+const GAMESCOPE_XDG_BACKEND_SUPPRESSION_NOTICE: &str =
+    "[crosshook] Suppressing repeated gamescope xdg_backend console noise. The raw launch log still contains every line.";
+
+#[derive(Debug, Default)]
+struct LaunchLogRelayState {
+    gamescope_xdg_backend_seen: bool,
+    gamescope_xdg_backend_suppressed: usize,
+    suppression_notice_emitted: bool,
+}
+
+fn is_gamescope_xdg_backend_line(line: &str) -> bool {
+    line.contains(GAMESCOPE_XDG_BACKEND_SOURCE_MARKER)
+        && line.contains(GAMESCOPE_XDG_BACKEND_MESSAGE_MARKER)
+}
+
+fn transform_launch_log_line_for_ui(state: &mut LaunchLogRelayState, line: &str) -> Vec<String> {
+    if !is_gamescope_xdg_backend_line(line) {
+        return vec![line.to_string()];
+    }
+
+    if !state.gamescope_xdg_backend_seen {
+        state.gamescope_xdg_backend_seen = true;
+        return vec![line.to_string()];
+    }
+
+    state.gamescope_xdg_backend_suppressed += 1;
+    if !state.suppression_notice_emitted {
+        state.suppression_notice_emitted = true;
+        return vec![GAMESCOPE_XDG_BACKEND_SUPPRESSION_NOTICE.to_string()];
+    }
+
+    Vec::new()
+}
+
+fn suppression_summary_line(state: &LaunchLogRelayState) -> Option<String> {
+    (state.gamescope_xdg_backend_suppressed > 0).then(|| {
+        format!(
+            "[crosshook] Suppressed {} repeated gamescope xdg_backend lines from the live console. See the raw launch log for full output.",
+            state.gamescope_xdg_backend_suppressed
+        )
+    })
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct LaunchResult {
     pub succeeded: bool,
@@ -576,6 +622,7 @@ async fn stream_log_lines(
     let mut child = child;
     let mut last_len = 0usize;
     let mut exit_status: Option<std::process::ExitStatus> = None;
+    let mut relay_state = LaunchLogRelayState::default();
 
     loop {
         match tokio::fs::read_to_string(&log_path).await {
@@ -588,8 +635,11 @@ async fn stream_log_lines(
                     let chunk = &content[last_len..];
                     for line in chunk.lines() {
                         if !line.is_empty() {
-                            if let Err(error) = app.emit("launch-log", line.to_string()) {
-                                tracing::warn!(%error, "failed to emit launch log line; continuing stream");
+                            for ui_line in transform_launch_log_line_for_ui(&mut relay_state, line)
+                            {
+                                if let Err(error) = app.emit("launch-log", ui_line) {
+                                    tracing::warn!(%error, "failed to emit launch log line; continuing stream");
+                                }
                             }
                         }
                     }
@@ -620,10 +670,17 @@ async fn stream_log_lines(
     if let Ok(content) = tokio::fs::read_to_string(&log_path).await {
         if content.len() > last_len {
             for line in content[last_len..].lines().filter(|l| !l.is_empty()) {
-                if let Err(error) = app.emit("launch-log", line.to_string()) {
-                    tracing::warn!(%error, "failed to emit final launch log line");
+                for ui_line in transform_launch_log_line_for_ui(&mut relay_state, line) {
+                    if let Err(error) = app.emit("launch-log", ui_line) {
+                        tracing::warn!(%error, "failed to emit final launch log line");
+                    }
                 }
             }
+        }
+    }
+    if let Some(summary_line) = suppression_summary_line(&relay_state) {
+        if let Err(error) = app.emit("launch-log", summary_line) {
+            tracing::warn!(%error, "failed to emit launch log suppression summary");
         }
     }
 
@@ -673,6 +730,7 @@ async fn stream_log_pipes(
             None
         }
     };
+    let mut relay_state = LaunchLogRelayState::default();
     while let Some(line) = rx.recv().await {
         if let Some(file) = log_file.as_mut() {
             if let Err(error) = file.write_all(format!("{line}\n").as_bytes()).await {
@@ -681,8 +739,10 @@ async fn stream_log_pipes(
             }
         }
         if !line.is_empty() {
-            if let Err(error) = app.emit("launch-log", line) {
-                tracing::warn!(%error, "failed to emit launch log line");
+            for ui_line in transform_launch_log_line_for_ui(&mut relay_state, &line) {
+                if let Err(error) = app.emit("launch-log", ui_line) {
+                    tracing::warn!(%error, "failed to emit launch log line");
+                }
             }
         }
     }
@@ -693,13 +753,19 @@ async fn stream_log_pipes(
         }
     }
 
-    match wait_handle.await {
+    let exit_status = match wait_handle.await {
         Ok(status) => status,
         Err(error) => {
             tracing::warn!(%error, "pipe-backed child wait task failed");
             None
         }
+    };
+    if let Some(summary_line) = suppression_summary_line(&relay_state) {
+        if let Err(error) = app.emit("launch-log", summary_line) {
+            tracing::warn!(%error, "failed to emit launch log suppression summary");
+        }
     }
+    exit_status
 }
 
 async fn pipe_reader_task<R>(reader: R, tx: mpsc::UnboundedSender<String>)
@@ -1017,7 +1083,10 @@ fn diagnostic_method_for_log(method: &'static str, log_tail: &str) -> &'static s
 
 #[cfg(test)]
 mod tests {
-    use super::diagnostic_method_for_log;
+    use super::{
+        diagnostic_method_for_log, suppression_summary_line, transform_launch_log_line_for_ui,
+        LaunchLogRelayState,
+    };
     use crosshook_core::launch::{METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
 
     #[test]
@@ -1038,5 +1107,34 @@ mod tests {
             diagnostic_method_for_log(METHOD_STEAM_APPLAUNCH, log_tail),
             METHOD_STEAM_APPLAUNCH
         );
+    }
+
+    #[test]
+    fn launch_log_ui_shows_first_gamescope_xdg_backend_line_then_suppresses_repeats() {
+        let mut state = LaunchLogRelayState::default();
+        let line = "[gamescope] [\u{1b}[0;31mError\u{1b}[0m] \u{1b}[0;37mxdg_backend:\u{1b}[0m Compositor released us but we were not acquired. Oh no.";
+
+        let first = transform_launch_log_line_for_ui(&mut state, line);
+        let second = transform_launch_log_line_for_ui(&mut state, line);
+        let third = transform_launch_log_line_for_ui(&mut state, line);
+
+        assert_eq!(first, vec![line.to_string()]);
+        assert_eq!(
+            second,
+            vec![String::from(
+                "[crosshook] Suppressing repeated gamescope xdg_backend console noise. The raw launch log still contains every line."
+            )]
+        );
+        assert!(third.is_empty());
+        assert_eq!(state.gamescope_xdg_backend_suppressed, 2);
+    }
+
+    #[test]
+    fn launch_log_ui_suppression_summary_reports_suppressed_count() {
+        let mut state = LaunchLogRelayState::default();
+        state.gamescope_xdg_backend_suppressed = 329;
+
+        let summary = suppression_summary_line(&state).expect("summary line");
+        assert!(summary.contains("329 repeated gamescope xdg_backend lines"));
     }
 }
