@@ -12,6 +12,7 @@ Normative guidelines for AI agents in this repository. For stack overview, direc
 
 - **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, AppImage). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
 - **Architecture**: Business logic lives in `crosshook-core`. Keep `crosshook-cli` and `src-tauri` thin (IPC and CLI only).
+- **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path.
 - **Tauri IPC**: Expose backend operations as `#[tauri::command]` handlers with **`snake_case` names** matching frontend `invoke()` calls. Use **Serde** on all types that cross the IPC boundary.
 - **Secrets**: **Never** commit `.env`, `.env.encrypted`, or `.env.keys`.
 - **Issues**: Use the YAML form templates under [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). **Do not** create title-only or template-bypass issues. If `gh issue create --template` fails (e.g. `no templates found`), create the issue via GitHub API/tooling with a body that mirrors the form fields, then apply correct labels—**not** a vague one-liner. For feature issues that introduce or change **persisted** data, the issue body must include a **Storage boundary** subsection (classify each datum as TOML settings, SQLite metadata, or runtime-only) and a short **Persistence & usability** subsection (migration/backward compatibility, offline expectations, degraded behavior when persistence is unavailable, and what users can view or edit).
@@ -55,7 +56,7 @@ For storage changes, plans must also:
 - **Rust linting**: `cargo clippy` with workspace lints in `Cargo.toml` (`-D warnings` in CI)
 - **TypeScript linting/formatting**: Biome (`biome.json` at `src/crosshook-native/`)
 - **Markdown/JSON formatting**: Prettier (`.prettierrc` at repo root)
-- **Pre-commit**: lefthook (`lefthook.yml` at repo root) — install via `cargo install lefthook`, then `lefthook install`
+- **Pre-commit**: lefthook (`lefthook.yml` at repo root) — run `./scripts/setup-dev-hooks.sh` (see [install options](https://lefthook.dev/install/); not on crates.io)
 - **CI**: `.github/workflows/lint.yml` runs Rust, TypeScript, and ShellCheck on every PR
 
 ## Commands (short reference)

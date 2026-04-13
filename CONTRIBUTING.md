@@ -61,6 +61,23 @@ By default, build outputs go to XDG locations (`./scripts/build-native.sh --prin
 Starts the Tauri dev server with hot-reload for both the React frontend and Rust backend. Handles
 Wayland/X11 detection automatically.
 
+If git hooks are not installed, the first `./scripts/dev-native.sh` run prints a one-line reminder.
+Set `CROSSHOOK_SKIP_HOOK_CHECK=1` to silence it.
+
+### Git hooks (recommended)
+
+CI runs the same checks as [`lint.yml`](.github/workflows/lint.yml). Install **Lefthook** so
+formatting and lint run on **staged files** before each commit:
+
+```bash
+./scripts/setup-dev-hooks.sh
+```
+
+The script installs [Lefthook](https://lefthook.dev/install/) if missing (e.g. via `go install`, `npm install -g`, or `pipx`). It is **not** published on crates.io — do not use `cargo install lefthook`.
+
+Verify hooks are installed: `./scripts/setup-dev-hooks.sh --check` (exits non-zero with install
+instructions if missing).
+
 ### Running Tests
 
 ```bash
@@ -105,10 +122,23 @@ All source lives under `src/crosshook-native/`:
 - **CSS variables**: defined in `src/crosshook-native/src/styles/variables.css`
 - **Class names**: BEM-like `crosshook-*` convention
 
-### Formatting
+### Formatting and lint
+
+From the repository root:
+
+```bash
+./scripts/format.sh          # rustfmt, Biome, Prettier (Markdown/JSON)
+./scripts/lint.sh            # same stack as CI: rustfmt check, clippy, biome, tsc, shellcheck
+./scripts/lint.sh --fix      # apply auto-fixes where supported (e.g. clippy, biome)
+```
 
 Prettier is configured via `.prettierrc` (2-space indent, single quotes, semicolons, 120-char
-width). There is no CLI script -- use your editor's Prettier integration.
+width). You can also use your editor’s format-on-save; the scripts above match CI.
+
+Pull requests from this repository get an optional **Lint autofix** workflow
+([`lint-autofix.yml`](.github/workflows/lint-autofix.yml)) that applies `./scripts/format.sh` and
+pushes formatting-only commits. Fork PRs cannot receive automatic pushes; run the scripts locally
+instead.
 
 ## Commit Conventions
 

@@ -1014,6 +1014,36 @@ mod tests {
     }
 
     #[test]
+    fn steam_export_trainer_script_includes_gamescope_when_request_carries_effective_game_config() {
+        let request = SteamExternalLauncherExportRequest {
+            method: "steam_applaunch".to_string(),
+            launcher_name: "Hitman".to_string(),
+            trainer_path: "/games/trainers/t.exe".to_string(),
+            trainer_loading_mode: TrainerLoadingMode::SourceDirectory,
+            launcher_icon_path: String::new(),
+            prefix_path: "/steam/compatdata/123".to_string(),
+            proton_path: "/opt/proton".to_string(),
+            steam_app_id: "863550".to_string(),
+            steam_client_install_path: "/home/u/.local/share/Steam".to_string(),
+            target_home_path: "/home/user".to_string(),
+            profile_name: None,
+            network_isolation: false,
+            gamescope: GamescopeConfig {
+                enabled: true,
+                fullscreen: true,
+                ..Default::default()
+            },
+        };
+
+        let script_content = build_trainer_script_content(&request, "Hitman");
+        assert!(
+            script_content.contains("Gamescope wrapper"),
+            "expected gamescope block in exported script"
+        );
+        assert!(script_content.contains("_GAMESCOPE_ARGS"));
+    }
+
+    #[test]
     fn preview_script_contains_placement_header_before_shebang() {
         let request = SteamExternalLauncherExportRequest {
             method: "proton_run".to_string(),

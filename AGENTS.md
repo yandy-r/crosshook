@@ -12,6 +12,7 @@ Normative guidelines for AI agents in this repository. Stack overview, directory
 
 - **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, AppImage). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
 - **Architecture**: Business logic lives in `crosshook-core`. Keep `crosshook-cli` and `src-tauri` thin (IPC and CLI only).
+- **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path.
 - **Tauri IPC**: Expose backend operations as `#[tauri::command]` handlers with **`snake_case` names** matching frontend `invoke()` calls. Use **Serde** on all types that cross the IPC boundary.
 - **Secrets**: **Never** commit `.env`, `.env.encrypted`, or `.env.keys`.
 - **Issues**: Use the YAML form templates under [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). **Do not** create title-only or template-bypass issues. If `gh issue create --template` fails (e.g. `no templates found`), create the issue via GitHub API/tooling with a body that mirrors the form fields, then apply correct labels—**not** a vague one-liner. For feature issues that introduce or change **persisted** data, the issue body must include a **Storage boundary** subsection (classify each datum as TOML settings, SQLite metadata, or runtime-only) and a short **Persistence & usability** subsection (migration/backward compatibility, offline expectations, degraded behavior when persistence is unavailable, and what users can view or edit).
@@ -51,16 +52,16 @@ For storage changes, plans must also:
 
 ## Code quality tooling
 
-| Tool | Scope | Config |
-|------|-------|--------|
-| **rustfmt** | Rust formatting | `src/crosshook-native/rustfmt.toml` |
-| **clippy** | Rust linting | Workspace lints in `src/crosshook-native/Cargo.toml` |
-| **Biome** | TS/TSX lint + format | `src/crosshook-native/biome.json` |
-| **Prettier** | Markdown/JSON | `.prettierrc` at repo root |
-| **lefthook** | Pre-commit hooks | `lefthook.yml` at repo root |
-| **ShellCheck** | Shell scripts | CI only |
+| Tool           | Scope                | Config                                               |
+| -------------- | -------------------- | ---------------------------------------------------- |
+| **rustfmt**    | Rust formatting      | `src/crosshook-native/rustfmt.toml`                  |
+| **clippy**     | Rust linting         | Workspace lints in `src/crosshook-native/Cargo.toml` |
+| **Biome**      | TS/TSX lint + format | `src/crosshook-native/biome.json`                    |
+| **Prettier**   | Markdown/JSON        | `.prettierrc` at repo root                           |
+| **lefthook**   | Pre-commit hooks     | `lefthook.yml` at repo root                          |
+| **ShellCheck** | Shell scripts        | CI only                                              |
 
-Pre-commit setup: `cargo install lefthook && lefthook install`
+Pre-commit setup: `./scripts/setup-dev-hooks.sh` (installs [Lefthook](https://lefthook.dev/install/) via Go, npm, or pipx if needed; it is not a Rust crate)
 
 ## Commands (short reference)
 

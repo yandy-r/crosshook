@@ -15,8 +15,10 @@ game_timeout_seconds="90"
 trainer_timeout_seconds="10"
 trainer_only="0"
 game_only="0"
-staged_trainer_host_path=""
-staged_trainer_windows_path=""
+configured_working_directory=""
+gamescope_enabled="0"
+gamescope_allow_nested="0"
+gamescope_args=()
 
 log() {
   printf '[steam-helper] %s\n' "$*"
@@ -38,26 +40,12 @@ ensure_standard_path() {
   esac
 }
 
-# Host-only executables (steam, pgrep, Proton) must run on the host when CrossHook is sandboxed.
+# Host-only executables (steam, pgrep) must run on the host when CrossHook is sandboxed.
 run_host() {
   if [[ -n "${FLATPAK_ID:-}" ]]; then
     flatpak-spawn --host "$@"
   else
     "$@"
-  fi
-}
-
-run_host_in_directory() {
-  local directory="$1"
-  shift
-
-  if [[ -n "${FLATPAK_ID:-}" ]]; then
-    flatpak-spawn --host --directory="$directory" "$@"
-  else
-    (
-      cd "$directory"
-      "$@"
-    )
   fi
 }
 
@@ -82,6 +70,12 @@ host_realpath() {
   fi
 }
 
+resolve_runner_script() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  printf '%s\n' "$script_dir/steam-host-trainer-runner.sh"
+}
+
 log_shell_process() {
   if [[ -x /usr/bin/ps ]]; then
     log "shell_process=$(/usr/bin/ps -o pid=,ppid=,comm=,args= -p $$)"
@@ -89,17 +83,6 @@ log_shell_process() {
     log "shell_process=$(ps -o pid=,ppid=,comm=,args= -p $$)"
   else
     log "shell_process=unavailable (ps not found)"
-  fi
-}
-
-log_staged_trainer_status() {
-  local trainer_size_bytes
-  if [[ -n "$staged_trainer_host_path" && -f "$staged_trainer_host_path" ]]; then
-    trainer_size_bytes="$(wc -c <"$staged_trainer_host_path" 2>/dev/null || printf 'unknown')"
-    log "staged_trainer_host_path=$staged_trainer_host_path"
-    log "staged_trainer_size_bytes=$trainer_size_bytes"
-  else
-    log "staged_trainer_host_path_missing=${staged_trainer_host_path:-unset}"
   fi
 }
 
@@ -113,74 +96,6 @@ copy_support_directory_if_present() {
     cp -R "$source_dir/$child_name" "$target_dir/"
     log "Staged trainer support directory: $child_name"
   fi
-}
-
-stage_trainer_support_files() {
-  local trainer_source_dir="$1"
-  local staged_target_dir="$2"
-  local trainer_file_name="$3"
-  local trainer_base_name="$4"
-  local sibling_file
-  local sibling_name
-
-  shopt -s nullglob
-
-  for sibling_file in "$trainer_source_dir"/*; do
-    sibling_name="$(basename "$sibling_file")"
-
-    if [[ "$sibling_name" == "$trainer_file_name" ]]; then
-      continue
-    fi
-
-    if [[ -f "$sibling_file" ]]; then
-      case "$sibling_name" in
-        "$trainer_base_name".*.json|\
-        "$trainer_base_name".*.config|\
-        "$trainer_base_name".*.ini|\
-        "$trainer_base_name".*.dll|\
-        "$trainer_base_name".*.bin|\
-        "$trainer_base_name".*.dat|\
-        "$trainer_base_name".*.pak)
-          cp -f "$sibling_file" "$staged_target_dir/"
-          log "Staged trainer sidecar file: $sibling_name"
-          ;;
-        *.dll|*.json|*.config|*.ini|*.pak|*.dat|*.bin)
-          cp -f "$sibling_file" "$staged_target_dir/"
-          log "Staged shared trainer dependency: $sibling_name"
-          ;;
-      esac
-    fi
-  done
-
-  shopt -u nullglob
-
-  for support_dir in assets data lib bin runtimes plugins locales cef resources; do
-    copy_support_directory_if_present "$trainer_source_dir" "$staged_target_dir" "$support_dir"
-  done
-}
-
-stage_trainer_into_compatdata() {
-  local trainer_file_name trainer_base_name trainer_source_dir
-  local staged_trainer_root_path staged_trainer_directory_path
-
-  [[ -n "$trainer_host_path" ]] || fail "Missing trainer host path."
-  [[ -f "$trainer_host_path" ]] || fail "Trainer host path does not exist as a file: $trainer_host_path"
-
-  trainer_file_name="$(basename "$trainer_host_path")"
-  trainer_base_name="${trainer_file_name%.*}"
-  trainer_source_dir="$(dirname "$trainer_host_path")"
-  staged_trainer_root_path="$compatdata/pfx/drive_c/CrossHook/StagedTrainers"
-  staged_trainer_directory_path="$staged_trainer_root_path/$trainer_base_name"
-  staged_trainer_host_path="$staged_trainer_directory_path/$trainer_file_name"
-  staged_trainer_windows_path="C:\\CrossHook\\StagedTrainers\\$trainer_base_name\\$trainer_file_name"
-
-  rm -rf "$staged_trainer_directory_path"
-  mkdir -p "$staged_trainer_directory_path"
-  cp -f "$trainer_host_path" "$staged_trainer_host_path"
-  stage_trainer_support_files "$trainer_source_dir" "$staged_trainer_directory_path" "$trainer_file_name" "$trainer_base_name"
-
-  trainer_path="$staged_trainer_windows_path"
-  log "Staged Steam trainer to $trainer_path"
 }
 
 log_runtime_context() {
@@ -197,7 +112,6 @@ log_runtime_context() {
   log "trainer_loading_mode=$trainer_loading_mode"
   log "game_exe_name=$game_exe_name"
   log_shell_process
-  log_staged_trainer_status
 }
 
 fail() {
@@ -239,6 +153,10 @@ while (($# > 0)); do
       trainer_loading_mode="${2:-source_directory}"
       shift 2
       ;;
+    --working-directory|--directory)
+      configured_working_directory="${2:-}"
+      shift 2
+      ;;
     --log-file)
       log_file="${2:-}"
       shift 2
@@ -253,6 +171,18 @@ while (($# > 0)); do
       ;;
     --trainer-timeout-seconds)
       trainer_timeout_seconds="${2:-10}"
+      shift 2
+      ;;
+    --gamescope-enabled)
+      gamescope_enabled="1"
+      shift 1
+      ;;
+    --gamescope-allow-nested)
+      gamescope_allow_nested="1"
+      shift 1
+      ;;
+    --gamescope-arg)
+      gamescope_args+=("${2:-}")
       shift 2
       ;;
     --trainer-only)
@@ -389,78 +319,6 @@ wait_for_startup_delay() {
   done
 }
 
-run_proton_with_clean_env() {
-  local target_path="$1"
-  local target_working_directory="${2:-}"
-  local run_directory=""
-
-  # Close all file descriptors inherited from CrossHook's wineserver.
-  local fd_num
-  for fd in /proc/self/fd/*; do
-    fd_num="$(basename "$fd")"
-    if ((fd_num > 2)); then
-      eval "exec ${fd_num}>&-" 2>/dev/null || true
-    fi
-  done
-
-  # Strip WINE/Proton-specific variables inherited from CrossHook's
-  # WINE session so Proton can rebuild its own session state cleanly.
-  # Keep in sync with WINE_ENV_VARS_TO_CLEAR in crosshook-core/src/launch/env.rs.
-  # WINEPREFIX is unset here (inherited from host) and re-exported below for the
-  # trainer's own prefix — it is listed in REQUIRED_PROTON_VARS in env.rs, not
-  # WINE_ENV_VARS_TO_CLEAR, because the Rust path sets rather than clears it.
-  unset WINESERVER WINELOADER WINEDLLPATH WINEDLLOVERRIDES WINEDEBUG
-  unset WINEESYNC WINEFSYNC WINELOADERNOEXEC WINEPREFIX
-  unset WINE_LARGE_ADDRESS_AWARE WINE_DISABLE_KERNEL_WRITEWATCH
-  unset WINE_HEAP_DELAY_FREE WINEFSYNC_SPINCOUNT
-  unset LD_PRELOAD LD_LIBRARY_PATH
-  unset GST_PLUGIN_PATH GST_PLUGIN_SYSTEM_PATH GST_PLUGIN_SYSTEM_PATH_1_0
-  unset SteamGameId SteamAppId GAMEID
-  unset PROTON_LOG PROTON_DUMP_DEBUG_COMMANDS PROTON_USE_WINED3D
-  unset PROTON_NO_ESYNC PROTON_NO_FSYNC PROTON_ENABLE_NVAPI
-  unset DXVK_CONFIG_FILE DXVK_STATE_CACHE_PATH DXVK_LOG_PATH
-  unset VKD3D_CONFIG VKD3D_DEBUG
-
-  export STEAM_COMPAT_DATA_PATH="$compatdata"
-  export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam_client"
-  export WINEPREFIX="$compatdata/pfx"
-
-  if [[ "$trainer_loading_mode" == "copy_to_prefix" ]]; then
-    stage_trainer_into_compatdata
-    target_path="$trainer_path"
-  else
-    target_path="$trainer_host_path"
-    trainer_path="$target_path"
-    log "Using trainer from source directory: $target_path"
-  fi
-
-  if [[ -n "$target_working_directory" ]]; then
-    cd "$target_working_directory"
-    log "Changed trainer working directory to $target_working_directory"
-  fi
-  run_directory="${PWD}"
-
-  log "Launching trainer with direct proton run."
-  if [[ -n "${FLATPAK_ID:-}" ]]; then
-    if run_host_in_directory "$run_directory" setsid "$proton" run "$target_path"; then
-      log "Trainer proton run exited successfully."
-      return 0
-    else
-      local exit_code=$?
-      log "Trainer proton run exited with code $exit_code"
-      return "$exit_code"
-    fi
-  fi
-  if setsid "$proton" run "$target_path"; then
-    log "Trainer proton run exited successfully."
-    return 0
-  else
-    local exit_code=$?
-    log "Trainer proton run exited with code $exit_code"
-    return "$exit_code"
-  fi
-}
-
 trainer_exe_name=""
 if [[ "$game_only" != "1" ]]; then
   trainer_exe_name="$(basename "$trainer_host_path")"
@@ -505,5 +363,34 @@ if process_visible "$trainer_exe_name"; then
 fi
 
 log "Launching trainer $trainer_exe_name in compatdata $compatdata"
-log "Executing trainer with a clean Proton environment."
-run_proton_with_clean_env "$trainer_path" "$(dirname "$trainer_host_path")"
+runner_script="$(resolve_runner_script)"
+[[ -f "$runner_script" ]] || fail "Host runner script not found: $runner_script"
+effective_trainer_working_directory=""
+if [[ -n "$configured_working_directory" ]]; then
+  effective_trainer_working_directory="$configured_working_directory"
+else
+  effective_trainer_working_directory="$(dirname "$trainer_host_path")"
+fi
+runner_command=(
+  /bin/bash "$runner_script"
+  --compatdata "$compatdata"
+  --proton "$proton"
+  --steam-client "$steam_client"
+  --steam-app-id "$appid"
+  --trainer-path "$trainer_path"
+  --trainer-host-path "$trainer_host_path"
+  --trainer-loading-mode "$trainer_loading_mode"
+  --working-directory "$effective_trainer_working_directory"
+  --log-file "$log_file"
+)
+if [[ "$gamescope_enabled" == "1" ]]; then
+  runner_command+=(--gamescope-enabled)
+  if [[ "$gamescope_allow_nested" == "1" ]]; then
+    runner_command+=(--gamescope-allow-nested)
+  fi
+  for arg in "${gamescope_args[@]}"; do
+    runner_command+=(--gamescope-arg "$arg")
+  done
+fi
+log "Delegating trainer leg to steam-host-trainer-runner.sh"
+"${runner_command[@]}"

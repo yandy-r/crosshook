@@ -394,6 +394,19 @@ impl LaunchSection {
             self.active_preset.clear();
         }
     }
+
+    /// Effective gamescope configuration for trainer-only flows (Steam trainer launch, exported
+    /// desktop launcher).
+    ///
+    /// Matches [`crate::launch::LaunchRequest::effective_trainer_gamescope`]: when
+    /// `trainer_gamescope` is enabled, use it; otherwise inherit from the game [`Self::gamescope`].
+    pub fn effective_trainer_gamescope(&self) -> GamescopeConfig {
+        if self.trainer_gamescope.enabled {
+            self.trainer_gamescope.clone()
+        } else {
+            self.gamescope.clone()
+        }
+    }
 }
 
 /// Collection-scoped overrides for the `LaunchSection` overrideable subset.
@@ -1087,6 +1100,40 @@ type = "fling"
         assert_eq!(
             parsed.launch.trainer_gamescope,
             profile.launch.trainer_gamescope
+        );
+    }
+
+    #[test]
+    fn launch_section_effective_trainer_gamescope_inherits_from_game_when_trainer_disabled() {
+        let mut launch = LaunchSection::default();
+        launch.gamescope = GamescopeConfig {
+            enabled: true,
+            internal_width: Some(1920),
+            internal_height: Some(1080),
+            ..GamescopeConfig::default()
+        };
+        launch.trainer_gamescope = GamescopeConfig::default();
+        assert_eq!(launch.effective_trainer_gamescope(), launch.gamescope);
+    }
+
+    #[test]
+    fn launch_section_effective_trainer_gamescope_prefers_trainer_when_enabled() {
+        let mut launch = LaunchSection::default();
+        launch.gamescope = GamescopeConfig {
+            enabled: true,
+            internal_width: Some(1920),
+            internal_height: Some(1080),
+            ..GamescopeConfig::default()
+        };
+        launch.trainer_gamescope = GamescopeConfig {
+            enabled: true,
+            internal_width: Some(800),
+            internal_height: Some(600),
+            ..GamescopeConfig::default()
+        };
+        assert_eq!(
+            launch.effective_trainer_gamescope(),
+            launch.trainer_gamescope
         );
     }
 

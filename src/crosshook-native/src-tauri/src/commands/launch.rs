@@ -10,8 +10,8 @@ use crosshook_core::launch::{
     collect_trainer_hash_launch_warnings,
     diagnostics::FailureMode,
     script_runner::{
-        build_helper_command, build_native_game_command, build_proton_game_command,
-        build_proton_trainer_command, build_trainer_command,
+        build_flatpak_steam_trainer_command, build_helper_command, build_native_game_command,
+        build_proton_game_command, build_proton_trainer_command, build_trainer_command,
     },
     should_surface_report, validate, DiagnosticReport, LaunchPreview, LaunchRequest,
     LaunchValidationIssue, ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN,
@@ -388,19 +388,36 @@ pub async fn launch_trainer(
         )
         .await,
     );
-    let method: &'static str = match request.resolved_method() {
+    let resolved_method: &'static str = match request.resolved_method() {
         METHOD_STEAM_APPLAUNCH => METHOD_STEAM_APPLAUNCH,
         METHOD_PROTON_RUN => METHOD_PROTON_RUN,
         METHOD_NATIVE => METHOD_NATIVE,
         _ => METHOD_NATIVE,
     };
+    let is_flatpak = crosshook_core::platform::is_flatpak();
+    let execution_method: &'static str = if resolved_method == METHOD_STEAM_APPLAUNCH && is_flatpak
+    {
+        METHOD_PROTON_RUN
+    } else {
+        resolved_method
+    };
 
     let log_path = create_log_path("trainer", &request.log_target_slug())?;
-    let mut command = match method {
+    let mut command = match resolved_method {
         METHOD_STEAM_APPLAUNCH => {
-            let script_path = resolve_script_path(&app, "steam-launch-trainer.sh")?;
-            build_trainer_command(&request, &script_path, &log_path)
-                .map_err(|error| format!("failed to build Steam trainer launch: {error}"))?
+            if crosshook_core::platform::is_flatpak() {
+                let mut command = build_flatpak_steam_trainer_command(&request, &log_path)
+                    .map_err(|error| {
+                        format!("failed to build Flatpak Steam trainer launch: {error}")
+                    })?;
+                command.stdout(Stdio::piped());
+                command.stderr(Stdio::piped());
+                command
+            } else {
+                let script_path = resolve_script_path(&app, "steam-launch-trainer.sh")?;
+                build_trainer_command(&request, &script_path, &log_path)
+                    .map_err(|error| format!("failed to build Steam trainer launch: {error}"))?
+            }
         }
         METHOD_PROTON_RUN => {
             let mut command = build_proton_trainer_command(&request, &log_path)
@@ -412,15 +429,15 @@ pub async fn launch_trainer(
         METHOD_NATIVE => return Err("native launch does not support trainer launch.".to_string()),
         other => return Err(format!("unsupported launch method: {other}")),
     };
-    let child = command
-        .spawn()
-        .map_err(|error| format!("failed to launch trainer helper: {error}"))?;
+    let child = command.spawn().map_err(|error| {
+        format!("failed to launch trainer (method={execution_method}): {error}")
+    })?;
 
     let sanitized_log_path = sanitize_display_path(&log_path.to_string_lossy());
     let operation_id = record_launch_start(
         &metadata_store,
         request.profile_name.as_deref(),
-        method,
+        execution_method,
         &sanitized_log_path,
     )
     .await;
@@ -442,7 +459,7 @@ pub async fn launch_trainer(
         app,
         log_path.clone(),
         child,
-        method,
+        execution_method,
         metadata_store,
         operation_id,
         snap_steam_app_id,
@@ -730,7 +747,8 @@ async fn finalize_launch_stream(
         crosshook_core::launch::diagnostics::MAX_LOG_TAIL_BYTES,
     )
     .await;
-    let mut report = analyze(exit_status, &log_tail, method);
+    let diagnostic_method = diagnostic_method_for_log(method, &log_tail);
+    let mut report = analyze(exit_status, &log_tail, diagnostic_method);
     report.log_tail_path = Some(sanitize_display_path(&log_path.to_string_lossy()));
     let report = sanitize_diagnostic_report(report);
 
@@ -984,4 +1002,41 @@ fn sanitize_diagnostic_report(mut report: DiagnosticReport) -> DiagnosticReport 
     }
 
     report
+}
+
+fn diagnostic_method_for_log(method: &'static str, log_tail: &str) -> &'static str {
+    if method == METHOD_STEAM_APPLAUNCH
+        && log_tail.contains("[steam-trainer-runner]")
+        && log_tail.contains("trainer_launch_mode=")
+    {
+        METHOD_PROTON_RUN
+    } else {
+        method
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::diagnostic_method_for_log;
+    use crosshook_core::launch::{METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
+
+    #[test]
+    fn diagnostic_method_uses_proton_run_for_trainer_runner_logs() {
+        let log_tail = "[steam-helper] Delegating trainer leg to steam-host-trainer-runner.sh\n[steam-trainer-runner] trainer_launch_mode=direct_proton\n";
+
+        assert_eq!(
+            diagnostic_method_for_log(METHOD_STEAM_APPLAUNCH, log_tail),
+            METHOD_PROTON_RUN
+        );
+    }
+
+    #[test]
+    fn diagnostic_method_keeps_steam_for_plain_helper_logs() {
+        let log_tail = "[steam-helper] Launching Steam AppID 12345\n";
+
+        assert_eq!(
+            diagnostic_method_for_log(METHOD_STEAM_APPLAUNCH, log_tail),
+            METHOD_STEAM_APPLAUNCH
+        );
+    }
 }

@@ -1,14 +1,21 @@
+# Git hooks (install: `./scripts/setup-dev-hooks.sh` — see https://lefthook.dev/install/).
+# Pre-commit runs on staged files only; formatters re-stage fixes via stage_fixed.
 pre-commit:
-  parallel: true
+  parallel: false
   commands:
     rust-fmt:
       glob: "src/crosshook-native/**/*.rs"
-      run: cargo fmt --manifest-path src/crosshook-native/Cargo.toml --all -- --check
+      run: cargo fmt --manifest-path src/crosshook-native/Cargo.toml --all
+      stage_fixed: true
     biome-check:
       glob: "src/crosshook-native/src/**/*.{ts,tsx}"
       root: "src/crosshook-native/"
-      run: npx @biomejs/biome check --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      run: npx @biomejs/biome check --write --no-errors-on-unmatched --files-ignore-unknown=true {staged_files}
+      stage_fixed: true
     typecheck:
       glob: "src/crosshook-native/src/**/*.{ts,tsx}"
       root: "src/crosshook-native/"
       run: npx tsc --noEmit
+    shellcheck:
+      glob: "scripts/**/*.sh"
+      run: shellcheck --severity=warning {staged_files}

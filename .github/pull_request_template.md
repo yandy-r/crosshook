@@ -28,6 +28,7 @@ Closes #<!-- issue number -->
 
 ### Checklist
 
+- [ ] `./scripts/lint.sh` passes (or run `./scripts/format.sh` / `./scripts/lint.sh --fix`; same-repo PRs may get a formatting bot commit from `lint-autofix.yml`)
 - [ ] `./scripts/build-native.sh --binary-only` builds without errors
 - [ ] `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` passes
 - [ ] `./scripts/build-native.sh` produces a valid AppImage (if touching build/packaging)

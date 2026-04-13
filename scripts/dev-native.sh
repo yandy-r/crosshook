@@ -6,6 +6,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/build-paths.sh"
 NATIVE_DIR="$ROOT_DIR/src/crosshook-native"
 
+warn_uninstalled_hooks() {
+  if [[ -n "${CROSSHOOK_SKIP_HOOK_CHECK:-}" ]]; then
+    return 0
+  fi
+  if ! "$ROOT_DIR/scripts/setup-dev-hooks.sh" --check >/dev/null 2>&1; then
+    echo "Note: Git hooks are not installed. Run: ./scripts/setup-dev-hooks.sh (same checks as CI pre-commit)" >&2
+  fi
+}
+
 usage() {
   cat <<'EOF'
 Usage: ./scripts/dev-native.sh [--browser|--web]
@@ -20,6 +29,9 @@ If the first launch fails in a Wayland session, retry once with X11.
       Real Tauri behavior must be re-verified with ./scripts/dev-native.sh before merge.
 
   Cargo artifacts use CARGO_TARGET_DIR (default: XDG cache). Override with env if needed.
+
+  CROSSHOOK_SKIP_HOOK_CHECK=1
+      Skip the one-line reminder to install Lefthook git hooks (./scripts/setup-dev-hooks.sh).
 EOF
 }
 
@@ -30,6 +42,7 @@ case "${1:-}" in
       echo "Installing local npm dependencies..."
       npm ci
     fi
+    warn_uninstalled_hooks
     exec npm run dev:browser
     ;;
   --help|-h)
@@ -56,6 +69,8 @@ if [[ ! -x "$NATIVE_DIR/node_modules/.bin/tauri" ]]; then
   echo "Installing local npm dependencies..."
   npm ci
 fi
+
+warn_uninstalled_hooks
 
 crosshook_build_paths_init || exit 1
 export CARGO_TARGET_DIR

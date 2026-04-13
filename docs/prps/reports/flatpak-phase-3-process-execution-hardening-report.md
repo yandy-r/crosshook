@@ -6,34 +6,34 @@ Phase 3 hardening is implemented: sync/async host wrappers in `platform.rs`, env
 
 ## Assessment vs Reality
 
-| Metric        | Predicted (Plan) | Actual                                      |
-| ------------- | ---------------- | ------------------------------------------- |
-| Complexity    | Large            | Large (touched core, tauri, UI, scripts)    |
-| Confidence    | (plan)           | High after `cargo test` + `tsc` + checks   |
-| Files Changed | ~17              | 29 (includes lockfile, new hook file)       |
+| Metric        | Predicted (Plan) | Actual                                   |
+| ------------- | ---------------- | ---------------------------------------- |
+| Complexity    | Large            | Large (touched core, tauri, UI, scripts) |
+| Confidence    | (plan)           | High after `cargo test` + `tsc` + checks |
+| Files Changed | ~17              | 29 (includes lockfile, new hook file)    |
 
 ## Tasks Completed
 
-| #   | Task                                              | Status          | Notes                                                                 |
-| --- | ------------------------------------------------- | --------------- | --------------------------------------------------------------------- |
-| 1   | Extend platform host-execution primitives         | Complete        | `host_std_*`, probes, tests                                           |
-| 2   | Env-bearing launch builders                       | Complete        | `runtime_helpers`, `script_runner`, services                          |
-| 3   | Migrate sync/async host-binary call sites         | Complete        | taps, settings, diagnostics, tauri kill                               |
-| 4   | Validation + system Proton discovery host-aware   | Complete        | `optimizations`, `steam/proton`                                       |
-| 5   | Harden helper scripts                             | Complete        | `steam-launch-helper.sh`, `steam-host-trainer-runner.sh`; trainer launcher unchanged (delegates to runner) |
-| 6   | Remove `rm` fallback, host-safe kill              | Complete        | `run_executable`, `update`                                            |
-| 7   | Persistent Flatpak unshare / network isolation UI | Complete        | `ProfilesPage` hook order fixed for `tsc`                             |
-| 8   | Manual Flatpak matrix                             | Not run in CI   | Requires Flatpak to be installed and the bundle available per plan    |
+| #   | Task                                              | Status        | Notes                                                                                                      |
+| --- | ------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------- |
+| 1   | Extend platform host-execution primitives         | Complete      | `host_std_*`, probes, tests                                                                                |
+| 2   | Env-bearing launch builders                       | Complete      | `runtime_helpers`, `script_runner`, services                                                               |
+| 3   | Migrate sync/async host-binary call sites         | Complete      | taps, settings, diagnostics, tauri kill                                                                    |
+| 4   | Validation + system Proton discovery host-aware   | Complete      | `optimizations`, `steam/proton`                                                                            |
+| 5   | Harden helper scripts                             | Complete      | `steam-launch-helper.sh`, `steam-host-trainer-runner.sh`; trainer launcher unchanged (delegates to runner) |
+| 6   | Remove `rm` fallback, host-safe kill              | Complete      | `run_executable`, `update`                                                                                 |
+| 7   | Persistent Flatpak unshare / network isolation UI | Complete      | `ProfilesPage` hook order fixed for `tsc`                                                                  |
+| 8   | Manual Flatpak matrix                             | Not run in CI | Requires Flatpak to be installed and the bundle available per plan                                         |
 
 ## Validation Results
 
-| Level           | Status | Notes                                                                 |
-| --------------- | ------ | --------------------------------------------------------------------- |
-| Static Analysis | Pass   | `npm exec tsc -- --noEmit` in `src/crosshook-native`; `cargo check -p crosshook-native` |
-| Unit Tests      | Pass   | `cargo test -p crosshook-core` (802 tests in suite; platform tests included) |
-| Build           | Pass   | `cargo test -p crosshook-native --no-run` (test targets compile)      |
-| Integration     | N/A    | No automated integration harness for Flatpak in this run              |
-| Edge Cases      | Partial| Manual Task 8 checklist deferred to host environment                  |
+| Level           | Status  | Notes                                                                                   |
+| --------------- | ------- | --------------------------------------------------------------------------------------- |
+| Static Analysis | Pass    | `npm exec tsc -- --noEmit` in `src/crosshook-native`; `cargo check -p crosshook-native` |
+| Unit Tests      | Pass    | `cargo test -p crosshook-core` (802 tests in suite; platform tests included)            |
+| Build           | Pass    | `cargo test -p crosshook-native --no-run` (test targets compile)                        |
+| Integration     | N/A     | No automated integration harness for Flatpak in this run                                |
+| Edge Cases      | Partial | Manual Task 8 checklist deferred to host environment                                    |
 
 ## Files Changed
 
@@ -57,9 +57,9 @@ See `git diff --stat` on branch `feat/flatpak-phase-3-process-execution-hardenin
 
 ## Tests Written
 
-| Test file / module   | Tests | Coverage                                      |
-| -------------------- | ----- | --------------------------------------------- |
-| `platform.rs` tests  | +4    | `host_std_command_with` / `host_std_command_with_env_inner` flatpak vs native |
+| Test file / module  | Tests | Coverage                                                                      |
+| ------------------- | ----- | ----------------------------------------------------------------------------- |
+| `platform.rs` tests | +4    | `host_std_command_with` / `host_std_command_with_env_inner` flatpak vs native |
 
 ## Next Steps
 

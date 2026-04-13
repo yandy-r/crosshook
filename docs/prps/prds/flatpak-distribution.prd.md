@@ -193,7 +193,7 @@ The committed manifest uses **`runtime-version: "50"`** in `packaging/flatpak/de
 | #    | Requirement                                                                                                         | Priority |
 | ---- | ------------------------------------------------------------------------------------------------------------------- | -------- |
 | F4.1 | Create publishable screenshots for metainfo (profile editor, launch monitor, settings)                              | P0       |
-| F4.2 | Generate OARS content rating via <https://hughsie.github.io/oars/>                                                    | P0       |
+| F4.2 | Generate OARS content rating via <https://hughsie.github.io/oars/>                                                  | P0       |
 | F4.3 | Prepare build-from-source manifest using `flatpak-cargo-generator.py` + `flatpak-node-generator` for offline builds | P0       |
 | F4.4 | Fork `flathub/flathub`, create manifest PR targeting `new-pr` branch                                                | P0       |
 | F4.5 | Respond to reviewer feedback — expect 2–3 rounds based on Tauri v2 precedent (Pomodorolm)                           | P0       |

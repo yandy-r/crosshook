@@ -29,8 +29,16 @@ const INSTALL_FLOW_TAB_LABELS: Record<InstallFlowTabId, string> = {
   installer_review: 'Installer & Review',
 };
 
+const objectWithHasOwn = Object as ObjectConstructor & {
+  hasOwn(target: object, key: PropertyKey): boolean;
+};
+
+function hasOwnKey(target: object, key: PropertyKey): boolean {
+  return objectWithHasOwn.hasOwn(target, key);
+}
+
 function isInstallFlowTabId(value: string): value is InstallFlowTabId {
-  return Object.prototype.hasOwnProperty.call(INSTALL_FLOW_TAB_LABELS, value);
+  return hasOwnKey(INSTALL_FLOW_TAB_LABELS, value);
 }
 
 function InstallFlowTabContent({

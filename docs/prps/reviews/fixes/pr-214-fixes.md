@@ -22,8 +22,8 @@
 
 ## Fixes Applied
 
-| ID   | Severity | File             | Line | Status | Notes |
-| ---- | -------- | ---------------- | ---- | ------ | ----- |
+| ID   | Severity | File                                         | Line | Status | Notes                                                                                                                                                                                                    |
+| ---- | -------- | -------------------------------------------- | ---- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | F004 | MEDIUM   | LaunchPage.tsx (via profile command + hooks) | 89   | Fixed  | `profile_list_summaries` now takes optional `collection_id` and applies `apply_collection_defaults` before `effective_profile()`; LaunchPage, LibraryPage, and ProfilesPage thread active collection id. |
 
 ## Files Changed
@@ -42,10 +42,10 @@ None.
 
 ## Validation Results
 
-| Check      | Result |
-| ---------- | ------ |
+| Check      | Result                                                                               |
+| ---------- | ------------------------------------------------------------------------------------ |
 | Type check | Pass (`npx tsc --noEmit` in src/crosshook-native; `cargo check -p crosshook-native`) |
-| Tests      | Pass (`cargo test -p crosshook-core`) |
+| Tests      | Pass (`cargo test -p crosshook-core`)                                                |
 
 ## Next Steps
 

@@ -47,7 +47,7 @@ fn build_export_request_for_profile(
         target_home_path: target_home_path.to_string(),
         profile_name: profile_name.map(std::string::ToString::to_string),
         network_isolation: profile.launch.network_isolation,
-        gamescope: profile.launch.trainer_gamescope.clone(),
+        gamescope: profile.launch.effective_trainer_gamescope(),
     })
 }
 

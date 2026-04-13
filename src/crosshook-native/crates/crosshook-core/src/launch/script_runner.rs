@@ -7,7 +7,7 @@ use directories::BaseDirs;
 use tokio::process::Command;
 
 use super::{
-    resolve_launch_directives,
+    resolve_launch_directives, resolve_launch_directives_for_method,
     runtime_helpers::{
         apply_working_directory, attach_log_stdio,
         build_direct_proton_command_with_wrappers_in_directory, build_gamescope_args,
@@ -15,7 +15,7 @@ use super::{
         merge_optimization_and_custom_into_map, merge_runtime_proton_into_map,
         resolve_effective_working_directory, resolve_wine_prefix_path,
     },
-    LaunchRequest, ValidationError,
+    LaunchRequest, ValidationError, METHOD_PROTON_RUN,
 };
 use crate::platform::{self, host_command_with_env, normalize_flatpak_host_path};
 use crate::profile::{GamescopeConfig, TrainerLoadingMode};
@@ -26,6 +26,27 @@ const DEFAULT_GAME_STARTUP_DELAY_SECONDS: &str = "30";
 const DEFAULT_GAME_TIMEOUT_SECONDS: &str = "90";
 const DEFAULT_TRAINER_TIMEOUT_SECONDS: &str = "10";
 const STAGED_TRAINER_ROOT: &str = "CrossHook/StagedTrainers";
+const TRAINER_HOST_EXPLICIT_ENV_KEYS: [&str; 19] = [
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "PATH",
+    "DISPLAY",
+    "WAYLAND_DISPLAY",
+    "GAMESCOPE_WAYLAND_DISPLAY",
+    "XDG_RUNTIME_DIR",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "XAUTHORITY",
+    "XDG_SESSION_TYPE",
+    "XDG_CURRENT_DESKTOP",
+    "STEAM_COMPAT_DATA_PATH",
+    "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+    "WINEPREFIX",
+    "GAMEID",
+    "SteamGameId",
+    "SteamAppId",
+];
 const SUPPORT_DIRECTORIES: [&str; 9] = [
     "assets",
     "data",
@@ -71,6 +92,29 @@ fn build_flatpak_unshare_bash_command(
     let mut base = env.clone();
     for key in custom_env.keys() {
         base.remove(key);
+    }
+    // Flatpak host spawns run with --clear-env; forward session variables needed by
+    // display/compositor and user-session integration so helper behavior matches native/AppImage.
+    for key in [
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "PATH",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "GAMESCOPE_WAYLAND_DISPLAY",
+        "XDG_RUNTIME_DIR",
+        "DBUS_SESSION_BUS_ADDRESS",
+        "XAUTHORITY",
+        "XDG_SESSION_TYPE",
+        "XDG_CURRENT_DESKTOP",
+    ] {
+        if let Ok(value) = std::env::var(key) {
+            if !value.trim().is_empty() {
+                base.entry(key.to_string()).or_insert(value);
+            }
+        }
     }
     let mut cmd = host_command_with_env("unshare", &base, custom_env);
     cmd.args(["--net", BASH_EXECUTABLE]);
@@ -147,14 +191,70 @@ fn merge_mangohud_config_env_into_map(
     }
 }
 
+fn insert_sorted_env_key_list(
+    env: &mut BTreeMap<String, String>,
+    name: &str,
+    keys: impl IntoIterator<Item = String>,
+) {
+    let mut keys = keys
+        .into_iter()
+        .filter(|key| !key.trim().is_empty())
+        .collect::<Vec<_>>();
+    if keys.is_empty() {
+        env.remove(name);
+        return;
+    }
+    keys.sort_unstable();
+    keys.dedup();
+    env.insert(name.to_string(), keys.join(","));
+}
+
+fn collect_trainer_builtin_env_keys(
+    env: &BTreeMap<String, String>,
+    custom_env_vars: &BTreeMap<String, String>,
+) -> Vec<String> {
+    env.keys()
+        .filter(|key| !TRAINER_HOST_EXPLICIT_ENV_KEYS.contains(&key.as_str()))
+        .filter(|key| !custom_env_vars.contains_key(*key))
+        .filter(|key| !key.starts_with("CROSSHOOK_TRAINER_"))
+        .cloned()
+        .collect()
+}
+
 pub fn build_helper_command(
     request: &LaunchRequest,
     script_path: &Path,
     log_path: &Path,
 ) -> std::io::Result<Command> {
+    let directives = resolve_launch_directives_for_method(
+        &request.optimizations.enabled_option_ids,
+        METHOD_PROTON_RUN,
+    )
+    .map_err(validation_error_to_io_error)?;
     let mut env = host_environment_map();
     merge_steam_helper_env_into(&mut env, request);
-    merge_optimization_and_custom_into_map(&mut env, &[], &BTreeMap::new());
+    merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
+    let trainer_gamescope = request.effective_trainer_gamescope();
+    let trainer_gamescope_active =
+        trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope);
+    let trainer_wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
+    merge_mangohud_config_env_into_map(
+        &mut env,
+        request,
+        trainer_gamescope_active,
+        trainer_wrappers_had_mangohud,
+    );
+    let builtin_trainer_env_keys = collect_trainer_builtin_env_keys(&env, &request.custom_env_vars);
+    insert_sorted_env_key_list(
+        &mut env,
+        "CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS",
+        builtin_trainer_env_keys,
+    );
+    insert_sorted_env_key_list(
+        &mut env,
+        "CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS",
+        request.custom_env_vars.keys().cloned(),
+    );
     let mut base_for_flatpak = env.clone();
     for key in request.custom_env_vars.keys() {
         base_for_flatpak.remove(key);
@@ -187,7 +287,11 @@ pub fn build_helper_command(
                 &request.custom_env_vars,
             )?
         } else {
-            merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
+            merge_optimization_and_custom_into_map(
+                &mut env,
+                &directives.env,
+                &request.custom_env_vars,
+            );
             let mut cmd = Command::new("unshare");
             cmd.envs(&env);
             cmd.args(["--net", BASH_EXECUTABLE]);
@@ -195,7 +299,7 @@ pub fn build_helper_command(
             cmd
         }
     } else {
-        merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
+        merge_optimization_and_custom_into_map(&mut env, &directives.env, &request.custom_env_vars);
         let mut cmd = Command::new(BASH_EXECUTABLE);
         cmd.arg(script_path);
         cmd.envs(&env);
@@ -215,9 +319,35 @@ pub fn build_trainer_command(
     script_path: &Path,
     log_path: &Path,
 ) -> std::io::Result<Command> {
+    let directives = resolve_launch_directives_for_method(
+        &request.optimizations.enabled_option_ids,
+        METHOD_PROTON_RUN,
+    )
+    .map_err(validation_error_to_io_error)?;
     let mut env = host_environment_map();
     merge_steam_helper_env_into(&mut env, request);
-    merge_optimization_and_custom_into_map(&mut env, &[], &BTreeMap::new());
+    merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
+    let trainer_gamescope = request.effective_trainer_gamescope();
+    let trainer_gamescope_active =
+        trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope);
+    let trainer_wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
+    merge_mangohud_config_env_into_map(
+        &mut env,
+        request,
+        trainer_gamescope_active,
+        trainer_wrappers_had_mangohud,
+    );
+    let builtin_trainer_env_keys = collect_trainer_builtin_env_keys(&env, &request.custom_env_vars);
+    insert_sorted_env_key_list(
+        &mut env,
+        "CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS",
+        builtin_trainer_env_keys,
+    );
+    insert_sorted_env_key_list(
+        &mut env,
+        "CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS",
+        request.custom_env_vars.keys().cloned(),
+    );
     let mut base_for_flatpak = env.clone();
     for key in request.custom_env_vars.keys() {
         base_for_flatpak.remove(key);
@@ -238,29 +368,34 @@ pub fn build_trainer_command(
         "building steam trainer helper launch"
     );
 
-    let mut command =
-        if request.network_isolation && super::runtime_helpers::is_unshare_net_available() {
-            if platform::is_flatpak() {
-                build_flatpak_unshare_bash_command(
-                    script_path,
-                    &base_for_flatpak,
-                    &request.custom_env_vars,
-                )?
-            } else {
-                merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
-                let mut cmd = Command::new("unshare");
-                cmd.envs(&env);
-                cmd.args(["--net", BASH_EXECUTABLE]);
-                cmd.arg(script_path);
-                cmd
-            }
+    let mut command = if request.network_isolation
+        && super::runtime_helpers::is_unshare_net_available()
+    {
+        if platform::is_flatpak() {
+            build_flatpak_unshare_bash_command(
+                script_path,
+                &base_for_flatpak,
+                &request.custom_env_vars,
+            )?
         } else {
-            merge_optimization_and_custom_into_map(&mut env, &[], &request.custom_env_vars);
-            let mut cmd = Command::new(BASH_EXECUTABLE);
-            cmd.arg(script_path);
+            merge_optimization_and_custom_into_map(
+                &mut env,
+                &directives.env,
+                &request.custom_env_vars,
+            );
+            let mut cmd = Command::new("unshare");
             cmd.envs(&env);
+            cmd.args(["--net", BASH_EXECUTABLE]);
+            cmd.arg(script_path);
             cmd
-        };
+        }
+    } else {
+        merge_optimization_and_custom_into_map(&mut env, &directives.env, &request.custom_env_vars);
+        let mut cmd = Command::new(BASH_EXECUTABLE);
+        cmd.arg(script_path);
+        cmd.envs(&env);
+        cmd
+    };
     command.args(trainer_arguments(
         request,
         log_path,
@@ -268,6 +403,19 @@ pub fn build_trainer_command(
         normalized_steam_client_install_path.trim(),
     ));
     Ok(command)
+}
+
+pub fn build_flatpak_steam_trainer_command(
+    request: &LaunchRequest,
+    log_path: &Path,
+) -> std::io::Result<Command> {
+    let mut direct_request = request.clone();
+    direct_request.method = METHOD_PROTON_RUN.to_string();
+    direct_request.runtime.prefix_path =
+        normalize_flatpak_host_path(&request.steam.compatdata_path);
+    direct_request.runtime.proton_path = request.steam.proton_path.clone();
+
+    build_proton_trainer_command(&direct_request, log_path)
 }
 
 pub fn build_proton_game_command(
@@ -396,7 +544,6 @@ pub fn build_proton_trainer_command(
         .get("STEAM_COMPAT_CLIENT_INSTALL_PATH")
         .map(String::as_str)
         .unwrap_or("");
-
     tracing::debug!(
         configured_proton_path = request.runtime.proton_path.trim(),
         resolved_proton_path = resolved_proton_path.trim(),
@@ -520,6 +667,8 @@ fn helper_arguments(
     resolved_proton_path: &str,
     normalized_steam_client_install_path: &str,
 ) -> Vec<OsString> {
+    let normalized_working_directory =
+        normalize_flatpak_host_path(&request.runtime.working_directory);
     let mut arguments = vec![
         "--appid".to_string().into(),
         request.steam.app_id.clone().into(),
@@ -539,13 +688,33 @@ fn helper_arguments(
         request.trainer_loading_mode.as_str().to_string().into(),
         "--log-file".into(),
         log_path.as_os_str().to_owned(),
+    ];
+
+    if !normalized_working_directory.trim().is_empty() {
+        arguments.push("--working-directory".into());
+        arguments.push(normalized_working_directory.into());
+    }
+
+    let trainer_gamescope = request.effective_trainer_gamescope();
+    if trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope) {
+        arguments.push("--gamescope-enabled".into());
+        if trainer_gamescope.allow_nested {
+            arguments.push("--gamescope-allow-nested".into());
+        }
+        for arg in build_gamescope_args(trainer_gamescope) {
+            arguments.push("--gamescope-arg".into());
+            arguments.push(arg.into());
+        }
+    }
+
+    arguments.extend([
         "--game-startup-delay-seconds".into(),
         DEFAULT_GAME_STARTUP_DELAY_SECONDS.into(),
         "--game-timeout-seconds".into(),
         DEFAULT_GAME_TIMEOUT_SECONDS.into(),
         "--trainer-timeout-seconds".into(),
         DEFAULT_TRAINER_TIMEOUT_SECONDS.into(),
-    ];
+    ]);
 
     if request.launch_trainer_only {
         arguments.push("--trainer-only".into());
@@ -564,6 +733,8 @@ fn trainer_arguments(
     resolved_proton_path: &str,
     normalized_steam_client_install_path: &str,
 ) -> Vec<OsString> {
+    let normalized_working_directory =
+        normalize_flatpak_host_path(&request.runtime.working_directory);
     let mut arguments = vec![
         "--compatdata".into(),
         normalize_flatpak_host_path(&request.steam.compatdata_path).into(),
@@ -583,9 +754,17 @@ fn trainer_arguments(
         log_path.as_os_str().to_owned(),
     ];
 
+    if !normalized_working_directory.trim().is_empty() {
+        arguments.push("--working-directory".into());
+        arguments.push(normalized_working_directory.into());
+    }
+
     let trainer_gamescope = request.effective_trainer_gamescope();
     if trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope) {
         arguments.push("--gamescope-enabled".into());
+        if trainer_gamescope.allow_nested {
+            arguments.push("--gamescope-allow-nested".into());
+        }
         for arg in build_gamescope_args(trainer_gamescope) {
             arguments.push("--gamescope-arg".into());
             arguments.push(arg.into());
@@ -1119,6 +1298,26 @@ mod tests {
     }
 
     #[test]
+    fn helper_command_includes_working_directory_when_configured() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let script_path = temp_dir.path().join("steam-launch-helper.sh");
+        let log_path = temp_dir.path().join("helper.log");
+        let mut request = steam_request();
+        request.runtime.working_directory = "/games/example".to_string();
+
+        let command =
+            build_helper_command(&request, &script_path, &log_path).expect("helper command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(args.contains(&"--working-directory".to_string()));
+        assert!(args.contains(&"/games/example".to_string()));
+    }
+
+    #[test]
     fn trainer_command_includes_steam_app_id_and_trainer_arguments() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let script_path = temp_dir.path().join("steam-launch-trainer.sh");
@@ -1155,6 +1354,167 @@ mod tests {
                 "--log-file".to_string(),
                 log_path.to_string_lossy().into_owned(),
             ]
+        );
+    }
+
+    #[test]
+    fn trainer_command_includes_launch_optimization_env() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let script_path = temp_dir.path().join("steam-launch-trainer.sh");
+        let log_path = temp_dir.path().join("trainer.log");
+        let mut request = steam_request();
+        request.optimizations.enabled_option_ids = vec![
+            "disable_steam_input".to_string(),
+            "enable_dxvk_async".to_string(),
+        ];
+
+        let command =
+            build_trainer_command(&request, &script_path, &log_path).expect("trainer command");
+
+        assert_eq!(
+            command_env_value(&command, "PROTON_NO_STEAMINPUT"),
+            Some("1".to_string())
+        );
+        assert_eq!(
+            command_env_value(&command, "DXVK_ASYNC"),
+            Some("1".to_string())
+        );
+        assert_eq!(
+            command_env_value(&command, "CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS"),
+            Some("DXVK_ASYNC,PROTON_NO_STEAMINPUT".to_string())
+        );
+        assert_eq!(
+            command_env_value(&command, "CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS"),
+            None
+        );
+        assert_eq!(
+            command_env_value(&command, "STEAM_COMPAT_DATA_PATH"),
+            Some("/tmp/compat".to_string())
+        );
+    }
+
+    #[test]
+    fn helper_command_includes_trainer_gamescope_when_configured() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let script_path = temp_dir.path().join("steam-launch-helper.sh");
+        let log_path = temp_dir.path().join("helper.log");
+        let mut request = steam_request();
+        request.launch_game_only = false;
+        request.trainer_gamescope = Some(crate::profile::GamescopeConfig {
+            enabled: true,
+            allow_nested: true,
+            fullscreen: true,
+            ..Default::default()
+        });
+
+        let command =
+            build_helper_command(&request, &script_path, &log_path).expect("helper command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(args.contains(&"--gamescope-enabled".to_string()));
+        assert!(args.contains(&"--gamescope-allow-nested".to_string()));
+        assert!(args.contains(&"--gamescope-arg".to_string()));
+        assert!(args.contains(&"-f".to_string()));
+    }
+
+    #[test]
+    fn trainer_command_includes_working_directory_when_configured() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let script_path = temp_dir.path().join("steam-launch-trainer.sh");
+        let log_path = temp_dir.path().join("trainer.log");
+        let mut request = steam_request();
+        request.runtime.working_directory = "/games/example".to_string();
+
+        let command =
+            build_trainer_command(&request, &script_path, &log_path).expect("trainer command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(args.contains(&"--working-directory".to_string()));
+        assert!(args.contains(&"/games/example".to_string()));
+    }
+
+    #[test]
+    fn flatpak_steam_trainer_command_reuses_direct_proton_builder_inputs() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let compatdata_path = temp_dir.path().join("compatdata");
+        let proton_path = temp_dir.path().join("proton");
+        let trainer_source_dir = temp_dir.path().join("trainer");
+        let trainer_path = trainer_source_dir.join("sample.exe");
+        let steam_client_path = temp_dir.path().join("steam-client");
+        let log_path = temp_dir.path().join("trainer.log");
+
+        fs::create_dir_all(compatdata_path.join("pfx/drive_c")).expect("compatdata dir");
+        fs::create_dir_all(&trainer_source_dir).expect("trainer source dir");
+        fs::create_dir_all(steam_client_path.join("steamapps"))
+            .expect("steam client steamapps dir");
+        fs::create_dir_all(steam_client_path.join("config")).expect("steam client config dir");
+        write_executable_file(&proton_path);
+        fs::write(&trainer_path, b"trainer").expect("trainer exe");
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_STEAM_APPLAUNCH.to_string(),
+            game_path: temp_dir
+                .path()
+                .join("game.exe")
+                .to_string_lossy()
+                .into_owned(),
+            trainer_path: trainer_path.to_string_lossy().into_owned(),
+            trainer_host_path: trainer_path.to_string_lossy().into_owned(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            steam: crate::launch::SteamLaunchConfig {
+                app_id: "12345".to_string(),
+                compatdata_path: compatdata_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                steam_client_install_path: steam_client_path.to_string_lossy().into_owned(),
+            },
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: String::new(),
+                proton_path: String::new(),
+                working_directory: String::new(),
+                steam_app_id: String::new(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+            launch_trainer_only: true,
+            launch_game_only: false,
+            profile_name: None,
+            ..Default::default()
+        };
+
+        let command = build_flatpak_steam_trainer_command(&request, &log_path)
+            .expect("flatpak steam trainer command");
+
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            args,
+            vec![
+                "run".to_string(),
+                trainer_path.to_string_lossy().into_owned()
+            ]
+        );
+        assert_eq!(
+            command_env_value(&command, "STEAM_COMPAT_DATA_PATH"),
+            Some(compatdata_path.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            command_env_value(&command, "WINEPREFIX"),
+            Some(compatdata_path.join("pfx").to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            command_env_value(&command, "STEAM_COMPAT_CLIENT_INSTALL_PATH"),
+            Some(steam_client_path.to_string_lossy().into_owned())
         );
     }
 
@@ -1386,7 +1746,7 @@ mod tests {
     }
 
     #[test]
-    fn trainer_command_for_steam_forwards_fallback_gamescope_args() {
+    fn trainer_command_for_steam_inherits_enabled_game_gamescope_when_trainer_disabled() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let script_path = temp_dir.path().join("steam-launch-trainer.sh");
         let log_path = temp_dir.path().join("trainer.log");
@@ -1409,8 +1769,41 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert!(args.contains(&"--gamescope-enabled".to_string()));
+        assert!(!args.contains(&"--gamescope-inherit-runtime".to_string()));
         assert!(args.contains(&"--gamescope-arg".to_string()));
         assert!(args.contains(&"-f".to_string()));
+    }
+
+    #[test]
+    fn trainer_command_for_steam_includes_allow_nested_when_trainer_gamescope_allows_nested() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let script_path = temp_dir.path().join("steam-launch-trainer.sh");
+        let log_path = temp_dir.path().join("trainer.log");
+        let mut request = steam_request();
+        request.launch_trainer_only = true;
+        request.launch_game_only = false;
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            ..Default::default()
+        };
+        request.trainer_gamescope = Some(crate::profile::GamescopeConfig {
+            enabled: true,
+            allow_nested: true,
+            fullscreen: true,
+            ..Default::default()
+        });
+
+        let command =
+            build_trainer_command(&request, &script_path, &log_path).expect("trainer command");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(args.contains(&"--gamescope-enabled".to_string()));
+        assert!(args.contains(&"--gamescope-allow-nested".to_string()));
     }
 
     #[test]
@@ -1579,9 +1972,7 @@ mod tests {
         // Only meaningful when unshare --net is available. CI containers and
         // hardened kernels may not support this.
         if !crate::launch::runtime_helpers::is_unshare_net_available() {
-            eprintln!(
-                "SKIP: unshare --net not available on this system"
-            );
+            eprintln!("SKIP: unshare --net not available on this system");
             return;
         }
 

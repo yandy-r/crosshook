@@ -7,8 +7,10 @@ steam_client=""
 trainer_path=""
 trainer_host_path=""
 trainer_loading_mode="source_directory"
+working_directory=""
 log_file=""
 gamescope_enabled="0"
+gamescope_allow_nested="0"
 gamescope_args=()
 steam_app_id=""
 
@@ -98,12 +100,20 @@ while (($# > 0)); do
       trainer_loading_mode="${2:-source_directory}"
       shift 2
       ;;
+    --working-directory)
+      working_directory="${2:-}"
+      shift 2
+      ;;
     --log-file)
       log_file="${2:-}"
       shift 2
       ;;
     --gamescope-enabled)
       gamescope_enabled="1"
+      shift
+      ;;
+    --gamescope-allow-nested)
+      gamescope_allow_nested="1"
       shift
       ;;
     --gamescope-arg)
@@ -168,26 +178,21 @@ if runner_pid="$(
       --trainer-loading-mode "$trainer_loading_mode"
       --log-file "$log_file"
   )
+  if [[ -n "$working_directory" ]]; then
+    runner_command+=(--working-directory "$working_directory")
+  fi
   if [[ "$gamescope_enabled" == "1" ]]; then
     runner_command+=(--gamescope-enabled)
+    if [[ "$gamescope_allow_nested" == "1" ]]; then
+      runner_command+=(--gamescope-allow-nested)
+    fi
     for arg in "${gamescope_args[@]}"; do
       runner_command+=(--gamescope-arg "$arg")
     done
   fi
-
-  setsid env -i \
-    HOME="${HOME:-}" \
-    USER="${USER:-}" \
-    LOGNAME="${LOGNAME:-}" \
-    SHELL="${SHELL:-/bin/bash}" \
-    FLATPAK_ID="${FLATPAK_ID:-}" \
-    PATH="/usr/bin:/bin" \
-    DISPLAY="${DISPLAY:-}" \
-    WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
-    XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
-    DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
-    "${runner_command[@]}" \
-      </dev/null >/dev/null 2>&1 &
+  # Preserve session environment for parity with generated desktop launchers.
+  # `steam-host-trainer-runner.sh` still sanitizes WINE/Proton variables before executing Proton.
+  setsid "${runner_command[@]}" </dev/null >/dev/null 2>&1 &
   printf '%s' "$!"
 )"; then
   log "Detached host runner pid=$runner_pid"

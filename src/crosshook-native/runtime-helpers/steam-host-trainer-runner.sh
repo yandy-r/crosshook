@@ -7,12 +7,18 @@ steam_client=""
 trainer_path=""
 trainer_host_path=""
 trainer_loading_mode="source_directory"
+configured_working_directory=""
 log_file=""
 staged_trainer_host_path=""
 staged_trainer_windows_path=""
 gamescope_enabled="0"
+gamescope_allow_nested="0"
 gamescope_args=()
 steam_app_id=""
+preserved_builtin_trainer_env_keys=()
+preserved_builtin_trainer_env_values=()
+preserved_custom_trainer_env_keys=()
+preserved_custom_trainer_env_values=()
 
 log() {
   printf '[steam-trainer-runner] %s\n' "$*"
@@ -47,13 +53,138 @@ run_host() {
   fi
 }
 
+capture_preserved_trainer_env() {
+  local list_name="$1"
+  local -n output_keys_ref="$2"
+  local -n output_values_ref="$3"
+  local raw_list="${!list_name-}"
+  local key value
+
+  output_keys_ref=()
+  output_values_ref=()
+
+  if [[ -z "$raw_list" ]]; then
+    return
+  fi
+
+  IFS=',' read -r -a output_keys_ref <<<"$raw_list"
+  for key in "${output_keys_ref[@]}"; do
+    [[ -n "$key" ]] || continue
+    value="${!key-}"
+    output_values_ref+=("$value")
+  done
+}
+
+restore_preserved_trainer_env() {
+  local index key value
+
+  for index in "${!preserved_builtin_trainer_env_keys[@]}"; do
+    key="${preserved_builtin_trainer_env_keys[$index]}"
+    value="${preserved_builtin_trainer_env_values[$index]-}"
+    export "${key}=${value}"
+  done
+  for index in "${!preserved_custom_trainer_env_keys[@]}"; do
+    key="${preserved_custom_trainer_env_keys[$index]}"
+    value="${preserved_custom_trainer_env_values[$index]-}"
+    export "${key}=${value}"
+  done
+  unset CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS
+  unset CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS
+}
+
+is_valid_shell_env_key() {
+  [[ -n "${1:-}" ]] && [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]
+}
+
+write_preserved_custom_env_file() {
+  local cache_root="${HOME:-$compatdata/.crosshook-cache}"
+  local target_dir="$cache_root/.cache/crosshook"
+  local env_file
+  local index key value
+
+  if ((${#preserved_custom_trainer_env_keys[@]} == 0)); then
+    return 1
+  fi
+
+  mkdir -p "$target_dir"
+  chmod 700 "$target_dir" 2>/dev/null || true
+  env_file="$(mktemp "$target_dir/host-env.XXXXXX")"
+  chmod 600 "$env_file"
+
+  for index in "${!preserved_custom_trainer_env_keys[@]}"; do
+    key="${preserved_custom_trainer_env_keys[$index]}"
+    value="${preserved_custom_trainer_env_values[$index]-}"
+    if ! is_valid_shell_env_key "$key"; then
+      log "Skipping invalid preserved custom env key: $key"
+      continue
+    fi
+    printf '%s=%q\n' "$key" "$value" >>"$env_file"
+  done
+
+  printf '%s\n' "$env_file"
+}
+
+append_flatpak_spawn_env() {
+  local key="$1"
+  local value="${2-}"
+  local existing
+  for existing in "${forwarded_env_keys[@]}"; do
+    [[ "$existing" == "$key" ]] && return
+  done
+  spawn_args+=(--env="${key}=${value}")
+  forwarded_env_keys+=("$key")
+}
+
+append_flatpak_spawn_preserved_crosshook_keys() {
+  local index key value
+  if ((${#preserved_builtin_trainer_env_keys[@]} == 0)); then
+    return
+  fi
+  for index in "${!preserved_builtin_trainer_env_keys[@]}"; do
+    key="${preserved_builtin_trainer_env_keys[$index]}"
+    value="${preserved_builtin_trainer_env_values[$index]-}"
+    append_flatpak_spawn_env "$key" "$value"
+  done
+}
+
 run_host_in_directory() {
   local directory="$1"
   shift
 
   if [[ -n "${FLATPAK_ID:-}" ]]; then
-    flatpak-spawn --host --directory="$directory" "$@"
+    log "run_host_in_directory_mode=flatpak-spawn directory=$directory command=$*"
+    local spawn_args=(flatpak-spawn --host --clear-env --directory="$directory")
+    local forwarded_env_keys=()
+    local custom_env_file=""
+    # Mirror the curated Flatpak host env used by the working proton_run path.
+    append_flatpak_spawn_env "HOME" "${HOME:-}"
+    append_flatpak_spawn_env "USER" "${USER:-}"
+    append_flatpak_spawn_env "LOGNAME" "${LOGNAME:-}"
+    append_flatpak_spawn_env "SHELL" "${SHELL:-/bin/bash}"
+    append_flatpak_spawn_env "PATH" "${PATH:-/usr/bin:/bin}"
+    append_flatpak_spawn_env "DISPLAY" "${DISPLAY:-}"
+    append_flatpak_spawn_env "WAYLAND_DISPLAY" "${WAYLAND_DISPLAY:-}"
+    append_flatpak_spawn_env "GAMESCOPE_WAYLAND_DISPLAY" "${GAMESCOPE_WAYLAND_DISPLAY:-}"
+    append_flatpak_spawn_env "XDG_RUNTIME_DIR" "${XDG_RUNTIME_DIR:-}"
+    append_flatpak_spawn_env "DBUS_SESSION_BUS_ADDRESS" "${DBUS_SESSION_BUS_ADDRESS:-}"
+    append_flatpak_spawn_env "XAUTHORITY" "${XAUTHORITY:-}"
+    append_flatpak_spawn_env "XDG_SESSION_TYPE" "${XDG_SESSION_TYPE:-}"
+    append_flatpak_spawn_env "XDG_CURRENT_DESKTOP" "${XDG_CURRENT_DESKTOP:-}"
+    append_flatpak_spawn_env "STEAM_COMPAT_DATA_PATH" "${STEAM_COMPAT_DATA_PATH:-}"
+    append_flatpak_spawn_env "STEAM_COMPAT_CLIENT_INSTALL_PATH" "${STEAM_COMPAT_CLIENT_INSTALL_PATH:-}"
+    append_flatpak_spawn_env "WINEPREFIX" "${WINEPREFIX:-}"
+    append_flatpak_spawn_env "GAMEID" "${GAMEID:-}"
+    append_flatpak_spawn_env "SteamGameId" "${SteamGameId:-}"
+    append_flatpak_spawn_env "SteamAppId" "${SteamAppId:-}"
+    append_flatpak_spawn_preserved_crosshook_keys
+    if custom_env_file="$(write_preserved_custom_env_file)"; then
+      "${spawn_args[@]}" bash -c 'set -a; source "$1"; rm -f "$1"; set +a; shift; exec "$@"' bash "$custom_env_file" "$@"
+      rm -f "$custom_env_file" 2>/dev/null || true
+    else
+      "${spawn_args[@]}" "$@"
+    fi
   else
+    log "run_host_in_directory_mode=direct directory=$directory command=$*"
     (
       cd "$directory"
       "$@"
@@ -188,11 +319,26 @@ log_runtime_context() {
   ensure_standard_path
   log "pwd: $(pwd)"
   log "id: $(id)"
+  log "FLATPAK_ID=${FLATPAK_ID:-}"
+  if [[ -f /.flatpak-info ]]; then
+    log "flatpak_info_present=1"
+  else
+    log "flatpak_info_present=0"
+  fi
   log "PATH=$PATH"
+  log "DISPLAY=${DISPLAY:-}"
+  log "WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}"
   log "STEAM_COMPAT_DATA_PATH=$STEAM_COMPAT_DATA_PATH"
   log "STEAM_COMPAT_CLIENT_INSTALL_PATH=$STEAM_COMPAT_CLIENT_INSTALL_PATH"
+  log "GAMESCOPE_WAYLAND_DISPLAY=${GAMESCOPE_WAYLAND_DISPLAY:-}"
+  log "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-}"
+  log "XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-}"
+  log "XDG_CURRENT_DESKTOP=${XDG_CURRENT_DESKTOP:-}"
+  log "XAUTHORITY=${XAUTHORITY:-}"
   log "WINEPREFIX=$WINEPREFIX"
   log "proton=$proton"
+  log "gamescope_bin=$(command -v gamescope 2>/dev/null || printf 'missing')"
+  log "flatpak_spawn_bin=$(command -v flatpak-spawn 2>/dev/null || printf 'missing')"
   log "trainer_path=$trainer_path"
   log "trainer_host_path=$trainer_host_path"
   log "trainer_loading_mode=$trainer_loading_mode"
@@ -226,12 +372,20 @@ while (($# > 0)); do
       trainer_loading_mode="${2:-source_directory}"
       shift 2
       ;;
+    --working-directory)
+      configured_working_directory="${2:-}"
+      shift 2
+      ;;
     --log-file)
       log_file="${2:-}"
       shift 2
       ;;
     --gamescope-enabled)
       gamescope_enabled="1"
+      shift
+      ;;
+    --gamescope-allow-nested)
+      gamescope_allow_nested="1"
       shift
       ;;
     --gamescope-arg)
@@ -284,6 +438,9 @@ for fd in /proc/self/fd/*; do
   fi
 done
 
+capture_preserved_trainer_env "CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS" preserved_builtin_trainer_env_keys preserved_builtin_trainer_env_values
+capture_preserved_trainer_env "CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS" preserved_custom_trainer_env_keys preserved_custom_trainer_env_values
+
 # Strip WINE/Proton-specific variables inherited from the host's WINE session
 # so Proton can rebuild its own session state cleanly.
 # Keep in sync with WINE_ENV_VARS_TO_CLEAR in crosshook-core/src/launch/env.rs.
@@ -301,20 +458,37 @@ unset PROTON_LOG PROTON_DUMP_DEBUG_COMMANDS PROTON_USE_WINED3D
 unset PROTON_NO_ESYNC PROTON_NO_FSYNC PROTON_ENABLE_NVAPI
 unset DXVK_CONFIG_FILE DXVK_STATE_CACHE_PATH DXVK_LOG_PATH
 unset VKD3D_CONFIG VKD3D_DEBUG
+restore_preserved_trainer_env
 
 export STEAM_COMPAT_DATA_PATH="$compatdata"
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$steam_client"
 export WINEPREFIX="$compatdata/pfx"
+if [[ -n "$steam_app_id" ]]; then
+  export SteamGameId="$steam_app_id"
+  export SteamAppId="$steam_app_id"
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    export GAMEID="0"
+  else
+    export GAMEID="$steam_app_id"
+  fi
+fi
 
 if [[ "$trainer_loading_mode" == "copy_to_prefix" ]]; then
   stage_trainer_into_compatdata
   trainer_path="$staged_trainer_host_path"
+  if [[ -n "$configured_working_directory" ]]; then
+    run_directory="$configured_working_directory"
+  fi
   cd "$run_directory" || fail "Failed to cd to staged trainer directory: $run_directory"
   log "Changed trainer working directory to $(pwd)"
   run_directory="$PWD"
 else
   trainer_path="$trainer_host_path"
-  run_directory="$(dirname "$trainer_host_path")"
+  if [[ -n "$configured_working_directory" ]]; then
+    run_directory="$configured_working_directory"
+  else
+    run_directory="$(dirname "$trainer_host_path")"
+  fi
   log "Using trainer from source directory: $trainer_path"
   cd "$run_directory"
   log "Changed trainer working directory to $(pwd)"
@@ -323,37 +497,81 @@ fi
 
 log_runtime_context
 
-log "Launching trainer with direct proton run."
-if [[ -n "${FLATPAK_ID:-}" ]]; then
-  if [[ "$gamescope_enabled" == "1" ]]; then
-    if run_host_in_directory "$run_directory" gamescope "${gamescope_args[@]}" -- "$proton" run "$trainer_path"; then
+# Mirrors crosshook-core `should_skip_gamescope`: nested session + no allow_nested => no extra gamescope.
+should_skip_nested_gamescope() {
+  [[ "$gamescope_enabled" == "1" ]] \
+    && [[ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]] \
+    && [[ "$gamescope_allow_nested" != "1" ]]
+}
+
+run_trainer_direct_proton() {
+  local exit_code
+  log "trainer_launch_mode=direct_proton"
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    if run_host_in_directory "$run_directory" "$proton" run "$trainer_path"; then
       log "Trainer proton run exited successfully."
-      exit 0
+      return 0
     else
       exit_code=$?
-      log "Trainer proton run exited with code $exit_code"
-      exit "$exit_code"
+    fi
+  else
+    if (
+      cd "$run_directory"
+      "$proton" run "$trainer_path"
+    ); then
+      log "Trainer proton run exited successfully."
+      return 0
+    else
+      exit_code=$?
     fi
   fi
-  if run_host_in_directory "$run_directory" "$proton" run "$trainer_path"; then
-    log "Trainer proton run exited successfully."
-    exit 0
+  log "Trainer proton run exited with code $exit_code"
+  return "$exit_code"
+}
+
+run_trainer_with_gamescope() {
+  local exit_code
+  log "trainer_launch_mode=gamescope_wrapper args=${gamescope_args[*]}"
+  if [[ -n "${FLATPAK_ID:-}" ]]; then
+    if run_host_in_directory "$run_directory" gamescope "${gamescope_args[@]}" -- "$proton" run "$trainer_path"; then
+      log "Trainer proton run exited successfully."
+      return 0
+    else
+      exit_code=$?
+    fi
   else
-    exit_code=$?
-    log "Trainer proton run exited with code $exit_code"
-    exit "$exit_code"
+    if (
+      cd "$run_directory"
+      gamescope "${gamescope_args[@]}" -- "$proton" run "$trainer_path"
+    ); then
+      log "Trainer proton run exited successfully."
+      return 0
+    else
+      exit_code=$?
+    fi
   fi
+  log "Trainer proton run (gamescope) exited with code $exit_code"
+  return "$exit_code"
+}
+
+log "Launching trainer with direct proton run."
+
+if [[ "$gamescope_enabled" != "1" ]]; then
+  run_trainer_direct_proton
+  exit $?
 fi
-if [[ "$gamescope_enabled" == "1" ]]; then
-  launch_command=(gamescope "${gamescope_args[@]}" -- "$proton" run "$trainer_path")
-else
-  launch_command=("$proton" run "$trainer_path")
+
+if should_skip_nested_gamescope; then
+  log "Skipping gamescope wrapper: nested gamescope session detected (GAMESCOPE_WAYLAND_DISPLAY set; allow_nested not enabled)."
+  run_trainer_direct_proton
+  exit $?
 fi
-if "${launch_command[@]}"; then
-  log "Trainer proton run exited successfully."
+
+if run_trainer_with_gamescope; then
   exit 0
 else
-  exit_code=$?
-  log "Trainer proton run exited with code $exit_code"
-  exit "$exit_code"
+  gamescope_exit=$?
+  log "gamescope trainer launch failed (exit $gamescope_exit); retrying direct proton without gamescope."
+  run_trainer_direct_proton
+  exit $?
 fi

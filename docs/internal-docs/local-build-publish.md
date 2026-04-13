@@ -45,12 +45,12 @@ Requires `cargo`, `npm`, `patchelf`, and the icon toolchain above (`rsvg-convert
 
 Override locations when needed:
 
-| Goal | Example |
-| ---- | ------- |
-| Legacy repo-local `dist/` | `DIST_DIR="$PWD/dist" ./scripts/build-native.sh` |
+| Goal                       | Example                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| Legacy repo-local `dist/`  | `DIST_DIR="$PWD/dist" ./scripts/build-native.sh`                                |
 | Legacy workspace `target/` | `CARGO_TARGET_DIR="$PWD/src/crosshook-native/target" ./scripts/build-native.sh` |
-| Ephemeral (`/tmp`) | `CROSSHOOK_BUILD_EPHEMERAL=1 ./scripts/build-native.sh` |
-| Inspect resolved paths | `./scripts/build-native.sh --print-paths` |
+| Ephemeral (`/tmp`)         | `CROSSHOOK_BUILD_EPHEMERAL=1 ./scripts/build-native.sh`                         |
+| Inspect resolved paths     | `./scripts/build-native.sh --print-paths`                                       |
 
 The build writes two AppImage files into `DIST_DIR`:
 

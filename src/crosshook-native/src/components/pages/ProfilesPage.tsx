@@ -720,9 +720,7 @@ export function ProfilesPage() {
                         value: name,
                         label: name,
                         badge: showNetworkIsolationBadge(name) ? NETWORK_ISOLATION_BADGE : undefined,
-                        badgeTitle: showNetworkIsolationBadge(name)
-                          ? NETWORK_ISOLATION_BADGE_TITLE
-                          : undefined,
+                        badgeTitle: showNetworkIsolationBadge(name) ? NETWORK_ISOLATION_BADGE_TITLE : undefined,
                       })),
                     ]}
                   />

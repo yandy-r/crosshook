@@ -90,7 +90,7 @@ flow and the new run-executable flow.
 
 Two minor stylistic refinements that fall within the plan's intent:
 
-1. **TypeScript validation variant keys are PascalCase** (`'ExecutablePathRequired'`) rather than the snake_case strings shown in the plan example (`'executable_path_required'`). This matches the existing convention in `types/install.ts` and `types/update.ts`. The plan's GOTCHA explicitly only requires that the _message strings_ match the Rust `message()` output character-for-character, which they do; the variant key naming is internal to TypeScript.
+1. **TypeScript validation variant keys are PascalCase** (`'ExecutablePathRequired'`) rather than the `snake_case` strings shown in the plan example (`'executable_path_required'`). This matches the existing convention in `types/install.ts` and `types/update.ts`. The plan's GOTCHA explicitly only requires that the `message` strings match the Rust `message()` output character-for-character, which they do; the variant key naming is internal to TypeScript.
 2. **Added a `HomeDirectoryUnavailable` variant to `RunExecutableError`** rather than overloading `PrefixCreationFailed` for the "no home directory" branch. This produces a clearer message when `BaseDirs::new()` fails (e.g. in headless CI without `$HOME`) and mirrors the install module's `InstallGameError::HomeDirectoryUnavailable` variant.
 
 ## Issues Encountered

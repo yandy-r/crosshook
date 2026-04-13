@@ -311,7 +311,7 @@ pub fn check_launcher_for_profile(
             target_home_path: target_home_path.to_string(),
             profile_name: None,
             network_isolation: profile.launch.network_isolation,
-            gamescope: profile.launch.trainer_gamescope.clone(),
+            gamescope: profile.launch.effective_trainer_gamescope(),
         },
     )
 }
