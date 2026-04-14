@@ -12,6 +12,7 @@ pub mod script_runner;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod trainer_hash;
+pub mod watchdog;
 
 pub use catalog::{
     global_catalog, initialize_catalog, load_catalog, OptimizationCatalog, OptimizationEntry,
@@ -35,3 +36,4 @@ pub use runtime_helpers::{launch_platform_capabilities, LaunchPlatformCapabiliti
 pub use trainer_hash::{
     collect_trainer_hash_launch_warnings, launch_issues_from_trainer_hash_outcome,
 };
+pub use watchdog::{gamescope_watchdog, is_process_running};

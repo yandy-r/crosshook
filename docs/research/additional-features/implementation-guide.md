@@ -307,7 +307,7 @@ These are tracked but not scheduled. Revisit after Phases 1-6 based on community
 | ------------------------------- | -------- | -------------------------------------------------------------------------------- |
 | #67 -- Trainer discovery        | Done     | When community taps reach 50+ profiles and users still struggle to find trainers |
 | #68 -- Protontricks integration | Done     | When trainer failure diagnostics (#36) show missing dependencies as a top cause  |
-| #69 -- Flatpak distribution     |          | When immutable distro users report AppImage issues                               |
+| #69 -- Flatpak distribution     | Partial  | When immutable distro users report AppImage issues                               |
 | #70 -- ProtonUp-Qt integration  | Done     | When Proton migration (#48) shows users lack the needed Proton versions          |
 | #71 -- Lutris import            |          | When user acquisition from Lutris becomes a measurable source                    |
 | #72 -- Mod management           | Deferred | Only if directly supporting trainer coexistence, not as general mod management   |
@@ -343,7 +343,7 @@ Phase 3 (Profiles)                                           │
 Phase 4 (Version Intelligence)                               │
   #41 Version correlation                                    │
   #46 Config history ◄──── #41                               │
-  #37 Onboarding ◄──── #38 + #36 + #41                      │
+  #37 Onboarding ◄──── #38 + #36 + #41                       │
                                                              │
 Phase 5 (CLI)                                                │
   #43 CLI completion                                         │

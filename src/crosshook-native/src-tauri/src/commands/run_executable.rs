@@ -12,7 +12,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use super::log_stream::spawn_log_stream;
-use super::shared::{create_log_path, slugify_target};
+use super::shared::{create_log_path, kill_processes_using_prefix, slugify_target};
 
 #[derive(Debug, Clone)]
 struct RunningProcessInfo {
@@ -297,85 +297,5 @@ fn try_remove_dir(prefix_path: &Path) -> bool {
             );
             false
         }
-    }
-}
-
-/// `SIGKILL`s every process whose `/proc/[pid]/environ` blob contains the
-/// prefix path substring.
-///
-/// Substring matching is intentional: Proton overrides `WINEPREFIX` for
-/// child processes (sets it to `<prefix>/pfx` once it bootstraps the
-/// structure), but the parent wrapper, intermediate scripts, and the game
-/// executable can each carry the prefix path under different keys
-/// (`WINEPREFIX`, `STEAM_COMPAT_DATA_PATH`, `WINEDLLPATH`, …) with or
-/// without the `pfx` suffix. Searching for the path bytes anywhere in the
-/// env blob catches all of them in one pass. The `_run-adhoc/<slug>`
-/// namespace is unique enough that false positives are not a real concern.
-///
-/// Errors reading individual `/proc` entries are silently skipped — exited
-/// processes, kernel threads, and processes owned by other users are
-/// expected to fail and are not actionable.
-fn kill_processes_using_prefix(prefix_path: &Path) {
-    // Slugified ad-hoc prefixes are guaranteed ASCII by `slugify`. Assert
-    // in debug builds so any future caller passing a non-UTF-8 path is
-    // caught immediately rather than silently performing lossy substring
-    // matching against `/proc/[pid]/environ` blobs.
-    debug_assert!(
-        prefix_path.to_str().is_some(),
-        "kill_processes_using_prefix expects a UTF-8 path; got non-UTF-8 bytes which will be lossily converted",
-    );
-    let target_str = prefix_path.to_string_lossy().to_string();
-    let target_bytes = target_str.as_bytes();
-    if target_bytes.is_empty() {
-        return;
-    }
-
-    let proc_dir = match std::fs::read_dir("/proc") {
-        Ok(dir) => dir,
-        Err(error) => {
-            tracing::warn!(%error, "kill_processes_using_prefix: unable to read /proc");
-            return;
-        }
-    };
-
-    let mut killed = 0u32;
-    for entry in proc_dir.flatten() {
-        let name_os = entry.file_name();
-        let name = match name_os.to_str() {
-            Some(s) => s,
-            None => continue,
-        };
-        if name.is_empty() || !name.bytes().all(|b| b.is_ascii_digit()) {
-            continue;
-        }
-
-        let environ_path = entry.path().join("environ");
-        let environ_bytes = match std::fs::read(&environ_path) {
-            Ok(b) => b,
-            Err(_) => continue,
-        };
-
-        let target_present = environ_bytes
-            .windows(target_bytes.len())
-            .any(|window| window == target_bytes);
-        if !target_present {
-            continue;
-        }
-
-        tracing::info!(
-            pid = %name,
-            prefix = %target_str,
-            "kill_processes_using_prefix: SIGKILL"
-        );
-        let _ = host_std_command("kill").arg("-KILL").arg(name).status();
-        killed += 1;
-    }
-
-    if killed > 0 {
-        tracing::info!(
-            killed,
-            prefix = %target_str,
-            "kill_processes_using_prefix: kill sweep complete"
-        );
     }
 }

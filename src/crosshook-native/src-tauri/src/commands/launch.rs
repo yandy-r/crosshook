@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crosshook_core::launch::{
@@ -9,12 +10,13 @@ use crosshook_core::launch::{
     build_steam_launch_options_command as build_steam_launch_options_command_core,
     collect_trainer_hash_launch_warnings,
     diagnostics::FailureMode,
+    gamescope_watchdog as gamescope_watchdog_core,
     script_runner::{
         build_flatpak_steam_trainer_command, build_helper_command, build_native_game_command,
         build_proton_game_command, build_proton_trainer_command, build_trainer_command,
     },
     should_surface_report, validate, DiagnosticReport, LaunchPreview, LaunchRequest,
-    LaunchValidationIssue, ValidationError, METHOD_NATIVE, METHOD_PROTON_RUN,
+    LaunchValidationIssue, ValidationError, ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN,
     METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file, MetadataStore};
@@ -87,6 +89,17 @@ pub struct LaunchResult {
     pub warnings: Vec<LaunchValidationIssue>,
 }
 
+#[derive(Clone)]
+struct LaunchStreamContext {
+    metadata_store: MetadataStore,
+    operation_id: Option<String>,
+    steam_app_id: String,
+    trainer_host_path: Option<String>,
+    profile_name: Option<String>,
+    steam_client_path: String,
+    watchdog_killed: Arc<AtomicBool>,
+}
+
 #[tauri::command]
 pub fn validate_launch(request: LaunchRequest) -> Result<(), LaunchValidationIssue> {
     validate(&request).map_err(|error| error.issue())
@@ -127,70 +140,13 @@ pub fn launch_platform_status() -> crosshook_core::launch::LaunchPlatformCapabil
     crosshook_core::launch::launch_platform_capabilities()
 }
 
-/// Checks whether a process whose name matches `exe_name` is currently running.
-///
-/// Scans `/proc/<pid>/comm` for exact matches, handling both the original name
-/// (e.g. `game.exe`) and the name without the `.exe` suffix (`game`).
-/// When `comm` is exactly 15 characters (the Linux `TASK_COMM_LEN` truncation
-/// boundary), falls back to `/proc/<pid>/cmdline` for the full argv\[0\] basename.
-fn is_process_running(exe_name: &str) -> bool {
-    let name = exe_name.trim();
-    if name.is_empty() {
-        return false;
-    }
-
-    let without_exe = name
-        .strip_suffix(".exe")
-        .or_else(|| name.strip_suffix(".EXE"));
-    let candidates: Vec<&str> = match without_exe {
-        Some(stripped) => vec![name, stripped],
-        None => vec![name],
-    };
-
-    let Ok(proc_dir) = fs::read_dir("/proc") else {
-        return false;
-    };
-
-    for entry in proc_dir.flatten() {
-        let dir_name = entry.file_name();
-        let dir_name_str = dir_name.to_string_lossy();
-
-        if !dir_name_str.chars().all(|c| c.is_ascii_digit()) {
-            continue;
-        }
-
-        let pid_path = entry.path();
-
-        if let Ok(comm) = fs::read_to_string(pid_path.join("comm")) {
-            let comm = comm.trim_end_matches('\n');
-            if candidates.contains(&comm) {
-                return true;
-            }
-
-            // comm is truncated at 15 chars; check cmdline for the full name.
-            if comm.len() == 15 {
-                if let Ok(cmdline) = fs::read_to_string(pid_path.join("cmdline")) {
-                    let argv0 = cmdline.split('\0').next().unwrap_or("");
-                    let basename = argv0.rsplit('/').next().unwrap_or(argv0);
-                    let basename = basename.rsplit('\\').next().unwrap_or(basename);
-                    if candidates.contains(&basename) {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-
-    false
-}
-
 #[tauri::command]
 pub fn check_game_running(exe_name: String) -> bool {
     let name = exe_name.trim();
     if name.is_empty() {
         return false;
     }
-    is_process_running(name)
+    crosshook_core::launch::is_process_running(name)
 }
 
 /// Non-blocking offline readiness advisory when the profile has a trainer configured.
@@ -363,6 +319,7 @@ pub async fn launch_game(
     let child = command
         .spawn()
         .map_err(|error| format!("failed to launch helper: {error}"))?;
+    let child_pid = child.id();
 
     let sanitized_log_path = sanitize_display_path(&log_path.to_string_lossy());
     let operation_id = record_launch_start(
@@ -386,18 +343,39 @@ pub async fn launch_game(
     let snap_profile_name = request.profile_name.clone();
     let snap_steam_client_path = request.steam.steam_client_install_path.clone();
 
-    spawn_log_stream(
-        app,
-        log_path.clone(),
-        child,
-        method,
+    // Determine if gamescope is the direct child (it won't exit when the game
+    // exits, so a watchdog is needed to terminate it).
+    let gamescope_active = method == METHOD_PROTON_RUN
+        && request.gamescope.enabled
+        && (request.gamescope.allow_nested
+            || !crosshook_core::launch::is_inside_gamescope_session());
+    let game_exe_name = Path::new(&request.game_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_string();
+
+    // Shared flag: the gamescope watchdog sets this before killing the
+    // compositor so finalize_launch_stream can suppress the false SIGKILL
+    // diagnostic that would otherwise surface as a warning.
+    let watchdog_killed = Arc::new(AtomicBool::new(false));
+    let stream_context = LaunchStreamContext {
         metadata_store,
         operation_id,
-        snap_steam_app_id,
-        snap_trainer_host_path,
-        snap_profile_name,
-        snap_steam_client_path,
-    );
+        steam_app_id: snap_steam_app_id,
+        trainer_host_path: snap_trainer_host_path,
+        profile_name: snap_profile_name,
+        steam_client_path: snap_steam_client_path,
+        watchdog_killed: Arc::clone(&watchdog_killed),
+    };
+
+    spawn_log_stream(app, log_path.clone(), child, method, stream_context);
+
+    if gamescope_active {
+        if let Some(pid) = child_pid {
+            spawn_gamescope_watchdog(pid, game_exe_name, watchdog_killed);
+        }
+    }
 
     Ok(LaunchResult {
         succeeded: true,
@@ -501,17 +479,28 @@ pub async fn launch_trainer(
     let snap_profile_name = request.profile_name.clone();
     let snap_steam_client_path = request.steam.steam_client_install_path.clone();
 
+    // No gamescope watchdog for trainer launches. Trainers often exit quickly
+    // after injection while their effects persist inside the game process —
+    // the exe-based watchdog would tear down gamescope prematurely. Trainer
+    // gamescope cleanup is handled by the game's own watchdog when the game
+    // exits, since they share the same Wine prefix / process neighbourhood.
+    let watchdog_killed = Arc::new(AtomicBool::new(false));
+    let stream_context = LaunchStreamContext {
+        metadata_store,
+        operation_id,
+        steam_app_id: snap_steam_app_id,
+        trainer_host_path: snap_trainer_host_path,
+        profile_name: snap_profile_name,
+        steam_client_path: snap_steam_client_path,
+        watchdog_killed: Arc::clone(&watchdog_killed),
+    };
+
     spawn_log_stream(
         app,
         log_path.clone(),
         child,
         execution_method,
-        metadata_store,
-        operation_id,
-        snap_steam_app_id,
-        snap_trainer_host_path,
-        snap_profile_name,
-        snap_steam_client_path,
+        stream_context,
     );
 
     Ok(LaunchResult {
@@ -527,12 +516,7 @@ fn spawn_log_stream(
     log_path: PathBuf,
     child: tokio::process::Child,
     method: &'static str,
-    metadata_store: MetadataStore,
-    operation_id: Option<String>,
-    steam_app_id: String,
-    trainer_host_path: Option<String>,
-    profile_name: Option<String>,
-    steam_client_path: String,
+    context: LaunchStreamContext,
 ) {
     let child_uses_pipe_capture = child.stdout.is_some() || child.stderr.is_some();
     let handle = tauri::async_runtime::spawn(async move {
@@ -542,12 +526,7 @@ fn spawn_log_stream(
             child,
             child_uses_pipe_capture,
             method,
-            metadata_store,
-            operation_id,
-            steam_app_id,
-            trainer_host_path,
-            profile_name,
-            steam_client_path,
+            context,
         )
         .await;
     });
@@ -594,28 +573,11 @@ async fn stream_log_lines(
     child: tokio::process::Child,
     child_uses_pipe_capture: bool,
     method: &'static str,
-    metadata_store: MetadataStore,
-    operation_id: Option<String>,
-    steam_app_id: String,
-    trainer_host_path: Option<String>,
-    profile_name: Option<String>,
-    steam_client_path: String,
+    context: LaunchStreamContext,
 ) {
     if child_uses_pipe_capture {
         let exit_status = stream_log_pipes(&app, &log_path, child).await;
-        finalize_launch_stream(
-            app,
-            log_path,
-            exit_status,
-            method,
-            metadata_store,
-            operation_id,
-            steam_app_id,
-            trainer_host_path,
-            profile_name,
-            steam_client_path,
-        )
-        .await;
+        finalize_launch_stream(app, log_path, exit_status, method, context).await;
         return;
     }
 
@@ -684,19 +646,7 @@ async fn stream_log_lines(
         }
     }
 
-    finalize_launch_stream(
-        app,
-        log_path,
-        exit_status,
-        method,
-        metadata_store,
-        operation_id,
-        steam_app_id,
-        trainer_host_path,
-        profile_name,
-        steam_client_path,
-    )
-    .await;
+    finalize_launch_stream(app, log_path, exit_status, method, context).await;
 }
 
 async fn stream_log_pipes(
@@ -794,12 +744,7 @@ async fn finalize_launch_stream(
     log_path: PathBuf,
     exit_status: Option<std::process::ExitStatus>,
     method: &'static str,
-    metadata_store: MetadataStore,
-    operation_id: Option<String>,
-    steam_app_id: String,
-    trainer_host_path: Option<String>,
-    profile_name: Option<String>,
-    steam_client_path: String,
+    context: LaunchStreamContext,
 ) {
     let exit_code = exit_status
         .as_ref()
@@ -816,10 +761,21 @@ async fn finalize_launch_stream(
     let diagnostic_method = diagnostic_method_for_log(method, &log_tail);
     let mut report = analyze(exit_status, &log_tail, diagnostic_method);
     report.log_tail_path = Some(sanitize_display_path(&log_path.to_string_lossy()));
-    let report = sanitize_diagnostic_report(report);
+    let mut report = sanitize_diagnostic_report(report);
 
-    if let Some(ref op_id) = operation_id {
-        let ms = metadata_store.clone();
+    // When the gamescope watchdog killed the compositor the exit signal is
+    // SIGTERM or SIGKILL — a false positive that would surface as a warning.
+    // Override to CleanExit so the UI treats it as a normal shutdown.
+    if context.watchdog_killed.load(Ordering::Acquire) {
+        report.exit_info.failure_mode = FailureMode::CleanExit;
+        report.summary = "Game exited; gamescope compositor cleaned up.".to_string();
+        report.exit_info.description = "Game exited; gamescope compositor cleaned up.".to_string();
+        report.exit_info.severity = ValidationSeverity::Info;
+        report.suggestions.clear();
+    }
+
+    if let Some(ref op_id) = context.operation_id {
+        let ms = context.metadata_store.clone();
         let op = op_id.clone();
         let ec = exit_code;
         let sig = signal;
@@ -839,12 +795,12 @@ async fn finalize_launch_stream(
         report.exit_info.failure_mode,
         FailureMode::CleanExit | FailureMode::Indeterminate
     ) {
-        if let Some(ref pname) = profile_name {
-            let ms = metadata_store.clone();
+        if let Some(ref pname) = context.profile_name {
+            let ms = context.metadata_store.clone();
             let pname_c = pname.clone();
-            let app_id_c = steam_app_id.clone();
-            let trainer_path_c = trainer_host_path.clone();
-            let steam_install_c = steam_client_path.clone();
+            let app_id_c = context.steam_app_id.clone();
+            let trainer_path_c = context.trainer_host_path.clone();
+            let steam_install_c = context.steam_client_path.clone();
             let result = tauri::async_runtime::spawn_blocking(move || {
                 let profile_id = match ms.lookup_profile_id(&pname_c) {
                     Ok(Some(id)) => id,
@@ -920,8 +876,8 @@ async fn finalize_launch_stream(
             }
         }
 
-        if let Some(ref pname) = profile_name {
-            let ms = metadata_store.clone();
+        if let Some(ref pname) = context.profile_name {
+            let ms = context.metadata_store.clone();
             let pname_c = pname.clone();
             let result = tauri::async_runtime::spawn_blocking(move || {
                 let profile_id = match ms.lookup_profile_id(&pname_c) {
@@ -1079,6 +1035,29 @@ fn diagnostic_method_for_log(method: &'static str, log_tail: &str) -> &'static s
     } else {
         method
     }
+}
+
+// ---------------------------------------------------------------------------
+// Gamescope watchdog
+// ---------------------------------------------------------------------------
+
+/// When gamescope wraps a Proton launch it becomes the direct child of
+/// CrossHook but does **not** exit when the game inside it exits — lingering
+/// clients (`mangoapp`, `winedevice.exe`, `gamescopereaper`) keep the
+/// compositor alive indefinitely. This watchdog polls for the game executable
+/// and, once it disappears, terminates gamescope so the normal
+/// stream-log / finalize cleanup path can proceed.
+fn spawn_gamescope_watchdog(gamescope_pid: u32, exe_name: String, killed_flag: Arc<AtomicBool>) {
+    if exe_name.is_empty() {
+        tracing::warn!(
+            gamescope_pid,
+            "gamescope watchdog disabled: launch path did not yield an executable basename"
+        );
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        gamescope_watchdog_core(gamescope_pid, &exe_name, killed_flag).await;
+    });
 }
 
 #[cfg(test)]

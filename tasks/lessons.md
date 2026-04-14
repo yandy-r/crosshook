@@ -2,6 +2,7 @@
 
 ## 2026-04-13
 
+- When a launch-state fix relies on process detection, do not stop at verifying the visible status label. In this repo, also verify that the underlying `LaunchPhase` returns to `Idle` when the detected game exits, so `Launch Game` becomes actionable again without requiring a manual Reset.
 - When a Steam trainer launch diverges from a working `proton_run` trainer launch, do not keep patching the shell helper in the abstract. Treat the trainer subprocess by its actual runtime path: use `effective_trainer_gamescope()`, resolve trainer launch optimizations as `METHOD_PROTON_RUN`, pass through `runtime.working_directory`, and preserve only the explicit trainer env keys across helper cleanup.
 - In Flatpak, if the Steam trainer helper path still differs from the working `proton_run` trainer path after env and gamescope parity work, prefer routing Steam trainer launches through the same direct Proton trainer builder and record/analyze the execution as `proton_run` instead of maintaining a second helper-only launch contract.
 - After a platform-wide trainer-launch fix appears to work once and then fails on a specific title, verify the fix on at least one other Steam game before continuing to mutate the general launch path. In this repo, Hitman 2’s launcher-to-game transition produced a separate game-specific failure after the Flatpak Steam/proton parity bug was already fixed.

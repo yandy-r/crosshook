@@ -25,6 +25,7 @@ type LaunchAction =
   | { type: 'reset' }
   | { type: 'diagnostic-received'; report: DiagnosticReport }
   | { type: 'game-start' }
+  | { type: 'game-stopped' }
   | { type: 'game-success'; helperLogPath: string; nextPhase: LaunchPhase }
   | { type: 'launch-complete' }
   | { type: 'trainer-start' }
@@ -72,6 +73,11 @@ function reducer(state: LaunchState, action: LaunchAction): LaunchState {
         feedback: null,
         diagnosticReport: null,
         helperLogPath: action.helperLogPath,
+      };
+    case 'game-stopped':
+      return {
+        ...state,
+        phase: LaunchPhase.Idle,
       };
     case 'launch-complete':
       return state;
@@ -144,11 +150,13 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   const [launchPathWarnings, setLaunchPathWarnings] = useState<LaunchValidationIssue[]>([]);
   const [trainerHashUpdateBusy, setTrainerHashUpdateBusy] = useState(false);
   const activeHelperLogPathRef = useRef<string | null>(null);
+  const observedGameProcessRef = useRef(false);
   const hasLaunchRequest = request !== null;
   const isTwoStepLaunch = method !== 'native';
 
   useEffect(() => {
     activeHelperLogPathRef.current = null;
+    observedGameProcessRef.current = false;
     dispatch({ type: 'reset' });
     setIsGameRunning(false);
     setOfflineReadiness(null);
@@ -194,6 +202,24 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   useEffect(() => {
     activeHelperLogPathRef.current = state.helperLogPath;
   }, [state.helperLogPath]);
+
+  useEffect(() => {
+    if (state.phase === LaunchPhase.Idle) {
+      observedGameProcessRef.current = false;
+      return;
+    }
+
+    if (isGameRunning) {
+      observedGameProcessRef.current = true;
+      return;
+    }
+
+    const sessionCanEnd = state.phase === LaunchPhase.WaitingForTrainer || state.phase === LaunchPhase.SessionActive;
+    if (sessionCanEnd && observedGameProcessRef.current) {
+      observedGameProcessRef.current = false;
+      dispatch({ type: 'game-stopped' });
+    }
+  }, [isGameRunning, state.phase]);
 
   useEffect(() => {
     const gamePath = request?.game_path?.trim() ?? '';
@@ -262,6 +288,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
 
     const launchRequest = buildLaunchRequest(request, LaunchPhase.GameLaunching);
     activeHelperLogPathRef.current = null;
+    observedGameProcessRef.current = false;
     dispatch({ type: 'game-start' });
     setLaunchPathWarnings([]);
 
@@ -414,6 +441,7 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
   function reset() {
     dispatch({ type: 'reset' });
     setIsGameRunning(false);
+    observedGameProcessRef.current = false;
     setOfflineReadiness(null);
     setOfflineReadinessError(null);
     setLaunchPathWarnings([]);
