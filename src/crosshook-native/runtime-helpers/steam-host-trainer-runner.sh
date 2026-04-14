@@ -178,6 +178,7 @@ run_host_in_directory() {
     append_flatpak_spawn_env "SteamAppId" "${SteamAppId:-}"
     append_flatpak_spawn_preserved_crosshook_keys
     if custom_env_file="$(write_preserved_custom_env_file)"; then
+      # shellcheck disable=SC2016 -- $1/$@ expand in the child bash process, not here.
       "${spawn_args[@]}" bash -c 'set -a; source "$1"; rm -f "$1"; set +a; shift; exec "$@"' bash "$custom_env_file" "$@"
       rm -f "$custom_env_file" 2>/dev/null || true
     else
@@ -456,6 +457,8 @@ unset GST_PLUGIN_PATH GST_PLUGIN_SYSTEM_PATH GST_PLUGIN_SYSTEM_PATH_1_0
 unset SteamGameId SteamAppId GAMEID
 unset PROTON_LOG PROTON_DUMP_DEBUG_COMMANDS PROTON_USE_WINED3D
 unset PROTON_NO_ESYNC PROTON_NO_FSYNC PROTON_ENABLE_NVAPI PROTON_VERB
+unset STEAM_COMPAT_LIBRARY_PATHS
+unset PRESSURE_VESSEL_FILESYSTEMS_RW
 unset DXVK_CONFIG_FILE DXVK_STATE_CACHE_PATH DXVK_LOG_PATH
 unset VKD3D_CONFIG VKD3D_DEBUG
 restore_preserved_trainer_env

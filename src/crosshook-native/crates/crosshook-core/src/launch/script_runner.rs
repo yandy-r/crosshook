@@ -12,7 +12,8 @@ use super::{
         apply_working_directory, attach_log_stdio,
         build_direct_proton_command_with_wrappers_in_directory, build_gamescope_args,
         build_proton_command_with_gamescope_in_directory,
-        build_proton_command_with_gamescope_pid_capture_in_directory, host_environment_map,
+        build_proton_command_with_gamescope_pid_capture_in_directory,
+        collect_pressure_vessel_paths, host_environment_map,
         merge_optimization_and_custom_into_map, merge_runtime_proton_into_map,
         resolve_effective_working_directory, resolve_wine_prefix_path,
     },
@@ -416,6 +417,15 @@ pub fn build_proton_game_command(
     merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
     env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
     env.insert("PROTON_VERB".to_string(), "waitforexitandrun".to_string());
+    let pressure_vessel_paths = collect_pressure_vessel_paths(request).join(":");
+    env.insert(
+        "STEAM_COMPAT_LIBRARY_PATHS".to_string(),
+        pressure_vessel_paths.clone(),
+    );
+    env.insert(
+        "PRESSURE_VESSEL_FILESYSTEMS_RW".to_string(),
+        pressure_vessel_paths,
+    );
     merge_mangohud_config_env_into_map(&mut env, request, gamescope_active, wrappers_had_mangohud);
     for key in request.custom_env_vars.keys() {
         env.remove(key);
@@ -523,6 +533,15 @@ pub fn build_proton_trainer_command(
     );
     env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
     env.insert("PROTON_VERB".to_string(), "runinprefix".to_string());
+    let pressure_vessel_paths = collect_pressure_vessel_paths(request).join(":");
+    env.insert(
+        "STEAM_COMPAT_LIBRARY_PATHS".to_string(),
+        pressure_vessel_paths.clone(),
+    );
+    env.insert(
+        "PRESSURE_VESSEL_FILESYSTEMS_RW".to_string(),
+        pressure_vessel_paths,
+    );
     let resolved_proton_path = resolve_launch_proton_path(
         request.runtime.proton_path.trim(),
         request.steam.steam_client_install_path.trim(),
@@ -1151,6 +1170,50 @@ mod tests {
     }
 
     #[test]
+    fn proton_game_command_sets_pressure_vessel_paths_from_request() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let prefix_path = temp_dir.path().join("prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let log_path = temp_dir.path().join("game.log");
+
+        fs::create_dir_all(&prefix_path).expect("prefix dir");
+        write_executable_file(&proton_path);
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: "/opt/games/TheGame/game.exe".to_string(),
+            trainer_path: "/opt/trainers/trainer.exe".to_string(),
+            trainer_host_path: "/opt/trainers/trainer.exe".to_string(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            steam: crate::launch::SteamLaunchConfig::default(),
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: "/srv/crosshook/workspaces/the-game".to_string(),
+                steam_app_id: String::new(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+            launch_trainer_only: false,
+            launch_game_only: true,
+            profile_name: None,
+            ..Default::default()
+        };
+
+        let command = build_proton_game_command(&request, &log_path).expect("game command");
+        let expected =
+            "/opt/games/TheGame:/opt/trainers:/srv/crosshook/workspaces/the-game".to_string();
+
+        assert_eq!(
+            command_env_value(&command, "STEAM_COMPAT_LIBRARY_PATHS"),
+            Some(expected.clone())
+        );
+        assert_eq!(
+            command_env_value(&command, "PRESSURE_VESSEL_FILESYSTEMS_RW"),
+            Some(expected)
+        );
+    }
+
+    #[test]
     fn native_game_command_applies_custom_env_vars() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let game_path = temp_dir.path().join("run.sh");
@@ -1331,6 +1394,53 @@ mod tests {
     }
 
     #[test]
+    fn proton_trainer_command_sets_pressure_vessel_paths_skipping_copy_to_prefix_trainer_dir() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let prefix_path = temp_dir.path().join("prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let trainer_source_dir = temp_dir.path().join("trainer");
+        let trainer_host_path = trainer_source_dir.join("sample.exe");
+        let log_path = temp_dir.path().join("trainer.log");
+
+        fs::create_dir_all(trainer_source_dir).expect("trainer dir");
+        fs::create_dir_all(prefix_path.join("pfx/drive_c")).expect("prefix dir");
+        write_executable_file(&proton_path);
+        fs::write(&trainer_host_path, b"trainer").expect("trainer exe");
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: "/opt/games/TheGame/game.exe".to_string(),
+            trainer_path: trainer_host_path.to_string_lossy().into_owned(),
+            trainer_host_path: trainer_host_path.to_string_lossy().into_owned(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::CopyToPrefix,
+            steam: crate::launch::SteamLaunchConfig::default(),
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: "/srv/crosshook/workspaces/the-game".to_string(),
+                steam_app_id: String::new(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+            launch_trainer_only: true,
+            launch_game_only: false,
+            profile_name: None,
+            ..Default::default()
+        };
+
+        let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+        let expected = "/opt/games/TheGame:/srv/crosshook/workspaces/the-game".to_string();
+
+        assert_eq!(
+            command_env_value(&command, "STEAM_COMPAT_LIBRARY_PATHS"),
+            Some(expected.clone())
+        );
+        assert_eq!(
+            command_env_value(&command, "PRESSURE_VESSEL_FILESYSTEMS_RW"),
+            Some(expected)
+        );
+    }
+
+    #[test]
     fn flatpak_steam_trainer_command_inherits_proton_verb_runinprefix() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let prefix_path = temp_dir.path().join("prefix");
@@ -1375,6 +1485,60 @@ mod tests {
         assert_eq!(
             command_env_value(&command, "PROTON_VERB"),
             Some("runinprefix".to_string())
+        );
+    }
+
+    #[test]
+    fn flatpak_steam_trainer_command_inherits_pressure_vessel_allowlist() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let compatdata_path = temp_dir.path().join("compatdata");
+        let proton_path = temp_dir.path().join("proton");
+        let steam_client_path = temp_dir.path().join("steam-client");
+        let log_path = temp_dir.path().join("trainer.log");
+
+        fs::create_dir_all(compatdata_path.join("pfx/drive_c")).expect("compatdata dir");
+        fs::create_dir_all(steam_client_path.join("steamapps"))
+            .expect("steam client steamapps dir");
+        fs::create_dir_all(steam_client_path.join("config")).expect("steam client config dir");
+        write_executable_file(&proton_path);
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_STEAM_APPLAUNCH.to_string(),
+            game_path: "/opt/games/TheGame/game.exe".to_string(),
+            trainer_path: "/opt/trainers/trainer.exe".to_string(),
+            trainer_host_path: "/opt/trainers/trainer.exe".to_string(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            steam: crate::launch::SteamLaunchConfig {
+                app_id: "12345".to_string(),
+                compatdata_path: compatdata_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                steam_client_install_path: steam_client_path.to_string_lossy().into_owned(),
+            },
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: String::new(),
+                proton_path: String::new(),
+                working_directory: "/srv/crosshook/workspaces/the-game".to_string(),
+                steam_app_id: String::new(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+            launch_trainer_only: true,
+            launch_game_only: false,
+            profile_name: None,
+            ..Default::default()
+        };
+
+        let command = build_flatpak_steam_trainer_command(&request, &log_path)
+            .expect("flatpak trainer command");
+        let expected =
+            "/opt/games/TheGame:/opt/trainers:/srv/crosshook/workspaces/the-game".to_string();
+
+        assert_eq!(
+            command_env_value(&command, "STEAM_COMPAT_LIBRARY_PATHS"),
+            Some(expected.clone())
+        );
+        assert_eq!(
+            command_env_value(&command, "PRESSURE_VESSEL_FILESYSTEMS_RW"),
+            Some(expected)
         );
     }
 

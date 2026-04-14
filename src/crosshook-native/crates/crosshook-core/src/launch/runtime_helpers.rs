@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
@@ -7,11 +7,12 @@ use std::sync::OnceLock;
 
 use tokio::process::Command;
 
+use crate::launch::request::LaunchRequest;
 use crate::platform::{
     self, host_command_with_env_and_directory, host_command_with_env_and_directory_inner,
     normalize_flatpak_host_path,
 };
-use crate::profile::{GamescopeConfig, GamescopeFilter};
+use crate::profile::{GamescopeConfig, GamescopeFilter, TrainerLoadingMode};
 
 /// Default `PATH` used when the host environment does not set `PATH` (matches `apply_host_environment`).
 pub const DEFAULT_HOST_PATH: &str = "/usr/bin:/bin";
@@ -27,6 +28,55 @@ pub struct ResolvedProtonPaths {
 
 fn normalize_host_command_entry(raw_entry: &str) -> String {
     normalize_flatpak_host_path(raw_entry).trim().to_string()
+}
+
+fn push_unique_pressure_vessel_path(
+    collected: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+    candidate: String,
+) {
+    if !candidate.is_empty() && seen.insert(candidate.clone()) {
+        collected.push(candidate);
+    }
+}
+
+fn collect_pressure_vessel_parent(
+    collected: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+    raw_path: &str,
+) {
+    let normalized = normalize_flatpak_host_path(raw_path);
+    let trimmed = normalized.trim();
+    let Some(parent) = Path::new(trimmed).parent() else {
+        return;
+    };
+    if parent.as_os_str().is_empty() {
+        return;
+    }
+
+    push_unique_pressure_vessel_path(collected, seen, parent.to_string_lossy().into_owned());
+}
+
+pub fn collect_pressure_vessel_paths(request: &LaunchRequest) -> Vec<String> {
+    let mut collected = Vec::new();
+    let mut seen = HashSet::new();
+
+    collect_pressure_vessel_parent(&mut collected, &mut seen, &request.game_path);
+
+    if request.trainer_loading_mode == TrainerLoadingMode::SourceDirectory
+        && !request.trainer_host_path.trim().is_empty()
+    {
+        collect_pressure_vessel_parent(&mut collected, &mut seen, &request.trainer_host_path);
+    }
+
+    if !request.runtime.working_directory.trim().is_empty() {
+        let working_directory = normalize_flatpak_host_path(&request.runtime.working_directory)
+            .trim()
+            .to_string();
+        push_unique_pressure_vessel_path(&mut collected, &mut seen, working_directory);
+    }
+
+    collected
 }
 
 /// Builds a direct Proton `run` command with wrappers, threading `env` through
@@ -621,6 +671,7 @@ fn set_env(command: &mut Command, key: &str, value: impl AsRef<str>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::launch::request::RuntimeLaunchConfig;
     use crate::profile::GamescopeFilter;
     use std::fs;
 
@@ -685,6 +736,122 @@ mod tests {
         };
         let args = build_gamescope_args(&config);
         assert_eq!(args, vec!["--expose-wayland", "--rt"]);
+    }
+
+    #[test]
+    fn collect_pressure_vessel_paths_empty_request_returns_empty() {
+        assert!(collect_pressure_vessel_paths(&LaunchRequest::default()).is_empty());
+    }
+
+    #[test]
+    fn collect_pressure_vessel_paths_game_trainer_working_dir_deduped() {
+        let request = LaunchRequest {
+            game_path: "/opt/games/TheGame/game.exe".to_string(),
+            trainer_host_path: "/opt/trainers/trainer.exe".to_string(),
+            trainer_loading_mode: TrainerLoadingMode::SourceDirectory,
+            runtime: RuntimeLaunchConfig {
+                working_directory: "/opt/games/TheGame".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(
+            collect_pressure_vessel_paths(&request),
+            vec![
+                "/opt/games/TheGame".to_string(),
+                "/opt/trainers".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn collect_pressure_vessel_paths_game_equals_working_dir_collapses() {
+        let request = LaunchRequest {
+            game_path: "/opt/games/TheGame/game.exe".to_string(),
+            runtime: RuntimeLaunchConfig {
+                working_directory: "/opt/games/TheGame".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(
+            collect_pressure_vessel_paths(&request),
+            vec!["/opt/games/TheGame".to_string()]
+        );
+    }
+
+    #[test]
+    fn collect_pressure_vessel_paths_copy_to_prefix_omits_trainer_dir() {
+        let request = LaunchRequest {
+            game_path: "/opt/games/TheGame/game.exe".to_string(),
+            trainer_host_path: "/opt/trainers/trainer.exe".to_string(),
+            trainer_loading_mode: TrainerLoadingMode::CopyToPrefix,
+            runtime: RuntimeLaunchConfig {
+                working_directory: "/opt/games/TheGame".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(
+            collect_pressure_vessel_paths(&request),
+            vec!["/opt/games/TheGame".to_string()]
+        );
+    }
+
+    #[test]
+    fn collect_pressure_vessel_paths_empty_trainer_host_path_source_directory_omits_entry() {
+        let request = LaunchRequest {
+            game_path: "/opt/games/TheGame/game.exe".to_string(),
+            trainer_loading_mode: TrainerLoadingMode::SourceDirectory,
+            runtime: RuntimeLaunchConfig {
+                working_directory: "/opt/working".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(
+            collect_pressure_vessel_paths(&request),
+            vec!["/opt/games/TheGame".to_string(), "/opt/working".to_string()]
+        );
+    }
+
+    #[test]
+    fn collect_pressure_vessel_paths_flatpak_host_prefix_normalized() {
+        let request = LaunchRequest {
+            game_path: "/run/host/opt/games/TheGame/game.exe".to_string(),
+            trainer_host_path: "/run/host/opt/trainers/trainer.exe".to_string(),
+            trainer_loading_mode: TrainerLoadingMode::SourceDirectory,
+            runtime: RuntimeLaunchConfig {
+                working_directory: " /run/host/opt/games/TheGame ".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        assert_eq!(
+            collect_pressure_vessel_paths(&request),
+            vec![
+                "/opt/games/TheGame".to_string(),
+                "/opt/trainers".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn collect_pressure_vessel_paths_root_directory_preserved() {
+        let request = LaunchRequest {
+            game_path: "/game.exe".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            collect_pressure_vessel_paths(&request),
+            vec!["/".to_string()]
+        );
     }
 
     #[test]

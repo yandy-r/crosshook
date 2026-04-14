@@ -13,8 +13,8 @@ use super::request::{
     METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use super::runtime_helpers::{
-    build_gamescope_args, env_value, resolve_proton_paths, resolve_steam_client_install_path,
-    resolve_umu_run_path, DEFAULT_HOST_PATH,
+    build_gamescope_args, collect_pressure_vessel_paths, env_value, resolve_proton_paths,
+    resolve_steam_client_install_path, resolve_umu_run_path, DEFAULT_HOST_PATH,
 };
 use crate::profile::TrainerLoadingMode;
 
@@ -475,6 +475,18 @@ fn collect_runtime_proton_environment(request: &LaunchRequest, env: &mut Vec<Pre
     env.push(PreviewEnvVar {
         key: "PROTON_VERB".to_string(),
         value: proton_verb.to_string(),
+        source: EnvVarSource::ProtonRuntime,
+    });
+
+    let pressure_vessel_paths = collect_pressure_vessel_paths(request).join(":");
+    env.push(PreviewEnvVar {
+        key: "STEAM_COMPAT_LIBRARY_PATHS".to_string(),
+        value: pressure_vessel_paths.clone(),
+        source: EnvVarSource::ProtonRuntime,
+    });
+    env.push(PreviewEnvVar {
+        key: "PRESSURE_VESSEL_FILESYSTEMS_RW".to_string(),
+        value: pressure_vessel_paths,
         source: EnvVarSource::ProtonRuntime,
     });
 }
@@ -1481,5 +1493,119 @@ mod tests {
             .expect("PROTON_VERB in trainer preview env");
         assert_eq!(trainer_verb.value, "runinprefix");
         assert_eq!(trainer_verb.source, EnvVarSource::ProtonRuntime);
+    }
+
+    #[test]
+    fn preview_runtime_proton_env_includes_pressure_vessel_paths() {
+        let (_td, mut request) = proton_request();
+        let shared_root = Path::new(&request.game_path)
+            .parent()
+            .expect("game parent")
+            .join("pressure-vessel");
+        let game_dir = shared_root.join("game");
+        let trainer_dir = shared_root.join("trainer");
+        let working_dir = shared_root.join("working");
+
+        fs::create_dir_all(&game_dir).expect("game dir");
+        fs::create_dir_all(&trainer_dir).expect("trainer dir");
+        fs::create_dir_all(&working_dir).expect("working dir");
+
+        request.game_path = game_dir.join("game.exe").to_string_lossy().into_owned();
+        request.trainer_host_path = trainer_dir
+            .join("trainer.exe")
+            .to_string_lossy()
+            .into_owned();
+        request.runtime.working_directory = working_dir.to_string_lossy().into_owned();
+        fs::write(&request.game_path, b"game").expect("game exe");
+        fs::write(&request.trainer_host_path, b"trainer").expect("trainer exe");
+
+        let preview = build_launch_preview(&request).expect("preview");
+        let env = preview.environment.expect("environment");
+        let expected_paths = format!(
+            "{}:{}:{}",
+            game_dir.to_string_lossy(),
+            trainer_dir.to_string_lossy(),
+            working_dir.to_string_lossy()
+        );
+
+        let steam_compat_library_paths = env
+            .iter()
+            .find(|var| var.key == "STEAM_COMPAT_LIBRARY_PATHS")
+            .expect("STEAM_COMPAT_LIBRARY_PATHS in preview env");
+        assert_eq!(steam_compat_library_paths.value, expected_paths);
+        assert_eq!(
+            steam_compat_library_paths.source,
+            EnvVarSource::ProtonRuntime
+        );
+
+        let pressure_vessel_filesystems_rw = env
+            .iter()
+            .find(|var| var.key == "PRESSURE_VESSEL_FILESYSTEMS_RW")
+            .expect("PRESSURE_VESSEL_FILESYSTEMS_RW in preview env");
+        assert_eq!(pressure_vessel_filesystems_rw.value, expected_paths);
+        assert_eq!(
+            pressure_vessel_filesystems_rw.source,
+            EnvVarSource::ProtonRuntime
+        );
+    }
+
+    #[test]
+    fn preview_runtime_proton_env_pressure_vessel_omits_trainer_under_copy_to_prefix() {
+        let (_td, mut request) = proton_request();
+        let shared_root = Path::new(&request.game_path)
+            .parent()
+            .expect("game parent")
+            .join("pressure-vessel-copy");
+        let game_dir = shared_root.join("game");
+        let trainer_dir = shared_root.join("trainer");
+        let working_dir = shared_root.join("working");
+
+        fs::create_dir_all(&game_dir).expect("game dir");
+        fs::create_dir_all(&trainer_dir).expect("trainer dir");
+        fs::create_dir_all(&working_dir).expect("working dir");
+
+        request.trainer_loading_mode = TrainerLoadingMode::CopyToPrefix;
+        request.game_path = game_dir.join("game.exe").to_string_lossy().into_owned();
+        request.trainer_host_path = trainer_dir
+            .join("trainer.exe")
+            .to_string_lossy()
+            .into_owned();
+        request.runtime.working_directory = working_dir.to_string_lossy().into_owned();
+        fs::write(&request.game_path, b"game").expect("game exe");
+        fs::write(&request.trainer_host_path, b"trainer").expect("trainer exe");
+
+        let preview = build_launch_preview(&request).expect("preview");
+        let env = preview.environment.expect("environment");
+        let expected_paths = format!(
+            "{}:{}",
+            game_dir.to_string_lossy(),
+            working_dir.to_string_lossy()
+        );
+
+        let steam_compat_library_paths = env
+            .iter()
+            .find(|var| var.key == "STEAM_COMPAT_LIBRARY_PATHS")
+            .expect("STEAM_COMPAT_LIBRARY_PATHS in preview env");
+        assert_eq!(steam_compat_library_paths.value, expected_paths);
+        assert!(
+            !steam_compat_library_paths
+                .value
+                .contains(trainer_dir.to_string_lossy().as_ref()),
+            "copy_to_prefix should omit trainer dir: {}",
+            steam_compat_library_paths.value
+        );
+
+        let pressure_vessel_filesystems_rw = env
+            .iter()
+            .find(|var| var.key == "PRESSURE_VESSEL_FILESYSTEMS_RW")
+            .expect("PRESSURE_VESSEL_FILESYSTEMS_RW in preview env");
+        assert_eq!(pressure_vessel_filesystems_rw.value, expected_paths);
+        assert!(
+            !pressure_vessel_filesystems_rw
+                .value
+                .contains(trainer_dir.to_string_lossy().as_ref()),
+            "copy_to_prefix should omit trainer dir: {}",
+            pressure_vessel_filesystems_rw.value
+        );
     }
 }
