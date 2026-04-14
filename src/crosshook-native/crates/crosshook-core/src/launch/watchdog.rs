@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -16,7 +16,188 @@ const GAMESCOPE_POLL_INTERVAL: Duration = Duration::from_secs(2);
 const GAMESCOPE_NATURAL_EXIT_GRACE: Duration = Duration::from_secs(5);
 const GAMESCOPE_SIGTERM_WAIT: Duration = Duration::from_secs(3);
 const GAMESCOPE_DESCENDANT_CLEANUP_DELAY: Duration = Duration::from_millis(500);
+const GAMESCOPE_HOST_PID_CAPTURE_WAIT_ITERATIONS: u32 = 20;
+const GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL: Duration = Duration::from_millis(200);
 const TASK_COMM_LEN: usize = 15;
+
+#[derive(Debug, Default)]
+struct HostProcessProbe {
+    visible_count: usize,
+    exact_matches: Vec<String>,
+    truncated_matches: Vec<String>,
+}
+
+impl HostProcessProbe {
+    fn has_match(&self) -> bool {
+        !self.exact_matches.is_empty() || !self.truncated_matches.is_empty()
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ShutdownTarget {
+    pid: u32,
+    host_namespace: bool,
+}
+
+fn read_pid_capture_file(path: &Path) -> Option<u32> {
+    let content = fs::read_to_string(path).ok().or_else(|| {
+        if crate::platform::is_flatpak() {
+            read_host_text_file(path)
+        } else {
+            None
+        }
+    })?;
+    content.trim().parse::<u32>().ok().filter(|pid| *pid > 0)
+}
+
+fn read_host_text_file(path: &Path) -> Option<String> {
+    let output = host_std_command("cat").arg(path).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn is_host_pid_alive(pid: u32) -> bool {
+    host_std_command("test")
+        .arg("-d")
+        .arg(format!("/proc/{pid}"))
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+fn is_target_pid_alive(target: ShutdownTarget) -> bool {
+    if target.host_namespace {
+        is_host_pid_alive(target.pid)
+    } else {
+        is_pid_alive(target.pid)
+    }
+}
+
+fn parse_host_pid_and_ppid(line: &str) -> Option<(u32, u32)> {
+    let mut fields = line.split('\t');
+    let pid = fields.next()?.trim().parse().ok()?;
+    let ppid = fields.next()?.trim().parse().ok()?;
+    Some((pid, ppid))
+}
+
+fn collect_host_descendant_pids(root_pid: u32) -> Vec<u32> {
+    let output = match host_std_command("ps")
+        .args(["-eo", "pid=", "-o", "ppid=", "--delimiter", "\t"])
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => return Vec::new(),
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut children_map: HashMap<u32, Vec<u32>> = HashMap::new();
+    for line in stdout
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
+        if let Some((pid, ppid)) = parse_host_pid_and_ppid(line) {
+            children_map.entry(ppid).or_default().push(pid);
+        }
+    }
+    collect_descendant_pids_from_children_map(root_pid, &children_map)
+}
+
+async fn resolve_watchdog_target(
+    observed_gamescope_pid: u32,
+    host_pid_capture_path: Option<&Path>,
+) -> Option<ShutdownTarget> {
+    let Some(path) = host_pid_capture_path else {
+        return Some(ShutdownTarget {
+            pid: observed_gamescope_pid,
+            host_namespace: false,
+        });
+    };
+
+    for _ in 0..GAMESCOPE_HOST_PID_CAPTURE_WAIT_ITERATIONS {
+        if let Some(pid) = read_pid_capture_file(path) {
+            return Some(ShutdownTarget {
+                pid,
+                host_namespace: true,
+            });
+        }
+        tokio::time::sleep(GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL).await;
+    }
+
+    tracing::warn!(
+        observed_gamescope_pid,
+        capture_path = %path.display(),
+        "gamescope watchdog: host pid capture file was never resolved; standing down"
+    );
+    None
+}
+
+fn host_process_line_parts(line: &str) -> Option<(u32, &str)> {
+    let (pid, comm) = line.split_once('\t')?;
+    let pid = pid.trim().parse().ok()?;
+    let comm = comm.trim();
+    if comm.is_empty() {
+        return None;
+    }
+    Some((pid, comm))
+}
+
+fn read_host_process_cmdline(pid: u32) -> Option<String> {
+    let output = host_std_command("cat")
+        .arg(format!("/proc/{pid}/cmdline"))
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn probe_host_processes(candidates: &[String]) -> HostProcessProbe {
+    let output = match host_std_command("ps")
+        .args(["-ww", "-eo", "pid=", "-o", "comm=", "--delimiter", "\t"])
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return HostProcessProbe::default(),
+    };
+    if !output.status.success() {
+        return HostProcessProbe::default();
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut probe = HostProcessProbe::default();
+    for line in stdout
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+    {
+        probe.visible_count += 1;
+        let Some((pid, comm)) = host_process_line_parts(line) else {
+            continue;
+        };
+
+        if probe.exact_matches.len() < 3 && candidates.iter().any(|candidate| candidate == comm) {
+            probe.exact_matches.push(comm.to_string());
+            continue;
+        }
+
+        if probe.truncated_matches.len() < 3 && comm.len() == TASK_COMM_LEN {
+            let cmdline = read_host_process_cmdline(pid);
+            if !comm_matches_candidates(comm, cmdline.as_deref(), candidates) {
+                continue;
+            }
+            let argv0 = cmdline
+                .as_deref()
+                .and_then(|cmdline| cmdline.split('\0').next())
+                .unwrap_or("");
+            let basename = argv0.rsplit('/').next().unwrap_or(argv0);
+            let basename = basename.rsplit('\\').next().unwrap_or(basename);
+            probe.truncated_matches.push(basename.to_string());
+        }
+    }
+    probe
+}
 
 /// Checks whether a process whose name matches `exe_name` is currently running.
 ///
@@ -24,30 +205,40 @@ const TASK_COMM_LEN: usize = 15;
 /// (e.g. `game.exe`) and the name without the `.exe` suffix (`game`).
 /// When `comm` is exactly 15 characters (the Linux `TASK_COMM_LEN` truncation
 /// boundary), falls back to `/proc/<pid>/cmdline` for the full argv\[0\] basename.
+/// Under Flatpak, prefers the host `ps` view when available because the sandbox
+/// PID namespace may hide the real game process.
 pub fn is_process_running(exe_name: &str) -> bool {
     let candidates = process_name_candidates(exe_name);
     if candidates.is_empty() {
         return false;
     }
 
-    let Ok(proc_dir) = fs::read_dir("/proc") else {
-        return false;
-    };
+    let is_flatpak = crate::platform::is_flatpak();
+    let mut sandbox_match = false;
+    if let Ok(proc_dir) = fs::read_dir("/proc") {
+        for entry in proc_dir.flatten() {
+            let dir_name = entry.file_name();
+            let dir_name_str = dir_name.to_string_lossy();
 
-    for entry in proc_dir.flatten() {
-        let dir_name = entry.file_name();
-        let dir_name_str = dir_name.to_string_lossy();
+            if dir_name_str.is_empty() || !dir_name_str.chars().all(|c| c.is_ascii_digit()) {
+                continue;
+            }
 
-        if dir_name_str.is_empty() || !dir_name_str.chars().all(|c| c.is_ascii_digit()) {
-            continue;
-        }
-
-        if process_path_matches_candidates(&entry.path(), &candidates) {
-            return true;
+            if process_path_matches_candidates(&entry.path(), &candidates) {
+                sandbox_match = true;
+                break;
+            }
         }
     }
 
-    false
+    let host_probe = if is_flatpak {
+        Some(probe_host_processes(&candidates))
+    } else {
+        None
+    };
+    let running = sandbox_match || host_probe.as_ref().is_some_and(HostProcessProbe::has_match);
+
+    running
 }
 
 /// When gamescope wraps a Proton launch it becomes the direct child of
@@ -56,13 +247,23 @@ pub fn is_process_running(exe_name: &str) -> bool {
 /// compositor alive indefinitely. This watchdog polls for the game executable
 /// and, once it disappears, terminates gamescope so the normal
 /// stream-log / finalize cleanup path can proceed.
-pub async fn gamescope_watchdog(gamescope_pid: u32, exe_name: &str, killed_flag: Arc<AtomicBool>) {
+pub async fn gamescope_watchdog(
+    gamescope_pid: u32,
+    exe_name: &str,
+    killed_flag: Arc<AtomicBool>,
+    host_pid_capture_path: Option<PathBuf>,
+) {
+    let Some(observation_target) =
+        resolve_watchdog_target(gamescope_pid, host_pid_capture_path.as_deref()).await
+    else {
+        return;
+    };
     let mut game_seen = false;
     for _ in 0..GAMESCOPE_STARTUP_POLL_ITERATIONS {
-        if !is_pid_alive(gamescope_pid) {
+        if !is_target_pid_alive(observation_target) {
             return;
         }
-        if descendant_process_running(gamescope_pid, exe_name.to_string()).await {
+        if descendant_process_running_for_target(observation_target, exe_name.to_string()).await {
             game_seen = true;
             break;
         }
@@ -77,10 +278,10 @@ pub async fn gamescope_watchdog(gamescope_pid: u32, exe_name: &str, killed_flag:
     }
 
     loop {
-        if !is_pid_alive(gamescope_pid) {
+        if !is_target_pid_alive(observation_target) {
             return;
         }
-        if !descendant_process_running(gamescope_pid, exe_name.to_string()).await {
+        if !descendant_process_running_for_target(observation_target, exe_name.to_string()).await {
             break;
         }
         tokio::time::sleep(GAMESCOPE_POLL_INTERVAL).await;
@@ -88,69 +289,91 @@ pub async fn gamescope_watchdog(gamescope_pid: u32, exe_name: &str, killed_flag:
 
     tracing::info!(
         exe = %exe_name,
-        gamescope_pid,
+        gamescope_pid = observation_target.pid,
         "gamescope watchdog: game exited, waiting for natural compositor shutdown"
     );
 
     tokio::time::sleep(GAMESCOPE_NATURAL_EXIT_GRACE).await;
-    if !is_pid_alive(gamescope_pid) {
+    if !is_target_pid_alive(observation_target) {
         return;
     }
 
-    let descendants = collect_descendant_pids_task(gamescope_pid).await;
+    let shutdown_target = observation_target;
+    let descendants = collect_descendant_pids_task(shutdown_target).await;
 
     killed_flag.store(true, Ordering::Release);
-    tracing::info!(gamescope_pid, "gamescope watchdog: sending SIGTERM");
-    signal_pid_task(gamescope_pid, None).await;
+    tracing::info!(
+        gamescope_pid = shutdown_target.pid,
+        "gamescope watchdog: sending SIGTERM"
+    );
+    signal_pid_task(shutdown_target.pid, None).await;
 
     tokio::time::sleep(GAMESCOPE_SIGTERM_WAIT).await;
-    if !is_pid_alive(gamescope_pid) {
-        kill_remaining_descendants_task(descendants).await;
+    if !is_target_pid_alive(shutdown_target) {
+        kill_remaining_descendants_task(descendants, shutdown_target.host_namespace).await;
         return;
     }
 
-    tracing::warn!(gamescope_pid, "gamescope watchdog: sending SIGKILL");
-    signal_pid_task(gamescope_pid, Some("-KILL")).await;
+    tracing::warn!(
+        gamescope_pid = shutdown_target.pid,
+        "gamescope watchdog: sending SIGKILL"
+    );
+    signal_pid_task(shutdown_target.pid, Some("-KILL")).await;
 
     tokio::time::sleep(GAMESCOPE_DESCENDANT_CLEANUP_DELAY).await;
-    kill_remaining_descendants_task(descendants).await;
+    kill_remaining_descendants_task(descendants, shutdown_target.host_namespace).await;
 }
 
-async fn descendant_process_running(gamescope_pid: u32, exe_name: String) -> bool {
+async fn descendant_process_running_for_target(target: ShutdownTarget, exe_name: String) -> bool {
     let exe_for_log = exe_name.clone();
-    task::spawn_blocking(move || is_descendant_process_running(gamescope_pid, &exe_name))
-        .await
-        .unwrap_or_else(|error| {
-            tracing::warn!(
-                %error,
-                gamescope_pid,
-                exe = %exe_for_log,
-                "gamescope watchdog: descendant scan task failed"
-            );
-            false
-        })
+    task::spawn_blocking(move || {
+        if target.host_namespace {
+            is_host_descendant_process_running(target.pid, &exe_name)
+        } else {
+            is_descendant_process_running(target.pid, &exe_name)
+        }
+    })
+    .await
+    .unwrap_or_else(|error| {
+        tracing::warn!(
+            %error,
+            gamescope_pid = target.pid,
+            exe = %exe_for_log,
+            host_namespace = target.host_namespace,
+            "gamescope watchdog: descendant scan task failed"
+        );
+        false
+    })
 }
 
-async fn collect_descendant_pids_task(gamescope_pid: u32) -> Vec<u32> {
-    task::spawn_blocking(move || collect_descendant_pids(gamescope_pid))
-        .await
-        .unwrap_or_else(|error| {
-            tracing::warn!(
-                %error,
-                gamescope_pid,
-                "gamescope watchdog: descendant collection task failed"
-            );
-            Vec::new()
-        })
+async fn collect_descendant_pids_task(target: ShutdownTarget) -> Vec<u32> {
+    task::spawn_blocking(move || {
+        if target.host_namespace {
+            collect_host_descendant_pids(target.pid)
+        } else {
+            collect_descendant_pids(target.pid)
+        }
+    })
+    .await
+    .unwrap_or_else(|error| {
+        tracing::warn!(
+            %error,
+            gamescope_pid = target.pid,
+            "gamescope watchdog: descendant collection task failed"
+        );
+        Vec::new()
+    })
 }
 
-async fn kill_remaining_descendants_task(pids: Vec<u32>) {
+async fn kill_remaining_descendants_task(pids: Vec<u32>, host_namespace: bool) {
     if pids.is_empty() {
         return;
     }
 
     let descendant_count = pids.len();
-    if let Err(error) = task::spawn_blocking(move || kill_remaining_descendants(&pids)).await {
+    if let Err(error) =
+        task::spawn_blocking(move || kill_remaining_descendants(&pids, host_namespace)).await
+    {
         tracing::warn!(
             %error,
             descendant_count,
@@ -170,7 +393,7 @@ async fn signal_pid_task(pid: u32, signal: Option<&'static str>) {
     .await;
 
     match result {
-        Ok(Ok(_)) => {}
+        Ok(Ok(_status)) => {}
         Ok(Err(error)) => {
             tracing::warn!(%error, pid, ?signal, "gamescope watchdog: failed to signal process");
         }
@@ -194,6 +417,45 @@ fn is_descendant_process_running(root_pid: u32, exe_name: &str) -> bool {
     collect_descendant_pids(root_pid)
         .into_iter()
         .any(|pid| process_matches_candidates(pid, &candidates))
+}
+
+fn read_host_process_text(pid: u32, suffix: &str) -> Option<String> {
+    let output = host_std_command("cat")
+        .arg(format!("/proc/{pid}/{suffix}"))
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+fn host_process_matches_candidates(pid: u32, candidates: &[String]) -> bool {
+    let Some(comm) = read_host_process_text(pid, "comm") else {
+        return false;
+    };
+    let comm = comm.trim_end_matches('\n');
+    if candidates.iter().any(|candidate| candidate == comm) {
+        return true;
+    }
+
+    if comm.len() != TASK_COMM_LEN {
+        return false;
+    }
+
+    let cmdline = read_host_process_text(pid, "cmdline");
+    comm_matches_candidates(comm, cmdline.as_deref(), candidates)
+}
+
+fn is_host_descendant_process_running(root_pid: u32, exe_name: &str) -> bool {
+    let candidates = process_name_candidates(exe_name);
+    if candidates.is_empty() {
+        return false;
+    }
+
+    collect_host_descendant_pids(root_pid)
+        .into_iter()
+        .any(|pid| host_process_matches_candidates(pid, &candidates))
 }
 
 fn process_name_candidates(exe_name: &str) -> Vec<String> {
@@ -309,9 +571,14 @@ fn collect_descendant_pids_from_children_map(
     descendants
 }
 
-fn kill_remaining_descendants(pids: &[u32]) {
+fn kill_remaining_descendants(pids: &[u32], host_namespace: bool) {
     for &pid in pids {
-        if is_pid_alive(pid) {
+        let alive = if host_namespace {
+            is_host_pid_alive(pid)
+        } else {
+            is_pid_alive(pid)
+        };
+        if alive {
             tracing::info!(pid, "gamescope watchdog: killing orphaned descendant");
             // Accepted low-risk TOCTOU window: the pid could exit and be reused
             // between the liveness check and the signal delivery, but this cleanup
@@ -330,8 +597,8 @@ mod tests {
     use std::collections::HashMap;
 
     use super::{
-        collect_descendant_pids_from_children_map, comm_matches_candidates, parse_status_ppid,
-        process_name_candidates,
+        collect_descendant_pids_from_children_map, comm_matches_candidates,
+        host_process_line_parts, parse_status_ppid, process_name_candidates,
     };
 
     #[test]
@@ -365,5 +632,21 @@ mod tests {
             Some("/games/1234567890123456.exe\0--fullscreen"),
             &candidates
         ));
+    }
+
+    #[test]
+    fn host_process_line_parses_pid_and_comm_name() {
+        assert_eq!(
+            host_process_line_parts("4242\twitcher3.exe"),
+            Some((4242, "witcher3.exe"))
+        );
+    }
+
+    #[test]
+    fn host_process_line_preserves_names_with_spaces() {
+        assert_eq!(
+            host_process_line_parts("4242\tWitcher 3.exe"),
+            Some((4242, "Witcher 3.exe"))
+        );
     }
 }

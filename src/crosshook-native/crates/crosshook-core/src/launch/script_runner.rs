@@ -11,7 +11,8 @@ use super::{
     runtime_helpers::{
         apply_working_directory, attach_log_stdio,
         build_direct_proton_command_with_wrappers_in_directory, build_gamescope_args,
-        build_proton_command_with_gamescope_in_directory, host_environment_map,
+        build_proton_command_with_gamescope_in_directory,
+        build_proton_command_with_gamescope_pid_capture_in_directory, host_environment_map,
         merge_optimization_and_custom_into_map, merge_runtime_proton_into_map,
         resolve_effective_working_directory, resolve_wine_prefix_path,
     },
@@ -78,6 +79,10 @@ fn prepare_gamescope_launch(
         wrappers.to_vec()
     };
     (gamescope_args, filtered_wrappers)
+}
+
+pub fn gamescope_pid_capture_path(log_path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.gamescope.pid", log_path.to_string_lossy()))
 }
 
 fn should_skip_gamescope(config: &GamescopeConfig) -> bool {
@@ -420,7 +425,7 @@ pub fn build_flatpak_steam_trainer_command(
 
 pub fn build_proton_game_command(
     request: &LaunchRequest,
-    _log_path: &Path,
+    log_path: &Path,
 ) -> std::io::Result<Command> {
     let directives = resolve_launch_directives(request).map_err(validation_error_to_io_error)?;
     let gamescope_active = request.gamescope.enabled && !should_skip_gamescope(&request.gamescope);
@@ -469,14 +474,27 @@ pub fn build_proton_game_command(
     let mut command = if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
             prepare_gamescope_launch(&request.gamescope, &directives.wrappers);
-        build_proton_command_with_gamescope_in_directory(
-            resolved_proton_path.as_str(),
-            &filtered_wrappers,
-            &gamescope_args,
-            &env,
-            effective_working_directory.as_deref(),
-            &request.custom_env_vars,
-        )
+        if platform::is_flatpak() {
+            let pid_capture_path = gamescope_pid_capture_path(log_path);
+            build_proton_command_with_gamescope_pid_capture_in_directory(
+                resolved_proton_path.as_str(),
+                &filtered_wrappers,
+                &gamescope_args,
+                &env,
+                effective_working_directory.as_deref(),
+                &request.custom_env_vars,
+                Some(&pid_capture_path),
+            )
+        } else {
+            build_proton_command_with_gamescope_in_directory(
+                resolved_proton_path.as_str(),
+                &filtered_wrappers,
+                &gamescope_args,
+                &env,
+                effective_working_directory.as_deref(),
+                &request.custom_env_vars,
+            )
+        }
     } else {
         build_direct_proton_command_with_wrappers_in_directory(
             resolved_proton_path.as_str(),

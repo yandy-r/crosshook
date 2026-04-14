@@ -14,6 +14,7 @@ use crosshook_core::launch::{
     script_runner::{
         build_flatpak_steam_trainer_command, build_helper_command, build_native_game_command,
         build_proton_game_command, build_proton_trainer_command, build_trainer_command,
+        gamescope_pid_capture_path,
     },
     should_surface_report, validate, DiagnosticReport, LaunchPreview, LaunchRequest,
     LaunchValidationIssue, ValidationError, ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN,
@@ -299,6 +300,16 @@ pub async fn launch_game(
     };
 
     let log_path = create_log_path("game", &request.log_target_slug())?;
+    let flatpak_gamescope_pid_capture = if request.resolved_method() == METHOD_PROTON_RUN
+        && crosshook_core::platform::is_flatpak()
+        && request.gamescope.enabled
+        && (request.gamescope.allow_nested
+            || !crosshook_core::launch::is_inside_gamescope_session())
+    {
+        Some(gamescope_pid_capture_path(&log_path))
+    } else {
+        None
+    };
     let mut command = match method {
         METHOD_STEAM_APPLAUNCH => {
             let script_path = resolve_script_path(&app, "steam-launch-helper.sh")?;
@@ -316,6 +327,7 @@ pub async fn launch_game(
             .map_err(|error| format!("failed to build native game launch: {error}"))?,
         other => return Err(format!("unsupported launch method: {other}")),
     };
+
     let child = command
         .spawn()
         .map_err(|error| format!("failed to launch helper: {error}"))?;
@@ -373,7 +385,12 @@ pub async fn launch_game(
 
     if gamescope_active {
         if let Some(pid) = child_pid {
-            spawn_gamescope_watchdog(pid, game_exe_name, watchdog_killed);
+            spawn_gamescope_watchdog(
+                pid,
+                game_exe_name,
+                watchdog_killed,
+                flatpak_gamescope_pid_capture,
+            );
         }
     }
 
@@ -1047,7 +1064,12 @@ fn diagnostic_method_for_log(method: &'static str, log_tail: &str) -> &'static s
 /// compositor alive indefinitely. This watchdog polls for the game executable
 /// and, once it disappears, terminates gamescope so the normal
 /// stream-log / finalize cleanup path can proceed.
-fn spawn_gamescope_watchdog(gamescope_pid: u32, exe_name: String, killed_flag: Arc<AtomicBool>) {
+fn spawn_gamescope_watchdog(
+    gamescope_pid: u32,
+    exe_name: String,
+    killed_flag: Arc<AtomicBool>,
+    host_pid_capture_path: Option<PathBuf>,
+) {
     if exe_name.is_empty() {
         tracing::warn!(
             gamescope_pid,
@@ -1056,7 +1078,7 @@ fn spawn_gamescope_watchdog(gamescope_pid: u32, exe_name: String, killed_flag: A
         return;
     }
     tauri::async_runtime::spawn(async move {
-        gamescope_watchdog_core(gamescope_pid, &exe_name, killed_flag).await;
+        gamescope_watchdog_core(gamescope_pid, &exe_name, killed_flag, host_pid_capture_path).await;
     });
 }
 

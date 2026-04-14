@@ -239,7 +239,7 @@ fn host_command_with_env_inner(
     host_command_with_env_and_directory_inner(program, envs, None, flatpak, custom_env_vars)
 }
 
-fn host_command_with_env_and_directory_inner(
+pub(crate) fn host_command_with_env_and_directory_inner(
     program: &str,
     envs: &BTreeMap<String, String>,
     directory: Option<&str>,

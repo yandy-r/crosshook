@@ -7,12 +7,17 @@ use std::sync::OnceLock;
 
 use tokio::process::Command;
 
-use crate::platform::{self, host_command_with_env_and_directory, normalize_flatpak_host_path};
+use crate::platform::{
+    self, host_command_with_env_and_directory, host_command_with_env_and_directory_inner,
+    normalize_flatpak_host_path,
+};
 use crate::profile::{GamescopeConfig, GamescopeFilter};
 
 /// Default `PATH` used when the host environment does not set `PATH` (matches `apply_host_environment`).
 pub const DEFAULT_HOST_PATH: &str = "/usr/bin:/bin";
 const DEFAULT_SHELL: &str = "/bin/bash";
+const FLATPAK_GAMESCOPE_PID_CAPTURE_SCRIPT: &str =
+    "capture_dir=$(dirname -- \"$1\"); mkdir -p -- \"$capture_dir\"; printf '%s' \"$$\" > \"$1\"; shift; exec \"$@\"";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedProtonPaths {
@@ -170,18 +175,97 @@ pub fn build_proton_command_with_gamescope_in_directory(
     working_directory: Option<&str>,
     custom_env_vars: &BTreeMap<String, String>,
 ) -> Command {
+    build_proton_command_with_gamescope_pid_capture_in_directory(
+        proton_path,
+        wrappers,
+        gamescope_args,
+        env,
+        working_directory,
+        custom_env_vars,
+        None,
+    )
+}
+
+pub fn build_proton_command_with_gamescope_pid_capture_in_directory(
+    proton_path: &str,
+    wrappers: &[String],
+    gamescope_args: &[String],
+    env: &BTreeMap<String, String>,
+    working_directory: Option<&str>,
+    custom_env_vars: &BTreeMap<String, String>,
+    pid_capture_path: Option<&Path>,
+) -> Command {
+    build_proton_command_with_gamescope_pid_capture_in_directory_inner(
+        proton_path,
+        wrappers,
+        gamescope_args,
+        env,
+        working_directory,
+        custom_env_vars,
+        pid_capture_path,
+        platform::is_flatpak(),
+    )
+}
+
+fn build_proton_command_with_gamescope_pid_capture_in_directory_inner(
+    proton_path: &str,
+    wrappers: &[String],
+    gamescope_args: &[String],
+    env: &BTreeMap<String, String>,
+    working_directory: Option<&str>,
+    custom_env_vars: &BTreeMap<String, String>,
+    pid_capture_path: Option<&Path>,
+    flatpak: bool,
+) -> Command {
     let normalized_proton = normalize_host_command_entry(proton_path);
-    let mut command =
-        host_command_with_env_and_directory("gamescope", env, working_directory, custom_env_vars);
+    let normalized_wrappers: Vec<_> = wrappers
+        .iter()
+        .map(|wrapper| normalize_host_command_entry(wrapper))
+        .filter(|entry| !entry.is_empty())
+        .collect();
+
+    if flatpak {
+        if let Some(pid_capture_path) = pid_capture_path {
+            let mut command = host_command_with_env_and_directory_inner(
+                "bash",
+                env,
+                working_directory,
+                flatpak,
+                custom_env_vars,
+            );
+            command.arg("-c");
+            // The shell writes its PID, then `exec`s gamescope so the recorded host PID
+            // becomes the real compositor PID that the watchdog must later signal.
+            command.arg(FLATPAK_GAMESCOPE_PID_CAPTURE_SCRIPT);
+            command.arg("bash");
+            command.arg(pid_capture_path);
+            command.arg("gamescope");
+            for arg in gamescope_args {
+                command.arg(arg.trim());
+            }
+            command.arg("--");
+            for wrapper in &normalized_wrappers {
+                command.arg(wrapper);
+            }
+            command.arg(normalized_proton);
+            command.arg("run");
+            return command;
+        }
+    }
+
+    let mut command = host_command_with_env_and_directory_inner(
+        "gamescope",
+        env,
+        working_directory,
+        flatpak,
+        custom_env_vars,
+    );
     for arg in gamescope_args {
         command.arg(arg.trim());
     }
     command.arg("--");
-    for wrapper in wrappers {
-        let entry = normalize_host_command_entry(wrapper);
-        if !entry.is_empty() {
-            command.arg(entry);
-        }
+    for wrapper in normalized_wrappers {
+        command.arg(wrapper);
     }
     command.arg(normalized_proton);
     command.arg("run");
@@ -703,6 +787,45 @@ mod tests {
         assert_eq!(
             args,
             vec![
+                "-f".to_string(),
+                "--".to_string(),
+                "/usr/bin/mangohud".to_string(),
+                "/usr/share/steam/compatibilitytools.d/proton/proton".to_string(),
+                "run".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn flatpak_gamescope_pid_capture_command_creates_parent_directory_on_host() {
+        let command = build_proton_command_with_gamescope_pid_capture_in_directory_inner(
+            "/run/host/usr/share/steam/compatibilitytools.d/proton/proton",
+            &[" /run/host/usr/bin/mangohud ".to_string()],
+            &["-f".to_string()],
+            &BTreeMap::new(),
+            None,
+            &BTreeMap::new(),
+            Some(Path::new("/tmp/crosshook-logs/game.gamescope.pid")),
+            true,
+        );
+
+        assert_eq!(command.as_std().get_program(), "flatpak-spawn");
+        let args = command
+            .as_std()
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            args,
+            vec![
+                "--host".to_string(),
+                "--clear-env".to_string(),
+                "bash".to_string(),
+                "-c".to_string(),
+                FLATPAK_GAMESCOPE_PID_CAPTURE_SCRIPT.to_string(),
+                "bash".to_string(),
+                "/tmp/crosshook-logs/game.gamescope.pid".to_string(),
+                "gamescope".to_string(),
                 "-f".to_string(),
                 "--".to_string(),
                 "/usr/bin/mangohud".to_string(),
