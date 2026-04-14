@@ -11,3 +11,19 @@
   white-space: nowrap;
   border: 0;
 }
+
+.crosshook-fieldset-reset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.crosshook-fieldset-reset--mb-12 {
+  margin: 0 0 12px;
+}
+
+.crosshook-list-reset {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}

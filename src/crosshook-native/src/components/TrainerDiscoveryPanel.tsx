@@ -305,9 +305,9 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
           </div>
 
           {!loading && !error && results.length > 0 && (
-            <div className="crosshook-discovery-results" role="list">
+            <ul className="crosshook-discovery-results crosshook-list-reset">
               {results.map((result) => (
-                <div key={result.id} role="listitem">
+                <li key={result.id}>
                   <TrainerResultCard
                     result={result}
                     onImport={(r) => {
@@ -315,9 +315,9 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
                     }}
                     importing={importingId === result.id}
                   />
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
 
           <ExternalResultsSection

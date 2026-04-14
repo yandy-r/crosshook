@@ -91,8 +91,8 @@ export function ReadinessChecklist({ checks, isLoading }: ReadinessChecklistProp
   return (
     <section className="crosshook-readiness-checklist" aria-label="System readiness checks">
       <ul className="crosshook-readiness-checklist__list">
-        {checks.map((check, index) => (
-          <li key={`${check.field}-${index}`}>
+        {checks.map((check) => (
+          <li key={`${check.field}-${check.path}-${check.message}-${check.severity}`}>
             <CheckCard check={check} />
           </li>
         ))}

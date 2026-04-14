@@ -195,8 +195,11 @@ export function TrainerSection({
 
           {trainerVersion ? (
             <div className="crosshook-field">
-              <label className="crosshook-label">Trainer Version</label>
+              <label className="crosshook-label" htmlFor={`${sectionId}-trainer-version-display`}>
+                Trainer Version
+              </label>
               <input
+                id={`${sectionId}-trainer-version-display`}
                 className="crosshook-input"
                 value={trainerVersion}
                 readOnly

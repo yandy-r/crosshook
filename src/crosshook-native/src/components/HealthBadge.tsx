@@ -59,41 +59,11 @@ export function HealthBadge({
 
   const isInteractive = typeof onClick === 'function';
 
-  return (
-    <span
-      style={{
-        position: 'relative',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '4px',
-        cursor: isInteractive ? 'pointer' : undefined,
-      }}
-      title={tooltip ?? undefined}
-      onClick={
-        isInteractive
-          ? (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onClick?.();
-            }
-          : undefined
-      }
-      role={isInteractive ? 'button' : undefined}
-      tabIndex={isInteractive ? 0 : undefined}
-      onKeyDown={
-        isInteractive
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                onClick?.();
-              }
-            }
-          : undefined
-      }
-    >
+  const innerContent = (
+    <>
       <span
         className={`crosshook-status-chip crosshook-compatibility-badge crosshook-compatibility-badge--${rating}`}
+        role="img"
         aria-label={ariaLabel}
       >
         <span aria-hidden="true">{STATUS_ICON[resolvedStatus]}</span>
@@ -144,6 +114,37 @@ export function HealthBadge({
           {'\u26a0'}
         </span>
       )}
+    </>
+  );
+
+  const wrapperStyle = {
+    position: 'relative' as const,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    cursor: isInteractive ? 'pointer' : undefined,
+  };
+
+  if (isInteractive) {
+    return (
+      <button
+        type="button"
+        style={{ ...wrapperStyle, background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+        title={tooltip ?? undefined}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick?.();
+        }}
+      >
+        {innerContent}
+      </button>
+    );
+  }
+
+  return (
+    <span style={wrapperStyle} title={tooltip ?? undefined}>
+      {innerContent}
     </span>
   );
 }

@@ -221,7 +221,8 @@ export function CollectionAssignMenu({
       {collections.length === 0 ? (
         <p className="crosshook-collection-assign-menu__empty">No collections yet.</p>
       ) : (
-        <div className="crosshook-collection-assign-menu__list" role="group">
+        <fieldset className="crosshook-collection-assign-menu__list crosshook-fieldset-reset">
+          <legend className="crosshook-visually-hidden">Collections</legend>
           {collections.map((c) => {
             const isMember = memberOf.has(c.collection_id);
             return (
@@ -236,7 +237,7 @@ export function CollectionAssignMenu({
               </label>
             );
           })}
-        </div>
+        </fieldset>
       )}
       <div className="crosshook-collection-assign-menu__divider" />
       <button

@@ -88,6 +88,14 @@
   align-items: center;
   width: 100%;
   cursor: help;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  appearance: none;
 }
 
 .crosshook-launch-pipeline__node-trigger:focus-visible {

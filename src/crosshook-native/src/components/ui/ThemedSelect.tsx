@@ -59,11 +59,12 @@ function SelectItemNode({
         ) : null}
       </span>
       {onTogglePin ? (
-        <span
-          role="button"
-          tabIndex={-1}
+        <button
+          type="button"
+          tabIndex={0}
           className={`crosshook-themed-select__pin${isPinned ? ' crosshook-themed-select__pin--active' : ''}`}
           aria-label={isPinned ? `Unpin ${opt.label}` : `Pin ${opt.label}`}
+          aria-pressed={isPinned}
           onPointerDown={(e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -72,6 +73,13 @@ function SelectItemNode({
             e.stopPropagation();
             e.preventDefault();
           }}
+          onKeyDown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault();
+              e.stopPropagation();
+              onTogglePin(opt.value);
+            }
+          }}
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -79,7 +87,7 @@ function SelectItemNode({
           }}
         >
           {isPinned ? '\u2605' : '\u2606'}
-        </span>
+        </button>
       ) : (
         <Select.ItemIndicator className="crosshook-themed-select__check">
           <CheckIcon />
@@ -177,6 +185,7 @@ function ChevronIcon() {
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M3.5 5.25 7 8.75l3.5-3.5" />
     </svg>
@@ -194,6 +203,7 @@ function ChevronUpIcon() {
       strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M10.5 8.75 7 5.25l-3.5 3.5" />
     </svg>
@@ -211,6 +221,7 @@ function CheckIcon() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      aria-hidden="true"
     >
       <path d="M3 7.5 5.5 10 11 4" />
     </svg>

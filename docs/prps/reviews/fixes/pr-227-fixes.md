@@ -22,17 +22,17 @@
 
 ## Fixes Applied
 
-| ID   | Severity | File                                                                    | Line | Status | Notes |
-| ---- | -------- | ----------------------------------------------------------------------- | ---- | ------ | ----- |
-| F001 | HIGH     | `src/crosshook-native/runtime-helpers/steam-host-trainer-runner.sh`     | 110  | Fixed  | Preserved custom env now goes through a protected env file instead of `flatpak-spawn --env=...`. |
-| F002 | HIGH     | `src/crosshook-native/runtime-helpers/steam-host-trainer-runner.sh`     | 96   | Fixed  | Removed wildcard sandbox-env replay; only explicit session keys plus curated built-in keys cross the Flatpak host boundary. |
-| F003 | HIGH     | `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs` | 603  | Fixed  | `helper_arguments()` now forwards trainer-gamescope flags, and the Steam helper delegates the trainer leg to the shared host runner. |
-| F004 | HIGH     | `src/crosshook-native/src/components/InstallGamePanel.tsx`              | 33   | Fixed  | Replaced `Object.hasOwn(...)` with `Object.prototype.hasOwnProperty.call(...)`. |
-| F005 | MEDIUM   | `src/crosshook-native/src-tauri/src/commands/launch.rs`                 | 292  | Fixed  | Added log-based diagnostic method selection so trainer-runner failures are analyzed with `proton_run` semantics while the outer Steam helper launch remains intact. |
-| F006 | MEDIUM   | `tasks/todo.md`                                                         | 1    | Failed | The broader “split unrelated churn out of PR #227” fix requires branch-scope cleanup/history surgery outside a safe targeted fix pass. |
-| F007 | MEDIUM   | `.github/workflows/lint-autofix.yml`                                    | 43   | Fixed  | Autofix staging now excludes `CHANGELOG.md`, archived PRP reports, and review outputs instead of using `git add -A`. |
-| F008 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs` | 75   | Fixed  | The helper path now reuses the shared trainer runner instead of maintaining a second shell-level trainer env/gamescope contract. |
-| F009 | LOW      | `.claude/PRPs/reports/ui-standardization-phase-4-report.md`             | 93   | Fixed  | Repaired the malformed archived Markdown cited by the review. |
+| ID   | Severity | File                                                                     | Line | Status | Notes                                                                                                                                                               |
+| ---- | -------- | ------------------------------------------------------------------------ | ---- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F001 | HIGH     | `src/crosshook-native/runtime-helpers/steam-host-trainer-runner.sh`      | 110  | Fixed  | Preserved custom env now goes through a protected env file instead of `flatpak-spawn --env=...`.                                                                    |
+| F002 | HIGH     | `src/crosshook-native/runtime-helpers/steam-host-trainer-runner.sh`      | 96   | Fixed  | Removed wildcard sandbox-env replay; only explicit session keys plus curated built-in keys cross the Flatpak host boundary.                                         |
+| F003 | HIGH     | `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs` | 603  | Fixed  | `helper_arguments()` now forwards trainer-gamescope flags, and the Steam helper delegates the trainer leg to the shared host runner.                                |
+| F004 | HIGH     | `src/crosshook-native/src/components/InstallGamePanel.tsx`               | 33   | Fixed  | Replaced `Object.hasOwn(...)` with `Object.prototype.hasOwnProperty.call(...)`.                                                                                     |
+| F005 | MEDIUM   | `src/crosshook-native/src-tauri/src/commands/launch.rs`                  | 292  | Fixed  | Added log-based diagnostic method selection so trainer-runner failures are analyzed with `proton_run` semantics while the outer Steam helper launch remains intact. |
+| F006 | MEDIUM   | `tasks/todo.md`                                                          | 1    | Failed | The broader “split unrelated churn out of PR #227” fix requires branch-scope cleanup/history surgery outside a safe targeted fix pass.                              |
+| F007 | MEDIUM   | `.github/workflows/lint-autofix.yml`                                     | 43   | Fixed  | Autofix staging now excludes `CHANGELOG.md`, archived PRP reports, and review outputs instead of using `git add -A`.                                                |
+| F008 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs` | 75   | Fixed  | The helper path now reuses the shared trainer runner instead of maintaining a second shell-level trainer env/gamescope contract.                                    |
+| F009 | LOW      | `.claude/PRPs/reports/ui-standardization-phase-4-report.md`              | 93   | Fixed  | Repaired the malformed archived Markdown cited by the review.                                                                                                       |
 
 ## Files Changed
 
@@ -59,8 +59,8 @@
 
 | Check      | Result |
 | ---------- | ------ |
-| Type check | Pass |
-| Tests      | Pass |
+| Type check | Pass   |
+| Tests      | Pass   |
 
 ## Next Steps
 

@@ -31,7 +31,7 @@ export function LibraryGrid({
       <div className="crosshook-library-empty">
         <h2 className="crosshook-library-empty__heading">No game profiles yet</h2>
         <p>Create your first profile to see it here.</p>
-        <button className="crosshook-library-empty__cta" onClick={() => onNavigate?.('profiles')}>
+        <button type="button" className="crosshook-library-empty__cta" onClick={() => onNavigate?.('profiles')}>
           Create a profile
         </button>
       </div>
@@ -39,7 +39,7 @@ export function LibraryGrid({
   }
 
   return (
-    <div className="crosshook-library-grid" role="list">
+    <ul className="crosshook-library-grid">
       {profiles.map((profile) => (
         <LibraryCard
           key={profile.name}
@@ -53,7 +53,7 @@ export function LibraryGrid({
           onContextMenu={onContextMenu}
         />
       ))}
-    </div>
+    </ul>
   );
 }
 

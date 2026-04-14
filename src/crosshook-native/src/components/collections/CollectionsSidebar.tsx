@@ -122,11 +122,9 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
                   title={c.name}
                 >
                   <span className="crosshook-collections-sidebar__item-name">{c.name}</span>
-                  <span
-                    className="crosshook-collections-sidebar__item-count"
-                    aria-label={`${c.profile_count} profiles`}
-                  >
+                  <span className="crosshook-collections-sidebar__item-count">
                     {c.profile_count}
+                    <span className="crosshook-visually-hidden"> {c.profile_count === 1 ? 'profile' : 'profiles'}</span>
                   </span>
                 </button>
               </li>

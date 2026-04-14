@@ -223,7 +223,8 @@ export function AutoPopulate({
               <div className="crosshook-auto-populate__info-empty">Waiting for Steam discovery output...</div>
             ) : result?.diagnostics?.length ? (
               result.diagnostics.map((entry, index) => (
-                <div key={`${index}-${entry}`} className="crosshook-auto-populate__info-entry">
+                // biome-ignore lint/suspicious/noArrayIndexKey: diagnostic strings have no stable ID; array is display-only output that does not reorder
+                <div key={index} className="crosshook-auto-populate__info-entry">
                   {entry}
                 </div>
               ))
@@ -238,7 +239,8 @@ export function AutoPopulate({
           <div className="crosshook-auto-populate__info-body">
             {result?.manual_hints?.length ? (
               result.manual_hints.map((entry, index) => (
-                <div key={`${index}-${entry}`} className="crosshook-auto-populate__info-entry">
+                // biome-ignore lint/suspicious/noArrayIndexKey: manual hint strings have no stable ID; array is display-only output that does not reorder
+                <div key={index} className="crosshook-auto-populate__info-entry">
                   {entry}
                 </div>
               ))

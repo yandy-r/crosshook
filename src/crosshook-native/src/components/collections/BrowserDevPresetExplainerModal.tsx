@@ -44,7 +44,19 @@ const COPY: Record<BrowserDevPresetExplainerMode, { title: string; paragraphs: s
  */
 function renderParagraph(text: string) {
   const parts = text.split(/\*\*(.+?)\*\*/g);
-  return <p>{parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>))}</p>;
+  return (
+    <p>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: regex-split parts have no stable identity; array is static and never reorders
+          <strong key={i}>{part}</strong>
+        ) : (
+          // biome-ignore lint/suspicious/noArrayIndexKey: regex-split parts have no stable identity; array is static and never reorders
+          <span key={i}>{part}</span>
+        )
+      )}
+    </p>
+  );
 }
 
 export function BrowserDevPresetExplainerModal({
@@ -146,6 +158,7 @@ export function BrowserDevPresetExplainerModal({
         </header>
         <div id={descriptionId} className="crosshook-browser-dev-preset-explainer__body">
           {paragraphs.map((p, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: static COPY paragraphs; order is stable
             <div key={i}>{renderParagraph(p)}</div>
           ))}
         </div>

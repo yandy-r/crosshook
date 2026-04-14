@@ -124,6 +124,7 @@ export function Sidebar({ activeRoute, onNavigate, controllerMode, lastProfile, 
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
+            aria-hidden="true"
           >
             {/* Crosshair outer ring */}
             <circle cx="32" cy="32" r="20" opacity={0.35} />

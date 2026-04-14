@@ -17,7 +17,7 @@ const SVG_DEFAULTS: SVGProps<SVGSVGElement> = {
 
 export function LibraryArt() {
   return (
-    <svg {...SVG_DEFAULTS}>
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
       {/* Shelf line */}
       <line x1="10" y1="50" x2="54" y2="50" opacity={0.3} />
       {/* Book spines */}
@@ -34,7 +34,7 @@ export function LibraryArt() {
 
 export function ProfilesArt() {
   return (
-    <svg {...SVG_DEFAULTS}>
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
       {/* Layered cards */}
       <rect x="14" y="16" width="40" height="40" rx="6" opacity={0.15} />
       <rect x="10" y="12" width="40" height="40" rx="6" opacity={0.4} />
@@ -50,7 +50,7 @@ export function ProfilesArt() {
 
 export function LaunchArt() {
   return (
-    <svg {...SVG_DEFAULTS}>
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
       {/* Outer halo ring */}
       <circle cx="34" cy="32" r="22" opacity={0.18} />
       {/* Play triangle */}
@@ -67,7 +67,7 @@ export function LaunchArt() {
 
 export function InstallArt() {
   return (
-    <svg {...SVG_DEFAULTS}>
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
       {/* Card receiving the file */}
       <rect x="12" y="32" width="40" height="22" rx="4" opacity={0.35} />
       {/* Download arrow shaft */}
@@ -85,7 +85,7 @@ export function InstallArt() {
 
 export function CommunityArt() {
   return (
-    <svg {...SVG_DEFAULTS}>
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
       {/* Globe */}
       <circle cx="32" cy="32" r="20" opacity={0.4} />
       <ellipse cx="32" cy="32" rx="8" ry="20" opacity={0.22} />
@@ -100,7 +100,7 @@ export function CommunityArt() {
 
 export function DiscoverArt() {
   return (
-    <svg {...SVG_DEFAULTS}>
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
       {/* Magnifier lens */}
       <circle cx="26" cy="26" r="16" opacity={0.4} />
       <circle cx="26" cy="26" r="8" opacity={0.18} />
@@ -117,7 +117,7 @@ export function DiscoverArt() {
 
 export function CompatibilityArt() {
   return (
-    <svg {...SVG_DEFAULTS}>
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
       {/* Shield outer */}
       <path d="M32 8 L48 14 L48 32 Q48 46 32 56 Q16 46 16 32 L16 14 Z" opacity={0.4} />
       {/* Shield inner */}
@@ -132,7 +132,7 @@ export function CompatibilityArt() {
 
 export function SettingsArt() {
   return (
-    <svg {...SVG_DEFAULTS}>
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
       {/* Gear body */}
       <circle cx="32" cy="32" r="14" opacity={0.4} />
       <circle cx="32" cy="32" r="6" opacity={0.3} />
@@ -154,7 +154,7 @@ export function SettingsArt() {
 
 export function HealthDashboardArt() {
   return (
-    <svg {...SVG_DEFAULTS}>
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
       {/* Dashboard card */}
       <rect x="8" y="14" width="48" height="36" rx="4" opacity={0.4} />
       {/* Top stat pills */}

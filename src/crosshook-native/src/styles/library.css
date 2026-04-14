@@ -84,6 +84,9 @@
   grid-template-columns: repeat(auto-fill, minmax(var(--crosshook-library-card-width), 1fr));
   gap: var(--crosshook-library-grid-gap);
   align-content: start;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 /* ── Card ──────────────────────────────────────────────────────────────── */
@@ -116,6 +119,17 @@
 .crosshook-library-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--crosshook-shadow-soft);
+}
+
+.crosshook-library-card:focus-visible,
+.crosshook-library-card:focus-within {
+  outline: 2px solid var(--crosshook-color-accent);
+  outline-offset: 2px;
+}
+
+/* Hitbox is the usual focus target when the card root is not tabbable; outline the card via :focus-within above. */
+.crosshook-library-card__details-hitbox:focus-visible {
+  outline: none;
 }
 
 .crosshook-library-card--selected {

@@ -214,7 +214,7 @@ export function CollectionImportReviewModal({
               <h3 className="crosshook-collection-import-review__section-title">Choose local profile</h3>
               {preview.ambiguous.map((row, i) => (
                 <div
-                  key={`${row.descriptor.steam_app_id}-${row.descriptor.trainer_community_trainer_sha256}-${i}`}
+                  key={`amb-${row.descriptor.steam_app_id}-${row.descriptor.trainer_community_trainer_sha256}-${row.descriptor.game_name ?? ''}-${row.candidates.map((c) => c.profile_name).join('|')}`}
                   className="crosshook-collection-import-review__ambiguous"
                 >
                   <p className="crosshook-collection-import-review__descriptor">
@@ -257,8 +257,8 @@ export function CollectionImportReviewModal({
             <section className="crosshook-collection-import-review__section" aria-label="Unmatched descriptors">
               <h3 className="crosshook-collection-import-review__section-title">Unmatched (will be skipped)</h3>
               <ul className="crosshook-collection-import-review__list">
-                {preview.unmatched.map((u, i) => (
-                  <li key={`${u.steam_app_id}-${u.trainer_community_trainer_sha256}-${i}`}>
+                {preview.unmatched.map((u) => (
+                  <li key={`unm-${u.steam_app_id}-${u.trainer_community_trainer_sha256}-${u.game_name ?? ''}`}>
                     {u.game_name || u.steam_app_id || 'Descriptor'} — steam {u.steam_app_id || '—'}
                   </li>
                 ))}

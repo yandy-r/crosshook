@@ -84,25 +84,27 @@ function DiffView({ diff }: { diff: ConfigDiffResult }) {
           </span>
         )}
       </div>
-      <pre className="crosshook-history-diff-code" aria-label="Unified diff">
-        {lines.map((line, idx) => {
-          let cls = 'crosshook-history-diff-line';
-          if (line.startsWith('+') && !line.startsWith('+++')) {
-            cls += ' crosshook-history-diff-line--add';
-          } else if (line.startsWith('-') && !line.startsWith('---')) {
-            cls += ' crosshook-history-diff-line--remove';
-          } else if (line.startsWith('@@')) {
-            cls += ' crosshook-history-diff-line--meta';
-          }
-          // eslint-disable-next-line react/no-array-index-key
-          return (
-            <span key={idx} className={cls}>
-              {line}
-              {'\n'}
-            </span>
-          );
-        })}
-      </pre>
+      <section aria-label="Unified diff">
+        <pre className="crosshook-history-diff-code">
+          {lines.map((line, idx) => {
+            let cls = 'crosshook-history-diff-line';
+            if (line.startsWith('+') && !line.startsWith('+++')) {
+              cls += ' crosshook-history-diff-line--add';
+            } else if (line.startsWith('-') && !line.startsWith('---')) {
+              cls += ' crosshook-history-diff-line--remove';
+            } else if (line.startsWith('@@')) {
+              cls += ' crosshook-history-diff-line--meta';
+            }
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: lines from diff_text.split('\n') have stable order and no unique identity
+              <span key={idx} className={cls}>
+                {line}
+                {'\n'}
+              </span>
+            );
+          })}
+        </pre>
+      </section>
     </div>
   );
 }
@@ -551,7 +553,7 @@ export function ConfigHistoryPanel({
               </div>
             ) : pendingRestore ? (
               /* Restore confirmation */
-              <div className="crosshook-history-confirm" role="region" aria-label="Restore confirmation">
+              <section className="crosshook-history-confirm" aria-label="Restore confirmation">
                 <h3 style={{ margin: '0 0 12px' }}>Restore this configuration snapshot?</h3>
                 <p className="crosshook-help-text" style={{ marginBottom: 16 }}>
                   You're restoring the snapshot from <strong>{formatExactDate(pendingRestore.created_at)}</strong> (
@@ -584,7 +586,7 @@ export function ConfigHistoryPanel({
                     Keep current config
                   </button>
                 </div>
-              </div>
+              </section>
             ) : (
               /* Diff view + actions */
               <>

@@ -63,13 +63,13 @@ export function GameDetailsMetadataSection({ steamAppId, meta }: GameDetailsMeta
         </p>
       ) : null}
       {hasAppId && metaState === 'ready' && genres.length > 0 ? (
-        <div className="crosshook-game-details-modal__genre-row" aria-label="Genres">
+        <ul aria-label="Genres" className="crosshook-game-details-modal__genre-row">
           {genres.map((genre) => (
-            <span key={genre.id} className="crosshook-game-details-modal__genre-chip">
+            <li key={genre.id} className="crosshook-game-details-modal__genre-chip">
               {genre.description}
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
       ) : null}
       {hasAppId && metaState === 'ready' && shortDesc ? (
         <p className="crosshook-game-details-modal__text crosshook-game-details-modal__text--desc">{shortDesc}</p>

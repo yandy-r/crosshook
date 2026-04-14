@@ -113,7 +113,6 @@ export function LauncherExport({
   const {
     launcherStatus,
     errorMessage,
-    setErrorMessage,
     statusMessage,
     result,
     isExporting,
@@ -226,9 +225,13 @@ export function LauncherExport({
         <div className="crosshook-export-callout">{launcherNameHelperText}</div>
 
         <div className="crosshook-export-section">
-          <label className="crosshook-export-label">Launcher Icon</label>
+          <span className="crosshook-export-label" id="launcher-export-readonly-icon-label">
+            Launcher Icon
+          </span>
           <div
+            role="status"
             className={`crosshook-input crosshook-export-readonly${safeTrim(profile.steam.launcher.icon_path) ? '' : ' crosshook-export-readonly--empty'}`}
+            aria-labelledby="launcher-export-readonly-icon-label"
           >
             {safeTrim(profile.steam.launcher.icon_path) || 'Use the launcher icon field from the current profile'}
           </div>
@@ -236,10 +239,18 @@ export function LauncherExport({
       </div>
 
       <div className="crosshook-export-grid">
-        {metadataRows.map((row) => (
+        {metadataRows.map((row, idx) => (
           <div key={row.label} className="crosshook-export-section">
-            <label className="crosshook-export-label">{row.label}</label>
-            <div className="crosshook-input crosshook-export-readonly">{row.value}</div>
+            <span className="crosshook-export-label" id={`launcher-export-meta-label-${idx}`}>
+              {row.label}
+            </span>
+            <div
+              role="status"
+              className="crosshook-input crosshook-export-readonly"
+              aria-labelledby={`launcher-export-meta-label-${idx}`}
+            >
+              {row.value}
+            </div>
           </div>
         ))}
       </div>

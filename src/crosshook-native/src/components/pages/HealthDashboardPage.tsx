@@ -196,11 +196,7 @@ function SummaryCard({
       style={{ borderLeftColor: accentColor }}
       aria-disabled={disabled}
     >
-      <div
-        className="crosshook-health-dashboard-card__count"
-        style={{ color: disabled ? undefined : accentColor }}
-        aria-label={disabled ? undefined : `${count} ${label}`}
-      >
+      <div className="crosshook-health-dashboard-card__count" style={{ color: disabled ? undefined : accentColor }}>
         {displayCount}
         {!disabled && trend != null && <TrendArrow trend={trend} improving={improving ?? false} />}
       </div>
@@ -251,7 +247,8 @@ function TableToolbar({
 
   return (
     <div className="crosshook-health-dashboard-toolbar">
-      <div className="crosshook-health-dashboard-toolbar__filters" role="group" aria-label="Filter by status">
+      <fieldset className="crosshook-health-dashboard-toolbar__filters crosshook-fieldset-reset">
+        <legend className="crosshook-visually-hidden">Filter by status</legend>
         {statusOptions.map((opt) => (
           <button
             key={opt.value}
@@ -263,7 +260,7 @@ function TableToolbar({
             {opt.label}
           </button>
         ))}
-      </div>
+      </fieldset>
       <input
         type="search"
         className="crosshook-input crosshook-health-dashboard-toolbar__search"
@@ -453,7 +450,7 @@ function LauncherDriftPanel({ profiles }: { profiles: EnrichedProfileHealthRepor
       ) : (
         <ul className="crosshook-health-dashboard-issues-list">
           {driftProfiles.map((r) => {
-            const state = r.metadata?.launcher_drift_state!;
+            const state = r.metadata?.launcher_drift_state ?? '';
             const message = DRIFT_STATE_MESSAGES[state] ?? state;
             return (
               <li key={r.name} className="crosshook-health-dashboard-issue">
@@ -609,7 +606,7 @@ function IssueDetailRow({
             <p className="crosshook-muted">No issues found.</p>
           ) : (
             <ul className="crosshook-health-dashboard-issues-list">
-              {report.issues.map((issue, i) => {
+              {report.issues.map((issue) => {
                 const issueCategory = categorizeIssue(issue);
                 const protonField = issueCategory === 'missing_proton' ? getProtonPathField(issue.field) : null;
                 const isMigrationActive = activeMigrationField === issue.field;
@@ -621,7 +618,10 @@ function IssueDetailRow({
                 const hasNoMatch = protonField != null && scanResult != null && suggestion === null;
 
                 return (
-                  <li key={i} className="crosshook-health-dashboard-issue">
+                  <li
+                    key={`${issue.field}-${issue.path}-${issue.message}-${issue.severity}`}
+                    className="crosshook-health-dashboard-issue"
+                  >
                     <span className="crosshook-health-dashboard-issue__field">{issue.field}</span>
                     {issue.path && <code className="crosshook-health-dashboard-issue__path">{issue.path}</code>}
                     <span className="crosshook-health-dashboard-issue__message">{issue.message}</span>
@@ -1361,6 +1361,7 @@ export function HealthDashboardPage({ onNavigate }: { onNavigate?: (route: AppRo
                             </span>
                           ) : null}
                         </td>
+                        {/* biome-ignore lint/a11y/useKeyWithClickEvents: td stopPropagation, not an action */}
                         <td className="crosshook-health-dashboard-td--actions" onClick={(e) => e.stopPropagation()}>
                           {report.status !== 'healthy' && (
                             <button

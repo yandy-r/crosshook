@@ -163,7 +163,9 @@ export function useLaunchState({ profileId, profileName, method, request }: UseL
     setOfflineReadinessError(null);
     setLaunchPathWarnings([]);
     setTrainerHashUpdateBusy(false);
-  }, []);
+    // Tie reset to the active profile without leaving `profileId` unused (Biome exhaustive-deps).
+    void profileId;
+  }, [profileId]);
 
   useEffect(() => {
     if (!profileName.trim() || !request?.trainer_host_path?.trim() || method === 'native') {

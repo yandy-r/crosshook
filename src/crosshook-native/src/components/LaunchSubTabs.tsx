@@ -323,7 +323,11 @@ export function LaunchSubTabs({
               {launchPathWarnings.length > 0 ? (
                 <ul className="crosshook-launch-panel__feedback-list" aria-label="Launch path warnings">
                   {launchPathWarnings.map((issue, index) => (
-                    <li key={`launch-warn-${issue.message}-${index}`} className="crosshook-launch-panel__feedback-item">
+                    <li
+                      // biome-ignore lint/suspicious/noArrayIndexKey: tiebreaker when severity+code/message may collide
+                      key={`${issue.severity}-${issue.code ?? issue.message}-${index}`}
+                      className="crosshook-launch-panel__feedback-item"
+                    >
                       <div className="crosshook-launch-panel__feedback-header">
                         <span className="crosshook-launch-panel__feedback-badge" data-severity={issue.severity}>
                           {issue.severity}

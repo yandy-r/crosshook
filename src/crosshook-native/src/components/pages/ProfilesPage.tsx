@@ -76,7 +76,6 @@ export function ProfilesPage() {
     duplicating,
     error,
     executeDelete,
-    favoriteProfiles,
     loading,
     pendingDelete,
     profile,
@@ -93,7 +92,6 @@ export function ProfilesPage() {
     setProfileName,
     cancelDelete,
     confirmDelete,
-    toggleFavorite,
     updateProfile,
     launchMethod,
     steamClientInstallPath,
@@ -852,9 +850,9 @@ export function ProfilesPage() {
                     </div>
                   ) : null}
                   <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
-                    {report.issues.map((issue, index) => (
+                    {report.issues.map((issue) => (
                       <li
-                        key={index}
+                        key={`${report.name}-${issue.field}-${issue.path}-${issue.message}-${issue.severity}`}
                         style={{ borderLeft: '3px solid var(--crosshook-danger, #ef4444)', paddingLeft: 10 }}
                       >
                         <strong>{issue.field}</strong>
@@ -910,15 +908,16 @@ export function ProfilesPage() {
                     if (!suggestion.recommended_version) {
                       return;
                     }
+                    const recommendedVersion = suggestion.recommended_version;
                     const targetRoot = effectiveSteamClientInstallPath
                       ? `${effectiveSteamClientInstallPath}/compatibilitytools.d`
                       : '';
                     setSuggestionInstallError(null);
                     void (async () => {
-                      const provider = await resolveProtonUpProviderForVersion(suggestion.recommended_version!);
+                      const provider = await resolveProtonUpProviderForVersion(recommendedVersion);
                       return protonUp.installVersion({
                         provider,
-                        version: suggestion.recommended_version!,
+                        version: recommendedVersion,
                         target_root: targetRoot,
                       });
                     })().then((result) => {

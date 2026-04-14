@@ -10,7 +10,7 @@ export function ControllerPrompts({
   showBumpers = true,
 }: ControllerPromptsProps) {
   return (
-    <div className="crosshook-controller-prompts" aria-label="Controller shortcuts">
+    <section className="crosshook-controller-prompts" aria-label="Controller shortcuts">
       <div className="crosshook-controller-prompts__surface" role="status" aria-live="polite">
         <div className="crosshook-controller-prompts__item">
           <span className="crosshook-controller-prompts__glyph" aria-hidden="true">
@@ -33,7 +33,7 @@ export function ControllerPrompts({
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

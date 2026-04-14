@@ -97,12 +97,9 @@ export function LaunchPipeline({ method, profile, preview, phase }: LaunchPipeli
               {hasDetail ? (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <span
-                      className="crosshook-launch-pipeline__node-trigger"
-                      aria-label={`${node.label}: ${statusText}`}
-                    >
+                    <button type="button" className="crosshook-launch-pipeline__node-trigger">
                       {nodeContent}
-                    </span>
+                    </button>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
                     <Tooltip.Content side="top" sideOffset={6} style={TOOLTIP_CONTENT_STYLE}>

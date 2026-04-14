@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { CommunityImportPreview } from '../hooks/useCommunityProfiles';
 import { isLaunchValidationIssue, type LaunchPreview, type LaunchRequest, type LaunchValidationIssue } from '../types';
@@ -224,7 +224,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
     };
   }, [open]);
 
-  const runAutoPopulate = async () => {
+  const runAutoPopulate = useCallback(async () => {
     if (!profile) {
       return;
     }
@@ -248,7 +248,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
           return currentProfile;
         }
         const nextProfile = normalizeProfile({ ...currentProfile });
-        const nextResolved = new Set(autoResolvedFields);
+        const resolvedAdds: string[] = [];
 
         if (
           response.app_id_state === 'Found' &&
@@ -256,7 +256,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
           nextProfile.steam.app_id.trim().length === 0
         ) {
           nextProfile.steam = { ...nextProfile.steam, app_id: response.app_id };
-          nextResolved.add('app_id');
+          resolvedAdds.push('app_id');
         }
         if (
           response.compatdata_state === 'Found' &&
@@ -266,9 +266,9 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
           nextProfile.steam = { ...nextProfile.steam, compatdata_path: response.compatdata_path };
           if (nextProfile.runtime.prefix_path.trim().length === 0) {
             nextProfile.runtime = { ...nextProfile.runtime, prefix_path: response.compatdata_path };
-            nextResolved.add('prefix_path');
+            resolvedAdds.push('prefix_path');
           }
-          nextResolved.add('compatdata_path');
+          resolvedAdds.push('compatdata_path');
         }
         if (
           response.proton_state === 'Found' &&
@@ -276,10 +276,18 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
           nextProfile.steam.proton_path.trim().length === 0
         ) {
           nextProfile.steam = { ...nextProfile.steam, proton_path: response.proton_path };
-          nextResolved.add('proton_path');
+          resolvedAdds.push('proton_path');
         }
 
-        setAutoResolvedFields(nextResolved);
+        if (resolvedAdds.length > 0) {
+          setAutoResolvedFields((prev) => {
+            const nextResolved = new Set(prev);
+            for (const key of resolvedAdds) {
+              nextResolved.add(key);
+            }
+            return nextResolved;
+          });
+        }
         return nextProfile;
       });
     } catch (error) {
@@ -288,7 +296,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
     } finally {
       setAutoPopulating(false);
     }
-  };
+  }, [profile, steamClientInstallPath]);
 
   useEffect(() => {
     if (!open || !profile || step !== 1) {
@@ -296,10 +304,9 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
     }
     void runAutoPopulate();
     // Auto-run once when entering step 2.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, step, profile, runAutoPopulate]);
 
-  const validateDraft = async (): Promise<LaunchValidationIssue[]> => {
+  const validateDraft = useCallback(async (): Promise<LaunchValidationIssue[]> => {
     if (!profile) {
       return [];
     }
@@ -319,14 +326,13 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
     } finally {
       setValidating(false);
     }
-  };
+  }, [profile, steamClientInstallPath]);
 
   useEffect(() => {
     if (!open || step !== 3 || !profile) {
       return;
     }
     void validateDraft();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     open,
     step,
@@ -606,8 +612,11 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
         {validationError ? <p className="crosshook-community-browser__error">{validationError}</p> : null}
         {validationIssues.length > 0 ? (
           <ul className="crosshook-community-import-wizard__validation-list">
-            {validationIssues.map((issue, index) => (
-              <li key={`${issue.severity}-${index}`} className="crosshook-community-import-wizard__validation-item">
+            {validationIssues.map((issue) => (
+              <li
+                key={`${issue.severity}-${issue.code ?? issue.message}`}
+                className="crosshook-community-import-wizard__validation-item"
+              >
                 <strong>[{issue.severity}]</strong> {issue.message}
                 {issue.help ? <div className="crosshook-muted">{issue.help}</div> : null}
               </li>

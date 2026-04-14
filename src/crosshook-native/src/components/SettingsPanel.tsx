@@ -663,9 +663,17 @@ function DiagnosticExportSection() {
 
       {!useDefaultLocation ? (
         <div className="crosshook-settings-field-row">
-          <label className="crosshook-label">Export directory</label>
+          <span className="crosshook-label" id="settings-export-directory-label">
+            Export directory
+          </span>
           <div className="crosshook-settings-input-row">
-            <input className="crosshook-input" value={customDir ?? ''} readOnly placeholder="No directory selected" />
+            <input
+              className="crosshook-input"
+              value={customDir ?? ''}
+              readOnly
+              placeholder="No directory selected"
+              aria-labelledby="settings-export-directory-label"
+            />
             <button
               type="button"
               className="crosshook-button crosshook-button--secondary"

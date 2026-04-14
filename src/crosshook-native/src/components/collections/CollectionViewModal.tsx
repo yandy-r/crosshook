@@ -263,7 +263,7 @@ export function CollectionViewModal({
                 : 'No profiles match your search.'}
             </div>
           ) : (
-            <div id={`${titleId}-results`} className="crosshook-collection-modal__grid" role="list">
+            <ul id={`${titleId}-results`} className="crosshook-collection-modal__grid crosshook-list-reset">
               {filtered.map((card) => (
                 <LibraryCard
                   key={card.name}
@@ -280,7 +280,7 @@ export function CollectionViewModal({
                   isLaunching={launchingName === card.name}
                 />
               ))}
-            </div>
+            </ul>
           )}
         </div>
 

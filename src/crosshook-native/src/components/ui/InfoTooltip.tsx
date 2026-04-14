@@ -19,6 +19,7 @@ export function InfoTooltip({ content, size = 16 }: InfoTooltipProps) {
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
+        {/* biome-ignore lint/a11y/useSemanticElements: native <button> is not valid inside <label>; span+role keeps tooltip triggers labelable without nesting interactive controls */}
         <span
           role="button"
           tabIndex={0}
@@ -39,6 +40,9 @@ export function InfoTooltip({ content, size = 16 }: InfoTooltipProps) {
             color: 'var(--crosshook-color-text-subtle)',
             cursor: 'help',
             flexShrink: 0,
+            background: 'none',
+            border: 'none',
+            padding: 0,
           }}
         >
           <InfoCircleIcon width={size} height={size} />

@@ -15,7 +15,7 @@ interface LibraryCardProps {
 }
 
 /** Keyboard shortcut to open context menu: Shift+F10 or the ContextMenu key. */
-function isContextMenuKey(event: KeyboardEvent<HTMLDivElement>): boolean {
+function isContextMenuKey(event: KeyboardEvent<HTMLLIElement>): boolean {
   return event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey);
 }
 
@@ -36,7 +36,7 @@ export function LibraryCard({
 }: LibraryCardProps) {
   // IntersectionObserver: only fetch cover art when card enters viewport
   const [visible, setVisible] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLLIElement>(null);
 
   useEffect(() => {
     const el = cardRef.current;
@@ -74,10 +74,10 @@ export function LibraryCard({
   }
 
   return (
-    <div
+    <li
       ref={cardRef}
       className={cardClass}
-      role="listitem"
+      tabIndex={onContextMenu ? 0 : undefined}
       onContextMenu={
         onContextMenu
           ? (e) => {
@@ -91,7 +91,7 @@ export function LibraryCard({
       }
       onKeyDown={
         onContextMenu
-          ? (e: KeyboardEvent<HTMLDivElement>) => {
+          ? (e: KeyboardEvent<HTMLLIElement>) => {
               if (isContextMenuKey(e)) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -133,8 +133,8 @@ export function LibraryCard({
 
       {/* Favorite badge (persistent when favorited) */}
       {profile.isFavorite && (
-        <div className="crosshook-library-card__favorite-badge" aria-label="Favorited">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+        <div className="crosshook-library-card__favorite-badge" role="img" aria-label="Favorited">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
           </svg>
         </div>
@@ -145,6 +145,7 @@ export function LibraryCard({
         {showTitle && <span className="crosshook-library-card__title">{displayName}</span>}
         <div className="crosshook-library-card__actions">
           <button
+            type="button"
             className="crosshook-library-card__btn--launch"
             aria-label={`Launch ${displayName}`}
             disabled={isLaunching}
@@ -156,6 +157,7 @@ export function LibraryCard({
             {isLaunching ? 'Launching...' : 'Launch'}
           </button>
           <button
+            type="button"
             className="crosshook-library-card__btn--glass"
             aria-label={profile.isFavorite ? `Unfavorite ${displayName}` : `Favorite ${displayName}`}
             aria-pressed={profile.isFavorite}
@@ -171,11 +173,13 @@ export function LibraryCard({
               fill={profile.isFavorite ? 'currentColor' : 'none'}
               stroke="currentColor"
               strokeWidth="1.5"
+              aria-hidden="true"
             >
               <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
             </svg>
           </button>
           <button
+            type="button"
             className="crosshook-library-card__btn--glass"
             aria-label={`Edit ${displayName}`}
             onClick={(e) => {
@@ -192,13 +196,14 @@ export function LibraryCard({
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              aria-hidden="true"
             >
               <path d="M14.5 2.5l3 3L6 17H3v-3z" />
             </svg>
           </button>
         </div>
       </div>
-    </div>
+    </li>
   );
 }
 

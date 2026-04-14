@@ -20,12 +20,13 @@ export function LibraryToolbar({ searchQuery, onSearchChange, viewMode, onViewMo
       />
       <div className="crosshook-library-toolbar__view-toggle">
         <button
+          type="button"
           className="crosshook-library-toolbar__view-btn"
           aria-label="Grid view"
           aria-pressed={viewMode === 'grid'}
           onClick={() => onViewModeChange('grid')}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <rect x="1" y="1" width="6" height="6" rx="1" />
             <rect x="9" y="1" width="6" height="6" rx="1" />
             <rect x="1" y="9" width="6" height="6" rx="1" />
@@ -33,12 +34,13 @@ export function LibraryToolbar({ searchQuery, onSearchChange, viewMode, onViewMo
           </svg>
         </button>
         <button
+          type="button"
           className="crosshook-library-toolbar__view-btn"
           aria-label="List view"
           aria-pressed={viewMode === 'list'}
           onClick={() => onViewModeChange('list')}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <rect x="1" y="2" width="14" height="2" rx="1" />
             <rect x="1" y="7" width="14" height="2" rx="1" />
             <rect x="1" y="12" width="14" height="2" rx="1" />

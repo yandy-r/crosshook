@@ -85,13 +85,13 @@ export function ExternalResultsSection({ data, loading, error, onRetry }: Extern
       {!loading && error && <p className="crosshook-discovery-panel__error">{error}</p>}
 
       {!loading && !error && data && data.results.length > 0 && (
-        <div className="crosshook-discovery-results" role="list">
-          {data.results.map((result, index) => (
-            <div key={`${result.source}-${result.sourceUrl}-${index}`} role="listitem">
+        <ul className="crosshook-discovery-results crosshook-list-reset">
+          {data.results.map((result) => (
+            <li key={`${result.source}-${result.sourceUrl}`}>
               <ExternalResultCard result={result} />
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {!loading && !error && data && !data.offline && data.results.length === 0 && (

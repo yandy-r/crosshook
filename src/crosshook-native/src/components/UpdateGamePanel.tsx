@@ -1,4 +1,4 @@
-import { type CSSProperties, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
 import { useUpdateGame } from '../hooks/useUpdateGame';
@@ -58,6 +58,8 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
   } = useUpdateGame();
 
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
+  const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
   const logPath = result?.helper_log_path ?? '';
 
   const steamAppIdForCover = profileCoverSource?.steamAppId;
@@ -78,6 +80,28 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
 
   const heroCopy =
     'Run a Windows update executable against an existing Proton prefix. Select a profile to auto-fill the prefix and Proton paths.';
+
+  const closeConfirmation = useCallback(() => {
+    setShowConfirmation(false);
+    triggerButtonRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!showConfirmation) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeConfirmation();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    cancelButtonRef.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showConfirmation, closeConfirmation]);
 
   return (
     <section
@@ -214,6 +238,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
       <div className="crosshook-install-shell__footer crosshook-route-footer">
         <div className="crosshook-install-shell__actions">
           <button
+            ref={triggerButtonRef}
             type="button"
             className="crosshook-button"
             onClick={() => setShowConfirmation(true)}
@@ -228,18 +253,28 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
       </div>
 
       {showConfirmation && (
-        <div className="crosshook-modal-overlay" onClick={() => setShowConfirmation(false)}>
-          <div className="crosshook-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <h4>Apply update to {selectedProfile}?</h4>
-            <p>
+        // biome-ignore lint/a11y/noStaticElementInteractions: modal overlay backdrop, click closes dialog
+        <div className="crosshook-modal-overlay" role="presentation" onClick={closeConfirmation}>
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation blocks overlay close on inner clicks; keyboard uses Escape (document listener) and focused buttons */}
+          <div
+            className="crosshook-modal-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="update-game-confirm-title"
+            aria-describedby="update-game-confirm-body"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h4 id="update-game-confirm-title">Apply update to {selectedProfile}?</h4>
+            <p id="update-game-confirm-body">
               This will run {fileNameFromPath(request.updater_path)} inside the Proton prefix. This action cannot be
               automatically undone.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 16 }}>
               <button
+                ref={cancelButtonRef}
                 type="button"
                 className="crosshook-button crosshook-button--secondary"
-                onClick={() => setShowConfirmation(false)}
+                onClick={closeConfirmation}
               >
                 Cancel
               </button>
@@ -247,7 +282,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
                 type="button"
                 className="crosshook-button"
                 onClick={() => {
-                  setShowConfirmation(false);
+                  closeConfirmation();
                   void startUpdate();
                 }}
               >

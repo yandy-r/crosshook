@@ -255,6 +255,7 @@ function OptionGroup(props: {
                 </div>
               </div>
 
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: container-level hover only; interactive child button carries full a11y */}
               <div
                 className="crosshook-launch-optimizations__info-anchor"
                 onMouseEnter={() => setTooltipId(option.id)}
@@ -452,7 +453,7 @@ export function LaunchOptimizationsPanel({
           </p>
         </div>
 
-        <div className="crosshook-launch-optimizations__summary-row" aria-label="Launch optimization summary">
+        <div className="crosshook-launch-optimizations__summary-row">
           <span className="crosshook-launch-optimizations__summary-chip">
             {formatCountLabel(selectedOptions.length, 'enabled option', 'enabled options')}
           </span>

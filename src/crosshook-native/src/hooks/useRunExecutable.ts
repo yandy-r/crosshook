@@ -78,10 +78,10 @@ export function useRunExecutable(): UseRunExecutableResult {
   const [error, setError] = useState<string | null>(null);
   const unlistenRef = useRef<(() => void) | null>(null);
 
-  function cleanupListener() {
+  const cleanupListener = useCallback(() => {
     unlistenRef.current?.();
     unlistenRef.current = null;
-  }
+  }, []);
 
   const applyCommandError = useCallback((commandError: RunCommandError) => {
     if (commandError.kind === 'validation') {

@@ -515,9 +515,7 @@ export function CommunityBrowser({ profilesDirectoryPath = DEFAULT_PROFILES_DIRE
 
                   <div className="crosshook-community-browser__button-row">
                     {isImported ? (
-                      <span className="crosshook-community-browser__imported-badge" aria-label="Already imported">
-                        Imported
-                      </span>
+                      <span className="crosshook-community-browser__imported-badge">Imported</span>
                     ) : (
                       <button
                         type="button"

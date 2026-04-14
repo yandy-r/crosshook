@@ -56,9 +56,9 @@ export function OfflineReadinessPanel({ report, error, loading }: OfflineReadine
       ) : null}
       {report && report.checks.length > 0 ? (
         <ul className="crosshook-launch-panel__feedback-list" aria-label="Offline readiness checks">
-          {report.checks.map((check, index) => (
+          {report.checks.map((check) => (
             <li
-              key={`${check.field}-${check.message}-${index}`}
+              key={`${check.field}-${check.path}-${check.message}-${check.severity}`}
               className="crosshook-launch-panel__feedback-item crosshook-offline-readiness-panel__row"
             >
               <span className="crosshook-offline-readiness-panel__icon" aria-hidden="true">

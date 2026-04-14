@@ -395,8 +395,12 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
             >
               {sortedIssues.length > 0 ? (
                 <ul className="crosshook-preview-modal__validation-list">
-                  {sortedIssues.map((issue, i) => (
-                    <li key={i} className="crosshook-preview-modal__validation-item" data-severity={issue.severity}>
+                  {sortedIssues.map((issue) => (
+                    <li
+                      key={`${issue.severity}-${issue.code ?? 'nocode'}-${issue.message}-${issue.help}-${issue.trainer_hash_stored ?? ''}-${issue.trainer_hash_current ?? ''}-${issue.trainer_sha256_community ?? ''}`}
+                      className="crosshook-preview-modal__validation-item"
+                      data-severity={issue.severity}
+                    >
                       <span
                         className="crosshook-preview-modal__validation-icon"
                         data-severity={issue.severity}
@@ -787,7 +791,8 @@ export function LaunchPanel({
                         <ul className="crosshook-launch-panel__feedback-list">
                           {diagnosticFeedback.suggestions.map((suggestion, index) => (
                             <li
-                              key={`${diagnosticFeedback.analyzed_at}-suggestion-${index}`}
+                              // biome-ignore lint/suspicious/noArrayIndexKey: tiebreaker when severity+title may collide
+                              key={`${suggestion.severity}-${suggestion.title}-${index}`}
                               className="crosshook-launch-panel__feedback-item"
                             >
                               <div className="crosshook-launch-panel__feedback-header">

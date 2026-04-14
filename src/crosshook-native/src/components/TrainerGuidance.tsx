@@ -24,7 +24,6 @@ export function TrainerGuidance({ selectedMode, onModeChange, guidanceContent }:
 
       <div className="crosshook-trainer-guidance__mode-cards">
         <LoadingModeCard
-          id="source_directory"
           title={sourceDirectoryEntry?.title ?? 'Source Directory'}
           summary={
             sourceDirectoryEntry?.description ?? 'Proton reads the trainer directly from its downloaded location.'
@@ -37,7 +36,6 @@ export function TrainerGuidance({ selectedMode, onModeChange, guidanceContent }:
         />
 
         <LoadingModeCard
-          id="copy_to_prefix"
           title={copyToPrefixEntry?.title ?? 'Copy to Prefix'}
           summary={
             copyToPrefixEntry?.description ??
@@ -87,7 +85,6 @@ export function TrainerGuidance({ selectedMode, onModeChange, guidanceContent }:
 }
 
 interface LoadingModeCardProps {
-  id: TrainerLoadingMode;
   title: string;
   summary: string;
   whenToUse?: string;
@@ -99,7 +96,6 @@ interface LoadingModeCardProps {
 }
 
 function LoadingModeCard({
-  id,
   title,
   summary,
   whenToUse,

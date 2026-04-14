@@ -1,4 +1,4 @@
-import { type UIEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type UIEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 
 import { type LogPayload, normalizeLogMessage } from '../utils/log';
@@ -24,14 +24,14 @@ export function ConsoleView() {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const shouldFollowRef = useRef(true);
 
-  function scrollToBottom() {
+  const scrollToBottom = useCallback(() => {
     const body = bodyRef.current;
     if (!body) {
       return;
     }
 
     body.scrollTop = body.scrollHeight;
-  }
+  }, []);
 
   function updateFollowState(element: HTMLDivElement) {
     const distanceFromBottom = element.scrollHeight - (element.scrollTop + element.clientHeight);

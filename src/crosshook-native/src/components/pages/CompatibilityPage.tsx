@@ -83,14 +83,17 @@ function ProtonVersionsPanel() {
         }
       >
         <div className="crosshook-protonup-catalog">
-          <div className="crosshook-field" style={{ marginBottom: 12 }}>
-            <span className="crosshook-label" id="protonup-catalog-provider-label">
+          {/* biome-ignore lint/a11y/useSemanticElements: legend does not associate with plain buttons; fieldset is non-idiomatic here */}
+          <div
+            role="group"
+            aria-labelledby="proton-catalog-source-heading"
+            className="crosshook-field crosshook-fieldset-reset--mb-12"
+          >
+            <div id="proton-catalog-source-heading" className="crosshook-label">
               Catalog source
-            </span>
+            </div>
             <div
               className="crosshook-protonup-catalog__provider-toggle"
-              role="group"
-              aria-labelledby="protonup-catalog-provider-label"
               style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}
             >
               <button

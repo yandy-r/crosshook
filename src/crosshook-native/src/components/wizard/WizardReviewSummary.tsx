@@ -72,8 +72,11 @@ export function WizardReviewSummary({ validation, readinessResult, checkError }:
                 : `${readinessResult.critical_failures} issue(s) found.`}
             </p>
             <ul className="crosshook-onboarding-wizard__review-list">
-              {readinessResult.checks.map((check, idx) => (
-                <li key={`${check.field}-${check.path}-${idx}`} className="crosshook-onboarding-wizard__review-row">
+              {readinessResult.checks.map((check) => (
+                <li
+                  key={`${check.field}-${check.path}-${check.message}-${check.severity}`}
+                  className="crosshook-onboarding-wizard__review-row"
+                >
                   <span
                     aria-hidden="true"
                     style={{ color: resolveCheckColor(check.severity) }}

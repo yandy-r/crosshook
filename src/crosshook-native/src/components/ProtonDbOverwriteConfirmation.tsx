@@ -14,11 +14,8 @@ export function ProtonDbOverwriteConfirmation({
   onConfirmProtonDbOverwrite,
 }: ProtonDbOverwriteConfirmationProps) {
   return (
-    <div
-      className="crosshook-protondb-card__recommendation-group"
-      role="group"
-      aria-label="ProtonDB overwrite confirmation"
-    >
+    <fieldset className="crosshook-protondb-card__recommendation-group crosshook-fieldset-reset">
+      <legend className="crosshook-visually-hidden">ProtonDB overwrite confirmation</legend>
       <div className="crosshook-protondb-card__meta">
         <h3 className="crosshook-protondb-card__recommendation-group-title">
           Confirm conflicting environment-variable updates
@@ -85,7 +82,7 @@ export function ProtonDbOverwriteConfirmation({
           Apply selected changes
         </button>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
