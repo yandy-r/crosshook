@@ -275,17 +275,16 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     // Resolve launch directives (wrappers + optimization env).
     // `steam_applaunch` uses the same optimization catalog as `proton_run` for Steam Launch Options,
     // without going through `resolve_launch_directives` (which is proton_run-only on the request).
+    // Trainer-only launches use the same resolution path so previews match Proton-aligned semantics.
     // This can fail independently of validation (e.g., missing wrapper binary).
     let (directives, mut directives_error) = match request.resolved_method() {
-        METHOD_STEAM_APPLAUNCH => {
-            match resolve_launch_directives_for_method(
-                &request.optimizations.enabled_option_ids,
-                METHOD_PROTON_RUN,
-            ) {
-                Ok(d) => (Some(d), None),
-                Err(e) => (None, Some(e.to_string())),
-            }
-        }
+        METHOD_STEAM_APPLAUNCH => match resolve_launch_directives_for_method(
+            &request.optimizations.enabled_option_ids,
+            METHOD_PROTON_RUN,
+        ) {
+            Ok(d) => (Some(d), None),
+            Err(e) => (None, Some(e.to_string())),
+        },
         _ => match resolve_launch_directives(request) {
             Ok(d) => (Some(d), None),
             Err(e) => (None, Some(e.to_string())),
@@ -333,7 +332,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
                 request,
                 resolved_method,
                 &effective_wrappers,
-                gamescope_config,
+                &gamescope_config,
                 gamescope_active,
             ) {
                 Ok(command) => Some(command),
@@ -358,7 +357,7 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
         match build_steam_launch_options_command(
             &request.optimizations.enabled_option_ids,
             &request.custom_env_vars,
-            gamescope_param,
+            gamescope_param.as_ref(),
         ) {
             Ok(command) => Some(command),
             Err(error) => {
@@ -1388,6 +1387,8 @@ mod tests {
         request.gamescope = crate::profile::GamescopeConfig {
             enabled: true,
             fullscreen: true,
+            internal_width: Some(1920),
+            internal_height: Some(1080),
             ..Default::default()
         };
         request.trainer_gamescope = Some(crate::profile::GamescopeConfig::default());
@@ -1396,6 +1397,51 @@ mod tests {
         assert!(
             preview.gamescope_active,
             "expected fallback gamescope to be active"
+        );
+        let command = preview
+            .effective_command
+            .as_deref()
+            .expect("effective command");
+        assert!(
+            command.contains("-w 1920 -h 1080"),
+            "expected auto-generated trainer gamescope resolution in: {command}"
+        );
+        assert!(
+            !command.split_whitespace().any(|token| token == "-f"),
+            "auto-generated trainer gamescope should not force fullscreen: {command}"
+        );
+    }
+
+    #[test]
+    fn preview_trainer_only_auto_derives_windowed_gamescope_when_trainer_gamescope_is_none() {
+        let (_td, mut request) = proton_request();
+        request.launch_trainer_only = true;
+        request.launch_game_only = false;
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            output_width: Some(1920),
+            output_height: Some(1080),
+            ..Default::default()
+        };
+        request.trainer_gamescope = None;
+
+        let preview = build_launch_preview(&request).expect("preview");
+        assert!(
+            preview.gamescope_active,
+            "expected auto-derived gamescope to be active"
+        );
+        let command = preview
+            .effective_command
+            .as_deref()
+            .expect("effective command");
+        assert!(
+            command.contains("-W 1920 -H 1080"),
+            "expected auto-derived trainer gamescope output resolution in: {command}"
+        );
+        assert!(
+            !command.split_whitespace().any(|token| token == "-f"),
+            "auto-derived trainer gamescope should not force fullscreen: {command}"
         );
     }
 }

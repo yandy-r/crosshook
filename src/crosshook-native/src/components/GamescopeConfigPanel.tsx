@@ -10,8 +10,8 @@ export interface GamescopeConfigPanelProps {
   isInsideGamescopeSession: boolean;
   /** Optional hint displayed below the enable checkbox. */
   enableHint?: string;
-  /** When true, the fullscreen flag is forced on and cannot be toggled (e.g. trainer mode). */
-  lockedFullscreen?: boolean;
+  /** Optional note shown above the settings body when the displayed config is derived. */
+  derivedConfigNotice?: string;
 }
 
 const RESOLUTION_PRESETS: Array<{ value: string; label: string; width: number; height: number }> = [
@@ -56,7 +56,7 @@ export function GamescopeConfigPanel({
   onChange,
   isInsideGamescopeSession,
   enableHint,
-  lockedFullscreen,
+  derivedConfigNotice,
 }: GamescopeConfigPanelProps) {
   const id = useId();
   const isDisabled = !config.enabled;
@@ -111,6 +111,12 @@ export function GamescopeConfigPanel({
         <div className="crosshook-warning-banner" role="alert">
           Running inside an existing gamescope session. Gamescope will be auto-skipped at launch unless &ldquo;Allow
           nested&rdquo; is enabled below.
+        </div>
+      ) : null}
+
+      {derivedConfigNotice ? (
+        <div className="crosshook-info-banner" role="note">
+          {derivedConfigNotice}
         </div>
       ) : null}
 
@@ -281,10 +287,10 @@ export function GamescopeConfigPanel({
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
             <CheckboxFlag
               id={`${id}-fs`}
-              label={lockedFullscreen ? 'Fullscreen (forced for trainer)' : 'Fullscreen'}
+              label="Fullscreen"
               hint="-f"
-              checked={lockedFullscreen || config.fullscreen}
-              disabled={isDisabled || !!lockedFullscreen}
+              checked={config.fullscreen}
+              disabled={isDisabled}
               onChange={(v) => patch({ fullscreen: v, borderless: v ? false : config.borderless })}
             />
             <CheckboxFlag

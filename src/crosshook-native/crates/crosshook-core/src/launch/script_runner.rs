@@ -239,9 +239,9 @@ pub fn build_helper_command(
     let mut env = host_environment_map();
     merge_steam_helper_env_into(&mut env, request);
     merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
-    let trainer_gamescope = request.effective_trainer_gamescope();
+    let trainer_gamescope = request.resolved_trainer_gamescope();
     let trainer_gamescope_active =
-        trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope);
+        trainer_gamescope.enabled && !should_skip_gamescope(&trainer_gamescope);
     let trainer_wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
     merge_mangohud_config_env_into_map(
         &mut env,
@@ -315,54 +315,38 @@ pub fn build_helper_command(
         log_path,
         resolved_proton_path.trim(),
         normalized_steam_client_install_path.trim(),
+        &trainer_gamescope,
     ));
     Ok(command)
 }
 
+// Non-Flatpak Steam trainer-only helper path.
+//
+// This function intentionally does NOT emit CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS or
+// CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS. Per the CLAUDE.md trainer execution parity rule,
+// the trainer-only Steam helper path aligns with `proton_run` semantics and drops the
+// optimization env that the combined game+trainer `build_helper_command` path emits.
+//
+// Downstream runner scripts (e.g. steam-host-trainer-runner.sh:441-442) call
+// `capture_preserved_trainer_env` which reads those vars; they handle missing or empty
+// CROSSHOOK_TRAINER_*_ENV_KEYS gracefully (treating them as empty). This is intentional
+// and documented here to avoid future confusion during env-inheritance debugging under
+// `steam_applaunch` trainer-only runs. See issue #229.
 pub fn build_trainer_command(
     request: &LaunchRequest,
     script_path: &Path,
     log_path: &Path,
 ) -> std::io::Result<Command> {
-    let directives = resolve_launch_directives_for_method(
-        &request.optimizations.enabled_option_ids,
-        METHOD_PROTON_RUN,
-    )
-    .map_err(validation_error_to_io_error)?;
     let mut env = host_environment_map();
     merge_steam_helper_env_into(&mut env, request);
-    merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
-    let trainer_gamescope = request.effective_trainer_gamescope();
-    let trainer_gamescope_active =
-        trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope);
-    let trainer_wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
-    merge_mangohud_config_env_into_map(
-        &mut env,
-        request,
-        trainer_gamescope_active,
-        trainer_wrappers_had_mangohud,
-    );
-    let builtin_trainer_env_keys = collect_trainer_builtin_env_keys(&env, &request.custom_env_vars);
-    insert_sorted_env_key_list(
-        &mut env,
-        "CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS",
-        builtin_trainer_env_keys,
-    );
-    insert_sorted_env_key_list(
-        &mut env,
-        "CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS",
-        request.custom_env_vars.keys().cloned(),
-    );
-    let mut base_for_flatpak = env.clone();
-    for key in request.custom_env_vars.keys() {
-        base_for_flatpak.remove(key);
-    }
+    let base_for_flatpak = env.clone();
     let resolved_proton_path = resolve_launch_proton_path(
         request.steam.proton_path.as_str(),
         request.steam.steam_client_install_path.as_str(),
     );
     let normalized_steam_client_install_path =
         normalize_flatpak_host_path(&request.steam.steam_client_install_path);
+    let trainer_gamescope = request.resolved_trainer_gamescope();
 
     tracing::debug!(
         configured_proton_path = request.steam.proton_path.trim(),
@@ -377,17 +361,8 @@ pub fn build_trainer_command(
         && super::runtime_helpers::is_unshare_net_available()
     {
         if platform::is_flatpak() {
-            build_flatpak_unshare_bash_command(
-                script_path,
-                &base_for_flatpak,
-                &request.custom_env_vars,
-            )?
+            build_flatpak_unshare_bash_command(script_path, &base_for_flatpak, &BTreeMap::new())?
         } else {
-            merge_optimization_and_custom_into_map(
-                &mut env,
-                &directives.env,
-                &request.custom_env_vars,
-            );
             let mut cmd = Command::new("unshare");
             cmd.envs(&env);
             cmd.args(["--net", BASH_EXECUTABLE]);
@@ -395,7 +370,6 @@ pub fn build_trainer_command(
             cmd
         }
     } else {
-        merge_optimization_and_custom_into_map(&mut env, &directives.env, &request.custom_env_vars);
         let mut cmd = Command::new(BASH_EXECUTABLE);
         cmd.arg(script_path);
         cmd.envs(&env);
@@ -406,6 +380,7 @@ pub fn build_trainer_command(
         log_path,
         resolved_proton_path.trim(),
         normalized_steam_client_install_path.trim(),
+        &trainer_gamescope,
     ));
     Ok(command)
 }
@@ -512,7 +487,6 @@ pub fn build_proton_trainer_command(
     request: &LaunchRequest,
     _log_path: &Path,
 ) -> std::io::Result<Command> {
-    let directives = resolve_launch_directives(request).map_err(validation_error_to_io_error)?;
     let normalized_prefix_path = normalize_flatpak_host_path(&request.runtime.prefix_path);
     let normalized_trainer_host_path = normalize_flatpak_host_path(&request.trainer_host_path);
     let normalized_working_directory =
@@ -531,16 +505,13 @@ pub fn build_proton_trainer_command(
 
     let effective_wrappers =
         if request.network_isolation && super::runtime_helpers::is_unshare_net_available() {
-            let mut w = vec!["unshare".to_string(), "--net".to_string()];
-            w.extend(directives.wrappers.iter().cloned());
-            w
+            vec!["unshare".to_string(), "--net".to_string()]
         } else {
-            directives.wrappers.clone()
+            Vec::new()
         };
 
-    let trainer_gamescope = request.effective_trainer_gamescope();
-    let gamescope_active = trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope);
-    let wrappers_had_mangohud = effective_wrappers.iter().any(|w| w.trim() == "mangohud");
+    let trainer_gamescope = request.resolved_trainer_gamescope();
+    let gamescope_active = trainer_gamescope.enabled && !should_skip_gamescope(&trainer_gamescope);
 
     let mut env = host_environment_map();
     merge_runtime_proton_into_map(
@@ -548,12 +519,7 @@ pub fn build_proton_trainer_command(
         request.runtime.prefix_path.trim(),
         request.steam.steam_client_install_path.trim(),
     );
-    merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
     env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
-    merge_mangohud_config_env_into_map(&mut env, request, gamescope_active, wrappers_had_mangohud);
-    for key in request.custom_env_vars.keys() {
-        env.remove(key);
-    }
     let resolved_proton_path = resolve_launch_proton_path(
         request.runtime.proton_path.trim(),
         request.steam.steam_client_install_path.trim(),
@@ -577,14 +543,14 @@ pub fn build_proton_trainer_command(
 
     let mut command = if gamescope_active {
         let (gamescope_args, filtered_wrappers) =
-            prepare_gamescope_launch(trainer_gamescope, &effective_wrappers);
+            prepare_gamescope_launch(&trainer_gamescope, &effective_wrappers);
         build_proton_command_with_gamescope_in_directory(
             resolved_proton_path.as_str(),
             &filtered_wrappers,
             &gamescope_args,
             &env,
             effective_working_directory.as_deref(),
-            &request.custom_env_vars,
+            &BTreeMap::new(),
         )
     } else {
         build_direct_proton_command_with_wrappers_in_directory(
@@ -592,7 +558,7 @@ pub fn build_proton_trainer_command(
             &effective_wrappers,
             &env,
             effective_working_directory.as_deref(),
-            &request.custom_env_vars,
+            &BTreeMap::new(),
         )
     };
     command.arg(trainer_launch_path);
@@ -684,6 +650,7 @@ fn helper_arguments(
     log_path: &Path,
     resolved_proton_path: &str,
     normalized_steam_client_install_path: &str,
+    trainer_gamescope: &GamescopeConfig,
 ) -> Vec<OsString> {
     let normalized_working_directory =
         normalize_flatpak_host_path(&request.runtime.working_directory);
@@ -713,7 +680,6 @@ fn helper_arguments(
         arguments.push(normalized_working_directory.into());
     }
 
-    let trainer_gamescope = request.effective_trainer_gamescope();
     if trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope) {
         arguments.push("--gamescope-enabled".into());
         if trainer_gamescope.allow_nested {
@@ -750,6 +716,7 @@ fn trainer_arguments(
     log_path: &Path,
     resolved_proton_path: &str,
     normalized_steam_client_install_path: &str,
+    trainer_gamescope: &GamescopeConfig,
 ) -> Vec<OsString> {
     let normalized_working_directory =
         normalize_flatpak_host_path(&request.runtime.working_directory);
@@ -777,7 +744,6 @@ fn trainer_arguments(
         arguments.push(normalized_working_directory.into());
     }
 
-    let trainer_gamescope = request.effective_trainer_gamescope();
     if trainer_gamescope.enabled && !should_skip_gamescope(trainer_gamescope) {
         arguments.push("--gamescope-enabled".into());
         if trainer_gamescope.allow_nested {
@@ -1164,7 +1130,7 @@ mod tests {
     }
 
     #[test]
-    fn proton_trainer_command_applies_optimization_wrappers_and_env() {
+    fn proton_trainer_command_ignores_game_optimization_wrappers_and_env() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let wrapper_dir = temp_dir.path().join("wrappers");
         let prefix_path = temp_dir.path().join("prefix");
@@ -1231,12 +1197,13 @@ mod tests {
             .map(|arg| arg.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
 
-        assert_eq!(command.as_std().get_program().to_string_lossy(), "mangohud");
+        assert_eq!(
+            command.as_std().get_program().to_string_lossy(),
+            proton_path.to_string_lossy()
+        );
         assert_eq!(
             args,
             vec![
-                "gamemoderun".to_string(),
-                proton_path.to_string_lossy().into_owned(),
                 "run".to_string(),
                 "C:\\CrossHook\\StagedTrainers\\sample\\sample.exe".to_string(),
             ]
@@ -1249,10 +1216,6 @@ mod tests {
             Some(workspace_dir.to_string_lossy().into_owned())
         );
         assert_eq!(
-            command_env_value(&command, "PROTON_NO_STEAMINPUT"),
-            Some("1".to_string())
-        );
-        assert_eq!(
             command_env_value(&command, "STEAM_COMPAT_DATA_PATH"),
             Some(prefix_path.to_string_lossy().into_owned())
         );
@@ -1261,6 +1224,9 @@ mod tests {
             Some(wine_prefix_path.to_string_lossy().into_owned())
         );
         assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
+        assert_eq!(command_env_value(&command, "PROTON_NO_STEAMINPUT"), None);
+        assert_eq!(command_env_value(&command, "DXVK_ASYNC"), None);
+        assert_eq!(command_env_value(&command, "MANGOHUD_CONFIGFILE"), None);
         assert!(wine_prefix_path
             .join("drive_c/CrossHook/StagedTrainers/sample/sample.ini")
             .exists());
@@ -1376,7 +1342,7 @@ mod tests {
     }
 
     #[test]
-    fn trainer_command_includes_launch_optimization_env() {
+    fn trainer_command_ignores_launch_optimization_env() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let script_path = temp_dir.path().join("steam-launch-trainer.sh");
         let log_path = temp_dir.path().join("trainer.log");
@@ -1389,17 +1355,11 @@ mod tests {
         let command =
             build_trainer_command(&request, &script_path, &log_path).expect("trainer command");
 
-        assert_eq!(
-            command_env_value(&command, "PROTON_NO_STEAMINPUT"),
-            Some("1".to_string())
-        );
-        assert_eq!(
-            command_env_value(&command, "DXVK_ASYNC"),
-            Some("1".to_string())
-        );
+        assert_eq!(command_env_value(&command, "PROTON_NO_STEAMINPUT"), None);
+        assert_eq!(command_env_value(&command, "DXVK_ASYNC"), None);
         assert_eq!(
             command_env_value(&command, "CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS"),
-            Some("DXVK_ASYNC,PROTON_NO_STEAMINPUT".to_string())
+            None
         );
         assert_eq!(
             command_env_value(&command, "CROSSHOOK_TRAINER_CUSTOM_ENV_KEYS"),
@@ -1788,8 +1748,10 @@ mod tests {
 
         assert!(args.contains(&"--gamescope-enabled".to_string()));
         assert!(!args.contains(&"--gamescope-inherit-runtime".to_string()));
-        assert!(args.contains(&"--gamescope-arg".to_string()));
-        assert!(args.contains(&"-f".to_string()));
+        assert!(
+            !args.contains(&"-f".to_string()),
+            "auto-generated trainer gamescope should clear fullscreen: {args:?}"
+        );
     }
 
     #[test]

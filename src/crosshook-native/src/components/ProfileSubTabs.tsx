@@ -1,8 +1,9 @@
 import * as Tabs from '@radix-ui/react-tabs';
-import { type CSSProperties, useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
-import type { GameProfile, LaunchMethod } from '../types';
+import type { GameProfile, GamescopeConfig, LaunchMethod } from '../types';
+import { DEFAULT_GAMESCOPE_CONFIG } from '../types/profile';
 import type { ProtonInstallOption } from '../types/proton';
 import { resolveArtAppId } from '../utils/art';
 import { GamescopeConfigPanel } from './GamescopeConfigPanel';
@@ -46,6 +47,41 @@ const TAB_LABELS: Record<SubTabId, string> = {
   export: 'Export',
 };
 
+// Must mirror LaunchRequest::resolved_trainer_gamescope / LaunchSection::resolved_trainer_gamescope in crosshook-core — update both sites together.
+function resolveTrainerGamescopeForDisplay(profile: GameProfile): {
+  config: GamescopeConfig;
+  isGeneratedFromGame: boolean;
+} {
+  const trainerGamescope = profile.launch.trainer_gamescope;
+
+  if (trainerGamescope?.enabled) {
+    return {
+      config: trainerGamescope,
+      isGeneratedFromGame: false,
+    };
+  }
+
+  const gameGamescope = profile.launch.gamescope;
+  if (gameGamescope?.enabled) {
+    return {
+      config: {
+        ...DEFAULT_GAMESCOPE_CONFIG,
+        ...gameGamescope,
+        enabled: true,
+        fullscreen: false,
+        borderless: false,
+        extra_args: gameGamescope.extra_args ?? [],
+      },
+      isGeneratedFromGame: true,
+    };
+  }
+
+  return {
+    config: DEFAULT_GAMESCOPE_CONFIG,
+    isGeneratedFromGame: false,
+  };
+}
+
 export function ProfileSubTabs({
   profile,
   profileName,
@@ -74,6 +110,7 @@ export function ProfileSubTabs({
   const dominantColor = useImageDominantColor(coverArtUrl);
 
   const supportsLauncherExport = launchMethod === 'steam_applaunch' || launchMethod === 'proton_run';
+  const trainerGamescopeDisplay = useMemo(() => resolveTrainerGamescopeForDisplay(profile), [profile]);
 
   const tabs: SubTabId[] = [
     'setup',
@@ -226,18 +263,7 @@ export function ProfileSubTabs({
           >
             <div className="crosshook-subtab-content__inner">
               <GamescopeConfigPanel
-                config={
-                  profile.launch.trainer_gamescope ?? {
-                    enabled: false,
-                    fullscreen: false,
-                    borderless: false,
-                    grab_cursor: false,
-                    force_grab_cursor: false,
-                    hdr_enabled: false,
-                    allow_nested: false,
-                    extra_args: [],
-                  }
-                }
+                config={trainerGamescopeDisplay.config}
                 onChange={(trainerGamescope) =>
                   onUpdateProfile((current) => ({
                     ...current,
@@ -246,7 +272,11 @@ export function ProfileSubTabs({
                 }
                 isInsideGamescopeSession={false}
                 enableHint="Required when the game also launches under gamescope. The trainer runs in its own compositor window so it can display alongside the game."
-                lockedFullscreen
+                derivedConfigNotice={
+                  trainerGamescopeDisplay.isGeneratedFromGame
+                    ? 'Trainer gamescope is auto-generated from the game config. Edit any value here and save the profile to create a trainer-specific override.'
+                    : undefined
+                }
               />
             </div>
           </Tabs.Content>

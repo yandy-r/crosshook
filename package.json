@@ -9,6 +9,9 @@
     "flatpak:build": "scripts/build-flatpak.sh --rebuild",
     "flatpak:install": "scripts/build-flatpak.sh --install",
     "flatpak:update": "scripts/build-flatpak.sh --rebuild --install",
-    "flatpak:run": "flatpak run dev.crosshook.CrossHook"
+    "flatpak:run": "flatpak run dev.crosshook.CrossHook",
+    "lint": "scripts/lint.sh",
+    "lint:fix": "scripts/lint.sh --fix",
+    "format": "scripts/format.sh"
   }
 }

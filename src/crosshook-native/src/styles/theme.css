@@ -4435,6 +4435,14 @@ textarea {
   color: #fcd34d;
 }
 
+.crosshook-info-banner {
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(125, 211, 252, 0.1);
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  color: var(--crosshook-color-info);
+}
+
 .crosshook-profile-editor-page {
   min-height: 100vh;
   padding: 24px;

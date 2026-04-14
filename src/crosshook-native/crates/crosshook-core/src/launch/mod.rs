@@ -1,5 +1,7 @@
 //! Launch orchestration primitives.
 
+use crate::profile::GamescopeConfig;
+
 pub mod catalog;
 pub mod diagnostics;
 pub mod env;
@@ -37,3 +39,28 @@ pub use trainer_hash::{
     collect_trainer_hash_launch_warnings, launch_issues_from_trainer_hash_outcome,
 };
 pub use watchdog::{gamescope_watchdog, is_process_running};
+
+/// Resolves the trainer gamescope config from a game config and an optional trainer override.
+///
+/// Priority:
+/// 1. `trainer_override` when `Some` and `enabled` — returned as-is (cloned).
+/// 2. `game` when `enabled` — cloned with `fullscreen` and `borderless` forced to `false`
+///    so the trainer window is windowed inside the game's compositor session.
+/// 3. [`GamescopeConfig::default`] when the game config is disabled.
+pub(crate) fn resolve_trainer_gamescope(
+    game: &GamescopeConfig,
+    trainer_override: Option<&GamescopeConfig>,
+) -> GamescopeConfig {
+    if let Some(trainer) = trainer_override.filter(|c| c.enabled) {
+        return trainer.clone();
+    }
+
+    if game.enabled {
+        let mut derived = game.clone();
+        derived.fullscreen = false;
+        derived.borderless = false;
+        return derived;
+    }
+
+    GamescopeConfig::default()
+}

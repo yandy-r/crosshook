@@ -395,17 +395,14 @@ impl LaunchSection {
         }
     }
 
-    /// Effective gamescope configuration for trainer-only flows (Steam trainer launch, exported
-    /// desktop launcher).
+    /// Returns the trainer gamescope config to use at launch/export time.
     ///
-    /// Matches [`crate::launch::LaunchRequest::effective_trainer_gamescope`]: when
-    /// `trainer_gamescope` is enabled, use it; otherwise inherit from the game [`Self::gamescope`].
-    pub fn effective_trainer_gamescope(&self) -> GamescopeConfig {
-        if self.trainer_gamescope.enabled {
-            self.trainer_gamescope.clone()
-        } else {
-            self.gamescope.clone()
-        }
+    /// Priority:
+    /// 1. Explicit trainer gamescope override when enabled
+    /// 2. Auto-generated windowed config derived from the game gamescope config
+    /// 3. Default disabled config when the game gamescope config is disabled
+    pub fn resolved_trainer_gamescope(&self) -> GamescopeConfig {
+        crate::launch::resolve_trainer_gamescope(&self.gamescope, Some(&self.trainer_gamescope))
     }
 }
 
@@ -1104,20 +1101,29 @@ type = "fling"
     }
 
     #[test]
-    fn launch_section_effective_trainer_gamescope_inherits_from_game_when_trainer_disabled() {
+    fn launch_section_resolved_trainer_gamescope_auto_generates_windowed() {
         let mut launch = LaunchSection::default();
         launch.gamescope = GamescopeConfig {
             enabled: true,
+            fullscreen: true,
+            borderless: true,
             internal_width: Some(1920),
             internal_height: Some(1080),
             ..GamescopeConfig::default()
         };
         launch.trainer_gamescope = GamescopeConfig::default();
-        assert_eq!(launch.effective_trainer_gamescope(), launch.gamescope);
+
+        let resolved = launch.resolved_trainer_gamescope();
+
+        assert!(resolved.enabled);
+        assert!(!resolved.fullscreen);
+        assert!(!resolved.borderless);
+        assert_eq!(resolved.internal_width, Some(1920));
+        assert_eq!(resolved.internal_height, Some(1080));
     }
 
     #[test]
-    fn launch_section_effective_trainer_gamescope_prefers_trainer_when_enabled() {
+    fn launch_section_resolved_trainer_gamescope_prefers_trainer_when_enabled() {
         let mut launch = LaunchSection::default();
         launch.gamescope = GamescopeConfig {
             enabled: true,
@@ -1131,9 +1137,110 @@ type = "fling"
             internal_height: Some(600),
             ..GamescopeConfig::default()
         };
+
         assert_eq!(
-            launch.effective_trainer_gamescope(),
+            launch.resolved_trainer_gamescope(),
             launch.trainer_gamescope
+        );
+    }
+
+    #[test]
+    fn launch_section_resolved_trainer_gamescope_returns_default_when_game_disabled() {
+        let mut launch = LaunchSection::default();
+        launch.gamescope = GamescopeConfig::default();
+        launch.trainer_gamescope = GamescopeConfig::default();
+
+        let resolved = launch.resolved_trainer_gamescope();
+
+        assert_eq!(resolved, GamescopeConfig::default());
+    }
+
+    // --- Parity: LaunchSection::resolved_trainer_gamescope == LaunchRequest::resolved_trainer_gamescope ---
+
+    #[test]
+    fn resolved_trainer_gamescope_parity_explicit_enabled() {
+        // Branch 1: explicit trainer override with enabled=true
+        let game_cfg = GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            internal_width: Some(1920),
+            internal_height: Some(1080),
+            ..GamescopeConfig::default()
+        };
+        let trainer_cfg = GamescopeConfig {
+            enabled: true,
+            fullscreen: false,
+            internal_width: Some(800),
+            internal_height: Some(600),
+            ..GamescopeConfig::default()
+        };
+
+        let mut launch = LaunchSection::default();
+        launch.gamescope = game_cfg.clone();
+        launch.trainer_gamescope = trainer_cfg.clone();
+
+        let request = crate::launch::LaunchRequest {
+            gamescope: game_cfg,
+            trainer_gamescope: Some(trainer_cfg),
+            ..crate::launch::LaunchRequest::default()
+        };
+
+        assert_eq!(
+            launch.resolved_trainer_gamescope(),
+            request.resolved_trainer_gamescope(),
+            "explicit-enabled branch must produce equal results"
+        );
+    }
+
+    #[test]
+    fn resolved_trainer_gamescope_parity_disabled_override_auto_derive() {
+        // Branch 2: trainer override disabled (or None) → auto-derive windowed from game
+        let game_cfg = GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            borderless: false,
+            internal_width: Some(2560),
+            internal_height: Some(1440),
+            frame_rate_limit: Some(60),
+            ..GamescopeConfig::default()
+        };
+
+        // LaunchSection uses a non-enabled trainer_gamescope (disabled explicit override)
+        let mut launch = LaunchSection::default();
+        launch.gamescope = game_cfg.clone();
+        launch.trainer_gamescope = GamescopeConfig::default(); // enabled=false
+
+        // LaunchRequest uses None (no override) — semantically equivalent: auto-derive
+        let request = crate::launch::LaunchRequest {
+            gamescope: game_cfg,
+            trainer_gamescope: None,
+            ..crate::launch::LaunchRequest::default()
+        };
+
+        assert_eq!(
+            launch.resolved_trainer_gamescope(),
+            request.resolved_trainer_gamescope(),
+            "disabled-override auto-derive branch must produce equal results"
+        );
+    }
+
+    #[test]
+    fn resolved_trainer_gamescope_parity_disabled_game_default() {
+        // Branch 3: game gamescope disabled → both return GamescopeConfig::default()
+        let mut launch = LaunchSection::default();
+        launch.gamescope = GamescopeConfig::default(); // enabled=false
+        launch.trainer_gamescope = GamescopeConfig::default();
+
+        let request = crate::launch::LaunchRequest {
+            gamescope: GamescopeConfig::default(),
+            trainer_gamescope: None,
+            ..crate::launch::LaunchRequest::default()
+        };
+
+        assert_eq!(
+            launch.resolved_trainer_gamescope(),
+            request.resolved_trainer_gamescope(),
+            "disabled-game default branch must produce equal results"
         );
     }
 

@@ -110,18 +110,21 @@ pub struct LaunchOptimizationsRequest {
 }
 
 impl LaunchRequest {
-    pub fn effective_trainer_gamescope(&self) -> &GamescopeConfig {
-        self.trainer_gamescope
-            .as_ref()
-            .filter(|config| config.enabled)
-            .unwrap_or(&self.gamescope)
+    /// Returns the trainer gamescope config to use at launch time.
+    ///
+    /// Priority:
+    /// 1. Explicit trainer gamescope override when enabled
+    /// 2. Auto-generated windowed config derived from the game gamescope config
+    /// 3. Default disabled config when the game gamescope config is disabled
+    pub fn resolved_trainer_gamescope(&self) -> GamescopeConfig {
+        super::resolve_trainer_gamescope(&self.gamescope, self.trainer_gamescope.as_ref())
     }
 
-    pub fn effective_gamescope_config(&self) -> &GamescopeConfig {
+    pub fn effective_gamescope_config(&self) -> GamescopeConfig {
         if self.launch_trainer_only {
-            self.effective_trainer_gamescope()
+            self.resolved_trainer_gamescope()
         } else {
-            &self.gamescope
+            self.gamescope.clone()
         }
     }
 
@@ -860,7 +863,7 @@ pub fn validate_all(request: &LaunchRequest) -> Vec<LaunchValidationIssue> {
     }
     let gamescope_config = request.effective_gamescope_config();
     if gamescope_config.enabled {
-        collect_gamescope_issues(request, gamescope_config, &mut issues);
+        collect_gamescope_issues(request, &gamescope_config, &mut issues);
     }
     issues
 }
@@ -907,12 +910,16 @@ fn validate_steam_applaunch(request: &LaunchRequest) -> Result<(), ValidationErr
         return Err(ValidationError::SteamClientInstallPathRequired);
     }
 
-    // Align with `build_steam_launch_options_command`: steam_applaunch uses the same optimization
-    // IDs as `proton_run` for the Launch Options prefix (unknown IDs, conflicts, PATH deps).
-    resolve_launch_directives_for_method(
-        &request.optimizations.enabled_option_ids,
-        METHOD_PROTON_RUN,
-    )?;
+    if !request.launch_trainer_only {
+        // Align with `build_steam_launch_options_command`: steam_applaunch uses the same
+        // optimization IDs as `proton_run` for the Launch Options prefix (unknown IDs,
+        // conflicts, PATH deps). Trainer-only launches intentionally ignore the game's
+        // optimization wrapper stack to match exported trainer launchers.
+        resolve_launch_directives_for_method(
+            &request.optimizations.enabled_option_ids,
+            METHOD_PROTON_RUN,
+        )?;
+    }
 
     Ok(())
 }
@@ -935,7 +942,9 @@ fn validate_proton_run(request: &LaunchRequest) -> Result<(), ValidationError> {
         ValidationError::RuntimeProtonPathNotExecutable,
     )?;
 
-    resolve_launch_directives(request)?;
+    if !request.launch_trainer_only {
+        resolve_launch_directives(request)?;
+    }
 
     Ok(())
 }
@@ -990,11 +999,13 @@ fn collect_steam_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidati
         issues.push(ValidationError::SteamClientInstallPathRequired.issue());
     }
 
-    if let Err(e) = resolve_launch_directives_for_method(
-        &request.optimizations.enabled_option_ids,
-        METHOD_PROTON_RUN,
-    ) {
-        issues.push(e.issue());
+    if !request.launch_trainer_only {
+        if let Err(e) = resolve_launch_directives_for_method(
+            &request.optimizations.enabled_option_ids,
+            METHOD_PROTON_RUN,
+        ) {
+            issues.push(e.issue());
+        }
     }
 
     if request.network_isolation
@@ -1031,8 +1042,10 @@ fn collect_proton_issues(request: &LaunchRequest, issues: &mut Vec<LaunchValidat
         issues.push(e.issue());
     }
 
-    if let Err(e) = resolve_launch_directives(request) {
-        issues.push(e.issue());
+    if !request.launch_trainer_only {
+        if let Err(e) = resolve_launch_directives(request) {
+            issues.push(e.issue());
+        }
     }
 
     if request.network_isolation
@@ -1353,6 +1366,104 @@ mod tests {
         };
         request.steam = SteamLaunchConfig::default();
         (temp_dir, request)
+    }
+
+    #[test]
+    fn resolved_trainer_gamescope_uses_explicit_when_enabled() {
+        let (_temp_dir, mut request) = proton_request();
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            internal_width: Some(1920),
+            internal_height: Some(1080),
+            ..Default::default()
+        };
+        request.trainer_gamescope = Some(crate::profile::GamescopeConfig {
+            enabled: true,
+            fullscreen: false,
+            internal_width: Some(800),
+            internal_height: Some(600),
+            ..Default::default()
+        });
+
+        let resolved = request.resolved_trainer_gamescope();
+
+        assert!(resolved.enabled);
+        assert!(!resolved.fullscreen);
+        assert_eq!(resolved.internal_width, Some(800));
+        assert_eq!(resolved.internal_height, Some(600));
+    }
+
+    #[test]
+    fn resolved_trainer_gamescope_auto_generates_windowed_from_game() {
+        let (_temp_dir, mut request) = proton_request();
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            borderless: false,
+            internal_width: Some(1920),
+            internal_height: Some(1080),
+            frame_rate_limit: Some(60),
+            fsr_sharpness: Some(5),
+            hdr_enabled: true,
+            grab_cursor: true,
+            extra_args: vec!["--custom".to_string()],
+            ..Default::default()
+        };
+        request.trainer_gamescope = None;
+
+        let resolved = request.resolved_trainer_gamescope();
+
+        assert!(resolved.enabled, "auto-generated config should be enabled");
+        assert!(
+            !resolved.fullscreen,
+            "auto-generated config must not be fullscreen"
+        );
+        assert!(
+            !resolved.borderless,
+            "auto-generated config must not be borderless"
+        );
+        assert_eq!(resolved.internal_width, Some(1920));
+        assert_eq!(resolved.internal_height, Some(1080));
+        assert_eq!(resolved.frame_rate_limit, Some(60));
+        assert_eq!(resolved.fsr_sharpness, Some(5));
+        assert!(resolved.hdr_enabled);
+        assert!(resolved.grab_cursor);
+        assert_eq!(resolved.extra_args, vec!["--custom"]);
+    }
+
+    #[test]
+    fn resolved_trainer_gamescope_returns_default_when_game_disabled() {
+        let (_temp_dir, mut request) = proton_request();
+        request.gamescope = crate::profile::GamescopeConfig::default();
+        request.trainer_gamescope = None;
+
+        let resolved = request.resolved_trainer_gamescope();
+
+        assert_eq!(resolved, crate::profile::GamescopeConfig::default());
+    }
+
+    #[test]
+    fn resolved_trainer_gamescope_ignores_disabled_explicit_override() {
+        let (_temp_dir, mut request) = proton_request();
+        request.gamescope = crate::profile::GamescopeConfig {
+            enabled: true,
+            fullscreen: true,
+            internal_width: Some(1920),
+            ..Default::default()
+        };
+        request.trainer_gamescope = Some(crate::profile::GamescopeConfig {
+            enabled: false,
+            fullscreen: true,
+            internal_width: Some(800),
+            ..Default::default()
+        });
+
+        let resolved = request.resolved_trainer_gamescope();
+
+        assert!(resolved.enabled);
+        assert!(!resolved.fullscreen);
+        assert_eq!(resolved.internal_width, Some(1920));
     }
 
     fn native_request() -> (tempfile::TempDir, LaunchRequest) {
