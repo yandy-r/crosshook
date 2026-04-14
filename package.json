@@ -1,0 +1,14 @@
+{
+  "name": "crosshook",
+  "description": "Scripts for CrossHook",
+  "scripts": {
+    "dev": "scripts/dev-native.sh",
+    "dev:browser": "scripts/dev-native.sh --browser",
+    "build:binary": "scripts/build-native.sh --binary-only",
+    "build:appimage": "scripts/build-native-container.sh",
+    "flatpak:build": "scripts/build-flatpak.sh --rebuild",
+    "flatpak:install": "scripts/build-flatpak.sh --install",
+    "flatpak:update": "scripts/build-flatpak.sh --rebuild --install",
+    "flatpak:run": "flatpak run dev.crosshook.CrossHook"
+  }
+}
