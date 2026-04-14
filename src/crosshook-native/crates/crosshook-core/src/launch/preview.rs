@@ -466,6 +466,17 @@ fn collect_runtime_proton_environment(request: &LaunchRequest, env: &mut Vec<Pre
             source: EnvVarSource::ProtonRuntime,
         });
     }
+
+    let proton_verb = if request.launch_trainer_only {
+        "runinprefix"
+    } else {
+        "waitforexitandrun"
+    };
+    env.push(PreviewEnvVar {
+        key: "PROTON_VERB".to_string(),
+        value: proton_verb.to_string(),
+        source: EnvVarSource::ProtonRuntime,
+    });
 }
 
 /// Collects Steam-specific Proton environment variables for `steam_applaunch` launches.
@@ -1443,5 +1454,32 @@ mod tests {
             !command.split_whitespace().any(|token| token == "-f"),
             "auto-derived trainer gamescope should not force fullscreen: {command}"
         );
+    }
+
+    #[test]
+    fn preview_proton_verb_is_waitforexitandrun_for_game_and_runinprefix_for_trainer() {
+        // Game launch: PROTON_VERB should be "waitforexitandrun"
+        let (_td, request) = proton_request();
+        let preview = build_launch_preview(&request).expect("preview");
+        let env = preview.environment.expect("environment");
+        let verb = env
+            .iter()
+            .find(|v| v.key == "PROTON_VERB")
+            .expect("PROTON_VERB in game preview env");
+        assert_eq!(verb.value, "waitforexitandrun");
+        assert_eq!(verb.source, EnvVarSource::ProtonRuntime);
+
+        // Trainer-only launch: PROTON_VERB should be "runinprefix"
+        let (_td2, mut trainer_request) = proton_request();
+        trainer_request.launch_trainer_only = true;
+        trainer_request.launch_game_only = false;
+        let trainer_preview = build_launch_preview(&trainer_request).expect("trainer preview");
+        let trainer_env = trainer_preview.environment.expect("trainer environment");
+        let trainer_verb = trainer_env
+            .iter()
+            .find(|v| v.key == "PROTON_VERB")
+            .expect("PROTON_VERB in trainer preview env");
+        assert_eq!(trainer_verb.value, "runinprefix");
+        assert_eq!(trainer_verb.source, EnvVarSource::ProtonRuntime);
     }
 }

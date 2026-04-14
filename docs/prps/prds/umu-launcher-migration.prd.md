@@ -148,14 +148,14 @@ The public-visible "umu is here" moment is **Phase 4** (default-on `UmuPreferenc
   PRP: link to generated plan file once created
 -->
 
-| #   | Phase                                              | Description                                                                                                                              | Status  | Parallel | Depends              | PRP Plan |
-| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | -------------------- | -------- |
-| 1   | PROTON_VERB hygiene                                | Set `PROTON_VERB=waitforexitandrun` for game builder, `runinprefix` for trainer builders; add to `WINE_ENV_VARS_TO_CLEAR`                | in-progress | -        | -                    | [plan](../plans/umu-migration-phase-1-proton-verb-hygiene.plan.md) |
-| 2   | Sandbox allowlist plumbing                         | Collect `{game_dir, trainer_dir, working_dir}`; set `STEAM_COMPAT_LIBRARY_PATHS` + `PRESSURE_VESSEL_FILESYSTEMS_RW` (inert under Proton) | pending | with 1   | -                    | -        |
-| 3   | umu opt-in (non-Steam only)                        | Add `UmuPreference` setting; branch builders on `Umu` + `resolve_umu_run_path()`; derive `PROTONPATH`; Steam paths explicitly opt out    | pending | -        | 1, 2                 | -        |
-| 4   | Auto-default + exported-script parity              | `UmuPreference::Auto` prefers umu when present; `build_exec_line` emits `command -v umu-run` probe with `$PROTON` fallback               | pending | -        | 3                    | -        |
-| 5   | Flatpak host-shared umu runtime + install guidance | Add `--filesystem=xdg-data/umu:create`; upgrade onboarding readiness from Info to actionable install-help dialog                         | pending | with 4   | 3                    | -        |
-| 6   | Remove `proton_run` direct path (end-state)        | Delete fallback branch after 2 clean minor releases of Phase 4 default-on; irreversible contract change                                  | pending | -        | 1, 2, 3, 4, 5 + time | -        |
+| #   | Phase                                              | Description                                                                                                                              | Status   | Parallel | Depends              | PRP Plan                                                                     |
+| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | -------------------- | ---------------------------------------------------------------------------- |
+| 1   | PROTON_VERB hygiene                                | Set `PROTON_VERB=waitforexitandrun` for game builder, `runinprefix` for trainer builders; add to `WINE_ENV_VARS_TO_CLEAR`                | complete | -        | -                    | [plan](../plans/completed/umu-migration-phase-1-proton-verb-hygiene.plan.md) |
+| 2   | Sandbox allowlist plumbing                         | Collect `{game_dir, trainer_dir, working_dir}`; set `STEAM_COMPAT_LIBRARY_PATHS` + `PRESSURE_VESSEL_FILESYSTEMS_RW` (inert under Proton) | pending  | with 1   | -                    | -                                                                            |
+| 3   | umu opt-in (non-Steam only)                        | Add `UmuPreference` setting; branch builders on `Umu` + `resolve_umu_run_path()`; derive `PROTONPATH`; Steam paths explicitly opt out    | pending  | -        | 1, 2                 | -                                                                            |
+| 4   | Auto-default + exported-script parity              | `UmuPreference::Auto` prefers umu when present; `build_exec_line` emits `command -v umu-run` probe with `$PROTON` fallback               | pending  | -        | 3                    | -                                                                            |
+| 5   | Flatpak host-shared umu runtime + install guidance | Add `--filesystem=xdg-data/umu:create`; upgrade onboarding readiness from Info to actionable install-help dialog                         | pending  | with 4   | 3                    | -                                                                            |
+| 6   | Remove `proton_run` direct path (end-state)        | Delete fallback branch after 2 clean minor releases of Phase 4 default-on; irreversible contract change                                  | pending  | -        | 1, 2, 3, 4, 5 + time | -                                                                            |
 
 ### Phase Details
 
@@ -310,51 +310,51 @@ Issues created from this PRD on **yandy-r/crosshook** (2026-04-14). Duplicating 
 
 ### Phase tracking
 
-| Phase | Tracking issue                                        | Linked work                                                                                                                                                                                                                                            |
-| ----- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1     | [#254](https://github.com/yandy-r/crosshook/issues/254) | [#234](https://github.com/yandy-r/crosshook/issues/234)                                                                                                                                                                                                |
-| 2     | [#255](https://github.com/yandy-r/crosshook/issues/255) | [#235](https://github.com/yandy-r/crosshook/issues/235)                                                                                                                                                                                                |
+| Phase | Tracking issue                                          | Linked work                                                                                                                                                                                                                                                                                         |
+| ----- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | [#254](https://github.com/yandy-r/crosshook/issues/254) | [#234](https://github.com/yandy-r/crosshook/issues/234)                                                                                                                                                                                                                                             |
+| 2     | [#255](https://github.com/yandy-r/crosshook/issues/255) | [#235](https://github.com/yandy-r/crosshook/issues/235)                                                                                                                                                                                                                                             |
 | 3     | [#256](https://github.com/yandy-r/crosshook/issues/256) | [#236](https://github.com/yandy-r/crosshook/issues/236), [#237](https://github.com/yandy-r/crosshook/issues/237), [#238](https://github.com/yandy-r/crosshook/issues/238), [#243](https://github.com/yandy-r/crosshook/issues/243); related [#244](https://github.com/yandy-r/crosshook/issues/244) |
-| 4     | [#257](https://github.com/yandy-r/crosshook/issues/257) | [#239](https://github.com/yandy-r/crosshook/issues/239)                                                                                                                                                                                                |
-| 5     | [#258](https://github.com/yandy-r/crosshook/issues/258) | [#240](https://github.com/yandy-r/crosshook/issues/240), [#242](https://github.com/yandy-r/crosshook/issues/242), [#245](https://github.com/yandy-r/crosshook/issues/245), [#246](https://github.com/yandy-r/crosshook/issues/246)                                                               |
-| 6     | [#259](https://github.com/yandy-r/crosshook/issues/259) | [#241](https://github.com/yandy-r/crosshook/issues/241)                                                                                                                                                                                                |
+| 4     | [#257](https://github.com/yandy-r/crosshook/issues/257) | [#239](https://github.com/yandy-r/crosshook/issues/239)                                                                                                                                                                                                                                             |
+| 5     | [#258](https://github.com/yandy-r/crosshook/issues/258) | [#240](https://github.com/yandy-r/crosshook/issues/240), [#242](https://github.com/yandy-r/crosshook/issues/242), [#245](https://github.com/yandy-r/crosshook/issues/245), [#246](https://github.com/yandy-r/crosshook/issues/246)                                                                  |
+| 6     | [#259](https://github.com/yandy-r/crosshook/issues/259) | [#241](https://github.com/yandy-r/crosshook/issues/241)                                                                                                                                                                                                                                             |
 
 Phase 1 tracker [#254](https://github.com/yandy-r/crosshook/issues/254) links the other phase trackers in a comment for navigation.
 
 ### Implementation (child issues)
 
-| #   | Issue                                               | Topic                                      |
-| --- | --------------------------------------------------- | ------------------------------------------ |
-| 234 | [Phase 1: PROTON_VERB hygiene](https://github.com/yandy-r/crosshook/issues/234)                     | Game/trainer `PROTON_VERB`, `env.rs`, tests |
-| 235 | [Phase 2: pressure-vessel allowlist](https://github.com/yandy-r/crosshook/issues/235)             | `STEAM_COMPAT_*`, `PRESSURE_VESSEL_*`      |
-| 236 | [Phase 3a: UmuPreference + TOML + umu_game_id](https://github.com/yandy-r/crosshook/issues/236)   | Settings + profile fields                  |
-| 237 | [Phase 3b: umu branch + PROTONPATH + Steam opt-out](https://github.com/yandy-r/crosshook/issues/237) | Builders, non-Steam only                  |
-| 238 | [Phase 3c: tests / E2E concurrency](https://github.com/yandy-r/crosshook/issues/238)              | Command-shape split, non-regression smoke |
-| 239 | [Phase 4: Auto + exported scripts](https://github.com/yandy-r/crosshook/issues/239)               | Default-on Auto, `export/launcher.rs`    |
-| 240 | [Phase 5: Flatpak + onboarding](https://github.com/yandy-r/crosshook/issues/240)                   | Manifest, install dialog, nag dismissal    |
-| 241 | [Phase 6: remove direct proton path](https://github.com/yandy-r/crosshook/issues/241)              | Time-gated end state                       |
+| #   | Issue                                                                                                | Topic                                       |
+| --- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| 234 | [Phase 1: PROTON_VERB hygiene](https://github.com/yandy-r/crosshook/issues/234)                      | Game/trainer `PROTON_VERB`, `env.rs`, tests |
+| 235 | [Phase 2: pressure-vessel allowlist](https://github.com/yandy-r/crosshook/issues/235)                | `STEAM_COMPAT_*`, `PRESSURE_VESSEL_*`       |
+| 236 | [Phase 3a: UmuPreference + TOML + umu_game_id](https://github.com/yandy-r/crosshook/issues/236)      | Settings + profile fields                   |
+| 237 | [Phase 3b: umu branch + PROTONPATH + Steam opt-out](https://github.com/yandy-r/crosshook/issues/237) | Builders, non-Steam only                    |
+| 238 | [Phase 3c: tests / E2E concurrency](https://github.com/yandy-r/crosshook/issues/238)                 | Command-shape split, non-regression smoke   |
+| 239 | [Phase 4: Auto + exported scripts](https://github.com/yandy-r/crosshook/issues/239)                  | Default-on Auto, `export/launcher.rs`       |
+| 240 | [Phase 5: Flatpak + onboarding](https://github.com/yandy-r/crosshook/issues/240)                     | Manifest, install dialog, nag dismissal     |
+| 241 | [Phase 6: remove direct proton path](https://github.com/yandy-r/crosshook/issues/241)                | Time-gated end state                        |
 
 ### Decisions, research, and follow-ups
 
-| #   | Issue                                                                                 | Notes                          |
-| --- | ------------------------------------------------------------------------------------- | ------------------------------ |
-| 242 | [Flathub `org.openwinecomponents.umu.umu-launcher`?](https://github.com/yandy-r/crosshook/issues/242) | Blocks Phase 5 one-click UX    |
-| 243 | [PROTONPATH dirname vs tag](https://github.com/yandy-r/crosshook/issues/243)           | GE-Proton path semantics       |
-| 244 | [Gamescope SIGTERM vs PV teardown](https://github.com/yandy-r/crosshook/issues/244)     | Watchdog / container edge cases |
-| 245 | [Steam Deck gaming-mode docs](https://github.com/yandy-r/crosshook/issues/245)        | Onboarding only, upstream bugs |
-| 246 | [Telemetry baseline (optional)](https://github.com/yandy-r/crosshook/issues/246)      | Success-metric quantification  |
-| 247 | [Future: HTTP umu-database GAMEID](https://github.com/yandy-r/crosshook/issues/247)     | Phase 7+; SQLite cache         |
+| #   | Issue                                                                                                 | Notes                           |
+| --- | ----------------------------------------------------------------------------------------------------- | ------------------------------- |
+| 242 | [Flathub `org.openwinecomponents.umu.umu-launcher`?](https://github.com/yandy-r/crosshook/issues/242) | Blocks Phase 5 one-click UX     |
+| 243 | [PROTONPATH dirname vs tag](https://github.com/yandy-r/crosshook/issues/243)                          | GE-Proton path semantics        |
+| 244 | [Gamescope SIGTERM vs PV teardown](https://github.com/yandy-r/crosshook/issues/244)                   | Watchdog / container edge cases |
+| 245 | [Steam Deck gaming-mode docs](https://github.com/yandy-r/crosshook/issues/245)                        | Onboarding only, upstream bugs  |
+| 246 | [Telemetry baseline (optional)](https://github.com/yandy-r/crosshook/issues/246)                      | Success-metric quantification   |
+| 247 | [Future: HTTP umu-database GAMEID](https://github.com/yandy-r/crosshook/issues/247)                   | Phase 7+; SQLite cache          |
 
 ### Deferred / out of scope
 
-| #   | Issue                                                                                        | Topic                    |
-| --- | -------------------------------------------------------------------------------------------- | ------------------------ |
-| 248 | [No Steam profile umu migration](https://github.com/yandy-r/crosshook/issues/248)            | Two PV containers        |
-| 249 | [Custom Proton “tinkerer” UX](https://github.com/yandy-r/crosshook/issues/249)               | Opt-out only in PRD      |
-| 250 | [Non-x86_64](https://github.com/yandy-r/crosshook/issues/250)                                | umu arch scope           |
-| 251 | [v1 HTTP GAMEID (see #247)](https://github.com/yandy-r/crosshook/issues/251)                  | Duplicate pointer        |
-| 252 | [Bundle umu in Flatpak](https://github.com/yandy-r/crosshook/issues/252)                     | Host-shared preferred    |
-| 253 | [winetricks/protontricks via umu](https://github.com/yandy-r/crosshook/issues/253)            | Wine-native, unchanged   |
+| #   | Issue                                                                              | Topic                  |
+| --- | ---------------------------------------------------------------------------------- | ---------------------- |
+| 248 | [No Steam profile umu migration](https://github.com/yandy-r/crosshook/issues/248)  | Two PV containers      |
+| 249 | [Custom Proton “tinkerer” UX](https://github.com/yandy-r/crosshook/issues/249)     | Opt-out only in PRD    |
+| 250 | [Non-x86_64](https://github.com/yandy-r/crosshook/issues/250)                      | umu arch scope         |
+| 251 | [v1 HTTP GAMEID (see #247)](https://github.com/yandy-r/crosshook/issues/251)       | Duplicate pointer      |
+| 252 | [Bundle umu in Flatpak](https://github.com/yandy-r/crosshook/issues/252)           | Host-shared preferred  |
+| 253 | [winetricks/protontricks via umu](https://github.com/yandy-r/crosshook/issues/253) | Wine-native, unchanged |
 
 ---
 

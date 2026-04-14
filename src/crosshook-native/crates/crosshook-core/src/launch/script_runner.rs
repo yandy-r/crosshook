@@ -395,6 +395,7 @@ pub fn build_flatpak_steam_trainer_command(
         normalize_flatpak_host_path(&request.steam.compatdata_path);
     direct_request.runtime.proton_path = request.steam.proton_path.clone();
 
+    // PROTON_VERB=runinprefix is inherited via delegation to build_proton_trainer_command.
     build_proton_trainer_command(&direct_request, log_path)
 }
 
@@ -414,6 +415,7 @@ pub fn build_proton_game_command(
     );
     merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
     env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
+    env.insert("PROTON_VERB".to_string(), "waitforexitandrun".to_string());
     merge_mangohud_config_env_into_map(&mut env, request, gamescope_active, wrappers_had_mangohud);
     for key in request.custom_env_vars.keys() {
         env.remove(key);
@@ -520,6 +522,7 @@ pub fn build_proton_trainer_command(
         request.steam.steam_client_install_path.trim(),
     );
     env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
+    env.insert("PROTON_VERB".to_string(), "runinprefix".to_string());
     let resolved_proton_path = resolve_launch_proton_path(
         request.runtime.proton_path.trim(),
         request.steam.steam_client_install_path.trim(),
@@ -1100,6 +1103,54 @@ mod tests {
     }
 
     #[test]
+    fn proton_game_command_sets_proton_verb_to_waitforexitandrun() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let prefix_path = temp_dir.path().join("prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let game_path = temp_dir.path().join("game.exe");
+        let log_path = temp_dir.path().join("game.log");
+        let steam_client_path = temp_dir.path().join("steam-client");
+        let workspace_dir = prefix_path.join("workspace");
+
+        fs::create_dir_all(&prefix_path).expect("prefix dir");
+        fs::create_dir_all(&workspace_dir).expect("workspace dir");
+        fs::create_dir_all(&steam_client_path).expect("steam client dir");
+        write_executable_file(&proton_path);
+        fs::write(&game_path, b"game").expect("game exe");
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: game_path.to_string_lossy().into_owned(),
+            trainer_path: String::new(),
+            trainer_host_path: String::new(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            steam: crate::launch::SteamLaunchConfig {
+                app_id: String::new(),
+                compatdata_path: String::new(),
+                proton_path: String::new(),
+                steam_client_install_path: steam_client_path.to_string_lossy().into_owned(),
+            },
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: workspace_dir.to_string_lossy().into_owned(),
+                steam_app_id: String::new(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+            launch_trainer_only: false,
+            launch_game_only: true,
+            profile_name: None,
+            ..Default::default()
+        };
+
+        let command = build_proton_game_command(&request, &log_path).expect("game command");
+        assert_eq!(
+            command_env_value(&command, "PROTON_VERB"),
+            Some("waitforexitandrun".to_string())
+        );
+    }
+
+    #[test]
     fn native_game_command_applies_custom_env_vars() {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let game_path = temp_dir.path().join("run.sh");
@@ -1230,6 +1281,101 @@ mod tests {
         assert!(wine_prefix_path
             .join("drive_c/CrossHook/StagedTrainers/sample/sample.ini")
             .exists());
+    }
+
+    #[test]
+    fn proton_trainer_command_sets_proton_verb_to_runinprefix() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let prefix_path = temp_dir.path().join("prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let trainer_source_dir = temp_dir.path().join("trainer");
+        let trainer_host_path = trainer_source_dir.join("sample.exe");
+        let log_path = temp_dir.path().join("trainer.log");
+        let workspace_dir = prefix_path.join("workspace");
+
+        fs::create_dir_all(&trainer_source_dir).expect("trainer dir");
+        fs::create_dir_all(&workspace_dir).expect("workspace dir");
+        write_executable_file(&proton_path);
+        fs::write(&trainer_host_path, b"trainer").expect("trainer exe");
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: String::new(),
+            trainer_path: trainer_host_path.to_string_lossy().into_owned(),
+            trainer_host_path: trainer_host_path.to_string_lossy().into_owned(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            steam: crate::launch::SteamLaunchConfig {
+                app_id: String::new(),
+                compatdata_path: String::new(),
+                proton_path: String::new(),
+                steam_client_install_path: String::new(),
+            },
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: workspace_dir.to_string_lossy().into_owned(),
+                steam_app_id: String::new(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+            launch_trainer_only: true,
+            launch_game_only: false,
+            profile_name: None,
+            ..Default::default()
+        };
+
+        let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
+        assert_eq!(
+            command_env_value(&command, "PROTON_VERB"),
+            Some("runinprefix".to_string())
+        );
+    }
+
+    #[test]
+    fn flatpak_steam_trainer_command_inherits_proton_verb_runinprefix() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let prefix_path = temp_dir.path().join("prefix");
+        let proton_path = temp_dir.path().join("proton");
+        let trainer_source_dir = temp_dir.path().join("trainer");
+        let trainer_host_path = trainer_source_dir.join("sample.exe");
+        let log_path = temp_dir.path().join("trainer.log");
+        let workspace_dir = prefix_path.join("workspace");
+
+        fs::create_dir_all(&trainer_source_dir).expect("trainer dir");
+        fs::create_dir_all(&workspace_dir).expect("workspace dir");
+        write_executable_file(&proton_path);
+        fs::write(&trainer_host_path, b"trainer").expect("trainer exe");
+
+        let request = LaunchRequest {
+            method: crate::launch::METHOD_PROTON_RUN.to_string(),
+            game_path: String::new(),
+            trainer_path: trainer_host_path.to_string_lossy().into_owned(),
+            trainer_host_path: trainer_host_path.to_string_lossy().into_owned(),
+            trainer_loading_mode: crate::profile::TrainerLoadingMode::SourceDirectory,
+            steam: crate::launch::SteamLaunchConfig {
+                app_id: String::new(),
+                compatdata_path: String::new(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                steam_client_install_path: String::new(),
+            },
+            runtime: crate::launch::RuntimeLaunchConfig {
+                prefix_path: prefix_path.to_string_lossy().into_owned(),
+                proton_path: proton_path.to_string_lossy().into_owned(),
+                working_directory: workspace_dir.to_string_lossy().into_owned(),
+                steam_app_id: String::new(),
+            },
+            optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
+            launch_trainer_only: true,
+            launch_game_only: false,
+            profile_name: None,
+            ..Default::default()
+        };
+
+        let command = build_flatpak_steam_trainer_command(&request, &log_path)
+            .expect("flatpak trainer command");
+        assert_eq!(
+            command_env_value(&command, "PROTON_VERB"),
+            Some("runinprefix".to_string())
+        );
     }
 
     #[test]

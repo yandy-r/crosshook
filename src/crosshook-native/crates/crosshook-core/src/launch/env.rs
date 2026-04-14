@@ -32,6 +32,7 @@ pub const WINE_ENV_VARS_TO_CLEAR: &[&str] = &[
     "PROTON_NO_ESYNC",
     "PROTON_NO_FSYNC",
     "PROTON_ENABLE_NVAPI",
+    "PROTON_VERB", // Cleared for direct Proton; set per-command by builders (runinprefix for trainers, waitforexitandrun for games).
     "DXVK_CONFIG_FILE",
     "DXVK_STATE_CACHE_PATH",
     "DXVK_LOG_PATH",
@@ -90,11 +91,12 @@ mod tests {
 
     #[test]
     fn wine_env_vars_match_expected_list() {
-        assert_eq!(WINE_ENV_VARS_TO_CLEAR.len(), 31);
+        assert_eq!(WINE_ENV_VARS_TO_CLEAR.len(), 32);
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"WINESERVER"));
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"WINE_HEAP_DELAY_FREE"));
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"PROTON_ENABLE_NVAPI"));
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"VKD3D_DEBUG"));
+        assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"PROTON_VERB"));
     }
 
     #[test]
