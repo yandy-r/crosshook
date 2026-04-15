@@ -27,9 +27,12 @@ pub fn dismiss_onboarding(store: State<'_, SettingsStore>) -> Result<(), String>
 
 #[tauri::command]
 pub fn dismiss_umu_install_nag(store: State<'_, SettingsStore>) -> Result<(), String> {
-    let mut settings = store.load().map_err(|e| e.to_string())?;
-    settings.install_nag_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
-    store.save(&settings).map_err(|e| e.to_string())
+    store
+        .update(|settings| {
+            settings.install_nag_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
+            Ok::<(), String>(())
+        })
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -114,10 +117,13 @@ mod tests {
             "should start with no dismiss timestamp"
         );
 
-        // Replicate the command body using the same store primitive
-        let mut settings = store.load().unwrap();
-        settings.install_nag_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
-        store.save(&settings).unwrap();
+        store
+            .update(|settings| {
+                settings.install_nag_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
+                Ok::<(), String>(())
+            })
+            .unwrap()
+            .unwrap();
 
         let reloaded = store.load().unwrap();
         assert!(

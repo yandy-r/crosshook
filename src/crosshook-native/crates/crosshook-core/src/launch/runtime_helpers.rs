@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::fs::{self, OpenOptions};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
 use std::sync::OnceLock;
 
@@ -623,7 +623,9 @@ where
         return String::new();
     }
     if let Some(path) = trimmed_address.strip_prefix("unix:path=") {
-        let path_component = path.split([',', ';']).next().unwrap_or(path);
+        let delimiter_index = path.find([',', ';']);
+        let path_component = delimiter_index.map_or(path, |idx| &path[..idx]);
+        let suffix = delimiter_index.map_or("", |idx| &path[idx..]);
         if host_path_exists(path_component) {
             return trimmed_address.to_string();
         }
@@ -633,7 +635,7 @@ where
         }
         let candidate = format!("{trimmed_runtime_dir}/bus");
         if host_path_exists(candidate.as_str()) {
-            return format!("unix:path={candidate}");
+            return format!("unix:path={candidate}{suffix}");
         }
         return String::new();
     }
@@ -653,6 +655,17 @@ fn resolve_host_dbus_session_bus_address() -> String {
     )
 }
 
+fn flatpak_host_mount_path(path: &Path) -> PathBuf {
+    let mut host = PathBuf::from("/run/host");
+    for component in path.components() {
+        match component {
+            Component::RootDir | Component::CurDir => {}
+            other => host.push(other.as_os_str()),
+        }
+    }
+    host
+}
+
 fn flatpak_host_umu_candidates(home: Option<&Path>, user: Option<&str>) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
 
@@ -665,7 +678,7 @@ fn flatpak_host_umu_candidates(home: Option<&Path>, user: Option<&str>) -> Vec<P
 
     if let Some(home) = home {
         add_home_candidates(home);
-        add_home_candidates(&PathBuf::from("/run/host").join(home));
+        add_home_candidates(&flatpak_host_mount_path(home));
     }
 
     if let Some(user) = user {
@@ -1236,6 +1249,17 @@ mod tests {
         );
 
         assert_eq!(resolved, "unix:path=/run/user/1000/bus");
+    }
+
+    #[test]
+    fn resolve_flatpak_host_dbus_session_bus_address_preserves_suffix_when_rewritten() {
+        let resolved = resolve_flatpak_host_dbus_session_bus_address_with(
+            "unix:path=/run/flatpak/bus,guid=abc123",
+            "/run/user/1000",
+            |path| path == "/run/user/1000/bus",
+        );
+
+        assert_eq!(resolved, "unix:path=/run/user/1000/bus,guid=abc123");
     }
 
     #[test]

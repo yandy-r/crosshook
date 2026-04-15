@@ -6,6 +6,162 @@ use crate::onboarding::{ReadinessCheckResult, UmuInstallGuidance};
 use crate::profile::health::{HealthIssue, HealthIssueSeverity};
 use crate::steam::{discover_compat_tools, discover_steam_root_candidates, ProtonInstall};
 
+const UMU_LAUNCHER_DOCS_URL: &str = "https://github.com/Open-Wine-Components/umu-launcher";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HostDistroFamily {
+    Arch,
+    Nobara,
+    Fedora,
+    Debian,
+    Nix,
+    Unknown,
+}
+
+#[derive(Debug, Clone)]
+struct UmuInstallAdvice {
+    guidance: UmuInstallGuidance,
+    remediation: String,
+}
+
+fn read_host_os_release() -> Option<String> {
+    read_host_os_release_with(
+        crate::platform::is_flatpak(),
+        |path| fs::read_to_string(path).ok(),
+        || {
+            crate::platform::host_std_command("cat")
+                .arg("/etc/os-release")
+                .output()
+                .ok()
+                .and_then(|output| output.status.success().then_some(output.stdout))
+                .and_then(|stdout| String::from_utf8(stdout).ok())
+        },
+    )
+}
+
+fn read_host_os_release_with<F, G>(
+    is_flatpak: bool,
+    mut read_file: F,
+    read_via_host_command: G,
+) -> Option<String>
+where
+    F: FnMut(&str) -> Option<String>,
+    G: FnOnce() -> Option<String>,
+{
+    if let Some(content) = read_file("/run/host/etc/os-release") {
+        return Some(content);
+    }
+    if is_flatpak {
+        return read_via_host_command();
+    }
+    read_file("/etc/os-release")
+}
+
+fn detect_host_distro_family() -> HostDistroFamily {
+    detect_host_distro_family_from_os_release(read_host_os_release().as_deref())
+}
+
+fn detect_host_distro_family_from_os_release(os_release: Option<&str>) -> HostDistroFamily {
+    let Some(os_release) = os_release else {
+        return HostDistroFamily::Unknown;
+    };
+
+    let mut distro_tokens = Vec::new();
+    for line in os_release.lines() {
+        let Some((key, raw_value)) = line.split_once('=') else {
+            continue;
+        };
+        if key != "ID" && key != "ID_LIKE" {
+            continue;
+        }
+        let normalized = raw_value
+            .trim()
+            .trim_matches(|ch| ch == '"' || ch == '\'')
+            .to_ascii_lowercase();
+        distro_tokens.extend(normalized.split_whitespace().map(str::to_string));
+    }
+
+    if distro_tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "arch" | "manjaro" | "endeavouros"))
+    {
+        return HostDistroFamily::Arch;
+    }
+    if distro_tokens.iter().any(|token| token == "nobara") {
+        return HostDistroFamily::Nobara;
+    }
+    if distro_tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "fedora" | "rhel" | "centos"))
+    {
+        return HostDistroFamily::Fedora;
+    }
+    if distro_tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "debian" | "ubuntu" | "linuxmint" | "pop"))
+    {
+        return HostDistroFamily::Debian;
+    }
+    if distro_tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "nixos" | "nix"))
+    {
+        return HostDistroFamily::Nix;
+    }
+
+    HostDistroFamily::Unknown
+}
+
+fn build_umu_install_advice(distro_family: HostDistroFamily) -> UmuInstallAdvice {
+    let (description, install_command, alternatives) = match distro_family {
+        HostDistroFamily::Arch => (
+            "Install umu-launcher on your Arch-based host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "sudo pacman -S umu-launcher",
+            "If the package is unavailable in your mirror set, use the upstream docs for source or user-level install options.",
+        ),
+        HostDistroFamily::Nobara => (
+            "Install umu-launcher on your Nobara host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "sudo dnf install umu-launcher",
+            "If the packaged build is unavailable, fall back to the upstream docs for user-level or source installs.",
+        ),
+        HostDistroFamily::Fedora => (
+            "Install umu-launcher on your Fedora host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "sudo dnf install pipx && pipx install umu-launcher",
+            "If you prefer a packaged build, check the upstream docs for current Fedora/Nobara packaging guidance.",
+        ),
+        HostDistroFamily::Debian => (
+            "Install umu-launcher on your Debian/Ubuntu host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "sudo apt install pipx && pipx install umu-launcher",
+            "If pipx is not suitable on this system, use the upstream docs for source or user-level install options.",
+        ),
+        HostDistroFamily::Nix => (
+            "Install umu-launcher on your Nix host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "nix profile install nixpkgs#umu-launcher",
+            "Alternative: add `pkgs.umu-launcher` to your NixOS or Home Manager packages.",
+        ),
+        HostDistroFamily::Unknown => (
+            "Install umu-launcher on your host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "pipx install umu-launcher",
+            "Other options include upstream source, user-level, or uv-based installs described in the project docs.",
+        ),
+    };
+
+    let guidance = UmuInstallGuidance {
+        install_command: install_command.to_string(),
+        docs_url: UMU_LAUNCHER_DOCS_URL.to_string(),
+        description: description.to_string(),
+    };
+    let remediation = format!(
+        "Install umu-launcher on your host: `{}`. {} See {} for full instructions.",
+        guidance.install_command, alternatives, guidance.docs_url,
+    );
+
+    UmuInstallAdvice {
+        guidance,
+        remediation,
+    }
+}
+
 /// Replace the home directory prefix with `~` for cleaner display paths.
 fn home_to_tilde(path_str: &str) -> String {
     if let Ok(home) = std::env::var("HOME") {
@@ -153,24 +309,20 @@ fn evaluate_checks_inner(
                 });
             }
             None if is_flatpak => {
-                tracing::debug!("umu-run not found on Flatpak host; emitting actionable guidance");
-                let guidance = UmuInstallGuidance {
-                    install_command: "pipx install umu-launcher".to_string(),
-                    docs_url: "https://github.com/Open-Wine-Components/umu-launcher".to_string(),
-                    description: "Install umu-launcher on your host to enable improved Proton runtime bootstrapping for non-Steam launches.".to_string(),
-                };
+                let distro_family = detect_host_distro_family();
+                tracing::debug!(
+                    ?distro_family,
+                    "umu-run not found on Flatpak host; emitting actionable guidance"
+                );
+                let advice = build_umu_install_advice(distro_family);
                 checks.push(HealthIssue {
                     field: "umu_run_available".to_string(),
                     path: String::new(),
                     message: "umu-run not found in Flatpak host environment; CrossHook will use Proton directly.".to_string(),
-                    remediation: format!(
-                        "Install umu-launcher on your host: `{}`. See {} for details and non-pipx alternatives.",
-                        guidance.install_command,
-                        guidance.docs_url,
-                    ),
+                    remediation: advice.remediation,
                     severity: HealthIssueSeverity::Info,
                 });
-                umu_install_guidance = Some(guidance);
+                umu_install_guidance = Some(advice.guidance);
             }
             None => {
                 checks.push(HealthIssue {
@@ -454,6 +606,50 @@ mod tests {
             "Flatpak missing umu must not set all_passed=false; checks: {:?}",
             result.checks
         );
+    }
+
+    #[test]
+    fn detect_host_distro_family_recognizes_arch_like_os_release() {
+        let distro = detect_host_distro_family_from_os_release(Some("ID=manjaro\nID_LIKE=arch\n"));
+        assert_eq!(distro, HostDistroFamily::Arch);
+    }
+
+    #[test]
+    fn detect_host_distro_family_recognizes_cachyos_os_release() {
+        let distro = detect_host_distro_family_from_os_release(Some("ID=cachyos\nID_LIKE=arch\n"));
+        assert_eq!(distro, HostDistroFamily::Arch);
+    }
+
+    #[test]
+    fn read_host_os_release_uses_host_command_when_flatpak_mount_is_missing() {
+        let content = read_host_os_release_with(
+            true,
+            |_| None,
+            || Some("ID=cachyos\nID_LIKE=arch\n".to_string()),
+        );
+
+        assert_eq!(content.as_deref(), Some("ID=cachyos\nID_LIKE=arch\n"));
+    }
+
+    #[test]
+    fn detect_host_distro_family_recognizes_debian_like_os_release() {
+        let distro =
+            detect_host_distro_family_from_os_release(Some("ID=pop\nID_LIKE=\"ubuntu debian\"\n"));
+        assert_eq!(distro, HostDistroFamily::Debian);
+    }
+
+    #[test]
+    fn build_umu_install_advice_uses_primary_command_per_distro() {
+        let arch = build_umu_install_advice(HostDistroFamily::Arch);
+        assert_eq!(arch.guidance.install_command, "sudo pacman -S umu-launcher");
+        assert!(arch.remediation.contains("source or user-level install"));
+
+        let nix = build_umu_install_advice(HostDistroFamily::Nix);
+        assert_eq!(
+            nix.guidance.install_command,
+            "nix profile install nixpkgs#umu-launcher"
+        );
+        assert!(nix.remediation.contains("Home Manager"));
     }
 
     #[test]

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { open as openUrl } from '@/lib/plugin-stubs/shell';
 import type { ReadinessCheckResult, UmuInstallGuidance } from '../../types/onboarding';
 import { resolveCheckColor, resolveCheckIcon } from './checkBadges';
@@ -40,14 +40,28 @@ export function WizardReviewSummary({
   onDismissUmuInstallNag,
 }: WizardReviewSummaryProps) {
   const [copied, setCopied] = useState(false);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current !== null) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleCopyCommand = useCallback(async () => {
     if (!umuInstallGuidance) return;
     try {
       await navigator.clipboard.writeText(umuInstallGuidance.install_command);
       setCopied(true);
-      const timer = setTimeout(() => setCopied(false), 2000);
-      return () => clearTimeout(timer);
+      if (copyResetTimerRef.current !== null) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = setTimeout(() => {
+        copyResetTimerRef.current = null;
+        setCopied(false);
+      }, 2000);
     } catch {
       // Clipboard API unavailable; no visual feedback change
     }
@@ -55,7 +69,9 @@ export function WizardReviewSummary({
 
   const handleOpenDocs = useCallback(() => {
     if (!umuInstallGuidance) return;
-    void openUrl(umuInstallGuidance.docs_url);
+    void openUrl(umuInstallGuidance.docs_url).catch((err) => {
+      console.error('Failed to open umu-launcher install docs', err);
+    });
   }, [umuInstallGuidance]);
 
   return (
@@ -149,7 +165,7 @@ export function WizardReviewSummary({
               <button
                 type="button"
                 className="crosshook-button crosshook-button--secondary crosshook-button--sm"
-                onClick={handleOpenDocs}
+                onClick={() => handleOpenDocs()}
                 aria-label="Open umu-launcher install documentation in browser"
               >
                 Open docs
