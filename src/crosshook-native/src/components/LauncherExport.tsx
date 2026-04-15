@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { usePreferencesContext } from '../context/PreferencesContext';
 import { type SteamExternalLauncherExportRequest, useLauncherExport } from '../hooks/useLauncherExport';
-import type { GameProfile, LaunchMethod } from '../types';
+import type { GameProfile, LaunchMethod, UmuPreference } from '../types';
 import { LauncherPreviewModal } from './LauncherPreviewModal';
 
 interface LauncherExportProps {
@@ -65,7 +66,8 @@ function buildExportRequest(
   launcherName: string,
   launcherIconPath: string,
   steamClientInstallPath: string,
-  targetHomePath: string
+  targetHomePath: string,
+  globalUmuPreference: UmuPreference
 ): SteamExternalLauncherExportRequest {
   return {
     method,
@@ -80,6 +82,9 @@ function buildExportRequest(
     steam_client_install_path: steamClientInstallPath.trim(),
     target_home_path: targetHomePath.trim(),
     profile_name: profileName.trim() || undefined,
+    runtime_steam_app_id: profile.runtime.steam_app_id?.trim() ?? '',
+    umu_game_id: profile.runtime.umu_game_id?.trim() ?? '',
+    umu_preference: profile.runtime.umu_preference ?? globalUmuPreference,
     network_isolation: profile.launch.network_isolation ?? true,
     gamescope: profile.launch?.trainer_gamescope,
   };
@@ -94,6 +99,9 @@ export function LauncherExport({
   pendingReExport,
   onReExportHandled,
 }: LauncherExportProps) {
+  const {
+    settings: { umu_preference: globalUmuPreference },
+  } = usePreferencesContext();
   const [launcherName, setLauncherName] = useState(() => deriveLauncherName(profile));
 
   const request = useMemo(
@@ -105,9 +113,10 @@ export function LauncherExport({
         launcherName,
         safeTrim(profile.steam.launcher.icon_path),
         steamClientInstallPath,
-        targetHomePath
+        targetHomePath,
+        globalUmuPreference
       ),
-    [profile, profileName, method, launcherName, steamClientInstallPath, targetHomePath, profile.launch]
+    [profile, profileName, method, launcherName, steamClientInstallPath, targetHomePath, globalUmuPreference]
   );
 
   const {

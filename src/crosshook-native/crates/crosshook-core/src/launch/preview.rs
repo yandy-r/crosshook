@@ -454,7 +454,7 @@ fn build_umu_decision_preview(request: &LaunchRequest) -> UmuDecisionPreview {
             "preference = Proton — direct Proton always".to_string()
         }
         (UmuPreference::Auto, _, false) => {
-            "preference = Auto — Phase 3 resolves Auto to direct Proton".to_string()
+            "preference = Auto but umu-run was not found on the backend PATH — falling back to direct Proton".to_string()
         }
         (UmuPreference::Umu, None, false) => {
             "preference = Umu but umu-run was not found on the backend PATH".to_string()
@@ -1906,5 +1906,54 @@ Ghost of Tsushima,steam,546590,umu-546590,GoT,,ghostoftsushima.exe
             .as_ref()
             .expect("umu_decision populated");
         assert_eq!(umu.csv_coverage, crate::umu_database::CsvCoverage::Unknown);
+    }
+
+    #[test]
+    fn auto_preference_preview_reports_using_umu_when_umu_run_present() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: crate::settings::UmuPreference::Auto,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let preview = build_launch_preview(&request).unwrap();
+        let decision = preview.umu_decision.as_ref().unwrap();
+        assert!(decision.will_use_umu, "Auto + umu-run present must use umu");
+        assert!(
+            decision.reason.starts_with("using umu-run at "),
+            "expected reason starting with 'using umu-run at ', got: {}",
+            decision.reason
+        );
+    }
+
+    #[test]
+    fn auto_preference_preview_explains_fallback_when_umu_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: crate::settings::UmuPreference::Auto,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let preview = build_launch_preview(&request).unwrap();
+        let decision = preview.umu_decision.as_ref().unwrap();
+        assert!(!decision.will_use_umu, "Auto + no umu-run must not use umu");
+        assert_eq!(
+            decision.reason,
+            "preference = Auto but umu-run was not found on the backend PATH — falling back to direct Proton"
+        );
     }
 }

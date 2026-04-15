@@ -1,5 +1,9 @@
 # Lessons
 
+## 2026-04-15
+
+- When extending a Rust struct used in tests, do not leave a trailing `..Default::default()` once every field has been specified explicitly. In this repo, Clippy runs with `-D warnings`, so a needless struct update in test code is still a build blocker.
+
 ## 2026-04-14
 
 - When a shell script stores state that is only consumed indirectly by a sourced helper, do not assume ShellCheck will follow that usage across files. In this repo, either refactor to an explicit argument flow or add a targeted `SC2034` suppression at the declaration so `.github/workflows/lint.yml` stays green.

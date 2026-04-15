@@ -34,7 +34,7 @@ export interface SettingsSaveRequest {
   protonup_auto_suggest?: boolean;
   /** Optional path override for the ProtonUp binary; empty = auto-detect. */
   protonup_binary_path?: string;
-  /** Non-Steam launch preference: `auto` (Phase 3 → Proton), `umu` (opt-in), `proton` (disable). */
+  /** Non-Steam launch preference: `auto` (umu when available, else Proton), `umu` (always umu-run), `proton` (always direct Proton). */
   umu_preference: UmuPreference;
 }
 

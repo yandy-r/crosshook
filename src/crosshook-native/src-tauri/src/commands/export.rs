@@ -9,6 +9,7 @@ use crosshook_core::export::{
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::{resolve_launch_method, GameProfile, GamescopeConfig, ProfileStore};
+use crosshook_core::settings::{SettingsStore, UmuPreference};
 use std::collections::HashMap;
 use tauri::State;
 
@@ -17,6 +18,7 @@ fn build_export_request_for_profile(
     profile_name: Option<&str>,
     target_home_path: &str,
     steam_client_install_path: &str,
+    global_umu_preference: UmuPreference,
 ) -> Result<SteamExternalLauncherExportRequest, String> {
     let method = resolve_launch_method(profile).to_string();
     if method == "native" {
@@ -46,6 +48,12 @@ fn build_export_request_for_profile(
         steam_client_install_path: steam_client_install_path.to_string(),
         target_home_path: target_home_path.to_string(),
         profile_name: profile_name.map(std::string::ToString::to_string),
+        runtime_steam_app_id: profile.runtime.steam_app_id.clone(),
+        umu_game_id: profile.runtime.umu_game_id.clone(),
+        umu_preference: profile
+            .runtime
+            .umu_preference
+            .unwrap_or(global_umu_preference),
         network_isolation: profile.launch.network_isolation,
         gamescope: profile.launch.resolved_trainer_gamescope(),
     })
@@ -62,9 +70,18 @@ fn apply_stale_flags(launchers: &mut [LauncherInfo], stale_by_slug: &HashMap<Str
 
 fn stale_flags_by_profile_slug(
     store: &ProfileStore,
+    settings_store: &SettingsStore,
     target_home_path: &str,
     steam_client_install_path: &str,
 ) -> HashMap<String, bool> {
+    let global_umu_preference = settings_store
+        .load()
+        .map(|settings| settings.umu_preference)
+        .unwrap_or_else(|error| {
+            tracing::warn!(%error, "failed to load settings for launcher stale detection");
+            UmuPreference::Auto
+        });
+
     let profile_names = match store.list() {
         Ok(names) => names,
         Err(error) => {
@@ -91,6 +108,7 @@ fn stale_flags_by_profile_slug(
             &profile,
             target_home_path,
             steam_client_install_path,
+            global_umu_preference,
         ) {
             Ok(info) => info,
             Err(error) => {
@@ -117,10 +135,15 @@ fn stale_flags_by_profile_slug(
 
 fn find_profile_name_for_launcher_slug(
     store: &ProfileStore,
+    settings_store: &SettingsStore,
     launcher_slug: &str,
     target_home_path: &str,
     steam_client_install_path: &str,
 ) -> Result<Option<String>, String> {
+    let global_umu_preference = settings_store
+        .load()
+        .map(|settings| settings.umu_preference)
+        .unwrap_or(UmuPreference::Auto);
     let profile_names = store.list().map_err(|error| error.to_string())?;
     for profile_name in profile_names {
         let profile = match store.load(&profile_name) {
@@ -136,6 +159,7 @@ fn find_profile_name_for_launcher_slug(
             Some(&profile_name),
             target_home_path,
             steam_client_install_path,
+            global_umu_preference,
         ) {
             Ok(request) => request,
             Err(_) => continue,
@@ -200,9 +224,15 @@ pub fn check_launcher_exists(
 pub fn check_launcher_for_profile(
     name: String,
     store: State<'_, ProfileStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Result<LauncherInfo, String> {
     let profile = store.load(&name).map_err(|error| error.to_string())?;
-    check_launcher_for_profile_core(&profile, "", "").map_err(|error| error.to_string())
+    let global_umu_preference = settings_store
+        .load()
+        .map(|settings| settings.umu_preference)
+        .map_err(|error| error.to_string())?;
+    check_launcher_for_profile_core(&profile, "", "", global_umu_preference)
+        .map_err(|error| error.to_string())
 }
 
 /// Deletes the launcher files derived from the supplied profile fields.
@@ -287,6 +317,9 @@ pub fn rename_launcher(
         steam_client_install_path: steam_client_install_path.clone(),
         target_home_path: target_home_path.clone(),
         profile_name: None,
+        runtime_steam_app_id: String::new(),
+        umu_game_id: String::new(),
+        umu_preference: UmuPreference::Auto,
         network_isolation,
         gamescope,
     };
@@ -319,11 +352,16 @@ pub fn list_launchers(
     target_home_path: String,
     steam_client_install_path: String,
     store: State<'_, ProfileStore>,
+    settings_store: State<'_, SettingsStore>,
 ) -> Vec<LauncherInfo> {
     let mut launchers =
         crosshook_core::export::list_launchers(&target_home_path, &steam_client_install_path);
-    let stale_by_slug =
-        stale_flags_by_profile_slug(&store, &target_home_path, &steam_client_install_path);
+    let stale_by_slug = stale_flags_by_profile_slug(
+        &store,
+        &settings_store,
+        &target_home_path,
+        &steam_client_install_path,
+    );
     apply_stale_flags(&mut launchers, &stale_by_slug);
     launchers
 }
@@ -349,10 +387,12 @@ pub fn reexport_launcher_by_slug(
     target_home_path: String,
     steam_client_install_path: String,
     store: State<'_, ProfileStore>,
+    settings_store: State<'_, SettingsStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<SteamExternalLauncherExportResult, String> {
     let profile_name = find_profile_name_for_launcher_slug(
         &store,
+        &settings_store,
         &launcher_slug,
         &target_home_path,
         &steam_client_install_path,
@@ -367,6 +407,10 @@ pub fn reexport_launcher_by_slug(
         Some(&profile_name),
         &target_home_path,
         &steam_client_install_path,
+        settings_store
+            .load()
+            .map(|settings| settings.umu_preference)
+            .map_err(|error| error.to_string())?,
     )?;
     validate_launcher_export_core(&request).map_err(|error| error.to_string())?;
     let result = export_launchers_core(&request).map_err(|error| error.to_string())?;
@@ -420,7 +464,11 @@ mod tests {
         let _ = check_launcher_exists
             as fn(SteamExternalLauncherExportRequest) -> Result<LauncherInfo, String>;
         let _ = check_launcher_for_profile
-            as fn(String, State<'_, ProfileStore>) -> Result<LauncherInfo, String>;
+            as fn(
+                String,
+                State<'_, ProfileStore>,
+                State<'_, SettingsStore>,
+            ) -> Result<LauncherInfo, String>;
         let _ = delete_launcher
             as fn(
                 String,
@@ -443,6 +491,7 @@ mod tests {
                 String,
                 String,
                 State<'_, ProfileStore>,
+                State<'_, SettingsStore>,
                 State<'_, MetadataStore>,
             ) -> Result<SteamExternalLauncherExportResult, String>;
         let _ = rename_launcher
@@ -463,7 +512,13 @@ mod tests {
                 GamescopeConfig,
                 State<'_, MetadataStore>,
             ) -> Result<LauncherRenameResult, String>;
-        let _ = list_launchers as fn(String, String, State<'_, ProfileStore>) -> Vec<LauncherInfo>;
+        let _ = list_launchers
+            as fn(
+                String,
+                String,
+                State<'_, ProfileStore>,
+                State<'_, SettingsStore>,
+            ) -> Vec<LauncherInfo>;
         let _ = find_orphaned_launchers as fn(Vec<String>, String, String) -> Vec<LauncherInfo>;
         let _ = preview_launcher_script
             as fn(SteamExternalLauncherExportRequest) -> Result<String, String>;

@@ -993,7 +993,7 @@ fn resolved_umu_game_id_for_env(request: &LaunchRequest) -> String {
 ///
 /// Returns `(true, Some(umu_run_path))` only when:
 /// * `force_no_umu` is `false`
-/// * `request.umu_preference == UmuPreference::Umu`
+/// * `request.umu_preference == UmuPreference::Umu || UmuPreference::Auto`
 /// * `resolve_umu_run_path()` returns `Some(path)`
 ///
 /// Otherwise returns `(false, None)`. When `force_no_umu` is `false`, the
@@ -1021,12 +1021,15 @@ pub(crate) fn should_use_umu(
         );
         return (false, None);
     }
-    if request.umu_preference != UmuPreference::Umu {
-        tracing::info!(
-            preference = ?request.umu_preference,
-            "should_use_umu: preference != Umu → direct Proton"
-        );
-        return (false, None);
+    match request.umu_preference {
+        UmuPreference::Proton => {
+            tracing::info!(
+                preference = ?request.umu_preference,
+                "should_use_umu: preference = Proton → direct Proton"
+            );
+            return (false, None);
+        }
+        UmuPreference::Umu | UmuPreference::Auto => {}
     }
     match super::runtime_helpers::resolve_umu_run_path() {
         Some(path) => {
@@ -1041,7 +1044,7 @@ pub(crate) fn should_use_umu(
             tracing::info!(
                 preference = ?request.umu_preference,
                 path_env = ?std::env::var_os("PATH"),
-                "should_use_umu: preference=Umu but umu-run not found on PATH → direct Proton"
+                "should_use_umu: umu-run not found on PATH → direct Proton"
             );
             (false, None)
         }
@@ -1176,6 +1179,8 @@ mod tests {
             launch_trainer_only: false,
             launch_game_only: true,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -1263,6 +1268,8 @@ mod tests {
             launch_trainer_only: false,
             launch_game_only: true,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -1313,6 +1320,9 @@ mod tests {
             launch_trainer_only: false,
             launch_game_only: true,
             profile_name: None,
+            // Pin to Proton so this no-leak invariant is PATH-independent; Phase 4's
+            // Auto default would otherwise pick umu when umu-run is on the host PATH.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -1348,6 +1358,8 @@ mod tests {
             launch_trainer_only: false,
             launch_game_only: true,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -1453,6 +1465,8 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -1537,6 +1551,9 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            // Pin to Proton so this no-leak invariant is PATH-independent; Phase 4's
+            // Auto default would otherwise pick umu when umu-run is on the host PATH.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -1576,6 +1593,8 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -1630,6 +1649,8 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -2033,6 +2054,10 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            // Pin to Proton so command-args assertion is PATH-independent; Phase 4's
+            // Auto default would otherwise pick umu when umu-run is on the host PATH,
+            // which drops the `run` subcommand from the argv.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -2094,6 +2119,10 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            // Pin to Proton so command-args assertion is PATH-independent; Phase 4's
+            // Auto default would otherwise pick umu when umu-run is on the host PATH,
+            // which drops the `run` subcommand from the argv.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -2166,6 +2195,8 @@ mod tests {
                 ..Default::default()
             }),
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -2290,6 +2321,8 @@ mod tests {
             launch_trainer_only: false,
             launch_game_only: true,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -2355,6 +2388,8 @@ mod tests {
             launch_trainer_only: true,
             launch_game_only: false,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -2458,6 +2493,8 @@ mod tests {
             launch_game_only: false,
             network_isolation: true,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -2512,6 +2549,8 @@ mod tests {
             launch_game_only: false,
             network_isolation: false,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -2565,6 +2604,8 @@ mod tests {
             launch_game_only: true,
             network_isolation: true,
             profile_name: None,
+            // Phase 4 Auto flip: pin to Proton so this test is PATH-independent.
+            umu_preference: crate::settings::UmuPreference::Proton,
             ..Default::default()
         };
 
@@ -2692,8 +2733,7 @@ mod tests {
     }
 
     #[test]
-    fn auto_preference_resolves_to_proton_in_phase_3() {
-        // umu-run IS on PATH, but preference is Auto → Phase 3 still resolves to Proton
+    fn auto_preference_uses_umu_when_umu_run_present() {
         let dir = tempfile::tempdir().unwrap();
         let umu_stub = dir.path().join("umu-run");
         std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
@@ -2705,7 +2745,44 @@ mod tests {
         let mut request = LaunchRequest {
             method: METHOD_PROTON_RUN.to_string(),
             game_path: "/tmp/game.exe".to_string(),
-            umu_preference: UmuPreference::Auto, // NOT Umu
+            umu_preference: UmuPreference::Auto,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("test.log");
+        let command = build_proton_game_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            program.ends_with("/umu-run"),
+            "expected umu-run program with Auto preference when present, got {program}"
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTON_VERB"),
+            Some("waitforexitandrun".to_string())
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTONPATH"),
+            Some("/opt/proton/GE-Proton9-20".to_string())
+        );
+    }
+
+    #[test]
+    fn auto_preference_falls_back_to_proton_when_umu_run_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: UmuPreference::Auto,
             ..Default::default()
         };
         request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
@@ -2721,9 +2798,10 @@ mod tests {
             .into_owned();
         assert!(
             !program.ends_with("umu-run"),
-            "Phase 3 Auto must resolve to Proton"
+            "expected direct proton fallback with Auto when umu-run absent, got {program}"
         );
         assert_eq!(command_env_value(&command, "PROTONPATH"), None);
+        assert_eq!(command_env_value(&command, "PROTON_VERB"), None);
     }
 
     #[test]
@@ -2836,6 +2914,80 @@ mod tests {
             !program.ends_with("umu-run"),
             "expected direct proton fallback, got {program}"
         );
+        assert_eq!(command_env_value(&command, "PROTONPATH"), None);
+    }
+
+    #[test]
+    fn auto_preference_uses_umu_trainer_when_present() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            trainer_path: "/tmp/trainer.exe".to_string(),
+            trainer_host_path: "/tmp/trainer.exe".to_string(),
+            umu_preference: UmuPreference::Auto,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("trainer.log");
+        let command = build_proton_trainer_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            program.ends_with("/umu-run"),
+            "expected umu-run for trainer with Auto preference when present, got {program}"
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTON_VERB"),
+            Some("runinprefix".to_string())
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTONPATH"),
+            Some("/opt/proton/GE-Proton9-20".to_string())
+        );
+    }
+
+    #[test]
+    fn auto_preference_trainer_falls_back_to_proton_when_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            trainer_path: "/tmp/trainer.exe".to_string(),
+            trainer_host_path: "/tmp/trainer.exe".to_string(),
+            umu_preference: UmuPreference::Auto,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("trainer.log");
+        let command = build_proton_trainer_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            !program.ends_with("umu-run"),
+            "expected direct proton fallback for trainer with Auto when umu-run absent, got {program}"
+        );
+        assert_eq!(command_env_value(&command, "PROTON_VERB"), None);
         assert_eq!(command_env_value(&command, "PROTONPATH"), None);
     }
 

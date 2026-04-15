@@ -6,8 +6,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::launch::runtime_helpers::build_gamescope_args;
+use crate::launch::script_runner::resolve_launch_proton_path;
 use crate::platform::normalize_flatpak_host_path;
 use crate::profile::{GamescopeConfig, TrainerLoadingMode};
+use crate::settings::UmuPreference;
 use serde::{Deserialize, Serialize};
 
 const TRAINER_SUFFIX: &str = " - Trainer";
@@ -27,6 +29,12 @@ pub struct SteamExternalLauncherExportRequest {
     pub target_home_path: String,
     #[serde(default)]
     pub profile_name: Option<String>,
+    #[serde(default)]
+    pub runtime_steam_app_id: String,
+    #[serde(default)]
+    pub umu_game_id: String,
+    #[serde(default)]
+    pub umu_preference: UmuPreference,
     #[serde(default)]
     pub network_isolation: bool,
     #[serde(default)]
@@ -331,6 +339,8 @@ pub(crate) fn build_trainer_script_content(
     request: &SteamExternalLauncherExportRequest,
     display_name: &str,
 ) -> String {
+    let resolved_proton_path =
+        resolve_launch_proton_path(&request.proton_path, &request.steam_client_install_path);
     let mut content = String::new();
     content.push_str("#!/usr/bin/env bash\n");
     content.push_str("set -euo pipefail\n\n");
@@ -375,7 +385,7 @@ fi
     }
     content.push_str(&format!(
         "PROTON={}\n",
-        shell_single_quoted(&request.proton_path)
+        shell_single_quoted(&resolved_proton_path)
     ));
     content.push_str(&format!(
         "TRAINER_HOST_PATH={}\n",
@@ -395,11 +405,7 @@ cd "$trainer_host_dir"
 
 "#,
             );
-            content.push_str(&build_exec_line(
-                request.gamescope.enabled,
-                request.network_isolation,
-                "\"$trainer_host_path\"",
-            ));
+            content.push_str(&build_exec_line(request, "\"$trainer_host_path\""));
         }
         TrainerLoadingMode::CopyToPrefix => {
             content.push_str(
@@ -474,8 +480,7 @@ stage_trainer_support_files "$trainer_source_dir" "$staged_trainer_dir" "$traine
 "#,
             );
             content.push_str(&build_exec_line(
-                request.gamescope.enabled,
-                request.network_isolation,
+                request,
                 "\"$staged_trainer_windows_path\"",
             ));
         }
@@ -518,36 +523,106 @@ fi
     block
 }
 
-fn build_exec_line(gamescope_enabled: bool, network_isolation: bool, target_path: &str) -> String {
-    if !network_isolation {
-        return if gamescope_enabled {
-            format!("exec \"${{_GS_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n")
-        } else {
-            format!("exec \"$PROTON\" run {target_path}\n")
-        };
-    }
-
-    // Runtime probe: try `unshare --net true`; fall back with a warning if it fails.
+fn build_exec_line(request: &SteamExternalLauncherExportRequest, target_path: &str) -> String {
     let mut block = String::new();
-    block.push_str(
-        r#"_NET_PREFIX=()
+
+    if request.network_isolation {
+        // Runtime probe: try `unshare --net true`; fall back with a warning if it fails.
+        block.push_str(
+            r#"_NET_PREFIX=()
 if unshare --net true >/dev/null 2>&1; then
   _NET_PREFIX=(unshare --net)
 else
   echo "[CrossHook] WARNING: unshare --net unavailable — launching without network isolation" >&2
 fi
 "#,
-    );
-    if gamescope_enabled {
-        block.push_str(&format!(
-            "exec \"${{_GS_PREFIX[@]}}\" \"${{_NET_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n"
-        ));
-    } else {
-        block.push_str(&format!(
-            "exec \"${{_NET_PREFIX[@]}}\" \"$PROTON\" run {target_path}\n"
-        ));
+        );
     }
+
+    // Build the shell-array prefix tokens based on which wrappers are active.
+    // GOTCHA: when both gamescope_enabled and network_isolation are false,
+    // neither _GS_PREFIX nor _NET_PREFIX is declared earlier — emit no tokens.
+    let prefix = match (request.gamescope.enabled, request.network_isolation) {
+        (true, true) => "\"${_GS_PREFIX[@]}\" \"${_NET_PREFIX[@]}\" ",
+        (true, false) => "\"${_GS_PREFIX[@]}\" ",
+        (false, true) => "\"${_NET_PREFIX[@]}\" ",
+        (false, false) => "",
+    };
+    let direct_proton_exec = format!(
+        "unset GAMEID PROTON_VERB PROTONPATH\nexec {prefix}\"$PROTON\" run {target_path}\n"
+    );
+
+    match request.umu_preference {
+        UmuPreference::Proton => {
+            block.push_str(&direct_proton_exec);
+        }
+        UmuPreference::Auto | UmuPreference::Umu => {
+            // Probe umu-run once; Auto fallback is silent.
+            block.push_str(
+                r#"_UMU_AVAILABLE=0
+if command -v umu-run >/dev/null 2>&1; then
+  _UMU_AVAILABLE=1
+fi
+"#,
+            );
+            let umu_exports = build_umu_env_exports(request);
+            let fallback_warning = if request.umu_preference == UmuPreference::Umu {
+                "  echo \"[CrossHook] WARNING: umu preference requested but umu-run is unavailable — falling back to direct Proton\" >&2\n"
+            } else {
+                ""
+            };
+            block.push_str(&format!(
+                "if [ \"$_UMU_AVAILABLE\" = \"1\" ]; then\n{umu_exports}  exec {prefix}umu-run {target_path}\nelse\n{fallback_warning}  {direct_proton_exec}fi\n"
+            ));
+        }
+    }
+
     block
+}
+
+fn build_umu_env_exports(request: &SteamExternalLauncherExportRequest) -> String {
+    let resolved_proton_path =
+        resolve_launch_proton_path(&request.proton_path, &request.steam_client_install_path);
+    format!(
+        "  export GAMEID={}\n  export PROTON_VERB='runinprefix'\n  export PROTONPATH={}\n",
+        shell_single_quoted(&resolve_umu_game_id_for_env(request)),
+        shell_single_quoted(&proton_path_dirname(&resolved_proton_path))
+    )
+}
+
+fn resolve_steam_app_id_for_umu(request: &SteamExternalLauncherExportRequest) -> &str {
+    let umu_override = request.umu_game_id.trim();
+    if !umu_override.is_empty() {
+        return umu_override;
+    }
+
+    let steam_id = request.steam_app_id.trim();
+    if !steam_id.is_empty() {
+        return steam_id;
+    }
+
+    let runtime_id = request.runtime_steam_app_id.trim();
+    if !runtime_id.is_empty() {
+        return runtime_id;
+    }
+
+    ""
+}
+
+fn resolve_umu_game_id_for_env(request: &SteamExternalLauncherExportRequest) -> String {
+    let trimmed = resolve_steam_app_id_for_umu(request).trim();
+    if trimmed.is_empty() {
+        "umu-0".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn proton_path_dirname(proton_path: &str) -> String {
+    Path::new(proton_path.trim())
+        .parent()
+        .map(|parent| parent.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 pub(crate) fn build_desktop_entry_content(
@@ -886,6 +961,7 @@ mod tests {
             .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(script_content.contains("staged_trainer_windows_path=\"C:\\\\CrossHook\\\\StagedTrainers\\\\$trainer_base_name\\\\$trainer_file_name\""));
         assert!(script_content.contains(r#"exec "$PROTON" run "$staged_trainer_windows_path""#));
+        assert!(script_content.contains(r#"exec umu-run "$staged_trainer_windows_path""#));
 
         let desktop_content = fs::read_to_string(&result.desktop_entry_path).expect("desktop");
         assert!(desktop_content.contains("Name=Elden Ring Deluxe - Trainer"));
@@ -1008,6 +1084,7 @@ mod tests {
         assert!(script_content.contains("elif [[ -d \"$PREFIX_ROOT/pfx\" ]]; then"));
         assert!(script_content.contains("trainer_host_path=\"$(realpath \"$TRAINER_HOST_PATH\")\""));
         assert!(script_content.contains(r#"exec "$PROTON" run "$trainer_host_path""#));
+        assert!(script_content.contains(r#"exec umu-run "$trainer_host_path""#));
         assert!(!script_content
             .contains("staged_trainer_root=\"$WINEPREFIX/drive_c/CrossHook/StagedTrainers\""));
         assert!(!script_content.contains("export STEAM_COMPAT_CLIENT_INSTALL_PATH="));
@@ -1027,6 +1104,9 @@ mod tests {
             steam_client_install_path: "/home/u/.local/share/Steam".to_string(),
             target_home_path: "/home/user".to_string(),
             profile_name: None,
+            runtime_steam_app_id: String::new(),
+            umu_game_id: String::new(),
+            umu_preference: UmuPreference::Auto,
             network_isolation: false,
             gamescope: GamescopeConfig {
                 enabled: true,
@@ -1146,6 +1226,7 @@ mod tests {
         assert!(!content.contains("_GS_PREFIX"));
         assert!(!content.contains("gamescope"));
         assert!(content.contains(r#"exec "$PROTON" run "$trainer_host_path""#));
+        assert!(content.contains(r#"exec umu-run "$trainer_host_path""#));
     }
 
     #[test]
@@ -1167,6 +1248,7 @@ mod tests {
         assert!(content.contains("'-h' '400'"));
         assert!(content.contains("GAMESCOPE_WAYLAND_DISPLAY"));
         assert!(content.contains(r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$trainer_host_path""#));
+        assert!(content.contains(r#"exec "${_GS_PREFIX[@]}" umu-run "$trainer_host_path""#));
     }
 
     #[test]
@@ -1183,6 +1265,9 @@ mod tests {
         assert!(content.contains("_GAMESCOPE_ARGS=("));
         assert!(content
             .contains(r#"exec "${_GS_PREFIX[@]}" "$PROTON" run "$staged_trainer_windows_path""#));
+        assert!(
+            content.contains(r#"exec "${_GS_PREFIX[@]}" umu-run "$staged_trainer_windows_path""#)
+        );
     }
 
     #[test]
@@ -1270,6 +1355,10 @@ mod tests {
             content.contains(r#"exec "${_NET_PREFIX[@]}" "$PROTON" run"#),
             "exec line should use _NET_PREFIX array: {content}"
         );
+        assert!(
+            content.contains(r#"exec "${_NET_PREFIX[@]}" umu-run"#),
+            "umu exec branch should also use _NET_PREFIX array: {content}"
+        );
     }
 
     #[test]
@@ -1305,6 +1394,104 @@ mod tests {
         assert!(
             content.contains(r#"exec "${_GS_PREFIX[@]}" "${_NET_PREFIX[@]}" "$PROTON" run"#),
             "gamescope should be outermost, net isolation inside: {content}"
+        );
+        assert!(
+            content.contains(r#"exec "${_GS_PREFIX[@]}" "${_NET_PREFIX[@]}" umu-run"#),
+            "umu exec branch should use both prefix arrays: {content}"
+        );
+    }
+
+    #[test]
+    fn build_exec_line_emits_umu_probe_and_dual_exec() {
+        let request = make_gamescope_request(
+            GamescopeConfig::default(),
+            TrainerLoadingMode::SourceDirectory,
+        );
+        let content = build_trainer_script_content(&request, "Test Game");
+        assert!(
+            content.contains("command -v umu-run"),
+            "script should probe for umu-run: {content}"
+        );
+        assert!(
+            content.contains("_UMU_AVAILABLE=1"),
+            "script should mark umu availability: {content}"
+        );
+        assert!(
+            content.contains(r#"exec "$PROTON" run"#),
+            "fallback exec must remain: {content}"
+        );
+        assert!(
+            content.contains("exec umu-run"),
+            "umu exec branch must be emitted: {content}"
+        );
+    }
+
+    #[test]
+    fn proton_preference_bypasses_umu_run_for_exports() {
+        let mut request = make_gamescope_request(
+            GamescopeConfig::default(),
+            TrainerLoadingMode::SourceDirectory,
+        );
+        request.umu_preference = UmuPreference::Proton;
+        request.umu_game_id = "custom-77".to_string();
+        request.runtime_steam_app_id = "9000".to_string();
+
+        let content = build_trainer_script_content(&request, "Test Game");
+
+        assert!(
+            !content.contains("command -v umu-run"),
+            "Proton opt-out should not probe for umu-run: {content}"
+        );
+        assert!(
+            !content.contains("exec umu-run"),
+            "Proton opt-out should not emit umu-run exec: {content}"
+        );
+        assert!(
+            !content.contains("export GAMEID="),
+            "Proton opt-out should not export umu env: {content}"
+        );
+        assert!(
+            content.contains("unset GAMEID PROTON_VERB PROTONPATH"),
+            "Direct Proton export should clear umu env: {content}"
+        );
+        assert!(
+            content.contains(r#"exec "$PROTON" run "$trainer_host_path""#),
+            "Proton opt-out should preserve direct Proton exec: {content}"
+        );
+    }
+
+    #[test]
+    fn umu_export_emits_trainer_env_contract_with_runtime_precedence() {
+        let mut request = make_gamescope_request(
+            GamescopeConfig::default(),
+            TrainerLoadingMode::SourceDirectory,
+        );
+        request.umu_preference = UmuPreference::Umu;
+        request.steam_app_id = "12345".to_string();
+        request.runtime_steam_app_id = "67890".to_string();
+        request.umu_game_id = "custom-override".to_string();
+
+        let content = build_trainer_script_content(&request, "Test Game");
+
+        assert!(
+            content.contains("export GAMEID='custom-override'"),
+            "umu_game_id should outrank Steam and runtime ids: {content}"
+        );
+        assert!(
+            content.contains("export PROTON_VERB='runinprefix'"),
+            "exported trainer scripts must preserve trainer verb parity: {content}"
+        );
+        assert!(
+            content.contains("export PROTONPATH='/opt/proton'"),
+            "umu branch must export the Proton directory: {content}"
+        );
+        assert!(
+            content.contains("WARNING: umu preference requested but umu-run is unavailable"),
+            "explicit umu preference should warn before fallback: {content}"
+        );
+        assert!(
+            content.contains("unset GAMEID PROTON_VERB PROTONPATH"),
+            "fallback direct Proton path should clear umu env: {content}"
         );
     }
 }

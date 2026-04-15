@@ -1072,7 +1072,7 @@ export function SettingsPanel({
                 value={settings.umu_preference}
                 onValueChange={(value) => void onPersistSettings({ umu_preference: value as UmuPreference })}
                 options={[
-                  { value: 'auto', label: 'Auto (Phase 3 → Proton)' },
+                  { value: 'auto', label: 'Auto (umu when available, else Proton)' },
                   { value: 'umu', label: 'Umu (umu-launcher)' },
                   { value: 'proton', label: 'Proton (direct)' },
                 ]}

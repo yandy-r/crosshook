@@ -61,7 +61,7 @@ pub struct LaunchRequest {
     )]
     pub custom_env_vars: BTreeMap<String, String>,
     /// User preference for whether to invoke `umu-run` instead of direct Proton.
-    /// Defaults to `UmuPreference::Auto`, which resolves to direct Proton in Phase 3.
+    /// Defaults to `UmuPreference::Auto`, which prefers umu-run when available and falls back to direct Proton otherwise.
     #[serde(default)]
     pub umu_preference: UmuPreference,
     /// When true, trainer processes are launched in an isolated network namespace
