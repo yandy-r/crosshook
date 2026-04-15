@@ -15,6 +15,8 @@
     "lint:fix": "scripts/lint.sh --fix",
     "lint:fix:modified": "scripts/lint.sh --fix --modified",
     "format": "scripts/format.sh",
-    "format:modified": "scripts/format.sh --modified"
+    "format:modified": "scripts/format.sh --modified",
+    "release": "scripts/prepare-release.sh --tag",
+    "release:push": "scripts/prepare-release.sh --push --tag"
   }
 }
