@@ -1,6 +1,6 @@
 [package]
 name = "crosshook-core"
-version = "0.2.10-flatpak"
+version = "0.2.11"
 edition = "2021"
 
 [dependencies]
