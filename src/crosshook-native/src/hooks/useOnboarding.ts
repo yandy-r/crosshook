@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
-import type { OnboardingWizardStage, ReadinessCheckResult } from '../types/onboarding';
+import type { OnboardingWizardStage, ReadinessCheckResult, UmuInstallGuidance } from '../types/onboarding';
 import type { VersionCheckResult } from '../types/version';
 
 const STAGE_SEQUENCE: OnboardingWizardStage[] = ['identity_game', 'runtime', 'trainer', 'media', 'review', 'completed'];
@@ -10,6 +10,8 @@ export interface UseOnboardingResult {
   stage: OnboardingWizardStage;
   readinessResult: ReadinessCheckResult | null;
   checkError: string | null;
+  isRunningChecks: boolean;
+  lastCheckedAt: string | null;
   versionResult: VersionCheckResult | null;
   statusText: string;
   hintText: string;
@@ -20,10 +22,15 @@ export interface UseOnboardingResult {
   isMedia: boolean;
   isReview: boolean;
   isCompleted: boolean;
+  /** Actionable umu install guidance derived from the latest readiness result.
+   * Non-null only for Flatpak + missing umu-run scenarios. */
+  umuInstallGuidance: UmuInstallGuidance | null;
   runChecks: () => Promise<void>;
   advanceOrSkip: (launchMethod: string) => void;
   goBack: (launchMethod?: string) => void;
   dismiss: () => Promise<void>;
+  /** Persists the install-nag dismissal timestamp via the backend and clears local guidance state. */
+  dismissUmuInstallNag: () => Promise<void>;
   reset: () => void;
   setCompletedProfileName: (name: string) => void;
 }
@@ -92,6 +99,8 @@ export function useOnboarding(): UseOnboardingResult {
     () => createInitialOnboardingState().readinessResult
   );
   const [checkError, setCheckError] = useState<string | null>(null);
+  const [isRunningChecks, setIsRunningChecks] = useState(false);
+  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
   const [lastCreatedProfileName, setLastCreatedProfileName] = useState<string | null>(null);
   const [versionResult, setVersionResult] = useState<VersionCheckResult | null>(null);
 
@@ -105,12 +114,16 @@ export function useOnboarding(): UseOnboardingResult {
   // - The wizard unmounts when showOnboarding=false in App.tsx, so re-opening always starts fresh.
 
   const runChecks = useCallback(async () => {
+    setIsRunningChecks(true);
     try {
       const result = await callCommand<ReadinessCheckResult>('check_readiness');
       setReadinessResult(result);
       setCheckError(null);
+      setLastCheckedAt(new Date().toLocaleTimeString());
     } catch (error) {
       setCheckError(error instanceof Error ? error.message : 'Failed to run readiness checks.');
+    } finally {
+      setIsRunningChecks(false);
     }
   }, []);
 
@@ -151,11 +164,23 @@ export function useOnboarding(): UseOnboardingResult {
     }
   }, [lastCreatedProfileName]);
 
+  const dismissUmuInstallNag = useCallback(async () => {
+    try {
+      await callCommand<void>('dismiss_umu_install_nag');
+      setCheckError(null);
+      setReadinessResult((prev) => (prev == null ? null : { ...prev, umu_install_guidance: null }));
+    } catch (error) {
+      setCheckError(error instanceof Error ? error.message : 'Could not save install reminder preference.');
+    }
+  }, []);
+
   const reset = useCallback(() => {
     const initial = createInitialOnboardingState();
     setStage(initial.stage);
     setReadinessResult(initial.readinessResult);
     setCheckError(null);
+    setIsRunningChecks(false);
+    setLastCheckedAt(null);
     setLastCreatedProfileName(null);
     setVersionResult(null);
   }, []);
@@ -163,11 +188,14 @@ export function useOnboarding(): UseOnboardingResult {
   const statusText = deriveStatusText(stage);
   const hintText = deriveHintText(stage);
   const actionLabel = deriveActionLabel(stage);
+  const umuInstallGuidance = readinessResult?.umu_install_guidance ?? null;
 
   return {
     stage,
     readinessResult,
     checkError,
+    isRunningChecks,
+    lastCheckedAt,
     versionResult,
     statusText,
     hintText,
@@ -178,10 +206,12 @@ export function useOnboarding(): UseOnboardingResult {
     isMedia: stage === 'media',
     isReview: stage === 'review',
     isCompleted: stage === 'completed',
+    umuInstallGuidance,
     runChecks,
     advanceOrSkip,
     goBack,
     dismiss,
+    dismissUmuInstallNag,
     reset,
     setCompletedProfileName: setLastCreatedProfileName,
   };

@@ -396,7 +396,7 @@ pub fn host_environment_map() -> BTreeMap<String, String> {
     );
     m.insert(
         "DBUS_SESSION_BUS_ADDRESS".to_string(),
-        env_value("DBUS_SESSION_BUS_ADDRESS", ""),
+        resolve_host_dbus_session_bus_address(),
     );
     m
 }
@@ -610,6 +610,88 @@ pub(crate) fn env_value(key: &str, default: &str) -> String {
     env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
+fn resolve_flatpak_host_dbus_session_bus_address_with<F>(
+    session_bus_address: &str,
+    xdg_runtime_dir: &str,
+    host_path_exists: F,
+) -> String
+where
+    F: Fn(&str) -> bool,
+{
+    let trimmed_address = session_bus_address.trim();
+    if trimmed_address.is_empty() {
+        return String::new();
+    }
+    if let Some(path) = trimmed_address.strip_prefix("unix:path=") {
+        let path_component = path.split([',', ';']).next().unwrap_or(path);
+        if host_path_exists(path_component) {
+            return trimmed_address.to_string();
+        }
+        let trimmed_runtime_dir = xdg_runtime_dir.trim().trim_end_matches('/');
+        if trimmed_runtime_dir.is_empty() {
+            return String::new();
+        }
+        let candidate = format!("{trimmed_runtime_dir}/bus");
+        if host_path_exists(candidate.as_str()) {
+            return format!("unix:path={candidate}");
+        }
+        return String::new();
+    }
+    trimmed_address.to_string()
+}
+
+fn resolve_host_dbus_session_bus_address() -> String {
+    let session_bus_address = env_value("DBUS_SESSION_BUS_ADDRESS", "");
+    if !platform::is_flatpak() {
+        return session_bus_address;
+    }
+    let xdg_runtime_dir = env_value("XDG_RUNTIME_DIR", "");
+    resolve_flatpak_host_dbus_session_bus_address_with(
+        session_bus_address.as_str(),
+        xdg_runtime_dir.as_str(),
+        platform::normalized_path_exists_on_host,
+    )
+}
+
+fn flatpak_host_umu_candidates(home: Option<&Path>, user: Option<&str>) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    let mut add_home_candidates = |base: &Path| {
+        candidates.push(base.join(".local/bin/umu-run"));
+        candidates.push(base.join(".local/share/umu/umu-run"));
+        candidates.push(base.join(".local/pipx/venvs/umu-launcher/bin/umu-run"));
+        candidates.push(base.join(".local/share/pipx/venvs/umu-launcher/bin/umu-run"));
+    };
+
+    if let Some(home) = home {
+        add_home_candidates(home);
+        add_home_candidates(&PathBuf::from("/run/host").join(home));
+    }
+
+    if let Some(user) = user {
+        let trimmed = user.trim();
+        if !trimmed.is_empty() {
+            let var_home = PathBuf::from(format!("/var/home/{trimmed}"));
+            add_home_candidates(&var_home);
+            add_home_candidates(&PathBuf::from(format!("/run/host/var/home/{trimmed}")));
+            add_home_candidates(&PathBuf::from(format!("/run/host/home/{trimmed}")));
+        }
+    }
+
+    candidates
+}
+
+fn probe_flatpak_host_umu_candidates(home: Option<&Path>, user: Option<&str>) -> Option<String> {
+    flatpak_host_umu_candidates(home, user)
+        .into_iter()
+        .find_map(|candidate| {
+            let candidate_str = candidate.to_string_lossy().into_owned();
+            (is_executable_file(&candidate)
+                || crate::platform::normalized_path_is_executable_file_on_host(&candidate_str))
+            .then_some(candidate_str)
+        })
+}
+
 /// Returns the absolute path to `umu-run` if found on `PATH`, otherwise `None`.
 pub fn resolve_umu_run_path() -> Option<String> {
     #[cfg(test)]
@@ -627,6 +709,17 @@ pub fn resolve_umu_run_path() -> Option<String> {
         None
     }
 
+    fn first_executable_umu_on_host_path(path_value: &std::ffi::OsStr) -> Option<String> {
+        for directory in env::split_paths(path_value) {
+            let candidate = directory.join("umu-run");
+            let candidate_str = candidate.to_string_lossy().into_owned();
+            if crate::platform::normalized_path_is_executable_file_on_host(&candidate_str) {
+                return Some(candidate_str);
+            }
+        }
+        None
+    }
+
     // Under Flatpak, `PATH` reflects the sandbox — do not probe it. Prefer the
     // host environment file Flatpak exposes, then a static host default; never
     // fall back to the sandbox process `PATH`.
@@ -636,12 +729,20 @@ pub fn resolve_umu_run_path() -> Option<String> {
             let host_path = String::from_utf8_lossy(&bytes);
             let trimmed = host_path.trim();
             if !trimmed.is_empty() {
-                if let Some(path) = first_executable_umu_on_path(std::ffi::OsStr::new(trimmed)) {
+                if let Some(path) = first_executable_umu_on_host_path(std::ffi::OsStr::new(trimmed))
+                {
                     return Some(path);
                 }
             }
         }
-        if let Some(path) = first_executable_umu_on_path(std::ffi::OsStr::new(DEFAULT_HOST_PATH)) {
+        if let Some(path) =
+            first_executable_umu_on_host_path(std::ffi::OsStr::new(DEFAULT_HOST_PATH))
+        {
+            return Some(path);
+        }
+        let home = env::var_os("HOME").map(PathBuf::from);
+        let user = env::var("USER").ok();
+        if let Some(path) = probe_flatpak_host_umu_candidates(home.as_deref(), user.as_deref()) {
             return Some(path);
         }
         return None;
@@ -1080,5 +1181,93 @@ mod tests {
 
         let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
         assert!(resolve_umu_run_path().is_none());
+    }
+
+    #[test]
+    fn flatpak_host_umu_candidates_includes_home_and_var_home_paths() {
+        let home = Path::new("/home/tester");
+        let candidates = flatpak_host_umu_candidates(Some(home), Some("tester"));
+        let rendered: Vec<String> = candidates
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect();
+        for expected in [
+            "/home/tester/.local/bin/umu-run",
+            "/home/tester/.local/share/umu/umu-run",
+            "/home/tester/.local/pipx/venvs/umu-launcher/bin/umu-run",
+            "/run/host/home/tester/.local/bin/umu-run",
+            "/var/home/tester/.local/bin/umu-run",
+            "/run/host/var/home/tester/.local/bin/umu-run",
+        ] {
+            assert!(
+                rendered.iter().any(|candidate| candidate == expected),
+                "expected candidate list to include {expected}, got: {rendered:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn probe_flatpak_host_umu_candidates_prefers_home_local_bin() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let home = tmp.path().join("home");
+        std::fs::create_dir_all(home.join(".local/bin")).expect("create .local/bin");
+        let umu_stub = home.join(".local/bin/umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").expect("write umu-run stub");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod umu-run stub");
+        }
+
+        let resolved = probe_flatpak_host_umu_candidates(Some(home.as_path()), Some("tester"));
+        assert_eq!(
+            resolved.as_deref(),
+            Some(umu_stub.to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn resolve_flatpak_host_dbus_session_bus_address_rewrites_flatpak_bus_to_host_bus() {
+        let resolved = resolve_flatpak_host_dbus_session_bus_address_with(
+            "unix:path=/run/flatpak/bus",
+            "/run/user/1000",
+            |path| path == "/run/user/1000/bus",
+        );
+
+        assert_eq!(resolved, "unix:path=/run/user/1000/bus");
+    }
+
+    #[test]
+    fn resolve_flatpak_host_dbus_session_bus_address_preserves_host_visible_bus() {
+        let resolved = resolve_flatpak_host_dbus_session_bus_address_with(
+            "unix:path=/run/user/1000/bus",
+            "/run/user/1000",
+            |path| path == "/run/user/1000/bus",
+        );
+
+        assert_eq!(resolved, "unix:path=/run/user/1000/bus");
+    }
+
+    #[test]
+    fn resolve_flatpak_host_dbus_session_bus_address_drops_missing_bus_paths() {
+        let resolved = resolve_flatpak_host_dbus_session_bus_address_with(
+            "unix:path=/run/flatpak/bus",
+            "/run/user/1000",
+            |_| false,
+        );
+
+        assert_eq!(resolved, "");
+    }
+
+    #[test]
+    fn resolve_flatpak_host_dbus_session_bus_address_preserves_guid_suffix_on_visible_bus() {
+        let resolved = resolve_flatpak_host_dbus_session_bus_address_with(
+            "unix:path=/run/user/1000/bus,guid=abc123",
+            "/run/user/1000",
+            |path| path == "/run/user/1000/bus",
+        );
+
+        assert_eq!(resolved, "unix:path=/run/user/1000/bus,guid=abc123");
     }
 }

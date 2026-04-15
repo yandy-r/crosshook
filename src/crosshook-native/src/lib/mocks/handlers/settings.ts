@@ -3,11 +3,16 @@ import type { SettingsSaveRequest } from '../../../types/settings';
 import { getStore } from '../store';
 import type { Handler } from './types';
 
+function omitUndefinedKeys<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
 export function registerSettings(map: Map<string, Handler>): void {
   map.set('settings_load', async () => structuredClone(getStore().settings));
 
   map.set('settings_save', async (args) => {
-    const next = (args as { data: SettingsSaveRequest }).data;
+    const raw = (args as { data: SettingsSaveRequest }).data as unknown as Record<string, unknown>;
+    const next = omitUndefinedKeys(raw);
     const merged = { ...getStore().settings, ...next };
     getStore().settings = structuredClone(merged);
     return structuredClone(getStore().settings);

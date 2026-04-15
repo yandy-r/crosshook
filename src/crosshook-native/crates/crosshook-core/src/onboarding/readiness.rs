@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::launch::runtime_helpers::resolve_umu_run_path;
-use crate::onboarding::ReadinessCheckResult;
+use crate::onboarding::{ReadinessCheckResult, UmuInstallGuidance};
 use crate::profile::health::{HealthIssue, HealthIssueSeverity};
 use crate::steam::{discover_compat_tools, discover_steam_root_candidates, ProtonInstall};
 
@@ -40,6 +40,19 @@ pub fn check_system_readiness() -> ReadinessCheckResult {
 fn evaluate_checks(
     steam_roots: &[PathBuf],
     proton_tools: &[ProtonInstall],
+) -> ReadinessCheckResult {
+    let umu_path = resolve_umu_run_path();
+    let is_flatpak = crate::platform::is_flatpak();
+    evaluate_checks_inner(steam_roots, proton_tools, umu_path, is_flatpak)
+}
+
+/// Inner evaluation logic with injectable umu resolution and platform context so
+/// unit tests can exercise both the native and Flatpak code paths deterministically.
+fn evaluate_checks_inner(
+    steam_roots: &[PathBuf],
+    proton_tools: &[ProtonInstall],
+    umu_path: Option<String>,
+    is_flatpak: bool,
 ) -> ReadinessCheckResult {
     let mut checks: Vec<HealthIssue> = Vec::new();
 
@@ -123,11 +136,12 @@ fn evaluate_checks(
     });
 
     // Check 5: umu-run optional launcher
+    let mut umu_install_guidance: Option<UmuInstallGuidance> = None;
     {
-        let umu_path = resolve_umu_run_path();
         match umu_path {
             Some(ref p) => {
                 let path_display = home_to_tilde(p);
+                tracing::debug!(path = %path_display, "umu-run resolved");
                 checks.push(HealthIssue {
                     field: "umu_run_available".to_string(),
                     path: path_display,
@@ -137,6 +151,26 @@ fn evaluate_checks(
                     remediation: String::new(),
                     severity: HealthIssueSeverity::Info,
                 });
+            }
+            None if is_flatpak => {
+                tracing::debug!("umu-run not found on Flatpak host; emitting actionable guidance");
+                let guidance = UmuInstallGuidance {
+                    install_command: "pipx install umu-launcher".to_string(),
+                    docs_url: "https://github.com/Open-Wine-Components/umu-launcher".to_string(),
+                    description: "Install umu-launcher on your host to enable improved Proton runtime bootstrapping for non-Steam launches.".to_string(),
+                };
+                checks.push(HealthIssue {
+                    field: "umu_run_available".to_string(),
+                    path: String::new(),
+                    message: "umu-run not found in Flatpak host environment; CrossHook will use Proton directly.".to_string(),
+                    remediation: format!(
+                        "Install umu-launcher on your host: `{}`. See {} for details and non-pipx alternatives.",
+                        guidance.install_command,
+                        guidance.docs_url,
+                    ),
+                    severity: HealthIssueSeverity::Info,
+                });
+                umu_install_guidance = Some(guidance);
             }
             None => {
                 checks.push(HealthIssue {
@@ -165,6 +199,18 @@ fn evaluate_checks(
         all_passed,
         critical_failures,
         warnings,
+        umu_install_guidance,
+    }
+}
+
+/// When the user has dismissed the Flatpak umu install reminder, clear the structured
+/// guidance payload so readiness stays consistent across reruns and wizard reopen.
+pub fn apply_install_nag_dismissal(
+    result: &mut ReadinessCheckResult,
+    install_nag_dismissed_at: &Option<String>,
+) {
+    if install_nag_dismissed_at.is_some() {
+        result.umu_install_guidance = None;
     }
 }
 
@@ -319,6 +365,113 @@ mod tests {
         assert!(
             matches!(game_check.severity, HealthIssueSeverity::Warning),
             "expected Warning for game_launched_once"
+        );
+    }
+
+    #[test]
+    fn native_missing_umu_keeps_info_path() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let result = evaluate_checks_inner(&[steam_root], &[proton], None, false);
+
+        let umu_check = result
+            .checks
+            .iter()
+            .find(|c| c.field == "umu_run_available")
+            .expect("umu_run_available check missing");
+        assert!(
+            matches!(umu_check.severity, HealthIssueSeverity::Info),
+            "expected Info severity for native missing umu; got {:?}",
+            umu_check.severity
+        );
+        assert!(
+            umu_check.remediation.is_empty(),
+            "native missing umu must not emit Flatpak remediation text"
+        );
+        assert!(
+            result.umu_install_guidance.is_none(),
+            "native missing umu must not produce a guidance payload"
+        );
+        // umu being absent must not affect all_passed (Info severity only)
+        assert!(
+            result.all_passed,
+            "missing umu on native must not set all_passed=false; checks: {:?}",
+            result.checks
+        );
+    }
+
+    #[test]
+    fn flatpak_missing_umu_reports_actionable_guidance() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let result = evaluate_checks_inner(&[steam_root], &[proton], None, true);
+
+        let umu_check = result
+            .checks
+            .iter()
+            .find(|c| c.field == "umu_run_available")
+            .expect("umu_run_available check missing");
+        assert!(
+            matches!(umu_check.severity, HealthIssueSeverity::Info),
+            "Flatpak missing umu must keep Info severity to avoid changing all_passed; got {:?}",
+            umu_check.severity
+        );
+        assert!(
+            !umu_check.remediation.is_empty(),
+            "Flatpak missing umu must have non-empty remediation text"
+        );
+        assert!(
+            umu_check.message.contains("Flatpak"),
+            "Flatpak missing umu message should mention Flatpak host environment"
+        );
+
+        let guidance = result
+            .umu_install_guidance
+            .as_ref()
+            .expect("umu_install_guidance payload must be present for Flatpak+missing umu");
+        assert!(
+            !guidance.install_command.is_empty(),
+            "guidance install_command must be non-empty"
+        );
+        assert!(
+            !guidance.docs_url.is_empty(),
+            "guidance docs_url must be non-empty"
+        );
+        assert!(
+            !guidance.description.is_empty(),
+            "guidance description must be non-empty"
+        );
+
+        // umu being absent on Flatpak must not regress all_passed (Info severity only)
+        assert!(
+            result.all_passed,
+            "Flatpak missing umu must not set all_passed=false; checks: {:?}",
+            result.checks
+        );
+    }
+
+    #[test]
+    fn install_nag_dismissal_clears_flatpak_umu_guidance() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let mut result = evaluate_checks_inner(&[steam_root], &[proton], None, true);
+        assert!(
+            result.umu_install_guidance.is_some(),
+            "precondition: missing umu on Flatpak must emit guidance"
+        );
+        apply_install_nag_dismissal(&mut result, &Some("2026-04-15T12:00:00Z".to_string()));
+        assert!(
+            result.umu_install_guidance.is_none(),
+            "dismissed install nag must strip umu_install_guidance on subsequent readiness"
         );
     }
 }

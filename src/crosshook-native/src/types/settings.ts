@@ -36,6 +36,8 @@ export interface SettingsSaveRequest {
   protonup_binary_path?: string;
   /** Non-Steam launch preference: `auto` (umu when available, else Proton), `umu` (always umu-run), `proton` (always direct Proton). */
   umu_preference: UmuPreference;
+  /** RFC 3339 timestamp of when the user dismissed the umu install nag; `null` = not yet dismissed. */
+  install_nag_dismissed_at?: string | null;
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {
@@ -48,7 +50,7 @@ export interface AppSettingsData extends SettingsSaveRequest {
 }
 
 export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
-  return {
+  const base: SettingsSaveRequest = {
     auto_load_last_profile: s.auto_load_last_profile,
     last_used_profile: s.last_used_profile,
     community_taps: s.community_taps,
@@ -70,6 +72,14 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     protonup_binary_path: s.protonup_binary_path,
     umu_preference: s.umu_preference,
   };
+  // Do not set `install_nag_dismissed_at` when null/undefined so the key is absent
+  // (not present on the object). Shallow merge in browser mocks and backend merge both
+  // treat absent as preserve; only a concrete string should be sent for this field from
+  // a full snapshot so stale null does not clobber via `{ ...prev, ...next }`.
+  if (s.install_nag_dismissed_at != null) {
+    base.install_nag_dismissed_at = s.install_nag_dismissed_at;
+  }
+  return base;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettingsData = {
@@ -97,6 +107,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   protonup_auto_suggest: true,
   protonup_binary_path: '',
   umu_preference: 'auto',
+  install_nag_dismissed_at: null,
 };
 
 export interface RecentFilesData {
