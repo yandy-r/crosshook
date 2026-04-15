@@ -24,6 +24,7 @@ MODIFIED_ONLY=0
 RUN_RUST=0
 RUN_TS=0
 RUN_DOCS=0
+# shellcheck disable=SC2034 # Consumed by filter_modified_repo_paths() from the sourced helper.
 MODIFIED_REPO_FILES=()
 
 while [[ $# -gt 0 ]]; do

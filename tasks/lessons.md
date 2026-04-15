@@ -1,5 +1,9 @@
 # Lessons
 
+## 2026-04-14
+
+- When a shell script stores state that is only consumed indirectly by a sourced helper, do not assume ShellCheck will follow that usage across files. In this repo, either refactor to an explicit argument flow or add a targeted `SC2034` suppression at the declaration so `.github/workflows/lint.yml` stays green.
+
 ## 2026-04-13
 
 - When a frontend settings panel is meant to reflect backend-resolved behavior, do not key its fallback only off a missing optional field. In this repo, `launch.trainer_gamescope.enabled == false` still means “auto-generate from the game gamescope config” when the game gamescope wrapper is enabled, so the Profiles -> Gamescope tab must render the resolved trainer config, not the raw disabled storage value.
