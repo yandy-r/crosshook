@@ -262,9 +262,15 @@ export function registerLaunch(map: Map<string, Handler>): void {
         trainer: null,
         generated_at: new Date().toISOString(),
         display_text: 'Mock preview with validation issues for pipeline Tier 2.',
+        umu_decision: null,
       };
       return previewWithIssues;
     }
+
+    const mockProtonExe = '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton';
+    const mockGameExe = '/home/devuser/Games/TestGameAlpha/game.exe';
+    const mockUmuRun = '/usr/bin/umu-run';
+    const mockUsesUmu = method === 'proton_run';
 
     // Build populated preview (shared base for both populated and warning paths)
     const preview: LaunchPreview = {
@@ -273,8 +279,9 @@ export function registerLaunch(map: Map<string, Handler>): void {
       environment: makePreviewEnvVars(),
       cleared_variables: ['LD_PRELOAD'],
       wrappers: ['gamescope', 'mangohud'],
-      effective_command:
-        '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton run /home/devuser/Games/TestGameAlpha/game.exe',
+      effective_command: mockUsesUmu
+        ? `gamescope mangohud -- ${mockUmuRun} ${mockGameExe}`
+        : `${mockProtonExe} run ${mockGameExe}`,
       directives_error: null,
       steam_launch_options: method === 'steam_applaunch' ? 'PROTON_LOG=1 %command%' : null,
       proton_setup:
@@ -283,8 +290,8 @@ export function registerLaunch(map: Map<string, Handler>): void {
               wine_prefix_path: '/home/devuser/.local/share/mock-prefix',
               compat_data_path: '/home/devuser/.steam/steam/steamapps/compatdata/9999001',
               steam_client_install_path: getStore().defaultSteamClientInstallPath,
-              proton_executable: '/home/devuser/.steam/steam/compatibilitytools.d/proton-ge/proton',
-              umu_run_path: null,
+              proton_executable: mockProtonExe,
+              umu_run_path: mockUsesUmu ? mockUmuRun : null,
             }
           : null,
       working_directory: '/home/devuser/Games/TestGameAlpha',
@@ -301,6 +308,29 @@ export function registerLaunch(map: Map<string, Handler>): void {
           : null,
       generated_at: new Date().toISOString(),
       display_text: 'Mock preview: game will be launched via Proton with PROTON_LOG=1 and esync enabled.',
+      umu_decision:
+        method === 'proton_run'
+          ? (() => {
+              // Keep the csv_coverage heuristic aligned with the `check_umu_coverage`
+              // mock so Preview and the Runner-dropdown badge agree in dev mode.
+              const mockFoundAppIds = new Set(['546590', '2050650']);
+              const appId = (
+                request?.runtime?.umu_game_id ??
+                request?.steam?.app_id ??
+                request?.runtime?.steam_app_id ??
+                ''
+              ).trim();
+              const csvCoverage: 'found' | 'missing' | 'unknown' =
+                appId === '' ? 'unknown' : mockFoundAppIds.has(appId) ? 'found' : 'missing';
+              return {
+                requested_preference: 'umu',
+                umu_run_path_on_backend_path: '/usr/bin/umu-run',
+                will_use_umu: true,
+                reason: 'using umu-run at /usr/bin/umu-run',
+                csv_coverage: csvCoverage,
+              };
+            })()
+          : null,
     };
 
     if (gamePath === '__MOCK_VALIDATION_WARNING__') {

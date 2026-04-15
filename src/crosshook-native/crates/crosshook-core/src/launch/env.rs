@@ -40,6 +40,7 @@ pub const WINE_ENV_VARS_TO_CLEAR: &[&str] = &[
     "VKD3D_DEBUG",
     "STEAM_COMPAT_LIBRARY_PATHS", // Cleared for direct Proton; set per-command by builders (pressure-vessel RW allowlist).
     "PRESSURE_VESSEL_FILESYSTEMS_RW", // Cleared for direct Proton; set per-command by builders (pressure-vessel RW allowlist, paired with STEAM_COMPAT_LIBRARY_PATHS).
+    "PROTONPATH", // Cleared for direct Proton; set per-command by builders when umu-run is active.
 ];
 
 pub const REQUIRED_PROTON_VARS: &[&str] = &[
@@ -93,7 +94,7 @@ mod tests {
 
     #[test]
     fn wine_env_vars_match_expected_list() {
-        assert_eq!(WINE_ENV_VARS_TO_CLEAR.len(), 34);
+        assert_eq!(WINE_ENV_VARS_TO_CLEAR.len(), 35);
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"WINESERVER"));
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"WINE_HEAP_DELAY_FREE"));
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"PROTON_ENABLE_NVAPI"));
@@ -101,6 +102,7 @@ mod tests {
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"PROTON_VERB"));
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"STEAM_COMPAT_LIBRARY_PATHS"));
         assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"PRESSURE_VESSEL_FILESYSTEMS_RW"));
+        assert!(WINE_ENV_VARS_TO_CLEAR.contains(&"PROTONPATH"));
     }
 
     #[test]

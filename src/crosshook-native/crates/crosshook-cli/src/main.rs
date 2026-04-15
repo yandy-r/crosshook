@@ -18,7 +18,7 @@ use crosshook_core::launch::{
 use crosshook_core::profile::{
     export_community_profile, resolve_launch_method, GameProfile, ProfileStore,
 };
-use crosshook_core::settings::SettingsStore;
+use crosshook_core::settings::{SettingsStore, UmuPreference};
 use crosshook_core::steam::discovery::discover_steam_root_candidates;
 use crosshook_core::steam::libraries::discover_steam_libraries;
 use crosshook_core::steam::proton::discover_compat_tools;
@@ -140,7 +140,17 @@ async fn launch_profile(command: LaunchCommand, global: &GlobalOptions) -> Resul
     let profile = store.load(&profile_name).map_err(|e| {
         CliError::ProfileNotFound(format!("profile \"{profile_name}\" not found: {e}"))
     })?;
-    let request = launch_request_from_profile(&profile, &profile_name)
+    let settings_store =
+        SettingsStore::try_new().map_err(|e| CliError::General(format!("settings store: {e}")))?;
+    let settings = settings_store
+        .load()
+        .map_err(|e| CliError::General(format!("settings load: {e}")))?;
+    // Profile runtime override takes precedence over the global default.
+    let effective_umu_preference = profile
+        .runtime
+        .umu_preference
+        .unwrap_or(settings.umu_preference);
+    let request = launch_request_from_profile(&profile, &profile_name, effective_umu_preference)
         .map_err(|e| CliError::LaunchFailure(e.to_string()))?;
     launch::validate(&request).map_err(|e| CliError::LaunchFailure(e.to_string()))?;
 
@@ -712,6 +722,7 @@ fn profile_store(profile_dir: Option<PathBuf>) -> Result<ProfileStore, CliError>
 fn launch_request_from_profile(
     profile: &GameProfile,
     profile_name: &str,
+    umu_preference: UmuPreference,
 ) -> Result<LaunchRequest, Box<dyn Error>> {
     let method = resolve_launch_method(profile);
     let steam_client_install_path =
@@ -741,6 +752,7 @@ fn launch_request_from_profile(
                 proton_path: profile.runtime.proton_path.clone(),
                 working_directory: profile.runtime.working_directory.clone(),
                 steam_app_id: profile.runtime.steam_app_id.clone(),
+                umu_game_id: profile.runtime.umu_game_id.clone(),
             },
             METHOD_NATIVE => RuntimeLaunchConfig {
                 working_directory: profile.runtime.working_directory.clone(),
@@ -755,6 +767,7 @@ fn launch_request_from_profile(
         launch_game_only: true,
         profile_name: Some(profile_name.to_string()),
         custom_env_vars: profile.launch.custom_env_vars.clone(),
+        umu_preference,
         network_isolation: profile.launch.network_isolation,
         gamescope: profile.launch.gamescope.clone(),
         trainer_gamescope: if profile.launch.trainer_gamescope.is_default() {

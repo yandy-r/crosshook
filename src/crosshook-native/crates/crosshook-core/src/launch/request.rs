@@ -15,6 +15,7 @@ use crate::platform::{
     normalized_path_is_executable_file_on_host, normalized_path_is_file_on_host,
 };
 use crate::profile::{GamescopeConfig, MangoHudConfig, TrainerLoadingMode};
+use crate::settings::UmuPreference;
 
 pub const METHOD_STEAM_APPLAUNCH: &str = "steam_applaunch";
 pub const METHOD_PROTON_RUN: &str = "proton_run";
@@ -59,6 +60,10 @@ pub struct LaunchRequest {
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub custom_env_vars: BTreeMap<String, String>,
+    /// User preference for whether to invoke `umu-run` instead of direct Proton.
+    /// Defaults to `UmuPreference::Auto`, which resolves to direct Proton in Phase 3.
+    #[serde(default)]
+    pub umu_preference: UmuPreference,
     /// When true, trainer processes are launched in an isolated network namespace
     /// via `unshare --net`.
     #[serde(default = "default_network_isolation")]
@@ -94,9 +99,12 @@ pub struct RuntimeLaunchConfig {
     #[serde(default)]
     pub working_directory: String,
     /// Steam App ID used as `GAMEID` when launching via `umu-run`.
-    /// Falls back to `"0"` when empty.
+    /// Falls back to `"umu-0"` when empty (Phase 3).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub steam_app_id: String,
+    /// Optional protonfix override. When set, takes precedence over `steam_app_id` for umu GAMEID.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub umu_game_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -1363,6 +1371,7 @@ mod tests {
             proton_path: request.steam.proton_path.clone(),
             working_directory: String::new(),
             steam_app_id: String::new(),
+            umu_game_id: String::new(),
         };
         request.steam = SteamLaunchConfig::default();
         (temp_dir, request)
@@ -2001,5 +2010,30 @@ mod tests {
 
         let issue = ValidationError::GamePathRequired.issue();
         assert_eq!(issue.code.as_deref(), Some("game_path_required"));
+    }
+
+    #[test]
+    fn launch_request_umu_preference_serde_default() {
+        let toml = "method = \"proton_run\"\n";
+        let req: LaunchRequest = toml::from_str(toml).unwrap();
+        assert_eq!(req.umu_preference, crate::settings::UmuPreference::Auto);
+    }
+
+    #[test]
+    fn launch_request_runtime_umu_game_id_roundtrip() {
+        use crate::settings::UmuPreference;
+        let req = LaunchRequest {
+            method: "proton_run".to_string(),
+            umu_preference: UmuPreference::Umu,
+            runtime: RuntimeLaunchConfig {
+                umu_game_id: "custom-7".to_string(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let serialized = toml::to_string(&req).unwrap();
+        let parsed: LaunchRequest = toml::from_str(&serialized).unwrap();
+        assert_eq!(parsed.umu_preference, UmuPreference::Umu);
+        assert_eq!(parsed.runtime.umu_game_id, "custom-7");
     }
 }

@@ -17,7 +17,7 @@ use super::{
         merge_optimization_and_custom_into_map, merge_runtime_proton_into_map,
         resolve_effective_working_directory, resolve_wine_prefix_path,
     },
-    LaunchRequest, ValidationError, METHOD_PROTON_RUN,
+    LaunchRequest, ValidationError, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use crate::platform::{self, host_command_with_env, normalize_flatpak_host_path};
 use crate::profile::{GamescopeConfig, TrainerLoadingMode};
@@ -396,8 +396,13 @@ pub fn build_flatpak_steam_trainer_command(
         normalize_flatpak_host_path(&request.steam.compatdata_path);
     direct_request.runtime.proton_path = request.steam.proton_path.clone();
 
-    // PROTON_VERB=runinprefix is inherited via delegation to build_proton_trainer_command.
-    build_proton_trainer_command(&direct_request, log_path)
+    // Steam opt-out: never use umu in Steam-context trainers (PRD: Phase 3 Steam opt-out).
+    // PROTON_VERB=runinprefix is inherited via delegation.
+    build_proton_trainer_command_with_umu_override(
+        &direct_request,
+        log_path,
+        /*force_no_umu=*/ true,
+    )
 }
 
 pub fn build_proton_game_command(
@@ -408,6 +413,16 @@ pub fn build_proton_game_command(
     let gamescope_active = request.gamescope.enabled && !should_skip_gamescope(&request.gamescope);
     let wrappers_had_mangohud = directives.wrappers.iter().any(|w| w.trim() == "mangohud");
 
+    let (use_umu, umu_run_path) = should_use_umu(request, false);
+    if !use_umu {
+        warn_on_umu_fallback(request);
+    }
+
+    let resolved_proton_path = resolve_launch_proton_path(
+        request.runtime.proton_path.trim(),
+        request.steam.steam_client_install_path.trim(),
+    );
+
     let mut env = host_environment_map();
     merge_runtime_proton_into_map(
         &mut env,
@@ -415,8 +430,14 @@ pub fn build_proton_game_command(
         request.steam.steam_client_install_path.trim(),
     );
     merge_optimization_and_custom_into_map(&mut env, &directives.env, &BTreeMap::new());
-    env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
-    env.insert("PROTON_VERB".to_string(), "waitforexitandrun".to_string());
+    if use_umu {
+        env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
+        env.insert("PROTON_VERB".to_string(), "waitforexitandrun".to_string());
+        env.insert(
+            "PROTONPATH".to_string(),
+            proton_path_dirname(resolved_proton_path.trim()),
+        );
+    }
     let pressure_vessel_paths = collect_pressure_vessel_paths(request).join(":");
     env.insert(
         "STEAM_COMPAT_LIBRARY_PATHS".to_string(),
@@ -438,14 +459,19 @@ pub fn build_proton_game_command(
         normalized_working_directory.trim(),
         Path::new(normalized_game_path.trim()),
     );
-    let resolved_proton_path = resolve_launch_proton_path(
-        request.runtime.proton_path.trim(),
-        request.steam.steam_client_install_path.trim(),
-    );
     let resolved_steam_client_install_path = env
         .get("STEAM_COMPAT_CLIENT_INSTALL_PATH")
         .map(String::as_str)
         .unwrap_or("");
+
+    let program_path = if use_umu {
+        umu_run_path
+            .as_deref()
+            .expect("use_umu implies umu_run_path")
+            .to_string()
+    } else {
+        resolved_proton_path.clone()
+    };
 
     tracing::debug!(
         configured_proton_path = request.runtime.proton_path.trim(),
@@ -455,6 +481,8 @@ pub fn build_proton_game_command(
         working_directory = effective_working_directory.as_deref().unwrap_or(""),
         gamescope_active,
         wrapper_count = directives.wrappers.len(),
+        use_umu,
+        umu_run_path = umu_run_path.as_deref().unwrap_or(""),
         "building proton game launch"
     );
 
@@ -464,31 +492,34 @@ pub fn build_proton_game_command(
         if platform::is_flatpak() {
             let pid_capture_path = gamescope_pid_capture_path(log_path);
             build_proton_command_with_gamescope_pid_capture_in_directory(
-                resolved_proton_path.as_str(),
+                program_path.as_str(),
                 &filtered_wrappers,
                 &gamescope_args,
                 &env,
                 effective_working_directory.as_deref(),
                 &request.custom_env_vars,
                 Some(&pid_capture_path),
+                use_umu,
             )
         } else {
             build_proton_command_with_gamescope_in_directory(
-                resolved_proton_path.as_str(),
+                program_path.as_str(),
                 &filtered_wrappers,
                 &gamescope_args,
                 &env,
                 effective_working_directory.as_deref(),
                 &request.custom_env_vars,
+                use_umu,
             )
         }
     } else {
         build_direct_proton_command_with_wrappers_in_directory(
-            resolved_proton_path.as_str(),
+            program_path.as_str(),
             &directives.wrappers,
             &env,
             effective_working_directory.as_deref(),
             &request.custom_env_vars,
+            use_umu,
         )
     };
     command.arg(normalized_game_path.trim());
@@ -497,7 +528,15 @@ pub fn build_proton_game_command(
 
 pub fn build_proton_trainer_command(
     request: &LaunchRequest,
+    log_path: &Path,
+) -> std::io::Result<Command> {
+    build_proton_trainer_command_with_umu_override(request, log_path, /*force_no_umu=*/ false)
+}
+
+fn build_proton_trainer_command_with_umu_override(
+    request: &LaunchRequest,
     _log_path: &Path,
+    force_no_umu: bool,
 ) -> std::io::Result<Command> {
     let normalized_prefix_path = normalize_flatpak_host_path(&request.runtime.prefix_path);
     let normalized_trainer_host_path = normalize_flatpak_host_path(&request.trainer_host_path);
@@ -525,14 +564,30 @@ pub fn build_proton_trainer_command(
     let trainer_gamescope = request.resolved_trainer_gamescope();
     let gamescope_active = trainer_gamescope.enabled && !should_skip_gamescope(&trainer_gamescope);
 
+    let (use_umu, umu_run_path) = should_use_umu(request, force_no_umu);
+    if !use_umu && !force_no_umu {
+        warn_on_umu_fallback(request);
+    }
+
+    let resolved_proton_path = resolve_launch_proton_path(
+        request.runtime.proton_path.trim(),
+        request.steam.steam_client_install_path.trim(),
+    );
+
     let mut env = host_environment_map();
     merge_runtime_proton_into_map(
         &mut env,
         request.runtime.prefix_path.trim(),
         request.steam.steam_client_install_path.trim(),
     );
-    env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
-    env.insert("PROTON_VERB".to_string(), "runinprefix".to_string());
+    if use_umu {
+        env.insert("GAMEID".to_string(), resolved_umu_game_id_for_env(request));
+        env.insert("PROTON_VERB".to_string(), "runinprefix".to_string());
+        env.insert(
+            "PROTONPATH".to_string(),
+            proton_path_dirname(resolved_proton_path.trim()),
+        );
+    }
     let pressure_vessel_paths = collect_pressure_vessel_paths(request).join(":");
     env.insert(
         "STEAM_COMPAT_LIBRARY_PATHS".to_string(),
@@ -542,10 +597,14 @@ pub fn build_proton_trainer_command(
         "PRESSURE_VESSEL_FILESYSTEMS_RW".to_string(),
         pressure_vessel_paths,
     );
-    let resolved_proton_path = resolve_launch_proton_path(
-        request.runtime.proton_path.trim(),
-        request.steam.steam_client_install_path.trim(),
-    );
+    let program_path = if use_umu {
+        umu_run_path
+            .as_deref()
+            .expect("use_umu implies umu_run_path")
+            .to_string()
+    } else {
+        resolved_proton_path.clone()
+    };
     let resolved_steam_client_install_path = env
         .get("STEAM_COMPAT_CLIENT_INSTALL_PATH")
         .map(String::as_str)
@@ -560,6 +619,8 @@ pub fn build_proton_trainer_command(
         gamescope_active,
         wrapper_count = effective_wrappers.len(),
         trainer_loading_mode = request.trainer_loading_mode.as_str(),
+        use_umu,
+        umu_run_path = umu_run_path.as_deref().unwrap_or(""),
         "building proton trainer launch"
     );
 
@@ -567,20 +628,22 @@ pub fn build_proton_trainer_command(
         let (gamescope_args, filtered_wrappers) =
             prepare_gamescope_launch(&trainer_gamescope, &effective_wrappers);
         build_proton_command_with_gamescope_in_directory(
-            resolved_proton_path.as_str(),
+            program_path.as_str(),
             &filtered_wrappers,
             &gamescope_args,
             &env,
             effective_working_directory.as_deref(),
             &BTreeMap::new(),
+            use_umu,
         )
     } else {
         build_direct_proton_command_with_wrappers_in_directory(
-            resolved_proton_path.as_str(),
+            program_path.as_str(),
             &effective_wrappers,
             &env,
             effective_working_directory.as_deref(),
             &BTreeMap::new(),
+            use_umu,
         )
     };
     command.arg(trainer_launch_path);
@@ -628,7 +691,10 @@ fn merge_steam_helper_env_into(map: &mut BTreeMap<String, String>, request: &Lau
     );
 }
 
-fn resolve_launch_proton_path(proton_path: &str, steam_client_install_path: &str) -> String {
+pub(crate) fn resolve_launch_proton_path(
+    proton_path: &str,
+    steam_client_install_path: &str,
+) -> String {
     resolve_launch_proton_path_with_mode(
         proton_path,
         steam_client_install_path,
@@ -894,9 +960,15 @@ fn validation_error_to_io_error(error: ValidationError) -> std::io::Error {
     io_error(&error.to_string())
 }
 
-/// Returns the best available Steam App ID for umu-run's `GAMEID`.
-/// Prefers `steam.app_id`, falls back to `runtime.steam_app_id`, then `""`.
-fn resolve_steam_app_id_for_umu(request: &LaunchRequest) -> &str {
+/// Returns the best available identifier for umu-run's `GAMEID`.
+///
+/// Precedence: `runtime.umu_game_id` (user protonfix override) → `steam.app_id` →
+/// `runtime.steam_app_id` → `""`.
+pub(crate) fn resolve_steam_app_id_for_umu(request: &LaunchRequest) -> &str {
+    let umu_override = request.runtime.umu_game_id.trim();
+    if !umu_override.is_empty() {
+        return umu_override;
+    }
     let steam_id = request.steam.app_id.trim();
     if !steam_id.is_empty() {
         return steam_id;
@@ -911,9 +983,88 @@ fn resolve_steam_app_id_for_umu(request: &LaunchRequest) -> &str {
 fn resolved_umu_game_id_for_env(request: &LaunchRequest) -> String {
     let trimmed = resolve_steam_app_id_for_umu(request).trim();
     if trimmed.is_empty() {
-        "0".to_string()
+        "umu-0".to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+/// Decide whether the current request should exec `umu-run` instead of direct Proton.
+///
+/// Returns `(true, Some(umu_run_path))` only when:
+/// * `force_no_umu` is `false`
+/// * `request.umu_preference == UmuPreference::Umu`
+/// * `resolve_umu_run_path()` returns `Some(path)`
+///
+/// Otherwise returns `(false, None)`. When `force_no_umu` is `false`, the
+/// `true` when the real trainer launch path uses [`build_flatpak_steam_trainer_command`]
+/// (Flatpak + Steam-context trainer → direct Proton, never `umu-run`).
+///
+/// Matches the `launch_trainer` Tauri routing so preview UMU decisions stay aligned with runtime.
+pub(crate) fn force_no_umu_for_launch_request(request: &LaunchRequest) -> bool {
+    request.launch_trainer_only
+        && crate::platform::is_flatpak()
+        && request.resolved_method() == METHOD_STEAM_APPLAUNCH
+}
+
+/// caller is responsible for the degraded-fallback `tracing::warn!` if
+/// `UmuPreference::Umu` was requested but no binary was found.
+pub(crate) fn should_use_umu(
+    request: &LaunchRequest,
+    force_no_umu: bool,
+) -> (bool, Option<String>) {
+    use crate::settings::UmuPreference;
+    if force_no_umu {
+        tracing::info!(
+            preference = ?request.umu_preference,
+            "should_use_umu: force_no_umu=true → direct Proton"
+        );
+        return (false, None);
+    }
+    if request.umu_preference != UmuPreference::Umu {
+        tracing::info!(
+            preference = ?request.umu_preference,
+            "should_use_umu: preference != Umu → direct Proton"
+        );
+        return (false, None);
+    }
+    match super::runtime_helpers::resolve_umu_run_path() {
+        Some(path) => {
+            tracing::info!(
+                preference = ?request.umu_preference,
+                umu_run_path = %path,
+                "should_use_umu: using umu-run"
+            );
+            (true, Some(path))
+        }
+        None => {
+            tracing::info!(
+                preference = ?request.umu_preference,
+                path_env = ?std::env::var_os("PATH"),
+                "should_use_umu: preference=Umu but umu-run not found on PATH → direct Proton"
+            );
+            (false, None)
+        }
+    }
+}
+
+/// Returns the parent directory of a Proton executable path as an owned String.
+/// Empty string if no parent.
+pub(crate) fn proton_path_dirname(proton_path: &str) -> String {
+    std::path::Path::new(proton_path.trim())
+        .parent()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// Emits the degraded-fallback warn once per builder call when `UmuPreference::Umu`
+/// is requested but `umu-run` is missing from PATH.
+fn warn_on_umu_fallback(request: &LaunchRequest) {
+    use crate::settings::UmuPreference;
+    if request.umu_preference == UmuPreference::Umu {
+        tracing::warn!(
+            "umu preference requested but umu-run is not on PATH; falling back to direct Proton for this launch"
+        );
     }
 }
 
@@ -1013,6 +1164,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: workspace_dir.to_string_lossy().into_owned(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest {
                 enabled_option_ids: vec![
@@ -1064,7 +1216,7 @@ mod tests {
             command_env_value(&command, "WINEPREFIX"),
             Some(prefix_path.to_string_lossy().into_owned())
         );
-        assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
+        assert_eq!(command_env_value(&command, "GAMEID"), None);
     }
 
     #[test]
@@ -1102,6 +1254,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: workspace_dir.to_string_lossy().into_owned(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest {
                 enabled_option_ids: vec!["enable_dxvk_async".to_string()],
@@ -1118,7 +1271,7 @@ mod tests {
             command_env_value(&command, "DXVK_ASYNC"),
             Some("0".to_string())
         );
-        assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
+        assert_eq!(command_env_value(&command, "GAMEID"), None);
     }
 
     #[test]
@@ -1154,6 +1307,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: workspace_dir.to_string_lossy().into_owned(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: false,
@@ -1163,10 +1317,7 @@ mod tests {
         };
 
         let command = build_proton_game_command(&request, &log_path).expect("game command");
-        assert_eq!(
-            command_env_value(&command, "PROTON_VERB"),
-            Some("waitforexitandrun".to_string())
-        );
+        assert_eq!(command_env_value(&command, "PROTON_VERB"), None);
     }
 
     #[test]
@@ -1191,6 +1342,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: "/srv/crosshook/workspaces/the-game".to_string(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: false,
@@ -1289,6 +1441,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: workspace_dir.to_string_lossy().into_owned(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest {
                 enabled_option_ids: vec![
@@ -1337,7 +1490,7 @@ mod tests {
             command_env_value(&command, "WINEPREFIX"),
             Some(wine_prefix_path.to_string_lossy().into_owned())
         );
-        assert_eq!(command_env_value(&command, "GAMEID"), Some("0".to_string()));
+        assert_eq!(command_env_value(&command, "GAMEID"), None);
         assert_eq!(command_env_value(&command, "PROTON_NO_STEAMINPUT"), None);
         assert_eq!(command_env_value(&command, "DXVK_ASYNC"), None);
         assert_eq!(command_env_value(&command, "MANGOHUD_CONFIGFILE"), None);
@@ -1378,6 +1531,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: workspace_dir.to_string_lossy().into_owned(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -1387,10 +1541,7 @@ mod tests {
         };
 
         let command = build_proton_trainer_command(&request, &log_path).expect("trainer command");
-        assert_eq!(
-            command_env_value(&command, "PROTON_VERB"),
-            Some("runinprefix".to_string())
-        );
+        assert_eq!(command_env_value(&command, "PROTON_VERB"), None);
     }
 
     #[test]
@@ -1419,6 +1570,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: "/srv/crosshook/workspaces/the-game".to_string(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -1472,6 +1624,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: workspace_dir.to_string_lossy().into_owned(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -1482,10 +1635,7 @@ mod tests {
 
         let command = build_flatpak_steam_trainer_command(&request, &log_path)
             .expect("flatpak trainer command");
-        assert_eq!(
-            command_env_value(&command, "PROTON_VERB"),
-            Some("runinprefix".to_string())
-        );
+        assert_eq!(command_env_value(&command, "PROTON_VERB"), None);
     }
 
     #[test]
@@ -1519,6 +1669,7 @@ mod tests {
                 proton_path: String::new(),
                 working_directory: "/srv/crosshook/workspaces/the-game".to_string(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -1768,6 +1919,7 @@ mod tests {
                 proton_path: String::new(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -1875,6 +2027,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -1935,6 +2088,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -1999,6 +2153,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -2129,6 +2284,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: false,
@@ -2193,6 +2349,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -2294,6 +2451,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -2347,6 +2505,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: true,
@@ -2399,6 +2558,7 @@ mod tests {
                 proton_path: proton_path.to_string_lossy().into_owned(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
             },
             optimizations: crate::launch::request::LaunchOptimizationsRequest::default(),
             launch_trainer_only: false,
@@ -2426,6 +2586,299 @@ mod tests {
         assert!(
             !args.contains(&"--net".to_string()),
             "game command args must not contain --net"
+        );
+    }
+
+    #[test]
+    fn resolved_umu_game_id_prefers_runtime_umu_game_id_over_steam_app_id() {
+        let mut request = LaunchRequest::default();
+        request.steam.app_id = "70".to_string();
+        request.runtime.umu_game_id = "custom-7".to_string();
+        assert_eq!(resolved_umu_game_id_for_env(&request), "custom-7");
+    }
+
+    #[test]
+    fn resolved_umu_game_id_falls_back_to_umu_0_when_all_ids_empty() {
+        let request = LaunchRequest::default();
+        assert_eq!(resolved_umu_game_id_for_env(&request), "umu-0");
+    }
+
+    #[test]
+    fn resolved_umu_game_id_uses_runtime_steam_app_id_when_steam_app_id_empty() {
+        let mut request = LaunchRequest::default();
+        request.runtime.steam_app_id = "999".to_string();
+        assert_eq!(resolved_umu_game_id_for_env(&request), "999");
+    }
+
+    #[test]
+    fn proton_game_command_swaps_to_umu_run_when_umu_preferred() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: UmuPreference::Umu,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("test.log");
+        let command = build_proton_game_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            program.ends_with("/umu-run"),
+            "expected umu-run program, got {program}"
+        );
+        let args: Vec<String> = command
+            .as_std()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            !args.contains(&"run".to_string()),
+            "umu-run must not receive \"run\" subcommand arg; args: {args:?}"
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTONPATH"),
+            Some("/opt/proton/GE-Proton9-20".to_string())
+        );
+    }
+
+    #[test]
+    fn proton_game_command_falls_back_to_proton_when_umu_preferred_but_missing_on_path() {
+        // scope PATH to an empty dir — no umu-run present
+        let dir = tempfile::tempdir().unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: UmuPreference::Umu,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("test.log");
+        let command = build_proton_game_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            !program.ends_with("umu-run"),
+            "expected direct proton when umu-run absent, got {program}"
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTONPATH"),
+            None,
+            "PROTONPATH must not be set when falling back"
+        );
+    }
+
+    #[test]
+    fn auto_preference_resolves_to_proton_in_phase_3() {
+        // umu-run IS on PATH, but preference is Auto → Phase 3 still resolves to Proton
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: UmuPreference::Auto, // NOT Umu
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("test.log");
+        let command = build_proton_game_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            !program.ends_with("umu-run"),
+            "Phase 3 Auto must resolve to Proton"
+        );
+        assert_eq!(command_env_value(&command, "PROTONPATH"), None);
+    }
+
+    #[test]
+    fn proton_preference_always_uses_direct_proton() {
+        // umu-run available AND preference==Proton → still direct Proton
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: UmuPreference::Proton,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("test.log");
+        let command = build_proton_game_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(!program.ends_with("umu-run"));
+    }
+
+    #[test]
+    fn proton_trainer_command_swaps_to_umu_run_when_umu_preferred() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            trainer_path: "/tmp/trainer.exe".to_string(),
+            trainer_host_path: "/tmp/trainer.exe".to_string(),
+            umu_preference: UmuPreference::Umu,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("trainer.log");
+        let command = build_proton_trainer_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            program.ends_with("/umu-run"),
+            "expected umu-run program, got {program}"
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTON_VERB"),
+            Some("runinprefix".to_string())
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTONPATH"),
+            Some("/opt/proton/GE-Proton9-20".to_string())
+        );
+        let args: Vec<String> = command
+            .as_std()
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            !args.contains(&"run".to_string()),
+            "umu-run must not receive \"run\"; args: {args:?}"
+        );
+    }
+
+    #[test]
+    fn proton_trainer_command_falls_back_to_proton_when_umu_preferred_but_missing() {
+        let dir = tempfile::tempdir().unwrap(); // empty dir — no umu-run
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            trainer_path: "/tmp/trainer.exe".to_string(),
+            trainer_host_path: "/tmp/trainer.exe".to_string(),
+            umu_preference: UmuPreference::Umu,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("trainer.log");
+        let command = build_proton_trainer_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            !program.ends_with("umu-run"),
+            "expected direct proton fallback, got {program}"
+        );
+        assert_eq!(command_env_value(&command, "PROTONPATH"), None);
+    }
+
+    #[test]
+    fn flatpak_steam_trainer_command_never_uses_umu_even_when_preferred() {
+        // Stub umu-run on PATH, set preference to Umu — the flatpak-Steam delegation
+        // MUST still emit direct Proton (Steam opt-out invariant).
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        use crate::settings::UmuPreference;
+        let mut request = LaunchRequest {
+            method: crate::launch::METHOD_STEAM_APPLAUNCH.to_string(),
+            trainer_path: "/tmp/trainer.exe".to_string(),
+            trainer_host_path: "/tmp/trainer.exe".to_string(),
+            umu_preference: UmuPreference::Umu,
+            ..Default::default()
+        };
+        request.steam.app_id = "70".to_string();
+        request.steam.compatdata_path = "/tmp/compat".to_string();
+        request.steam.proton_path = "/opt/steam/proton/proton".to_string();
+
+        let log_dir = tempfile::tempdir().unwrap();
+        let log_path = log_dir.path().join("steam-trainer.log");
+        let command = build_flatpak_steam_trainer_command(&request, &log_path).unwrap();
+
+        let program = command
+            .as_std()
+            .get_program()
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            !program.ends_with("umu-run"),
+            "Steam-context trainers must never use umu-run; got {program}"
+        );
+        assert_eq!(
+            command_env_value(&command, "PROTONPATH"),
+            None,
+            "PROTONPATH must not be set under Steam opt-out"
         );
     }
 }

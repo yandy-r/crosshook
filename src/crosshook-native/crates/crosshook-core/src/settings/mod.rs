@@ -4,6 +4,7 @@ use directories::BaseDirs;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use crate::community::CommunityTapSubscription;
@@ -130,6 +131,37 @@ pub(crate) fn expand_path_with_tilde(raw: &str) -> Result<PathBuf, String> {
     Ok(PathBuf::from(t))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UmuPreference {
+    #[default]
+    Auto,
+    Umu,
+    Proton,
+}
+
+impl UmuPreference {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Umu => "umu",
+            Self::Proton => "proton",
+        }
+    }
+}
+
+impl FromStr for UmuPreference {
+    type Err = String;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim() {
+            "auto" => Ok(Self::Auto),
+            "umu" => Ok(Self::Umu),
+            "proton" => Ok(Self::Proton),
+            other => Err(format!("unsupported umu preference: {other}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SettingsStore {
     pub base_path: PathBuf,
@@ -183,6 +215,9 @@ pub struct AppSettingsData {
     /// Optional path override for ProtonUp binary; empty = auto-detect.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub protonup_binary_path: String,
+    /// User preference for umu-launcher vs direct Proton invocation.
+    #[serde(default)]
+    pub umu_preference: UmuPreference,
 }
 
 impl Default for AppSettingsData {
@@ -208,6 +243,7 @@ impl Default for AppSettingsData {
             external_trainer_sources: default_external_trainer_sources(),
             protonup_auto_suggest: default_protonup_auto_suggest(),
             protonup_binary_path: String::new(),
+            umu_preference: UmuPreference::Auto,
         }
     }
 }
@@ -251,6 +287,7 @@ impl fmt::Debug for AppSettingsData {
             .field("external_trainer_sources", &self.external_trainer_sources)
             .field("protonup_auto_suggest", &self.protonup_auto_suggest)
             .field("protonup_binary_path", &self.protonup_binary_path)
+            .field("umu_preference", &self.umu_preference)
             .finish()
     }
 }
@@ -565,6 +602,45 @@ mod tests {
         assert!(
             loaded.protonup_binary_path.is_empty(),
             "protonup_binary_path should default to empty"
+        );
+    }
+
+    #[test]
+    fn settings_backward_compat_without_umu_preference() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SettingsStore::with_base_path(dir.path().to_path_buf());
+        let path = store.settings_path();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            "auto_load_last_profile = false\nlast_used_profile = \"\"\n",
+        )
+        .unwrap();
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.umu_preference, UmuPreference::Auto);
+    }
+
+    #[test]
+    fn settings_roundtrip_umu_preference_umu() {
+        let toml = "umu_preference = \"umu\"\n";
+        let parsed: AppSettingsData = toml::from_str(toml).unwrap();
+        assert_eq!(parsed.umu_preference, UmuPreference::Umu);
+        let serialized = toml::to_string(&parsed).unwrap();
+        assert!(serialized.contains("umu_preference = \"umu\""));
+    }
+
+    #[test]
+    fn umu_preference_from_str_rejects_unknown() {
+        use std::str::FromStr;
+        assert!(UmuPreference::from_str("ghoti").is_err());
+        assert_eq!(UmuPreference::from_str("umu").unwrap(), UmuPreference::Umu);
+        assert_eq!(
+            UmuPreference::from_str("auto").unwrap(),
+            UmuPreference::Auto
+        );
+        assert_eq!(
+            UmuPreference::from_str("proton").unwrap(),
+            UmuPreference::Proton
         );
     }
 }

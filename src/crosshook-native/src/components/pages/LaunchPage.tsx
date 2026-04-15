@@ -131,7 +131,8 @@ export function LaunchPage() {
     profile,
     profileState.launchMethod,
     effectiveSteamClientInstallPath,
-    selectedName
+    selectedName,
+    settings.umu_preference
   );
   const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
 

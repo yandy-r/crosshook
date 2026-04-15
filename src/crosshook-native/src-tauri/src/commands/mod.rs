@@ -21,5 +21,6 @@ pub mod settings;
 pub mod shared;
 pub mod steam;
 pub mod storage;
+pub mod umu_database;
 pub mod update;
 pub mod version;

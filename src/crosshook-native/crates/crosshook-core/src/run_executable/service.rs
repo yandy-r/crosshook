@@ -104,6 +104,7 @@ pub fn build_run_executable_command(
         &env,
         effective_working_directory.as_deref(),
         &std::collections::BTreeMap::new(),
+        false,
     );
 
     if is_msi_path(Path::new(executable_path)) {

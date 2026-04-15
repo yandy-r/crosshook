@@ -1,4 +1,5 @@
 import type { LaunchOptimizations } from './launch-optimizations';
+import type { UmuPreference } from './settings';
 
 export interface ProfileData {
   GamePath: string;
@@ -127,6 +128,12 @@ export interface GameProfile {
     proton_path: string;
     working_directory: string;
     steam_app_id?: string;
+    umu_game_id?: string;
+    /**
+     * Per-profile umu preference override. `undefined` inherits the global
+     * `AppSettingsData.umu_preference`; otherwise overrides it for this profile only.
+     */
+    umu_preference?: UmuPreference;
   };
   launch: {
     method: LaunchMethod;
@@ -181,6 +188,7 @@ const DEFAULT_RUNTIME_SECTION: GameProfile['runtime'] = {
   proton_path: '',
   working_directory: '',
   steam_app_id: '',
+  umu_game_id: '',
 };
 
 const DEFAULT_LOCAL_OVERRIDE_SECTION: NonNullable<GameProfile['local_override']> = {

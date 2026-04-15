@@ -18,7 +18,7 @@ const LaunchStateContext = createContext<LaunchStateContextValue | null>(null);
 
 export function LaunchStateProvider({ children }: { children: ReactNode }) {
   const profileState = useProfileContext();
-  const { defaultSteamClientInstallPath } = usePreferencesContext();
+  const { defaultSteamClientInstallPath, settings } = usePreferencesContext();
   const selectedName = profileState.selectedProfile || '';
   const profileId = profileState.profileName.trim() || selectedName || 'new-profile';
   const effectiveSteamClientInstallPath = defaultSteamClientInstallPath || profileState.steamClientInstallPath;
@@ -26,7 +26,8 @@ export function LaunchStateProvider({ children }: { children: ReactNode }) {
     profileState.profile,
     profileState.launchMethod,
     effectiveSteamClientInstallPath,
-    selectedName
+    selectedName,
+    settings.umu_preference
   );
 
   const launchState = useLaunchState({

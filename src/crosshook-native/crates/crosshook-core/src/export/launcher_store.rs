@@ -1089,6 +1089,8 @@ mod tests {
                 proton_path: "/wrong/runtime/proton".to_string(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
+                umu_preference: None,
             },
             launch: LaunchSection {
                 method: String::new(),

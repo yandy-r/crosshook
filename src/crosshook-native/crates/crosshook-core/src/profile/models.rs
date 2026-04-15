@@ -309,6 +309,23 @@ pub struct RuntimeSection {
         skip_serializing_if = "String::is_empty"
     )]
     pub steam_app_id: String,
+    /// Optional `GAMEID` override for umu-run launches.
+    /// Takes precedence over `steam_app_id` when set. Empty → falls back to Steam App ID or "umu-0".
+    #[serde(
+        rename = "umu_game_id",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub umu_game_id: String,
+    /// Optional per-profile umu preference override.
+    /// `None` (TOML key absent) → inherit `AppSettingsData.umu_preference` global default.
+    /// `Some(x)` → use `x` regardless of global default.
+    #[serde(
+        rename = "umu_preference",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub umu_preference: Option<crate::settings::UmuPreference>,
 }
 
 impl RuntimeSection {
@@ -317,6 +334,8 @@ impl RuntimeSection {
             && self.proton_path.trim().is_empty()
             && self.working_directory.trim().is_empty()
             && self.steam_app_id.trim().is_empty()
+            && self.umu_game_id.trim().is_empty()
+            && self.umu_preference.is_none()
     }
 }
 
@@ -1658,6 +1677,36 @@ method = "proton_run"
     #[test]
     fn local_override_trainer_section_empty_when_both_empty() {
         let section = LocalOverrideTrainerSection::default();
+        assert!(section.is_empty());
+    }
+
+    // --- RuntimeSection::umu_game_id ---
+
+    #[test]
+    fn runtime_section_umu_game_id_roundtrip() {
+        let section = RuntimeSection {
+            prefix_path: "/pfx".to_string(),
+            proton_path: "/opt/proton".to_string(),
+            working_directory: String::new(),
+            steam_app_id: String::new(),
+            umu_game_id: "custom-42".to_string(),
+            umu_preference: None,
+        };
+        let toml = toml::to_string(&section).unwrap();
+        assert!(toml.contains("umu_game_id = \"custom-42\""));
+        let parsed: RuntimeSection = toml::from_str(&toml).unwrap();
+        assert_eq!(parsed.umu_game_id, "custom-42");
+    }
+
+    #[test]
+    fn runtime_section_is_empty_considers_umu_game_id() {
+        let mut section = RuntimeSection::default();
+        assert!(section.is_empty());
+        section.umu_game_id = "x".to_string();
+        assert!(!section.is_empty());
+        section.umu_game_id = "   ".to_string();
+        assert!(section.is_empty()); // whitespace-only trims to empty
+        section.umu_game_id = String::new();
         assert!(section.is_empty());
     }
 }

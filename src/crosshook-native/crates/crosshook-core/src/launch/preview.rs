@@ -14,7 +14,11 @@ use super::request::{
 };
 use super::runtime_helpers::{
     build_gamescope_args, collect_pressure_vessel_paths, env_value, resolve_proton_paths,
-    resolve_steam_client_install_path, resolve_umu_run_path, DEFAULT_HOST_PATH,
+    resolve_steam_client_install_path, DEFAULT_HOST_PATH,
+};
+use super::script_runner::{
+    force_no_umu_for_launch_request, proton_path_dirname, resolve_launch_proton_path,
+    should_use_umu,
 };
 use crate::profile::TrainerLoadingMode;
 
@@ -154,6 +158,26 @@ pub struct LaunchPreview {
 
     /// Whether gamescope will be active for this launch.
     pub gamescope_active: bool,
+
+    /// Diagnostic: how the umu decision was resolved for this preview.
+    /// Only populated for `proton_run` method; `None` for `steam_applaunch` and `native`.
+    pub umu_decision: Option<UmuDecisionPreview>,
+}
+
+/// Explains why the preview will (or will not) invoke `umu-run`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct UmuDecisionPreview {
+    /// The `umu_preference` value the backend received on the request.
+    pub requested_preference: crate::settings::UmuPreference,
+    /// `Some(path)` when `umu-run` was discovered on the backend's `PATH`.
+    pub umu_run_path_on_backend_path: Option<String>,
+    /// Final decision: `true` → emit `umu-run`, `false` → emit direct Proton.
+    pub will_use_umu: bool,
+    /// Human-readable reason the preview modal can surface.
+    pub reason: String,
+    /// Coverage status of the profile's app id in the umu-database CSV.
+    /// `Unknown` when no app id is available or no CSV source is reachable.
+    pub csv_coverage: crate::umu_database::CsvCoverage,
 }
 
 impl LaunchPreview {
@@ -383,6 +407,12 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
     let working_directory = resolve_working_directory(request, resolved_method.as_str());
     let generated_at = chrono::Utc::now().to_rfc3339();
 
+    let umu_decision = if resolved_method == ResolvedLaunchMethod::ProtonRun {
+        Some(build_umu_decision_preview(request))
+    } else {
+        None
+    };
+
     let mut preview = LaunchPreview {
         resolved_method,
         validation: PreviewValidation {
@@ -402,10 +432,47 @@ pub fn build_launch_preview(request: &LaunchRequest) -> Result<LaunchPreview, St
         generated_at,
         display_text: String::new(),
         gamescope_active,
+        umu_decision,
     };
 
     preview.display_text = preview.to_display_toml();
     Ok(preview)
+}
+
+/// Builds the diagnostic `umu_decision` field for `proton_run` previews.
+fn build_umu_decision_preview(request: &LaunchRequest) -> UmuDecisionPreview {
+    use crate::settings::UmuPreference;
+    let requested = request.umu_preference;
+    let force_no_umu = force_no_umu_for_launch_request(request);
+    let (will_use_umu, umu_run_path) = should_use_umu(request, force_no_umu);
+    let reason = match (requested, umu_run_path.as_deref(), will_use_umu) {
+        (_, _, true) => format!(
+            "using umu-run at {}",
+            umu_run_path.as_deref().unwrap_or("<unknown>")
+        ),
+        (UmuPreference::Proton, _, false) => {
+            "preference = Proton — direct Proton always".to_string()
+        }
+        (UmuPreference::Auto, _, false) => {
+            "preference = Auto — Phase 3 resolves Auto to direct Proton".to_string()
+        }
+        (UmuPreference::Umu, None, false) => {
+            "preference = Umu but umu-run was not found on the backend PATH".to_string()
+        }
+        (UmuPreference::Umu, Some(_), false) => {
+            "preference = Umu and umu-run found, but should_use_umu returned false (bug)"
+                .to_string()
+        }
+    };
+    let app_id = crate::launch::script_runner::resolve_steam_app_id_for_umu(request);
+    let csv_coverage = crate::umu_database::check_coverage(app_id, Some("steam"));
+    UmuDecisionPreview {
+        requested_preference: requested,
+        umu_run_path_on_backend_path: umu_run_path,
+        will_use_umu,
+        reason,
+        csv_coverage,
+    }
 }
 
 /// Collects host environment variables that will be passed through to the launch command.
@@ -489,6 +556,21 @@ fn collect_runtime_proton_environment(request: &LaunchRequest, env: &mut Vec<Pre
         value: pressure_vessel_paths,
         source: EnvVarSource::ProtonRuntime,
     });
+
+    let force_no_umu = force_no_umu_for_launch_request(request);
+    let (use_umu, _umu_run_path) = should_use_umu(request, force_no_umu);
+    if use_umu {
+        let resolved = resolve_launch_proton_path(
+            request.runtime.proton_path.trim(),
+            request.steam.steam_client_install_path.trim(),
+        );
+        let dirname = proton_path_dirname(resolved.trim());
+        env.push(PreviewEnvVar {
+            key: "PROTONPATH".to_string(),
+            value: dirname,
+            source: EnvVarSource::ProtonRuntime,
+        });
+    }
 }
 
 /// Collects Steam-specific Proton environment variables for `steam_applaunch` launches.
@@ -651,6 +733,8 @@ fn build_effective_command_string(
     match method {
         ResolvedLaunchMethod::ProtonRun => {
             let mut parts: Vec<String> = Vec::new();
+            let force_no_umu = force_no_umu_for_launch_request(request);
+            let (use_umu, umu_run_path) = should_use_umu(request, force_no_umu);
 
             if gamescope_active {
                 // Apply MangoHud → mangoapp swap: if wrappers contain "mangohud", remove it and
@@ -678,8 +762,12 @@ fn build_effective_command_string(
                 }
             }
 
-            parts.push(request.runtime.proton_path.trim().to_string());
-            parts.push("run".to_string());
+            if use_umu {
+                parts.push(umu_run_path.unwrap_or_default());
+            } else {
+                parts.push(request.runtime.proton_path.trim().to_string());
+                parts.push("run".to_string());
+            }
             if request.launch_trainer_only {
                 parts.push(resolve_trainer_launch_path_for_preview(request));
             } else {
@@ -738,6 +826,10 @@ fn build_proton_setup(request: &LaunchRequest, method: &str) -> Option<ProtonSet
                 resolve_steam_client_install_path(request.steam.steam_client_install_path.trim())
                     .unwrap_or_default();
 
+            let force_no_umu = force_no_umu_for_launch_request(request);
+            let (use_umu, umu_run_path) = should_use_umu(request, force_no_umu);
+            let umu_run_path_field = if use_umu { umu_run_path } else { None };
+
             Some(ProtonSetup {
                 wine_prefix_path: resolved_paths
                     .wine_prefix_path
@@ -749,10 +841,11 @@ fn build_proton_setup(request: &LaunchRequest, method: &str) -> Option<ProtonSet
                     .into_owned(),
                 steam_client_install_path: steam_client,
                 proton_executable: request.runtime.proton_path.trim().to_string(),
-                umu_run_path: resolve_umu_run_path(),
+                umu_run_path: umu_run_path_field,
             })
         }
         METHOD_STEAM_APPLAUNCH => {
+            // Steam opt-out: never reflect umu in the preview setup.
             let compatdata = request.steam.compatdata_path.trim();
 
             Some(ProtonSetup {
@@ -767,7 +860,7 @@ fn build_proton_setup(request: &LaunchRequest, method: &str) -> Option<ProtonSet
                     .trim()
                     .to_string(),
                 proton_executable: request.steam.proton_path.trim().to_string(),
-                umu_run_path: resolve_umu_run_path(),
+                umu_run_path: None,
             })
         }
         _ => None,
@@ -957,6 +1050,7 @@ mod tests {
             proton_path: request.steam.proton_path.clone(),
             working_directory: String::new(),
             steam_app_id: String::new(),
+            umu_game_id: String::new(),
         };
         request.steam = SteamLaunchConfig::default();
         (temp_dir, request)
@@ -1607,5 +1701,210 @@ mod tests {
             "copy_to_prefix should omit trainer dir: {}",
             pressure_vessel_filesystems_rw.value
         );
+    }
+
+    #[test]
+    fn preview_command_string_uses_umu_run_when_use_umu() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: crate::settings::UmuPreference::Umu,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let preview = build_launch_preview(&request).unwrap();
+        let command = preview.effective_command.unwrap();
+        assert!(
+            command.contains("umu-run"),
+            "expected 'umu-run' in command, got: {command}"
+        );
+        assert!(
+            !command.contains(" run /tmp/game.exe"),
+            "no 'run' subcommand expected: {command}"
+        );
+    }
+
+    #[test]
+    fn preview_pushes_protonpath_env_when_use_umu() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: crate::settings::UmuPreference::Umu,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let preview = build_launch_preview(&request).unwrap();
+        let env = preview.environment.unwrap();
+        let protonpath = env
+            .iter()
+            .find(|e| e.key == "PROTONPATH")
+            .expect("expected PROTONPATH env entry");
+        assert_eq!(protonpath.value, "/opt/proton/GE-Proton9-20");
+        assert!(matches!(protonpath.source, EnvVarSource::ProtonRuntime));
+    }
+
+    #[test]
+    fn preview_steam_branch_does_not_push_protonpath() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        let mut request = LaunchRequest {
+            method: METHOD_STEAM_APPLAUNCH.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: crate::settings::UmuPreference::Umu,
+            ..Default::default()
+        };
+        request.steam.app_id = "70".to_string();
+        request.steam.compatdata_path = "/tmp/compat".to_string();
+        request.steam.proton_path = "/opt/steam/proton/proton".to_string();
+
+        let preview = build_launch_preview(&request).unwrap();
+        let env = preview.environment.unwrap();
+        assert!(
+            env.iter().find(|e| e.key == "PROTONPATH").is_none(),
+            "Steam branch must not push PROTONPATH"
+        );
+        assert!(
+            preview.proton_setup.unwrap().umu_run_path.is_none(),
+            "Steam ProtonSetup.umu_run_path must be None"
+        );
+    }
+
+    #[test]
+    fn preview_proton_setup_umu_run_path_none_when_preference_is_proton() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+
+        let mut request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            game_path: "/tmp/game.exe".to_string(),
+            umu_preference: crate::settings::UmuPreference::Proton,
+            ..Default::default()
+        };
+        request.runtime.proton_path = "/opt/proton/GE-Proton9-20/proton".to_string();
+
+        let preview = build_launch_preview(&request).unwrap();
+        assert!(preview.proton_setup.unwrap().umu_run_path.is_none());
+    }
+
+    // -- CSV coverage tests (C6.3) --
+
+    // Serialize all tests that mutate process-global env vars (HOME, XDG_DATA_HOME, XDG_DATA_DIRS).
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    // Minimal fixture CSV — Ghost of Tsushima (546590) present; Witcher 3 (292030) absent.
+    const FIXTURE_CSV: &str = "\
+TITLE,STORE,CODENAME,UMU_ID,COMMON ACRONYM (Optional),NOTE (Optional),EXE_STRINGS (Optional)
+Ghost of Tsushima,steam,546590,umu-546590,GoT,,ghostoftsushima.exe
+";
+
+    #[test]
+    fn preview_reports_csv_coverage_found_when_app_id_matches() {
+        let _env = ENV_LOCK.lock().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        // Place the fixture at data_local_dir()/crosshook/umu-database.csv — priority 1 in
+        // resolve_umu_database_path, found before any system /usr/share/... paths.
+        let xdg_data_home = tmp.path().join("local_share");
+        let csv_dir = xdg_data_home.join("crosshook");
+        std::fs::create_dir_all(&csv_dir).unwrap();
+        std::fs::write(csv_dir.join("umu-database.csv"), FIXTURE_CSV).unwrap();
+        std::env::set_var("HOME", tmp.path());
+        std::env::set_var("XDG_DATA_HOME", &xdg_data_home);
+        std::env::set_var("XDG_DATA_DIRS", "");
+        crate::umu_database::coverage::clear_cache_for_test();
+
+        let (_td, mut request) = proton_request();
+        request.steam.app_id = "546590".to_string();
+        let preview = build_launch_preview(&request).unwrap();
+        let umu = preview
+            .umu_decision
+            .as_ref()
+            .expect("umu_decision populated");
+        assert_eq!(umu.csv_coverage, crate::umu_database::CsvCoverage::Found);
+    }
+
+    #[test]
+    fn preview_reports_csv_coverage_missing_when_app_id_absent() {
+        let _env = ENV_LOCK.lock().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        // Same fixture CSV as the Found test — Witcher 3 (292030) is the motivating missing case
+        // from issue #262 (proton-cachyos STEAM_COMPAT_APP_ID override side-effect).
+        let xdg_data_home = tmp.path().join("local_share");
+        let csv_dir = xdg_data_home.join("crosshook");
+        std::fs::create_dir_all(&csv_dir).unwrap();
+        std::fs::write(csv_dir.join("umu-database.csv"), FIXTURE_CSV).unwrap();
+        std::env::set_var("HOME", tmp.path());
+        std::env::set_var("XDG_DATA_HOME", &xdg_data_home);
+        std::env::set_var("XDG_DATA_DIRS", "");
+        crate::umu_database::coverage::clear_cache_for_test();
+
+        let (_td, mut request) = proton_request();
+        request.steam.app_id = "292030".to_string(); // Witcher 3 — absent from fixture
+        let preview = build_launch_preview(&request).unwrap();
+        let umu = preview
+            .umu_decision
+            .as_ref()
+            .expect("umu_decision populated");
+        assert_eq!(umu.csv_coverage, crate::umu_database::CsvCoverage::Missing);
+    }
+
+    #[test]
+    fn preview_reports_csv_coverage_unknown_when_no_csv_source() {
+        // Skip on hosts where a system-level CSV exists and cannot be overridden —
+        // resolve_umu_database_path checks hardcoded /usr/share/... paths before XDG_DATA_DIRS,
+        // and we cannot redirect those.
+        let system_csvs = [
+            "/usr/share/umu-protonfixes/umu-database.csv",
+            "/usr/share/umu/umu-database.csv",
+            "/opt/umu-launcher/umu-protonfixes/umu-database.csv",
+        ];
+        if system_csvs
+            .iter()
+            .any(|p| std::fs::metadata(p).map(|m| m.is_file()).unwrap_or(false))
+        {
+            eprintln!("skip: host has a system umu-database CSV — cannot isolate Unknown case");
+            return;
+        }
+
+        let _env = ENV_LOCK.lock().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        // Point HOME and XDG_DATA_HOME at an empty tempdir — no CSV anywhere reachable.
+        std::env::set_var("HOME", tmp.path());
+        std::env::set_var("XDG_DATA_HOME", tmp.path().join("local_share"));
+        std::env::set_var("XDG_DATA_DIRS", "");
+        crate::umu_database::coverage::clear_cache_for_test();
+
+        let (_td, mut request) = proton_request();
+        request.steam.app_id = "546590".to_string();
+        let preview = build_launch_preview(&request).unwrap();
+        let umu = preview
+            .umu_decision
+            .as_ref()
+            .expect("umu_decision populated");
+        assert_eq!(umu.csv_coverage, crate::umu_database::CsvCoverage::Unknown);
     }
 }

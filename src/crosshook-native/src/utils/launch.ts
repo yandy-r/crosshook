@@ -1,5 +1,6 @@
 import type { GameProfile, LaunchMethod, LaunchRequest } from '../types';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
+import type { UmuPreference } from '../types/settings';
 
 export type ResolvedLaunchMethod = Exclude<GameProfile['launch']['method'], ''>;
 
@@ -15,7 +16,8 @@ export function buildProfileLaunchRequest(
   profile: GameProfile,
   launchMethod: Exclude<LaunchMethod, ''>,
   steamClientInstallPath: string,
-  profileName: string
+  profileName: string,
+  umuPreference: UmuPreference
 ): LaunchRequest | null {
   if (!profile.game.executable_path.trim()) {
     return null;
@@ -37,6 +39,8 @@ export function buildProfileLaunchRequest(
       prefix_path: profile.runtime.prefix_path,
       proton_path: profile.runtime.proton_path,
       working_directory: profile.runtime.working_directory,
+      steam_app_id: profile.runtime.steam_app_id ?? '',
+      umu_game_id: profile.runtime.umu_game_id ?? '',
     },
     optimizations: {
       enabled_option_ids: [...profile.launch.optimizations.enabled_option_ids],
@@ -44,6 +48,8 @@ export function buildProfileLaunchRequest(
     launch_trainer_only: false,
     launch_game_only: false,
     profile_name: profileName || undefined,
+    // Profile runtime override wins over the global default.
+    umu_preference: profile.runtime.umu_preference ?? umuPreference,
     custom_env_vars: { ...profile.launch.custom_env_vars },
     network_isolation: profile.launch.network_isolation ?? true,
     gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,

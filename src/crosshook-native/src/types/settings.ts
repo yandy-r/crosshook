@@ -2,6 +2,9 @@ import type { ExternalTrainerSourceSubscription } from './discovery';
 
 export type { ExternalTrainerSourceSubscription } from './discovery';
 
+/** Three-way umu launcher preference. Mirrors Rust `crosshook_core::settings::UmuPreference`. */
+export type UmuPreference = 'auto' | 'umu' | 'proton';
+
 export interface CommunityTapSubscription {
   url: string;
   branch?: string;
@@ -31,6 +34,8 @@ export interface SettingsSaveRequest {
   protonup_auto_suggest?: boolean;
   /** Optional path override for the ProtonUp binary; empty = auto-detect. */
   protonup_binary_path?: string;
+  /** Non-Steam launch preference: `auto` (Phase 3 → Proton), `umu` (opt-in), `proton` (disable). */
+  umu_preference: UmuPreference;
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {
@@ -63,6 +68,7 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     external_trainer_sources: s.external_trainer_sources,
     protonup_auto_suggest: s.protonup_auto_suggest,
     protonup_binary_path: s.protonup_binary_path,
+    umu_preference: s.umu_preference,
   };
 }
 
@@ -90,6 +96,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   external_trainer_sources: [],
   protonup_auto_suggest: true,
   protonup_binary_path: '',
+  umu_preference: 'auto',
 };
 
 export interface RecentFilesData {

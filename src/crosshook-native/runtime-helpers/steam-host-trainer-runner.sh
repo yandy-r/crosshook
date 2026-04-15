@@ -81,11 +81,19 @@ restore_preserved_trainer_env() {
   for index in "${!preserved_builtin_trainer_env_keys[@]}"; do
     key="${preserved_builtin_trainer_env_keys[$index]}"
     value="${preserved_builtin_trainer_env_values[$index]-}"
+    if ! is_valid_shell_env_key "$key"; then
+      log "Skipping invalid preserved builtin env key: $key"
+      continue
+    fi
     export "${key}=${value}"
   done
   for index in "${!preserved_custom_trainer_env_keys[@]}"; do
     key="${preserved_custom_trainer_env_keys[$index]}"
     value="${preserved_custom_trainer_env_values[$index]-}"
+    if ! is_valid_shell_env_key "$key"; then
+      log "Skipping invalid preserved custom env key: $key"
+      continue
+    fi
     export "${key}=${value}"
   done
   unset CROSSHOOK_TRAINER_BUILTIN_ENV_KEYS
@@ -178,7 +186,8 @@ run_host_in_directory() {
     append_flatpak_spawn_env "SteamAppId" "${SteamAppId:-}"
     append_flatpak_spawn_preserved_crosshook_keys
     if custom_env_file="$(write_preserved_custom_env_file)"; then
-      # shellcheck disable=SC2016 -- $1/$@ expand in the child bash process, not here.
+      # shellcheck disable=SC2016
+      # $1/$@ expand in the child bash process, not here.
       "${spawn_args[@]}" bash -c 'set -a; source "$1"; rm -f "$1"; set +a; shift; exec "$@"' bash "$custom_env_file" "$@"
       rm -f "$custom_env_file" 2>/dev/null || true
     else
@@ -459,6 +468,7 @@ unset PROTON_LOG PROTON_DUMP_DEBUG_COMMANDS PROTON_USE_WINED3D
 unset PROTON_NO_ESYNC PROTON_NO_FSYNC PROTON_ENABLE_NVAPI PROTON_VERB
 unset STEAM_COMPAT_LIBRARY_PATHS
 unset PRESSURE_VESSEL_FILESYSTEMS_RW
+unset PROTONPATH
 unset DXVK_CONFIG_FILE DXVK_STATE_CACHE_PATH DXVK_LOG_PATH
 unset VKD3D_CONFIG VKD3D_DEBUG
 restore_preserved_trainer_env

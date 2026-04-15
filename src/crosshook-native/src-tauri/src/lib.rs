@@ -263,6 +263,13 @@ pub fn run() {
                     });
                 }
 
+                tauri::async_runtime::spawn(async {
+                    match crosshook_core::umu_database::refresh_umu_database().await {
+                        Ok(status) => tracing::info!(?status, "umu-database startup refresh complete"),
+                        Err(err) => tracing::warn!(%err, "umu-database startup refresh failed"),
+                    }
+                });
+
                 Ok(())
             }
         })
@@ -409,6 +416,9 @@ pub fn run() {
             commands::protonup::protonup_list_available_versions,
             commands::protonup::protonup_install_version,
             commands::protonup::protonup_get_suggestion,
+            // UMU database
+            commands::umu_database::refresh_umu_database,
+            commands::umu_database::check_umu_coverage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrossHook Native");

@@ -522,6 +522,8 @@ mod tests {
                 proton_path: String::new(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
+                umu_preference: None,
             },
             launch: crate::profile::LaunchSection {
                 method: "steam_applaunch".to_string(),

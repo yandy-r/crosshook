@@ -429,6 +429,43 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
               ) : (
                 <p className="crosshook-preview-modal__empty">No command resolved.</p>
               )}
+              {preview.umu_decision
+                ? (() => {
+                    const umuChipModifier =
+                      preview.umu_decision.will_use_umu && preview.umu_decision.csv_coverage === 'missing'
+                        ? 'crosshook-preview-modal__umu-decision--warn'
+                        : preview.umu_decision.will_use_umu
+                          ? 'crosshook-preview-modal__umu-decision--umu'
+                          : 'crosshook-preview-modal__umu-decision--proton';
+                    return (
+                      <div className={['crosshook-preview-modal__umu-decision', umuChipModifier].join(' ')}>
+                        <div>
+                          <strong>umu decision:</strong>{' '}
+                          {preview.umu_decision.will_use_umu ? 'using umu-run' : 'using direct Proton'}
+                        </div>
+                        <div className="crosshook-muted">
+                          requested preference: <code>{preview.umu_decision.requested_preference}</code>
+                          {' · '}
+                          umu-run on PATH:{' '}
+                          <code>{preview.umu_decision.umu_run_path_on_backend_path ?? 'not found'}</code>
+                        </div>
+                        <div className="crosshook-muted crosshook-preview-modal__umu-decision-reason">
+                          {preview.umu_decision.reason}
+                        </div>
+                        <div className="crosshook-muted" style={{ marginTop: 4 }}>
+                          umu protonfix coverage: <code>{preview.umu_decision.csv_coverage}</code>
+                        </div>
+                        {preview.umu_decision.will_use_umu && preview.umu_decision.csv_coverage === 'missing' ? (
+                          <div className="crosshook-preview-modal__umu-decision-warning" style={{ marginTop: 6 }}>
+                            ⚠ umu has no known entry for this app id in the current umu database. Treat this as an
+                            informational signal rather than a launch prediction. If this title has umu-specific issues,
+                            override this profile&apos;s Runtime → umu launcher to <code>Proton</code>.
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })()
+                : null}
               {isSteam && preview.steam_launch_options ? (
                 <>
                   <div className="crosshook-preview-modal__sub-label">Steam Launch Options</div>
@@ -595,6 +632,16 @@ function buildGameOnlyRequest(request: LaunchRequest): LaunchRequest {
     ...request,
     launch_game_only: true,
     launch_trainer_only: false,
+    preview_target: 'game',
+  };
+}
+
+function buildTrainerOnlyRequest(request: LaunchRequest): LaunchRequest {
+  return {
+    ...request,
+    launch_game_only: false,
+    launch_trainer_only: true,
+    preview_target: 'trainer',
   };
 }
 
@@ -625,7 +672,7 @@ export function LaunchPanel({
     statusText,
   } = useLaunchStateContext();
 
-  const { loading, preview, error: previewError, requestPreview, clearPreview } = usePreviewState();
+  const { loading, preview, error: previewError, requestPreview, clearPreview, previewTarget } = usePreviewState();
   const { healthByName, revalidateSingle } = useProfileHealthContext();
   const { acknowledgeVersionChange, busy: verifyBusy } = useAcknowledgeVersionChange();
   const [showPreview, setShowPreview] = useState(false);
@@ -682,15 +729,24 @@ export function LaunchPanel({
   }
 
   function handleLaunchFromPreview() {
-    if (isGameRunning) return;
+    const fromTrainerPreview = previewTarget === 'trainer';
+    if (isGameRunning && !fromTrainerPreview) return;
     setShowPreview(false);
     clearPreview();
     void (async () => {
-      if (onBeforeLaunch) {
-        const proceed = await onBeforeLaunch('game');
-        if (!proceed) return;
+      if (fromTrainerPreview) {
+        if (onBeforeLaunch) {
+          const proceed = await onBeforeLaunch('trainer');
+          if (!proceed) return;
+        }
+        launchTrainer();
+      } else {
+        if (onBeforeLaunch) {
+          const proceed = await onBeforeLaunch('game');
+          if (!proceed) return;
+        }
+        launchGame();
       }
-      launchGame();
     })();
   }
 
@@ -826,7 +882,7 @@ export function LaunchPanel({
             </div>
           ) : null}
 
-          <div className="crosshook-launch-panel__profile-row">
+          <div className="crosshook-launch-panel__profile-row crosshook-launch-panel__profile-row--wrap-centered">
             <label
               id="launch-active-profile-label"
               className="crosshook-label"
@@ -884,7 +940,16 @@ export function LaunchPanel({
                 onClick={() => request && requestPreview(buildGameOnlyRequest(request))}
                 disabled={previewDisabled}
               >
-                {loading ? 'Loading Preview\u2026' : 'Preview'}
+                {loading ? 'Loading Preview\u2026' : 'Preview Game'}
+              </button>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--secondary crosshook-launch-panel__action crosshook-launch-panel__action--secondary"
+                style={LAUNCH_PANEL_ACTION_BUTTON_STYLE}
+                onClick={() => request && requestPreview(buildTrainerOnlyRequest(request))}
+                disabled={previewDisabled}
+              >
+                {loading ? 'Loading Preview\u2026' : 'Preview Trainer'}
               </button>
               <button
                 type="button"

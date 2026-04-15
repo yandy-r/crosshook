@@ -3,6 +3,7 @@ use crosshook_core::discovery::ExternalTrainerSourceSubscription;
 use crosshook_core::settings::{
     clamp_recent_files_limit, resolve_profiles_directory_from_config, AppSettingsData,
     RecentFilesData, RecentFilesStore, RecentFilesStoreError, SettingsStore, SettingsStoreError,
+    UmuPreference,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -47,6 +48,7 @@ pub struct AppSettingsIpcData {
     pub external_trainer_sources: Vec<ExternalTrainerSourceSubscription>,
     pub protonup_auto_suggest: bool,
     pub protonup_binary_path: String,
+    pub umu_preference: UmuPreference,
 }
 
 impl AppSettingsIpcData {
@@ -83,6 +85,7 @@ impl AppSettingsIpcData {
             external_trainer_sources: data.external_trainer_sources,
             protonup_auto_suggest: data.protonup_auto_suggest,
             protonup_binary_path: data.protonup_binary_path,
+            umu_preference: data.umu_preference,
         }
     }
 }
@@ -123,6 +126,8 @@ pub struct SettingsSaveRequest {
     pub protonup_auto_suggest: Option<bool>,
     #[serde(default)]
     pub protonup_binary_path: Option<String>,
+    #[serde(default)]
+    pub umu_preference: Option<UmuPreference>,
 }
 
 fn merge_settings_from_request(
@@ -165,6 +170,7 @@ fn merge_settings_from_request(
         protonup_binary_path: data
             .protonup_binary_path
             .unwrap_or(current.protonup_binary_path),
+        umu_preference: data.umu_preference.unwrap_or(current.umu_preference),
     }
 }
 

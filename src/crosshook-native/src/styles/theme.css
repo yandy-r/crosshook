@@ -2157,6 +2157,26 @@ textarea {
   box-shadow: 0 0 0 2px var(--crosshook-color-accent-soft);
 }
 
+.crosshook-pinned-strip__badge {
+  margin-left: 6px;
+  font-size: 0.85rem;
+}
+
+.crosshook-pinned-strip__badge--warn {
+  color: var(--crosshook-color-warning);
+}
+
+.crosshook-runner-coverage-warn {
+  color: var(--crosshook-color-warning);
+  font-size: 0.95em;
+  margin-left: 0.35rem;
+  cursor: help;
+}
+
+.crosshook-runner-coverage-warn__hint {
+  color: var(--crosshook-color-warning);
+}
+
 .crosshook-profile-pin-btn {
   flex: 0 0 auto;
   min-height: var(--crosshook-touch-target-min);
@@ -3130,6 +3150,19 @@ textarea {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* LaunchPanel-only modifier: when the actions wrap under the select, force
+   them onto their own line and center them instead of left-aligning. The
+   Profiles page uses the bare `__profile-row` which keeps actions inline with
+   the select (right-side on wide, natural wrap on narrow). */
+.crosshook-launch-panel__profile-row--wrap-centered {
+  justify-content: center;
+}
+
+.crosshook-launch-panel__profile-row--wrap-centered .crosshook-launch-panel__profile-row-actions {
+  flex: 1 1 100%;
+  justify-content: center;
 }
 
 .crosshook-launch-panel__eyebrow {
@@ -4285,6 +4318,18 @@ textarea {
     align-items: flex-start;
   }
 
+  /* LaunchPanel's wrap-centered variant: keep actions row + centered even
+     when the parent switches to column direction at narrow widths. */
+  .crosshook-launch-panel__profile-row--wrap-centered {
+    align-items: stretch;
+  }
+
+  .crosshook-launch-panel__profile-row--wrap-centered .crosshook-launch-panel__profile-row-actions {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+  }
+
   .crosshook-launch-panel__status {
     white-space: normal;
   }
@@ -4292,6 +4337,14 @@ textarea {
   .crosshook-launch-panel__action,
   .crosshook-launch-panel__profile-row-actions .crosshook-button {
     width: 100%;
+  }
+
+  .crosshook-launch-panel__profile-row--wrap-centered
+    .crosshook-launch-panel__profile-row-actions
+    .crosshook-button {
+    width: auto;
+    flex: 0 0 auto;
+    max-width: none;
   }
 
   .crosshook-install-shell__actions {

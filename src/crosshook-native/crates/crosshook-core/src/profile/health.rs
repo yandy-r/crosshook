@@ -1172,6 +1172,8 @@ mod tests {
                 proton_path: proton.to_string_lossy().to_string(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
+                umu_preference: None,
             },
             launch: LaunchSection {
                 method: "proton_run".to_string(),
@@ -1219,6 +1221,8 @@ mod tests {
                 proton_path: format!("/run/host{}", proton.to_string_lossy()),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
+                umu_preference: None,
             },
             launch: LaunchSection {
                 method: "proton_run".to_string(),

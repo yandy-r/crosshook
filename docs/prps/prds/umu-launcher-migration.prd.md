@@ -13,7 +13,7 @@ CrossHook's non-Steam Windows-game launch path assembles Proton invocations dire
 
 ## Proposed Solution
 
-Reattempt umu-launcher adoption — but **phased, testable, and reversible** — migrating only the non-Steam runtime path (`METHOD_PROTON_RUN` arm). Keep Steam-applaunch and Steam-via-Flatpak-helper flows on today's direct Proton path to avoid two runtime containers colliding. Keep `"$PROTON" run` as a fallback during rollout and remove it only after umu parity is demonstrated. The architectural choice is to **branch inside existing builders** (`build_proton_game_command`, `build_proton_trainer_command`) on a user `UmuPreference` + `resolve_umu_run_path()`, rather than adding a fourth dispatch method — this keeps the method enum, preview layer, CLI, settings migration, and frontend types untouched. On Flatpak, use a **host-shared umu runtime** pattern (mirroring Lutris's `--filesystem=xdg-data/umu:create`) and guide first-run installation from within CrossHook — no bundling, no duplicate 1.5GB SLR downloads per sandboxed app.
+Reattempt umu-launcher adoption — but **phased, testable, and reversible** — migrating only the non-Steam runtime path (`METHOD_PROTON_RUN` arm). Keep Steam-applaunch and Steam-via-Flatpak-helper flows on today's direct Proton path to avoid two runtime containers colliding. Keep `"$PROTON" run` as an ongoing compatibility fallback because some titles still do not work reliably under `umu-run` (for example, _The Witcher 3_). The architectural choice is to **branch inside existing builders** (`build_proton_game_command`, `build_proton_trainer_command`) on a user `UmuPreference` + `resolve_umu_run_path()`, rather than adding a fourth dispatch method — this keeps the method enum, preview layer, CLI, settings migration, and frontend types untouched. On Flatpak, use a **host-shared umu runtime** pattern (mirroring Lutris's `--filesystem=xdg-data/umu:create`) and guide first-run installation from within CrossHook — no bundling, no duplicate 1.5GB SLR downloads per sandboxed app.
 
 ## Key Hypothesis
 
@@ -28,16 +28,17 @@ We'll know we're right when, in the 2 minor releases after the Phase 4 default-o
 - **`winetricks` / `protontricks` migration** — Wine-native; does not need umu wrapping. `src/crosshook-native/crates/crosshook-core/src/prefix_deps/runner.rs:86-208` stays as-is.
 - **Auto-resolution of `GAMEID` via the umu-database HTTP API** — v1 uses Steam-app-id-when-available + `umu-0` fallback (current behavior). Future work, tracked as a separate GitHub issue (see Open Questions).
 - **Bundling umu inside CrossHook's Flatpak** — ~100MB + GPL-3 distribution + SLR-bootstrap complexity. Host-shared runtime is the chosen strategy; bundling is deferred out of this PRD.
+- **Removing the direct `proton_run` path** — unsupported titles still exist under `umu-run` (for example, _The Witcher 3_), so direct Proton remains a supported compatibility path rather than a temporary migration shim.
 
 ## Success Metrics
 
-| Metric                                           | Target                                                                                      | How Measured                                                                                    |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Primary: compatibility-issue trend (qualitative) | Decline in open `area:launch` + `type:bug` issues against non-Steam profiles post-Phase 4   | GitHub issue label analytics across 2 minor releases after Phase 4 ship                         |
-| Primary: user sentiment                          | Positive user-feedback themes around non-Steam launch ease                                  | GitHub Discussions, release comments, Reddit/Matrix mentions, in-app feedback if/when available |
-| Secondary: umu availability coverage             | ≥ 80% of onboarding readiness checks find a usable `umu-run` on native installs             | Anonymous readiness telemetry (if added) or manually sampled from issue reports                 |
-| Secondary: trainer-injection reliability         | Zero `trainer-hangs-until-game-exits` bug reports attributable to `PROTON_VERB` regression  | GitHub issues tagged `area:injection`                                                           |
-| Gate for Phase 6                                 | Two consecutive minor releases with `UmuPreference::Auto` default-on and no umu regressions | Release retrospectives; no open `regression` issues tagged against umu path                     |
+| Metric                                           | Target                                                                                          | How Measured                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Primary: compatibility-issue trend (qualitative) | Decline in open `area:launch` + `type:bug` issues against non-Steam profiles post-Phase 4       | GitHub issue label analytics across 2 minor releases after Phase 4 ship                         |
+| Primary: user sentiment                          | Positive user-feedback themes around non-Steam launch ease                                      | GitHub Discussions, release comments, Reddit/Matrix mentions, in-app feedback if/when available |
+| Secondary: umu availability coverage             | ≥ 80% of onboarding readiness checks find a usable `umu-run` on native installs                 | Anonymous readiness telemetry (if added) or manually sampled from issue reports                 |
+| Secondary: trainer-injection reliability         | Zero `trainer-hangs-until-game-exits` bug reports attributable to `PROTON_VERB` regression      | GitHub issues tagged `area:injection`                                                           |
+| Compatibility fallback health                    | Unsupported titles continue to launch via direct Proton while supported titles benefit from umu | Release retrospectives; compatibility issue triage for known `umu-run` exceptions               |
 
 ## Open Questions
 
@@ -46,7 +47,8 @@ We'll know we're right when, in the 2 minor releases after the Phase 4 default-o
 - [ ] **Gamescope → pressure-vessel SIGTERM propagation** — empirically works (compositor session death kills children via lost Wayland socket); formally undocumented. If a Phase 3 bug turns up here, CrossHook's watchdog may need to target the game Wine PID inside the container instead of gamescope.
 - [ ] **Steam Deck gaming-mode edge cases** — umu + gamescope + Flatpak + SteamOS 3.8+ has open upstream issues (black screen without Shader Pre-Caching, Steam overlay z-order, HDR regression on 3.7.13). CrossHook should document these in Phase 5 onboarding guidance, not solve them upstream-side.
 - [ ] **Telemetry scope** — CrossHook today has no anonymous telemetry for launch outcomes. Establishing a baseline for the "issue decline" success metric may require building one, or the metric stays purely qualitative. Flagged but not required for PRD.
-- [ ] **GAMEID umu-database HTTP lookups (future)** — v1 ships with Steam-app-id-when-available + `umu-0` fallback. If protonfix miss rate on non-Steam titles becomes user pain, a separate GitHub issue tracks a Phase 7+ design (HTTP client, cache persistence as SQLite metadata with TTL, offline degradation). **To be filed as a new `type:feature` GitHub issue before or immediately after this PRD lands.**
+- [x] **GAMEID umu-database HTTP lookups (future)** — v1 ships with Steam-app-id-when-available + `umu-0` fallback. If protonfix miss rate on non-Steam titles becomes user pain, a separate GitHub issue tracks a Phase 7+ design (HTTP client, cache persistence as SQLite metadata with TTL, offline degradation). **To be filed as a new `type:feature` GitHub issue before or immediately after this PRD lands.**  
+       **RESOLVED (2026-04-14)**: #247 covers the cache layer (full CSV fetch + ETag revalidation). Per-id HTTP endpoints remain deferred; #251 closed as duplicate of #247. Phase 3b ships the full-CSV cache.
 
 ---
 
@@ -142,20 +144,21 @@ The public-visible "umu is here" moment is **Phase 4** (default-on `UmuPreferenc
 ## Implementation Phases
 
 <!--
-  STATUS: pending | in-progress | complete
+  STATUS: pending | in-progress | complete | will-not-implement
   PARALLEL: phases that can run concurrently (e.g., "with 3" or "-")
   DEPENDS: phases that must complete first (e.g., "1, 2" or "-")
   PRP: link to generated plan file once created
 -->
 
-| #   | Phase                                              | Description                                                                                                                              | Status      | Parallel | Depends              | PRP Plan                                                                                                                                           |
-| --- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- | -------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | PROTON_VERB hygiene                                | Set `PROTON_VERB=waitforexitandrun` for game builder, `runinprefix` for trainer builders; add to `WINE_ENV_VARS_TO_CLEAR`                | complete    | -        | -                    | [plan](../plans/completed/umu-migration-phase-1-proton-verb-hygiene.plan.md)                                                                       |
-| 2   | Sandbox allowlist plumbing                         | Collect `{game_dir, trainer_dir, working_dir}`; set `STEAM_COMPAT_LIBRARY_PATHS` + `PRESSURE_VESSEL_FILESYSTEMS_RW` (inert under Proton) | complete    | with 1   | -                    | [plan](../plans/completed/umu-migration-phase-2-sandbox-allowlist.plan.md), [report](../reports/umu-migration-phase-2-sandbox-allowlist-report.md) |
-| 3   | umu opt-in (non-Steam only)                        | Add `UmuPreference` setting; branch builders on `Umu` + `resolve_umu_run_path()`; derive `PROTONPATH`; Steam paths explicitly opt out    | in-progress | -        | 1, 2                 | [plan](../plans/umu-migration-phase-3-umu-opt-in.plan.md)                                                                                          |
-| 4   | Auto-default + exported-script parity              | `UmuPreference::Auto` prefers umu when present; `build_exec_line` emits `command -v umu-run` probe with `$PROTON` fallback               | pending     | -        | 3                    | -                                                                                                                                                  |
-| 5   | Flatpak host-shared umu runtime + install guidance | Add `--filesystem=xdg-data/umu:create`; upgrade onboarding readiness from Info to actionable install-help dialog                         | pending     | with 4   | 3                    | -                                                                                                                                                  |
-| 6   | Remove `proton_run` direct path (end-state)        | Delete fallback branch after 2 clean minor releases of Phase 4 default-on; irreversible contract change                                  | pending     | -        | 1, 2, 3, 4, 5 + time | -                                                                                                                                                  |
+| #   | Phase                                              | Description                                                                                                                                                                                                          | Status             | Parallel | Depends | PRP Plan                                                                                                                                           |
+| --- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | PROTON_VERB hygiene                                | Set `PROTON_VERB=waitforexitandrun` for game builder, `runinprefix` for trainer builders; add to `WINE_ENV_VARS_TO_CLEAR`                                                                                            | complete           | -        | -       | [plan](../plans/completed/umu-migration-phase-1-proton-verb-hygiene.plan.md)                                                                       |
+| 2   | Sandbox allowlist plumbing                         | Collect `{game_dir, trainer_dir, working_dir}`; set `STEAM_COMPAT_LIBRARY_PATHS` + `PRESSURE_VESSEL_FILESYSTEMS_RW` (inert under Proton)                                                                             | complete           | with 1   | -       | [plan](../plans/completed/umu-migration-phase-2-sandbox-allowlist.plan.md), [report](../reports/umu-migration-phase-2-sandbox-allowlist-report.md) |
+| 3   | umu opt-in (non-Steam only)                        | Add `UmuPreference` setting; branch builders on `Umu` + `resolve_umu_run_path()`; derive `PROTONPATH`; Steam paths explicitly opt out                                                                                | in-progress        | -        | 1, 2    | [plan](../plans/umu-migration-phase-3-umu-opt-in.plan.md)                                                                                          |
+| 3b  | umu-database coverage warning + HTTP cache         | CSV coverage (`CsvCoverage`) in `UmuDecisionPreview`; amber chip + badge when `will_use_umu && csv_coverage === missing`; background HTTP refresh via `external_cache_entries`; Settings refresh button (#263, #247) | in-progress        | -        | 3       | [plan](../plans/umu-migration-phase-3b-umu-opt-in.plan.md)                                                                                         |
+| 4   | Auto-default + exported-script parity              | `UmuPreference::Auto` prefers umu when present; `build_exec_line` emits `command -v umu-run` probe with `$PROTON` fallback. _Prerequisite: #263 + #247 landed AND 2-week observation clean._                         | pending            | -        | 3, 3b   | -                                                                                                                                                  |
+| 5   | Flatpak host-shared umu runtime + install guidance | Add `--filesystem=xdg-data/umu:create`; upgrade onboarding readiness from Info to actionable install-help dialog                                                                                                     | pending            | with 4   | 3       | -                                                                                                                                                  |
+| 6   | Remove `proton_run` direct path                    | Retired. Some games remain incompatible with `umu-run` (for example, _The Witcher 3_), so direct Proton stays as a supported fallback.                                                                               | will-not-implement | -        | -       | -                                                                                                                                                  |
 
 ### Phase Details
 
@@ -211,23 +214,22 @@ The public-visible "umu is here" moment is **Phase 4** (default-on `UmuPreferenc
 - **Success signal**: Flatpak user on any distro reaches "umu-run ready" in ≤ 3 clicks. User who declines stays on Proton with zero broken launches.
 - **Tests added**: Onboarding dialog state-machine tests. Manual Flatpak validation: with host umu present / with host umu absent / with Flathub umu installed / after dismissal.
 
-**Phase 6: Remove `proton_run` direct path (end-state)**
+**Phase 6: Remove `proton_run` direct path**
 
-- **Goal**: Close the migration — one runtime path, one set of code paths, no fallback complexity.
+- **Status**: **Will Not Implement**.
+- **Rationale**: The migration no longer targets a full hard cutover. Some games are still not supported correctly via `umu-run`, and those profiles need to keep the direct `"$PROTON" run` path available. _The Witcher 3_ is the current concrete example that blocked removal planning.
 - **Scope**:
-  - Remove Proton-branch code from `build_proton_game_command` / `build_proton_trainer_command`.
-  - Collapse `build_direct_proton_command_with_wrappers_in_directory` helpers.
-  - Remove `UmuPreference::Proton` variant (or retain as an explicit escape hatch — decision at Phase 6 planning time).
-  - Settings migration: existing `UmuPreference::Proton` users get a release-note warning + forced re-evaluation to `Auto`.
-  - Delete fallback-branch tests; leave only umu-branch tests.
-- **Success signal**: Two consecutive minor releases with `Auto`-default-on and zero open umu regressions. No open `type:bug` + `area:launch` tagged against non-Steam + umu path.
-- **Gate**: This phase does **not** start until the gate metric is met. PRD explicitly leaves Phase 6 timing open.
+  - Keep the Proton fallback branch in `build_proton_game_command` / `build_proton_trainer_command`.
+  - Keep `UmuPreference::Proton` as an explicit compatibility escape hatch.
+  - Continue testing both command shapes (`umu-run` and direct Proton) for non-Steam profiles.
+  - Keep previously-created Phase 6 tracking issues closed unless new evidence shows full removal is viable again.
+- **Success signal**: Unsupported titles remain launchable through direct Proton without blocking umu rollout for titles that do work under `umu-run`.
 
 ### Parallelism Notes
 
 - **Phases 1 and 2 can run in parallel** — independent env-plumbing changes in different parts of the request pipeline; merge conflicts limited to shared test files.
 - **Phases 4 and 5 can run in parallel** — Phase 4 is a settings default flip + export-script change; Phase 5 is Flatpak manifest + onboarding UI. Both depend on Phase 3 landing but don't depend on each other.
-- **Phase 6 is time-gated**, not dependency-gated — cannot start until the 2-release observation window on Phase 4 completes cleanly.
+- **Phase 6 is retired** — the PRD now treats direct Proton as a long-lived compatibility path, not a time-gated removal target.
 
 ---
 
@@ -235,15 +237,17 @@ The public-visible "umu is here" moment is **Phase 4** (default-on `UmuPreferenc
 
 Per CLAUDE.md persistence-boundary rule, this feature introduces the following data — classified by storage:
 
-| Datum                                                    | Classification                     | Rationale                                                                                                       |
-| -------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `AppSettings.umu_preference: UmuPreference`              | **TOML settings** (global)         | User preference, persisted across launches. Default `Auto`. Lives in `AppSettingsData`.                         |
-| `AppSettings.install_nag_dismissed_at: Option<DateTime>` | **TOML settings** (global)         | User dismissed install-help dialog; don't re-prompt. Phase 5 only.                                              |
-| `RuntimeConfig.umu_game_id: Option<String>`              | **TOML settings** (per profile)    | User-editable override for protonfix lookup when the default (`steam_app_id` or `"umu-0"`) is wrong             |
-| `LocalOverride.runtime.umu_game_id` (future)             | **TOML settings** (local override) | Machine-specific umu_game_id override, layered per existing local_override merge at `profile/models.rs:509-529` |
-| `ProtonSetup.umu_run_path: Option<String>`               | **Runtime-only** (derived)         | Resolved each preview/launch via `resolve_umu_run_path()`. Already present in code at `preview.rs:79-80`.       |
-| Pressure-vessel RW path allowlist                        | **Runtime-only** (derived)         | Computed each launch from `{game_path, trainer_host_path, working_directory}`. Never persisted.                 |
-| (Deferred) `GAMEID` cache from umu-database lookups      | **SQLite metadata** (future)       | TTL'd lookup cache; only materializes if the HTTP resolver feature is built. Tracked as a future issue.         |
+| Datum                                                                  | Classification                     | Rationale                                                                                                                                    |
+| ---------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AppSettings.umu_preference: UmuPreference`                            | **TOML settings** (global)         | User preference, persisted across launches. Default `Auto`. Lives in `AppSettingsData`.                                                      |
+| `AppSettings.install_nag_dismissed_at: Option<DateTime>`               | **TOML settings** (global)         | User dismissed install-help dialog; don't re-prompt. Phase 5 only.                                                                           |
+| `RuntimeConfig.umu_game_id: Option<String>`                            | **TOML settings** (per profile)    | User-editable override for protonfix lookup when the default (`steam_app_id` or `"umu-0"`) is wrong                                          |
+| `LocalOverride.runtime.umu_game_id` (future)                           | **TOML settings** (local override) | Machine-specific umu_game_id override, layered per existing local_override merge at `profile/models.rs:509-529`                              |
+| `ProtonSetup.umu_run_path: Option<String>`                             | **Runtime-only** (derived)         | Resolved each preview/launch via `resolve_umu_run_path()`. Already present in code at `preview.rs:79-80`.                                    |
+| Pressure-vessel RW path allowlist                                      | **Runtime-only** (derived)         | Computed each launch from `{game_path, trainer_host_path, working_directory}`. Never persisted.                                              |
+| (Deferred) `GAMEID` cache from umu-database lookups                    | **SQLite metadata** (future)       | TTL'd lookup cache; only materializes if the HTTP resolver feature is built. Tracked as a future issue.                                      |
+| `umu-database` CSV body at `~/.local/share/crosshook/umu-database.csv` | **Operational/cache metadata**     | Persisted cache file on disk, refreshed from upstream; rebuilt from upstream if deleted and tracked via SQLite metadata.                     |
+| `external_cache_entries` row (`cache_key="umu-database:csv"`)          | **SQLite metadata**                | ETag + Last-Modified + body_sha256 + cached body metadata for conditional revalidation; ≤1 KB payload, well under `MAX_CACHE_PAYLOAD_BYTES`. |
 
 ---
 
@@ -252,7 +256,7 @@ Per CLAUDE.md persistence-boundary rule, this feature introduces the following d
 - **Migration / backward compatibility**:
   - New `umu_preference` field defaults to `Auto` when missing from existing TOML — zero user action required to upgrade. Existing non-Steam profiles keep working under `Auto` + missing umu (which resolves to Proton-fallback).
   - New per-profile `runtime.umu_game_id` is `Option`; absence means "use Steam app_id when present, else `umu-0`" (current behavior).
-  - Phase 6 migration is explicit — release notes warn of `proton_run` removal; `UmuPreference::Proton` either becomes an error on load with clear remediation or is kept as an opt-out (decided at Phase 6 planning time).
+  - No removal migration is planned for the direct Proton path. `UmuPreference::Proton` remains a supported opt-out because `umu-run` does not cover every title yet.
 - **Offline behavior**:
   - v1 has no umu-database HTTP calls — fully offline for `GAMEID` resolution (uses local Steam app_id or fallback).
   - umu itself fetches SteamLinuxRuntime_sniper on first run; this is not a CrossHook-persisted datum. Onboarding readiness flags network requirement on first umu launch.
@@ -271,16 +275,17 @@ Per CLAUDE.md persistence-boundary rule, this feature introduces the following d
 
 ## Decisions Log
 
-| Decision                                | Choice                                                         | Alternatives                                                          | Rationale                                                                                                               |
-| --------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Migration scope                         | Non-Steam profiles only                                        | Migrate Steam profiles too                                            | Two pressure-vessel containers; Steam already has a working runtime path. Conflict risk is higher than reward.          |
-| Dispatch method evolution               | Keep `METHOD_PROTON_RUN`; branch inside builders               | Add fourth `METHOD_UMU_RUN` dispatch method                           | ≥ 8 file touches avoided (preview, CLI, frontend types, settings migration, validation). Cleaner rollout.               |
-| Fallback strategy                       | Keep `"$PROTON" run` as fallback until Phase 6                 | Hard-cutover in one release                                           | Backward compat is HIGH; risk of breaking non-Steam users who already work today outweighs migration velocity.          |
-| Flatpak distribution                    | Host-shared umu runtime via `--filesystem=xdg-data/umu:create` | Bundle umu inside CrossHook Flatpak                                   | ~100MB + GPL-3 + 1.5GB SLR bootstrap per sandboxed app. Shared runtime is strictly better UX and disk cost.             |
-| `PROTON_VERB` placement                 | Builder-level env, outside optimization directive pipeline     | Add `PROTON_VERB` to `BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS` allowlist | Verb semantics are inherent to game-vs-trainer distinction, not user-tunable. Belongs with `GAMEID`, not optimizations. |
-| Fallback boundary                       | Command-build time (not exec time retry)                       | Retry on exec failure                                                 | Matches CLAUDE.md "fail early" convention. Preview shows the real command; no surprise path-switches.                   |
-| v1 `GAMEID` resolver                    | Steam-app-id-when-available + `umu-0` fallback                 | HTTP umu-database lookup + SQLite cache                               | Scope-bounded v1; protonfix miss rate may not be user-pain enough to justify now. Tracked as separate future issue.     |
-| Bundled umu Flatpak (Phase 5b original) | Deferred out of this PRD                                       | Ship in v1                                                            | Size + license + SLR bootstrap complexity too high vs. value over host-shared pattern.                                  |
+| Decision                                | Choice                                                                                                                               | Alternatives                                                          | Rationale                                                                                                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Migration scope                         | Non-Steam profiles only                                                                                                              | Migrate Steam profiles too                                            | Two pressure-vessel containers; Steam already has a working runtime path. Conflict risk is higher than reward.          |
+| Dispatch method evolution               | Keep `METHOD_PROTON_RUN`; branch inside builders                                                                                     | Add fourth `METHOD_UMU_RUN` dispatch method                           | ≥ 8 file touches avoided (preview, CLI, frontend types, settings migration, validation). Cleaner rollout.               |
+| Fallback strategy                       | Keep `"$PROTON" run` as a supported compatibility fallback                                                                           | Hard-cutover in one release                                           | Backward compat is HIGH, and some games still require direct Proton today (for example, _The Witcher 3_).               |
+| Flatpak distribution                    | Host-shared umu runtime via `--filesystem=xdg-data/umu:create`                                                                       | Bundle umu inside CrossHook Flatpak                                   | ~100MB + GPL-3 + 1.5GB SLR bootstrap per sandboxed app. Shared runtime is strictly better UX and disk cost.             |
+| `PROTON_VERB` placement                 | Builder-level env, outside optimization directive pipeline                                                                           | Add `PROTON_VERB` to `BUILTIN_LAUNCH_OPTIMIZATION_ENV_VARS` allowlist | Verb semantics are inherent to game-vs-trainer distinction, not user-tunable. Belongs with `GAMEID`, not optimizations. |
+| Fallback boundary                       | Command-build time (not exec time retry)                                                                                             | Retry on exec failure                                                 | Matches CLAUDE.md "fail early" convention. Preview shows the real command; no surprise path-switches.                   |
+| v1 `GAMEID` resolver                    | Steam-app-id-when-available + `umu-0` fallback                                                                                       | HTTP umu-database lookup + SQLite cache                               | Scope-bounded v1; protonfix miss rate may not be user-pain enough to justify now. Tracked as separate future issue.     |
+| Bundled umu Flatpak (Phase 5b original) | Deferred out of this PRD                                                                                                             | Ship in v1                                                            | Size + license + SLR bootstrap complexity too high vs. value over host-shared pattern.                                  |
+| CSV source precedence                   | HTTP cache → `/usr/share/umu-protonfixes/` → `/usr/share/umu/` → `/opt/umu-launcher/umu-protonfixes/` → `$XDG_DATA_DIRS` → `Unknown` | dirname-only or HTTP-only alternatives                                | Flatpak-safe + offline-first; no host umu-launcher dependency.                                                          |
 
 ---
 
@@ -311,51 +316,53 @@ Issues created from this PRD on **yandy-r/crosshook** (2026-04-14). Duplicating 
 
 ### Phase tracking
 
-| Phase | Tracking issue                                          | Linked work                                                                                                                                                                                                                                                                                         |
-| ----- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | [#254](https://github.com/yandy-r/crosshook/issues/254) | [#234](https://github.com/yandy-r/crosshook/issues/234)                                                                                                                                                                                                                                             |
-| 2     | [#255](https://github.com/yandy-r/crosshook/issues/255) | [#235](https://github.com/yandy-r/crosshook/issues/235)                                                                                                                                                                                                                                             |
-| 3     | [#256](https://github.com/yandy-r/crosshook/issues/256) | [#236](https://github.com/yandy-r/crosshook/issues/236), [#237](https://github.com/yandy-r/crosshook/issues/237), [#238](https://github.com/yandy-r/crosshook/issues/238), [#243](https://github.com/yandy-r/crosshook/issues/243); related [#244](https://github.com/yandy-r/crosshook/issues/244) |
-| 4     | [#257](https://github.com/yandy-r/crosshook/issues/257) | [#239](https://github.com/yandy-r/crosshook/issues/239)                                                                                                                                                                                                                                             |
-| 5     | [#258](https://github.com/yandy-r/crosshook/issues/258) | [#240](https://github.com/yandy-r/crosshook/issues/240), [#242](https://github.com/yandy-r/crosshook/issues/242), [#245](https://github.com/yandy-r/crosshook/issues/245), [#246](https://github.com/yandy-r/crosshook/issues/246)                                                                  |
-| 6     | [#259](https://github.com/yandy-r/crosshook/issues/259) | [#241](https://github.com/yandy-r/crosshook/issues/241)                                                                                                                                                                                                                                             |
+| Phase | Tracking issue                                                             | Linked work                                                                                                                                                                                                                                                                                         |
+| ----- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | [#254](https://github.com/yandy-r/crosshook/issues/254)                    | [#234](https://github.com/yandy-r/crosshook/issues/234)                                                                                                                                                                                                                                             |
+| 2     | [#255](https://github.com/yandy-r/crosshook/issues/255)                    | [#235](https://github.com/yandy-r/crosshook/issues/235)                                                                                                                                                                                                                                             |
+| 3     | [#256](https://github.com/yandy-r/crosshook/issues/256)                    | [#236](https://github.com/yandy-r/crosshook/issues/236), [#237](https://github.com/yandy-r/crosshook/issues/237), [#238](https://github.com/yandy-r/crosshook/issues/238), [#243](https://github.com/yandy-r/crosshook/issues/243); related [#244](https://github.com/yandy-r/crosshook/issues/244) |
+| 4     | [#257](https://github.com/yandy-r/crosshook/issues/257)                    | [#239](https://github.com/yandy-r/crosshook/issues/239)                                                                                                                                                                                                                                             |
+| 5     | [#258](https://github.com/yandy-r/crosshook/issues/258)                    | [#240](https://github.com/yandy-r/crosshook/issues/240), [#242](https://github.com/yandy-r/crosshook/issues/242), [#245](https://github.com/yandy-r/crosshook/issues/245), [#246](https://github.com/yandy-r/crosshook/issues/246)                                                                  |
+| 6     | Closed / retired ([#259](https://github.com/yandy-r/crosshook/issues/259)) | Closed child issue [#241](https://github.com/yandy-r/crosshook/issues/241); direct Proton retained for unsupported `umu-run` titles                                                                                                                                                                 |
 
 Phase 1 tracker [#254](https://github.com/yandy-r/crosshook/issues/254) links the other phase trackers in a comment for navigation.
 
 ### Implementation (child issues)
 
-| #   | Issue                                                                                                | Topic                                       |
-| --- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| 234 | [Phase 1: PROTON_VERB hygiene](https://github.com/yandy-r/crosshook/issues/234)                      | Game/trainer `PROTON_VERB`, `env.rs`, tests |
-| 235 | [Phase 2: pressure-vessel allowlist](https://github.com/yandy-r/crosshook/issues/235)                | `STEAM_COMPAT_*`, `PRESSURE_VESSEL_*`       |
-| 236 | [Phase 3a: UmuPreference + TOML + umu_game_id](https://github.com/yandy-r/crosshook/issues/236)      | Settings + profile fields                   |
-| 237 | [Phase 3b: umu branch + PROTONPATH + Steam opt-out](https://github.com/yandy-r/crosshook/issues/237) | Builders, non-Steam only                    |
-| 238 | [Phase 3c: tests / E2E concurrency](https://github.com/yandy-r/crosshook/issues/238)                 | Command-shape split, non-regression smoke   |
-| 239 | [Phase 4: Auto + exported scripts](https://github.com/yandy-r/crosshook/issues/239)                  | Default-on Auto, `export/launcher.rs`       |
-| 240 | [Phase 5: Flatpak + onboarding](https://github.com/yandy-r/crosshook/issues/240)                     | Manifest, install dialog, nag dismissal     |
-| 241 | [Phase 6: remove direct proton path](https://github.com/yandy-r/crosshook/issues/241)                | Time-gated end state                        |
+| #   | Issue                                                                                                  | Topic                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| 234 | [Phase 1: PROTON_VERB hygiene](https://github.com/yandy-r/crosshook/issues/234)                        | Game/trainer `PROTON_VERB`, `env.rs`, tests                                                                 |
+| 235 | [Phase 2: pressure-vessel allowlist](https://github.com/yandy-r/crosshook/issues/235)                  | `STEAM_COMPAT_*`, `PRESSURE_VESSEL_*`                                                                       |
+| 236 | [Phase 3a: UmuPreference + TOML + umu_game_id](https://github.com/yandy-r/crosshook/issues/236)        | Settings + profile fields                                                                                   |
+| 237 | [Phase 3b: umu branch + PROTONPATH + Steam opt-out](https://github.com/yandy-r/crosshook/issues/237)   | Builders, non-Steam only                                                                                    |
+| 238 | [Phase 3c: tests / E2E concurrency](https://github.com/yandy-r/crosshook/issues/238)                   | Command-shape split, non-regression smoke                                                                   |
+| 247 | [Phase 3b: HTTP umu-database resolver + SQLite cache](https://github.com/yandy-r/crosshook/issues/247) | HTTP fetch + ETag revalidation + `external_cache_entries`; promoted from Phase 7+; #251 closed as duplicate |
+| 263 | [Phase 3b: umu-database CSV coverage UI warning](https://github.com/yandy-r/crosshook/issues/263)      | Amber chip + badge when `will_use_umu && csv_coverage === missing`                                          |
+| 239 | [Phase 4: Auto + exported scripts](https://github.com/yandy-r/crosshook/issues/239)                    | Default-on Auto, `export/launcher.rs`                                                                       |
+| 240 | [Phase 5: Flatpak + onboarding](https://github.com/yandy-r/crosshook/issues/240)                       | Manifest, install dialog, nag dismissal                                                                     |
+| 241 | [Phase 6: remove direct proton path](https://github.com/yandy-r/crosshook/issues/241)                  | Closed; direct Proton retained for compatibility                                                            |
 
 ### Decisions, research, and follow-ups
 
-| #   | Issue                                                                                                 | Notes                           |
-| --- | ----------------------------------------------------------------------------------------------------- | ------------------------------- |
-| 242 | [Flathub `org.openwinecomponents.umu.umu-launcher`?](https://github.com/yandy-r/crosshook/issues/242) | Blocks Phase 5 one-click UX     |
-| 243 | [PROTONPATH dirname vs tag](https://github.com/yandy-r/crosshook/issues/243)                          | GE-Proton path semantics        |
-| 244 | [Gamescope SIGTERM vs PV teardown](https://github.com/yandy-r/crosshook/issues/244)                   | Watchdog / container edge cases |
-| 245 | [Steam Deck gaming-mode docs](https://github.com/yandy-r/crosshook/issues/245)                        | Onboarding only, upstream bugs  |
-| 246 | [Telemetry baseline (optional)](https://github.com/yandy-r/crosshook/issues/246)                      | Success-metric quantification   |
-| 247 | [Future: HTTP umu-database GAMEID](https://github.com/yandy-r/crosshook/issues/247)                   | Phase 7+; SQLite cache          |
+| #   | Issue                                                                                                 | Notes                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 242 | [Flathub `org.openwinecomponents.umu.umu-launcher`?](https://github.com/yandy-r/crosshook/issues/242) | Blocks Phase 5 one-click UX                                              |
+| 243 | [PROTONPATH dirname vs tag](https://github.com/yandy-r/crosshook/issues/243)                          | GE-Proton path semantics                                                 |
+| 244 | [Gamescope SIGTERM vs PV teardown](https://github.com/yandy-r/crosshook/issues/244)                   | Watchdog / container edge cases                                          |
+| 245 | [Steam Deck gaming-mode docs](https://github.com/yandy-r/crosshook/issues/245)                        | Onboarding only, upstream bugs                                           |
+| 246 | [Telemetry baseline (optional)](https://github.com/yandy-r/crosshook/issues/246)                      | Success-metric quantification                                            |
+| 247 | [HTTP umu-database resolver + SQLite cache](https://github.com/yandy-r/crosshook/issues/247)          | Promoted to Phase 3b; implements full-CSV HTTP fetch + ETag revalidation |
 
 ### Deferred / out of scope
 
-| #   | Issue                                                                              | Topic                  |
-| --- | ---------------------------------------------------------------------------------- | ---------------------- |
-| 248 | [No Steam profile umu migration](https://github.com/yandy-r/crosshook/issues/248)  | Two PV containers      |
-| 249 | [Custom Proton “tinkerer” UX](https://github.com/yandy-r/crosshook/issues/249)     | Opt-out only in PRD    |
-| 250 | [Non-x86_64](https://github.com/yandy-r/crosshook/issues/250)                      | umu arch scope         |
-| 251 | [v1 HTTP GAMEID (see #247)](https://github.com/yandy-r/crosshook/issues/251)       | Duplicate pointer      |
-| 252 | [Bundle umu in Flatpak](https://github.com/yandy-r/crosshook/issues/252)           | Host-shared preferred  |
-| 253 | [winetricks/protontricks via umu](https://github.com/yandy-r/crosshook/issues/253) | Wine-native, unchanged |
+| #   | Issue                                                                              | Topic                                    |
+| --- | ---------------------------------------------------------------------------------- | ---------------------------------------- |
+| 248 | [No Steam profile umu migration](https://github.com/yandy-r/crosshook/issues/248)  | Two PV containers                        |
+| 249 | [Custom Proton “tinkerer” UX](https://github.com/yandy-r/crosshook/issues/249)     | Opt-out only in PRD                      |
+| 250 | [Non-x86_64](https://github.com/yandy-r/crosshook/issues/250)                      | umu arch scope                           |
+| 251 | [v1 HTTP GAMEID (see #247)](https://github.com/yandy-r/crosshook/issues/251)       | Closed as duplicate of #247 (2026-04-14) |
+| 252 | [Bundle umu in Flatpak](https://github.com/yandy-r/crosshook/issues/252)           | Host-shared preferred                    |
+| 253 | [winetricks/protontricks via umu](https://github.com/yandy-r/crosshook/issues/253) | Wine-native, unchanged                   |
 
 ---
 

@@ -1,11 +1,23 @@
 import type { ReactNode } from 'react';
+import { usePreferencesContext } from '../../context/PreferencesContext';
+import { useUmuCoverage } from '../../hooks/useUmuCoverage';
 import type { GameProfile, LaunchMethod } from '../../types';
+import type { UmuPreference } from '../../types/settings';
 import { validateSteamAppId } from '../../utils/art';
 import { chooseDirectory, chooseFile } from '../../utils/dialog';
 import { deriveSteamClientInstallPath } from '../../utils/steam';
 import AutoPopulate from '../AutoPopulate';
 import type { ProtonInstallOption } from '../ProfileFormSections';
 import { FieldRow, LauncherMetadataFields, OptionalSection, ProtonPathField } from '../ProfileFormSections';
+import { ThemedSelect } from '../ui/ThemedSelect';
+
+function resolveUmuAppId(profile: GameProfile): string {
+  const override = profile.runtime.umu_game_id?.trim();
+  if (override) return override;
+  const steamId = profile.steam.app_id.trim();
+  if (steamId) return steamId;
+  return profile.runtime.steam_app_id?.trim() ?? '';
+}
 
 export interface RuntimeSectionProps {
   profile: GameProfile;
@@ -40,6 +52,15 @@ export function RuntimeSection({
   const showLauncherMetadata = supportsTrainerLaunch && !reviewMode;
   const workingDirectoryCollapsed = reviewMode && profile.runtime.working_directory.trim().length === 0;
   const steamClientInstallPath = deriveSteamClientInstallPath(profile.steam.compatdata_path);
+  const { settings: appSettings } = usePreferencesContext();
+  const globalUmuPreference: UmuPreference = appSettings.umu_preference;
+
+  // Effective preference: per-profile override falls back to the global default.
+  const effectiveUmuPreference: UmuPreference = profile.runtime.umu_preference ?? globalUmuPreference;
+  const umuAppId = resolveUmuAppId(profile);
+  const umuCoverage = useUmuCoverage(effectiveUmuPreference, umuAppId);
+
+  const showUmuCoverageWarn = effectiveUmuPreference === 'umu' && umuCoverage === 'missing';
 
   const runtimeTitle =
     launchMethod === 'steam_applaunch'
@@ -221,6 +242,52 @@ export function RuntimeSection({
                 }}
               />
             </OptionalSection>
+
+            <div className="crosshook-field">
+              <label className="crosshook-label" htmlFor="profile-umu-preference" id="profile-umu-preference-label">
+                Runner
+                {showUmuCoverageWarn ? (
+                  <span
+                    className="crosshook-runner-coverage-warn"
+                    title={`umu has no known entry for Steam app id ${umuAppId} in the current umu database. This is informational, not a launch prediction. Consider switching this Runner to Proton if this title has umu-specific issues.`}
+                    aria-label={`umu protonfix missing for app id ${umuAppId}`}
+                    role="img"
+                  >
+                    {' ⚠'}
+                  </span>
+                ) : null}
+              </label>
+              <div className="crosshook-install-field-control">
+                <ThemedSelect
+                  id="profile-umu-preference"
+                  ariaLabelledby="profile-umu-preference-label"
+                  value={profile.runtime.umu_preference ?? ''}
+                  onValueChange={(raw) => {
+                    const next = raw === '' ? undefined : (raw as UmuPreference);
+                    onUpdateProfile((current) => ({
+                      ...current,
+                      runtime: { ...current.runtime, umu_preference: next },
+                    }));
+                  }}
+                  options={[
+                    { value: '', label: `Use global default (${globalUmuPreference})` },
+                    { value: 'auto', label: 'Auto' },
+                    { value: 'umu', label: 'Umu (umu-launcher)' },
+                    { value: 'proton', label: 'Proton (direct)' },
+                  ]}
+                />
+              </div>
+              <p className="crosshook-help-text">
+                Override the app-wide runner for this profile. Leave on &quot;Use global default&quot; to inherit the
+                Settings value.
+              </p>
+              {showUmuCoverageWarn ? (
+                <p className="crosshook-help-text crosshook-runner-coverage-warn__hint">
+                  ⚠ umu has no known entry for this app id in the current umu database. This is informational, not a
+                  launch prediction. Switch to <code>Proton</code> if this title has umu-specific issues.
+                </p>
+              ) : null}
+            </div>
           </div>
 
           <ProtonPathField

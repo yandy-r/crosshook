@@ -92,6 +92,7 @@ pub fn build_direct_proton_command_with_wrappers(
         env,
         None,
         &BTreeMap::new(),
+        false,
     )
 }
 
@@ -101,6 +102,7 @@ pub fn build_direct_proton_command_with_wrappers_in_directory(
     env: &BTreeMap<String, String>,
     working_directory: Option<&str>,
     custom_env_vars: &BTreeMap<String, String>,
+    use_umu: bool,
 ) -> Command {
     let trimmed_proton = normalize_host_command_entry(proton_path);
     let normalized_wrappers: Vec<_> = wrappers
@@ -115,7 +117,9 @@ pub fn build_direct_proton_command_with_wrappers_in_directory(
             working_directory,
             custom_env_vars,
         );
-        command.arg("run");
+        if !use_umu {
+            command.arg("run");
+        }
         return command;
     }
 
@@ -129,7 +133,9 @@ pub fn build_direct_proton_command_with_wrappers_in_directory(
         command.arg(wrapper);
     }
     command.arg(trimmed_proton);
-    command.arg("run");
+    if !use_umu {
+        command.arg("run");
+    }
     command
 }
 
@@ -214,6 +220,7 @@ pub fn build_proton_command_with_gamescope(
         env,
         None,
         &BTreeMap::new(),
+        false,
     )
 }
 
@@ -224,6 +231,7 @@ pub fn build_proton_command_with_gamescope_in_directory(
     env: &BTreeMap<String, String>,
     working_directory: Option<&str>,
     custom_env_vars: &BTreeMap<String, String>,
+    use_umu: bool,
 ) -> Command {
     build_proton_command_with_gamescope_pid_capture_in_directory(
         proton_path,
@@ -233,6 +241,7 @@ pub fn build_proton_command_with_gamescope_in_directory(
         working_directory,
         custom_env_vars,
         None,
+        use_umu,
     )
 }
 
@@ -244,6 +253,7 @@ pub fn build_proton_command_with_gamescope_pid_capture_in_directory(
     working_directory: Option<&str>,
     custom_env_vars: &BTreeMap<String, String>,
     pid_capture_path: Option<&Path>,
+    use_umu: bool,
 ) -> Command {
     build_proton_command_with_gamescope_pid_capture_in_directory_inner(
         proton_path,
@@ -254,6 +264,7 @@ pub fn build_proton_command_with_gamescope_pid_capture_in_directory(
         custom_env_vars,
         pid_capture_path,
         platform::is_flatpak(),
+        use_umu,
     )
 }
 
@@ -266,6 +277,7 @@ fn build_proton_command_with_gamescope_pid_capture_in_directory_inner(
     custom_env_vars: &BTreeMap<String, String>,
     pid_capture_path: Option<&Path>,
     flatpak: bool,
+    use_umu: bool,
 ) -> Command {
     let normalized_proton = normalize_host_command_entry(proton_path);
     let normalized_wrappers: Vec<_> = wrappers
@@ -298,7 +310,9 @@ fn build_proton_command_with_gamescope_pid_capture_in_directory_inner(
                 command.arg(wrapper);
             }
             command.arg(normalized_proton);
-            command.arg("run");
+            if !use_umu {
+                command.arg("run");
+            }
             return command;
         }
     }
@@ -318,7 +332,9 @@ fn build_proton_command_with_gamescope_pid_capture_in_directory_inner(
         command.arg(wrapper);
     }
     command.arg(normalized_proton);
-    command.arg("run");
+    if !use_umu {
+        command.arg("run");
+    }
     command
 }
 
@@ -596,15 +612,44 @@ pub(crate) fn env_value(key: &str, default: &str) -> String {
 
 /// Returns the absolute path to `umu-run` if found on `PATH`, otherwise `None`.
 pub fn resolve_umu_run_path() -> Option<String> {
+    #[cfg(test)]
+    if let Some(path) = crate::launch::optimizations::resolve_umu_run_path_for_test() {
+        return path;
+    }
+
+    fn first_executable_umu_on_path(path_value: &std::ffi::OsStr) -> Option<String> {
+        for directory in env::split_paths(path_value) {
+            let candidate = directory.join("umu-run");
+            if is_executable_file(&candidate) {
+                return Some(candidate.to_string_lossy().into_owned());
+            }
+        }
+        None
+    }
+
+    // Under Flatpak, `PATH` reflects the sandbox — do not probe it. Prefer the
+    // host environment file Flatpak exposes, then a static host default; never
+    // fall back to the sandbox process `PATH`.
+    if env::var_os("FLATPAK_ID").is_some() {
+        const HOST_ENV_PATH: &str = "/run/host/env/PATH";
+        if let Ok(bytes) = fs::read(HOST_ENV_PATH) {
+            let host_path = String::from_utf8_lossy(&bytes);
+            let trimmed = host_path.trim();
+            if !trimmed.is_empty() {
+                if let Some(path) = first_executable_umu_on_path(std::ffi::OsStr::new(trimmed)) {
+                    return Some(path);
+                }
+            }
+        }
+        if let Some(path) = first_executable_umu_on_path(std::ffi::OsStr::new(DEFAULT_HOST_PATH)) {
+            return Some(path);
+        }
+        return None;
+    }
+
     let path_value =
         env::var_os("PATH").unwrap_or_else(|| std::ffi::OsString::from(DEFAULT_HOST_PATH));
-    for directory in env::split_paths(&path_value) {
-        let candidate = directory.join("umu-run");
-        if is_executable_file(&candidate) {
-            return Some(candidate.to_string_lossy().into_owned());
-        }
-    }
-    None
+    first_executable_umu_on_path(path_value.as_os_str())
 }
 
 pub(crate) fn is_executable_file(path: &Path) -> bool {
@@ -974,6 +1019,7 @@ mod tests {
             &BTreeMap::new(),
             Some(Path::new("/tmp/crosshook-logs/game.gamescope.pid")),
             true,
+            false,
         );
 
         assert_eq!(command.as_std().get_program(), "flatpak-spawn");
@@ -1000,5 +1046,39 @@ mod tests {
                 "run".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn resolve_umu_run_path_returns_none_when_no_umu_run_present() {
+        let dir = tempfile::tempdir().unwrap();
+        // empty directory — no umu-run binary
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+        assert!(resolve_umu_run_path().is_none());
+    }
+
+    #[test]
+    fn resolve_umu_run_path_returns_path_when_executable_present() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+        let resolved = resolve_umu_run_path();
+        assert!(resolved.is_some(), "expected Some(path), got None");
+        assert!(resolved.unwrap().ends_with("/umu-run"));
+    }
+
+    #[test]
+    fn resolve_umu_run_path_returns_none_when_file_not_executable() {
+        let dir = tempfile::tempdir().unwrap();
+        let umu_stub = dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "not a real executable\n").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
+        assert!(resolve_umu_run_path().is_none());
     }
 }

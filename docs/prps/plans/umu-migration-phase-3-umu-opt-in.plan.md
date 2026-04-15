@@ -1,5 +1,9 @@
 # Plan: umu Migration Phase 3 — umu Opt-In (Non-Steam Only)
 
+> **Status (2026-04-14)**: Tasks 1.1 – 8.1 **complete**, shipped in commit `ae18b92` ("feat(launch): add umu opt-in for non-Steam launches (Phase 3)"). Tracker [#256](https://github.com/yandy-r/crosshook/issues/256) was inadvertently closed by that commit and has been re-opened.
+>
+> **Resume work from the Phase 3b continuation plan**: [`umu-migration-phase-3b-umu-opt-in.plan.md`](./umu-migration-phase-3b-umu-opt-in.plan.md) — covers the three newly-promoted `phase:3` issues [#247](https://github.com/yandy-r/crosshook/issues/247), [#251](https://github.com/yandy-r/crosshook/issues/251) (duplicate of #247), and [#263](https://github.com/yandy-r/crosshook/issues/263): umu-database CSV coverage warning + HTTP TTL cache.
+
 ## Summary
 
 Introduce the first real `umu-run` code path into CrossHook's non-Steam launch runtime, behind an explicit `UmuPreference::Umu` setting. `Auto` (the default) still resolves to Proton in Phase 3 — only `UmuPreference::Umu` flips `build_proton_game_command` and `build_proton_trainer_command` to emit `umu-run <target>` with `PROTONPATH = dirname(proton_path)` instead of `"$PROTON" run <target>`. Steam contexts explicitly opt out via a private trainer-builder variant so `build_flatpak_steam_trainer_command` never crosses into the umu branch. Phase 1's `PROTON_VERB` hygiene and Phase 2's pressure-vessel allowlist (both already merged) activate exactly here.
@@ -434,6 +438,7 @@ assert_eq!(loaded.umu_preference, UmuPreference::Auto); // Phase 3 addition
 - **BATCH**: B3
 - **ACTION**: In `script_runner.rs`, update `resolve_steam_app_id_for_umu` to prefer `runtime.umu_game_id` before Steam IDs, and change `resolved_umu_game_id_for_env`'s fallback from `"0"` to `"umu-0"`. Adjust the three existing test assertions that expect `Some("0".to_string())` at lines ~1067, ~1121, ~1340.
 - **IMPLEMENT**:
+
   ```rust
   fn resolve_steam_app_id_for_umu(request: &LaunchRequest) -> &str {
       let umu_override = request.runtime.umu_game_id.trim();
@@ -447,6 +452,7 @@ assert_eq!(loaded.umu_preference, UmuPreference::Auto); // Phase 3 addition
       if trimmed.is_empty() { "umu-0".to_string() } else { trimmed.to_string() }
   }
   ```
+
 - **MIRROR**: `script_runner.rs:897-918` (existing fn shapes).
 - **IMPORTS**: (none).
 - **GOTCHA**: Three existing tests must flip `Some("0".to_string())` → `Some("umu-0".to_string())`. Use `rg -n 'Some\("0".to_string\(\)\)' src/crosshook-native/crates/crosshook-core/src/launch/script_runner.rs` to enumerate before editing. The precedence change also needs a new test verifying `runtime.umu_game_id` beats `steam.app_id`.
@@ -457,13 +463,16 @@ assert_eq!(loaded.umu_preference, UmuPreference::Auto); // Phase 3 addition
 - **BATCH**: B4
 - **ACTION**: Add a private helper `fn should_use_umu(request: &LaunchRequest, force_no_umu: bool) -> (bool, Option<String>)` that returns `(false, None)` when `force_no_umu`, when preference is `Proton` or `Auto`, or when `resolve_umu_run_path()` returns `None`; otherwise `(true, Some(umu_run_path))`. Update `build_proton_game_command` to call it with `force_no_umu=false` and branch: when `use_umu`, replace `resolved_proton_path` with `umu_run_path`, insert `PROTONPATH = dirname(request.runtime.proton_path)` into env, and **do not** append the literal `"run"` argument to the command (umu-run consumes the exe directly). Add sibling tests.
 - **IMPLEMENT**:
+
   ```rust
   let (use_umu, umu_run_path) = should_use_umu(request, false);
   if use_umu { env.insert("PROTONPATH".to_string(), dirname_string(&request.runtime.proton_path)); }
   let program_path = umu_run_path.as_deref().unwrap_or(resolved_proton_path.as_str());
   // Pass use_umu into build_direct_proton_command_with_wrappers_in_directory so it can skip the .arg("run") call.
   ```
+
   Add `fn dirname_string(p: &str) -> String { Path::new(p.trim()).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default() }`. Extend the existing `tracing::debug!` site with `use_umu` and `umu_run_path` kv fields. When `Umu` preferred but `resolve_umu_run_path()` returns `None`, emit the `DEGRADED_FALLBACK_WARN_PATTERN` warn! and proceed with direct Proton.
+
 - **MIRROR**: `BUILDER_ENV_INSERT_PATTERN`, `BUILDER_DEBUG_LOG_PATTERN`, `DEGRADED_FALLBACK_WARN_PATTERN`, `TEST_NAMING_PATTERN`.
 - **IMPORTS**: `use std::path::Path;` (already in module).
 - **GOTCHA**: The existing helper `build_direct_proton_command_with_wrappers_in_directory` (around line 118) hard-codes the `"run"` argv. Either (a) add a `use_umu: bool` parameter to it and skip the `.arg("run")` call, or (b) construct the Command inline in the builder when `use_umu`. Option (a) keeps the gamescope-wrapped variant symmetric — prefer. Gamescope-wrapped builder (`build_proton_command_with_gamescope_pid_capture_in_directory`) also takes a program path — thread the same flag.
@@ -484,13 +493,16 @@ assert_eq!(loaded.umu_preference, UmuPreference::Auto); // Phase 3 addition
 - **BATCH**: B6
 - **ACTION**: Update `preview.rs` so the preview mirrors the builder's umu branch exactly. Change `build_effective_command_string` to drop `["proton_path", "run"]` and push `umu-run` when `use_umu`. Extend `collect_runtime_proton_environment` to push `PROTONPATH` (source `EnvVarSource::ProtonRuntime`) when `use_umu`. Tighten `ProtonSetup.umu_run_path` so it is `Some(path)` only when the resolved preference would actually use umu (matches the builder's `should_use_umu` logic). Keep `collect_steam_proton_environment` (Steam branch) unchanged — no PROTONPATH push there. Add preview tests.
 - **IMPLEMENT**:
+
   ```rust
   let (use_umu, umu_run_path) = should_use_umu_preview(request, is_steam_context);
   // build_effective_command_string:
   if use_umu { parts.push(umu_run_path.clone().unwrap()); }
   else { parts.push(request.runtime.proton_path.trim().to_string()); parts.push("run".to_string()); }
   ```
+
   Expose `should_use_umu` (or a preview-specific wrapper) as `pub(crate)` from `script_runner` so preview can call it.
+
 - **MIRROR**: `BUILDER_ENV_INSERT_PATTERN` (env push parallel), `preview.rs:267-492`.
 - **IMPORTS**: `use crate::launch::script_runner::should_use_umu;` (or re-export via `launch/mod.rs`).
 - **GOTCHA**: Preview's `ProtonSetup.umu_run_path` is consumed by the TS frontend (`types/launch.ts:118-124`); changing it from "unconditional `resolve_umu_run_path()`" to "only when `use_umu==true`" is a semantic shift. Verify no UI consumer relies on the old "is umu available on host?" meaning — grep `umu_run_path` in `src/` to confirm. If any does, add a separate `ProtonSetup.umu_run_available: Option<String>` alongside.
@@ -511,6 +523,7 @@ assert_eq!(loaded.umu_preference, UmuPreference::Auto); // Phase 3 addition
 - **BATCH**: B7
 - **ACTION**: Create `src/crosshook-native/crates/crosshook-core/tests/umu_concurrent_pids.rs` — PR #148 non-regression smoke. Construct two `LaunchRequest`s (game + trainer) under `UmuPreference::Umu`, build commands with `build_proton_game_command` and `build_proton_trainer_command`, swap in a stub `umu-run` shell script (via `ScopedCommandSearchPath` or a tempdir exported to `PATH`), spawn both via `tokio::process::Command`, assert both child PIDs are alive at t+500ms, then gracefully terminate.
 - **IMPLEMENT**:
+
   ```rust
   // The stub umu-run script (created at test time):
   //   #!/bin/sh
@@ -518,7 +531,9 @@ assert_eq!(loaded.umu_preference, UmuPreference::Auto); // Phase 3 addition
   // Spawn game + trainer concurrently; sleep 500ms; try_wait() on each returns None (still running);
   // send SIGTERM; wait for exit. Cleanup always runs.
   ```
+
   Use `#[tokio::test(flavor = "multi_thread")]`. Set test-only env `UMU_SKIP_RUNTIME=1` via the stub (documentary; stub doesn't check it). Document in the test's header comment how to run locally: `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core --test umu_concurrent_pids`.
+
 - **MIRROR**: `CONCURRENT_PID_INTEGRATION_TEST_PATTERN`, `src/crosshook-native/crates/crosshook-core/tests/config_history_integration.rs` (integration test layout).
 - **IMPORTS**: `tokio::process::Command`, `std::time::Duration`, `tempfile::TempDir`.
 - **GOTCHA**: CI must not require a real umu install. The stub satisfies the test; CI passes without umu on PATH. If gamescope or pressure-vessel dependencies turn out to be required (they should not be — PROTON_VERB/PROTONPATH/GAMEID are env-only; only program substitution changes), document and skip the test behind `#[cfg(target_os = "linux")]` + `#[ignore]` escape hatch. Prefer no `#[ignore]` — the stub pattern is self-contained.

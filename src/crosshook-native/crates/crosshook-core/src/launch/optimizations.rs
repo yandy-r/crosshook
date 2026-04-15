@@ -285,6 +285,24 @@ pub(crate) fn swap_test_command_search_path(next: Option<PathBuf>) -> Option<Pat
     std::mem::replace(&mut *guard, next)
 }
 
+/// In test mode, check if the test command search path is active and probe for `umu-run`.
+///
+/// Returns `Some(Some(path))` if found under test path, `Some(None)` if test path active but
+/// umu-run absent, and `None` if no test path override is active (caller uses real PATH).
+#[cfg(test)]
+pub(crate) fn resolve_umu_run_path_for_test() -> Option<Option<String>> {
+    let guard = test_command_search_path()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let search_path = guard.as_ref()?;
+    let candidate = search_path.join("umu-run");
+    Some(if is_executable_file(&candidate) {
+        Some(candidate.to_string_lossy().into_owned())
+    } else {
+        None
+    })
+}
+
 fn is_executable_file(path: &Path) -> bool {
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,

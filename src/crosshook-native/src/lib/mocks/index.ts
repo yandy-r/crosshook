@@ -24,6 +24,7 @@ import { registerProtonDb } from './handlers/protondb';
 import { registerProtonUp } from './handlers/protonup';
 import { registerSystem } from './handlers/system';
 import type { Handler } from './handlers/types';
+import { registerUmuDatabase } from './handlers/umu_database';
 import { registerUpdate } from './handlers/update';
 import { wrapAllHandlers } from './wrapHandler';
 
@@ -50,6 +51,7 @@ export function registerMocks(): Map<string, Handler> {
   registerLibrary(map);
   registerSystem(map);
   registerCollections(map);
+  registerUmuDatabase(map);
 
   // Wrap every handler with the orthogonal debug-toggle middleware
   // (`?delay=`, `?errors=true`). MUST run AFTER every register*() call so

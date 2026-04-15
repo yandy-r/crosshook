@@ -2,6 +2,7 @@ import type { ResolvedLaunchMethod } from '../utils/launch';
 import type { DiagnosticReport } from './diagnostics';
 import type { LaunchOptimizations } from './launch-optimizations';
 import type { GamescopeConfig, LaunchMethod, MangoHudConfig, TrainerLoadingMode } from './profile';
+import type { UmuPreference } from './settings';
 
 /** Tone for the auto-save status indicator shared across Launch page tabs. */
 export type LaunchAutoSaveStatusTone = 'idle' | 'saving' | 'success' | 'warning' | 'error';
@@ -37,13 +38,24 @@ export interface LaunchRequest {
     prefix_path: string;
     proton_path: string;
     working_directory: string;
+    /** Optional Steam App ID used as GAMEID in umu path (fills from profile runtime). */
+    steam_app_id?: string;
+    /** Optional protonfix override; takes precedence over steam_app_id. */
+    umu_game_id?: string;
   };
   optimizations: LaunchOptimizations;
   launch_trainer_only: boolean;
   launch_game_only: boolean;
+  /**
+   * Client-only hint for preview UX: which launch path "Launch from preview" should use.
+   * Omitted on normal launches; not read by the backend (serde ignores unknown fields).
+   */
+  preview_target?: 'game' | 'trainer';
   profile_name?: string;
   custom_env_vars: Record<string, string>;
   network_isolation: boolean;
+  /** Three-way preference echoed from settings. Defaults server-side to 'auto' when omitted. */
+  umu_preference?: UmuPreference;
   gamescope: GamescopeConfig;
   trainer_gamescope?: GamescopeConfig;
   mangohud: MangoHudConfig;
@@ -134,6 +146,23 @@ export interface PreviewValidation {
   issues: LaunchValidationIssue[];
 }
 
+export type UmuCsvCoverage = 'found' | 'missing' | 'unknown';
+
+export interface UmuDecisionPreview {
+  requested_preference: UmuPreference;
+  umu_run_path_on_backend_path: string | null;
+  will_use_umu: boolean;
+  reason: string;
+  csv_coverage: UmuCsvCoverage;
+}
+
+export interface UmuDatabaseRefreshStatus {
+  refreshed: boolean;
+  cached_at: string | null;
+  source_url: string;
+  reason: string;
+}
+
 export type { ResolvedLaunchMethod } from '../utils/launch';
 
 export interface LaunchPreview {
@@ -152,6 +181,8 @@ export interface LaunchPreview {
   trainer: PreviewTrainerInfo | null;
   generated_at: string;
   display_text: string;
+  gamescope_active?: boolean;
+  umu_decision?: UmuDecisionPreview | null;
 }
 
 /** Stable identifier union for pipeline nodes. */

@@ -167,6 +167,8 @@ impl InstallGameRequest {
                 proton_path: String::new(),
                 working_directory: String::new(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
+                umu_preference: None,
             }
         } else if method == "native" {
             RuntimeSection {
@@ -174,6 +176,8 @@ impl InstallGameRequest {
                 proton_path: String::new(),
                 working_directory: working_directory.trim().to_string(),
                 steam_app_id: String::new(),
+                umu_game_id: String::new(),
+                umu_preference: None,
             }
         } else {
             RuntimeSection {
@@ -181,6 +185,8 @@ impl InstallGameRequest {
                 proton_path: proton.clone(),
                 working_directory: working_directory.trim().to_string(),
                 steam_app_id: self.steam_app_id.trim().to_string(),
+                umu_game_id: String::new(),
+                umu_preference: None,
             }
         };
 
