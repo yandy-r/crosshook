@@ -1,4 +1,6 @@
-import type { ReadinessCheckResult } from '../../types/onboarding';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { open as openUrl } from '@/lib/plugin-stubs/shell';
+import type { ReadinessCheckResult, UmuInstallGuidance } from '../../types/onboarding';
 import { resolveCheckColor, resolveCheckIcon } from './checkBadges';
 import type { WizardValidationResult } from './wizardValidation';
 
@@ -6,6 +8,10 @@ export interface WizardReviewSummaryProps {
   validation: WizardValidationResult;
   readinessResult: ReadinessCheckResult | null;
   checkError: string | null;
+  /** Actionable umu install guidance; non-null only for Flatpak + missing umu-run. */
+  umuInstallGuidance?: UmuInstallGuidance | null;
+  /** Called when the user clicks "Dismiss reminder". Must persist dismissal via parent/hook. */
+  onDismissUmuInstallNag?: () => void;
 }
 
 /**
@@ -17,11 +23,57 @@ export interface WizardReviewSummaryProps {
  * 2. **System Checks** — the most recent `runChecks()` result using the shared
  *    `resolveCheckIcon` / `resolveCheckColor` helpers. When no result has been
  *    captured yet the user is prompted to run them.
+ *    When `umuInstallGuidance` is present (Flatpak + missing umu-run), a
+ *    contextual guidance row is appended with copy-command, open-docs, and
+ *    dismiss-reminder actions.
  * 3. **Tip** — a one-liner nudging the user to Back or Save from any step.
  *
- * The component is pure and does not call any IPC.
+ * The component is pure regarding backend calls: clipboard writes use the
+ * browser Clipboard API; external URL opening uses the existing `shell.open`
+ * stub; dismissal is delegated to `onDismissUmuInstallNag`.
  */
-export function WizardReviewSummary({ validation, readinessResult, checkError }: WizardReviewSummaryProps) {
+export function WizardReviewSummary({
+  validation,
+  readinessResult,
+  checkError,
+  umuInstallGuidance,
+  onDismissUmuInstallNag,
+}: WizardReviewSummaryProps) {
+  const [copied, setCopied] = useState(false);
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current !== null) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleCopyCommand = useCallback(async () => {
+    if (!umuInstallGuidance) return;
+    try {
+      await navigator.clipboard.writeText(umuInstallGuidance.install_command);
+      setCopied(true);
+      if (copyResetTimerRef.current !== null) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = setTimeout(() => {
+        copyResetTimerRef.current = null;
+        setCopied(false);
+      }, 2000);
+    } catch {
+      // Clipboard API unavailable; no visual feedback change
+    }
+  }, [umuInstallGuidance]);
+
+  const handleOpenDocs = useCallback(() => {
+    if (!umuInstallGuidance) return;
+    void openUrl(umuInstallGuidance.docs_url).catch((err) => {
+      console.error('Failed to open umu-launcher install docs', err);
+    });
+  }, [umuInstallGuidance]);
+
   return (
     <div className="crosshook-onboarding-wizard__review-summary" aria-live="polite">
       <section aria-label="Required fields">
@@ -90,6 +142,47 @@ export function WizardReviewSummary({ validation, readinessResult, checkError }:
             </ul>
           </>
         )}
+
+        {umuInstallGuidance ? (
+          <section
+            className="crosshook-onboarding-wizard__umu-guidance"
+            aria-label="UMU launcher install guidance"
+            style={{ marginTop: 12 }}
+          >
+            <p className="crosshook-help-text" style={{ marginBottom: 8 }}>
+              {umuInstallGuidance.description}
+            </p>
+            <div className="crosshook-onboarding-wizard__umu-guidance-actions">
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--secondary crosshook-button--sm"
+                onClick={() => void handleCopyCommand()}
+                aria-label={`Copy umu-launcher install command to clipboard`}
+                title={umuInstallGuidance.install_command}
+              >
+                {copied ? 'Copied!' : 'Copy command'}
+              </button>
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--secondary crosshook-button--sm"
+                onClick={() => handleOpenDocs()}
+                aria-label="Open umu-launcher install documentation in browser"
+              >
+                Open docs
+              </button>
+              {onDismissUmuInstallNag ? (
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--ghost crosshook-button--sm"
+                  onClick={onDismissUmuInstallNag}
+                  aria-label="Dismiss umu install reminder"
+                >
+                  Dismiss reminder
+                </button>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
       </section>
 
       <p className="crosshook-help-text" style={{ marginTop: 16 }}>

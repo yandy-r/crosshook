@@ -12,7 +12,6 @@ use std::fs::OpenOptions;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command as StdCommand, Stdio};
-
 use tokio::process::Command;
 use uuid::Uuid;
 
@@ -22,7 +21,6 @@ const FLATPAK_HOST_ROOT_PREFIX: &str = "/run/host";
 const FLATPAK_DOCUMENT_PORTAL_PREFIX: &str = "/run/user/";
 const FLATPAK_DOCUMENT_PORTAL_SEGMENT: &str = "/doc/";
 const DOCUMENT_PORTAL_HOST_PATH_XATTR: &[u8] = b"user.document-portal.host-path\0";
-
 /// Returns `true` when running inside a Flatpak sandbox.
 ///
 /// Detection uses the two signals documented by the Flatpak runtime:
@@ -304,10 +302,35 @@ fn shell_single_quote_escape(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
+fn flatpak_custom_env_directory_with(
+    xdg_cache_home: Option<PathBuf>,
+    home_path: Option<PathBuf>,
+) -> PathBuf {
+    if let Some(path) = xdg_cache_home {
+        return path.join("crosshook");
+    }
+    if let Some(path) = home_path {
+        return path.join(".cache").join("crosshook");
+    }
+    std::env::temp_dir().join("crosshook")
+}
+
 fn write_flatpak_custom_env_file(
     custom_env_vars: &BTreeMap<String, String>,
 ) -> io::Result<PathBuf> {
-    let path = std::env::temp_dir().join(format!("crosshook-host-env-{}.env", Uuid::new_v4()));
+    let target_directory = flatpak_custom_env_directory_with(
+        std::env::var_os("XDG_CACHE_HOME").map(PathBuf::from),
+        std::env::var_os("HOME").map(PathBuf::from),
+    );
+    std::fs::create_dir_all(&target_directory)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(&target_directory)?.permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&target_directory, permissions)?;
+    }
+    let path = target_directory.join(format!("crosshook-host-env-{}.env", Uuid::new_v4()));
     let mut file = OpenOptions::new()
         .create_new(true)
         .write(true)
@@ -1038,6 +1061,29 @@ mod tests {
                     && *v == Some(std::ffi::OsStr::new("1"))),
             "expected DXVK_ASYNC=1 in command envs, got: {envs_on_cmd:?}"
         );
+    }
+
+    #[test]
+    fn flatpak_custom_env_directory_prefers_xdg_cache_home() {
+        let directory = flatpak_custom_env_directory_with(
+            Some(PathBuf::from("/home/alice/.cache")),
+            Some(PathBuf::from("/home/alice")),
+        );
+
+        assert_eq!(directory, PathBuf::from("/home/alice/.cache/crosshook"));
+    }
+
+    #[test]
+    fn flatpak_custom_env_directory_falls_back_to_home_cache() {
+        let directory = flatpak_custom_env_directory_with(None, Some(PathBuf::from("/home/alice")));
+
+        assert_eq!(directory, PathBuf::from("/home/alice/.cache/crosshook"));
+    }
+
+    #[test]
+    fn flatpak_custom_env_directory_falls_back_to_temp_dir() {
+        let directory = flatpak_custom_env_directory_with(None, None);
+        assert_eq!(directory, std::env::temp_dir().join("crosshook"));
     }
 
     #[test]

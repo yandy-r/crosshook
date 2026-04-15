@@ -392,6 +392,7 @@ pub fn run() {
             commands::version::acknowledge_version_change,
             commands::onboarding::check_readiness,
             commands::onboarding::dismiss_onboarding,
+            commands::onboarding::dismiss_umu_install_nag,
             commands::onboarding::get_trainer_guidance,
             commands::catalog::get_optimization_catalog,
             commands::catalog::get_mangohud_presets,

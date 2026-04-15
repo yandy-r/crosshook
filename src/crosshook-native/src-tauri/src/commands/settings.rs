@@ -49,6 +49,8 @@ pub struct AppSettingsIpcData {
     pub protonup_auto_suggest: bool,
     pub protonup_binary_path: String,
     pub umu_preference: UmuPreference,
+    /// RFC 3339 timestamp of when the user dismissed the umu install nag; `None` = not dismissed.
+    pub install_nag_dismissed_at: Option<String>,
 }
 
 impl AppSettingsIpcData {
@@ -86,6 +88,7 @@ impl AppSettingsIpcData {
             protonup_auto_suggest: data.protonup_auto_suggest,
             protonup_binary_path: data.protonup_binary_path,
             umu_preference: data.umu_preference,
+            install_nag_dismissed_at: data.install_nag_dismissed_at,
         }
     }
 }
@@ -128,6 +131,8 @@ pub struct SettingsSaveRequest {
     pub protonup_binary_path: Option<String>,
     #[serde(default)]
     pub umu_preference: Option<UmuPreference>,
+    #[serde(default)]
+    pub install_nag_dismissed_at: Option<Option<String>>,
 }
 
 fn merge_settings_from_request(
@@ -171,6 +176,10 @@ fn merge_settings_from_request(
             .protonup_binary_path
             .unwrap_or(current.protonup_binary_path),
         umu_preference: data.umu_preference.unwrap_or(current.umu_preference),
+        // Absent field preserves current value; explicit null clears the timestamp.
+        install_nag_dismissed_at: data
+            .install_nag_dismissed_at
+            .unwrap_or(current.install_nag_dismissed_at),
     }
 }
 
@@ -274,5 +283,145 @@ mod tests {
         let a = PathBuf::from("/tmp/a");
         let b = PathBuf::from("/tmp/b");
         assert!(paths_need_restart_for_profiles(&a, &b));
+    }
+
+    fn make_save_request() -> SettingsSaveRequest {
+        SettingsSaveRequest {
+            auto_load_last_profile: false,
+            last_used_profile: String::new(),
+            community_taps: vec![],
+            onboarding_completed: false,
+            offline_mode: false,
+            default_proton_path: String::new(),
+            default_launch_method: String::new(),
+            default_bundled_optimization_preset_id: String::new(),
+            default_trainer_loading_mode: String::new(),
+            log_filter: "info".to_string(),
+            console_drawer_collapsed_default: false,
+            recent_files_limit: 10,
+            profiles_directory: String::new(),
+            protontricks_binary_path: String::new(),
+            auto_install_prefix_deps: false,
+            discovery_enabled: false,
+            external_trainer_sources: None,
+            protonup_auto_suggest: None,
+            protonup_binary_path: None,
+            umu_preference: None,
+            install_nag_dismissed_at: None,
+        }
+    }
+
+    #[test]
+    fn merge_preserves_install_nag_dismissed_at_when_omitted() {
+        let current = AppSettingsData {
+            install_nag_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
+            ..Default::default()
+        };
+        let request = make_save_request();
+        let merged = merge_settings_from_request(request, current);
+        assert_eq!(
+            merged.install_nag_dismissed_at,
+            Some("2026-04-15T12:00:00Z".to_string()),
+            "absent field must preserve existing timestamp"
+        );
+    }
+
+    #[test]
+    fn merge_sets_install_nag_dismissed_at_when_provided() {
+        let current = AppSettingsData {
+            install_nag_dismissed_at: None,
+            ..Default::default()
+        };
+        let mut request = make_save_request();
+        request.install_nag_dismissed_at = Some(Some("2026-04-15T13:00:00Z".to_string()));
+        let merged = merge_settings_from_request(request, current);
+        assert_eq!(
+            merged.install_nag_dismissed_at,
+            Some("2026-04-15T13:00:00Z".to_string()),
+            "explicit timestamp must be stored"
+        );
+    }
+
+    #[test]
+    fn merge_clears_install_nag_dismissed_at_when_explicitly_null() {
+        let current = AppSettingsData {
+            install_nag_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
+            ..Default::default()
+        };
+        let mut request = make_save_request();
+        request.install_nag_dismissed_at = Some(None);
+        let merged = merge_settings_from_request(request, current);
+        assert!(
+            merged.install_nag_dismissed_at.is_none(),
+            "explicit null must clear the stored timestamp"
+        );
+    }
+
+    #[test]
+    fn from_parts_surfaces_install_nag_dismissed_at() {
+        let data = AppSettingsData {
+            install_nag_dismissed_at: Some("2026-04-15T10:00:00Z".to_string()),
+            ..Default::default()
+        };
+        let resolved = PathBuf::from("/tmp/profiles");
+        let active = PathBuf::from("/tmp/profiles");
+        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        assert_eq!(
+            ipc.install_nag_dismissed_at,
+            Some("2026-04-15T10:00:00Z".to_string()),
+            "from_parts must surface install_nag_dismissed_at to the IPC layer"
+        );
+    }
+
+    #[test]
+    fn from_parts_install_nag_dismissed_at_none_when_unset() {
+        let data = AppSettingsData {
+            install_nag_dismissed_at: None,
+            ..Default::default()
+        };
+        let resolved = PathBuf::from("/tmp/profiles");
+        let active = PathBuf::from("/tmp/profiles");
+        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        assert!(
+            ipc.install_nag_dismissed_at.is_none(),
+            "from_parts must pass through None when field is unset"
+        );
+    }
+
+    #[test]
+    fn settings_ipc_includes_install_nag_field_in_serialized_output() {
+        let timestamp = "2026-04-15T10:00:00Z".to_string();
+        let data = AppSettingsData {
+            install_nag_dismissed_at: Some(timestamp.clone()),
+            ..Default::default()
+        };
+        let resolved = PathBuf::from("/tmp/profiles");
+        let active = PathBuf::from("/tmp/profiles");
+        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let json = serde_json::to_string(&ipc).expect("serialization must not fail");
+        assert!(
+            json.contains("install_nag_dismissed_at"),
+            "serialized IPC DTO must contain the install_nag_dismissed_at key"
+        );
+        assert!(
+            json.contains(&timestamp),
+            "serialized IPC DTO must contain the timestamp value"
+        );
+    }
+
+    #[test]
+    fn settings_ipc_install_nag_null_serializes_as_json_null() {
+        let data = AppSettingsData {
+            install_nag_dismissed_at: None,
+            ..Default::default()
+        };
+        let resolved = PathBuf::from("/tmp/profiles");
+        let active = PathBuf::from("/tmp/profiles");
+        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let json = serde_json::to_string(&ipc).expect("serialization must not fail");
+        assert!(
+            json.contains("install_nag_dismissed_at"),
+            "serialized IPC DTO must always contain the install_nag_dismissed_at key (as null when unset)"
+        );
     }
 }

@@ -58,11 +58,20 @@ maybeSynthesizeOnboardingEvent();
 export function registerOnboarding(map: Map<string, Handler>): void {
   maybeSynthesizeOnboardingEvent();
   map.set('check_readiness', async (): Promise<ReadinessCheckResult> => {
+    const dismissed = getStore().settings.install_nag_dismissed_at != null;
     return {
       checks: [],
       all_passed: true,
       critical_failures: 0,
       warnings: 0,
+      umu_install_guidance: dismissed
+        ? null
+        : {
+            install_command: 'pipx install umu-launcher',
+            docs_url: 'https://github.com/Open-Wine-Components/umu-launcher',
+            description:
+              'Install umu-launcher on your host to enable improved Proton runtime bootstrapping for non-Steam launches.',
+          },
     };
   });
 
@@ -70,6 +79,12 @@ export function registerOnboarding(map: Map<string, Handler>): void {
     onboardingDismissed = true;
     const store = getStore();
     store.settings.onboarding_completed = true;
+    return null;
+  });
+
+  map.set('dismiss_umu_install_nag', async (): Promise<null> => {
+    const store = getStore();
+    store.settings.install_nag_dismissed_at = new Date().toISOString();
     return null;
   });
 

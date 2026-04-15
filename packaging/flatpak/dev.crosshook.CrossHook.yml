@@ -53,6 +53,10 @@ finish-args:
   # Flatpak Steam installation discovery (read-only)
   - --filesystem=~/.var/app/com.valvesoftware.Steam:ro
 
+  # umu-launcher host-shared runtime directory — CrossHook writes the
+  # umu runtime path here so the host and Flatpak share one installation.
+  - --filesystem=xdg-data/umu:create
+
 modules:
   - name: crosshook
     buildsystem: simple

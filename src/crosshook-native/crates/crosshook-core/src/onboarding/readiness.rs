@@ -2,9 +2,165 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::launch::runtime_helpers::resolve_umu_run_path;
-use crate::onboarding::ReadinessCheckResult;
+use crate::onboarding::{ReadinessCheckResult, UmuInstallGuidance};
 use crate::profile::health::{HealthIssue, HealthIssueSeverity};
 use crate::steam::{discover_compat_tools, discover_steam_root_candidates, ProtonInstall};
+
+const UMU_LAUNCHER_DOCS_URL: &str = "https://github.com/Open-Wine-Components/umu-launcher";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HostDistroFamily {
+    Arch,
+    Nobara,
+    Fedora,
+    Debian,
+    Nix,
+    Unknown,
+}
+
+#[derive(Debug, Clone)]
+struct UmuInstallAdvice {
+    guidance: UmuInstallGuidance,
+    remediation: String,
+}
+
+fn read_host_os_release() -> Option<String> {
+    read_host_os_release_with(
+        crate::platform::is_flatpak(),
+        |path| fs::read_to_string(path).ok(),
+        || {
+            crate::platform::host_std_command("cat")
+                .arg("/etc/os-release")
+                .output()
+                .ok()
+                .and_then(|output| output.status.success().then_some(output.stdout))
+                .and_then(|stdout| String::from_utf8(stdout).ok())
+        },
+    )
+}
+
+fn read_host_os_release_with<F, G>(
+    is_flatpak: bool,
+    mut read_file: F,
+    read_via_host_command: G,
+) -> Option<String>
+where
+    F: FnMut(&str) -> Option<String>,
+    G: FnOnce() -> Option<String>,
+{
+    if let Some(content) = read_file("/run/host/etc/os-release") {
+        return Some(content);
+    }
+    if is_flatpak {
+        return read_via_host_command();
+    }
+    read_file("/etc/os-release")
+}
+
+fn detect_host_distro_family() -> HostDistroFamily {
+    detect_host_distro_family_from_os_release(read_host_os_release().as_deref())
+}
+
+fn detect_host_distro_family_from_os_release(os_release: Option<&str>) -> HostDistroFamily {
+    let Some(os_release) = os_release else {
+        return HostDistroFamily::Unknown;
+    };
+
+    let mut distro_tokens = Vec::new();
+    for line in os_release.lines() {
+        let Some((key, raw_value)) = line.split_once('=') else {
+            continue;
+        };
+        if key != "ID" && key != "ID_LIKE" {
+            continue;
+        }
+        let normalized = raw_value
+            .trim()
+            .trim_matches(|ch| ch == '"' || ch == '\'')
+            .to_ascii_lowercase();
+        distro_tokens.extend(normalized.split_whitespace().map(str::to_string));
+    }
+
+    if distro_tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "arch" | "manjaro" | "endeavouros"))
+    {
+        return HostDistroFamily::Arch;
+    }
+    if distro_tokens.iter().any(|token| token == "nobara") {
+        return HostDistroFamily::Nobara;
+    }
+    if distro_tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "fedora" | "rhel" | "centos"))
+    {
+        return HostDistroFamily::Fedora;
+    }
+    if distro_tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "debian" | "ubuntu" | "linuxmint" | "pop"))
+    {
+        return HostDistroFamily::Debian;
+    }
+    if distro_tokens
+        .iter()
+        .any(|token| matches!(token.as_str(), "nixos" | "nix"))
+    {
+        return HostDistroFamily::Nix;
+    }
+
+    HostDistroFamily::Unknown
+}
+
+fn build_umu_install_advice(distro_family: HostDistroFamily) -> UmuInstallAdvice {
+    let (description, install_command, alternatives) = match distro_family {
+        HostDistroFamily::Arch => (
+            "Install umu-launcher on your Arch-based host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "sudo pacman -S umu-launcher",
+            "If the package is unavailable in your mirror set, use the upstream docs for source or user-level install options.",
+        ),
+        HostDistroFamily::Nobara => (
+            "Install umu-launcher on your Nobara host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "sudo dnf install umu-launcher",
+            "If the packaged build is unavailable, fall back to the upstream docs for user-level or source installs.",
+        ),
+        HostDistroFamily::Fedora => (
+            "Install umu-launcher on your Fedora host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "sudo dnf install pipx && pipx install umu-launcher",
+            "If you prefer a packaged build, check the upstream docs for current Fedora/Nobara packaging guidance.",
+        ),
+        HostDistroFamily::Debian => (
+            "Install umu-launcher on your Debian/Ubuntu host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "sudo apt install pipx && pipx install umu-launcher",
+            "If pipx is not suitable on this system, use the upstream docs for source or user-level install options.",
+        ),
+        HostDistroFamily::Nix => (
+            "Install umu-launcher on your Nix host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "nix profile install nixpkgs#umu-launcher",
+            "Alternative: add `pkgs.umu-launcher` to your NixOS or Home Manager packages.",
+        ),
+        HostDistroFamily::Unknown => (
+            "Install umu-launcher on your host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "pipx install umu-launcher",
+            "Other options include upstream source, user-level, or uv-based installs described in the project docs.",
+        ),
+    };
+
+    let guidance = UmuInstallGuidance {
+        install_command: install_command.to_string(),
+        docs_url: UMU_LAUNCHER_DOCS_URL.to_string(),
+        description: description.to_string(),
+    };
+    let remediation = format!(
+        "Install umu-launcher on your host: `{}`. {} See {} for full instructions.",
+        guidance.install_command, alternatives, guidance.docs_url,
+    );
+
+    UmuInstallAdvice {
+        guidance,
+        remediation,
+    }
+}
 
 /// Replace the home directory prefix with `~` for cleaner display paths.
 fn home_to_tilde(path_str: &str) -> String {
@@ -40,6 +196,19 @@ pub fn check_system_readiness() -> ReadinessCheckResult {
 fn evaluate_checks(
     steam_roots: &[PathBuf],
     proton_tools: &[ProtonInstall],
+) -> ReadinessCheckResult {
+    let umu_path = resolve_umu_run_path();
+    let is_flatpak = crate::platform::is_flatpak();
+    evaluate_checks_inner(steam_roots, proton_tools, umu_path, is_flatpak)
+}
+
+/// Inner evaluation logic with injectable umu resolution and platform context so
+/// unit tests can exercise both the native and Flatpak code paths deterministically.
+fn evaluate_checks_inner(
+    steam_roots: &[PathBuf],
+    proton_tools: &[ProtonInstall],
+    umu_path: Option<String>,
+    is_flatpak: bool,
 ) -> ReadinessCheckResult {
     let mut checks: Vec<HealthIssue> = Vec::new();
 
@@ -123,11 +292,12 @@ fn evaluate_checks(
     });
 
     // Check 5: umu-run optional launcher
+    let mut umu_install_guidance: Option<UmuInstallGuidance> = None;
     {
-        let umu_path = resolve_umu_run_path();
         match umu_path {
             Some(ref p) => {
                 let path_display = home_to_tilde(p);
+                tracing::debug!(path = %path_display, "umu-run resolved");
                 checks.push(HealthIssue {
                     field: "umu_run_available".to_string(),
                     path: path_display,
@@ -137,6 +307,22 @@ fn evaluate_checks(
                     remediation: String::new(),
                     severity: HealthIssueSeverity::Info,
                 });
+            }
+            None if is_flatpak => {
+                let distro_family = detect_host_distro_family();
+                tracing::debug!(
+                    ?distro_family,
+                    "umu-run not found on Flatpak host; emitting actionable guidance"
+                );
+                let advice = build_umu_install_advice(distro_family);
+                checks.push(HealthIssue {
+                    field: "umu_run_available".to_string(),
+                    path: String::new(),
+                    message: "umu-run not found in Flatpak host environment; CrossHook will use Proton directly.".to_string(),
+                    remediation: advice.remediation,
+                    severity: HealthIssueSeverity::Info,
+                });
+                umu_install_guidance = Some(advice.guidance);
             }
             None => {
                 checks.push(HealthIssue {
@@ -165,6 +351,18 @@ fn evaluate_checks(
         all_passed,
         critical_failures,
         warnings,
+        umu_install_guidance,
+    }
+}
+
+/// When the user has dismissed the Flatpak umu install reminder, clear the structured
+/// guidance payload so readiness stays consistent across reruns and wizard reopen.
+pub fn apply_install_nag_dismissal(
+    result: &mut ReadinessCheckResult,
+    install_nag_dismissed_at: &Option<String>,
+) {
+    if install_nag_dismissed_at.is_some() {
+        result.umu_install_guidance = None;
     }
 }
 
@@ -319,6 +517,157 @@ mod tests {
         assert!(
             matches!(game_check.severity, HealthIssueSeverity::Warning),
             "expected Warning for game_launched_once"
+        );
+    }
+
+    #[test]
+    fn native_missing_umu_keeps_info_path() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let result = evaluate_checks_inner(&[steam_root], &[proton], None, false);
+
+        let umu_check = result
+            .checks
+            .iter()
+            .find(|c| c.field == "umu_run_available")
+            .expect("umu_run_available check missing");
+        assert!(
+            matches!(umu_check.severity, HealthIssueSeverity::Info),
+            "expected Info severity for native missing umu; got {:?}",
+            umu_check.severity
+        );
+        assert!(
+            umu_check.remediation.is_empty(),
+            "native missing umu must not emit Flatpak remediation text"
+        );
+        assert!(
+            result.umu_install_guidance.is_none(),
+            "native missing umu must not produce a guidance payload"
+        );
+        // umu being absent must not affect all_passed (Info severity only)
+        assert!(
+            result.all_passed,
+            "missing umu on native must not set all_passed=false; checks: {:?}",
+            result.checks
+        );
+    }
+
+    #[test]
+    fn flatpak_missing_umu_reports_actionable_guidance() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let result = evaluate_checks_inner(&[steam_root], &[proton], None, true);
+
+        let umu_check = result
+            .checks
+            .iter()
+            .find(|c| c.field == "umu_run_available")
+            .expect("umu_run_available check missing");
+        assert!(
+            matches!(umu_check.severity, HealthIssueSeverity::Info),
+            "Flatpak missing umu must keep Info severity to avoid changing all_passed; got {:?}",
+            umu_check.severity
+        );
+        assert!(
+            !umu_check.remediation.is_empty(),
+            "Flatpak missing umu must have non-empty remediation text"
+        );
+        assert!(
+            umu_check.message.contains("Flatpak"),
+            "Flatpak missing umu message should mention Flatpak host environment"
+        );
+
+        let guidance = result
+            .umu_install_guidance
+            .as_ref()
+            .expect("umu_install_guidance payload must be present for Flatpak+missing umu");
+        assert!(
+            !guidance.install_command.is_empty(),
+            "guidance install_command must be non-empty"
+        );
+        assert!(
+            !guidance.docs_url.is_empty(),
+            "guidance docs_url must be non-empty"
+        );
+        assert!(
+            !guidance.description.is_empty(),
+            "guidance description must be non-empty"
+        );
+
+        // umu being absent on Flatpak must not regress all_passed (Info severity only)
+        assert!(
+            result.all_passed,
+            "Flatpak missing umu must not set all_passed=false; checks: {:?}",
+            result.checks
+        );
+    }
+
+    #[test]
+    fn detect_host_distro_family_recognizes_arch_like_os_release() {
+        let distro = detect_host_distro_family_from_os_release(Some("ID=manjaro\nID_LIKE=arch\n"));
+        assert_eq!(distro, HostDistroFamily::Arch);
+    }
+
+    #[test]
+    fn detect_host_distro_family_recognizes_cachyos_os_release() {
+        let distro = detect_host_distro_family_from_os_release(Some("ID=cachyos\nID_LIKE=arch\n"));
+        assert_eq!(distro, HostDistroFamily::Arch);
+    }
+
+    #[test]
+    fn read_host_os_release_uses_host_command_when_flatpak_mount_is_missing() {
+        let content = read_host_os_release_with(
+            true,
+            |_| None,
+            || Some("ID=cachyos\nID_LIKE=arch\n".to_string()),
+        );
+
+        assert_eq!(content.as_deref(), Some("ID=cachyos\nID_LIKE=arch\n"));
+    }
+
+    #[test]
+    fn detect_host_distro_family_recognizes_debian_like_os_release() {
+        let distro =
+            detect_host_distro_family_from_os_release(Some("ID=pop\nID_LIKE=\"ubuntu debian\"\n"));
+        assert_eq!(distro, HostDistroFamily::Debian);
+    }
+
+    #[test]
+    fn build_umu_install_advice_uses_primary_command_per_distro() {
+        let arch = build_umu_install_advice(HostDistroFamily::Arch);
+        assert_eq!(arch.guidance.install_command, "sudo pacman -S umu-launcher");
+        assert!(arch.remediation.contains("source or user-level install"));
+
+        let nix = build_umu_install_advice(HostDistroFamily::Nix);
+        assert_eq!(
+            nix.guidance.install_command,
+            "nix profile install nixpkgs#umu-launcher"
+        );
+        assert!(nix.remediation.contains("Home Manager"));
+    }
+
+    #[test]
+    fn install_nag_dismissal_clears_flatpak_umu_guidance() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let mut result = evaluate_checks_inner(&[steam_root], &[proton], None, true);
+        assert!(
+            result.umu_install_guidance.is_some(),
+            "precondition: missing umu on Flatpak must emit guidance"
+        );
+        apply_install_nag_dismissal(&mut result, &Some("2026-04-15T12:00:00Z".to_string()));
+        assert!(
+            result.umu_install_guidance.is_none(),
+            "dismissed install nag must strip umu_install_guidance on subsequent readiness"
         );
     }
 }

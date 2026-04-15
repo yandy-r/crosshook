@@ -99,6 +99,9 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     stage,
     readinessResult,
     checkError,
+    isRunningChecks,
+    lastCheckedAt,
+    umuInstallGuidance,
     isIdentityGame,
     isRuntime,
     isTrainer,
@@ -109,6 +112,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     advanceOrSkip,
     goBack,
     dismiss,
+    dismissUmuInstallNag,
     setCompletedProfileName,
   } = useOnboarding();
 
@@ -462,7 +466,13 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 onUpdateProfile={updateProfile}
                 idPrefix="onboarding-wizard"
               />
-              <WizardReviewSummary validation={validation} readinessResult={readinessResult} checkError={checkError} />
+              <WizardReviewSummary
+                validation={validation}
+                readinessResult={readinessResult}
+                checkError={checkError}
+                umuInstallGuidance={umuInstallGuidance}
+                onDismissUmuInstallNag={() => void dismissUmuInstallNag()}
+              />
             </section>
           )}
 
@@ -493,14 +503,22 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
             <div className="crosshook-onboarding-wizard__nav-primary">
               {/* Run Checks — always available except on completed */}
               {!isCompleted && (
-                <button
-                  type="button"
-                  className="crosshook-button crosshook-button--secondary"
-                  style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                  onClick={() => void runChecks()}
-                >
-                  Run Checks
-                </button>
+                <div className="crosshook-onboarding-wizard__checks-action">
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--secondary"
+                    style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
+                    disabled={isRunningChecks}
+                    onClick={() => void runChecks()}
+                  >
+                    {isRunningChecks ? 'Running Checks...' : 'Run Checks'}
+                  </button>
+                  {!isRunningChecks && lastCheckedAt ? (
+                    <span className="crosshook-help-text" aria-live="polite" style={{ marginLeft: 8 }}>
+                      Last checked at {lastCheckedAt}
+                    </span>
+                  ) : null}
+                </div>
               )}
 
               {/* Next — steps 1–4 */}
