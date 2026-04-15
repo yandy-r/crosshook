@@ -3,6 +3,7 @@
 ## 2026-04-14
 
 - When a shell script stores state that is only consumed indirectly by a sourced helper, do not assume ShellCheck will follow that usage across files. In this repo, either refactor to an explicit argument flow or add a targeted `SC2034` suppression at the declaration so `.github/workflows/lint.yml` stays green.
+- When ShellCheck still flags the assignment site after a suppression on a shared shell variable, stop patching around the warning. In this repo, prefer a stateless helper API that returns filtered paths directly instead of hiding cross-file mutable state behind sourced functions.
 
 ## 2026-04-13
 

@@ -11,20 +11,20 @@ list_modified_repo_files() {
   )
 }
 
-filter_modified_repo_paths() {
-  local -n out_ref="$1"
-  local prefix="$2"
-  shift 2
+list_modified_repo_paths() {
+  local prefix="$1"
+  shift
 
-  out_ref=()
+  local -a modified_repo_files=()
+  mapfile -t modified_repo_files < <(list_modified_repo_files)
 
   local path suffix
-  for path in "${MODIFIED_REPO_FILES[@]}"; do
+  for path in "${modified_repo_files[@]}"; do
     [[ -n "$prefix" && "$path" != "$prefix"* ]] && continue
 
     for suffix in "$@"; do
       if [[ "$path" == *"$suffix" ]]; then
-        out_ref+=("$ROOT_DIR/$path")
+        printf '%s\n' "$ROOT_DIR/$path"
         break
       fi
     done

@@ -24,8 +24,6 @@ MODIFIED_ONLY=0
 RUN_RUST=0
 RUN_TS=0
 RUN_DOCS=0
-# shellcheck disable=SC2034 # Consumed by filter_modified_repo_paths() from the sourced helper.
-MODIFIED_REPO_FILES=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,14 +44,10 @@ if (( !RUN_RUST && !RUN_TS && !RUN_DOCS )); then
   RUN_DOCS=1
 fi
 
-if (( MODIFIED_ONLY )); then
-  mapfile -t MODIFIED_REPO_FILES < <(list_modified_repo_files)
-fi
-
 if (( RUN_RUST )); then
   if (( MODIFIED_ONLY )); then
     rust_files=()
-    filter_modified_repo_paths rust_files "src/crosshook-native/" ".rs"
+    mapfile -t rust_files < <(list_modified_repo_paths "src/crosshook-native/" ".rs")
 
     if (( ${#rust_files[@]} == 0 )); then
       echo "=== Rust ==="
@@ -71,8 +65,8 @@ fi
 if (( RUN_TS )); then
   if (( MODIFIED_ONLY )); then
     ts_files=()
-    filter_modified_repo_paths ts_files "src/crosshook-native/src/" \
-      ".ts" ".tsx" ".js" ".jsx" ".mjs" ".cjs" ".mts" ".cts" ".json" ".jsonc" ".css"
+    mapfile -t ts_files < <(list_modified_repo_paths "src/crosshook-native/src/" \
+      ".ts" ".tsx" ".js" ".jsx" ".mjs" ".cjs" ".mts" ".cts" ".json" ".jsonc" ".css")
 
     if (( ${#ts_files[@]} == 0 )); then
       echo "=== TypeScript/React ==="
@@ -92,7 +86,7 @@ fi
 if (( RUN_DOCS )); then
   if (( MODIFIED_ONLY )); then
     docs_files=()
-    filter_modified_repo_paths docs_files "" ".md"
+    mapfile -t docs_files < <(list_modified_repo_paths "" ".md")
 
     if (( ${#docs_files[@]} == 0 )); then
       echo "=== Markdown/JSON ==="

@@ -27,8 +27,6 @@ RUN_RUST=0
 RUN_TS=0
 RUN_SHELL=0
 EXIT_CODE=0
-# shellcheck disable=SC2034 # Consumed by filter_modified_repo_paths() from the sourced helper.
-MODIFIED_REPO_FILES=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -50,14 +48,10 @@ if (( !RUN_RUST && !RUN_TS && !RUN_SHELL )); then
   RUN_SHELL=1
 fi
 
-if (( MODIFIED_ONLY )); then
-  mapfile -t MODIFIED_REPO_FILES < <(list_modified_repo_files)
-fi
-
 if (( RUN_RUST )); then
   if (( MODIFIED_ONLY )); then
     rust_files=()
-    filter_modified_repo_paths rust_files "src/crosshook-native/" ".rs"
+    mapfile -t rust_files < <(list_modified_repo_paths "src/crosshook-native/" ".rs")
 
     if (( ${#rust_files[@]} == 0 )); then
       echo "=== Rust ==="
@@ -98,9 +92,10 @@ if (( RUN_TS )); then
   if (( MODIFIED_ONLY )); then
     ts_biome_files=()
     ts_typecheck_files=()
-    filter_modified_repo_paths ts_biome_files "src/crosshook-native/src/" \
-      ".ts" ".tsx" ".js" ".jsx" ".mjs" ".cjs" ".mts" ".cts" ".json" ".jsonc" ".css"
-    filter_modified_repo_paths ts_typecheck_files "src/crosshook-native/src/" ".ts" ".tsx" ".mts" ".cts"
+    mapfile -t ts_biome_files < <(list_modified_repo_paths "src/crosshook-native/src/" \
+      ".ts" ".tsx" ".js" ".jsx" ".mjs" ".cjs" ".mts" ".cts" ".json" ".jsonc" ".css")
+    mapfile -t ts_typecheck_files < <(list_modified_repo_paths "src/crosshook-native/src/" \
+      ".ts" ".tsx" ".mts" ".cts")
 
     if (( ${#ts_biome_files[@]} == 0 )); then
       echo "=== TypeScript ==="
@@ -134,7 +129,7 @@ fi
 if (( RUN_SHELL )); then
   if (( MODIFIED_ONLY )); then
     shell_files=()
-    filter_modified_repo_paths shell_files "scripts/" ".sh"
+    mapfile -t shell_files < <(list_modified_repo_paths "scripts/" ".sh")
 
     if (( ${#shell_files[@]} == 0 )); then
       echo "=== Shell ==="
