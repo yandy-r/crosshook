@@ -2162,19 +2162,19 @@ textarea {
   font-size: 0.85rem;
 }
 
-.crosshook-pinned-strip__badge--warn {
-  color: var(--crosshook-color-warning);
+.crosshook-pinned-strip__badge--info {
+  color: var(--crosshook-color-info);
 }
 
-.crosshook-runner-coverage-warn {
-  color: var(--crosshook-color-warning);
+.crosshook-runner-coverage-info {
+  color: var(--crosshook-color-info);
   font-size: 0.95em;
   margin-left: 0.35rem;
   cursor: help;
 }
 
-.crosshook-runner-coverage-warn__hint {
-  color: var(--crosshook-color-warning);
+.crosshook-runner-coverage-info__hint {
+  color: var(--crosshook-color-info);
 }
 
 .crosshook-profile-pin-btn {

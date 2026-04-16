@@ -433,7 +433,7 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
                 ? (() => {
                     const umuChipModifier =
                       preview.umu_decision.will_use_umu && preview.umu_decision.csv_coverage === 'missing'
-                        ? 'crosshook-preview-modal__umu-decision--warn'
+                        ? 'crosshook-preview-modal__umu-decision--info'
                         : preview.umu_decision.will_use_umu
                           ? 'crosshook-preview-modal__umu-decision--umu'
                           : 'crosshook-preview-modal__umu-decision--proton';
@@ -456,10 +456,9 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
                           umu protonfix coverage: <code>{preview.umu_decision.csv_coverage}</code>
                         </div>
                         {preview.umu_decision.will_use_umu && preview.umu_decision.csv_coverage === 'missing' ? (
-                          <div className="crosshook-preview-modal__umu-decision-warning" style={{ marginTop: 6 }}>
-                            ⚠ umu has no known entry for this app id in the current umu database. Treat this as an
-                            informational signal rather than a launch prediction. If this title has umu-specific issues,
-                            override this profile&apos;s Runtime → umu launcher to <code>Proton</code>.
+                          <div className="crosshook-preview-modal__umu-decision-info" style={{ marginTop: 6 }}>
+                            ℹ umu has no known entry for this app id in the current umu database. The database only
+                            tracks titles needing protonfixes — most titles work fine without an entry.
                           </div>
                         ) : null}
                       </div>

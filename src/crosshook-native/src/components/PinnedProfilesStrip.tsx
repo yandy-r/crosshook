@@ -3,7 +3,7 @@ interface PinnedProfilesStripProps {
   selectedProfile: string;
   onSelectProfile: (name: string) => Promise<void>;
   onToggleFavorite: (name: string, favorite: boolean) => Promise<void>;
-  umuCoverageWarnByProfile?: Record<string, boolean>;
+  umuCoverageNoteByProfile?: Record<string, boolean>;
 }
 
 export function PinnedProfilesStrip({
@@ -11,7 +11,7 @@ export function PinnedProfilesStrip({
   selectedProfile,
   onSelectProfile,
   onToggleFavorite,
-  umuCoverageWarnByProfile,
+  umuCoverageNoteByProfile,
 }: PinnedProfilesStripProps) {
   if (favoriteProfiles.length === 0) return null;
 
@@ -31,14 +31,14 @@ export function PinnedProfilesStrip({
                 title={name}
               >
                 <span className="crosshook-pinned-strip__chip-name">{name}</span>
-                {umuCoverageWarnByProfile?.[name] ? (
+                {umuCoverageNoteByProfile?.[name] ? (
                   <span
                     role="img"
-                    className="crosshook-pinned-strip__badge crosshook-pinned-strip__badge--warn"
-                    title="umu has no known entry for this app id in the current umu database. This is informational, not a launch prediction. Override Runtime → umu launcher to Proton if this title has umu-specific issues."
-                    aria-label="umu protonfix missing"
+                    className="crosshook-pinned-strip__badge crosshook-pinned-strip__badge--info"
+                    title="umu has no known entry for this app id in the current umu database. The database only tracks titles needing protonfixes — most titles work fine without an entry."
+                    aria-label="no umu-database protonfix row for this profile"
                   >
-                    ⚠
+                    ℹ
                   </span>
                 ) : null}
               </button>

@@ -22,10 +22,11 @@ use serde::{Deserialize, Serialize};
 pub enum CsvCoverage {
     /// CSV is readable and the app id has a matching row.
     Found,
-    /// CSV is readable but the app id has no matching row — umu will apply
-    /// global defaults (and overwrite STEAM_COMPAT_APP_ID with a prefix MD5
-    /// per umu/umu_run.py:515 verified 2026-04-14, which can break per-Proton-build
-    /// local fixes — see issue #262 Witcher 3 / proton-cachyos).
+    /// CSV is readable but the app id has no matching row.
+    ///
+    /// The upstream `umu-database` only lists titles that need protonfixes; it is
+    /// not a complete catalog. Missing is the expected state for most Steam titles
+    /// that still work fine with umu's global defaults.
     Missing,
     /// CSV source not reachable — coverage cannot be determined.
     Unknown,

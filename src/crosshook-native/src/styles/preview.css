@@ -176,17 +176,17 @@
   border: 1px solid rgba(255, 180, 80, 0.3);
 }
 
-.crosshook-preview-modal__umu-decision--warn {
-  background: rgba(245, 197, 66, 0.08);
-  border: 1px solid var(--crosshook-color-warning);
+.crosshook-preview-modal__umu-decision--info {
+  background: rgba(125, 211, 252, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.22);
 }
 
 .crosshook-preview-modal__umu-decision-reason {
   margin-top: 4px;
 }
 
-.crosshook-preview-modal__umu-decision-warning {
-  color: var(--crosshook-color-warning);
+.crosshook-preview-modal__umu-decision-info {
+  color: var(--crosshook-color-info);
   font-size: 0.9rem;
 }
 

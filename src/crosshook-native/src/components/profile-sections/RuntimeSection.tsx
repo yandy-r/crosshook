@@ -60,7 +60,7 @@ export function RuntimeSection({
   const umuAppId = resolveUmuAppId(profile);
   const umuCoverage = useUmuCoverage(effectiveUmuPreference, umuAppId);
 
-  const showUmuCoverageWarn = effectiveUmuPreference === 'umu' && umuCoverage === 'missing';
+  const showUmuCoverageNote = effectiveUmuPreference === 'umu' && umuCoverage === 'missing';
 
   const runtimeTitle =
     launchMethod === 'steam_applaunch'
@@ -246,14 +246,14 @@ export function RuntimeSection({
             <div className="crosshook-field">
               <label className="crosshook-label" htmlFor="profile-umu-preference" id="profile-umu-preference-label">
                 Runner
-                {showUmuCoverageWarn ? (
+                {showUmuCoverageNote ? (
                   <span
-                    className="crosshook-runner-coverage-warn"
-                    title={`umu has no known entry for Steam app id ${umuAppId} in the current umu database. This is informational, not a launch prediction. Consider switching this Runner to Proton if this title has umu-specific issues.`}
-                    aria-label={`umu protonfix missing for app id ${umuAppId}`}
+                    className="crosshook-runner-coverage-info"
+                    title={`umu has no known entry for Steam app id ${umuAppId} in the current umu database. The database only tracks titles needing protonfixes — most titles work fine without an entry.`}
+                    aria-label={`no umu-database protonfix row for app id ${umuAppId}`}
                     role="img"
                   >
-                    {' ⚠'}
+                    {' ℹ'}
                   </span>
                 ) : null}
               </label>
@@ -281,10 +281,10 @@ export function RuntimeSection({
                 Override the app-wide runner for this profile. Leave on &quot;Use global default&quot; to inherit the
                 Settings value.
               </p>
-              {showUmuCoverageWarn ? (
-                <p className="crosshook-help-text crosshook-runner-coverage-warn__hint">
-                  ⚠ umu has no known entry for this app id in the current umu database. This is informational, not a
-                  launch prediction. Switch to <code>Proton</code> if this title has umu-specific issues.
+              {showUmuCoverageNote ? (
+                <p className="crosshook-help-text crosshook-runner-coverage-info__hint">
+                  ℹ umu has no known entry for this app id in the current umu database. The database only tracks titles
+                  needing protonfixes — most titles work fine without an entry.
                 </p>
               ) : null}
             </div>
