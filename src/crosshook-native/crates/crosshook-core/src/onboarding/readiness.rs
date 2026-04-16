@@ -332,7 +332,7 @@ fn evaluate_checks_inner(
                     path: String::new(),
                     message: "umu-run not found in Flatpak host environment; CrossHook will use Proton directly.".to_string(),
                     remediation: advice.remediation,
-                    severity: HealthIssueSeverity::Info,
+                    severity: HealthIssueSeverity::Warning,
                 });
                 umu_install_guidance = Some(advice.guidance);
             }
@@ -342,7 +342,7 @@ fn evaluate_checks_inner(
                     path: String::new(),
                     message: "umu-run not found; CrossHook will use Proton directly. Install umu-launcher for improved runtime bootstrapping.".to_string(),
                     remediation: String::new(),
-                    severity: HealthIssueSeverity::Info,
+                    severity: HealthIssueSeverity::Warning,
                 });
             }
         }
@@ -457,7 +457,13 @@ mod tests {
         let proton = make_proton_install(&steam_root);
         add_compatdata(&steam_root);
 
-        let result = evaluate_checks(&[steam_root], &[proton]);
+        let result = evaluate_checks_inner(
+            &[steam_root],
+            &[proton],
+            Some("umu-run".to_string()),
+            false,
+            false,
+        );
 
         assert!(
             result.all_passed,
@@ -471,7 +477,7 @@ mod tests {
 
     #[test]
     fn no_steam_case() {
-        let result = evaluate_checks(&[], &[]);
+        let result = evaluate_checks_inner(&[], &[], None, false, false);
 
         assert!(!result.all_passed);
 
@@ -496,7 +502,7 @@ mod tests {
         );
 
         assert_eq!(result.critical_failures, 2);
-        assert_eq!(result.warnings, 1); // game_launched_once
+        assert_eq!(result.warnings, 2); // game_launched_once + umu missing
     }
 
     #[test]
@@ -506,7 +512,7 @@ mod tests {
         add_compatdata(&steam_root);
         // Intentionally no Proton tools passed
 
-        let result = evaluate_checks(&[steam_root], &[]);
+        let result = evaluate_checks_inner(&[steam_root], &[], None, false, false);
 
         assert!(!result.all_passed);
 
@@ -531,7 +537,7 @@ mod tests {
         );
 
         assert_eq!(result.critical_failures, 1);
-        assert_eq!(result.warnings, 0);
+        assert_eq!(result.warnings, 1); // umu missing
     }
 
     #[test]
@@ -541,11 +547,17 @@ mod tests {
         let proton = make_proton_install(&steam_root);
         // Intentionally no compatdata
 
-        let result = evaluate_checks(&[steam_root], &[proton]);
+        let result = evaluate_checks_inner(
+            &[steam_root],
+            &[proton],
+            Some("umu-run".to_string()),
+            false,
+            false,
+        );
 
         assert!(!result.all_passed);
         assert_eq!(result.critical_failures, 0);
-        assert_eq!(result.warnings, 1);
+        assert_eq!(result.warnings, 1); // game_launched_once only (umu present)
 
         let game_check = result
             .checks
@@ -573,8 +585,8 @@ mod tests {
             .find(|c| c.field == "umu_run_available")
             .expect("umu_run_available check missing");
         assert!(
-            matches!(umu_check.severity, HealthIssueSeverity::Info),
-            "expected Info severity for native missing umu; got {:?}",
+            matches!(umu_check.severity, HealthIssueSeverity::Warning),
+            "expected Warning severity for native missing umu; got {:?}",
             umu_check.severity
         );
         assert!(
@@ -585,10 +597,10 @@ mod tests {
             result.umu_install_guidance.is_none(),
             "native missing umu must not produce a guidance payload"
         );
-        // umu being absent must not affect all_passed (Info severity only)
+        // umu being absent is a warning — all_passed reflects this
         assert!(
-            result.all_passed,
-            "missing umu on native must not set all_passed=false; checks: {:?}",
+            !result.all_passed,
+            "missing umu (Warning) should set all_passed=false; checks: {:?}",
             result.checks
         );
     }
@@ -608,8 +620,8 @@ mod tests {
             .find(|c| c.field == "umu_run_available")
             .expect("umu_run_available check missing");
         assert!(
-            matches!(umu_check.severity, HealthIssueSeverity::Info),
-            "Flatpak missing umu must keep Info severity to avoid changing all_passed; got {:?}",
+            matches!(umu_check.severity, HealthIssueSeverity::Warning),
+            "Flatpak missing umu must use Warning severity for amber visual; got {:?}",
             umu_check.severity
         );
         assert!(
@@ -638,10 +650,10 @@ mod tests {
             "guidance description must be non-empty"
         );
 
-        // umu being absent on Flatpak must not regress all_passed (Info severity only)
+        // umu being absent on Flatpak is a warning — all_passed reflects this
         assert!(
-            result.all_passed,
-            "Flatpak missing umu must not set all_passed=false; checks: {:?}",
+            !result.all_passed,
+            "Flatpak missing umu (Warning) should set all_passed=false; checks: {:?}",
             result.checks
         );
     }
@@ -733,7 +745,13 @@ mod tests {
         let proton = make_proton_install(&steam_root);
         add_compatdata(&steam_root);
 
-        let result = evaluate_checks_inner(&[steam_root], &[proton], None, false, true);
+        let result = evaluate_checks_inner(
+            &[steam_root],
+            &[proton],
+            Some("umu-run".to_string()),
+            false,
+            true,
+        );
 
         let caveats = result
             .steam_deck_caveats
