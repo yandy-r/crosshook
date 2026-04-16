@@ -432,29 +432,11 @@ fn evaluate_host_tool_checks(
     let mut extra_warnings = 0usize;
     let mut extra_critical = 0usize;
 
-    let gaming_assumed = matches!(
-        distro,
-        HostDistroFamily::SteamOS | HostDistroFamily::GamingImmutable
-    );
-
     for entry in &catalog.entries {
         if entry.tool_id == "umu_run" {
             continue;
         }
         if entry.binary_name.trim().is_empty() {
-            continue;
-        }
-
-        if gaming_assumed && !entry.required {
-            tool_checks.push(HostToolCheckResult {
-                tool_id: entry.tool_id.clone(),
-                display_name: entry.display_name.clone(),
-                is_available: true,
-                is_required: entry.required,
-                category: entry.category.clone(),
-                docs_url: entry.docs_url.clone(),
-                install_guidance: None,
-            });
             continue;
         }
 

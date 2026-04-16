@@ -13,6 +13,8 @@ const HOST_TOOL_TOOLTIPS: Record<string, string> = {
     'GameMode requests CPU governor and I/O tweaks while games run. Without it: no automatic GameMode tuning from the host binary.',
   game_performance:
     'CachyOS utility for gaming performance tweaks. Without it: CachyOS game-performance integration will not run. CachyOS-specific utility; available on CachyOS repositories.',
+  steam_deck_caveats:
+    'Steam Deck–specific runtime notes (shader pre-caching, overlay ordering, HDR quirks). When shown: review these before assuming a generic Linux setup; when dismissed or absent: CrossHook will not surface that reminder block.',
   winetricks:
     'Winetricks installs Windows DLLs/components into Wine prefixes. Without it: harder to fix prefix dependencies without manual steps.',
   protontricks:

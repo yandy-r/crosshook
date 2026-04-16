@@ -41,13 +41,8 @@ pub fn check_generalized_readiness(
     let settings = store.load().map_err(|e| e.to_string())?;
     let catalog = global_readiness_catalog();
     let mut result = eval_generalized_readiness(catalog);
-    apply_install_nag_dismissal(&mut result, &settings.install_nag_dismissed_at);
-    apply_steam_deck_caveats_dismissal(&mut result, &settings.steam_deck_caveats_dismissed_at);
+    // Persist probe-derived snapshot before dismissal overlays mutate the IPC payload.
     if metadata.is_available() {
-        let dismissed = metadata
-            .get_dismissed_readiness_nags()
-            .map_err(|e| e.to_string())?;
-        apply_readiness_nag_dismissals(&mut result, &dismissed);
         metadata
             .upsert_host_readiness_snapshot(
                 &result.tool_checks,
@@ -57,6 +52,14 @@ pub fn check_generalized_readiness(
                 result.warnings,
             )
             .map_err(|e| e.to_string())?;
+    }
+    apply_install_nag_dismissal(&mut result, &settings.install_nag_dismissed_at);
+    apply_steam_deck_caveats_dismissal(&mut result, &settings.steam_deck_caveats_dismissed_at);
+    if metadata.is_available() {
+        let dismissed = metadata
+            .get_dismissed_readiness_nags()
+            .map_err(|e| e.to_string())?;
+        apply_readiness_nag_dismissals(&mut result, &dismissed);
     }
     for issue in &mut result.checks {
         issue.path = sanitize_display_path(&issue.path);

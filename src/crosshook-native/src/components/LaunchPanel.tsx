@@ -460,19 +460,12 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
                           umu protonfix coverage: <code>{preview.umu_decision.csv_coverage}</code>
                         </div>
                         {preview.umu_decision.will_use_umu && preview.umu_decision.csv_coverage === 'missing' ? (
-                          <div
-                            className="crosshook-preview-modal__umu-decision-info"
-                            style={{ marginTop: 6, display: 'flex', alignItems: 'flex-start', gap: 8 }}
-                          >
+                          <div className="crosshook-preview-modal__umu-decision-info">
                             <InfoCircleIcon
+                              className="crosshook-preview-modal__umu-decision-info-icon"
                               width={14}
                               height={14}
                               aria-hidden
-                              style={{
-                                flexShrink: 0,
-                                marginTop: 2,
-                                color: 'var(--crosshook-color-info)',
-                              }}
                             />
                             <span>{UMU_DATABASE_MISSING_HINT}</span>
                           </div>

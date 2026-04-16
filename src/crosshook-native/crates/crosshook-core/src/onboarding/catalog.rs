@@ -199,7 +199,11 @@ pub fn load_readiness_catalog(user_config_dir: Option<&Path>) -> ReadinessCatalo
             for w in &warnings {
                 tracing::warn!(warning = %w, "user host readiness catalog warning");
             }
-            (entries, Some(user_ver))
+            // Only treat user_ver as an override when TOML parsed; on parse failure we still
+            // return catalog_version=1 from the parser but must not override embedded version.
+            let parse_failed = warnings.iter().any(|w| w.contains("failed to parse:"));
+            let version_override = if parse_failed { None } else { Some(user_ver) };
+            (entries, version_override)
         })
         .unwrap_or((Vec::new(), None));
 
@@ -268,5 +272,23 @@ mod tests {
         let merged = merge_readiness_catalogs(vec![a], vec![b]);
         assert_eq!(merged.len(), 1);
         assert_eq!(merged[0].display_name, "Patched");
+    }
+
+    #[test]
+    fn load_readiness_catalog_invalid_user_file_keeps_embedded_catalog_version() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(
+            dir.path().join("host_readiness_catalog.toml"),
+            "not valid toml [[[",
+        )
+        .expect("write invalid catalog");
+        let loaded = load_readiness_catalog(Some(dir.path()));
+        let (_, _, embedded_ver) =
+            parse_readiness_catalog_toml(DEFAULT_READINESS_CATALOG_TOML, "embedded");
+        assert_eq!(
+            loaded.catalog_version,
+            embedded_ver.max(1),
+            "parse failure must not force user catalog_version override"
+        );
     }
 }

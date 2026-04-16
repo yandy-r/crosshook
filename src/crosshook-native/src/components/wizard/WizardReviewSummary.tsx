@@ -154,7 +154,7 @@ export function WizardReviewSummary({
               <HostToolsReadinessSection
                 toolChecks={readinessResult.tool_checks ?? []}
                 detectedDistroFamily={readinessResult.detected_distro_family ?? ''}
-                onDismissReadinessNag={onDismissReadinessNag ? (id) => onDismissReadinessNag(id) : undefined}
+                onDismissReadinessNag={onDismissReadinessNag}
               />
             ) : null}
           </>

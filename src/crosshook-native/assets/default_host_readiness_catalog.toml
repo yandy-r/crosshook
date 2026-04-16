@@ -264,8 +264,8 @@ alternatives = "Package may not exist; install on CachyOS or follow upstream gui
 
 [[tool.install]]
 distro_family = "Nix"
-command = "nix profile install nixpkgs#game-performance"
-alternatives = "If missing from nixpkgs, use CachyOS packages or build from source."
+command = ""
+alternatives = "The game-performance binary is not provided as nixpkgs#game-performance; use CachyOS packages, Distrobox/toolbox, or build from source."
 
 [[tool.install]]
 distro_family = "SteamOS"
