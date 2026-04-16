@@ -29,20 +29,10 @@ struct UmuInstallAdvice {
 }
 
 fn read_host_os_release() -> Option<String> {
-    read_host_os_release_with(
-        crate::platform::is_flatpak(),
-        |path| fs::read_to_string(path).ok(),
-        || {
-            crate::platform::host_std_command("cat")
-                .arg("/etc/os-release")
-                .output()
-                .ok()
-                .and_then(|output| output.status.success().then_some(output.stdout))
-                .and_then(|stdout| String::from_utf8(stdout).ok())
-        },
-    )
+    crate::platform::read_host_os_release_body()
 }
 
+#[cfg(test)]
 fn read_host_os_release_with<F, G>(
     is_flatpak: bool,
     mut read_file: F,

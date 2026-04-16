@@ -80,9 +80,9 @@ export function registerOnboarding(map: Map<string, Handler>): void {
               description:
                 'CrossHook works on Steam Deck desktop mode today. In gaming mode you may hit these documented upstream issues on SteamOS 3.7+:',
               items: [
-                'Black screen until Shader Pre-Caching completes',
+                'Black screen until Shader Pre-Caching completes — enable it in Steam Settings → Downloads → Shader Pre-Caching',
                 'Steam overlay can render below the game under gamescope + Flatpak',
-                'HDR + gamescope + Flatpak regression on SteamOS 3.7.13',
+                'HDR + gamescope + Flatpak regression on SteamOS 3.7.13 (toggle HDR off if the screen tints or flickers)',
               ],
               docs_url: 'https://github.com/ValveSoftware/gamescope/issues',
             }

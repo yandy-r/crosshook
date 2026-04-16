@@ -38,7 +38,7 @@ Phase 5b shipped the Phase-5 Open-Question follow-ups. Flathub status for `org.o
 | Level           | Status      | Notes                                                                                                                                                                        |
 | --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Static Analysis | [done] Pass | `./scripts/lint.sh` clean — rustfmt, clippy `-D warnings`, biome, tsc, shellcheck all green                                                                                  |
-| Unit Tests      | [done] Pass | **1012 Rust tests** pass, 0 fail. 28 new tests added across this phase                                                                                                       |
+| Unit Tests      | [done] Pass | **1012 Rust tests** pass, 0 fail. 31 new tests added across this phase (matches the per-file breakdown below)                                                                |
 | Build           | [done] Pass | `cargo check --all-targets` clean across `crosshook-core`, `crosshook-native`, `crosshook-cli`                                                                               |
 | Integration     | [done] Pass | Between-batch validation (type-check + unit tests) ran cleanly after every batch                                                                                             |
 | Edge Cases      | [done] Pass | Unit coverage: 16-row readiness matrix, triple-state IPC merge, dismissal rehydrate, exe-name + truncated-cmdline fallback. Manual Flatpak teardown smoke deferred per plan. |

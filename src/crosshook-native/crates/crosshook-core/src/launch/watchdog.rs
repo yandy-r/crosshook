@@ -109,7 +109,8 @@ fn collect_host_descendant_pids(root_pid: u32) -> Vec<u32> {
 ///
 /// Returns `(Some(ShutdownTarget), descendants)` when a match is found, or
 /// `(None, descendants)` otherwise. The caller always receives the full
-/// descendant list so it can emit `observed_descendants` regardless of outcome.
+/// descendant list so it can emit `observed_descendants` (count) together with
+/// `observed_gamescope_pid` regardless of outcome.
 fn resolve_watchdog_target_by_exe_name(
     root_pid: u32,
     exe_name: &str,
@@ -716,12 +717,17 @@ mod tests {
         let descendants = collect_descendant_pids_from_children_map(100, &children_map);
         let candidates = process_name_candidates("witcher3.exe");
 
-        // Find the first descendant whose comm matches — mirrors the find() in
-        // resolve_watchdog_target_by_exe_name using comm_matches_candidates.
+        // Per-PID comm simulates host_process_matches_candidates + comm_matches_candidates.
+        let comm_for_pid = |pid: u32| -> &str {
+            match pid {
+                200 => "witcher3.exe",
+                _ => "other",
+            }
+        };
         let matched = descendants
             .iter()
             .copied()
-            .find(|_pid| comm_matches_candidates("witcher3.exe", None, &candidates));
+            .find(|&pid| comm_matches_candidates(comm_for_pid(pid), None, &candidates));
 
         assert_eq!(matched, Some(200));
     }
@@ -733,13 +739,15 @@ mod tests {
         let descendants = collect_descendant_pids_from_children_map(100, &children_map);
         let candidates = process_name_candidates("game.exe");
 
-        let matched = descendants
-            .iter()
-            .copied()
-            .find(|_pid| comm_matches_candidates("unrelated", None, &candidates));
+        let comm_by_pid: HashMap<u32, &str> =
+            HashMap::from([(201, "unrelated"), (202, "unrelated")]);
+        let matched = descendants.iter().copied().find(|&pid| {
+            let comm = comm_by_pid.get(&pid).copied().unwrap_or("unrelated");
+            comm_matches_candidates(comm, None, &candidates)
+        });
 
         assert_eq!(matched, None);
-        // observed_descendants count is still available for the warn! emit.
+        // observed_descendants count and observed_gamescope_pid are still available for tracing.
         assert_eq!(descendants.len(), 2);
     }
 
