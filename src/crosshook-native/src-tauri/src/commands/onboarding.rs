@@ -8,6 +8,7 @@ use crosshook_core::onboarding::{
     global_readiness_catalog, ReadinessCheckResult, TrainerGuidanceContent, TrainerGuidanceEntry,
 };
 use crosshook_core::settings::SettingsStore;
+use std::convert::Infallible;
 use tauri::State;
 
 use super::shared::sanitize_display_path;
@@ -89,17 +90,20 @@ pub fn dismiss_umu_install_nag(
     store: State<'_, SettingsStore>,
     metadata: State<'_, MetadataStore>,
 ) -> Result<(), String> {
+    // Persist settings first so we never record metadata dismissal without the
+    // legacy settings.toml timestamp (used by check_readiness / check_generalized_readiness).
+    store
+        .update(|settings| {
+            settings.install_nag_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
+            Ok::<(), Infallible>(())
+        })
+        .map_err(|e| e.to_string())?
+        .unwrap();
     if metadata.is_available() {
         metadata
             .dismiss_readiness_nag("umu_run", 3650)
             .map_err(|e| e.to_string())?;
     }
-    store
-        .update(|settings| {
-            settings.install_nag_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
-            Ok::<(), String>(())
-        })
-        .map_err(|e| e.to_string())??;
     Ok(())
 }
 
@@ -108,17 +112,18 @@ pub fn dismiss_steam_deck_caveats(
     store: State<'_, SettingsStore>,
     metadata: State<'_, MetadataStore>,
 ) -> Result<(), String> {
+    store
+        .update(|settings| {
+            settings.steam_deck_caveats_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
+            Ok::<(), Infallible>(())
+        })
+        .map_err(|e| e.to_string())?
+        .unwrap();
     if metadata.is_available() {
         metadata
             .dismiss_readiness_nag("steam_deck_caveats", 3650)
             .map_err(|e| e.to_string())?;
     }
-    store
-        .update(|settings| {
-            settings.steam_deck_caveats_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
-            Ok::<(), String>(())
-        })
-        .map_err(|e| e.to_string())??;
     Ok(())
 }
 
@@ -199,6 +204,7 @@ pub fn get_trainer_guidance() -> TrainerGuidanceContent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::convert::Infallible;
 
     #[test]
     fn command_signatures_match_expected_ipc_contract() {
@@ -256,7 +262,7 @@ mod tests {
         store
             .update(|settings| {
                 settings.install_nag_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
-                Ok::<(), String>(())
+                Ok::<(), Infallible>(())
             })
             .unwrap()
             .unwrap();
@@ -289,7 +295,7 @@ mod tests {
         store
             .update(|settings| {
                 settings.steam_deck_caveats_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
-                Ok::<(), String>(())
+                Ok::<(), Infallible>(())
             })
             .unwrap()
             .unwrap();
