@@ -8,6 +8,10 @@ use crate::steam::{discover_compat_tools, discover_steam_root_candidates, Proton
 
 const UMU_LAUNCHER_DOCS_URL: &str = "https://github.com/Open-Wine-Components/umu-launcher";
 
+const STEAM_DECK_CAVEATS_DOCS_URL: &str = "https://github.com/ValveSoftware/gamescope/issues";
+const STEAM_DECK_CAVEATS_DESCRIPTION: &str =
+    "CrossHook works on Steam Deck desktop mode today. In gaming mode you may hit these documented upstream issues on SteamOS 3.7+:";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HostDistroFamily {
     Arch,
@@ -199,7 +203,14 @@ fn evaluate_checks(
 ) -> ReadinessCheckResult {
     let umu_path = resolve_umu_run_path();
     let is_flatpak = crate::platform::is_flatpak();
-    evaluate_checks_inner(steam_roots, proton_tools, umu_path, is_flatpak)
+    let is_steam_deck = crate::platform::is_steam_deck();
+    evaluate_checks_inner(
+        steam_roots,
+        proton_tools,
+        umu_path,
+        is_flatpak,
+        is_steam_deck,
+    )
 }
 
 /// Inner evaluation logic with injectable umu resolution and platform context so
@@ -209,6 +220,7 @@ fn evaluate_checks_inner(
     proton_tools: &[ProtonInstall],
     umu_path: Option<String>,
     is_flatpak: bool,
+    is_steam_deck: bool,
 ) -> ReadinessCheckResult {
     let mut checks: Vec<HealthIssue> = Vec::new();
 
@@ -346,12 +358,27 @@ fn evaluate_checks_inner(
         .count();
     let all_passed = critical_failures == 0 && warnings == 0;
 
+    let steam_deck_caveats = if is_steam_deck {
+        Some(crate::onboarding::SteamDeckCaveats {
+            description: STEAM_DECK_CAVEATS_DESCRIPTION.to_string(),
+            items: vec![
+                "Black screen until Shader Pre-Caching completes — enable it in Steam Settings → Downloads → Shader Pre-Caching".to_string(),
+                "Steam overlay can render below the game under gamescope + Flatpak".to_string(),
+                "HDR + gamescope + Flatpak regression on SteamOS 3.7.13 (toggle HDR off if the screen tints or flickers)".to_string(),
+            ],
+            docs_url: STEAM_DECK_CAVEATS_DOCS_URL.to_string(),
+        })
+    } else {
+        None
+    };
+
     ReadinessCheckResult {
         checks,
         all_passed,
         critical_failures,
         warnings,
         umu_install_guidance,
+        steam_deck_caveats,
     }
 }
 
@@ -363,6 +390,17 @@ pub fn apply_install_nag_dismissal(
 ) {
     if install_nag_dismissed_at.is_some() {
         result.umu_install_guidance = None;
+    }
+}
+
+/// When the user has dismissed the Steam Deck caveats notice, clear the structured
+/// caveats payload so readiness stays consistent across reruns and wizard reopen.
+pub fn apply_steam_deck_caveats_dismissal(
+    result: &mut ReadinessCheckResult,
+    dismissed_at: &Option<String>,
+) {
+    if dismissed_at.is_some() {
+        result.steam_deck_caveats = None;
     }
 }
 
@@ -527,7 +565,7 @@ mod tests {
         let proton = make_proton_install(&steam_root);
         add_compatdata(&steam_root);
 
-        let result = evaluate_checks_inner(&[steam_root], &[proton], None, false);
+        let result = evaluate_checks_inner(&[steam_root], &[proton], None, false, false);
 
         let umu_check = result
             .checks
@@ -562,7 +600,7 @@ mod tests {
         let proton = make_proton_install(&steam_root);
         add_compatdata(&steam_root);
 
-        let result = evaluate_checks_inner(&[steam_root], &[proton], None, true);
+        let result = evaluate_checks_inner(&[steam_root], &[proton], None, true, false);
 
         let umu_check = result
             .checks
@@ -659,7 +697,7 @@ mod tests {
         let proton = make_proton_install(&steam_root);
         add_compatdata(&steam_root);
 
-        let mut result = evaluate_checks_inner(&[steam_root], &[proton], None, true);
+        let mut result = evaluate_checks_inner(&[steam_root], &[proton], None, true, false);
         assert!(
             result.umu_install_guidance.is_some(),
             "precondition: missing umu on Flatpak must emit guidance"
@@ -668,6 +706,174 @@ mod tests {
         assert!(
             result.umu_install_guidance.is_none(),
             "dismissed install nag must strip umu_install_guidance on subsequent readiness"
+        );
+    }
+
+    // ── Steam Deck caveats tests ─────────────────────────────────────────────
+
+    #[test]
+    fn caveats_absent_when_not_steam_deck() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let result = evaluate_checks_inner(&[steam_root], &[proton], None, false, false);
+
+        assert!(
+            result.steam_deck_caveats.is_none(),
+            "non-Deck system must not populate steam_deck_caveats"
+        );
+    }
+
+    #[test]
+    fn caveats_present_when_steam_deck_and_not_flatpak() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let result = evaluate_checks_inner(&[steam_root], &[proton], None, false, true);
+
+        let caveats = result
+            .steam_deck_caveats
+            .as_ref()
+            .expect("steam_deck_caveats must be present on Deck (non-Flatpak)");
+        assert_eq!(caveats.items.len(), 3, "expected 3 caveat items");
+        assert!(
+            !caveats.description.is_empty(),
+            "caveats description must be non-empty"
+        );
+        assert!(
+            !caveats.docs_url.is_empty(),
+            "caveats docs_url must be non-empty"
+        );
+        assert!(
+            result.all_passed,
+            "caveats alone must not flip all_passed to false; checks: {:?}",
+            result.checks
+        );
+    }
+
+    #[test]
+    fn caveats_present_when_steam_deck_and_flatpak() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        // umu present so guidance payload is absent — only caveats are tested here
+        let result = evaluate_checks_inner(
+            &[steam_root],
+            &[proton],
+            Some("/usr/bin/umu-run".to_string()),
+            true,
+            true,
+        );
+
+        let caveats = result
+            .steam_deck_caveats
+            .as_ref()
+            .expect("steam_deck_caveats must be present on Deck (Flatpak)");
+        assert_eq!(caveats.items.len(), 3, "expected 3 caveat items");
+        assert!(
+            result.all_passed,
+            "caveats alone must not flip all_passed to false; checks: {:?}",
+            result.checks
+        );
+    }
+
+    #[test]
+    fn caveats_cleared_after_apply_dismissal() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let mut result = evaluate_checks_inner(&[steam_root], &[proton], None, false, true);
+        assert!(
+            result.steam_deck_caveats.is_some(),
+            "precondition: Deck must populate caveats"
+        );
+
+        apply_steam_deck_caveats_dismissal(&mut result, &Some("2026-04-15T12:00:00Z".to_string()));
+
+        assert!(
+            result.steam_deck_caveats.is_none(),
+            "dismissed caveats must be cleared after apply_steam_deck_caveats_dismissal"
+        );
+    }
+
+    #[test]
+    fn apply_dismissal_noop_when_none() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        let mut result = evaluate_checks_inner(&[steam_root], &[proton], None, false, true);
+        assert!(
+            result.steam_deck_caveats.is_some(),
+            "precondition: Deck must populate caveats"
+        );
+
+        apply_steam_deck_caveats_dismissal(&mut result, &None);
+
+        assert!(
+            result.steam_deck_caveats.is_some(),
+            "None dismissed_at must leave caveats intact"
+        );
+    }
+
+    #[test]
+    fn caveats_present_even_when_umu_absent_and_flatpak() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        // Flatpak + missing umu + Steam Deck: both payloads must be populated
+        let result = evaluate_checks_inner(&[steam_root], &[proton], None, true, true);
+
+        assert!(
+            result.umu_install_guidance.is_some(),
+            "Flatpak + missing umu must emit umu_install_guidance"
+        );
+        assert!(
+            result.steam_deck_caveats.is_some(),
+            "Deck + Flatpak + missing umu must also emit steam_deck_caveats"
+        );
+    }
+
+    #[test]
+    fn all_passed_stays_true_with_caveats_only() {
+        let tmp = tempdir().expect("tempdir");
+        let steam_root = setup_steam_root(tmp.path());
+        let proton = make_proton_install(&steam_root);
+        add_compatdata(&steam_root);
+
+        // All checks green, umu present, Steam Deck — caveats are informational only
+        let result = evaluate_checks_inner(
+            &[steam_root],
+            &[proton],
+            Some("/usr/bin/umu-run".to_string()),
+            false,
+            true,
+        );
+
+        assert!(
+            result.steam_deck_caveats.is_some(),
+            "Steam Deck caveats must be present"
+        );
+        assert_eq!(
+            result.critical_failures, 0,
+            "caveats must not add critical failures"
+        );
+        assert_eq!(result.warnings, 0, "caveats must not add warnings");
+        assert!(
+            result.all_passed,
+            "all_passed must remain true when only caveats are present; checks: {:?}",
+            result.checks
         );
     }
 }

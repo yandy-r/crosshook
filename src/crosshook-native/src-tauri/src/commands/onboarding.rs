@@ -1,3 +1,4 @@
+use crosshook_core::onboarding::readiness::apply_steam_deck_caveats_dismissal;
 use crosshook_core::onboarding::{
     apply_install_nag_dismissal, check_system_readiness, ReadinessCheckResult,
     TrainerGuidanceContent, TrainerGuidanceEntry,
@@ -12,6 +13,7 @@ pub fn check_readiness(store: State<'_, SettingsStore>) -> Result<ReadinessCheck
     let settings = store.load().map_err(|e| e.to_string())?;
     let mut result = check_system_readiness();
     apply_install_nag_dismissal(&mut result, &settings.install_nag_dismissed_at);
+    apply_steam_deck_caveats_dismissal(&mut result, &settings.steam_deck_caveats_dismissed_at);
     for issue in &mut result.checks {
         issue.path = sanitize_display_path(&issue.path);
     }
@@ -30,6 +32,16 @@ pub fn dismiss_umu_install_nag(store: State<'_, SettingsStore>) -> Result<(), St
     store
         .update(|settings| {
             settings.install_nag_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
+            Ok::<(), String>(())
+        })
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn dismiss_steam_deck_caveats(store: State<'_, SettingsStore>) -> Result<(), String> {
+    store
+        .update(|settings| {
+            settings.steam_deck_caveats_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
             Ok::<(), String>(())
         })
         .map_err(|e| e.to_string())?
@@ -101,6 +113,7 @@ mod tests {
             check_readiness as fn(State<'_, SettingsStore>) -> Result<ReadinessCheckResult, String>;
         let _ = dismiss_onboarding as fn(State<'_, SettingsStore>) -> Result<(), String>;
         let _ = dismiss_umu_install_nag as fn(State<'_, SettingsStore>) -> Result<(), String>;
+        let _ = dismiss_steam_deck_caveats as fn(State<'_, SettingsStore>) -> Result<(), String>;
         let _ = get_trainer_guidance as fn() -> TrainerGuidanceContent;
     }
 
@@ -135,6 +148,75 @@ mod tests {
         assert!(
             !reloaded.onboarding_completed,
             "install-nag dismissal must not affect onboarding_completed"
+        );
+    }
+
+    /// Exercises the underlying mutation that `dismiss_steam_deck_caveats` performs,
+    /// without requiring Tauri State machinery.
+    #[test]
+    fn dismiss_steam_deck_caveats_updates_settings() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store = SettingsStore::with_base_path(tmp.path().to_path_buf());
+
+        let initial = store.load().unwrap();
+        assert!(
+            initial.steam_deck_caveats_dismissed_at.is_none(),
+            "should start with no dismiss timestamp"
+        );
+
+        store
+            .update(|settings| {
+                settings.steam_deck_caveats_dismissed_at = Some(chrono::Utc::now().to_rfc3339());
+                Ok::<(), String>(())
+            })
+            .unwrap()
+            .unwrap();
+
+        let reloaded = store.load().unwrap();
+        assert!(
+            reloaded.steam_deck_caveats_dismissed_at.is_some(),
+            "dismiss_steam_deck_caveats must persist a non-None timestamp"
+        );
+
+        // Onboarding completion is independent of the caveats dismissal
+        assert!(
+            !reloaded.onboarding_completed,
+            "caveats dismissal must not affect onboarding_completed"
+        );
+    }
+
+    /// Verifies that `apply_steam_deck_caveats_dismissal` clears the caveats payload
+    /// when a dismissal timestamp is present, mirroring the `apply_install_nag_dismissal` contract.
+    #[test]
+    fn check_readiness_applies_steam_deck_caveats_dismissal() {
+        use crosshook_core::onboarding::SteamDeckCaveats;
+
+        let mut result = crosshook_core::onboarding::check_system_readiness();
+        // Manually inject a caveats payload to simulate the Steam Deck path.
+        result.steam_deck_caveats = Some(SteamDeckCaveats {
+            description: "test caveats".to_string(),
+            items: vec!["caveat one".to_string()],
+            docs_url: "https://example.com".to_string(),
+        });
+
+        // A non-None dismissal timestamp must clear the payload.
+        let dismissed_at = Some("2026-04-15T12:00:00Z".to_string());
+        apply_steam_deck_caveats_dismissal(&mut result, &dismissed_at);
+        assert!(
+            result.steam_deck_caveats.is_none(),
+            "apply_steam_deck_caveats_dismissal must clear steam_deck_caveats when dismissed"
+        );
+
+        // A None timestamp must leave the payload untouched.
+        result.steam_deck_caveats = Some(SteamDeckCaveats {
+            description: "test caveats".to_string(),
+            items: vec!["caveat one".to_string()],
+            docs_url: "https://example.com".to_string(),
+        });
+        apply_steam_deck_caveats_dismissal(&mut result, &None);
+        assert!(
+            result.steam_deck_caveats.is_some(),
+            "apply_steam_deck_caveats_dismissal must not clear steam_deck_caveats when not dismissed"
         );
     }
 }

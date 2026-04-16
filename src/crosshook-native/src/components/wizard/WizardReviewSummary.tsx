@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { open as openUrl } from '@/lib/plugin-stubs/shell';
-import type { ReadinessCheckResult, UmuInstallGuidance } from '../../types/onboarding';
+import type { ReadinessCheckResult, SteamDeckCaveats, UmuInstallGuidance } from '../../types/onboarding';
 import { resolveCheckColor, resolveCheckIcon } from './checkBadges';
 import type { WizardValidationResult } from './wizardValidation';
 
@@ -12,6 +12,10 @@ export interface WizardReviewSummaryProps {
   umuInstallGuidance?: UmuInstallGuidance | null;
   /** Called when the user clicks "Dismiss reminder". Must persist dismissal via parent/hook. */
   onDismissUmuInstallNag?: () => void;
+  /** Steam Deck caveats; non-null only when running on a Steam Deck. */
+  steamDeckCaveats?: SteamDeckCaveats | null;
+  /** Called when the user dismisses Steam Deck caveats. Must persist dismissal via parent/hook. */
+  onDismissSteamDeckCaveats?: () => void;
 }
 
 /**
@@ -38,6 +42,8 @@ export function WizardReviewSummary({
   checkError,
   umuInstallGuidance,
   onDismissUmuInstallNag,
+  steamDeckCaveats,
+  onDismissSteamDeckCaveats,
 }: WizardReviewSummaryProps) {
   const [copied, setCopied] = useState(false);
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -184,6 +190,46 @@ export function WizardReviewSummary({
           </section>
         ) : null}
       </section>
+
+      {steamDeckCaveats != null ? (
+        <section
+          className="crosshook-onboarding-wizard__steam-deck-caveats"
+          aria-label="Steam Deck gaming-mode caveats"
+          style={{ marginTop: 12 }}
+        >
+          <p>{steamDeckCaveats.description}</p>
+          <ul>
+            {steamDeckCaveats.items.map((item, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: static content from backend
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+          <div className="crosshook-onboarding-wizard__steam-deck-caveats-actions">
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary crosshook-button--sm"
+              onClick={() => {
+                void openUrl(steamDeckCaveats.docs_url).catch((err) => {
+                  console.error('Failed to open Steam Deck caveats docs', err);
+                });
+              }}
+              aria-label="Open Steam Deck gaming-mode caveats documentation in browser"
+            >
+              Open docs
+            </button>
+            {onDismissSteamDeckCaveats ? (
+              <button
+                type="button"
+                className="crosshook-button crosshook-button--ghost crosshook-button--sm"
+                onClick={onDismissSteamDeckCaveats}
+                aria-label="Dismiss Steam Deck caveats"
+              >
+                Dismiss
+              </button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <p className="crosshook-help-text" style={{ marginTop: 16 }}>
         Tip: Save now, or jump back to any step using <strong>Back</strong>.

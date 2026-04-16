@@ -698,10 +698,16 @@ fn probe_flatpak_host_umu_candidates(home: Option<&Path>, user: Option<&str>) ->
     flatpak_host_umu_candidates(home, user)
         .into_iter()
         .find_map(|candidate| {
-            let candidate_str = candidate.to_string_lossy().into_owned();
-            (is_executable_file(&candidate)
-                || crate::platform::normalized_path_is_executable_file_on_host(&candidate_str))
-            .then_some(candidate_str)
+            let exists = is_executable_file(&candidate)
+                || crate::platform::normalized_path_is_executable_file_on_host(
+                    &candidate.to_string_lossy(),
+                );
+            tracing::debug!(
+                candidate = %candidate.display(),
+                exists,
+                "flatpak host umu candidate probe"
+            );
+            exists.then(|| candidate.to_string_lossy().into_owned())
         })
 }
 

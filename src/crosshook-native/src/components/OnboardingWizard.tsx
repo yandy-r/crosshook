@@ -102,6 +102,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     isRunningChecks,
     lastCheckedAt,
     umuInstallGuidance,
+    steamDeckCaveats,
     isIdentityGame,
     isRuntime,
     isTrainer,
@@ -113,6 +114,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     goBack,
     dismiss,
     dismissUmuInstallNag,
+    dismissSteamDeckCaveats,
     setCompletedProfileName,
   } = useOnboarding();
 
@@ -472,6 +474,8 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 checkError={checkError}
                 umuInstallGuidance={umuInstallGuidance}
                 onDismissUmuInstallNag={() => void dismissUmuInstallNag()}
+                steamDeckCaveats={steamDeckCaveats}
+                onDismissSteamDeckCaveats={() => void dismissSteamDeckCaveats()}
               />
             </section>
           )}

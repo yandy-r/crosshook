@@ -38,6 +38,8 @@ export interface SettingsSaveRequest {
   umu_preference: UmuPreference;
   /** RFC 3339 timestamp of when the user dismissed the umu install nag; `null` = not yet dismissed. */
   install_nag_dismissed_at?: string | null;
+  /** RFC 3339 timestamp of when the user dismissed the Steam Deck caveats nag; `null` = not yet dismissed. */
+  steam_deck_caveats_dismissed_at?: string | null;
 }
 
 export interface AppSettingsData extends SettingsSaveRequest {
@@ -79,6 +81,9 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
   if (s.install_nag_dismissed_at != null) {
     base.install_nag_dismissed_at = s.install_nag_dismissed_at;
   }
+  if (s.steam_deck_caveats_dismissed_at != null) {
+    base.steam_deck_caveats_dismissed_at = s.steam_deck_caveats_dismissed_at;
+  }
   return base;
 }
 
@@ -108,6 +113,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   protonup_binary_path: '',
   umu_preference: 'auto',
   install_nag_dismissed_at: null,
+  steam_deck_caveats_dismissed_at: null,
 };
 
 export interface RecentFilesData {

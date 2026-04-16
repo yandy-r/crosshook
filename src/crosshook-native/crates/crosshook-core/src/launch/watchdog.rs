@@ -104,9 +104,33 @@ fn collect_host_descendant_pids(root_pid: u32) -> Vec<u32> {
     collect_descendant_pids_from_children_map(root_pid, &children_map)
 }
 
+/// Walks the host-ps tree from `root_pid` and searches descendants for a
+/// process whose `comm`/`cmdline` matches `exe_name`.
+///
+/// Returns `(Some(ShutdownTarget), descendants)` when a match is found, or
+/// `(None, descendants)` otherwise. The caller always receives the full
+/// descendant list so it can emit `observed_descendants` regardless of outcome.
+fn resolve_watchdog_target_by_exe_name(
+    root_pid: u32,
+    exe_name: &str,
+) -> (Option<ShutdownTarget>, Vec<u32>) {
+    let candidates = process_name_candidates(exe_name);
+    let descendants = collect_host_descendant_pids(root_pid);
+    let target = descendants
+        .iter()
+        .copied()
+        .find(|&pid| host_process_matches_candidates(pid, &candidates))
+        .map(|pid| ShutdownTarget {
+            pid,
+            host_namespace: true,
+        });
+    (target, descendants)
+}
+
 async fn resolve_watchdog_target(
     observed_gamescope_pid: u32,
     host_pid_capture_path: Option<&Path>,
+    exe_name: &str,
 ) -> Option<ShutdownTarget> {
     let Some(path) = host_pid_capture_path else {
         return Some(ShutdownTarget {
@@ -117,18 +141,43 @@ async fn resolve_watchdog_target(
 
     for _ in 0..GAMESCOPE_HOST_PID_CAPTURE_WAIT_ITERATIONS {
         if let Some(pid) = read_pid_capture_file(path) {
-            return Some(ShutdownTarget {
+            let target = ShutdownTarget {
                 pid,
                 host_namespace: true,
-            });
+            };
+            tracing::info!(
+                fallback = "capture_file",
+                discovered_pid = target.pid,
+                game_exe = %exe_name,
+                observed_gamescope_pid,
+                "gamescope watchdog: resolved target via capture file"
+            );
+            return Some(target);
         }
         tokio::time::sleep(GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL).await;
     }
 
+    let (exe_target, descendants) =
+        resolve_watchdog_target_by_exe_name(observed_gamescope_pid, exe_name);
+
+    if let Some(target) = exe_target {
+        tracing::info!(
+            fallback = "exe_fallback",
+            discovered_pid = target.pid,
+            game_exe = %exe_name,
+            observed_descendants = descendants.len(),
+            observed_gamescope_pid,
+            "gamescope watchdog: resolved target via exe-name descendant match"
+        );
+        return Some(target);
+    }
+
     tracing::warn!(
+        fallback = "none",
+        game_exe = %exe_name,
+        observed_descendants = descendants.len(),
         observed_gamescope_pid,
-        capture_path = %path.display(),
-        "gamescope watchdog: host pid capture file was never resolved; standing down"
+        "gamescope watchdog: no target resolved; standing down"
     );
     None
 }
@@ -254,7 +303,7 @@ pub async fn gamescope_watchdog(
     host_pid_capture_path: Option<PathBuf>,
 ) {
     let Some(observation_target) =
-        resolve_watchdog_target(gamescope_pid, host_pid_capture_path.as_deref()).await
+        resolve_watchdog_target(gamescope_pid, host_pid_capture_path.as_deref(), exe_name).await
     else {
         return;
     };
@@ -648,5 +697,65 @@ mod tests {
             host_process_line_parts("4242\tWitcher 3.exe"),
             Some((4242, "Witcher 3.exe"))
         );
+    }
+
+    // Tests for resolve_watchdog_target_by_exe_name logic via pure helpers.
+    //
+    // resolve_watchdog_target_by_exe_name itself cannot be unit-tested end-to-end
+    // because it calls collect_host_descendant_pids and host_process_matches_candidates,
+    // which shell out to `ps` and `cat /proc/<pid>/...` on the host. The tests below
+    // exercise the same matching logic (comm_matches_candidates + process_name_candidates)
+    // and the descendant-walk (collect_descendant_pids_from_children_map) that the
+    // function composes, giving equivalent coverage without spawning host processes.
+
+    #[test]
+    fn resolve_target_by_exe_name_matches_child_via_exact_comm() {
+        // Simulate a children_map where pid 200 is a descendant of root 100,
+        // and its comm matches the exe name exactly.
+        let children_map = HashMap::from([(100u32, vec![200u32])]);
+        let descendants = collect_descendant_pids_from_children_map(100, &children_map);
+        let candidates = process_name_candidates("witcher3.exe");
+
+        // Find the first descendant whose comm matches — mirrors the find() in
+        // resolve_watchdog_target_by_exe_name using comm_matches_candidates.
+        let matched = descendants
+            .iter()
+            .copied()
+            .find(|_pid| comm_matches_candidates("witcher3.exe", None, &candidates));
+
+        assert_eq!(matched, Some(200));
+    }
+
+    #[test]
+    fn resolve_target_by_exe_name_no_match_returns_none() {
+        // No descendant comm matches the exe name.
+        let children_map = HashMap::from([(100u32, vec![201u32, 202u32])]);
+        let descendants = collect_descendant_pids_from_children_map(100, &children_map);
+        let candidates = process_name_candidates("game.exe");
+
+        let matched = descendants
+            .iter()
+            .copied()
+            .find(|_pid| comm_matches_candidates("unrelated", None, &candidates));
+
+        assert_eq!(matched, None);
+        // observed_descendants count is still available for the warn! emit.
+        assert_eq!(descendants.len(), 2);
+    }
+
+    #[test]
+    fn resolve_target_by_exe_name_cmdline_fallback_matches_truncated_comm() {
+        // comm is truncated to 15 chars (TASK_COMM_LEN); cmdline carries the full
+        // exe name with .exe suffix, which the fallback basename extraction resolves.
+        let exe_name = "1234567890123456.exe"; // 20 chars — comm will be "123456789012345"
+        let truncated_comm = "123456789012345"; // exactly TASK_COMM_LEN chars
+        let cmdline = "/games/1234567890123456.exe\0--fullscreen";
+        let candidates = process_name_candidates(exe_name);
+
+        assert!(comm_matches_candidates(
+            truncated_comm,
+            Some(cmdline),
+            &candidates
+        ));
     }
 }

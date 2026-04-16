@@ -220,6 +220,9 @@ pub struct AppSettingsData {
     pub umu_preference: UmuPreference,
     /// RFC 3339 timestamp of when the user dismissed the umu install nag; `None` = not dismissed.
     pub install_nag_dismissed_at: Option<String>,
+    /// RFC 3339 timestamp of when the user dismissed the Steam Deck gaming-mode caveats;
+    /// `None` = not dismissed.
+    pub steam_deck_caveats_dismissed_at: Option<String>,
 }
 
 impl Default for AppSettingsData {
@@ -247,6 +250,7 @@ impl Default for AppSettingsData {
             protonup_binary_path: String::new(),
             umu_preference: UmuPreference::Auto,
             install_nag_dismissed_at: None,
+            steam_deck_caveats_dismissed_at: None,
         }
     }
 }
@@ -292,6 +296,10 @@ impl fmt::Debug for AppSettingsData {
             .field("protonup_binary_path", &self.protonup_binary_path)
             .field("umu_preference", &self.umu_preference)
             .field("install_nag_dismissed_at", &self.install_nag_dismissed_at)
+            .field(
+                "steam_deck_caveats_dismissed_at",
+                &self.steam_deck_caveats_dismissed_at,
+            )
             .finish()
     }
 }
@@ -657,6 +665,42 @@ mod tests {
             loaded.install_nag_dismissed_at,
             Some(timestamp),
             "install_nag_dismissed_at must survive a save/load roundtrip"
+        );
+    }
+
+    #[test]
+    fn settings_backward_compat_without_steam_deck_caveats_dismissed_at() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SettingsStore::with_base_path(dir.path().to_path_buf());
+        let path = store.settings_path();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            "auto_load_last_profile = false\nlast_used_profile = \"\"\n",
+        )
+        .unwrap();
+        let loaded = store.load().unwrap();
+        assert!(
+            loaded.steam_deck_caveats_dismissed_at.is_none(),
+            "steam_deck_caveats_dismissed_at should default to None when absent from settings.toml"
+        );
+    }
+
+    #[test]
+    fn settings_roundtrip_steam_deck_caveats_dismissed_at() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SettingsStore::with_base_path(dir.path().to_path_buf());
+        let timestamp = "2026-04-15T12:00:00Z".to_string();
+        let settings = AppSettingsData {
+            steam_deck_caveats_dismissed_at: Some(timestamp.clone()),
+            ..Default::default()
+        };
+        store.save(&settings).unwrap();
+        let loaded = store.load().unwrap();
+        assert_eq!(
+            loaded.steam_deck_caveats_dismissed_at,
+            Some(timestamp),
+            "steam_deck_caveats_dismissed_at must survive a save/load roundtrip"
         );
     }
 

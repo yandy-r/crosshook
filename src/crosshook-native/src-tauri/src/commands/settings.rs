@@ -51,6 +51,8 @@ pub struct AppSettingsIpcData {
     pub umu_preference: UmuPreference,
     /// RFC 3339 timestamp of when the user dismissed the umu install nag; `None` = not dismissed.
     pub install_nag_dismissed_at: Option<String>,
+    /// RFC 3339 timestamp of when the user dismissed the Steam Deck caveats; `None` = not dismissed.
+    pub steam_deck_caveats_dismissed_at: Option<String>,
 }
 
 impl AppSettingsIpcData {
@@ -89,6 +91,7 @@ impl AppSettingsIpcData {
             protonup_binary_path: data.protonup_binary_path,
             umu_preference: data.umu_preference,
             install_nag_dismissed_at: data.install_nag_dismissed_at,
+            steam_deck_caveats_dismissed_at: data.steam_deck_caveats_dismissed_at,
         }
     }
 }
@@ -133,6 +136,8 @@ pub struct SettingsSaveRequest {
     pub umu_preference: Option<UmuPreference>,
     #[serde(default)]
     pub install_nag_dismissed_at: Option<Option<String>>,
+    #[serde(default)]
+    pub steam_deck_caveats_dismissed_at: Option<Option<String>>,
 }
 
 fn merge_settings_from_request(
@@ -180,6 +185,9 @@ fn merge_settings_from_request(
         install_nag_dismissed_at: data
             .install_nag_dismissed_at
             .unwrap_or(current.install_nag_dismissed_at),
+        steam_deck_caveats_dismissed_at: data
+            .steam_deck_caveats_dismissed_at
+            .unwrap_or(current.steam_deck_caveats_dismissed_at),
     }
 }
 
@@ -308,6 +316,7 @@ mod tests {
             protonup_binary_path: None,
             umu_preference: None,
             install_nag_dismissed_at: None,
+            steam_deck_caveats_dismissed_at: None,
         }
     }
 
@@ -422,6 +431,73 @@ mod tests {
         assert!(
             json.contains("install_nag_dismissed_at"),
             "serialized IPC DTO must always contain the install_nag_dismissed_at key (as null when unset)"
+        );
+    }
+
+    #[test]
+    fn merge_steam_deck_caveats_dismissed_at_preserves_when_absent() {
+        let current = AppSettingsData {
+            steam_deck_caveats_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
+            ..Default::default()
+        };
+        let request = make_save_request();
+        let merged = merge_settings_from_request(request, current);
+        assert_eq!(
+            merged.steam_deck_caveats_dismissed_at,
+            Some("2026-04-15T12:00:00Z".to_string()),
+            "absent field must preserve existing timestamp"
+        );
+    }
+
+    #[test]
+    fn merge_steam_deck_caveats_dismissed_at_sets_when_value_provided() {
+        let current = AppSettingsData {
+            steam_deck_caveats_dismissed_at: None,
+            ..Default::default()
+        };
+        let mut request = make_save_request();
+        request.steam_deck_caveats_dismissed_at = Some(Some("2026-04-15T12:00:00Z".to_string()));
+        let merged = merge_settings_from_request(request, current);
+        assert_eq!(
+            merged.steam_deck_caveats_dismissed_at,
+            Some("2026-04-15T12:00:00Z".to_string()),
+            "explicit timestamp must be stored"
+        );
+    }
+
+    #[test]
+    fn merge_steam_deck_caveats_dismissed_at_clears_when_explicit_null() {
+        let current = AppSettingsData {
+            steam_deck_caveats_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
+            ..Default::default()
+        };
+        let mut request = make_save_request();
+        request.steam_deck_caveats_dismissed_at = Some(None);
+        let merged = merge_settings_from_request(request, current);
+        assert!(
+            merged.steam_deck_caveats_dismissed_at.is_none(),
+            "explicit null must clear the stored timestamp"
+        );
+    }
+
+    #[test]
+    fn serialization_contains_steam_deck_caveats_dismissed_at() {
+        let timestamp = "2026-04-15T12:00:00Z".to_string();
+        let data = AppSettingsData {
+            steam_deck_caveats_dismissed_at: Some(timestamp.clone()),
+            ..Default::default()
+        };
+        let resolved = PathBuf::from("/tmp/profiles");
+        let active = PathBuf::from("/tmp/profiles");
+        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        let json = serde_json::to_string(&ipc).expect("serialization must not fail");
+        assert!(
+            json.contains("steam_deck_caveats_dismissed_at"),
+            "serialized IPC DTO must contain the steam_deck_caveats_dismissed_at key"
+        );
+        assert!(
+            json.contains(&timestamp),
+            "serialized IPC DTO must contain the timestamp value"
         );
     }
 }

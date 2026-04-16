@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::profile::health::HealthIssue;
 
-pub use readiness::{apply_install_nag_dismissal, check_system_readiness};
+pub use readiness::{
+    apply_install_nag_dismissal, apply_steam_deck_caveats_dismissal, check_system_readiness,
+};
 
 /// Actionable installation guidance for umu-launcher on the host, emitted when
 /// running inside a Flatpak sandbox and `umu-run` cannot be resolved from the
@@ -19,6 +21,18 @@ pub struct UmuInstallGuidance {
     pub description: String,
 }
 
+/// Caveats and known limitations for Steam Deck users, surfaced during onboarding
+/// when the system is identified as a Steam Deck.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SteamDeckCaveats {
+    /// Human-readable summary of the Steam Deck caveat context.
+    pub description: String,
+    /// Individual caveat items the user should be aware of.
+    pub items: Vec<String>,
+    /// URL pointing to relevant documentation for Steam Deck usage.
+    pub docs_url: String,
+}
+
 /// System readiness check result returned by `check_system_readiness`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadinessCheckResult {
@@ -30,6 +44,9 @@ pub struct ReadinessCheckResult {
     /// Flatpak sandbox and `umu-run` cannot be resolved on the host.
     /// `None` for native installs and when umu-run is already available.
     pub umu_install_guidance: Option<UmuInstallGuidance>,
+    /// Known Steam Deck caveats surfaced during onboarding when the system is
+    /// identified as a Steam Deck. `None` on non-Steam-Deck systems.
+    pub steam_deck_caveats: Option<SteamDeckCaveats>,
 }
 
 /// A single trainer source or loading mode entry in onboarding guidance.
