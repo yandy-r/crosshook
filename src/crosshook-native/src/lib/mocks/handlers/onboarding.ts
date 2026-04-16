@@ -21,6 +21,18 @@ const ONBOARDING_EMIT_INITIAL_MS = 500;
 const ONBOARDING_EMIT_RETRY_MS = 200;
 const ONBOARDING_EMIT_MAX_ATTEMPTS = 25;
 
+interface DismissReadinessNagArgs {
+  toolId: string;
+}
+
+function isDismissReadinessNagArgs(value: unknown): value is DismissReadinessNagArgs {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as { toolId?: unknown };
+  return typeof candidate.toolId === 'string' && candidate.toolId.trim() !== '';
+}
+
 function maybeSynthesizeOnboardingEvent(): void {
   if (onboardingEventSynthesized) return;
   if (!getActiveToggles().showOnboarding) return;
@@ -59,6 +71,60 @@ function buildMockReadinessResult(): ReadinessCheckResult {
   const store = getStore();
   const toggles = getActiveToggles();
   const dismissed = store.settings.install_nag_dismissed_at != null;
+  const toolChecks: ReadinessCheckResult['tool_checks'] = [
+    {
+      tool_id: 'gamescope',
+      display_name: 'Gamescope',
+      is_available: false,
+      is_required: false,
+      category: 'performance',
+      docs_url: 'https://github.com/ValveSoftware/gamescope',
+      install_guidance: {
+        distro_family: 'Arch',
+        command: 'sudo pacman -S gamescope',
+        alternatives: 'Also available on the AUR as gamescope-git.',
+      },
+    },
+    {
+      tool_id: 'mangohud',
+      display_name: 'MangoHud',
+      is_available: true,
+      is_required: false,
+      category: 'overlay',
+      docs_url: 'https://github.com/flightlessmango/MangoHud',
+      install_guidance: null,
+    },
+    {
+      tool_id: 'game_performance',
+      display_name: 'game-performance',
+      is_available: false,
+      is_required: false,
+      category: 'performance',
+      docs_url: 'https://wiki.cachyos.org/',
+      install_guidance: {
+        distro_family: 'Arch',
+        command: 'sudo pacman -S game-performance',
+        alternatives: 'CachyOS package; on vanilla Arch use CachyOS repos or AUR if available.',
+      },
+    },
+    {
+      tool_id: 'gamemode',
+      display_name: 'GameMode',
+      is_available: true,
+      is_required: false,
+      category: 'performance',
+      docs_url: 'https://github.com/FeralInteractive/gamemode',
+      install_guidance: null,
+    },
+  ].map((tool) =>
+    store.dismissedReadinessToolIds.has(tool.tool_id)
+      ? {
+          ...tool,
+          install_guidance: null,
+        }
+      : tool
+  );
+
   return {
     checks: [],
     all_passed: true,
@@ -85,52 +151,7 @@ function buildMockReadinessResult(): ReadinessCheckResult {
             docs_url: 'https://github.com/ValveSoftware/gamescope/issues',
           }
         : null,
-    tool_checks: [
-      {
-        tool_id: 'gamescope',
-        display_name: 'Gamescope',
-        is_available: false,
-        is_required: false,
-        category: 'performance',
-        docs_url: 'https://github.com/ValveSoftware/gamescope',
-        install_guidance: {
-          distro_family: 'Arch',
-          command: 'sudo pacman -S gamescope',
-          alternatives: 'Also available on the AUR as gamescope-git.',
-        },
-      },
-      {
-        tool_id: 'mangohud',
-        display_name: 'MangoHud',
-        is_available: true,
-        is_required: false,
-        category: 'overlay',
-        docs_url: 'https://github.com/flightlessmango/MangoHud',
-        install_guidance: null,
-      },
-      {
-        tool_id: 'game_performance',
-        display_name: 'game-performance',
-        is_available: false,
-        is_required: false,
-        category: 'performance',
-        docs_url: 'https://wiki.cachyos.org/',
-        install_guidance: {
-          distro_family: 'Arch',
-          command: 'sudo pacman -S game-performance',
-          alternatives: 'CachyOS package; on vanilla Arch use CachyOS repos or AUR if available.',
-        },
-      },
-      {
-        tool_id: 'gamemode',
-        display_name: 'GameMode',
-        is_available: true,
-        is_required: false,
-        category: 'performance',
-        docs_url: 'https://github.com/FeralInteractive/gamemode',
-        install_guidance: null,
-      },
-    ],
+    tool_checks: toolChecks,
     detected_distro_family: 'Arch',
   };
 }
@@ -163,7 +184,11 @@ export function registerOnboarding(map: Map<string, Handler>): void {
     return null;
   });
 
-  map.set('dismiss_readiness_nag', async (): Promise<null> => {
+  map.set('dismiss_readiness_nag', async (args: unknown): Promise<null> => {
+    if (!isDismissReadinessNagArgs(args)) {
+      throw new Error('dismiss_readiness_nag requires a non-empty toolId');
+    }
+    getStore().dismissedReadinessToolIds.add(args.toolId);
     return null;
   });
 

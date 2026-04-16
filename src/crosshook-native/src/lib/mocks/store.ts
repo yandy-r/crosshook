@@ -9,6 +9,7 @@ export interface MockStore {
   profiles: Map<string, GameProfile>;
   activeProfileId: string | null;
   defaultSteamClientInstallPath: string;
+  dismissedReadinessToolIds: Set<string>;
 }
 
 const EMPTY_RECENT_FILES: RecentFilesData = {
@@ -27,6 +28,7 @@ export function getStore(): MockStore {
       profiles: new Map(),
       activeProfileId: null,
       defaultSteamClientInstallPath: '/home/devuser/.steam/steam',
+      dismissedReadinessToolIds: new Set(),
     };
   }
   return store;

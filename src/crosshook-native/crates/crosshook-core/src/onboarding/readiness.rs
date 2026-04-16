@@ -139,7 +139,14 @@ fn detect_host_distro_family() -> HostDistroFamily {
 fn build_umu_install_advice(distro_family: HostDistroFamily) -> UmuInstallAdvice {
     let catalog = global_readiness_catalog();
     if let Some(entry) = catalog.find_by_id("umu_run") {
-        if let Some(cmd) = ReadinessCatalog::install_for_distro(entry, distro_family) {
+        let install_command = ReadinessCatalog::install_for_distro(entry, distro_family)
+            .filter(|cmd| !cmd.command.trim().is_empty())
+            .or_else(|| {
+                ReadinessCatalog::install_for_distro(entry, HostDistroFamily::Unknown)
+                    .filter(|cmd| !cmd.command.trim().is_empty())
+            });
+
+        if let Some(cmd) = install_command {
             let guidance = UmuInstallGuidance {
                 install_command: cmd.command.clone(),
                 docs_url: entry.docs_url.clone(),
@@ -845,6 +852,28 @@ mod tests {
         assert_eq!(
             nix.guidance.install_command,
             "nix profile install nixpkgs#umu-launcher"
+        );
+    }
+
+    #[test]
+    fn build_umu_install_advice_skips_empty_catalog_commands() {
+        let cat = crate::onboarding::load_readiness_catalog(None);
+        crate::onboarding::initialize_readiness_catalog(cat);
+
+        let steam_os = build_umu_install_advice(HostDistroFamily::SteamOS);
+        assert_eq!(
+            steam_os.guidance.install_command,
+            "pipx install umu-launcher"
+        );
+        assert!(
+            steam_os.remediation.contains("pipx install umu-launcher"),
+            "SteamOS fallback should stay actionable when the catalog command is blank"
+        );
+
+        let gaming_immutable = build_umu_install_advice(HostDistroFamily::GamingImmutable);
+        assert_eq!(
+            gaming_immutable.guidance.install_command,
+            "pipx install umu-launcher"
         );
     }
 

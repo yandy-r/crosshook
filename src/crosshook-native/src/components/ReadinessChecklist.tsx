@@ -121,6 +121,20 @@ function groupHostToolsByCategory(
   }));
 }
 
+function hasExpandableGuidance(tool: HostToolCheckResult): boolean {
+  const guidance = tool.install_guidance;
+  if (guidance == null) {
+    return false;
+  }
+  if (guidance.command.trim() !== '') {
+    return true;
+  }
+  if (guidance.alternatives.trim() !== '') {
+    return true;
+  }
+  return (tool.docs_url ?? '').trim() !== '';
+}
+
 export interface HostToolsReadinessSectionProps {
   toolChecks: HostToolCheckResult[];
   detectedDistroFamily: string;
@@ -190,8 +204,12 @@ export function HostToolsReadinessSection({
               const icon = tool.is_available ? '✓' : tool.is_required ? '✕' : '⚠';
               const badge = tool.is_available ? 'OK' : tool.is_required ? 'Missing' : 'Optional';
               const guidance = tool.install_guidance;
-              const hasGuidance = guidance != null && guidance.command.trim() !== '';
               const docs = (tool.docs_url ?? '').trim();
+              const hasGuidance = hasExpandableGuidance(tool);
+              const hasCommand = guidance != null && guidance.command.trim() !== '';
+              const command = guidance?.command ?? '';
+              const distroFamily = guidance?.distro_family ?? '';
+              const alternatives = guidance?.alternatives.trim() ?? '';
               const expanded = expandedId === tool.tool_id;
 
               return (
@@ -236,26 +254,30 @@ export function HostToolsReadinessSection({
                       className="crosshook-onboarding-wizard__umu-guidance"
                       style={{ marginTop: 8, marginLeft: '1.75rem' }}
                     >
-                      <p className="crosshook-help-text" style={{ marginBottom: 6 }}>
-                        <span className="crosshook-help-text" style={{ fontWeight: 600 }}>
-                          {guidance.distro_family}:{' '}
-                        </span>
-                        <code style={{ wordBreak: 'break-all' }}>{guidance.command}</code>
-                      </p>
-                      {guidance.alternatives.trim() ? (
+                      {hasCommand ? (
+                        <p className="crosshook-help-text" style={{ marginBottom: 6 }}>
+                          <span className="crosshook-help-text" style={{ fontWeight: 600 }}>
+                            {distroFamily}:{' '}
+                          </span>
+                          <code style={{ wordBreak: 'break-all' }}>{command}</code>
+                        </p>
+                      ) : null}
+                      {alternatives ? (
                         <p className="crosshook-help-text" style={{ marginBottom: 8 }}>
-                          {guidance.alternatives}
+                          {alternatives}
                         </p>
                       ) : null}
                       <div className="crosshook-onboarding-wizard__umu-guidance-actions">
-                        <button
-                          type="button"
-                          className="crosshook-button crosshook-button--secondary crosshook-button--sm"
-                          onClick={() => void handleCopyCommand(tool.tool_id, guidance.command)}
-                          title={guidance.command}
-                        >
-                          {copiedToolId === tool.tool_id ? 'Copied!' : 'Copy command'}
-                        </button>
+                        {hasCommand ? (
+                          <button
+                            type="button"
+                            className="crosshook-button crosshook-button--secondary crosshook-button--sm"
+                            onClick={() => void handleCopyCommand(tool.tool_id, command)}
+                            title={command}
+                          >
+                            {copiedToolId === tool.tool_id ? 'Copied!' : 'Copy command'}
+                          </button>
+                        ) : null}
                         {docs ? (
                           <button
                             type="button"

@@ -12,6 +12,16 @@ use tauri::State;
 
 use super::shared::sanitize_display_path;
 
+fn require_readiness_metadata(metadata: &MetadataStore) -> Result<(), String> {
+    if metadata.is_available() {
+        Ok(())
+    } else {
+        Err(
+            "readiness nag dismissals require the SQLite metadata store; dismiss_umu_install_nag and dismiss_steam_deck_caveats remain available via settings.toml".to_string(),
+        )
+    }
+}
+
 #[tauri::command]
 pub fn check_readiness(
     store: State<'_, SettingsStore>,
@@ -118,9 +128,7 @@ pub fn dismiss_readiness_nag(
     tool_id: String,
     ttl_days: Option<u32>,
 ) -> Result<(), String> {
-    if !metadata.is_available() {
-        return Ok(());
-    }
+    require_readiness_metadata(&metadata)?;
     let catalog = global_readiness_catalog();
     if catalog.find_by_id(&tool_id).is_none() {
         return Err(format!(
@@ -212,6 +220,24 @@ mod tests {
         let _ = dismiss_readiness_nag
             as fn(State<'_, MetadataStore>, String, Option<u32>) -> Result<(), String>;
         let _ = get_trainer_guidance as fn() -> TrainerGuidanceContent;
+    }
+
+    #[test]
+    fn require_readiness_metadata_rejects_disabled_store() {
+        let metadata = MetadataStore::disabled();
+        let error = require_readiness_metadata(&metadata).expect_err(
+            "disabled metadata store should surface an error so the frontend does not pretend dismissal succeeded",
+        );
+        assert!(
+            error.contains("SQLite metadata store"),
+            "error should explain why per-tool readiness dismissal could not be persisted"
+        );
+    }
+
+    #[test]
+    fn require_readiness_metadata_accepts_available_store() {
+        let metadata = MetadataStore::open_in_memory().expect("in-memory metadata store");
+        require_readiness_metadata(&metadata).expect("available metadata store should be accepted");
     }
 
     /// Exercises the underlying mutation that `dismiss_umu_install_nag` performs,
