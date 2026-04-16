@@ -1,7 +1,12 @@
 import { useCallback, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 
-import type { OnboardingWizardStage, ReadinessCheckResult, UmuInstallGuidance } from '../types/onboarding';
+import type {
+  OnboardingWizardStage,
+  ReadinessCheckResult,
+  SteamDeckCaveats,
+  UmuInstallGuidance,
+} from '../types/onboarding';
 import type { VersionCheckResult } from '../types/version';
 
 const STAGE_SEQUENCE: OnboardingWizardStage[] = ['identity_game', 'runtime', 'trainer', 'media', 'review', 'completed'];
@@ -33,6 +38,11 @@ export interface UseOnboardingResult {
   dismissUmuInstallNag: () => Promise<void>;
   reset: () => void;
   setCompletedProfileName: (name: string) => void;
+  /** Steam Deck-specific caveats derived from the latest readiness result.
+   * Non-null only when running on a Steam Deck. */
+  steamDeckCaveats: SteamDeckCaveats | null;
+  /** Persists the Steam Deck caveats dismissal via the backend and clears local caveats state. */
+  dismissSteamDeckCaveats: () => Promise<void>;
 }
 
 function deriveStatusText(stage: OnboardingWizardStage): string {
@@ -174,6 +184,16 @@ export function useOnboarding(): UseOnboardingResult {
     }
   }, []);
 
+  const dismissSteamDeckCaveats = useCallback(async () => {
+    try {
+      await callCommand<void>('dismiss_steam_deck_caveats');
+      setCheckError(null);
+      setReadinessResult((prev) => (prev == null ? null : { ...prev, steam_deck_caveats: null }));
+    } catch (error) {
+      setCheckError(error instanceof Error ? error.message : 'Could not save Steam Deck caveats preference.');
+    }
+  }, []);
+
   const reset = useCallback(() => {
     const initial = createInitialOnboardingState();
     setStage(initial.stage);
@@ -189,6 +209,7 @@ export function useOnboarding(): UseOnboardingResult {
   const hintText = deriveHintText(stage);
   const actionLabel = deriveActionLabel(stage);
   const umuInstallGuidance = readinessResult?.umu_install_guidance ?? null;
+  const steamDeckCaveats = readinessResult?.steam_deck_caveats ?? null;
 
   return {
     stage,
@@ -214,5 +235,7 @@ export function useOnboarding(): UseOnboardingResult {
     dismissUmuInstallNag,
     reset,
     setCompletedProfileName: setLastCreatedProfileName,
+    steamDeckCaveats,
+    dismissSteamDeckCaveats,
   };
 }

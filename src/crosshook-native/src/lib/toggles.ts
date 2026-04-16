@@ -28,6 +28,8 @@ export interface DebugToggles {
   forceErrors: boolean;
   /** If true, synthesize an `onboarding-check` event at module init. */
   showOnboarding: boolean;
+  /** If true, populate `steam_deck_caveats` in `check_readiness` responses (when not yet dismissed). */
+  showSteamDeckCaveats: boolean;
 }
 
 function safeReadSearchParams(): URLSearchParams {
@@ -46,7 +48,8 @@ function parseToggles(): DebugToggles {
   const delayMs = Number.isFinite(parsedDelay) && parsedDelay > 0 ? parsedDelay : 0;
   const forceErrors = params.get('errors') === 'true';
   const showOnboarding = params.get('onboarding') === 'show';
-  return { delayMs, forceErrors, showOnboarding };
+  const showSteamDeckCaveats = params.get('steamDeckCaveats') === 'show';
+  return { delayMs, forceErrors, showOnboarding, showSteamDeckCaveats };
 }
 
 const ACTIVE_TOGGLES: DebugToggles = parseToggles();
@@ -69,5 +72,6 @@ export function togglesToChipFragments(toggles: DebugToggles): readonly string[]
   if (toggles.forceErrors) fragments.push('errors');
   if (toggles.delayMs > 0) fragments.push(`${toggles.delayMs}ms`);
   if (toggles.showOnboarding) fragments.push('onboarding');
+  if (toggles.showSteamDeckCaveats) fragments.push('steamDeckCaveats');
   return fragments;
 }

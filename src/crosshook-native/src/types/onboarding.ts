@@ -12,6 +12,16 @@ export interface UmuInstallGuidance {
   description: string;
 }
 
+/** Caveats shown when running on a Steam Deck, mirroring the Rust `SteamDeckCaveats` struct. */
+export interface SteamDeckCaveats {
+  /** Human-readable description for the caveats row. */
+  description: string;
+  /** List of individual caveat items to display. */
+  items: string[];
+  /** URL pointing to relevant documentation. */
+  docs_url: string;
+}
+
 export interface ReadinessCheckResult {
   checks: HealthIssue[];
   all_passed: boolean;
@@ -19,6 +29,8 @@ export interface ReadinessCheckResult {
   warnings: number;
   /** Actionable umu install guidance; non-null only for Flatpak + missing umu-run. */
   umu_install_guidance: UmuInstallGuidance | null;
+  /** Steam Deck-specific caveats; non-null only when running on a Steam Deck. */
+  steam_deck_caveats: SteamDeckCaveats | null;
 }
 
 export type OnboardingWizardStage = 'identity_game' | 'runtime' | 'trainer' | 'media' | 'review' | 'completed';

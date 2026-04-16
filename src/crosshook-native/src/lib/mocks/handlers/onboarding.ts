@@ -58,7 +58,9 @@ maybeSynthesizeOnboardingEvent();
 export function registerOnboarding(map: Map<string, Handler>): void {
   maybeSynthesizeOnboardingEvent();
   map.set('check_readiness', async (): Promise<ReadinessCheckResult> => {
-    const dismissed = getStore().settings.install_nag_dismissed_at != null;
+    const store = getStore();
+    const toggles = getActiveToggles();
+    const dismissed = store.settings.install_nag_dismissed_at != null;
     return {
       checks: [],
       all_passed: true,
@@ -72,6 +74,19 @@ export function registerOnboarding(map: Map<string, Handler>): void {
             description:
               'Install umu-launcher on your host to enable improved Proton runtime bootstrapping for non-Steam launches.',
           },
+      steam_deck_caveats:
+        toggles.showSteamDeckCaveats && store.settings.steam_deck_caveats_dismissed_at == null
+          ? {
+              description:
+                'CrossHook works on Steam Deck desktop mode today. In gaming mode you may hit these documented upstream issues on SteamOS 3.7+:',
+              items: [
+                'Black screen until Shader Pre-Caching completes — enable it in Steam Settings → Downloads → Shader Pre-Caching',
+                'Steam overlay can render below the game under gamescope + Flatpak',
+                'HDR + gamescope + Flatpak regression on SteamOS 3.7.13 (toggle HDR off if the screen tints or flickers)',
+              ],
+              docs_url: 'https://github.com/ValveSoftware/gamescope/issues',
+            }
+          : null,
     };
   });
 
@@ -85,6 +100,11 @@ export function registerOnboarding(map: Map<string, Handler>): void {
   map.set('dismiss_umu_install_nag', async (): Promise<null> => {
     const store = getStore();
     store.settings.install_nag_dismissed_at = new Date().toISOString();
+    return null;
+  });
+
+  map.set('dismiss_steam_deck_caveats', async (): Promise<null> => {
+    getStore().settings.steam_deck_caveats_dismissed_at = new Date().toISOString();
     return null;
   });
 

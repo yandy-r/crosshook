@@ -82,6 +82,111 @@ fn parse_host_pid_and_ppid(line: &str) -> Option<(u32, u32)> {
     Some((pid, ppid))
 }
 
+#[derive(Clone, Debug)]
+struct HostProcessEntry {
+    pid: u32,
+    ppid: u32,
+    comm: String,
+}
+
+fn parse_host_process_entry(line: &str) -> Option<HostProcessEntry> {
+    let mut fields = line.split('\t');
+    let pid = fields.next()?.trim().parse().ok()?;
+    let ppid = fields.next()?.trim().parse().ok()?;
+    let comm = fields.next()?.trim();
+    if comm.is_empty() {
+        return None;
+    }
+    Some(HostProcessEntry {
+        pid,
+        ppid,
+        comm: comm.to_string(),
+    })
+}
+
+fn collect_host_process_entries() -> Vec<HostProcessEntry> {
+    let output = match host_std_command("ps")
+        .args([
+            "-ww",
+            "-eo",
+            "pid=",
+            "-o",
+            "ppid=",
+            "-o",
+            "comm=",
+            "--delimiter",
+            "\t",
+        ])
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        _ => return Vec::new(),
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .filter_map(parse_host_process_entry)
+        .collect()
+}
+
+fn host_process_entry_matches_candidates(entry: &HostProcessEntry, candidates: &[String]) -> bool {
+    if candidates.iter().any(|candidate| candidate == &entry.comm) {
+        return true;
+    }
+    if entry.comm.len() != TASK_COMM_LEN {
+        return false;
+    }
+    let cmdline = read_host_process_cmdline(entry.pid);
+    comm_matches_candidates(&entry.comm, cmdline.as_deref(), candidates)
+}
+
+fn find_matching_ancestor_pid(
+    start_pid: u32,
+    parent_by_pid: &HashMap<u32, u32>,
+    matches_pid: impl Fn(u32) -> bool,
+) -> Option<u32> {
+    let mut current = parent_by_pid.get(&start_pid).copied();
+    while let Some(pid) = current {
+        if matches_pid(pid) {
+            return Some(pid);
+        }
+        let next = parent_by_pid.get(&pid).copied();
+        if next == Some(pid) {
+            break;
+        }
+        current = next;
+    }
+    None
+}
+
+fn resolve_unique_gamescope_ancestor(
+    parent_by_pid: &HashMap<u32, u32>,
+    matching_game_pids: &[u32],
+    gamescope_pids: &[u32],
+) -> Option<u32> {
+    let mut unique_gamescope_pid = None;
+    let mut matched_any_ancestor = false;
+    for &game_pid in matching_game_pids {
+        let Some(gamescope_pid) = find_matching_ancestor_pid(game_pid, parent_by_pid, |pid| {
+            gamescope_pids.contains(&pid)
+        }) else {
+            continue;
+        };
+        matched_any_ancestor = true;
+        match unique_gamescope_pid {
+            Some(existing) if existing != gamescope_pid => return None,
+            Some(_) => {}
+            None => unique_gamescope_pid = Some(gamescope_pid),
+        }
+    }
+    if matched_any_ancestor {
+        unique_gamescope_pid
+    } else {
+        None
+    }
+}
+
 fn collect_host_descendant_pids(root_pid: u32) -> Vec<u32> {
     let output = match host_std_command("ps")
         .args(["-eo", "pid=", "-o", "ppid=", "--delimiter", "\t"])
@@ -104,9 +209,57 @@ fn collect_host_descendant_pids(root_pid: u32) -> Vec<u32> {
     collect_descendant_pids_from_children_map(root_pid, &children_map)
 }
 
+fn resolve_watchdog_target_by_host_ancestor_search(
+    exe_name: &str,
+) -> (Option<ShutdownTarget>, Vec<u32>) {
+    let entries = collect_host_process_entries();
+    if entries.is_empty() {
+        return (None, Vec::new());
+    }
+
+    let exe_candidates = process_name_candidates(exe_name);
+    if exe_candidates.is_empty() {
+        return (None, Vec::new());
+    }
+
+    let mut parent_by_pid = HashMap::new();
+    let mut children_map: HashMap<u32, Vec<u32>> = HashMap::new();
+    let mut gamescope_pids = Vec::new();
+    let mut matching_game_pids = Vec::new();
+
+    for entry in &entries {
+        parent_by_pid.insert(entry.pid, entry.ppid);
+        children_map.entry(entry.ppid).or_default().push(entry.pid);
+
+        if entry.comm == "gamescope" {
+            gamescope_pids.push(entry.pid);
+        }
+
+        if host_process_entry_matches_candidates(entry, &exe_candidates) {
+            matching_game_pids.push(entry.pid);
+        }
+    }
+
+    let Some(gamescope_pid) =
+        resolve_unique_gamescope_ancestor(&parent_by_pid, &matching_game_pids, &gamescope_pids)
+    else {
+        return (None, Vec::new());
+    };
+
+    let descendants = collect_descendant_pids_from_children_map(gamescope_pid, &children_map);
+    (
+        Some(ShutdownTarget {
+            pid: gamescope_pid,
+            host_namespace: true,
+        }),
+        descendants,
+    )
+}
+
 async fn resolve_watchdog_target(
     observed_gamescope_pid: u32,
     host_pid_capture_path: Option<&Path>,
+    exe_name: &str,
 ) -> Option<ShutdownTarget> {
     let Some(path) = host_pid_capture_path else {
         return Some(ShutdownTarget {
@@ -117,18 +270,42 @@ async fn resolve_watchdog_target(
 
     for _ in 0..GAMESCOPE_HOST_PID_CAPTURE_WAIT_ITERATIONS {
         if let Some(pid) = read_pid_capture_file(path) {
-            return Some(ShutdownTarget {
+            let target = ShutdownTarget {
                 pid,
                 host_namespace: true,
-            });
+            };
+            tracing::info!(
+                fallback = "capture_file",
+                discovered_pid = target.pid,
+                game_exe = %exe_name,
+                observed_gamescope_pid,
+                "gamescope watchdog: resolved target via capture file"
+            );
+            return Some(target);
         }
         tokio::time::sleep(GAMESCOPE_HOST_PID_CAPTURE_WAIT_INTERVAL).await;
     }
 
+    let (exe_target, descendants) = resolve_watchdog_target_by_host_ancestor_search(exe_name);
+
+    if let Some(target) = exe_target {
+        tracing::info!(
+            fallback = "exe_fallback",
+            discovered_pid = target.pid,
+            game_exe = %exe_name,
+            observed_descendants = descendants.len(),
+            observed_gamescope_pid,
+            "gamescope watchdog: resolved target via host ancestor match"
+        );
+        return Some(target);
+    }
+
     tracing::warn!(
+        fallback = "none",
+        game_exe = %exe_name,
+        observed_descendants = descendants.len(),
         observed_gamescope_pid,
-        capture_path = %path.display(),
-        "gamescope watchdog: host pid capture file was never resolved; standing down"
+        "gamescope watchdog: no target resolved; standing down"
     );
     None
 }
@@ -254,7 +431,7 @@ pub async fn gamescope_watchdog(
     host_pid_capture_path: Option<PathBuf>,
 ) {
     let Some(observation_target) =
-        resolve_watchdog_target(gamescope_pid, host_pid_capture_path.as_deref()).await
+        resolve_watchdog_target(gamescope_pid, host_pid_capture_path.as_deref(), exe_name).await
     else {
         return;
     };
@@ -598,7 +775,8 @@ mod tests {
 
     use super::{
         collect_descendant_pids_from_children_map, comm_matches_candidates,
-        host_process_line_parts, parse_status_ppid, process_name_candidates,
+        host_process_line_parts, parse_host_process_entry, parse_status_ppid,
+        process_name_candidates, resolve_unique_gamescope_ancestor,
     };
 
     #[test]
@@ -647,6 +825,127 @@ mod tests {
         assert_eq!(
             host_process_line_parts("4242\tWitcher 3.exe"),
             Some((4242, "Witcher 3.exe"))
+        );
+    }
+
+    #[test]
+    fn host_process_entry_parses_pid_ppid_and_comm() {
+        let entry = parse_host_process_entry("4242\t41\tgamescope");
+
+        assert_eq!(entry.as_ref().map(|entry| entry.pid), Some(4242));
+        assert_eq!(entry.as_ref().map(|entry| entry.ppid), Some(41));
+        assert_eq!(
+            entry.as_ref().map(|entry| entry.comm.as_str()),
+            Some("gamescope")
+        );
+    }
+
+    // Tests for the host-process matching primitives used by the watchdog fallback.
+    //
+    // The final resolver shells out to host `ps` and `/proc/<pid>/...`, so these
+    // tests stay at the pure-helper layer: name matching, descendant walks, and
+    // gamescope-ancestor selection.
+
+    #[test]
+    fn resolve_target_by_exe_name_matches_child_via_exact_comm() {
+        // Simulate a children_map where pid 200 is a descendant of root 100,
+        // and its comm matches the exe name exactly.
+        let children_map = HashMap::from([(100u32, vec![200u32])]);
+        let descendants = collect_descendant_pids_from_children_map(100, &children_map);
+        let candidates = process_name_candidates("witcher3.exe");
+
+        // Per-PID comm simulates host_process_matches_candidates + comm_matches_candidates.
+        let comm_for_pid = |pid: u32| -> &str {
+            match pid {
+                200 => "witcher3.exe",
+                _ => "other",
+            }
+        };
+        let matched = descendants
+            .iter()
+            .copied()
+            .find(|&pid| comm_matches_candidates(comm_for_pid(pid), None, &candidates));
+
+        assert_eq!(matched, Some(200));
+    }
+
+    #[test]
+    fn resolve_target_by_exe_name_no_match_returns_none() {
+        // No descendant comm matches the exe name.
+        let children_map = HashMap::from([(100u32, vec![201u32, 202u32])]);
+        let descendants = collect_descendant_pids_from_children_map(100, &children_map);
+        let candidates = process_name_candidates("game.exe");
+
+        let comm_by_pid: HashMap<u32, &str> =
+            HashMap::from([(201, "unrelated"), (202, "unrelated")]);
+        let matched = descendants.iter().copied().find(|&pid| {
+            let comm = comm_by_pid.get(&pid).copied().unwrap_or("unrelated");
+            comm_matches_candidates(comm, None, &candidates)
+        });
+
+        assert_eq!(matched, None);
+        // observed_descendants count and observed_gamescope_pid are still available for tracing.
+        assert_eq!(descendants.len(), 2);
+    }
+
+    #[test]
+    fn resolve_target_by_exe_name_cmdline_fallback_matches_truncated_comm() {
+        // comm is truncated to 15 chars (TASK_COMM_LEN); cmdline carries the full
+        // exe name with .exe suffix, which the fallback basename extraction resolves.
+        let exe_name = "1234567890123456.exe"; // 20 chars — comm will be "123456789012345"
+        let truncated_comm = "123456789012345"; // exactly TASK_COMM_LEN chars
+        let cmdline = "/games/1234567890123456.exe\0--fullscreen";
+        let candidates = process_name_candidates(exe_name);
+
+        assert!(comm_matches_candidates(
+            truncated_comm,
+            Some(cmdline),
+            &candidates
+        ));
+    }
+
+    #[test]
+    fn unique_gamescope_ancestor_prefers_real_host_tree_over_wrapper_pid() {
+        let parent_by_pid = HashMap::from([
+            (200u32, 1u32),   // real host gamescope
+            (300u32, 200u32), // wine/preloader descendant
+            (301u32, 300u32), // game.exe descendant
+            (999u32, 1u32),   // unrelated sandbox-visible wrapper pid
+        ]);
+
+        assert_eq!(
+            resolve_unique_gamescope_ancestor(&parent_by_pid, &[301], &[200]),
+            Some(200)
+        );
+    }
+
+    #[test]
+    fn unique_gamescope_ancestor_rejects_ambiguous_gamescope_matches() {
+        let parent_by_pid = HashMap::from([
+            (200u32, 1u32),
+            (201u32, 1u32),
+            (300u32, 200u32),
+            (301u32, 201u32),
+        ]);
+
+        assert_eq!(
+            resolve_unique_gamescope_ancestor(&parent_by_pid, &[300, 301], &[200, 201]),
+            None
+        );
+    }
+
+    #[test]
+    fn unique_gamescope_ancestor_ignores_same_named_process_without_gamescope_parent() {
+        let parent_by_pid = HashMap::from([
+            (200u32, 1u32),
+            (300u32, 200u32),
+            (301u32, 300u32),
+            (900u32, 1u32),
+        ]);
+
+        assert_eq!(
+            resolve_unique_gamescope_ancestor(&parent_by_pid, &[301, 900], &[200]),
+            Some(200)
         );
     }
 }
