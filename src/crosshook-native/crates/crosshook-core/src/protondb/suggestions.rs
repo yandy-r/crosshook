@@ -215,10 +215,9 @@ pub fn derive_suggestions(
         }
     }
 
-    catalog_suggestions.sort_by(|a, b| b.supporting_report_count.cmp(&a.supporting_report_count));
-    env_var_suggestions.sort_by(|a, b| b.supporting_report_count.cmp(&a.supporting_report_count));
-    launch_option_suggestions
-        .sort_by(|a, b| b.supporting_report_count.cmp(&a.supporting_report_count));
+    catalog_suggestions.sort_by_key(|item| std::cmp::Reverse(item.supporting_report_count));
+    env_var_suggestions.sort_by_key(|item| std::cmp::Reverse(item.supporting_report_count));
+    launch_option_suggestions.sort_by_key(|item| std::cmp::Reverse(item.supporting_report_count));
 
     let is_stale = lookup.cache.as_ref().is_some_and(|c| c.is_stale);
     let tier = snapshot.tier.clone();

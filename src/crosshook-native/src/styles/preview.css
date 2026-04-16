@@ -186,8 +186,18 @@
 }
 
 .crosshook-preview-modal__umu-decision-info {
+  margin-top: 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   color: var(--crosshook-color-info);
   font-size: 0.9rem;
+}
+
+.crosshook-preview-modal__umu-decision-info-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--crosshook-color-info);
 }
 
 .crosshook-preview-modal__sub-label {

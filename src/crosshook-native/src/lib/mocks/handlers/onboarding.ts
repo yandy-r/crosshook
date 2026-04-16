@@ -21,6 +21,18 @@ const ONBOARDING_EMIT_INITIAL_MS = 500;
 const ONBOARDING_EMIT_RETRY_MS = 200;
 const ONBOARDING_EMIT_MAX_ATTEMPTS = 25;
 
+interface DismissReadinessNagArgs {
+  toolId: string;
+}
+
+function isDismissReadinessNagArgs(value: unknown): value is DismissReadinessNagArgs {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as { toolId?: unknown };
+  return typeof candidate.toolId === 'string' && candidate.toolId.trim() !== '';
+}
+
 function maybeSynthesizeOnboardingEvent(): void {
   if (onboardingEventSynthesized) return;
   if (!getActiveToggles().showOnboarding) return;
@@ -55,39 +67,127 @@ function maybeSynthesizeOnboardingEvent(): void {
 // the second call from `registerOnboarding()` a no-op.
 maybeSynthesizeOnboardingEvent();
 
+function buildMockReadinessResult(): ReadinessCheckResult {
+  const store = getStore();
+  const toggles = getActiveToggles();
+  const dismissed = store.settings.install_nag_dismissed_at != null;
+  const toolChecks: ReadinessCheckResult['tool_checks'] = [
+    {
+      tool_id: 'gamescope',
+      display_name: 'Gamescope',
+      is_available: false,
+      is_required: false,
+      category: 'performance',
+      docs_url: 'https://github.com/ValveSoftware/gamescope',
+      install_guidance: {
+        distro_family: 'Arch',
+        command: 'sudo pacman -S gamescope',
+        alternatives: 'Also available on the AUR as gamescope-git.',
+      },
+    },
+    {
+      tool_id: 'mangohud',
+      display_name: 'MangoHud',
+      is_available: true,
+      is_required: false,
+      category: 'overlay',
+      docs_url: 'https://github.com/flightlessmango/MangoHud',
+      install_guidance: null,
+    },
+    {
+      tool_id: 'game_performance',
+      display_name: 'game-performance',
+      is_available: false,
+      is_required: false,
+      category: 'performance',
+      docs_url: 'https://wiki.cachyos.org/',
+      install_guidance: {
+        distro_family: 'Arch',
+        command: 'sudo pacman -S game-performance',
+        alternatives: 'CachyOS package; on vanilla Arch use CachyOS repos or AUR if available.',
+      },
+    },
+    {
+      tool_id: 'gamemode',
+      display_name: 'GameMode',
+      is_available: true,
+      is_required: false,
+      category: 'performance',
+      docs_url: 'https://github.com/FeralInteractive/gamemode',
+      install_guidance: null,
+    },
+  ].map((tool) =>
+    store.dismissedReadinessToolIds.has(tool.tool_id)
+      ? {
+          ...tool,
+          install_guidance: null,
+        }
+      : tool
+  );
+  const warnings = toolChecks.filter((tool) => !tool.is_available && !tool.is_required).length;
+  const criticalFailures = toolChecks.filter((tool) => !tool.is_available && tool.is_required).length;
+  const checks: ReadinessCheckResult['checks'] = toolChecks.map((tool) => {
+    if (tool.is_available) {
+      return {
+        field: tool.tool_id,
+        path: '',
+        message: `${tool.display_name} is available.`,
+        remediation: '',
+        severity: 'info',
+      };
+    }
+    const guidance = tool.install_guidance;
+    const remediationParts = [(guidance?.command ?? '').trim(), (guidance?.alternatives ?? '').trim()].filter(
+      (part) => part !== ''
+    );
+    return {
+      field: tool.tool_id,
+      path: '',
+      message: `${tool.display_name} is missing.`,
+      remediation: remediationParts.join(' ').trim(),
+      severity: tool.is_required ? 'error' : 'warning',
+    };
+  });
+
+  return {
+    checks,
+    all_passed: criticalFailures === 0 && warnings === 0,
+    critical_failures: criticalFailures,
+    warnings,
+    umu_install_guidance: dismissed
+      ? null
+      : {
+          install_command: 'pipx install umu-launcher',
+          docs_url: 'https://github.com/Open-Wine-Components/umu-launcher',
+          description:
+            'Install umu-launcher on your host to enable improved Proton runtime bootstrapping for non-Steam launches.',
+        },
+    steam_deck_caveats:
+      toggles.showSteamDeckCaveats && store.settings.steam_deck_caveats_dismissed_at == null
+        ? {
+            description:
+              'CrossHook works on Steam Deck desktop mode today. In gaming mode you may hit these documented upstream issues on SteamOS 3.7+:',
+            items: [
+              'Black screen until Shader Pre-Caching completes — enable it in Steam Settings → Downloads → Shader Pre-Caching',
+              'Steam overlay can render below the game under gamescope + Flatpak',
+              'HDR + gamescope + Flatpak regression on SteamOS 3.7.13 (toggle HDR off if the screen tints or flickers)',
+            ],
+            docs_url: 'https://github.com/ValveSoftware/gamescope/issues',
+          }
+        : null,
+    tool_checks: toolChecks,
+    detected_distro_family: 'Arch',
+  };
+}
+
 export function registerOnboarding(map: Map<string, Handler>): void {
   maybeSynthesizeOnboardingEvent();
   map.set('check_readiness', async (): Promise<ReadinessCheckResult> => {
-    const store = getStore();
-    const toggles = getActiveToggles();
-    const dismissed = store.settings.install_nag_dismissed_at != null;
-    return {
-      checks: [],
-      all_passed: true,
-      critical_failures: 0,
-      warnings: 0,
-      umu_install_guidance: dismissed
-        ? null
-        : {
-            install_command: 'pipx install umu-launcher',
-            docs_url: 'https://github.com/Open-Wine-Components/umu-launcher',
-            description:
-              'Install umu-launcher on your host to enable improved Proton runtime bootstrapping for non-Steam launches.',
-          },
-      steam_deck_caveats:
-        toggles.showSteamDeckCaveats && store.settings.steam_deck_caveats_dismissed_at == null
-          ? {
-              description:
-                'CrossHook works on Steam Deck desktop mode today. In gaming mode you may hit these documented upstream issues on SteamOS 3.7+:',
-              items: [
-                'Black screen until Shader Pre-Caching completes — enable it in Steam Settings → Downloads → Shader Pre-Caching',
-                'Steam overlay can render below the game under gamescope + Flatpak',
-                'HDR + gamescope + Flatpak regression on SteamOS 3.7.13 (toggle HDR off if the screen tints or flickers)',
-              ],
-              docs_url: 'https://github.com/ValveSoftware/gamescope/issues',
-            }
-          : null,
-    };
+    return buildMockReadinessResult();
+  });
+
+  map.set('check_generalized_readiness', async (): Promise<ReadinessCheckResult> => {
+    return buildMockReadinessResult();
   });
 
   map.set('dismiss_onboarding', async (): Promise<null> => {
@@ -105,6 +205,14 @@ export function registerOnboarding(map: Map<string, Handler>): void {
 
   map.set('dismiss_steam_deck_caveats', async (): Promise<null> => {
     getStore().settings.steam_deck_caveats_dismissed_at = new Date().toISOString();
+    return null;
+  });
+
+  map.set('dismiss_readiness_nag', async (args: unknown): Promise<null> => {
+    if (!isDismissReadinessNagArgs(args)) {
+      throw new Error('dismiss_readiness_nag requires a non-empty toolId');
+    }
+    getStore().dismissedReadinessToolIds.add(args.toolId);
     return null;
   });
 

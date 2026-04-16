@@ -43,6 +43,8 @@ export interface UseOnboardingResult {
   steamDeckCaveats: SteamDeckCaveats | null;
   /** Persists the Steam Deck caveats dismissal via the backend and clears local caveats state. */
   dismissSteamDeckCaveats: () => Promise<void>;
+  /** Dismiss a per-tool readiness nag (SQLite TTL); clears local install guidance for that tool. */
+  dismissReadinessNag: (toolId: string, ttlDays?: number) => Promise<void>;
 }
 
 function deriveStatusText(stage: OnboardingWizardStage): string {
@@ -126,7 +128,7 @@ export function useOnboarding(): UseOnboardingResult {
   const runChecks = useCallback(async () => {
     setIsRunningChecks(true);
     try {
-      const result = await callCommand<ReadinessCheckResult>('check_readiness');
+      const result = await callCommand<ReadinessCheckResult>('check_generalized_readiness');
       setReadinessResult(result);
       setCheckError(null);
       setLastCheckedAt(new Date().toLocaleTimeString());
@@ -194,6 +196,29 @@ export function useOnboarding(): UseOnboardingResult {
     }
   }, []);
 
+  const dismissReadinessNag = useCallback(async (toolId: string, ttlDays?: number) => {
+    try {
+      await callCommand<void>('dismiss_readiness_nag', {
+        toolId,
+        ttlDays: ttlDays ?? null,
+      });
+      setCheckError(null);
+      setReadinessResult((prev) => {
+        if (prev == null) return null;
+        return {
+          ...prev,
+          tool_checks: (prev.tool_checks ?? []).map((t) =>
+            t.tool_id === toolId ? { ...t, install_guidance: null } : t
+          ),
+          umu_install_guidance: toolId === 'umu_run' ? null : prev.umu_install_guidance,
+          steam_deck_caveats: toolId === 'steam_deck_caveats' ? null : prev.steam_deck_caveats,
+        };
+      });
+    } catch (error) {
+      setCheckError(error instanceof Error ? error.message : 'Could not save readiness reminder preference.');
+    }
+  }, []);
+
   const reset = useCallback(() => {
     const initial = createInitialOnboardingState();
     setStage(initial.stage);
@@ -237,5 +262,6 @@ export function useOnboarding(): UseOnboardingResult {
     setCompletedProfileName: setLastCreatedProfileName,
     steamDeckCaveats,
     dismissSteamDeckCaveats,
+    dismissReadinessNag,
   };
 }

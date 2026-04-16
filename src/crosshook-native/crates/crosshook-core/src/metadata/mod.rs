@@ -15,6 +15,9 @@ mod prefix_deps_store;
 mod prefix_storage_store;
 mod preset_store;
 pub mod profile_sync;
+mod readiness_catalog_store;
+mod readiness_dismissal_store;
+mod readiness_snapshot_store;
 mod suggestion_store;
 mod version_store;
 
@@ -31,6 +34,7 @@ pub use models::{
 };
 pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow};
 pub use profile_sync::sha256_hex;
+pub use readiness_snapshot_store::HostReadinessSnapshotRow;
 pub use version_store::{compute_correlation_status, hash_trainer_file};
 
 use crate::community::taps::CommunityTapSyncResult;
@@ -1382,6 +1386,44 @@ impl MetadataStore {
     ) -> Result<(), MetadataStoreError> {
         self.with_conn_mut("persist optimization catalog", |conn| {
             optimization_catalog_store::persist_optimization_catalog(conn, entries, catalog_version)
+        })
+    }
+
+    pub fn persist_readiness_catalog(
+        &self,
+        entries: &[crate::onboarding::HostToolEntry],
+        catalog_version: u32,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("persist readiness catalog", |conn| {
+            readiness_catalog_store::persist_readiness_catalog(conn, entries, catalog_version)
+        })
+    }
+
+    pub fn upsert_host_readiness_snapshot(
+        &self,
+        tool_checks: &[crate::onboarding::HostToolCheckResult],
+        detected_distro_family: &str,
+        all_passed: bool,
+        critical_failures: usize,
+        warnings: usize,
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("upsert host readiness snapshot", |conn| {
+            readiness_snapshot_store::upsert_host_readiness_snapshot_impl(
+                conn,
+                tool_checks,
+                detected_distro_family,
+                all_passed,
+                critical_failures,
+                warnings,
+            )
+        })
+    }
+
+    pub fn get_host_readiness_snapshot(
+        &self,
+    ) -> Result<Option<HostReadinessSnapshotRow>, MetadataStoreError> {
+        self.with_conn("get host readiness snapshot", |conn| {
+            readiness_snapshot_store::get_host_readiness_snapshot_impl(conn)
         })
     }
 

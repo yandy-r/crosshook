@@ -444,7 +444,7 @@ fn collect_launch_logs_from(dir: &Path) -> Vec<(String, Vec<u8>)> {
         .collect();
 
     // Sort by modification time descending (most recent first).
-    log_files.sort_by(|a, b| b.1.cmp(&a.1));
+    log_files.sort_by_key(|entry| std::cmp::Reverse(entry.1));
     log_files.truncate(MAX_LAUNCH_LOG_FILES);
 
     log_files

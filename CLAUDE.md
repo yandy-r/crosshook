@@ -41,6 +41,15 @@ For storage changes, plans must also:
 - Explicitly classify each datum as TOML settings, SQLite metadata, or runtime-only state.
 - Include a persistence/usability section that addresses migration/backward compatibility, offline expectations, degraded/failure fallback, and what users can view or edit.
 
+## SQLite Metadata DB (summary)
+
+Operational metadata lives in **`~/.local/share/crosshook/metadata.db`** (WAL, `0600`). Migrations: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`.
+
+- **Current schema version**: **21**
+- **Tables added in v21**: `host_readiness_catalog`, `readiness_nag_dismissals`, `host_readiness_snapshots`
+
+Full table inventory, persistence classification, and `external_cache_entries` payload limits: [`AGENTS.md`](AGENTS.md) § _SQLite Metadata DB_.
+
 ## Labels (use only these families)
 
 - `type:` bug, feature, docs, refactor, compatibility, build, migration

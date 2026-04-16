@@ -434,7 +434,6 @@ Each task lists its BATCH, ACTION, IMPLEMENT sketch, MIRROR reference, GOTCHA, a
 - **BATCH**: B2
 - **ACTION**: In `src/crosshook-native/crates/crosshook-core/src/export/launcher.rs` tests module, update the 6 `exec "$PROTON" run` assertions at lines 888, 1010, 1148, 1169, 1185, 1306 to assert BOTH branches (umu success + Proton fallback) of the new probe, and add a standalone probe-shape test mirroring `network_isolation_enabled_generates_runtime_probe_and_exec`.
 - **IMPLEMENT**:
-
   1. For each of the 6 call sites, keep the existing `exec "$PROTON" run …` fallback assertion AND add a sibling umu-branch assertion using the same prefix chain. Example at line 888:
 
      ```rust

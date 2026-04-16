@@ -189,6 +189,15 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
             })?;
     }
 
+    if version < 21 {
+        migrate_20_to_21(conn)?;
+        conn.pragma_update(None, "user_version", 21_u32)
+            .map_err(|source| MetadataStoreError::Database {
+                action: "set user_version to 21",
+                source,
+            })?;
+    }
+
     Ok(())
 }
 
@@ -898,6 +907,52 @@ fn migrate_19_to_20(conn: &Connection) -> Result<(), MetadataStoreError> {
     Ok(())
 }
 
+/// Host readiness catalog, nag dismissals, and last snapshot (issue #269).
+fn migrate_20_to_21(conn: &Connection) -> Result<(), MetadataStoreError> {
+    conn.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS host_readiness_catalog (
+            tool_id TEXT PRIMARY KEY NOT NULL,
+            binary_name TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            docs_url TEXT NOT NULL DEFAULT '',
+            required INTEGER NOT NULL DEFAULT 0,
+            category TEXT NOT NULL DEFAULT '',
+            install_commands_json TEXT NOT NULL DEFAULT '[]',
+            source TEXT NOT NULL DEFAULT 'default',
+            catalog_version INTEGER NOT NULL DEFAULT 1,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS readiness_nag_dismissals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tool_id TEXT NOT NULL,
+            dismissed_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_readiness_nag_dismissals_tool_id
+            ON readiness_nag_dismissals(tool_id);
+
+        CREATE TABLE IF NOT EXISTS host_readiness_snapshots (
+            id INTEGER PRIMARY KEY NOT NULL,
+            detected_distro_family TEXT NOT NULL,
+            tool_results_json TEXT NOT NULL,
+            all_passed INTEGER NOT NULL,
+            critical_failures INTEGER NOT NULL,
+            warnings INTEGER NOT NULL,
+            checked_at TEXT NOT NULL
+        );
+        ",
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "run metadata migration 20 to 21",
+        source,
+    })?;
+
+    Ok(())
+}
+
 fn migrate_16_to_17(conn: &Connection) -> Result<(), MetadataStoreError> {
     conn.execute_batch(
         "
@@ -1319,5 +1374,46 @@ mod tests {
             )
             .unwrap();
         assert_eq!(empty, None, "defaults_json should default to NULL");
+    }
+
+    #[test]
+    fn migration_20_to_21_creates_readiness_tables() {
+        let conn = db::open_in_memory().unwrap();
+        run_migrations(&conn).unwrap();
+
+        let version: u32 = conn
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert!(
+            version >= 21,
+            "schema version should be at least 21 after migration 20→21, got {version}"
+        );
+
+        for table in [
+            "host_readiness_catalog",
+            "readiness_nag_dismissals",
+            "host_readiness_snapshots",
+        ] {
+            let exists: bool = conn
+                .prepare(&format!(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='{table}'"
+                ))
+                .unwrap()
+                .exists([])
+                .unwrap();
+            assert!(exists, "table {table} should exist");
+        }
+
+        let idx_exists: bool = conn
+            .prepare(
+                "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_readiness_nag_dismissals_tool_id'",
+            )
+            .unwrap()
+            .exists([])
+            .unwrap();
+        assert!(
+            idx_exists,
+            "unique index idx_readiness_nag_dismissals_tool_id should exist"
+        );
     }
 }

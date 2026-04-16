@@ -8,6 +8,7 @@ use crosshook_core::launch::{initialize_catalog, load_catalog};
 use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::offline::{initialize_trainer_type_catalog, load_trainer_type_catalog};
+use crosshook_core::onboarding::{initialize_readiness_catalog, load_readiness_catalog};
 use crosshook_core::platform::override_xdg_for_flatpak_host_access;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore};
@@ -129,6 +130,9 @@ pub fn run() {
     let trainer_type_catalog = load_trainer_type_catalog(Some(&settings_store.base_path), &[]);
     initialize_trainer_type_catalog(trainer_type_catalog);
 
+    let readiness_catalog = load_readiness_catalog(Some(&settings_store.base_path));
+    initialize_readiness_catalog(readiness_catalog);
+
     tauri::Builder::default()
         .setup({
             let profile_store = profile_store.clone();
@@ -162,6 +166,30 @@ pub fn run() {
                         catalog.catalog_version,
                     ) {
                         tracing::warn!(%error, "failed to persist optimization catalog to metadata db");
+                    }
+                }
+
+                {
+                    let rc = crosshook_core::onboarding::global_readiness_catalog();
+                    if let Err(error) = metadata_for_startup.persist_readiness_catalog(
+                        &rc.entries,
+                        rc.catalog_version,
+                    ) {
+                        tracing::warn!(%error, "failed to persist readiness catalog to metadata db");
+                    }
+                }
+
+                {
+                    let settings = settings_store
+                        .load()
+                        .unwrap_or_else(|_| AppSettingsData::default());
+                    if metadata_for_startup.is_available() {
+                        if settings.install_nag_dismissed_at.is_some() {
+                            let _ = metadata_for_startup.dismiss_readiness_nag("umu_run", 36500);
+                        }
+                        if settings.steam_deck_caveats_dismissed_at.is_some() {
+                            let _ = metadata_for_startup.dismiss_readiness_nag("steam_deck_caveats", 36500);
+                        }
                     }
                 }
 
@@ -391,9 +419,11 @@ pub fn run() {
             commands::version::set_trainer_version,
             commands::version::acknowledge_version_change,
             commands::onboarding::check_readiness,
+            commands::onboarding::check_generalized_readiness,
             commands::onboarding::dismiss_onboarding,
             commands::onboarding::dismiss_umu_install_nag,
             commands::onboarding::dismiss_steam_deck_caveats,
+            commands::onboarding::dismiss_readiness_nag,
             commands::onboarding::get_trainer_guidance,
             commands::catalog::get_optimization_catalog,
             commands::catalog::get_mangohud_presets,

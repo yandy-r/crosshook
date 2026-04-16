@@ -9,6 +9,7 @@ import { deriveSteamClientInstallPath } from '../../utils/steam';
 import AutoPopulate from '../AutoPopulate';
 import type { ProtonInstallOption } from '../ProfileFormSections';
 import { FieldRow, LauncherMetadataFields, OptionalSection, ProtonPathField } from '../ProfileFormSections';
+import { InfoTooltip } from '../ui/InfoTooltip';
 import { ThemedSelect } from '../ui/ThemedSelect';
 
 function resolveUmuAppId(profile: GameProfile): string {
@@ -247,13 +248,11 @@ export function RuntimeSection({
               <label className="crosshook-label" htmlFor="profile-umu-preference" id="profile-umu-preference-label">
                 Runner
                 {showUmuCoverageNote ? (
-                  <span
-                    className="crosshook-runner-coverage-info"
-                    title={`umu has no known entry for Steam app id ${umuAppId} in the current umu database. The database only tracks titles needing protonfixes — most titles work fine without an entry.`}
-                    aria-label={`no umu-database protonfix row for app id ${umuAppId}`}
-                    role="img"
-                  >
-                    {' ℹ'}
+                  <span className="crosshook-runner-coverage-info">
+                    <InfoTooltip
+                      content={`umu has no known entry for Steam app id ${umuAppId} in the current umu database. The database only tracks titles needing protonfixes — most titles work fine without an entry.`}
+                      size={14}
+                    />
                   </span>
                 ) : null}
               </label>
@@ -283,7 +282,7 @@ export function RuntimeSection({
               </p>
               {showUmuCoverageNote ? (
                 <p className="crosshook-help-text crosshook-runner-coverage-info__hint">
-                  ℹ umu has no known entry for this app id in the current umu database. The database only tracks titles
+                  umu has no known entry for this app id in the current umu database. The database only tracks titles
                   needing protonfixes — most titles work fine without an entry.
                 </p>
               ) : null}

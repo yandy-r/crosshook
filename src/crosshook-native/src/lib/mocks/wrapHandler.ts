@@ -51,6 +51,9 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   'check_gamescope_session',
   'launch_platform_status',
   'check_readiness',
+  // `check_generalized_readiness` is omitted: the real command persists a host readiness
+  // snapshot via `upsert_host_readiness_snapshot` (see onboarding.rs), so it is not a
+  // pure read. It still matches `READ_VERB_RE` (`check_` prefix) for test rendering.
   'preview_launch',
   'validate_launch',
   'build_steam_launch_options_command',

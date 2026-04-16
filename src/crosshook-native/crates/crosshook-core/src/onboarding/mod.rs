@@ -1,12 +1,106 @@
+pub mod catalog;
 pub mod readiness;
 
 use serde::{Deserialize, Serialize};
 
 use crate::profile::health::HealthIssue;
 
-pub use readiness::{
-    apply_install_nag_dismissal, apply_steam_deck_caveats_dismissal, check_system_readiness,
+pub use catalog::{
+    global_readiness_catalog, initialize_readiness_catalog, load_readiness_catalog,
+    ReadinessCatalog,
 };
+pub use readiness::{
+    apply_install_nag_dismissal, apply_readiness_nag_dismissals,
+    apply_steam_deck_caveats_dismissal, check_generalized_readiness, check_system_readiness,
+    detect_host_distro_family_from_os_release,
+};
+
+/// Host distribution family for install guidance (from `/etc/os-release` on the host).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub enum HostDistroFamily {
+    Arch,
+    Nobara,
+    Fedora,
+    Debian,
+    Nix,
+    Unknown,
+    /// SteamOS / Steam Deck image.
+    SteamOS,
+    /// Gaming-first immutables (e.g. Bazzite, ChimeraOS).
+    GamingImmutable,
+    /// Bare immutables without a full gaming stack pre-installed (e.g. Fedora Atomic variants).
+    BareImmutable,
+}
+
+impl HostDistroFamily {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            HostDistroFamily::Arch => "Arch",
+            HostDistroFamily::Nobara => "Nobara",
+            HostDistroFamily::Fedora => "Fedora",
+            HostDistroFamily::Debian => "Debian",
+            HostDistroFamily::Nix => "Nix",
+            HostDistroFamily::Unknown => "Unknown",
+            HostDistroFamily::SteamOS => "SteamOS",
+            HostDistroFamily::GamingImmutable => "GamingImmutable",
+            HostDistroFamily::BareImmutable => "BareImmutable",
+        }
+    }
+
+    /// Parse from catalog `distro_family` string (PascalCase, matching [`Self::as_str`]).
+    pub fn from_catalog_key(s: &str) -> Option<Self> {
+        match s {
+            "Arch" => Some(Self::Arch),
+            "Nobara" => Some(Self::Nobara),
+            "Fedora" => Some(Self::Fedora),
+            "Debian" => Some(Self::Debian),
+            "Nix" => Some(Self::Nix),
+            "Unknown" => Some(Self::Unknown),
+            "SteamOS" => Some(Self::SteamOS),
+            "GamingImmutable" => Some(Self::GamingImmutable),
+            "BareImmutable" => Some(Self::BareImmutable),
+            _ => None,
+        }
+    }
+}
+
+/// One install-hint row for a host tool and distro family (from TOML / DB).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostToolInstallCommand {
+    pub distro_family: String,
+    pub command: String,
+    pub alternatives: String,
+}
+
+/// A host tool definition from the readiness catalog.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostToolEntry {
+    pub tool_id: String,
+    pub binary_name: String,
+    pub display_name: String,
+    pub description: String,
+    pub docs_url: String,
+    pub required: bool,
+    pub category: String,
+    #[serde(default)]
+    pub install_commands: Vec<HostToolInstallCommand>,
+}
+
+/// Result row for one host tool probe (onboarding / generalized readiness).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostToolCheckResult {
+    pub tool_id: String,
+    pub display_name: String,
+    pub is_available: bool,
+    pub is_required: bool,
+    pub category: String,
+    /// Project docs / upstream URL for this tool (from catalog).
+    #[serde(default)]
+    pub docs_url: String,
+    /// Populated when the tool is missing and guidance applies (e.g. Flatpak).
+    pub install_guidance: Option<HostToolInstallCommand>,
+}
 
 /// Actionable installation guidance for umu-launcher on the host, emitted when
 /// running inside a Flatpak sandbox and `umu-run` cannot be resolved from the
@@ -33,7 +127,7 @@ pub struct SteamDeckCaveats {
     pub docs_url: String,
 }
 
-/// System readiness check result returned by `check_system_readiness`.
+/// System readiness check result returned by `check_system_readiness` / `check_generalized_readiness`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadinessCheckResult {
     pub checks: Vec<HealthIssue>,
@@ -47,6 +141,12 @@ pub struct ReadinessCheckResult {
     /// Known Steam Deck caveats surfaced during onboarding when the system is
     /// identified as a Steam Deck. `None` on non-Steam-Deck systems.
     pub steam_deck_caveats: Option<SteamDeckCaveats>,
+    /// Host tool rows from the readiness catalog (empty unless `check_generalized_readiness` ran).
+    #[serde(default)]
+    pub tool_checks: Vec<HostToolCheckResult>,
+    /// Detected host distro family key (e.g. `Arch`, `SteamOS`).
+    #[serde(default)]
+    pub detected_distro_family: String,
 }
 
 /// A single trainer source or loading mode entry in onboarding guidance.

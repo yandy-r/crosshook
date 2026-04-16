@@ -219,9 +219,15 @@ pub struct AppSettingsData {
     #[serde(default)]
     pub umu_preference: UmuPreference,
     /// RFC 3339 timestamp of when the user dismissed the umu install nag; `None` = not dismissed.
+    ///
+    /// TODO(#269): Canonical dismissals live in SQLite `readiness_nag_dismissals`; this field remains
+    /// for settings.toml backward compatibility and startup migration into the DB.
     pub install_nag_dismissed_at: Option<String>,
     /// RFC 3339 timestamp of when the user dismissed the Steam Deck gaming-mode caveats;
     /// `None` = not dismissed.
+    ///
+    /// TODO(#269): Canonical dismissals live in SQLite `readiness_nag_dismissals`; this field remains
+    /// for settings.toml backward compatibility and startup migration into the DB.
     pub steam_deck_caveats_dismissed_at: Option<String>,
 }
 

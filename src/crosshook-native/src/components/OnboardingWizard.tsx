@@ -115,6 +115,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     dismiss,
     dismissUmuInstallNag,
     dismissSteamDeckCaveats,
+    dismissReadinessNag,
     setCompletedProfileName,
   } = useOnboarding();
 
@@ -476,6 +477,7 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 onDismissUmuInstallNag={() => void dismissUmuInstallNag()}
                 steamDeckCaveats={steamDeckCaveats}
                 onDismissSteamDeckCaveats={() => void dismissSteamDeckCaveats()}
+                onDismissReadinessNag={(toolId) => void dismissReadinessNag(toolId)}
               />
             </section>
           )}

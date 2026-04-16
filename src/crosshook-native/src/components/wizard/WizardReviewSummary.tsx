@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { open as openUrl } from '@/lib/plugin-stubs/shell';
 import type { ReadinessCheckResult, SteamDeckCaveats, UmuInstallGuidance } from '../../types/onboarding';
+import { HostToolsReadinessSection } from '../ReadinessChecklist';
 import { resolveCheckColor, resolveCheckIcon } from './checkBadges';
 import type { WizardValidationResult } from './wizardValidation';
 
@@ -16,6 +17,8 @@ export interface WizardReviewSummaryProps {
   steamDeckCaveats?: SteamDeckCaveats | null;
   /** Called when the user dismisses Steam Deck caveats. Must persist dismissal via parent/hook. */
   onDismissSteamDeckCaveats?: () => void;
+  /** Per-tool readiness nag (host catalog tools). */
+  onDismissReadinessNag?: (toolId: string) => void;
 }
 
 /**
@@ -44,6 +47,7 @@ export function WizardReviewSummary({
   onDismissUmuInstallNag,
   steamDeckCaveats,
   onDismissSteamDeckCaveats,
+  onDismissReadinessNag,
 }: WizardReviewSummaryProps) {
   const [copied, setCopied] = useState(false);
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -146,6 +150,13 @@ export function WizardReviewSummary({
                 </li>
               ))}
             </ul>
+            {(readinessResult.tool_checks?.length ?? 0) > 0 ? (
+              <HostToolsReadinessSection
+                toolChecks={readinessResult.tool_checks ?? []}
+                detectedDistroFamily={readinessResult.detected_distro_family ?? ''}
+                onDismissReadinessNag={onDismissReadinessNag}
+              />
+            ) : null}
           </>
         )}
 

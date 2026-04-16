@@ -1,0 +1,453 @@
+# Host dependency readiness catalog — embedded default. Override via
+# ~/.config/crosshook/host_readiness_catalog.toml (merge by tool_id).
+catalog_version = 1
+
+# --- umu-launcher (runtime; required for best experience on Flatpak) ---
+[[tool]]
+tool_id = "umu_run"
+binary_name = "umu-run"
+display_name = "umu-launcher"
+description = "Improved Proton runtime bootstrapping for non-Steam launches when available."
+docs_url = "https://github.com/Open-Wine-Components/umu-launcher"
+required = false
+category = "runtime"
+
+[[tool.install]]
+distro_family = "Arch"
+command = "sudo pacman -S umu-launcher"
+alternatives = "If unavailable in mirrors, use upstream docs for source or user-level install."
+
+[[tool.install]]
+distro_family = "Nobara"
+command = "sudo dnf install umu-launcher"
+alternatives = "If the packaged build is unavailable, fall back to upstream docs."
+
+[[tool.install]]
+distro_family = "Fedora"
+command = "sudo dnf install pipx && pipx install umu-launcher"
+alternatives = "Check upstream docs for current Fedora packaging."
+
+[[tool.install]]
+distro_family = "Debian"
+command = "sudo apt install pipx && pipx install umu-launcher"
+alternatives = "If pipx is unsuitable, use upstream source or user-level install."
+
+[[tool.install]]
+distro_family = "Nix"
+command = "nix profile install nixpkgs#umu-launcher"
+alternatives = "Or add pkgs.umu-launcher to NixOS / Home Manager."
+
+[[tool.install]]
+distro_family = "SteamOS"
+command = ""
+alternatives = "Pre-installed on SteamOS; no separate install step."
+
+[[tool.install]]
+distro_family = "GamingImmutable"
+command = ""
+alternatives = "Usually pre-installed on gaming-focused immutable images; use distro docs if missing."
+
+[[tool.install]]
+distro_family = "BareImmutable"
+command = "rpm-ostree install umu-launcher"
+alternatives = "Or use pipx in a toolbox: toolbox create && toolbox enter …"
+
+[[tool.install]]
+distro_family = "Unknown"
+command = "pipx install umu-launcher"
+alternatives = "See upstream docs for source, uv, or other user-level installs."
+
+# --- Steam Deck caveats (informational; not a host binary — empty binary_name skips catalog checks) ---
+[[tool]]
+tool_id = "steam_deck_caveats"
+binary_name = ""
+display_name = "Steam Deck caveats"
+description = "Platform-specific notes when using CrossHook on Steam Deck (dismissal is stored like other readiness nags)."
+docs_url = "https://github.com/ValveSoftware/gamescope/issues"
+required = false
+category = "compatibility"
+
+# --- gamescope ---
+[[tool]]
+tool_id = "gamescope"
+binary_name = "gamescope"
+display_name = "Gamescope"
+description = "Micro-compositor for scaling, HDR, and nested session features."
+docs_url = "https://github.com/ValveSoftware/gamescope"
+required = false
+category = "performance"
+
+[[tool.install]]
+distro_family = "Arch"
+command = "sudo pacman -S gamescope"
+alternatives = "Use mesa-git or distro gaming repos if the stock package is old."
+
+[[tool.install]]
+distro_family = "Nobara"
+command = "sudo dnf install gamescope"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Fedora"
+command = "sudo dnf install gamescope"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Debian"
+command = "sudo apt install gamescope"
+alternatives = "Package name may differ on Ubuntu LTS; check distro gaming guides."
+
+[[tool.install]]
+distro_family = "Nix"
+command = "nix profile install nixpkgs#gamescope"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "SteamOS"
+command = ""
+alternatives = "Pre-installed on SteamOS."
+
+[[tool.install]]
+distro_family = "GamingImmutable"
+command = ""
+alternatives = "Usually pre-installed; use rpm-ostree or distro gaming guide if missing."
+
+[[tool.install]]
+distro_family = "BareImmutable"
+command = "rpm-ostree install gamescope"
+alternatives = "Or install in a Fedora toolbox."
+
+[[tool.install]]
+distro_family = "Unknown"
+command = "See https://github.com/ValveSoftware/gamescope#installing"
+alternatives = "Build from source or use your distro's gaming repository."
+
+# --- MangoHud ---
+[[tool]]
+tool_id = "mangohud"
+binary_name = "mangohud"
+display_name = "MangoHud"
+description = "Vulkan/OpenGL overlay for frame time and performance stats."
+docs_url = "https://github.com/flightlessmango/MangoHud"
+required = false
+category = "overlay"
+
+[[tool.install]]
+distro_family = "Arch"
+command = "sudo pacman -S mangohud"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Nobara"
+command = "sudo dnf install mangohud"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Fedora"
+command = "sudo dnf install mangohud"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Debian"
+command = "sudo apt install mangohud"
+alternatives = "Or use MangoHud release binaries from GitHub."
+
+[[tool.install]]
+distro_family = "Nix"
+command = "nix profile install nixpkgs#mangohud"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "SteamOS"
+command = ""
+alternatives = "Pre-installed on SteamOS."
+
+[[tool.install]]
+distro_family = "GamingImmutable"
+command = ""
+alternatives = "Usually pre-installed; check Flathub or rpm-ostree if missing."
+
+[[tool.install]]
+distro_family = "BareImmutable"
+command = "rpm-ostree install mangohud"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Unknown"
+command = "See MangoHud releases or your distro package manager."
+alternatives = ""
+
+# --- GameMode (gamemoderun) ---
+[[tool]]
+tool_id = "gamemode"
+binary_name = "gamemoderun"
+display_name = "GameMode"
+description = "Requests CPU governor and I/O priority tweaks while games run."
+docs_url = "https://github.com/FeralInteractive/gamemode"
+required = false
+category = "performance"
+
+[[tool.install]]
+distro_family = "Arch"
+command = "sudo pacman -S gamemode lib32-gamemode"
+alternatives = "32-bit lib may be needed for some Proton titles."
+
+[[tool.install]]
+distro_family = "Nobara"
+command = "sudo dnf install gamemode"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Fedora"
+command = "sudo dnf install gamemode"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Debian"
+command = "sudo apt install gamemode"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Nix"
+command = "nix profile install nixpkgs#gamemode"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "SteamOS"
+command = ""
+alternatives = "Pre-installed on SteamOS."
+
+[[tool.install]]
+distro_family = "GamingImmutable"
+command = ""
+alternatives = "Usually pre-installed."
+
+[[tool.install]]
+distro_family = "BareImmutable"
+command = "rpm-ostree install gamemode"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Unknown"
+command = "See GameMode install instructions for your distribution."
+alternatives = ""
+
+# --- CachyOS game-performance (optional; binary is CachyOS-specific) ---
+[[tool]]
+tool_id = "game_performance"
+binary_name = "game-performance"
+display_name = "game-performance"
+description = "CachyOS helper for gaming performance tweaks and profiles."
+docs_url = "https://wiki.cachyos.org/"
+required = false
+category = "performance"
+
+[[tool.install]]
+distro_family = "Arch"
+command = "sudo pacman -S game-performance"
+alternatives = "Package is provided on CachyOS. On vanilla Arch, use CachyOS repos or an AUR helper if available."
+
+[[tool.install]]
+distro_family = "Nobara"
+command = "sudo dnf install game-performance"
+alternatives = "May be unavailable; this tool is primarily distributed for CachyOS."
+
+[[tool.install]]
+distro_family = "Fedora"
+command = "sudo dnf install game-performance"
+alternatives = "May be unavailable outside CachyOS; check your distro or CachyOS documentation."
+
+[[tool.install]]
+distro_family = "Debian"
+command = "sudo apt install game-performance"
+alternatives = "Package may not exist; install on CachyOS or follow upstream guidance."
+
+[[tool.install]]
+distro_family = "Nix"
+command = ""
+alternatives = "The game-performance binary is not provided as nixpkgs#game-performance; use CachyOS packages, Distrobox/toolbox, or build from source."
+
+[[tool.install]]
+distro_family = "SteamOS"
+command = ""
+alternatives = "Not typically pre-installed; CachyOS-specific package—install on CachyOS or skip."
+
+[[tool.install]]
+distro_family = "GamingImmutable"
+command = ""
+alternatives = "May be unavailable on this image; primarily a CachyOS package."
+
+[[tool.install]]
+distro_family = "BareImmutable"
+command = "rpm-ostree install game-performance"
+alternatives = "Package may be missing; prefer CachyOS or Distrobox/toolbox install."
+
+[[tool.install]]
+distro_family = "Unknown"
+command = "See https://wiki.cachyos.org/ for CachyOS install paths."
+alternatives = "Primarily distributed for CachyOS."
+
+# --- winetricks ---
+[[tool]]
+tool_id = "winetricks"
+binary_name = "winetricks"
+display_name = "Winetricks"
+description = "Helper to install Windows DLLs and components into Wine prefixes."
+docs_url = "https://github.com/Winetricks/winetricks"
+required = false
+category = "prefix_tools"
+
+[[tool.install]]
+distro_family = "Arch"
+command = "sudo pacman -S winetricks"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Nobara"
+command = "sudo dnf install winetricks"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Fedora"
+command = "sudo dnf install winetricks"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Debian"
+command = "sudo apt install winetricks"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Nix"
+command = "nix profile install nixpkgs#winetricks"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "SteamOS"
+command = ""
+alternatives = "Often available; if missing use distro packages or upstream script."
+
+[[tool.install]]
+distro_family = "GamingImmutable"
+command = ""
+alternatives = "Install via distro package manager or Distrobox."
+
+[[tool.install]]
+distro_family = "BareImmutable"
+command = "rpm-ostree install winetricks"
+alternatives = "Or run inside toolbox."
+
+[[tool.install]]
+distro_family = "Unknown"
+command = "curl -sL https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks -o ~/.local/bin/winetricks && chmod +x ~/.local/bin/winetricks"
+alternatives = "Ensure ~/.local/bin is on PATH."
+
+# --- protontricks ---
+[[tool]]
+tool_id = "protontricks"
+binary_name = "protontricks"
+display_name = "Protontricks"
+description = "Winetricks wrapper for Proton prefixes (Steam games)."
+docs_url = "https://github.com/Matoking/protontricks"
+required = false
+category = "prefix_tools"
+
+[[tool.install]]
+distro_family = "Arch"
+command = "sudo pacman -S protontricks"
+alternatives = "Or pip: pip install --user protontricks"
+
+[[tool.install]]
+distro_family = "Nobara"
+command = "sudo dnf install protontricks"
+alternatives = "Or Flatpak: com.github.Matoking.protontricks"
+
+[[tool.install]]
+distro_family = "Fedora"
+command = "sudo dnf install protontricks"
+alternatives = "Or pip/Flatpak as above."
+
+[[tool.install]]
+distro_family = "Debian"
+command = "sudo apt install protontricks"
+alternatives = "Or pip install --user protontricks"
+
+[[tool.install]]
+distro_family = "Nix"
+command = "nix profile install nixpkgs#protontricks"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "SteamOS"
+command = ""
+alternatives = "Install via pip, Flatpak, or distro package when available."
+
+[[tool.install]]
+distro_family = "GamingImmutable"
+command = ""
+alternatives = "Flatpak com.github.Matoking.protontricks is a common choice."
+
+[[tool.install]]
+distro_family = "BareImmutable"
+command = "pip install --user protontricks"
+alternatives = "Use toolbox or Distrobox for pip if the host is immutable."
+
+[[tool.install]]
+distro_family = "Unknown"
+command = "pip install --user protontricks"
+alternatives = "See upstream docs."
+
+# --- Wine Wayland (presence of wine; PROTON_ENABLE_WAYLAND is catalog-level hint) ---
+[[tool]]
+tool_id = "wine_wayland"
+binary_name = "wine"
+display_name = "Wine (Wayland driver support)"
+description = "Wine on the host enables Proton/Wine Wayland experiments when combined with PROTON_ENABLE_WAYLAND=1."
+docs_url = "https://wiki.winehq.org/"
+required = false
+category = "compatibility"
+
+[[tool.install]]
+distro_family = "Arch"
+command = "sudo pacman -S wine"
+alternatives = "Use wine-staging or distro gaming wine builds."
+
+[[tool.install]]
+distro_family = "Nobara"
+command = "sudo dnf install wine"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Fedora"
+command = "sudo dnf install wine"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Debian"
+command = "sudo apt install wine"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Nix"
+command = "nix profile install nixpkgs#wine"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "SteamOS"
+command = ""
+alternatives = "SteamOS provides Wine/Proton via Steam; host wine may be optional."
+
+[[tool.install]]
+distro_family = "GamingImmutable"
+command = ""
+alternatives = "Use distro packages or Flatpak wine as appropriate."
+
+[[tool.install]]
+distro_family = "BareImmutable"
+command = "rpm-ostree install wine"
+alternatives = ""
+
+[[tool.install]]
+distro_family = "Unknown"
+command = "Install Wine from your distribution; then enable PROTON_ENABLE_WAYLAND in CrossHook when supported."
+alternatives = ""
