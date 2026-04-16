@@ -122,17 +122,17 @@ function groupHostToolsByCategory(
 }
 
 function hasExpandableGuidance(tool: HostToolCheckResult): boolean {
+  if ((tool.docs_url ?? '').trim() !== '') {
+    return true;
+  }
   const guidance = tool.install_guidance;
-  if (guidance == null) {
-    return false;
-  }
-  if (guidance.command.trim() !== '') {
+  if ((guidance?.command ?? '').trim() !== '') {
     return true;
   }
-  if (guidance.alternatives.trim() !== '') {
+  if ((guidance?.alternatives ?? '').trim() !== '') {
     return true;
   }
-  return (tool.docs_url ?? '').trim() !== '';
+  return false;
 }
 
 export interface HostToolsReadinessSectionProps {

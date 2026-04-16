@@ -511,6 +511,11 @@ pub fn apply_readiness_nag_dismissals(
 ) {
     if dismissed.contains("umu_run") {
         result.umu_install_guidance = None;
+        for issue in &mut result.checks {
+            if issue.field == "umu_run_available" {
+                issue.remediation.clear();
+            }
+        }
     }
     if dismissed.contains("steam_deck_caveats") {
         result.steam_deck_caveats = None;

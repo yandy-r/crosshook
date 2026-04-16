@@ -124,12 +124,36 @@ function buildMockReadinessResult(): ReadinessCheckResult {
         }
       : tool
   );
+  const warnings = toolChecks.filter((tool) => !tool.is_available && !tool.is_required).length;
+  const criticalFailures = toolChecks.filter((tool) => !tool.is_available && tool.is_required).length;
+  const checks: ReadinessCheckResult['checks'] = toolChecks.map((tool) => {
+    if (tool.is_available) {
+      return {
+        field: tool.tool_id,
+        path: '',
+        message: `${tool.display_name} is available.`,
+        remediation: '',
+        severity: 'info',
+      };
+    }
+    const guidance = tool.install_guidance;
+    const remediationParts = [(guidance?.command ?? '').trim(), (guidance?.alternatives ?? '').trim()].filter(
+      (part) => part !== ''
+    );
+    return {
+      field: tool.tool_id,
+      path: '',
+      message: `${tool.display_name} is missing.`,
+      remediation: remediationParts.join(' ').trim(),
+      severity: tool.is_required ? 'error' : 'warning',
+    };
+  });
 
   return {
-    checks: [],
-    all_passed: true,
-    critical_failures: 0,
-    warnings: 0,
+    checks,
+    all_passed: criticalFailures === 0 && warnings === 0,
+    critical_failures: criticalFailures,
+    warnings,
     umu_install_guidance: dismissed
       ? null
       : {

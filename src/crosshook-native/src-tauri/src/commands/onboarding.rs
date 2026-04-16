@@ -100,9 +100,12 @@ pub fn dismiss_umu_install_nag(
         .map_err(|e| e.to_string())?
         .unwrap();
     if metadata.is_available() {
-        metadata
-            .dismiss_readiness_nag("umu_run", 3650)
-            .map_err(|e| e.to_string())?;
+        if let Err(err) = metadata.dismiss_readiness_nag("umu_run", 3650) {
+            tracing::warn!(
+                error = %err,
+                "failed to persist SQLite readiness nag dismissal for umu_run after settings save"
+            );
+        }
     }
     Ok(())
 }
@@ -120,9 +123,12 @@ pub fn dismiss_steam_deck_caveats(
         .map_err(|e| e.to_string())?
         .unwrap();
     if metadata.is_available() {
-        metadata
-            .dismiss_readiness_nag("steam_deck_caveats", 3650)
-            .map_err(|e| e.to_string())?;
+        if let Err(err) = metadata.dismiss_readiness_nag("steam_deck_caveats", 3650) {
+            tracing::warn!(
+                error = %err,
+                "failed to persist SQLite readiness nag dismissal for steam_deck_caveats after settings save"
+            );
+        }
     }
     Ok(())
 }
