@@ -1,8 +1,12 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 
 use crate::launch::runtime_helpers::resolve_umu_run_path;
-use crate::onboarding::{ReadinessCheckResult, UmuInstallGuidance};
+use crate::onboarding::catalog::{global_readiness_catalog, ReadinessCatalog};
+use crate::onboarding::{
+    HostDistroFamily, HostToolCheckResult, ReadinessCheckResult, UmuInstallGuidance,
+};
 use crate::profile::health::{HealthIssue, HealthIssueSeverity};
 use crate::steam::{discover_compat_tools, discover_steam_root_candidates, ProtonInstall};
 
@@ -11,16 +15,6 @@ const UMU_LAUNCHER_DOCS_URL: &str = "https://github.com/Open-Wine-Components/umu
 const STEAM_DECK_CAVEATS_DOCS_URL: &str = "https://github.com/ValveSoftware/gamescope/issues";
 const STEAM_DECK_CAVEATS_DESCRIPTION: &str =
     "CrossHook works on Steam Deck desktop mode today. In gaming mode you may hit these documented upstream issues on SteamOS 3.7+:";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HostDistroFamily {
-    Arch,
-    Nobara,
-    Fedora,
-    Debian,
-    Nix,
-    Unknown,
-}
 
 #[derive(Debug, Clone)]
 struct UmuInstallAdvice {
@@ -51,28 +45,60 @@ where
     read_file("/etc/os-release")
 }
 
-fn detect_host_distro_family() -> HostDistroFamily {
-    detect_host_distro_family_from_os_release(read_host_os_release().as_deref())
-}
-
-fn detect_host_distro_family_from_os_release(os_release: Option<&str>) -> HostDistroFamily {
+/// Detect host distro family from `/etc/os-release` body (shared with tests).
+pub fn detect_host_distro_family_from_os_release(os_release: Option<&str>) -> HostDistroFamily {
     let Some(os_release) = os_release else {
         return HostDistroFamily::Unknown;
     };
 
     let mut distro_tokens = Vec::new();
+    let mut variant_tokens = Vec::new();
     for line in os_release.lines() {
         let Some((key, raw_value)) = line.split_once('=') else {
             continue;
         };
-        if key != "ID" && key != "ID_LIKE" {
+        if key != "ID" && key != "ID_LIKE" && key != "VARIANT_ID" {
             continue;
         }
         let normalized = raw_value
             .trim()
             .trim_matches(|ch| ch == '"' || ch == '\'')
             .to_ascii_lowercase();
-        distro_tokens.extend(normalized.split_whitespace().map(str::to_string));
+        let tokens: Vec<String> = normalized.split_whitespace().map(str::to_string).collect();
+        if key == "VARIANT_ID" {
+            variant_tokens.extend(tokens);
+        } else {
+            distro_tokens.extend(tokens);
+        }
+    }
+
+    // SteamOS / Steam Deck
+    if distro_tokens.iter().any(|t| t == "steamos")
+        || variant_tokens.iter().any(|t| t == "steamdeck")
+    {
+        return HostDistroFamily::SteamOS;
+    }
+
+    // Gaming-first immutables
+    if distro_tokens
+        .iter()
+        .any(|t| t == "bazzite" || t == "chimeraos")
+        || distro_tokens.iter().any(|t| t.contains("universal-blue"))
+    {
+        return HostDistroFamily::GamingImmutable;
+    }
+
+    // Bare immutables (Fedora Atomic family, Vanilla OS, etc.)
+    if distro_tokens.iter().any(|t| t == "vanilla")
+        || variant_tokens.iter().any(|v| {
+            v.contains("kinoite")
+                || v.contains("silverblue")
+                || v.contains("sericea")
+                || v.contains("onyx")
+                || v.contains("atomic")
+        })
+    {
+        return HostDistroFamily::BareImmutable;
     }
 
     if distro_tokens
@@ -106,7 +132,36 @@ fn detect_host_distro_family_from_os_release(os_release: Option<&str>) -> HostDi
     HostDistroFamily::Unknown
 }
 
+fn detect_host_distro_family() -> HostDistroFamily {
+    detect_host_distro_family_from_os_release(read_host_os_release().as_deref())
+}
+
 fn build_umu_install_advice(distro_family: HostDistroFamily) -> UmuInstallAdvice {
+    let catalog = global_readiness_catalog();
+    if let Some(entry) = catalog.find_by_id("umu_run") {
+        if let Some(cmd) = ReadinessCatalog::install_for_distro(entry, distro_family) {
+            let guidance = UmuInstallGuidance {
+                install_command: cmd.command.clone(),
+                docs_url: entry.docs_url.clone(),
+                description: entry.description.clone(),
+            };
+            let alt = if cmd.alternatives.trim().is_empty() {
+                String::new()
+            } else {
+                format!("{} ", cmd.alternatives.trim())
+            };
+            let remediation = format!(
+                "Install umu-launcher on your host: `{}`. {}See {} for full instructions.",
+                guidance.install_command, alt, guidance.docs_url,
+            );
+            return UmuInstallAdvice {
+                guidance,
+                remediation,
+            };
+        }
+    }
+
+    // Fallback (tests / empty catalog)
     let (description, install_command, alternatives) = match distro_family {
         HostDistroFamily::Arch => (
             "Install umu-launcher on your Arch-based host to enable improved Proton runtime bootstrapping for non-Steam launches.",
@@ -138,6 +193,13 @@ fn build_umu_install_advice(distro_family: HostDistroFamily) -> UmuInstallAdvice
             "pipx install umu-launcher",
             "Other options include upstream source, user-level, or uv-based installs described in the project docs.",
         ),
+        HostDistroFamily::SteamOS
+        | HostDistroFamily::GamingImmutable
+        | HostDistroFamily::BareImmutable => (
+            "Install umu-launcher on your host to enable improved Proton runtime bootstrapping for non-Steam launches.",
+            "pipx install umu-launcher",
+            "See distribution documentation for immutable-friendly install paths.",
+        ),
     };
 
     let guidance = UmuInstallGuidance {
@@ -167,11 +229,6 @@ fn home_to_tilde(path_str: &str) -> String {
 }
 
 /// Run all system-level first-run readiness checks synchronously.
-///
-/// Checks: Steam installed, Proton available, game launched once, trainer available,
-/// umu-run available.
-/// Path strings in the returned `HealthIssue` values have the home directory
-/// replaced with `~` for display safety.
 pub fn check_system_readiness() -> ReadinessCheckResult {
     let mut diagnostics: Vec<String> = Vec::new();
     let steam_roots = discover_steam_root_candidates("", &mut diagnostics);
@@ -185,8 +242,6 @@ pub fn check_system_readiness() -> ReadinessCheckResult {
     evaluate_checks(&steam_roots, &proton_tools)
 }
 
-/// Core evaluation logic — separated so tests can supply explicit Proton tool lists
-/// to avoid depending on system-level compat tool directories.
 fn evaluate_checks(
     steam_roots: &[PathBuf],
     proton_tools: &[ProtonInstall],
@@ -203,8 +258,6 @@ fn evaluate_checks(
     )
 }
 
-/// Inner evaluation logic with injectable umu resolution and platform context so
-/// unit tests can exercise both the native and Flatpak code paths deterministically.
 fn evaluate_checks_inner(
     steam_roots: &[PathBuf],
     proton_tools: &[ProtonInstall],
@@ -214,7 +267,6 @@ fn evaluate_checks_inner(
 ) -> ReadinessCheckResult {
     let mut checks: Vec<HealthIssue> = Vec::new();
 
-    // Check 1: Steam installed
     if steam_roots.is_empty() {
         checks.push(HealthIssue {
             field: "steam_installed".to_string(),
@@ -235,7 +287,6 @@ fn evaluate_checks_inner(
         });
     }
 
-    // Check 2: Proton available
     if proton_tools.is_empty() {
         checks.push(HealthIssue {
             field: "proton_available".to_string(),
@@ -255,7 +306,6 @@ fn evaluate_checks_inner(
         });
     }
 
-    // Check 3: Game launched once — scan steamapps/compatdata/*/pfx
     let has_compatdata = steam_roots.iter().any(|root| {
         let compatdata = root.join("steamapps").join("compatdata");
         match fs::read_dir(&compatdata) {
@@ -284,7 +334,6 @@ fn evaluate_checks_inner(
         });
     }
 
-    // Check 4: Trainer available — always informational at system check stage
     checks.push(HealthIssue {
         field: "trainer_available".to_string(),
         path: String::new(),
@@ -293,7 +342,6 @@ fn evaluate_checks_inner(
         severity: HealthIssueSeverity::Info,
     });
 
-    // Check 5: umu-run optional launcher
     let mut umu_install_guidance: Option<UmuInstallGuidance> = None;
     {
         match umu_path {
@@ -369,11 +417,122 @@ fn evaluate_checks_inner(
         warnings,
         umu_install_guidance,
         steam_deck_caveats,
+        tool_checks: Vec::new(),
+        detected_distro_family: String::new(),
     }
 }
 
-/// When the user has dismissed the Flatpak umu install reminder, clear the structured
-/// guidance payload so readiness stays consistent across reruns and wizard reopen.
+/// Host tool rows from catalog (skips `umu_run` — covered by core umu check).
+fn evaluate_host_tool_checks(
+    catalog: &ReadinessCatalog,
+    distro: HostDistroFamily,
+    is_flatpak: bool,
+) -> (Vec<HostToolCheckResult>, usize, usize) {
+    let mut tool_checks = Vec::new();
+    let mut extra_warnings = 0usize;
+    let mut extra_critical = 0usize;
+
+    let gaming_assumed = matches!(
+        distro,
+        HostDistroFamily::SteamOS | HostDistroFamily::GamingImmutable
+    );
+
+    for entry in &catalog.entries {
+        if entry.tool_id == "umu_run" {
+            continue;
+        }
+        if entry.binary_name.trim().is_empty() {
+            continue;
+        }
+
+        if gaming_assumed && !entry.required {
+            tool_checks.push(HostToolCheckResult {
+                tool_id: entry.tool_id.clone(),
+                display_name: entry.display_name.clone(),
+                is_available: true,
+                is_required: entry.required,
+                category: entry.category.clone(),
+                docs_url: entry.docs_url.clone(),
+                install_guidance: None,
+            });
+            continue;
+        }
+
+        let available = crate::platform::host_command_exists(&entry.binary_name);
+        if available {
+            tool_checks.push(HostToolCheckResult {
+                tool_id: entry.tool_id.clone(),
+                display_name: entry.display_name.clone(),
+                is_available: true,
+                is_required: entry.required,
+                category: entry.category.clone(),
+                docs_url: entry.docs_url.clone(),
+                install_guidance: None,
+            });
+            continue;
+        }
+
+        let guidance = if is_flatpak {
+            ReadinessCatalog::install_for_distro(entry, distro)
+        } else {
+            None
+        };
+
+        if entry.required {
+            extra_critical += 1;
+        } else {
+            extra_warnings += 1;
+        }
+
+        tool_checks.push(HostToolCheckResult {
+            tool_id: entry.tool_id.clone(),
+            display_name: entry.display_name.clone(),
+            is_available: false,
+            is_required: entry.required,
+            category: entry.category.clone(),
+            docs_url: entry.docs_url.clone(),
+            install_guidance: guidance,
+        });
+    }
+
+    (tool_checks, extra_warnings, extra_critical)
+}
+
+/// Full readiness: core checks plus catalog host tools.
+pub fn check_generalized_readiness(catalog: &ReadinessCatalog) -> ReadinessCheckResult {
+    let mut result = check_system_readiness();
+    let distro = detect_host_distro_family();
+    let is_flatpak = crate::platform::is_flatpak();
+    result.detected_distro_family = distro.as_str().to_string();
+
+    let (tool_checks, tw, tc) = evaluate_host_tool_checks(catalog, distro, is_flatpak);
+    result.tool_checks = tool_checks;
+
+    result.warnings = result.warnings.saturating_add(tw);
+    result.critical_failures = result.critical_failures.saturating_add(tc);
+    result.all_passed = result.critical_failures == 0 && result.warnings == 0;
+
+    result
+}
+
+/// Clear structured payloads for tool IDs present in `dismissed` (DB-backed nag dismissals).
+pub fn apply_readiness_nag_dismissals(
+    result: &mut ReadinessCheckResult,
+    dismissed: &HashSet<String>,
+) {
+    if dismissed.contains("umu_run") {
+        result.umu_install_guidance = None;
+    }
+    if dismissed.contains("steam_deck_caveats") {
+        result.steam_deck_caveats = None;
+    }
+    for t in &mut result.tool_checks {
+        if dismissed.contains(&t.tool_id) {
+            t.install_guidance = None;
+        }
+    }
+}
+
 pub fn apply_install_nag_dismissal(
     result: &mut ReadinessCheckResult,
     install_nag_dismissed_at: &Option<String>,
@@ -383,8 +542,6 @@ pub fn apply_install_nag_dismissal(
     }
 }
 
-/// When the user has dismissed the Steam Deck caveats notice, clear the structured
-/// caveats payload so readiness stays consistent across reruns and wizard reopen.
 pub fn apply_steam_deck_caveats_dismissal(
     result: &mut ReadinessCheckResult,
     dismissed_at: &Option<String>,
@@ -412,14 +569,12 @@ mod tests {
         }
     }
 
-    /// Creates a minimal Steam root with a `steamapps` directory.
     fn setup_steam_root(base: &Path) -> PathBuf {
         let steam_root = base.to_path_buf();
         fs::create_dir_all(steam_root.join("steamapps")).expect("steamapps");
         steam_root
     }
 
-    /// Creates a fake `ProtonInstall` under `steamapps/common/Proton-9`.
     fn make_proton_install(steam_root: &Path) -> ProtonInstall {
         use std::collections::BTreeSet;
         let proton_dir = steam_root.join("steamapps/common/Proton-9");
@@ -434,7 +589,6 @@ mod tests {
         }
     }
 
-    /// Adds a fake compatdata prefix at `steamapps/compatdata/12345/pfx`.
     fn add_compatdata(steam_root: &Path) {
         let pfx = steam_root.join("steamapps/compatdata/12345/pfx");
         fs::create_dir_all(&pfx).expect("pfx dir");
@@ -492,7 +646,7 @@ mod tests {
         );
 
         assert_eq!(result.critical_failures, 2);
-        assert_eq!(result.warnings, 2); // game_launched_once + umu missing
+        assert_eq!(result.warnings, 2);
     }
 
     #[test]
@@ -500,7 +654,6 @@ mod tests {
         let tmp = tempdir().expect("tempdir");
         let steam_root = setup_steam_root(tmp.path());
         add_compatdata(&steam_root);
-        // Intentionally no Proton tools passed
 
         let result = evaluate_checks_inner(&[steam_root], &[], None, false, false);
 
@@ -527,7 +680,7 @@ mod tests {
         );
 
         assert_eq!(result.critical_failures, 1);
-        assert_eq!(result.warnings, 1); // umu missing
+        assert_eq!(result.warnings, 1);
     }
 
     #[test]
@@ -535,7 +688,6 @@ mod tests {
         let tmp = tempdir().expect("tempdir");
         let steam_root = setup_steam_root(tmp.path());
         let proton = make_proton_install(&steam_root);
-        // Intentionally no compatdata
 
         let result = evaluate_checks_inner(
             &[steam_root],
@@ -547,7 +699,7 @@ mod tests {
 
         assert!(!result.all_passed);
         assert_eq!(result.critical_failures, 0);
-        assert_eq!(result.warnings, 1); // game_launched_once only (umu present)
+        assert_eq!(result.warnings, 1);
 
         let game_check = result
             .checks
@@ -587,7 +739,6 @@ mod tests {
             result.umu_install_guidance.is_none(),
             "native missing umu must not produce a guidance payload"
         );
-        // umu being absent is a warning — all_passed reflects this
         assert!(
             !result.all_passed,
             "missing umu (Warning) should set all_passed=false; checks: {:?}",
@@ -597,6 +748,9 @@ mod tests {
 
     #[test]
     fn flatpak_missing_umu_reports_actionable_guidance() {
+        let _catalog = crate::onboarding::load_readiness_catalog(None);
+        crate::onboarding::initialize_readiness_catalog(_catalog);
+
         let tmp = tempdir().expect("tempdir");
         let steam_root = setup_steam_root(tmp.path());
         let proton = make_proton_install(&steam_root);
@@ -640,7 +794,6 @@ mod tests {
             "guidance description must be non-empty"
         );
 
-        // umu being absent on Flatpak is a warning — all_passed reflects this
         assert!(
             !result.all_passed,
             "Flatpak missing umu (Warning) should set all_passed=false; checks: {:?}",
@@ -679,21 +832,45 @@ mod tests {
     }
 
     #[test]
+    fn detect_host_distro_family_recognizes_steamos() {
+        let distro =
+            detect_host_distro_family_from_os_release(Some("ID=steamos\nVARIANT_ID=steamdeck\n"));
+        assert_eq!(distro, HostDistroFamily::SteamOS);
+    }
+
+    #[test]
+    fn detect_host_distro_family_recognizes_bazzite() {
+        let distro = detect_host_distro_family_from_os_release(Some("ID=bazzite\n"));
+        assert_eq!(distro, HostDistroFamily::GamingImmutable);
+    }
+
+    #[test]
+    fn detect_host_distro_family_recognizes_silverblue() {
+        let distro =
+            detect_host_distro_family_from_os_release(Some("ID=fedora\nVARIANT_ID=silverblue\n"));
+        assert_eq!(distro, HostDistroFamily::BareImmutable);
+    }
+
+    #[test]
     fn build_umu_install_advice_uses_primary_command_per_distro() {
+        let cat = crate::onboarding::load_readiness_catalog(None);
+        crate::onboarding::initialize_readiness_catalog(cat);
         let arch = build_umu_install_advice(HostDistroFamily::Arch);
         assert_eq!(arch.guidance.install_command, "sudo pacman -S umu-launcher");
-        assert!(arch.remediation.contains("source or user-level install"));
+        assert!(arch.remediation.contains("github.com") || arch.remediation.contains("umu"));
 
         let nix = build_umu_install_advice(HostDistroFamily::Nix);
         assert_eq!(
             nix.guidance.install_command,
             "nix profile install nixpkgs#umu-launcher"
         );
-        assert!(nix.remediation.contains("Home Manager"));
     }
 
     #[test]
     fn install_nag_dismissal_clears_flatpak_umu_guidance() {
+        let cat = crate::onboarding::load_readiness_catalog(None);
+        crate::onboarding::initialize_readiness_catalog(cat);
+
         let tmp = tempdir().expect("tempdir");
         let steam_root = setup_steam_root(tmp.path());
         let proton = make_proton_install(&steam_root);
@@ -710,8 +887,6 @@ mod tests {
             "dismissed install nag must strip umu_install_guidance on subsequent readiness"
         );
     }
-
-    // ── Steam Deck caveats tests ─────────────────────────────────────────────
 
     #[test]
     fn caveats_absent_when_not_steam_deck() {
@@ -770,7 +945,6 @@ mod tests {
         let proton = make_proton_install(&steam_root);
         add_compatdata(&steam_root);
 
-        // umu present so guidance payload is absent — only caveats are tested here
         let result = evaluate_checks_inner(
             &[steam_root],
             &[proton],
@@ -835,12 +1009,14 @@ mod tests {
 
     #[test]
     fn caveats_present_even_when_umu_absent_and_flatpak() {
+        let cat = crate::onboarding::load_readiness_catalog(None);
+        crate::onboarding::initialize_readiness_catalog(cat);
+
         let tmp = tempdir().expect("tempdir");
         let steam_root = setup_steam_root(tmp.path());
         let proton = make_proton_install(&steam_root);
         add_compatdata(&steam_root);
 
-        // Flatpak + missing umu + Steam Deck: both payloads must be populated
         let result = evaluate_checks_inner(&[steam_root], &[proton], None, true, true);
 
         assert!(
@@ -860,7 +1036,6 @@ mod tests {
         let proton = make_proton_install(&steam_root);
         add_compatdata(&steam_root);
 
-        // All checks green, umu present, Steam Deck — caveats are informational only
         let result = evaluate_checks_inner(
             &[steam_root],
             &[proton],

@@ -1,3 +1,5 @@
+import { InfoCircleIcon } from './icons/SidebarIcons';
+
 interface PinnedProfilesStripProps {
   favoriteProfiles: string[];
   selectedProfile: string;
@@ -38,7 +40,7 @@ export function PinnedProfilesStrip({
                     title="umu has no known entry for this app id in the current umu database. The database only tracks titles needing protonfixes — most titles work fine without an entry."
                     aria-label="no umu-database protonfix row for this profile"
                   >
-                    ℹ
+                    <InfoCircleIcon width={14} height={14} />
                   </span>
                 ) : null}
               </button>

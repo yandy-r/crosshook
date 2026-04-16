@@ -51,6 +51,7 @@ const EXPLICIT_READ_COMMANDS: ReadonlySet<string> = new Set<string>([
   'check_gamescope_session',
   'launch_platform_status',
   'check_readiness',
+  'check_generalized_readiness',
   'preview_launch',
   'validate_launch',
   'build_steam_launch_options_command',

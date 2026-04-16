@@ -21,9 +21,13 @@ import type { GameProfile } from '../types/profile';
 import { copyToClipboard } from '../utils/clipboard';
 import { LAUNCH_PANEL_ACTION_BUTTON_STYLE } from '../utils/launchPanelActionButtonStyle';
 import { sortIssuesBySeverity } from '../utils/mapValidationToNode';
+import { InfoCircleIcon } from './icons/SidebarIcons';
 import { LaunchPipeline } from './LaunchPipeline';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import '../styles/preview.css';
+
+const UMU_DATABASE_MISSING_HINT =
+  'umu has no known entry for this app id in the current umu database. The database only tracks titles needing protonfixes — most titles work fine without an entry.';
 
 /* ───────── Focus-trap helpers (mirrors ProfileReviewModal) ───────── */
 
@@ -456,9 +460,21 @@ function PreviewModal({ preview, profileId, onClose, onLaunch }: PreviewModalPro
                           umu protonfix coverage: <code>{preview.umu_decision.csv_coverage}</code>
                         </div>
                         {preview.umu_decision.will_use_umu && preview.umu_decision.csv_coverage === 'missing' ? (
-                          <div className="crosshook-preview-modal__umu-decision-info" style={{ marginTop: 6 }}>
-                            ℹ umu has no known entry for this app id in the current umu database. The database only
-                            tracks titles needing protonfixes — most titles work fine without an entry.
+                          <div
+                            className="crosshook-preview-modal__umu-decision-info"
+                            style={{ marginTop: 6, display: 'flex', alignItems: 'flex-start', gap: 8 }}
+                          >
+                            <InfoCircleIcon
+                              width={14}
+                              height={14}
+                              aria-hidden
+                              style={{
+                                flexShrink: 0,
+                                marginTop: 2,
+                                color: 'var(--crosshook-color-info)',
+                              }}
+                            />
+                            <span>{UMU_DATABASE_MISSING_HINT}</span>
                           </div>
                         ) : null}
                       </div>

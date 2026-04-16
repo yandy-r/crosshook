@@ -22,6 +22,26 @@ export interface SteamDeckCaveats {
   docs_url: string;
 }
 
+/** One distro-specific install hint row from the host readiness catalog. */
+export interface HostToolInstallCommand {
+  distro_family: string;
+  command: string;
+  alternatives: string;
+}
+
+/** Result for a single host tool probe (generalized readiness). */
+export interface HostToolCheckResult {
+  tool_id: string;
+  display_name: string;
+  is_available: boolean;
+  is_required: boolean;
+  category: string;
+  /** Upstream / project documentation URL from the catalog. */
+  docs_url?: string;
+  /** Present when the tool is missing and Flatpak host guidance applies. */
+  install_guidance: HostToolInstallCommand | null;
+}
+
 export interface ReadinessCheckResult {
   checks: HealthIssue[];
   all_passed: boolean;
@@ -31,6 +51,10 @@ export interface ReadinessCheckResult {
   umu_install_guidance: UmuInstallGuidance | null;
   /** Steam Deck-specific caveats; non-null only when running on a Steam Deck. */
   steam_deck_caveats: SteamDeckCaveats | null;
+  /** Host tool rows from `check_generalized_readiness` (empty for legacy `check_readiness` unless backend merges). */
+  tool_checks?: HostToolCheckResult[];
+  /** Detected host distro key from `/etc/os-release` (e.g. `Arch`, `SteamOS`). */
+  detected_distro_family?: string;
 }
 
 export type OnboardingWizardStage = 'identity_game' | 'runtime' | 'trainer' | 'media' | 'review' | 'completed';

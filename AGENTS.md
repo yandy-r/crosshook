@@ -141,7 +141,7 @@ src/crosshook-native/              # Primary source root
 **Location**: `~/.local/share/crosshook/metadata.db`
 **Mode**: WAL (write-ahead logging)
 **Permissions**: `0600` (owner read/write only)
-**Current schema version**: 13
+**Current schema version**: 21
 **Access**: `MetadataStore::try_new()` in `crosshook-core`
 **Migrations**: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`
 
@@ -167,6 +167,9 @@ src/crosshook-native/              # Primary source root
 | `trainer_hash_cache`             |     v13      | SHA-256 hash per trainer per profile                                   |
 | `offline_readiness_snapshots`    |     v13      | Offline readiness state snapshots                                      |
 | `community_tap_offline_state`    |     v13      | Per-tap offline availability state                                     |
+| `host_readiness_catalog`         |     v21      | Persisted host-tool readiness catalog (from TOML merge)                |
+| `readiness_nag_dismissals`       |     v21      | TTL dismissals for per-tool readiness nags (global)                    |
+| `host_readiness_snapshots`       |     v21      | Last cached generalized host readiness snapshot (single row)           |
 
 ### Persistence design classification
 
