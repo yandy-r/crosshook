@@ -1,10 +1,15 @@
+import { useEffect } from 'react';
 import { useProtonInstallProgress } from '../../hooks/useProtonInstallProgress';
 import type { ProtonInstallPhase } from '../../types/protonup';
 
 interface InstallProgressBarProps {
   opId: string;
   onCancel: (opId: string) => void;
+  onDismiss: (opId: string) => void;
 }
+
+/** How long to keep a successful install visible before auto-dismissing. */
+const AUTO_DISMISS_DONE_MS = 4000;
 
 const TERMINAL_PHASES: Set<ProtonInstallPhase> = new Set(['done', 'failed', 'cancelled']);
 
@@ -21,7 +26,7 @@ function phaseLabel(phase: ProtonInstallPhase, percent: number | null): string {
     case 'finalizing':
       return 'Finalizing…';
     case 'done':
-      return 'Done';
+      return 'Completed';
     case 'failed':
       return 'Failed';
     case 'cancelled':
@@ -46,7 +51,7 @@ function fillModifier(phase: ProtonInstallPhase): string {
   return '';
 }
 
-export function InstallProgressBar({ opId, onCancel }: InstallProgressBarProps) {
+export function InstallProgressBar({ opId, onCancel, onDismiss }: InstallProgressBarProps) {
   const { progress, percent } = useProtonInstallProgress(opId);
 
   // While no progress event has arrived yet show an indeterminate state.
@@ -54,12 +59,32 @@ export function InstallProgressBar({ opId, onCancel }: InstallProgressBarProps) 
   const displayPercent = percent ?? (TERMINAL_PHASES.has(phase) ? 100 : 0);
   const isTerminal = TERMINAL_PHASES.has(phase);
 
+  // Auto-dismiss successful installs after a short grace period so the
+  // status container doesn't linger. Failures and cancellations stay until
+  // the user dismisses them explicitly.
+  useEffect(() => {
+    if (phase !== 'done') return;
+    const timeout = window.setTimeout(() => onDismiss(opId), AUTO_DISMISS_DONE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [phase, opId, onDismiss]);
+
+  const installLabel = progress?.message ?? `Installing ${opId.slice(0, 8)}…`;
+
   return (
     <div className="crosshook-install-progress" role="status" aria-live="polite">
       <div className="crosshook-install-progress__top">
-        <span className="crosshook-install-progress__label">Installing {opId.slice(0, 8)}…</span>
+        <span className="crosshook-install-progress__label">{installLabel}</span>
         <span className={`crosshook-install-progress__phase${phaseModifier(phase)}`}>{phaseLabel(phase, percent)}</span>
-        {!isTerminal ? (
+        {isTerminal ? (
+          <button
+            type="button"
+            className="crosshook-button crosshook-button--ghost crosshook-button--ghost--small"
+            onClick={() => onDismiss(opId)}
+            aria-label="Dismiss install status"
+          >
+            Dismiss
+          </button>
+        ) : (
           <button
             type="button"
             className="crosshook-button crosshook-button--ghost crosshook-button--ghost--small"
@@ -67,7 +92,7 @@ export function InstallProgressBar({ opId, onCancel }: InstallProgressBarProps) 
           >
             Cancel
           </button>
-        ) : null}
+        )}
       </div>
 
       <div className="crosshook-install-progress__track" aria-hidden="true">
@@ -76,8 +101,6 @@ export function InstallProgressBar({ opId, onCancel }: InstallProgressBarProps) 
           style={{ width: `${displayPercent}%` }}
         />
       </div>
-
-      {progress?.message ? <div className="crosshook-install-progress__message">{progress.message}</div> : null}
     </div>
   );
 }

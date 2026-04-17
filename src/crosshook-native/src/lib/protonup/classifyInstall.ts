@@ -23,3 +23,28 @@ export function classifyInstallProvider(name: string): string | null {
   }
   return null;
 }
+
+/**
+ * Normalize an installed directory name to a key comparable with the
+ * provider's GitHub release tag.
+ *
+ * Proton-CachyOS publishes releases with tags like `cachyos-10.0-20260410-slr`
+ * but ships archives whose extracted directory name is
+ * `proton-cachyos-10.0-20260410-slr-x86_64`. Exact-string matching would
+ * perpetually mark CachyOS installs as "Available"; this helper strips the
+ * `proton-` prefix and the `-x86_64[_v3]` arch suffix so the key aligns with
+ * the tag.
+ *
+ * GE-Proton and Proton-EM directory names already equal their tags.
+ */
+export function normalizeInstallToTag(installName: string, providerId: string | null): string {
+  if (providerId === 'proton-cachyos') {
+    // `proton-cachyos-<tag>-x86_64` → `<tag>` (strip `proton-` prefix and arch suffix).
+    return installName.replace(/^proton-/, '').replace(/-x86_64(?:_v3)?$/, '');
+  }
+  if (providerId === 'proton-em') {
+    // `proton-<tag>` (e.g. `proton-EM-10.0-37-HDR`) → `<tag>` (e.g. `EM-10.0-37-HDR`).
+    return installName.replace(/^proton-/, '');
+  }
+  return installName;
+}

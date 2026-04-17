@@ -193,9 +193,11 @@ pub(super) fn find_matching_sha512sum<'a>(
 
 /// Pick the primary downloadable archive for a release.
 ///
-/// GE-Proton publishes `.tar.gz`. Proton-CachyOS publishes `.tar.xz` for
-/// several architectures; we prefer the Linux x86_64 baseline, then x86_64_v3,
-/// then any non-ARM `.tar.xz`.
+/// GE-Proton publishes `.tar.gz`. Proton-EM publishes `.tar.xz`. Proton-CachyOS
+/// publishes `.tar.xz` for several architectures; we prefer the Linux x86_64
+/// baseline, then x86_64_v3, then any non-ARM `.tar.xz`. Other providers get
+/// the first `.tar.gz` / `.tar.xz` the upstream lists (GitHub returns assets
+/// in upload order, which puts the primary archive first for these repos).
 pub(super) fn pick_tarball_asset<'a>(
     assets: &'a [GhAsset],
     provider_id: &str,
@@ -219,7 +221,9 @@ pub(super) fn pick_tarball_asset<'a>(
             .copied()
             .or_else(|| xz.first().copied())
     } else {
-        assets.iter().find(|a| a.name.ends_with(".tar.gz"))
+        assets
+            .iter()
+            .find(|a| a.name.ends_with(".tar.gz") || a.name.ends_with(".tar.xz"))
     }
 }
 

@@ -6,9 +6,15 @@ use crosshook_core::protonup::install_root::InstallRootCandidate;
 use crosshook_core::protonup::matching::match_community_version;
 use crosshook_core::protonup::providers::{describe_providers, ProtonUpProviderDescriptor};
 use crosshook_core::protonup::{
-    parse_protonup_provider, ProtonUpAvailableVersion, ProtonUpCatalogResponse,
-    ProtonUpInstallErrorKind, ProtonUpInstallRequest, ProtonUpInstallResult, ProtonUpSuggestion,
+    ProtonUpAvailableVersion, ProtonUpCatalogResponse, ProtonUpInstallErrorKind,
+    ProtonUpInstallRequest, ProtonUpInstallResult, ProtonUpSuggestion,
 };
+
+/// Default provider id used when the frontend omits the field. Unknown
+/// provider ids are passed through to the catalog (which returns empty
+/// when the registry doesn't recognise them) rather than silently
+/// downgrading to GE-Proton.
+const DEFAULT_PROVIDER_ID: &str = "ge-proton";
 use crosshook_core::steam::{discover_compat_tools, discover_steam_root_candidates};
 use tauri::{Emitter as _, State};
 use tokio_util::sync::CancellationToken;
@@ -75,19 +81,27 @@ pub struct ProtonUninstallResponse {
 // ── existing commands (preserved) ─────────────────────────────────────────────
 
 /// List available Proton versions from provider catalog.
+///
+/// Dispatch is id-based so the frontend can request any provider the
+/// registry knows about (GE-Proton, Proton-CachyOS, Proton-EM, …).
+/// Previously this went through the closed `ProtonUpProvider` enum, which
+/// silently mapped unknown ids to GE-Proton — hence `Proton-EM` appeared
+/// to alias GE-Proton in the UI.
 #[tauri::command]
 pub async fn protonup_list_available_versions(
     metadata_store: State<'_, MetadataStore>,
     provider: Option<String>,
     force_refresh: Option<bool>,
 ) -> Result<ProtonUpCatalogResponse, String> {
-    let provider = parse_protonup_provider(provider.as_deref());
-    Ok(crosshook_core::protonup::catalog::list_available_versions(
-        &metadata_store,
-        force_refresh.unwrap_or(false),
-        provider,
+    let provider_id = provider.as_deref().unwrap_or(DEFAULT_PROVIDER_ID);
+    Ok(
+        crosshook_core::protonup::catalog::list_available_versions_by_id(
+            &metadata_store,
+            force_refresh.unwrap_or(false),
+            provider_id,
+        )
+        .await,
     )
-    .await)
 }
 
 /// Install a selected Proton version (synchronous/backward-compat variant).
@@ -96,12 +110,11 @@ pub async fn protonup_install_version(
     metadata_store: State<'_, MetadataStore>,
     request: ProtonUpInstallRequest,
 ) -> Result<ProtonUpInstallResult, String> {
-    // Look up version info from catalog first (same provider as the install request).
-    let provider = parse_protonup_provider(Some(request.provider.as_str()));
-    let catalog = crosshook_core::protonup::catalog::list_available_versions(
+    // Look up version info from catalog using the request's exact provider id.
+    let catalog = crosshook_core::protonup::catalog::list_available_versions_by_id(
         &metadata_store,
         false,
-        provider,
+        request.provider.as_str(),
     )
     .await;
 
@@ -196,20 +209,14 @@ pub async fn protonup_install_version_async(
     let op_id_task = op_id.clone();
 
     // Pump progress events from the broadcast channel into Tauri events.
+    // No post-loop sentinel: the install orchestrator already emits a terminal
+    // Phase (Done / Failed / Cancelled) before dropping the sender, which is
+    // the signal the frontend uses to flip into a terminal state.
     let app_pump = app.clone();
-    let op_id_pump = op_id.clone();
     tokio::spawn(async move {
         while let Ok(progress) = rx.recv().await {
             let _ = app_pump.emit("protonup:install:progress", &progress);
         }
-        // Emit a sentinel so the frontend knows the channel is done.
-        let _ = app_pump.emit(
-            "protonup:install:progress",
-            serde_json::json!({
-                "op_id": op_id_pump,
-                "phase": "done-channel-closed"
-            }),
-        );
     });
 
     // Spawn the actual install task.

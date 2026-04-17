@@ -1,10 +1,29 @@
 import { useEffect, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
-import type { ProtonInstallProgress } from '../types/protonup';
+import type { ProtonInstallPhase, ProtonInstallProgress } from '../types/protonup';
+
+const KNOWN_PHASES: ReadonlySet<ProtonInstallPhase> = new Set([
+  'resolving',
+  'downloading',
+  'verifying',
+  'extracting',
+  'finalizing',
+  'done',
+  'failed',
+  'cancelled',
+]);
+
+function isKnownPhase(value: string): value is ProtonInstallPhase {
+  return KNOWN_PHASES.has(value as ProtonInstallPhase);
+}
 
 /**
  * Subscribes to `protonup:install:progress` events and tracks progress for a
  * specific install operation identified by `opId`.
+ *
+ * Unknown phase values are dropped rather than assigned to state — this
+ * defensively guards against future Rust-side sentinels leaking through and
+ * clobbering a valid terminal state.
  *
  * Returns `null` for both `progress` and `percent` while no `opId` is active.
  */
@@ -22,9 +41,9 @@ export function useProtonInstallProgress(opId: string | null) {
     const unlistenPromise = subscribeEvent<ProtonInstallProgress>('protonup:install:progress', (event) => {
       if (cancelled) return;
       const payload = event.payload;
-      if (payload.op_id === opId) {
-        setProgress(payload);
-      }
+      if (payload.op_id !== opId) return;
+      if (!isKnownPhase(payload.phase)) return;
+      setProgress(payload);
     });
 
     return () => {

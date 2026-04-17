@@ -30,13 +30,18 @@ function sortProtonInstalls(installs: ProtonInstallOption[]): ProtonInstallOptio
 export function useProtonInstalls(options: UseProtonInstallsOptions = {}): UseProtonInstallsResult {
   const [installs, setInstalls] = useState<ProtonInstallOption[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [_reloadVersion, setReloadVersion] = useState(0);
+  const [reloadVersion, setReloadVersion] = useState(0);
   const steamClientInstallPath = options.steamClientInstallPath?.trim() ?? '';
 
   const reload = useCallback(() => {
     setReloadVersion((current) => current + 1);
   }, []);
 
+  // `reloadVersion` is a pure trigger: not referenced inside the effect
+  // body, but calling `reload()` bumps it to re-run the fetch. Without it
+  // in the deps, `reload()` mutates state silently and the installed list
+  // stays stale after a new install completes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: trigger-only dep
   useEffect(() => {
     let active = true;
 
@@ -67,7 +72,7 @@ export function useProtonInstalls(options: UseProtonInstallsOptions = {}): UsePr
     return () => {
       active = false;
     };
-  }, [steamClientInstallPath]);
+  }, [steamClientInstallPath, reloadVersion]);
 
   return {
     installs,

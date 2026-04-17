@@ -110,11 +110,15 @@ mod tests {
         }
     }
 
-    fn tar_gz_asset(tag_name: &str) -> GhAsset {
+    /// Realistic Proton-EM asset shape: `proton-<tag>.tar.xz` (upstream ships
+    /// `.tar.xz`, not `.tar.gz`). Earlier tests used `.tar.gz` which passed
+    /// only because the picker's non-CachyOS branch was limited to `.tar.gz`
+    /// — that shortcut silently dropped every real EM release.
+    fn tar_xz_asset(tag_name: &str) -> GhAsset {
         GhAsset {
-            name: format!("{tag_name}.tar.gz"),
+            name: format!("proton-{tag_name}.tar.xz"),
             browser_download_url: format!(
-                "https://github.com/Etaash-mathamsetty/Proton/releases/download/{tag_name}/{tag_name}.tar.gz"
+                "https://github.com/Etaash-mathamsetty/Proton/releases/download/{tag_name}/proton-{tag_name}.tar.xz"
             ),
             size: 2_100_000,
         }
@@ -127,19 +131,19 @@ mod tests {
                 "proton-em-9.0-draft",
                 true,
                 false,
-                vec![tar_gz_asset("proton-em-9.0-draft")],
+                vec![tar_xz_asset("proton-em-9.0-draft")],
             ),
             make_release(
                 "proton-em-9.0-rc1",
                 false,
                 true,
-                vec![tar_gz_asset("proton-em-9.0-rc1")],
+                vec![tar_xz_asset("proton-em-9.0-rc1")],
             ),
             make_release(
                 "proton-em-9.0",
                 false,
                 false,
-                vec![tar_gz_asset("proton-em-9.0")],
+                vec![tar_xz_asset("proton-em-9.0")],
             ),
         ];
 
@@ -151,18 +155,21 @@ mod tests {
     #[test]
     fn parse_releases_proton_em_picks_tarball() {
         let releases = vec![make_release(
-            "proton-em-9.0",
+            "EM-10.0-37-HDR",
             false,
             false,
-            vec![tar_gz_asset("proton-em-9.0")],
+            vec![tar_xz_asset("EM-10.0-37-HDR")],
         )];
 
         let versions = parse_releases(releases, "proton-em", MAX_RELEASES);
         assert_eq!(versions.len(), 1);
         let v = &versions[0];
         assert_eq!(v.provider, "proton-em");
-        assert_eq!(v.version, "proton-em-9.0");
-        assert!(v.download_url.as_deref().unwrap().ends_with(".tar.gz"));
+        assert_eq!(v.version, "EM-10.0-37-HDR");
+        // Upstream ships `.tar.xz`; picker must not limit itself to `.tar.gz`.
+        assert!(v.download_url.as_deref().unwrap().ends_with(".tar.xz"));
+        // `.sha512sum` sidecars don't exist for EM (it ships `.sha256sum`),
+        // and the provider declares `ChecksumKind::None` so no checksum URL.
         assert!(v.checksum_url.is_none());
     }
 

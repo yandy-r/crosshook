@@ -63,37 +63,39 @@ fn protonup_http_client() -> Result<&'static reqwest::Client, reqwest::Error> {
 
 // ----- Public entry point -----
 
-/// Fetch available versions for `provider` with cache-live-stale fallback.
+/// Fetch available versions by provider id with cache-live-stale fallback.
+///
+/// Dispatch goes through the [`providers::registry`], so any provider id the
+/// registry knows about (including `proton-em` and experimental providers)
+/// works. Unknown ids yield an empty catalog rather than silently falling
+/// back to GE-Proton.
 ///
 /// 1. If `force_refresh` is false, return a valid (non-expired) cache hit immediately.
-/// 2. Attempt a live fetch from GitHub Releases.
+/// 2. Attempt a live fetch via the provider trait.
 /// 3. On network failure, fall back to a stale cache entry.
 /// 4. If no cache exists at all, return an empty offline response.
-pub async fn list_available_versions(
+pub async fn list_available_versions_by_id(
     metadata_store: &MetadataStore,
     force_refresh: bool,
-    provider: ProtonUpProvider,
+    provider_id: &str,
 ) -> ProtonUpCatalogResponse {
-    let cfg = catalog_config(provider.clone());
-
     // Step 1: cache-first (skip on force_refresh)
     if !force_refresh {
-        let rows = load_catalog_rows(metadata_store, cfg.provider_id);
+        let rows = load_catalog_rows(metadata_store, provider_id);
         if let Some(response) = build_response_from_rows(&rows, false) {
             return response;
         }
     }
 
     // Step 2: live fetch via the provider trait
-    match fetch_live_catalog(&cfg, provider).await {
+    match fetch_live_catalog_by_id(provider_id).await {
         Ok(versions) => {
             let fetched_at = Utc::now().to_rfc3339();
             let expires_at = (Utc::now() + ChronoDuration::hours(CACHE_TTL_HOURS)).to_rfc3339();
 
-            // Use v22 proton_release_catalog table — one row per (provider_id, version_tag).
             persist_catalog(
                 metadata_store,
-                cfg.provider_id,
+                provider_id,
                 &versions,
                 &fetched_at,
                 &expires_at,
@@ -111,10 +113,10 @@ pub async fn list_available_versions(
         }
 
         Err(error) => {
-            tracing::warn!(%error, provider_id = cfg.provider_id, "ProtonUp live catalog fetch failed — trying stale cache");
+            tracing::warn!(%error, provider_id, "ProtonUp live catalog fetch failed — trying stale cache");
 
             // Step 3: stale fallback
-            let stale_rows = load_catalog_rows(metadata_store, cfg.provider_id);
+            let stale_rows = load_catalog_rows(metadata_store, provider_id);
             if let Some(response) = build_response_from_rows(&stale_rows, true) {
                 return response;
             }
@@ -133,44 +135,35 @@ pub async fn list_available_versions(
     }
 }
 
+/// Back-compat shim: dispatches the legacy [`ProtonUpProvider`] enum via its
+/// kebab-case id. Prefer [`list_available_versions_by_id`] for new callers.
+pub async fn list_available_versions(
+    metadata_store: &MetadataStore,
+    force_refresh: bool,
+    provider: ProtonUpProvider,
+) -> ProtonUpCatalogResponse {
+    list_available_versions_by_id(metadata_store, force_refresh, &provider.to_string()).await
+}
+
 // ----- Live fetch -----
 
-async fn fetch_live_catalog(
-    cfg: &CatalogProviderConfig,
-    provider: ProtonUpProvider,
+async fn fetch_live_catalog_by_id(
+    provider_id: &str,
 ) -> Result<Vec<ProtonUpAvailableVersion>, providers::ProviderError> {
     let client = protonup_http_client().map_err(providers::ProviderError::Http)?;
 
     // Resolve the matching provider implementation from the registry.
     let registry = providers::registry(false);
-    let impl_ = registry.iter().find(|p| p.id() == cfg.provider_id).cloned();
-
-    if let Some(provider_impl) = impl_ {
-        return provider_impl.fetch(client, false).await;
+    match registry.iter().find(|p| p.id() == provider_id).cloned() {
+        Some(provider_impl) => provider_impl.fetch(client, false).await,
+        None => {
+            tracing::warn!(
+                provider_id,
+                "Unknown Proton provider id — returning empty catalog"
+            );
+            Ok(Vec::new())
+        }
     }
-
-    // Fallback: plain HTTP request using the configured URL (covers any provider
-    // not yet in the registry — should not happen in practice).
-    use reqwest::StatusCode;
-
-    let response = client
-        .get(cfg.gh_releases_url)
-        .header("Accept", "application/vnd.github+json")
-        .header("X-GitHub-Api-Version", "2022-11-28")
-        .send()
-        .await?;
-
-    if response.status() == StatusCode::NOT_FOUND {
-        return Ok(Vec::new());
-    }
-
-    let _ = provider; // used only for the fallback path signature
-    let releases = response
-        .error_for_status()?
-        .json::<Vec<providers::GhRelease>>()
-        .await?;
-
-    Ok(providers::parse_releases(releases, cfg.provider_id, 30))
 }
 
 // ----- Cache helpers -----

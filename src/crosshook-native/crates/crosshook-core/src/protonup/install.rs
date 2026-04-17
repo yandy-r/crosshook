@@ -221,17 +221,29 @@ async fn download_to_file(
 
     use futures_util::StreamExt;
     loop {
-        // Check cancellation before each chunk.
-        if let Some(tok) = cancel {
+        // Race the next chunk against cancellation so a stalled / slow
+        // stream doesn't hold the user's Cancel click hostage — a plain
+        // `stream.next().await` only yields control when the next chunk
+        // arrives, which on a stuck connection could be never.
+        let chunk = if let Some(tok) = cancel {
             if tok.is_cancelled() {
                 return Err(InstallError::Cancelled);
             }
-        }
-
-        let chunk = match stream.next().await {
-            Some(Ok(b)) => b,
-            Some(Err(e)) => return Err(network_err(format!("download interrupted: {e}"))),
-            None => break,
+            tokio::select! {
+                biased;
+                _ = tok.cancelled() => return Err(InstallError::Cancelled),
+                next = stream.next() => match next {
+                    Some(Ok(b)) => b,
+                    Some(Err(e)) => return Err(network_err(format!("download interrupted: {e}"))),
+                    None => break,
+                },
+            }
+        } else {
+            match stream.next().await {
+                Some(Ok(b)) => b,
+                Some(Err(e)) => return Err(network_err(format!("download interrupted: {e}"))),
+                None => break,
+            }
         };
 
         sha512.update(&chunk);
@@ -254,6 +266,32 @@ async fn download_to_file(
     file.flush()
         .await
         .map_err(|e| map_io_err(e, &format!("flush failed for {}", dest_path.display())))?;
+
+    // Drop the tokio fs::File handle before the caller re-opens the path for
+    // peek/extract. tokio::fs close is async-lazy; holding it across the
+    // subsequent synchronous open can race on some kernels.
+    drop(file);
+
+    // Fail fast if the stream closed without delivering any bytes. Without
+    // this, a silent short-circuit (e.g. an unexpected redirect body with
+    // Content-Length: 0) propagates as an opaque "archive appears to be
+    // empty" error from the tar peek step.
+    if bytes_done == 0 {
+        return Err(network_err(format!(
+            "download produced 0 bytes for {url} — server may have redirected to an empty response"
+        )));
+    }
+
+    // If the upstream advertised a size, require the transfer to match. A
+    // silent truncation here shows up much later as a confusing extraction
+    // error, so surface it right at the source.
+    if let Some(expected) = bytes_total {
+        if expected > 0 && bytes_done != expected {
+            return Err(network_err(format!(
+                "download truncated for {url}: got {bytes_done} bytes, expected {expected}"
+            )));
+        }
+    }
 
     // Emit a final downloading event with the full byte count.
     if let Some(em) = emitter {
@@ -342,6 +380,30 @@ async fn fetch_sha256_manifest(
 
 // ── extract helpers ───────────────────────────────────────────────────────────
 
+/// Return the first non-`.` normal path segment, or `None` if the path has
+/// no usable top-level name. Archives produced by GNU tar frequently prefix
+/// every entry with `./` (POSIX "current directory" marker) — taking the
+/// raw first component would misclassify every entry as `.` and leak through
+/// as an empty-archive error.
+fn first_normal_path_component(path: &Path) -> Option<String> {
+    use std::path::Component;
+    for component in path.components() {
+        match component {
+            Component::Normal(s) => {
+                let name = s.to_string_lossy().to_string();
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+            Component::CurDir => continue,
+            // Anything else (RootDir / ParentDir / Prefix) means the path
+            // escapes the archive root — treat as no usable top-level.
+            _ => return None,
+        }
+    }
+    None
+}
+
 fn extract_tar_read_sync<R: std::io::Read>(
     read: R,
     dest_dir: &Path,
@@ -364,12 +426,7 @@ fn extract_tar_read_sync<R: std::io::Read>(
             .map_err(|e| InstallError::Unknown(format!("invalid path in archive entry: {e}")))?;
 
         if top_level_dir.is_none() {
-            if let Some(first) = entry_path.components().next() {
-                let name = first.as_os_str().to_string_lossy().to_string();
-                if !name.is_empty() && name != "." {
-                    top_level_dir = Some(name);
-                }
-            }
+            top_level_dir = first_normal_path_component(&entry_path);
         }
 
         entry.unpack_in(dest_dir).map_err(|e| {
@@ -422,14 +479,26 @@ fn peek_tar_read_top_level_sync<R: std::io::Read>(read: R) -> Result<String, Ins
         let entry_path = entry
             .path()
             .map_err(|e| InstallError::Unknown(format!("invalid path in archive entry: {e}")))?;
-        if let Some(first) = entry_path.components().next() {
-            let name = first.as_os_str().to_string_lossy().to_string();
-            if !name.is_empty() && name != "." {
-                return Ok(name);
-            }
+        if let Some(name) = first_normal_path_component(&entry_path) {
+            return Ok(name);
         }
     }
     Err(InstallError::Unknown("archive appears to be empty".into()))
+}
+
+/// Attach the archive path + on-disk file size to a peek error so the
+/// caller can distinguish "truncated download" from "corrupt stream".
+fn enrich_peek_err(archive_path: &Path, err: InstallError) -> InstallError {
+    let size = std::fs::metadata(archive_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+    match err {
+        InstallError::Unknown(msg) => InstallError::Unknown(format!(
+            "{msg} (archive: {} — on-disk size {size} bytes)",
+            archive_path.display()
+        )),
+        other => other,
+    }
 }
 
 fn peek_tar_gz_top_level_sync(archive_path: &Path) -> Result<String, InstallError> {
@@ -440,7 +509,7 @@ fn peek_tar_gz_top_level_sync(archive_path: &Path) -> Result<String, InstallErro
             &format!("failed to open archive {}", archive_path.display()),
         )
     })?;
-    peek_tar_read_top_level_sync(GzDecoder::new(file))
+    peek_tar_read_top_level_sync(GzDecoder::new(file)).map_err(|e| enrich_peek_err(archive_path, e))
 }
 
 fn peek_tar_xz_top_level_sync(archive_path: &Path) -> Result<String, InstallError> {
@@ -451,7 +520,7 @@ fn peek_tar_xz_top_level_sync(archive_path: &Path) -> Result<String, InstallErro
             &format!("failed to open archive {}", archive_path.display()),
         )
     })?;
-    peek_tar_read_top_level_sync(XzDecoder::new(file))
+    peek_tar_read_top_level_sync(XzDecoder::new(file)).map_err(|e| enrich_peek_err(archive_path, e))
 }
 
 fn archive_peek_sync(archive_path: &Path) -> Result<String, InstallError> {
@@ -782,9 +851,14 @@ pub async fn install_version_with_progress(
         }
     };
 
-    // GE-Proton archives use the release tag as the root folder.
-    // Proton-CachyOS archives use a different name (tag vs. folder name).
-    if version_info.provider != "proton-cachyos" && top_level_dir != version_info.version {
+    // Only GE-Proton guarantees `archive top-level dir == release tag`.
+    // Proton-CachyOS (`proton-cachyos-<tag>-x86_64/`) and Proton-EM
+    // (`proton-<tag>/`) use distinct naming schemes; the matching
+    // TS-side `normalizeInstallToTag` helper knows how to recover the
+    // tag from those directory names. For any non-GE provider we trust
+    // the archive's declared top-level — `unpack_in(dest_dir)` still
+    // prevents the archive from escaping the compat-tools root.
+    if version_info.provider == "ge-proton" && top_level_dir != version_info.version {
         let msg = format!(
             "archive top-level directory '{top_level_dir}' does not match expected version '{}'",
             version_info.version
@@ -910,6 +984,62 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     // ── shared fixtures ───────────────────────────────────────────────────────
+
+    // ── first_normal_path_component ──────────────────────────────────────────
+
+    #[test]
+    fn first_normal_component_returns_plain_dir_name() {
+        let p = std::path::Path::new("GE-Proton9-21/proton");
+        assert_eq!(
+            first_normal_path_component(p),
+            Some("GE-Proton9-21".to_string())
+        );
+    }
+
+    /// GNU tar commonly prefixes entries with `./` (POSIX current-directory
+    /// marker). Proton-EM ships archives like this. The first raw component
+    /// is `CurDir` (`.`); we must look past it to reach the real top-level
+    /// directory name — otherwise peek returns 0 usable entries and the
+    /// install fails with "archive appears to be empty".
+    #[test]
+    fn first_normal_component_skips_leading_current_dir_marker() {
+        let p = std::path::Path::new("./proton-EM-10.0-37-HDR/proton");
+        assert_eq!(
+            first_normal_path_component(p),
+            Some("proton-EM-10.0-37-HDR".to_string())
+        );
+    }
+
+    #[test]
+    fn first_normal_component_rejects_absolute_paths() {
+        let p = std::path::Path::new("/etc/passwd");
+        assert_eq!(first_normal_path_component(p), None);
+    }
+
+    #[test]
+    fn first_normal_component_rejects_parent_traversal() {
+        let p = std::path::Path::new("../escape/me");
+        assert_eq!(first_normal_path_component(p), None);
+    }
+
+    /// End-to-end: a tar built with leading `./` entries (Proton-EM's shape)
+    /// must peek to the actual dir name, not be treated as empty.
+    #[test]
+    fn peek_tar_with_dot_slash_prefix_returns_real_top_level() {
+        let mut buf = Vec::new();
+        {
+            let mut builder = tar::Builder::new(&mut buf);
+            let mut header = tar::Header::new_gnu();
+            header.set_path("./proton-EM-10.0-37-HDR/proton").unwrap();
+            header.set_size(0);
+            header.set_cksum();
+            builder.append(&header, std::io::empty()).unwrap();
+            builder.finish().unwrap();
+        }
+
+        let top = peek_tar_read_top_level_sync(buf.as_slice()).expect("peek must succeed");
+        assert_eq!(top, "proton-EM-10.0-37-HDR");
+    }
 
     fn minimal_ge_proton_tar_gz(tool_dir_name: &str) -> Vec<u8> {
         let mut buf = Vec::new();
