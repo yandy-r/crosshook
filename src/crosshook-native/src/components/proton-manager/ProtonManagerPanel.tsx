@@ -17,6 +17,13 @@ interface PendingUninstallConfirmation {
   conflictingAppIds: string[];
 }
 
+function sortVersionLabelsDesc(left: string, right: string): number {
+  return right.localeCompare(left, undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
+}
+
 export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPanelProps) {
   const manager = useProtonManager({ steamClientInstallPath });
 
@@ -199,6 +206,46 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
     return map;
   }, [manager.catalog.versions]);
 
+  const displayedInstalls = useMemo(() => {
+    const installsWithCatalog = filteredInstalls.map((install) => {
+      const classified = classifyInstallProvider(install.name);
+      const catalogMatch = classified
+        ? (catalogByKey.get(`${classified}:${normalizeInstallToTag(install.name, classified)}`) ?? null)
+        : null;
+
+      return {
+        install,
+        classified,
+        catalogMatch,
+      };
+    });
+
+    installsWithCatalog.sort((left, right) => {
+      if (left.install.is_official !== right.install.is_official) {
+        return left.install.is_official ? -1 : 1;
+      }
+
+      const leftPublished = left.catalogMatch?.published_at ?? '';
+      const rightPublished = right.catalogMatch?.published_at ?? '';
+
+      if (leftPublished && rightPublished && leftPublished !== rightPublished) {
+        return rightPublished.localeCompare(leftPublished);
+      }
+      if (leftPublished && !rightPublished) {
+        return -1;
+      }
+      if (!leftPublished && rightPublished) {
+        return 1;
+      }
+
+      return (
+        sortVersionLabelsDesc(left.install.name, right.install.name) || left.install.path.localeCompare(right.install.path)
+      );
+    });
+
+    return installsWithCatalog;
+  }, [catalogByKey, filteredInstalls]);
+
   if (manager.loading) {
     return (
       <div className="crosshook-proton-manager" aria-busy="true">
@@ -345,17 +392,13 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
       ) : null}
 
       <ul className="crosshook-proton-manager__list" aria-label="Proton versions">
-        {filteredInstalls.length > 0 ? (
+        {displayedInstalls.length > 0 ? (
           <>
             <li className="crosshook-proton-manager__section-label" aria-hidden="true">
               Installed
             </li>
-            {filteredInstalls.map((install) => {
-              const classified = classifyInstallProvider(install.name);
+            {displayedInstalls.map(({ install, classified, catalogMatch }) => {
               const rowProvider = classified ?? 'unknown';
-              const catalogMatch = classified
-                ? (catalogByKey.get(`${classified}:${normalizeInstallToTag(install.name, classified)}`) ?? null)
-                : null;
               return (
                 <li key={install.name}>
                   <VersionRow
@@ -406,7 +449,7 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
               );
             })}
           </>
-        ) : !manager.catalog.catalogLoading && availableVersions.length === 0 && filteredInstalls.length === 0 ? (
+        ) : !manager.catalog.catalogLoading && availableVersions.length === 0 && displayedInstalls.length === 0 ? (
           <li>
             <p className="crosshook-proton-manager__empty crosshook-muted">
               {manager.selectedProviderId === null
