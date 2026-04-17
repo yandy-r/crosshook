@@ -239,7 +239,8 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
       }
 
       return (
-        sortVersionLabelsDesc(left.install.name, right.install.name) || left.install.path.localeCompare(right.install.path)
+        sortVersionLabelsDesc(left.install.name, right.install.name) ||
+        left.install.path.localeCompare(right.install.path)
       );
     });
 
