@@ -73,10 +73,13 @@ jobs:
         run: npx tsc --noEmit
 
   shell:
-    name: Shell (shellcheck)
+    name: Shell (shellcheck + host-gateway)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Run ShellCheck
         run: shellcheck --severity=warning scripts/*.sh scripts/lib/*.sh
+
+      - name: Host-gateway guardrail
+        run: ./scripts/check-host-gateway.sh

@@ -39,6 +39,7 @@ ground-truth facts change. Never duplicate `CLAUDE.md` policy prose here.
 ## MUST / MUST NOT
 
 - **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, AppImage). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
+- **Host-tool gateway**: Host-tool execution at the Flatpak boundary **must** route through `src/crosshook-native/crates/crosshook-core/src/platform.rs` (`host_command`, `host_std_command`, `host_command_with_env`, `host_command_exists`, and friends). Direct `Command::new("<host-tool>")` for tools in the denylist (`proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`) is rejected by `scripts/check-host-gateway.sh`. See [`docs/architecture/adr-0001-platform-host-gateway.md`](docs/architecture/adr-0001-platform-host-gateway.md) for the full contract, scope boundary (does not apply to in-sandbox subprocess code), and escape hatches.
 - **Architecture**: Business logic lives in `crosshook-core`. Keep `crosshook-cli` and `src-tauri` thin (IPC and CLI only).
 - **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path.
 - **Tauri IPC**: Expose backend operations as `#[tauri::command]` handlers with **`snake_case` names** matching frontend `invoke()` calls. Use **Serde** on all types that cross the IPC boundary.
@@ -103,6 +104,7 @@ Pre-commit setup: `./scripts/setup-dev-hooks.sh` (installs [Lefthook](https://le
 cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ./scripts/lint.sh                    # check all linters
 ./scripts/lint.sh --fix              # auto-fix all linters
+./scripts/check-host-gateway.sh      # check platform.rs gateway contract (ADR-0001)
 ./scripts/format.sh                  # format all code
 ```
 

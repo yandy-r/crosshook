@@ -8,16 +8,20 @@ source "$ROOT_DIR/scripts/lib/modified-files.sh"
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/lint.sh [--fix] [--modified] [--rust] [--ts] [--shell] [--all]
+Usage: ./scripts/lint.sh [--fix] [--modified] [--rust] [--ts] [--shell] [--host-gateway] [--all]
 
 Run linters across the full stack.
 
-  --fix       Apply auto-fixes where possible
-  --modified  Limit file-based linting to modified git files (staged, unstaged, untracked)
-  --rust      Rust only (clippy + rustfmt check)
-  --ts        TypeScript only (biome + tsc)
-  --shell     Shell scripts only (shellcheck)
-  --all       All checks (default)
+  --fix           Apply auto-fixes where possible
+  --modified      Limit file-based linting to modified git files (staged, unstaged, untracked).
+                  Does not narrow --host-gateway: that check always scans the full tree,
+                  because a bypass introduced in an unmodified file would otherwise escape
+                  detection on a focused run.
+  --rust          Rust only (clippy + rustfmt check)
+  --ts            TypeScript only (biome + tsc)
+  --shell         Shell scripts only (shellcheck)
+  --host-gateway  Host-command gateway check only (ADR-0001; always full-tree scan)
+  --all           All checks (default)
 EOF
 }
 
@@ -26,6 +30,7 @@ MODIFIED_ONLY=0
 RUN_RUST=0
 RUN_TS=0
 RUN_SHELL=0
+RUN_HOST_GATEWAY=0
 EXIT_CODE=0
 
 while [[ $# -gt 0 ]]; do
@@ -35,17 +40,19 @@ while [[ $# -gt 0 ]]; do
     --rust) RUN_RUST=1; shift ;;
     --ts) RUN_TS=1; shift ;;
     --shell) RUN_SHELL=1; shift ;;
-    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; shift ;;
+    --host-gateway) RUN_HOST_GATEWAY=1; shift ;;
+    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
 done
 
 # Default to all if nothing specified
-if (( !RUN_RUST && !RUN_TS && !RUN_SHELL )); then
+if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY )); then
   RUN_RUST=1
   RUN_TS=1
   RUN_SHELL=1
+  RUN_HOST_GATEWAY=1
 fi
 
 if (( RUN_RUST )); then
@@ -142,6 +149,14 @@ if (( RUN_SHELL )); then
     echo "=== Shell: shellcheck ==="
     shellcheck --severity=warning "$ROOT_DIR"/scripts/*.sh "$ROOT_DIR"/scripts/lib/*.sh || EXIT_CODE=1
   fi
+fi
+
+if (( RUN_HOST_GATEWAY )); then
+  echo "=== Host-gateway ==="
+  if (( MODIFIED_ONLY )); then
+    echo "note: --modified does not narrow host-gateway scope; running full-tree scan."
+  fi
+  "$ROOT_DIR/scripts/check-host-gateway.sh" || EXIT_CODE=1
 fi
 
 exit "$EXIT_CODE"
