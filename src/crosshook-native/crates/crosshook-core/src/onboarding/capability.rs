@@ -216,7 +216,7 @@ fn synthesize_umu_run_check(
                 .find(|c| c.tool_id == "umu_run")
                 .and_then(|c| c.resolved_path.as_deref())
                 .filter(|p| !p.trim().is_empty())
-                .map(|p| p.to_string())
+                .map(std::string::ToString::to_string)
                 .or_else(resolve_umu_run_path)
         }
     };
