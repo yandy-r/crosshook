@@ -139,6 +139,19 @@ The script is wired into:
 
 ---
 
+## Portal contracts (ADR-0002)
+
+This ADR governs **host-tool execution** — tools that run as host processes via `flatpak-spawn --host`. It does **not** govern Flatpak desktop-portal interactions, which are D-Bus calls from the sandbox to `xdg-desktop-portal` and sit outside the host-command gateway.
+
+[ADR-0002 — Flatpak portal contracts (GameMode and Background)](./adr-0002-flatpak-portal-contracts.md) is additive to this ADR:
+
+- **`org.freedesktop.portal.GameMode`** registers CrossHook's own sandbox-side PID with the host `gamemoded` daemon when the user enables `use_gamemode` under Flatpak. Host games continue to use the `gamemoderun` wrapper through this gateway (it stays on the denylist).
+- **`org.freedesktop.portal.Background.RequestBackground`** keeps CrossHook's own sandbox process alive when the window is minimized so the `gamescope_watchdog` Tokio task survives long game sessions. It does not apply to host games.
+
+ADR-0002 does **not** add tools to the denylist, does **not** reshape the gateway API table, and does **not** weaken `scripts/check-host-gateway.sh`. It adds a sibling `platform/portals/` submodule for D-Bus portal integrations.
+
+---
+
 ## References
 
 - `docs/research/flatpak-bundling/06-archaeological.md` — per-tool architecture audit; confirms `platform.rs` as the single abstraction gateway
@@ -146,3 +159,4 @@ The script is wired into:
 - `docs/research/flatpak-bundling/14-recommendations.md` — Phase 1 task 1.7: add ADR and CI lint
 - `docs/research/flatpak-bundling/10-evidence.md` — Tier 1 claims #1, #8, #11: source-code-verified facts about CrossHook's architecture
 - Issue #273 (this ADR); parent tracker #276 (Flatpak distribution)
+- ADR-0002 — Flatpak portal contracts: `docs/architecture/adr-0002-flatpak-portal-contracts.md` (additive; portal D-Bus integrations)

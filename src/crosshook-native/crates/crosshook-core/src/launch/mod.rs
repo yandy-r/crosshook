@@ -26,7 +26,8 @@ pub use env::{
 };
 pub use optimizations::{
     build_steam_launch_options_command, escape_steam_token, is_known_launch_optimization_id,
-    resolve_launch_directives, resolve_launch_directives_for_method, LaunchDirectives,
+    resolve_launch_directives, resolve_launch_directives_for_method,
+    should_register_gamemode_portal, LaunchDirectives, USE_GAMEMODE_OPTIMIZATION_ID,
 };
 pub use preview::{build_launch_preview, LaunchPreview};
 pub use request::{

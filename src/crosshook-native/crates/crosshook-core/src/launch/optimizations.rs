@@ -34,6 +34,49 @@ pub fn is_known_launch_optimization_id(option_id: &str) -> bool {
     global_catalog().is_known_id(option_id)
 }
 
+/// Optimization ID for the `gamemoderun` wrapper / GameMode integration.
+///
+/// Exposed as a constant so the launch orchestrator can decide whether to
+/// register CrossHook's own sandbox PID with
+/// `org.freedesktop.portal.GameMode` before spawning the host command.
+/// See `docs/architecture/adr-0002-flatpak-portal-contracts.md`.
+pub const USE_GAMEMODE_OPTIMIZATION_ID: &str = "use_gamemode";
+
+/// Returns true when the request opts into `use_gamemode`, is a direct
+/// `proton_run` launch, and the process is running under Flatpak — in which
+/// case the launch orchestrator should call
+/// `crate::platform::portals::gamemode::register_self_pid_with_portal()` to
+/// register CrossHook's own sandbox PID with the host GameMode daemon.
+///
+/// This helper does **not** touch D-Bus. It only encodes the "should we try"
+/// decision; the async `portal_available` + `register_self_pid_with_portal`
+/// calls happen in the IPC layer (`src-tauri/src/commands/launch.rs`).
+///
+/// Host games continue to use the `gamemoderun` wrapper unconditionally when
+/// `use_gamemode` is enabled — the portal is for CrossHook's own PID only.
+pub fn should_register_gamemode_portal(request: &LaunchRequest) -> bool {
+    should_register_gamemode_portal_with(request, platform::is_flatpak())
+}
+
+/// Testable helper for [`should_register_gamemode_portal`] that takes the
+/// `is_flatpak` signal as an injected parameter.
+pub(crate) fn should_register_gamemode_portal_with(
+    request: &LaunchRequest,
+    is_flatpak: bool,
+) -> bool {
+    if !is_flatpak {
+        return false;
+    }
+    if request.resolved_method() != METHOD_PROTON_RUN {
+        return false;
+    }
+    request
+        .optimizations
+        .enabled_option_ids
+        .iter()
+        .any(|id| id == USE_GAMEMODE_OPTIMIZATION_ID)
+}
+
 /// Resolves launch optimization directives for a given method using the global catalog.
 ///
 /// Used by `resolve_launch_directives` for direct Proton launches and by
@@ -544,5 +587,48 @@ mod tests {
         let command = build_steam_launch_options_command(&[], &BTreeMap::new(), Some(&cfg))
             .expect("steam command with extra args");
         assert_eq!(command, "gamescope \"--some flag\" -- %command%");
+    }
+
+    fn gamemode_proton_request() -> LaunchRequest {
+        LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            optimizations: crate::launch::request::LaunchOptimizationsRequest {
+                enabled_option_ids: vec![USE_GAMEMODE_OPTIMIZATION_ID.to_string()],
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn should_register_gamemode_portal_native_is_false() {
+        let request = gamemode_proton_request();
+        assert!(!should_register_gamemode_portal_with(&request, false));
+    }
+
+    #[test]
+    fn should_register_gamemode_portal_flatpak_with_use_gamemode_is_true() {
+        let request = gamemode_proton_request();
+        assert!(should_register_gamemode_portal_with(&request, true));
+    }
+
+    #[test]
+    fn should_register_gamemode_portal_flatpak_without_use_gamemode_is_false() {
+        let request = LaunchRequest {
+            method: METHOD_PROTON_RUN.to_string(),
+            ..Default::default()
+        };
+        assert!(!should_register_gamemode_portal_with(&request, true));
+    }
+
+    #[test]
+    fn should_register_gamemode_portal_non_proton_method_is_false() {
+        // The portal path is scoped to proton_run. Steam applaunches go
+        // through a helper script that may or may not honour gamemoderun;
+        // that decision is out of scope for this helper.
+        let mut request = gamemode_proton_request();
+        request.method = crate::launch::request::METHOD_STEAM_APPLAUNCH.to_string();
+        // Steam launches carry their app_id rather than runtime config; keep
+        // the optimizations list populated but flip the method.
+        assert!(!should_register_gamemode_portal_with(&request, true));
     }
 }

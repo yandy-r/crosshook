@@ -851,6 +851,11 @@ fn apply_xdg_host_override(home: Option<PathBuf>, sink: &mut dyn EnvSink) -> boo
     true
 }
 
+/// Flatpak desktop-portal contracts (GameMode PID registration, Background
+/// watchdog protection). Additive to ADR-0001; see
+/// `docs/architecture/adr-0002-flatpak-portal-contracts.md`.
+pub mod portals;
+
 #[cfg(test)]
 mod tests {
     use super::*;

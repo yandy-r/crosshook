@@ -41,6 +41,17 @@ finish-args:
   # compatibility tools whose host /usr paths are masked by the runtime.
   - --talk-name=org.freedesktop.Flatpak
 
+  # xdg-desktop-portal access for CrossHook-owned sandbox integrations
+  # (see docs/architecture/adr-0002-flatpak-portal-contracts.md):
+  #   - org.freedesktop.portal.GameMode — registers CrossHook's own PID
+  #     with the host gamemoded daemon when `use_gamemode` is enabled.
+  #   - org.freedesktop.portal.Background — keeps CrossHook's watchdog
+  #     Tokio task alive when the window is minimized during a long game
+  #     session.
+  # Host games continue to use the `gamemoderun` wrapper through the host
+  # gateway; these portals apply only to CrossHook's own sandbox process.
+  - --talk-name=org.freedesktop.portal.Desktop
+
   # WebKitGTK workaround for NVIDIA Wayland (Tauri/WebKitGTK blank screen)
   - --env=WEBKIT_DISABLE_DMABUF_RENDERER=1
 

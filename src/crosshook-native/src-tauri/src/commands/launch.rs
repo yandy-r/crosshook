@@ -16,12 +16,13 @@ use crosshook_core::launch::{
         build_proton_game_command, build_proton_trainer_command, build_trainer_command,
         gamescope_pid_capture_path,
     },
-    should_surface_report, validate, DiagnosticReport, LaunchPreview, LaunchRequest,
-    LaunchValidationIssue, ValidationError, ValidationSeverity, METHOD_NATIVE, METHOD_PROTON_RUN,
-    METHOD_STEAM_APPLAUNCH,
+    should_register_gamemode_portal, should_surface_report, validate, DiagnosticReport,
+    LaunchPreview, LaunchRequest, LaunchValidationIssue, ValidationError, ValidationSeverity,
+    METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::{compute_correlation_status, hash_trainer_file, MetadataStore};
 use crosshook_core::offline::readiness::MIN_OFFLINE_READINESS_SCORE;
+use crosshook_core::platform::portals::gamemode::{self as gamemode_portal, GameModeRegistration};
 use crosshook_core::profile::GamescopeConfig;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::steam::discover_steam_root_candidates;
@@ -328,6 +329,12 @@ pub async fn launch_game(
         other => return Err(format!("unsupported launch method: {other}")),
     };
 
+    // Register CrossHook's own PID with the GameMode portal before spawning
+    // the host command, if the user enabled `use_gamemode` under Flatpak.
+    // Host games still receive the `gamemoderun` wrapper via the optimization
+    // catalog (ADR-0002 § GameMode portal contract).
+    let gamemode_portal_guard = try_register_gamemode_portal_for_launch(&request).await;
+
     let child = command
         .spawn()
         .map_err(|error| format!("failed to launch helper: {error}"))?;
@@ -381,11 +388,20 @@ pub async fn launch_game(
         watchdog_killed: Arc::clone(&watchdog_killed),
     };
 
-    spawn_log_stream(app, log_path.clone(), child, method, stream_context);
+    let watchdog_app_handle = app.clone();
+    spawn_log_stream(
+        app,
+        log_path.clone(),
+        child,
+        method,
+        stream_context,
+        gamemode_portal_guard,
+    );
 
     if gamescope_active {
         if let Some(pid) = child_pid {
             spawn_gamescope_watchdog(
+                &watchdog_app_handle,
                 pid,
                 game_exe_name,
                 watchdog_killed,
@@ -470,6 +486,11 @@ pub async fn launch_trainer(
         METHOD_NATIVE => return Err("native launch does not support trainer launch.".to_string()),
         other => return Err(format!("unsupported launch method: {other}")),
     };
+    // Register CrossHook's own PID with the GameMode portal before spawning
+    // the trainer. Trainers reuse the same `use_gamemode` semantics as the
+    // parent game (they run inside the same Wine prefix).
+    let gamemode_portal_guard = try_register_gamemode_portal_for_launch(&request).await;
+
     let child = command.spawn().map_err(|error| {
         format!("failed to launch trainer (method={execution_method}): {error}")
     })?;
@@ -518,6 +539,7 @@ pub async fn launch_trainer(
         child,
         execution_method,
         stream_context,
+        gamemode_portal_guard,
     );
 
     Ok(LaunchResult {
@@ -534,6 +556,7 @@ fn spawn_log_stream(
     child: tokio::process::Child,
     method: &'static str,
     context: LaunchStreamContext,
+    gamemode_portal_guard: Option<GameModeRegistration>,
 ) {
     let child_uses_pipe_capture = child.stdout.is_some() || child.stderr.is_some();
     let handle = tauri::async_runtime::spawn(async move {
@@ -546,6 +569,14 @@ fn spawn_log_stream(
             context,
         )
         .await;
+        // The GameMode portal registration is released here, when the launch
+        // stream ends (child exited). This matches ADR-0002 lifetime: register
+        // around spawn, unregister when the orchestrated process exits.
+        if let Some(guard) = gamemode_portal_guard {
+            if let Err(error) = guard.unregister().await {
+                tracing::warn!(%error, "gamemode portal: UnregisterGame failed on launch end");
+            }
+        }
     });
 
     tauri::async_runtime::spawn(async move {
@@ -553,6 +584,47 @@ fn spawn_log_stream(
             tracing::error!(%error, "launch log stream task failed");
         }
     });
+}
+
+/// Attempts to register CrossHook's own sandbox-side PID with the GameMode
+/// portal, if the request and environment warrant it.
+///
+/// Returns `None` when:
+/// - the request does not enable `use_gamemode`, or the method is not
+///   `proton_run`, or we are not running under Flatpak
+///   (`should_register_gamemode_portal` short-circuits these).
+/// - the portal is not reachable on the session bus.
+/// - the portal's `RegisterGame` call fails.
+///
+/// In the failure cases the launch proceeds normally; host games continue
+/// to use the `gamemoderun` wrapper through the optimization catalog. This
+/// function never blocks the launch — it returns `None` on any error after
+/// logging a single `tracing::warn!`.
+async fn try_register_gamemode_portal_for_launch(
+    request: &LaunchRequest,
+) -> Option<GameModeRegistration> {
+    if !should_register_gamemode_portal(request) {
+        return None;
+    }
+    if !gamemode_portal::portal_available().await {
+        tracing::info!(
+            "gamemode portal registration skipped: org.freedesktop.portal.GameMode not reachable"
+        );
+        return None;
+    }
+    match gamemode_portal::register_self_pid_with_portal().await {
+        Ok(guard) => {
+            tracing::info!(
+                registered_pid = guard.registered_pid(),
+                "gamemode portal registration: backend=Portal"
+            );
+            Some(guard)
+        }
+        Err(error) => {
+            tracing::warn!(%error, "gamemode portal: RegisterGame failed; falling back to host gamemoderun wrapper only");
+            None
+        }
+    }
 }
 
 async fn record_launch_start(
@@ -1064,7 +1136,15 @@ fn diagnostic_method_for_log(method: &'static str, log_tail: &str) -> &'static s
 /// compositor alive indefinitely. This watchdog polls for the game executable
 /// and, once it disappears, terminates gamescope so the normal
 /// stream-log / finalize cleanup path can proceed.
+///
+/// Under Flatpak the watchdog is a sandbox-side Tokio task and is subject to
+/// sandbox reclaim when the Tauri window is minimized. The Background portal
+/// grant requested at app startup (ADR-0002 § Background portal contract)
+/// tells xdg-desktop-portal to keep CrossHook alive; here we simply log the
+/// grant state at spawn time so a failed watchdog run can be correlated with
+/// a missing/denied grant.
 fn spawn_gamescope_watchdog(
+    app: &AppHandle,
     gamescope_pid: u32,
     exe_name: String,
     killed_flag: Arc<AtomicBool>,
@@ -1076,6 +1156,16 @@ fn spawn_gamescope_watchdog(
             "gamescope watchdog disabled: launch path did not yield an executable basename"
         );
         return;
+    }
+    if crosshook_core::platform::portals::background::background_supported() {
+        let holder = app.state::<crate::BackgroundGrantHolder>();
+        tracing::info!(
+            gamescope_pid,
+            exe = %exe_name,
+            protection_state = ?holder.protection_state(),
+            active_grant = holder.has_active_grant(),
+            "gamescope watchdog spawning under Flatpak; background-portal grant checked"
+        );
     }
     tauri::async_runtime::spawn(async move {
         gamescope_watchdog_core(gamescope_pid, &exe_name, killed_flag, host_pid_capture_path).await;
