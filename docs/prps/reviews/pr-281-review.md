@@ -106,31 +106,31 @@ Ambitious, well-scoped replacement for ProtonUp-Qt orchestration — clean `Prot
 ### LOW
 
 - **[F021]** `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs:4` — `run_migrations` snapshots `user_version` once at start; a mid-run failure leaves the DB at the last committed version. Pre-existing pattern, not introduced by this PR. [completeness]
-  - **Status**: Open
+  - **Status**: Failed
   - **Category**: Completeness
   - **Suggested fix**: No action required for this PR. If future migrations add irreversible operations, consider re-reading `user_version` after each migration or wrapping the full sequence in a single transaction.
 - **[F022]** `src/crosshook-native/crates/crosshook-core/src/metadata/proton_catalog_store.rs:1` — No explicit composite index on `(provider_id, fetched_at)` on `proton_release_catalog`. With 3 providers × ~30 rows each, performance is fine today, but a composite index makes the `ORDER BY fetched_at DESC` query planner-friendly as the cache ages. [performance]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Performance
   - **Suggested fix**: Add `CREATE INDEX IF NOT EXISTS idx_proton_release_catalog_provider_fetched ON proton_release_catalog(provider_id, fetched_at DESC)` to the v22 migration (or a follow-up v24 if v22 is considered frozen).
 - **[F023]** `src/crosshook-native/crates/crosshook-core/src/protonup/catalog.rs:53` — Benign `OnceLock` TOCTOU in `protonup_http_client`: two concurrent first-callers can both construct a `reqwest::Client`; the losing one is dropped. Equivalent clients means no correctness hazard. [security]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Performance
   - **Suggested fix**: Use `OnceLock::get_or_try_init` (Rust ≥ 1.80) or `tokio::sync::OnceCell` to make initialization strictly atomic. Cosmetic.
 - **[F024]** `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs:564` — `extract_archive` is offloaded to `spawn_blocking` but has no cancellation check inside the tar loop. For multi-GB archives, the user waits for extraction to complete before cancel takes effect. [correctness]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Correctness
   - **Suggested fix**: Document as a known limitation in a module-level comment. A full fix requires a streaming async tar extractor; consider a periodic `cancel.is_cancelled()` check between archive entries by manually iterating `archive.entries()?` instead of calling `unpack_in` (this also enables F012's per-entry symlink validation).
 - **[F025]** `src/crosshook-native/src-tauri/src/commands/protonup.rs:18` — `const DEFAULT_PROVIDER_ID: &str = "ge-proton";` is declared between two `use` blocks rather than after all `use` items. Minor layout nit. [pattern]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Pattern Compliance
   - **Suggested fix**: Move the constant below all `use` statements, above the first struct/function definition.
 - **[F026]** `src/crosshook-native/src/components/proton-manager/VersionRow.tsx:38` — Status pill (`Installed` / `Available`) conveys state through both text and class-based color. Fine today, but confirm the `--installed` / `--available` colors meet WCAG AA contrast against `var(--crosshook-color-surface)` in both light and dark themes. [a11y]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Maintainability
   - **Suggested fix**: Run a contrast check (or rely on the existing theme-token contrast audit if one exists) and document the results; no runtime change required if ratios pass.
 - **[F027]** `src/crosshook-native/src/hooks/useProtonManager.ts:85` — `ALL_MODE_SENTINEL = null` is a zero-abstraction constant; it does not add beyond an inline comment. [maintainability]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Maintainability
   - **Suggested fix**: Either inline `null` with a brief comment at each use site, or promote the constant to a discriminated-union type (`type ProviderSelection = { kind: 'all' } | { kind: 'specific'; id: string }`). As-is it adds a name without carrying semantics.
 

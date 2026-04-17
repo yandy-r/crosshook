@@ -3,80 +3,73 @@
 **Source**: `docs/prps/reviews/pr-281-review.md`
 **Applied**: 2026-04-17
 **Mode**: Parallel sub-agents (1 batch, max width 6)
-**Severity threshold**: MEDIUM
+**Severity threshold**: LOW
 
 ## Summary
 
 - **Total findings in source**: 27
 - **Already processed before this run**:
-  - Fixed: 9
-  - Failed: 0
-- **Eligible this run**: 11
+  - Fixed: 19
+  - Failed: 1
+- **Eligible this run**: 7
 - **Applied this run**:
-  - Fixed: 10
+  - Fixed: 6
   - Failed: 1
 - **Skipped this run**:
-  - Below severity threshold: 7
+  - Below severity threshold: 0
   - No suggested fix: 0
   - Missing file: 0
 
 ## Fixes Applied
 
-| ID   | Severity | File                                                                             | Line | Status | Notes                                                                                   |
-| ---- | -------- | -------------------------------------------------------------------------------- | ---- | ------ | --------------------------------------------------------------------------------------- |
-| F010 | MEDIUM   | `docs/architecture/adr-0003-proton-download-manager.md`                          | 67   | Fixed  | ADR now documents Proton-EM as install-capable and `ChecksumKind::None` as a live path. |
-| F011 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs`             | 90   | Fixed  | Added `cancelled` error kind across Rust + TS IPC types.                                |
-| F012 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs`             | 407  | Fixed  | Link validation now rejects only archive links that escape the install root.            |
-| F013 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs`             | 674  | Fixed  | Unsafe derived archive filenames now fail before temp-path creation.                    |
-| F014 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/protonup/progress.rs`            | 39   | Fixed  | Broadcast buffer cap is now explicit and documented as intentional lossy back-pressure. |
-| F015 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/protonup/providers/boxtron.rs`   | 79   | Fixed  | Removed redundant catalog-only wrapper helpers in Boxtron and Luxtorpeda.               |
-| F016 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/protonup/providers/ge_proton.rs` | 59   | Fixed  | Installable providers now share a single GitHub fetch-and-parse helper.                 |
-| F017 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/protonup/providers/mod.rs`       | 253  | Fixed  | `take(max)` now limits successfully parsed versions, not attempted releases.            |
-| F018 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/protonup/uninstall.rs`           | 32   | Failed | Suggested `/home`/`/root` denial changes module semantics and misclassifies user paths. |
-| F019 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/protonup/uninstall.rs`           | 147  | Fixed  | Added an exact `SystemPathRefused` regression test for explicit Steam system roots.     |
-| F020 | MEDIUM   | `src/crosshook-native/src/components/proton-manager/ProtonManagerPanel.tsx`      | 106  | Fixed  | Replaced `window.confirm()` with inline accessible confirmation UI.                     |
+| ID   | Severity | File                                                                              | Line | Status | Notes                                                                                 |
+| ---- | -------- | --------------------------------------------------------------------------------- | ---- | ------ | ------------------------------------------------------------------------------------- |
+| F021 | LOW      | `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`           | 4    | Failed | Suggested fix explicitly says no action is required for this PR.                      |
+| F022 | LOW      | `src/crosshook-native/crates/crosshook-core/src/metadata/proton_catalog_store.rs` | 1    | Fixed  | Already satisfied in current code; v22 migration already creates the composite index. |
+| F023 | LOW      | `src/crosshook-native/crates/crosshook-core/src/protonup/catalog.rs`              | 53   | Fixed  | Replaced manual singleton init with async `tokio::sync::OnceCell`.                    |
+| F024 | LOW      | `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs`              | 564  | Fixed  | Added module-level note documenting extraction cancellation limits.                   |
+| F025 | LOW      | `src/crosshook-native/src-tauri/src/commands/protonup.rs`                         | 18   | Fixed  | Moved `DEFAULT_PROVIDER_ID` below all `use` items.                                    |
+| F026 | LOW      | `src/crosshook-native/src/components/proton-manager/VersionRow.tsx`               | 38   | Fixed  | Documented WCAG AA audit results; no visual change required.                          |
+| F027 | LOW      | `src/crosshook-native/src/hooks/useProtonManager.ts`                              | 85   | Fixed  | Removed the `ALL_MODE_SENTINEL` constant and inlined `null` with comments.            |
 
 ## Files Changed
 
-- `docs/architecture/adr-0003-proton-download-manager.md` (F010)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs` (F011, F012, F013)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/mod.rs` (F011)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/progress.rs` (F014)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/providers/mod.rs` (F016, F017)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/providers/ge_proton.rs` (F016)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/providers/proton_cachyos.rs` (F016)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/providers/proton_em.rs` (F016)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/providers/boxtron.rs` (F015)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/providers/luxtorpeda.rs` (F015)
-- `src/crosshook-native/crates/crosshook-core/src/protonup/uninstall.rs` (F019; F018 attempted and rejected)
-- `src/crosshook-native/src/components/proton-manager/ProtonManagerPanel.tsx` (F020)
-- `src/crosshook-native/src/styles/proton-manager.css` (F020)
-- `src/crosshook-native/src/types/protonup.ts` (F011)
+- `src/crosshook-native/crates/crosshook-core/src/protonup/catalog.rs` (Fixed F023)
+- `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs` (Fixed F024)
+- `src/crosshook-native/src-tauri/src/commands/protonup.rs` (Fixed F025)
+- `src/crosshook-native/src/hooks/useProtonManager.ts` (Fixed F027)
+- `src/crosshook-native/src/styles/proton-manager.css` (Fixed F026)
 
 ## Failed Fixes
 
-### F018 — `src/crosshook-native/crates/crosshook-core/src/protonup/uninstall.rs:32`
+### F021 — `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs:4`
 
-**Severity**: MEDIUM  
-**Category**: Security  
-**Description**: The suggested fix pushes broad `/home` / `/root` paths through `SystemPathRefused` instead of `PathOutsideKnownRoots`.
-
-**Suggested fix (from review)**: Add `"/home"` and `"/root"` to `SYSTEM_PREFIX_DENYLIST` so broad home-directory paths produce `UninstallError::SystemPathRefused`.
-
-**Blocker**: That change breaks the documented uninstall contract by misclassifying normal user-owned home paths as system paths, and an earlier implementation also blocked valid native Steam uninstall roots under `$HOME/.local/share/Steam/compatibilitytools.d`.
-
-**Recommendation**: Keep the current `PathOutsideKnownRoots` behavior for unmatched home paths unless the product/API contract is deliberately changed. If explicit reclassification is still desired, update the module docs, user-facing copy, and tests first, then revisit the design in a dedicated follow-up.
+**Severity**: LOW
+**Category**: Completeness
+**Description**: `run_migrations` snapshots `user_version` once at start; a mid-run failure leaves the DB at the last committed version. Pre-existing pattern, not introduced by this PR.
+**Suggested fix (from review)**: No action required for this PR. If future migrations add irreversible operations, consider re-reading `user_version` after each migration or wrapping the full sequence in a single transaction.
+**Blocker**: The suggested fix is explicitly non-actionable for this PR, so changing migration behavior here would go beyond the finding's own stated scope.
+**Recommendation**: Leave `run_migrations` unchanged in this PR. If irreversible migrations are added later, open a dedicated follow-up to revisit transaction boundaries or version re-reads.
 
 ## Validation Results
 
-| Check               | Result |
-| ------------------- | ------ |
-| Type check          | Pass   |
-| Frontend type check | Pass   |
-| Tests               | Pass   |
+| Check      | Result                                                                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type check | Fail (`npx tsc --noEmit -p src/crosshook-native/tsconfig.json` reports existing errors in `src/crosshook-native/src/lib/plugin-stubs/fs.ts`) |
+| Tests      | Pass (`cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`)                                                        |
+
+## Post-change Review
+
+No findings were reported by the required code-review pass on the local diff.
+
+Residual validation gap:
+
+- There is no focused test that exercises concurrent first-call initialization of `protonup_http_client()`.
+- Frontend-only edits were not covered by browser or component tests because this repo does not ship a frontend test framework.
 
 ## Next Steps
 
-- Re-run `$code-review 281` to verify the remaining open findings and confirm the fixed ones stay resolved.
-- Decide whether `F018` should remain a documentation-level disagreement or become a separate design issue.
-- Run `$git-workflow` when you want to commit the fix batch.
+- Re-run `$code-review 281` to confirm the remaining review state from the updated artifact
+- Address `F021` only if you want to take on migration behavior as a separate follow-up
+- Investigate the existing TypeScript errors in `src/crosshook-native/src/lib/plugin-stubs/fs.ts`
+- Run `$git-workflow` when you are ready to commit the fixes

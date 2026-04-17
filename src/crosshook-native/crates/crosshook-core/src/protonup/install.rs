@@ -6,6 +6,13 @@
 //!
 //! All host-tool execution is in-process (tar/flate2/xz2); no `Command::new` calls
 //! for blocked tools appear here (ADR-0001 compliance).
+//!
+//! Known limitation: archive extraction is offloaded to `spawn_blocking`, but the
+//! synchronous tar loop does not observe cancellation mid-extract. For large
+//! archives, cancellation is only seen before or after extraction completes. A
+//! full fix requires a streaming async tar extractor; manually iterating
+//! `archive.entries()?` and checking `cancel.is_cancelled()` between entries
+//! would also enable per-entry symlink validation.
 
 use std::path::{Component, Path, PathBuf};
 

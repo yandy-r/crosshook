@@ -1,10 +1,10 @@
 //! Catalog retrieval for Proton compatibility-tool releases (GE-Proton, Proton-CachyOS, …)
 //! with cache-first / live-refresh / stale-fallback.
 
-use std::sync::OnceLock;
 use std::time::Duration;
 
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use tokio::sync::OnceCell;
 
 use crate::metadata::{MetadataStore, ProtonCatalogRow};
 use crate::protonup::{
@@ -15,7 +15,7 @@ use crate::protonup::{
 const CACHE_TTL_HOURS: i64 = 6;
 const REQUEST_TIMEOUT_SECS: u64 = 10;
 
-static PROTONUP_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+static PROTONUP_HTTP_CLIENT: OnceCell<reqwest::Client> = OnceCell::const_new();
 
 /// Per-provider GitHub Releases API URL and `provider_id` string on rows.
 ///
@@ -50,20 +50,15 @@ pub fn catalog_config(provider: ProtonUpProvider) -> CatalogProviderConfig {
 
 // ----- HTTP client -----
 
-fn protonup_http_client() -> Result<&'static reqwest::Client, reqwest::Error> {
-    if let Some(client) = PROTONUP_HTTP_CLIENT.get() {
-        return Ok(client);
-    }
-
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
-        .user_agent(format!("CrossHook/{}", env!("CARGO_PKG_VERSION")))
-        .build()?;
-
-    let _ = PROTONUP_HTTP_CLIENT.set(client);
-    Ok(PROTONUP_HTTP_CLIENT
-        .get()
-        .expect("ProtonUp HTTP client should be initialized before use"))
+async fn protonup_http_client() -> Result<&'static reqwest::Client, reqwest::Error> {
+    PROTONUP_HTTP_CLIENT
+        .get_or_try_init(|| async {
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+                .user_agent(format!("CrossHook/{}", env!("CARGO_PKG_VERSION")))
+                .build()
+        })
+        .await
 }
 
 // ----- Public entry point -----
@@ -164,7 +159,9 @@ async fn fetch_live_catalog_by_id(
     provider_id: &str,
     include_prereleases: bool,
 ) -> Result<Vec<ProtonUpAvailableVersion>, providers::ProviderError> {
-    let client = protonup_http_client().map_err(providers::ProviderError::Http)?;
+    let client = protonup_http_client()
+        .await
+        .map_err(providers::ProviderError::Http)?;
 
     // Resolve the matching provider implementation from the registry.
     let registry = providers::registry();

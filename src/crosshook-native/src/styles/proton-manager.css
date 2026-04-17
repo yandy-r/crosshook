@@ -355,6 +355,12 @@
   white-space: nowrap;
 }
 
+/* WCAG AA audit (2026-04-17): on `--crosshook-color-surface` (#12172a),
+ * installed `--crosshook-color-capability-available` = 10.20:1 and
+ * available `--crosshook-color-accent-strong` = 6.60:1. `variables.css`
+ * currently defines only the dark root palette, so re-audit if a light
+ * surface override is introduced.
+ */
 .crosshook-version-row__status-pill--installed {
   background: var(--crosshook-color-capability-available-bg);
   border: 1px solid var(--crosshook-color-capability-available-border);

@@ -95,8 +95,6 @@ function minIso(a: string | undefined, b: string | undefined): string | undefine
   return a < b ? a : b;
 }
 
-const ALL_MODE_SENTINEL = null;
-
 /**
  * Composite hook for the native Proton download manager UI.
  *
@@ -111,7 +109,7 @@ const ALL_MODE_SENTINEL = null;
 export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonManagerResult {
   const [providers, setProviders] = useState<ProtonUpProviderDescriptor[]>([]);
   const [roots, setRoots] = useState<InstallRootDescriptor[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(ALL_MODE_SENTINEL);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null); // null => "All" mode
   const [activeOpIds, setActiveOpIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +122,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
 
   const steamClientInstallPath = opts.steamClientInstallPath?.trim() ?? '';
 
-  const inAllMode = selectedProviderId === ALL_MODE_SENTINEL;
+  const inAllMode = selectedProviderId === null; // null => "All" mode
 
   // Single-provider catalog (delegates to the legacy useProtonUp). Always
   // called to preserve hook-order invariants; auto-fetch is gated on a

@@ -10,15 +10,15 @@ use crosshook_core::protonup::{
     ProtonUpInstallRequest, ProtonUpInstallResult, ProtonUpSuggestion,
 };
 use crosshook_core::settings::SettingsStore;
+use crosshook_core::steam::{discover_compat_tools, discover_steam_root_candidates};
+use tauri::{Emitter as _, State};
+use tokio_util::sync::CancellationToken;
 
 /// Default provider id used when the frontend omits the field. Unknown
 /// provider ids are passed through to the catalog (which returns empty
 /// when the registry doesn't recognise them) rather than silently
 /// downgrading to GE-Proton.
 const DEFAULT_PROVIDER_ID: &str = "ge-proton";
-use crosshook_core::steam::{discover_compat_tools, discover_steam_root_candidates};
-use tauri::{Emitter as _, State};
-use tokio_util::sync::CancellationToken;
 
 // ── ProtonInstallRegistry ─────────────────────────────────────────────────────
 
