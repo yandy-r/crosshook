@@ -23,25 +23,32 @@ This ADR defines the Rust contracts that encode these two portal integrations so
 
 ## Decision
 
-Add a new submodule tree under the existing platform gateway:
+Add a `portals/` submodule tree under the existing platform gateway:
 
 ```
 crosshook-core/src/platform/
-├── mod.rs              (public re-exports; unchanged API surface from ADR-0001)
-├── host_gateway.rs     (moved from platform.rs — host_command* / host_std_command*)
-├── host_fs.rs          (moved — host path probes + normalizations)
-├── xdg.rs              (moved — override_xdg_for_flatpak_host_access)
+├── mod.rs              (verbatim body of the former `platform.rs`,
+│                        plus `pub mod portals;` — unchanged public API)
 └── portals/
-    ├── mod.rs          (GameModeBackend enum re-exports, shared error types)
+    ├── mod.rs          (module root, documents scope and lists sub-portals)
     ├── gamemode.rs     (this ADR — §GameMode)
     └── background.rs   (this ADR — §Background)
 ```
 
-The split does **not** change the public `crate::platform::*` API — every
-existing import continues to resolve through `pub use` re-exports in
-`platform/mod.rs`. ADR-0001's gateway contract, denylist, and
-`scripts/check-host-gateway.sh` enforcement remain authoritative for
-host-tool calls; the portal modules are additive and orthogonal.
+The former `platform.rs` moved into `platform/mod.rs` unchanged, which
+means the public `crate::platform::*` API surface is preserved without
+any `pub use` juggling — every existing import continues to resolve.
+ADR-0001's gateway contract, denylist, and `scripts/check-host-gateway.sh`
+enforcement remain authoritative for host-tool calls; the portal modules
+are additive and orthogonal.
+
+> **Deferred**: a further split of `platform/mod.rs` into focused files
+> (`host_gateway.rs` for `host_command*` / `host_std_command*`, `host_fs.rs`
+> for host path probes, `xdg.rs` for `override_xdg_for_flatpak_host_access`)
+> was discussed but not executed in the initial Issue #271 landing — the
+> literal file move keeps the diff reviewable and `git log --follow` clean.
+> A future refactor can split without touching ADR-0002's portal
+> submodule tree.
 
 ---
 
@@ -176,19 +183,20 @@ pub enum BackgroundError {
 
 ### Lifecycle
 
-1. **Startup.** In `src-tauri/src/lib.rs` the Tauri `.setup(...)` closure (currently starts at line 147) spawns one task on `tauri::async_runtime::spawn` that calls `request_background("keep CrossHook running during launches", /*autostart=*/false)`. If `background_supported()` returns `false` the call short-circuits and no D-Bus traffic occurs.
-2. **Managed-state storage.** On success the returned `BackgroundGrant` is stored in Tauri's managed state via `.manage(BackgroundGrantHolder::new(grant))`. Drop of the Tauri app (shutdown) drops the holder, which drops the grant, which closes the zbus connection.
-3. **Watchdog visibility.** `src-tauri/src/commands/launch.rs::spawn_gamescope_watchdog` (currently line 1067) does **not** block on the grant; it merely logs `background_supported()` status at watchdog start, and if the grant is missing (race at startup), it re-requests once before spawning the watchdog. This keeps launches from failing if the portal is slow.
-4. **Denial path.** If the portal denies the request (KDE Plasma, for example, can prompt the user and the user can decline), we log a single `tracing::warn!`, surface a `background_protection` capability as `CapabilityState::Degraded` in the host tool dashboard (§Capability integration below), and still spawn the watchdog. The degraded state documents that the watchdog may not survive a long minimize but the launch still proceeds — we do not block the user.
+1. **Startup.** The Tauri `.setup(...)` closure in `src-tauri/src/lib.rs` spawns one task on `tauri::async_runtime::spawn` that calls `request_background("keep CrossHook running during launches", /*autostart=*/false)` and hands the result to `BackgroundGrantHolder::store_result`. If `background_supported()` returns `false` the call short-circuits and no D-Bus traffic occurs.
+2. **Managed-state storage.** `BackgroundGrantHolder` is registered via `.manage(BackgroundGrantHolder::new())` and owns the RAII `BackgroundGrant` once `store_result` fires. Drop of the Tauri app (shutdown) drops the holder, which drops the grant, which closes the zbus connection.
+3. **Init synchronization.** The holder exposes `wait_for_initialization(timeout)` — an async method backed by `tokio::sync::Notify` that resolves either when `store_result` fires or when the timeout elapses. During the in-flight window sync readers (`protection_state`, `has_active_grant`) return `Pending` / `false`. Native builds are initialized from construction (they pre-arm the notifier), so waiting is a no-op.
+4. **Watchdog visibility.** `spawn_gamescope_watchdog` in `src-tauri/src/commands/launch.rs` does **not** block the launch on the grant; it spawns a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved state, so diagnostics reflect the final outcome rather than the initial `Pending`. Functionally the portal's session-scoped grant protects CrossHook regardless of when the watchdog spawned.
+5. **Denial path.** If the portal denies the request (KDE Plasma, for example, can prompt the user and the user can decline), `store_result` surfaces `BackgroundProtectionState::Degraded`, we log a single `tracing::warn!` via the setup task, and the host tool dashboard renders the `background_protection` capability row as `CapabilityState::Degraded` (§Capability integration below). The launch still proceeds — we do not block the user.
 
 ### Call-site table
 
-| Call site                                                             | Action                                                                                        | Contract function                            |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `src-tauri/src/lib.rs` `.setup(...)` closure, ~line 147               | Spawn one task: `request_background("...", false)`, store result in managed state             | `request_background`                         |
-| `src-tauri/src/commands/launch.rs` `spawn_gamescope_watchdog`, l.1067 | Log current grant state; re-request once if missing under Flatpak                             | `background_supported`, `request_background` |
-| (Future) Portal `Running` signal handler                              | If the portal revokes background and the watchdog is still active, re-request once            | `request_background`                         |
-| `crosshook-core/src/onboarding/capability.rs` synthetic capability    | Compute `background_protection` capability state from `background_supported()` + grant status | `background_supported`                       |
+| Call site                                                                                           | Action                                                                                                   | Contract function                                                        |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Tauri `.setup(...)` closure in `src-tauri/src/lib.rs`                                               | Spawn one task: `request_background("...", false)`, hand result to `BackgroundGrantHolder::store_result` | `request_background`                                                     |
+| `spawn_gamescope_watchdog` in `src-tauri/src/commands/launch.rs`                                    | Spawn a sibling task that awaits `wait_for_initialization(500ms)` and logs the resolved grant state      | `background_supported`, `BackgroundGrantHolder::wait_for_initialization` |
+| (Future) Portal `Running` signal handler                                                            | If the portal revokes background and the watchdog is still active, re-request once                       | `request_background`                                                     |
+| Synthetic `background_protection` capability, exposed via `get_background_protection_state` command | Derive the dashboard row from `protection_state()` — `Pending` surfaces as an indeterminate row          | `background_supported`, `BackgroundGrantHolder::protection_state`        |
 
 ### Scope boundaries
 

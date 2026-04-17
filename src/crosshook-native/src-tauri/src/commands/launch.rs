@@ -332,8 +332,11 @@ pub async fn launch_game(
     // Register CrossHook's own PID with the GameMode portal before spawning
     // the host command, if the user enabled `use_gamemode` under Flatpak.
     // Host games still receive the `gamemoderun` wrapper via the optimization
-    // catalog (ADR-0002 § GameMode portal contract).
-    let gamemode_portal_guard = try_register_gamemode_portal_for_launch(&request).await;
+    // catalog (ADR-0002 § GameMode portal contract). Games use the resolved
+    // method as-is — Flatpak Steam game launches go through the helper script
+    // and never apply CrossHook-side `gamemoderun` wrapping, so the portal
+    // decision follows the actual execution path.
+    let gamemode_portal_guard = try_register_gamemode_portal_for_launch(&request, method).await;
 
     let child = command
         .spawn()
@@ -487,9 +490,13 @@ pub async fn launch_trainer(
         other => return Err(format!("unsupported launch method: {other}")),
     };
     // Register CrossHook's own PID with the GameMode portal before spawning
-    // the trainer. Trainers reuse the same `use_gamemode` semantics as the
-    // parent game (they run inside the same Wine prefix).
-    let gamemode_portal_guard = try_register_gamemode_portal_for_launch(&request).await;
+    // the trainer. We key off `execution_method` (not the request's parent
+    // method) because Flatpak Steam trainer launches rewrite the trainer
+    // subprocess to run through Proton directly — `gamemoderun` is applied
+    // and the portal self-registration must fire in lockstep. This matches
+    // the trainer-execution-parity rule in CLAUDE.md.
+    let gamemode_portal_guard =
+        try_register_gamemode_portal_for_launch(&request, execution_method).await;
 
     let child = command.spawn().map_err(|error| {
         format!("failed to launch trainer (method={execution_method}): {error}")
@@ -589,9 +596,16 @@ fn spawn_log_stream(
 /// Attempts to register CrossHook's own sandbox-side PID with the GameMode
 /// portal, if the request and environment warrant it.
 ///
+/// `effective_method` is the method under which the child process will
+/// actually run. For direct Proton game launches this equals
+/// `request.resolved_method()`; for Flatpak Steam trainer launches it is
+/// rewritten to `METHOD_PROTON_RUN` because the helper spawns the trainer
+/// through Proton directly (see
+/// `crosshook_core::launch::script_runner::build_flatpak_steam_trainer_command`).
+///
 /// Returns `None` when:
-/// - the request does not enable `use_gamemode`, or the method is not
-///   `proton_run`, or we are not running under Flatpak
+/// - the request does not enable `use_gamemode`, or the effective method is
+///   not `proton_run`, or we are not running under Flatpak
 ///   (`should_register_gamemode_portal` short-circuits these).
 /// - the portal is not reachable on the session bus.
 /// - the portal's `RegisterGame` call fails.
@@ -602,8 +616,9 @@ fn spawn_log_stream(
 /// logging a single `tracing::warn!`.
 async fn try_register_gamemode_portal_for_launch(
     request: &LaunchRequest,
+    effective_method: &str,
 ) -> Option<GameModeRegistration> {
-    if !should_register_gamemode_portal(request) {
+    if !should_register_gamemode_portal(request, effective_method) {
         return None;
     }
     if !gamemode_portal::portal_available().await {
@@ -1157,17 +1172,37 @@ fn spawn_gamescope_watchdog(
         );
         return;
     }
-    if crosshook_core::platform::portals::background::background_supported() {
-        let holder = app.state::<crate::BackgroundGrantHolder>();
-        tracing::info!(
-            gamescope_pid,
-            exe = %exe_name,
-            protection_state = ?holder.protection_state(),
-            active_grant = holder.has_active_grant(),
-            "gamescope watchdog spawning under Flatpak; background-portal grant checked"
-        );
-    }
+    // Under Flatpak, synchronize with the one-time `request_background` call
+    // kicked off in `.setup(...)` (ADR-0002 § Background portal contract).
+    // Awaiting here (with a short timeout) inside the spawned task avoids
+    // racing the log/decision on the holder's initial `Pending` state;
+    // functionally the portal's session-scoped grant protects CrossHook
+    // regardless of when the watchdog spawned, but the synchronized log
+    // makes diagnostics accurate.
+    let grant_check_handle =
+        if crosshook_core::platform::portals::background::background_supported() {
+            let holder_handle = app.clone();
+            Some(tauri::async_runtime::spawn(async move {
+                let holder = holder_handle.state::<crate::BackgroundGrantHolder>();
+                let state = holder
+                    .wait_for_initialization(std::time::Duration::from_millis(500))
+                    .await;
+                tracing::info!(
+                    gamescope_pid,
+                    protection_state = ?state,
+                    active_grant = holder.has_active_grant(),
+                    initialized = holder.is_initialized(),
+                    "background portal grant state at watchdog spawn"
+                );
+            }))
+        } else {
+            None
+        };
+
     tauri::async_runtime::spawn(async move {
+        if let Some(handle) = grant_check_handle {
+            let _ = handle.await;
+        }
         gamescope_watchdog_core(gamescope_pid, &exe_name, killed_flag, host_pid_capture_path).await;
     });
 }
