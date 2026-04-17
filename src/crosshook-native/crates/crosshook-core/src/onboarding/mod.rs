@@ -1,18 +1,28 @@
+pub mod capability;
+pub mod capability_loader;
 pub mod catalog;
+pub mod details;
+pub mod distro;
+mod install_advice;
 pub mod readiness;
 
 use serde::{Deserialize, Serialize};
 
 use crate::profile::health::HealthIssue;
 
+pub use capability::{derive_capabilities, Capability, CapabilityMap, CapabilityState};
+pub use capability_loader::{
+    global_capability_map, initialize_capability_map, load_capability_map,
+};
 pub use catalog::{
     global_readiness_catalog, initialize_readiness_catalog, load_readiness_catalog,
     ReadinessCatalog,
 };
+pub use details::{probe_host_tool_details, HostToolDetails};
+pub use distro::detect_host_distro_family_from_os_release;
 pub use readiness::{
     apply_install_nag_dismissal, apply_readiness_nag_dismissals,
     apply_steam_deck_caveats_dismissal, check_generalized_readiness, check_system_readiness,
-    detect_host_distro_family_from_os_release,
 };
 
 /// Host distribution family for install guidance (from `/etc/os-release` on the host).
@@ -98,6 +108,12 @@ pub struct HostToolCheckResult {
     /// Project docs / upstream URL for this tool (from catalog).
     #[serde(default)]
     pub docs_url: String,
+    /// Reported tool version when the probe can resolve it.
+    #[serde(default)]
+    pub tool_version: Option<String>,
+    /// Resolved runtime path for the detected tool binary.
+    #[serde(default)]
+    pub resolved_path: Option<String>,
     /// Populated when the tool is missing and guidance applies (e.g. Flatpak).
     pub install_guidance: Option<HostToolInstallCommand>,
 }

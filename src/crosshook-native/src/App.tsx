@@ -15,6 +15,7 @@ import ControllerPrompts from './components/layout/ControllerPrompts';
 import Sidebar, { type AppRoute } from './components/layout/Sidebar';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { CollectionsProvider } from './context/CollectionsContext';
+import { HostReadinessProvider } from './context/HostReadinessContext';
 import { LaunchStateProvider } from './context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from './context/PreferencesContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
@@ -34,6 +35,7 @@ const VALID_APP_ROUTES: Record<AppRoute, true> = {
   compatibility: true,
   settings: true,
   health: true,
+  'host-tools': true,
 };
 
 function isAppRoute(value: string): value is AppRoute {
@@ -169,6 +171,11 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
     };
   }, []);
 
+  const handleOpenOnboardingHostToolDashboard = useCallback(() => {
+    setRoute('host-tools');
+    setShowOnboarding(false);
+  }, []);
+
   return (
     <Tooltip.Provider delayDuration={200}>
       <PreferencesProvider activeProfileName={lastProfile}>
@@ -228,6 +235,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
               open={showOnboarding}
               onComplete={() => setShowOnboarding(false)}
               onDismiss={() => setShowOnboarding(false)}
+              onOpenHostToolDashboard={handleOpenOnboardingHostToolDashboard}
             />
           )}
           <CollectionViewModal
@@ -300,9 +308,11 @@ export function App() {
       )}
       <ProfileProvider>
         <ProfileHealthProvider>
-          <CollectionsProvider>
-            <AppShell controllerMode={gamepadNav.controllerMode} />
-          </CollectionsProvider>
+          <HostReadinessProvider>
+            <CollectionsProvider>
+              <AppShell controllerMode={gamepadNav.controllerMode} />
+            </CollectionsProvider>
+          </HostReadinessProvider>
         </ProfileHealthProvider>
       </ProfileProvider>
     </main>

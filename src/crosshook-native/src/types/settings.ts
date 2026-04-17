@@ -36,6 +36,10 @@ export interface SettingsSaveRequest {
   protonup_binary_path?: string;
   /** Non-Steam launch preference: `auto` (umu when available, else Proton), `umu` (always umu-run), `proton` (always direct Proton). */
   umu_preference: UmuPreference;
+  /** Capability-level hint dismissals for the host-tool dashboard. */
+  host_tool_dashboard_dismissed_hints?: string[];
+  /** Optional default category filter for the host-tool dashboard. */
+  host_tool_dashboard_default_category_filter?: string | null;
   /** RFC 3339 timestamp of when the user dismissed the umu install nag; `null` = not yet dismissed. */
   install_nag_dismissed_at?: string | null;
   /** RFC 3339 timestamp of when the user dismissed the Steam Deck caveats nag; `null` = not yet dismissed. */
@@ -73,6 +77,8 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     protonup_auto_suggest: s.protonup_auto_suggest,
     protonup_binary_path: s.protonup_binary_path,
     umu_preference: s.umu_preference,
+    host_tool_dashboard_dismissed_hints: s.host_tool_dashboard_dismissed_hints,
+    host_tool_dashboard_default_category_filter: s.host_tool_dashboard_default_category_filter,
   };
   // Do not set `install_nag_dismissed_at` when null/undefined so the key is absent
   // (not present on the object). Shallow merge in browser mocks and backend merge both
@@ -112,6 +118,8 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   protonup_auto_suggest: true,
   protonup_binary_path: '',
   umu_preference: 'auto',
+  host_tool_dashboard_dismissed_hints: [],
+  host_tool_dashboard_default_category_filter: null,
   install_nag_dismissed_at: null,
   steam_deck_caveats_dismissed_at: null,
 };

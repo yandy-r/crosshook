@@ -1,0 +1,38 @@
+# Host capability map — embedded default. Override via
+# ~/.config/crosshook/host_capability_map.toml (merge by id).
+catalog_version = 1
+
+[[capability]]
+id = "gamescope"
+label = "Gamescope"
+category = "performance"
+required_tools = ["gamescope"]
+optional_tools = []
+
+[[capability]]
+id = "mangohud"
+label = "MangoHud"
+category = "overlay"
+required_tools = ["mangohud"]
+optional_tools = []
+
+[[capability]]
+id = "gamemode"
+label = "GameMode"
+category = "performance"
+required_tools = ["gamemode"]
+optional_tools = []
+
+[[capability]]
+id = "prefix_tools"
+label = "Prefix tools"
+category = "prefix_tools"
+required_tools = []
+optional_tools = ["winetricks", "protontricks"]
+
+[[capability]]
+id = "non_steam_launch"
+label = "Non-Steam launch"
+category = "runtime"
+required_tools = ["umu_run"]
+optional_tools = []

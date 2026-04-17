@@ -218,6 +218,12 @@ pub struct AppSettingsData {
     /// User preference for umu-launcher vs direct Proton invocation.
     #[serde(default)]
     pub umu_preference: UmuPreference,
+    /// Capability-level host-tool hints the user chose to dismiss permanently.
+    #[serde(default)]
+    pub host_tool_dashboard_dismissed_hints: Vec<String>,
+    /// Optional default category filter for the host-tool dashboard.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_tool_dashboard_default_category_filter: Option<String>,
     /// RFC 3339 timestamp of when the user dismissed the umu install nag; `None` = not dismissed.
     ///
     /// TODO(#269): Canonical dismissals live in SQLite `readiness_nag_dismissals`; this field remains
@@ -255,6 +261,8 @@ impl Default for AppSettingsData {
             protonup_auto_suggest: default_protonup_auto_suggest(),
             protonup_binary_path: String::new(),
             umu_preference: UmuPreference::Auto,
+            host_tool_dashboard_dismissed_hints: Vec::new(),
+            host_tool_dashboard_default_category_filter: None,
             install_nag_dismissed_at: None,
             steam_deck_caveats_dismissed_at: None,
         }
@@ -301,6 +309,14 @@ impl fmt::Debug for AppSettingsData {
             .field("protonup_auto_suggest", &self.protonup_auto_suggest)
             .field("protonup_binary_path", &self.protonup_binary_path)
             .field("umu_preference", &self.umu_preference)
+            .field(
+                "host_tool_dashboard_dismissed_hints",
+                &self.host_tool_dashboard_dismissed_hints,
+            )
+            .field(
+                "host_tool_dashboard_default_category_filter",
+                &self.host_tool_dashboard_default_category_filter,
+            )
             .field("install_nag_dismissed_at", &self.install_nag_dismissed_at)
             .field(
                 "steam_deck_caveats_dismissed_at",
@@ -717,6 +733,46 @@ mod tests {
         assert_eq!(parsed.umu_preference, UmuPreference::Umu);
         let serialized = toml::to_string(&parsed).unwrap();
         assert!(serialized.contains("umu_preference = \"umu\""));
+    }
+
+    #[test]
+    fn settings_backward_compat_without_host_tool_dashboard_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SettingsStore::with_base_path(dir.path().to_path_buf());
+        let path = store.settings_path();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            "auto_load_last_profile = false\nlast_used_profile = \"\"\n",
+        )
+        .unwrap();
+        let loaded = store.load().unwrap();
+        assert!(loaded.host_tool_dashboard_dismissed_hints.is_empty());
+        assert!(loaded.host_tool_dashboard_default_category_filter.is_none());
+    }
+
+    #[test]
+    fn settings_roundtrip_host_tool_dashboard_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SettingsStore::with_base_path(dir.path().to_path_buf());
+        let settings = AppSettingsData {
+            host_tool_dashboard_dismissed_hints: vec![
+                "gamescope".to_string(),
+                "prefix_tools".to_string(),
+            ],
+            host_tool_dashboard_default_category_filter: Some("runtime".to_string()),
+            ..Default::default()
+        };
+        store.save(&settings).unwrap();
+        let loaded = store.load().unwrap();
+        assert_eq!(
+            loaded.host_tool_dashboard_dismissed_hints,
+            vec!["gamescope".to_string(), "prefix_tools".to_string()]
+        );
+        assert_eq!(
+            loaded.host_tool_dashboard_default_category_filter,
+            Some("runtime".to_string())
+        );
     }
 
     #[test]

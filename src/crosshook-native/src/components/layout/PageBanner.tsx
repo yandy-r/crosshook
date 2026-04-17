@@ -169,3 +169,27 @@ export function HealthDashboardArt() {
     </svg>
   );
 }
+
+export function HostToolsArt() {
+  return (
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
+      {/* Toolbox body */}
+      <rect x="10" y="22" width="44" height="30" rx="3" opacity={0.4} />
+      {/* Toolbox lid + handle */}
+      <path d="M22 22v-4a4 4 0 0 1 4-4h12a4 4 0 0 1 4 4v4" opacity={0.32} />
+      <rect x="28" y="10" width="8" height="6" rx="1.5" opacity={0.22} />
+      {/* Inner divider */}
+      <line x1="10" y1="34" x2="54" y2="34" opacity={0.3} />
+      {/* Wrench */}
+      <path
+        d="M16 42a4 4 0 0 0 5.5 3.7l4.7 4.7a1.6 1.6 0 0 0 2.3-2.3l-4.7-4.7A4 4 0 0 0 16 42z"
+        opacity={0.45}
+        strokeWidth={1.5}
+      />
+      {/* Screwdriver */}
+      <path d="M40 38 L48 46 M44 36 L46 38" strokeWidth={2.4} opacity={0.45} strokeLinecap="round" />
+      {/* Status dot (capability healthy) */}
+      <circle cx="50" cy="42" r="2" fill="currentColor" stroke="none" opacity={0.5} />
+    </svg>
+  );
+}

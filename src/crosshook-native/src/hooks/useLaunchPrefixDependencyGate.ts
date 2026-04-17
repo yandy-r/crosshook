@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-
+import type { CapabilityState } from '../types/onboarding';
 import type { PrefixDependencyStatus } from '../types/prefix-deps';
+import { useCapabilityGate } from './useCapabilityGate';
 
 export interface UseLaunchPrefixDependencyGateResult {
   getDependencyStatus: (profileName: string, prefixPath: string) => Promise<PrefixDependencyStatus[]>;
   installPrefixDependency: (profileName: string, prefixPath: string, packages: string[]) => Promise<void>;
   /** True when the app is running inside an active Gamescope session (from `check_gamescope_session`). */
   isGamescopeRunning: boolean;
+  prefixToolsCapabilityState: CapabilityState;
+  prefixToolsRationale: string | null;
 }
 
 export function useLaunchPrefixDependencyGate(): UseLaunchPrefixDependencyGateResult {
   const [isGamescopeRunning, setIsGamescopeRunning] = useState(false);
+  const { state: prefixToolsCapabilityState, rationale: prefixToolsRationale } = useCapabilityGate('prefix_tools');
 
   useEffect(() => {
     let cancelled = false;
@@ -21,8 +25,8 @@ export function useLaunchPrefixDependencyGate(): UseLaunchPrefixDependencyGateRe
         if (!cancelled) {
           setIsGamescopeRunning(inside);
         }
-      } catch (error) {
-        console.warn('check_gamescope_session failed; leaving prior Gamescope session state', error);
+      } catch {
+        // check_gamescope_session failed; leave prior Gamescope session state unchanged
       }
     })();
     return () => {
@@ -45,7 +49,13 @@ export function useLaunchPrefixDependencyGate(): UseLaunchPrefixDependencyGateRe
     });
   }, []);
 
-  return { getDependencyStatus, installPrefixDependency, isGamescopeRunning };
+  return {
+    getDependencyStatus,
+    installPrefixDependency,
+    isGamescopeRunning,
+    prefixToolsCapabilityState,
+    prefixToolsRationale,
+  };
 }
 
 export default useLaunchPrefixDependencyGate;

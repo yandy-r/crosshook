@@ -1,4 +1,6 @@
 import { type ChangeEvent, useId, useRef } from 'react';
+import { open as openShell } from '@/lib/plugin-stubs/shell';
+import { useCapabilityGate } from '../hooks/useCapabilityGate';
 import type { GamescopeConfig, GamescopeFilter } from '../types/profile';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { InfoTooltip } from './ui/InfoTooltip';
@@ -59,7 +61,9 @@ export function GamescopeConfigPanel({
   derivedConfigNotice,
 }: GamescopeConfigPanelProps) {
   const id = useId();
-  const isDisabled = !config.enabled;
+  const gamescopeGate = useCapabilityGate('gamescope');
+  const isCapabilityUnavailable = gamescopeGate.state === 'unavailable';
+  const isDisabled = !config.enabled || isCapabilityUnavailable;
   const showSessionWarning = isInsideGamescopeSession && config.enabled;
   const isFsr = config.upscale_filter === 'fsr';
   // Track whether the user has manually collapsed/expanded the body.
@@ -105,6 +109,41 @@ export function GamescopeConfigPanel({
           </span>
         </label>
       </div>
+
+      {gamescopeGate.rationale ? (
+        <div
+          className={isCapabilityUnavailable ? 'crosshook-warning-banner' : 'crosshook-info-banner'}
+          role={isCapabilityUnavailable ? 'alert' : 'note'}
+        >
+          <div style={{ display: 'grid', gap: 8 }}>
+            <span>{gamescopeGate.rationale}</span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {gamescopeGate.onCopyCommand ? (
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--ghost crosshook-button--small"
+                  onClick={() => {
+                    void gamescopeGate.onCopyCommand?.();
+                  }}
+                >
+                  Copy install command
+                </button>
+              ) : null}
+              {gamescopeGate.docsUrl ? (
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--ghost crosshook-button--small"
+                  onClick={() => {
+                    void openShell(gamescopeGate.docsUrl ?? '');
+                  }}
+                >
+                  Open docs
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Session warning banner */}
       {showSessionWarning ? (

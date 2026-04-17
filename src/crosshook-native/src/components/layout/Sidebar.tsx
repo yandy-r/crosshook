@@ -6,6 +6,7 @@ import {
   CompatibilityIcon,
   DiscoverIcon,
   HealthIcon,
+  HostToolsIcon,
   InstallIcon,
   LaunchIcon,
   LibraryIcon,
@@ -23,7 +24,8 @@ export type AppRoute =
   | 'discover'
   | 'compatibility'
   | 'settings'
-  | 'health';
+  | 'health'
+  | 'host-tools';
 
 export interface SidebarProps {
   activeRoute: AppRoute;
@@ -59,7 +61,10 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   },
   {
     label: 'Dashboards',
-    items: [{ route: 'health', label: ROUTE_NAV_LABEL.health, icon: HealthIcon }],
+    items: [
+      { route: 'health', label: ROUTE_NAV_LABEL.health, icon: HealthIcon },
+      { route: 'host-tools', label: ROUTE_NAV_LABEL['host-tools'], icon: HostToolsIcon },
+    ],
   },
   {
     label: 'Community',

@@ -9,6 +9,7 @@ import type { OnboardingWizardStage } from '../types/onboarding';
 import { resolveLaunchMethod } from '../utils/launch';
 import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
+import { HostToolDashboardHandoff } from './host-readiness/HostToolDashboardHandoff';
 import { ControllerPrompts } from './layout/ControllerPrompts';
 import { GameSection } from './profile-sections/GameSection';
 import { MediaSection } from './profile-sections/MediaSection';
@@ -25,6 +26,7 @@ export interface OnboardingWizardProps {
   mode?: 'create' | 'edit';
   onComplete: () => void;
   onDismiss: () => void;
+  onOpenHostToolDashboard?: () => void;
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -85,7 +87,13 @@ function getTotalVisibleSteps(launchMethod: ResolvedLaunchMethod): number {
   return launchMethod === 'native' ? 4 : 5;
 }
 
-export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss }: OnboardingWizardProps) {
+export function OnboardingWizard({
+  open,
+  mode = 'create',
+  onComplete,
+  onDismiss,
+  onOpenHostToolDashboard,
+}: OnboardingWizardProps) {
   const portalHostRef = useRef<HTMLElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
@@ -352,6 +360,10 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     advanceOrSkip(launchMethod);
   }
 
+  function handleOpenHostToolDashboard() {
+    onOpenHostToolDashboard?.();
+  }
+
   if (!open || !isMounted || !portalHostRef.current) {
     return null;
   }
@@ -432,6 +444,12 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 protonInstalls={protonInstalls}
                 protonInstallsError={protonInstallsError}
               />
+              {onOpenHostToolDashboard ? (
+                <HostToolDashboardHandoff
+                  onOpen={handleOpenHostToolDashboard}
+                  description="Need the full host tool details while setting up runtime paths? Open the Host Tools page without finishing onboarding."
+                />
+              ) : null}
             </section>
           )}
 
@@ -479,6 +497,12 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 onDismissSteamDeckCaveats={() => void dismissSteamDeckCaveats()}
                 onDismissReadinessNag={(toolId) => void dismissReadinessNag(toolId)}
               />
+              {onOpenHostToolDashboard ? (
+                <HostToolDashboardHandoff
+                  onOpen={handleOpenHostToolDashboard}
+                  description="Want the full host readiness dashboard before saving? Open the Host Tools page and return to onboarding later."
+                />
+              ) : null}
             </section>
           )}
 

@@ -4,6 +4,7 @@ import {
   CompatibilityArt,
   DiscoverArt,
   HealthDashboardArt,
+  HostToolsArt,
   InstallArt,
   LaunchArt,
   LibraryArt,
@@ -87,6 +88,14 @@ export const ROUTE_METADATA: Record<AppRoute, RouteMetadataEntry> = {
     bannerSummary: 'Validate profiles, review issues, and track launch health across your library.',
     Art: HealthDashboardArt,
   },
+  'host-tools': {
+    navLabel: 'Host Tools',
+    sectionEyebrow: 'Dashboards',
+    bannerTitle: 'Host Tools',
+    bannerSummary:
+      'Inspect detected host tools, capability state, and install guidance for everything CrossHook delegates to your host.',
+    Art: HostToolsArt,
+  },
 };
 
 /** Sidebar + status row labels (single source of truth). */
@@ -100,4 +109,5 @@ export const ROUTE_NAV_LABEL: Record<AppRoute, string> = {
   compatibility: ROUTE_METADATA.compatibility.navLabel,
   settings: ROUTE_METADATA.settings.navLabel,
   health: ROUTE_METADATA.health.navLabel,
+  'host-tools': ROUTE_METADATA['host-tools'].navLabel,
 };

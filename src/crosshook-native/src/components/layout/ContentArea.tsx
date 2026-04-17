@@ -4,6 +4,7 @@ import CommunityPage from '../pages/CommunityPage';
 import CompatibilityPage from '../pages/CompatibilityPage';
 import DiscoverPage from '../pages/DiscoverPage';
 import HealthDashboardPage from '../pages/HealthDashboardPage';
+import HostToolsPage from '../pages/HostToolsPage';
 import InstallPage from '../pages/InstallPage';
 import LaunchPage from '../pages/LaunchPage';
 import LibraryPage from '../pages/LibraryPage';
@@ -50,6 +51,8 @@ export function ContentArea({ route, onNavigate }: ContentAreaProps) {
         return <SettingsPage />;
       case 'health':
         return <HealthDashboardPage onNavigate={onNavigate} />;
+      case 'host-tools':
+        return <HostToolsPage />;
       case 'library':
         return <LibraryPage onNavigate={onNavigate} />;
       default: {

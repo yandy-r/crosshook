@@ -265,3 +265,12 @@ This document synthesizes findings from all 13 research files:
 - `13-opportunities.md` — Opportunities and quick wins (Phase 3)
 
 No additional external research was conducted for this capstone. All claims trace to the source files above.
+
+## CrossHook Follow-up
+
+- Issue `#270` is now implemented through the host tool dashboard + shared capability-gating work tracked in `docs/internal/host-tool-dashboard.md`.
+- The shipped implementation covers the recommended detection/guidance path:
+  - shared host readiness snapshot consumption
+  - a dedicated Host Tools sidebar route/page
+  - onboarding handoff into the dashboard
+  - panel-level capability gating for host-tool-dependent workflows
