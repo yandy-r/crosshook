@@ -37,7 +37,16 @@ export interface UseProtonManagerResult {
   /** Installed Proton tools (rescan-is-truth). */
   installs: ReturnType<typeof useProtonInstalls>;
   activeOpIds: string[];
-  install: (request: ProtonUpInstallRequest, version: string) => Promise<ProtonInstallHandle>;
+  /** Remove a terminal op from the active list (called when the user dismisses). */
+  dismissOp: (opId: string) => void;
+  /**
+   * Start an async install. `version` must be the full catalog DTO — the Rust
+   * handler (`protonup_install_version_async`) deserializes it to
+   * `ProtonUpAvailableVersion` and uses its checksum URL / asset size during
+   * the download. Passing only the tag string causes Tauri to reject the
+   * IPC payload as malformed.
+   */
+  install: (request: ProtonUpInstallRequest, version: ProtonUpAvailableVersion) => Promise<ProtonInstallHandle>;
   cancel: (opId: string) => Promise<boolean>;
   uninstall: (toolPath: string) => Promise<ProtonUninstallResult>;
   loading: boolean;
@@ -127,7 +136,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
         const [resolvedProviders, resolvedRoots] = await Promise.all([
           callCommand<ProtonUpProviderDescriptor[]>('protonup_list_providers'),
           callCommand<InstallRootDescriptor[]>('protonup_resolve_install_roots', {
-            steam_client_install_path: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
+            steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
           }),
         ]);
 
@@ -217,7 +226,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
   }, []);
 
   const install = useCallback(
-    async (request: ProtonUpInstallRequest, version: string): Promise<ProtonInstallHandle> => {
+    async (request: ProtonUpInstallRequest, version: ProtonUpAvailableVersion): Promise<ProtonInstallHandle> => {
       const handle = await callCommand<ProtonInstallHandle>('protonup_install_version_async', {
         request,
         version,
@@ -229,16 +238,25 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
   );
 
   const cancel = useCallback(async (opId: string): Promise<boolean> => {
-    const ok = await callCommand<boolean>('protonup_cancel_install', { op_id: opId });
+    // Don't touch activeOpIds here — the Rust install task will emit
+    // `Phase::Cancelled` when the token fires, which flips the
+    // InstallProgressBar into its terminal state (Dismiss button,
+    // red fill). Removing the opId now would unmount the progress
+    // card before that event arrives and the user would see "nothing
+    // happened". The dismiss handler removes the opId on user action
+    // (or the auto-dismiss timer for successful installs).
+    return await callCommand<boolean>('protonup_cancel_install', { opId });
+  }, []);
+
+  const dismissOp = useCallback((opId: string) => {
     setActiveOpIds((ids) => ids.filter((id) => id !== opId));
-    return ok;
   }, []);
 
   const uninstall = useCallback(
     async (toolPath: string): Promise<ProtonUninstallResult> => {
       const result = await callCommand<ProtonUninstallResult>('protonup_uninstall_version', {
-        tool_path: toolPath,
-        steam_client_install_path: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
+        toolPath,
+        steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
       });
       if (result.success) {
         installs.reload();
@@ -292,6 +310,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
     catalog,
     installs,
     activeOpIds,
+    dismissOp,
     install,
     cancel,
     uninstall,

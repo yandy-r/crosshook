@@ -160,17 +160,18 @@ fn plan_uninstall_core(
 
     let canonical = std::fs::canonicalize(tool_dir)
         .map_err(|_| UninstallError::NotFound(tool_dir.to_path_buf()))?;
+    let canonical_tool_dir = normalize_tool_dir_path(&canonical);
 
     // ── 2. System-path refusal ────────────────────────────────────────────────
 
     for &root in STEAM_SYSTEM_ROOTS {
-        if canonical.starts_with(root) {
-            return Err(UninstallError::SystemPathRefused(canonical));
+        if canonical_tool_dir.starts_with(root) {
+            return Err(UninstallError::SystemPathRefused(canonical_tool_dir));
         }
     }
     for &prefix in SYSTEM_PREFIX_DENYLIST {
-        if canonical.starts_with(prefix) {
-            return Err(UninstallError::SystemPathRefused(canonical));
+        if canonical_tool_dir.starts_with(prefix) {
+            return Err(UninstallError::SystemPathRefused(canonical_tool_dir));
         }
     }
 
@@ -186,8 +187,8 @@ fn plan_uninstall_core(
         // Canonicalize the candidate path for comparison; fall back to raw if it
         // doesn't exist yet (candidates may point to not-yet-created dirs).
         let candidate_canonical = std::fs::canonicalize(&c.path).unwrap_or_else(|_| c.path.clone());
-        canonical.starts_with(&candidate_canonical)
-            && canonical
+        canonical_tool_dir.starts_with(&candidate_canonical)
+            && canonical_tool_dir
                 .parent()
                 .map(|p| {
                     p == candidate_canonical
@@ -198,12 +199,12 @@ fn plan_uninstall_core(
     });
 
     let Some(candidate) = matching_candidate else {
-        return Err(UninstallError::PathOutsideKnownRoots(canonical));
+        return Err(UninstallError::PathOutsideKnownRoots(canonical_tool_dir));
     };
 
     // ── 4. Profile-mapping scan ───────────────────────────────────────────────
 
-    let tool_id = canonical
+    let tool_id = canonical_tool_dir
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
@@ -217,13 +218,29 @@ fn plan_uninstall_core(
         .collect();
 
     Ok(UninstallPlan {
-        tool_dir: canonical,
+        tool_dir: canonical_tool_dir,
         conflicting_app_ids,
         root_kind: candidate.kind,
     })
 }
 
 // ── private helpers ───────────────────────────────────────────────────────────
+
+fn normalize_tool_dir_path(path: &Path) -> PathBuf {
+    if path.is_file()
+        && path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("proton"))
+    {
+        return path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| path.to_path_buf());
+    }
+
+    path.to_path_buf()
+}
 
 /// Build a minimal list of Steam root directories for compat-tool mapping
 /// lookups. These are the Steam roots (not the `compatibilitytools.d` subdirs)
@@ -432,6 +449,33 @@ mod tests {
     }
 
     // ── test 5 ────────────────────────────────────────────────────────────────
+
+    /// A discovered compat tool may be represented by its `proton`
+    /// executable path; the uninstall planner should normalize that to the
+    /// containing tool directory.
+    #[test]
+    fn plan_uninstall_accepts_proton_executable_path() {
+        let root = tempdir().unwrap();
+        let tool_name = "proton-EM-10.0-36-HDRTEST";
+        let tool_dir = root.path().join(tool_name);
+        fs::create_dir_all(&tool_dir).unwrap();
+        let proton_exe = tool_dir.join("proton");
+        fs::write(&proton_exe, "#!/bin/sh\n").unwrap();
+
+        let candidates = vec![candidate(
+            root.path().to_path_buf(),
+            InstallRootKind::NativeSteam,
+        )];
+        let mappings = mappings_with("123", tool_name);
+
+        let plan = plan_uninstall_with_mappings(&proton_exe, &candidates, &mappings)
+            .expect("plan should succeed for proton executable path");
+
+        assert_eq!(plan.tool_dir, tool_dir);
+        assert_eq!(plan.conflicting_app_ids, vec!["123".to_string()]);
+    }
+
+    // ── test 6 ────────────────────────────────────────────────────────────────
 
     /// `execute_uninstall` must remove the target directory tree.
     #[test]

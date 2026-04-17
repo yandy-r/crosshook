@@ -240,21 +240,21 @@ export function registerProtonUp(map: Map<string, Handler>): void {
   });
 
   map.set('protonup_cancel_install', (args) => {
-    const { op_id } = (args ?? {}) as { op_id: string };
-    if (!activeInstalls.has(op_id)) return false;
-    activeInstalls.delete(op_id);
-    emitMockEvent('protonup:install:progress', { op_id, phase: 'cancelled' });
+    const { opId } = (args ?? {}) as { opId: string };
+    if (!activeInstalls.has(opId)) return false;
+    activeInstalls.delete(opId);
+    emitMockEvent('protonup:install:progress', { op_id: opId, phase: 'cancelled' });
     return true;
   });
 
   map.set('protonup_uninstall_version', (args) => {
-    const { tool_path } = (args ?? {}) as { tool_path: string; steam_client_install_path?: string };
+    const { toolPath } = (args ?? {}) as { toolPath: string };
 
-    if (tool_path.includes('usr/share') || tool_path.startsWith('/usr/')) {
+    if (toolPath.includes('usr/share') || toolPath.startsWith('/usr/')) {
       return { success: false, conflicting_app_ids: [], error_message: 'refusing to delete system path' };
     }
 
-    if (tool_path.includes('conflict')) {
+    if (toolPath.includes('conflict')) {
       return { success: true, conflicting_app_ids: ['12345', '67890'], error_message: null };
     }
 

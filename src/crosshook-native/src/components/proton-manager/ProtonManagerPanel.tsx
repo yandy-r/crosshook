@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useProtonManager } from '../../hooks/useProtonManager';
-import { classifyInstallProvider } from '../../lib/protonup/classifyInstall';
-import type { ProtonUpInstallRequest } from '../../types/protonup';
+import { classifyInstallProvider, normalizeInstallToTag } from '../../lib/protonup/classifyInstall';
+import type { ProtonUpAvailableVersion, ProtonUpInstallRequest } from '../../types/protonup';
 import { InstallProgressBar } from './InstallProgressBar';
 import { InstallRootBadge } from './InstallRootBadge';
 import { ProviderPicker } from './ProviderPicker';
@@ -17,6 +17,8 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
   const [selectedRootPath, setSelectedRootPath] = useState<string | null>(null);
   const [uninstallWarning, setUninstallWarning] = useState<string | null>(null);
   const [uninstallError, setUninstallError] = useState<string | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const effectiveRoot = useMemo(() => {
     if (selectedRootPath !== null) {
@@ -34,19 +36,25 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
   const [installingKeys, setInstallingKeys] = useState<Set<string>>(new Set());
 
   const handleInstall = useCallback(
-    async (providerId: string, version: string) => {
-      if (!effectiveRoot) return;
+    async (versionDto: ProtonUpAvailableVersion) => {
+      setInstallError(null);
+      if (!effectiveRoot) {
+        setInstallError('No writable install root available.');
+        return;
+      }
 
       const request: ProtonUpInstallRequest = {
-        provider: providerId,
-        version,
+        provider: versionDto.provider,
+        version: versionDto.version,
         target_root: effectiveRoot.path,
       };
 
-      const key = `${providerId}:${version}`;
+      const key = `${versionDto.provider}:${versionDto.version}`;
       setInstallingKeys((prev) => new Set(prev).add(key));
       try {
-        await manager.install(request, version);
+        await manager.install(request, versionDto);
+      } catch (err) {
+        setInstallError(err instanceof Error ? err.message : String(err));
       } finally {
         setInstallingKeys((prev) => {
           const next = new Set(prev);
@@ -59,8 +67,26 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
   );
 
   const handleCancel = useCallback(
+    async (opId: string) => {
+      setCancelError(null);
+      try {
+        const cancelled = await manager.cancel(opId);
+        if (!cancelled) {
+          setCancelError('Cancel request was not accepted. The install may have already completed.');
+        }
+      } catch (err) {
+        setCancelError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [manager]
+  );
+
+  const handleDismissOp = useCallback(
     (opId: string) => {
-      void manager.cancel(opId);
+      manager.dismissOp(opId);
+      // A terminal op may have produced a new install; rescan so the row
+      // migrates from Available → Installed without requiring a page reload.
+      manager.installs.reload();
     },
     [manager]
   );
@@ -96,16 +122,22 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
     return manager.installs.installs.filter((i) => classifyInstallProvider(i.name) === manager.selectedProviderId);
   }, [manager.installs.installs, manager.selectedProviderId]);
 
-  // Names of all installed tools (used to suppress duplicates in the
-  // available list regardless of provider filter).
-  const installedNames = useMemo(
-    () => new Set(manager.installs.installs.map((i) => i.name)),
-    [manager.installs.installs]
-  );
+  // Set of keys identifying installed tools, normalized so Proton-CachyOS's
+  // directory name (e.g. `proton-cachyos-<tag>-x86_64`) matches its catalog
+  // tag (e.g. `cachyos-<tag>`). Key shape: `${providerId}:${normalizedTag}`.
+  const installedKeySet = useMemo(() => {
+    const keys = new Set<string>();
+    for (const install of manager.installs.installs) {
+      const pid = classifyInstallProvider(install.name);
+      if (pid === null) continue;
+      keys.add(`${pid}:${normalizeInstallToTag(install.name, pid)}`);
+    }
+    return keys;
+  }, [manager.installs.installs]);
 
   const availableVersions = useMemo(
-    () => manager.catalog.versions.filter((v) => !installedNames.has(v.version)),
-    [manager.catalog.versions, installedNames]
+    () => manager.catalog.versions.filter((v) => !installedKeySet.has(`${v.provider}:${v.version}`)),
+    [manager.catalog.versions, installedKeySet]
   );
 
   // Lookup table for enriching installed rows with catalog metadata
@@ -183,7 +215,7 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
       {manager.activeOpIds.length > 0 ? (
         <div className="crosshook-proton-manager__progress-list">
           {manager.activeOpIds.map((opId) => (
-            <InstallProgressBar key={opId} opId={opId} onCancel={handleCancel} />
+            <InstallProgressBar key={opId} opId={opId} onCancel={handleCancel} onDismiss={handleDismissOp} />
           ))}
         </div>
       ) : null}
@@ -197,6 +229,18 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
       {uninstallError ? (
         <div className="crosshook-proton-manager__error-banner" role="alert">
           {uninstallError}
+        </div>
+      ) : null}
+
+      {installError ? (
+        <div className="crosshook-proton-manager__error-banner" role="alert">
+          Install failed: {installError}
+        </div>
+      ) : null}
+
+      {cancelError ? (
+        <div className="crosshook-proton-manager__error-banner" role="alert">
+          Cancel failed: {cancelError}
         </div>
       ) : null}
 
@@ -215,7 +259,9 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
             {filteredInstalls.map((install) => {
               const classified = classifyInstallProvider(install.name);
               const rowProvider = classified ?? 'unknown';
-              const catalogMatch = classified ? (catalogByKey.get(`${classified}:${install.name}`) ?? null) : null;
+              const catalogMatch = classified
+                ? (catalogByKey.get(`${classified}:${normalizeInstallToTag(install.name, classified)}`) ?? null)
+                : null;
               return (
                 <li key={install.name}>
                   <VersionRow
@@ -257,7 +303,7 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
                     installed={false}
                     installing={installingKeys.has(key)}
                     canInstall={rowCanInstall}
-                    onInstall={() => void handleInstall(v.provider, v.version)}
+                    onInstall={() => void handleInstall(v)}
                     onUninstall={() => undefined}
                     publishedAt={v.published_at ?? null}
                     assetSize={v.asset_size ?? null}
