@@ -105,7 +105,6 @@ pub async fn list_available_versions_by_id(
                 &versions,
                 &fetched_at,
                 &expires_at,
-                include_prereleases,
             );
 
             ProtonUpCatalogResponse {
@@ -168,7 +167,7 @@ async fn fetch_live_catalog_by_id(
     let client = protonup_http_client().map_err(providers::ProviderError::Http)?;
 
     // Resolve the matching provider implementation from the registry.
-    let registry = providers::registry(include_prereleases);
+    let registry = providers::registry();
     match registry.iter().find(|p| p.id() == provider_id).cloned() {
         Some(provider_impl) => provider_impl.fetch(client, include_prereleases).await,
         None => {
@@ -303,11 +302,10 @@ fn persist_catalog(
     versions: &[ProtonUpAvailableVersion],
     fetched_at: &str,
     expires_at: &str,
-    include_prereleases: bool,
 ) {
     // Derive the provider's ChecksumKind from the registry for the checksum_kind column.
     let registry_checksum_kind: Option<String> = {
-        let registry = providers::registry(include_prereleases);
+        let registry = providers::registry();
         registry.iter().find(|p| p.id() == provider_id).map(|p| {
             serde_json::to_string(&p.checksum_kind())
                 .unwrap_or_default()

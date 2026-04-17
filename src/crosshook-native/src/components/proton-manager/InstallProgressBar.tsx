@@ -89,6 +89,7 @@ export function InstallProgressBar({ opId, onCancel, onDismiss }: InstallProgres
             type="button"
             className="crosshook-button crosshook-button--ghost crosshook-button--ghost--small"
             onClick={() => onCancel(opId)}
+            aria-label={`Cancel install ${opId.slice(0, 8)}`}
           >
             Cancel
           </button>

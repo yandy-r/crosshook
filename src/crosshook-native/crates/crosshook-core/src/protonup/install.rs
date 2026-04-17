@@ -38,6 +38,7 @@ pub enum InstallError {
     DependencyMissing { reason: String },
     NoWritableInstallRoot,
     Cancelled,
+    UntrustedUrl(String),
     Unknown(String),
 }
 
@@ -60,6 +61,7 @@ impl std::fmt::Display for InstallError {
                 )
             }
             Self::Cancelled => write!(f, "install cancelled"),
+            Self::UntrustedUrl(m) => write!(f, "untrusted URL: {m}"),
             Self::Unknown(m) => write!(f, "unknown error: {m}"),
         }
     }
@@ -88,6 +90,7 @@ impl InstallError {
                 ProtonUpInstallErrorKind::InvalidPath,
             ),
             Self::Cancelled => err("install cancelled", ProtonUpInstallErrorKind::Unknown),
+            Self::UntrustedUrl(m) => err(m, ProtonUpInstallErrorKind::NetworkError),
             Self::Unknown(m) => err(m, ProtonUpInstallErrorKind::Unknown),
         }
     }
@@ -148,6 +151,22 @@ fn validate_install_destination(target_root: &str) -> Result<PathBuf, InstallErr
         InstallError::InvalidPath(format!("failed to resolve {}: {io_err}", path.display()))
     })?;
 
+    // Re-run the compatibilitytools.d check on the *canonical* path so that a
+    // symlink whose component spells "compatibilitytools.d" but resolves to an
+    // unrelated directory (e.g., `/`) does not bypass the guard.
+    let canonical_has_compat_segment = canonical.components().any(|c| {
+        c.as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case("compatibilitytools.d")
+    });
+    if !canonical_has_compat_segment {
+        return Err(InstallError::InvalidPath(format!(
+            "install destination '{}' resolved to '{}' which is not under a 'compatibilitytools.d' directory",
+            path.display(),
+            canonical.display()
+        )));
+    }
+
     Ok(canonical)
 }
 
@@ -174,12 +193,66 @@ fn map_io_err(io_err: std::io::Error, context: &str) -> InstallError {
     }
 }
 
+/// Assert that `url` is an `https` URL whose host is one of the known-good
+/// GitHub origins. Returns `InstallError::UntrustedUrl` if any check fails.
+///
+/// Allowed hosts:
+///   - `github.com`               — release API / raw URLs
+///   - `api.github.com`           — REST API
+///   - `objects.githubusercontent.com`         — uploaded release assets
+///   - `github-releases.githubusercontent.com` — CDN redirect target for assets
+///
+/// In test builds, `http://127.0.0.1` and `http://localhost` are also accepted
+/// so that wiremock-backed unit tests can exercise the install flow end-to-end
+/// without standing up a TLS server.
+fn validate_release_url(url: &str) -> Result<(), InstallError> {
+    const ALLOWED_HOSTS: &[&str] = &[
+        "github.com",
+        "api.github.com",
+        "objects.githubusercontent.com",
+        "github-releases.githubusercontent.com",
+    ];
+
+    let parsed = reqwest::Url::parse(url)
+        .map_err(|e| InstallError::UntrustedUrl(format!("failed to parse URL '{url}': {e}")))?;
+
+    let host = parsed.host_str().unwrap_or("");
+
+    // In test builds allow plain-http loopback so wiremock tests can run.
+    #[cfg(test)]
+    if parsed.scheme() == "http" && (host == "127.0.0.1" || host == "localhost") {
+        return Ok(());
+    }
+
+    if parsed.scheme() != "https" {
+        return Err(InstallError::UntrustedUrl(format!(
+            "URL '{url}' uses scheme '{}'; only https is allowed",
+            parsed.scheme()
+        )));
+    }
+
+    if !ALLOWED_HOSTS.contains(&host) {
+        return Err(InstallError::UntrustedUrl(format!(
+            "URL '{url}' has untrusted host '{host}'; allowed: {}",
+            ALLOWED_HOSTS.join(", ")
+        )));
+    }
+
+    Ok(())
+}
+
 // ── download helpers ──────────────────────────────────────────────────────────
 
 /// Stream the URL into `dest_path`, returning the SHA-512 digest. Emits
 /// `Phase::Downloading` progress every `EMIT_INTERVAL_BYTES`. Checks `cancel`
 /// before each chunk; returns `InstallError::Cancelled` if triggered.
 const EMIT_INTERVAL_BYTES: u64 = 256 * 1024;
+
+/// Hard ceiling for checksum sidecar / manifest response bodies (1 MiB).
+/// Legitimate `.sha512sum` files are ~200 B and SHA256SUMS manifests are a few
+/// KiB; this cap prevents a hostile or mis-served CDN response from being
+/// buffered into RAM unboundedly.
+const MAX_CHECKSUM_BYTES: u64 = 1024 * 1024;
 
 async fn download_to_file(
     client: &reqwest::Client,
@@ -306,11 +379,21 @@ async fn fetch_sha512_sidecar(
     client: &reqwest::Client,
     checksum_url: &str,
 ) -> Result<String, InstallError> {
-    let body = client
+    let response = client
         .get(checksum_url)
         .send()
         .await
-        .map_err(|e| network_err(format!("checksum request failed for {checksum_url}: {e}")))?
+        .map_err(|e| network_err(format!("checksum request failed for {checksum_url}: {e}")))?;
+
+    if let Some(len) = response.content_length() {
+        if len > MAX_CHECKSUM_BYTES {
+            return Err(InstallError::ChecksumFailed(format!(
+                "checksum response for {checksum_url} is too large ({len} bytes, limit {MAX_CHECKSUM_BYTES})"
+            )));
+        }
+    }
+
+    let body = response
         .text()
         .await
         .map_err(|e| network_err(format!("failed to read checksum body: {e}")))?;
@@ -343,11 +426,20 @@ async fn fetch_sha256_manifest(
     manifest_url: &str,
     asset_filename: &str,
 ) -> Result<String, InstallError> {
-    let body = client
-        .get(manifest_url)
-        .send()
-        .await
-        .map_err(|e| network_err(format!("SHA256SUMS request failed for {manifest_url}: {e}")))?
+    let response =
+        client.get(manifest_url).send().await.map_err(|e| {
+            network_err(format!("SHA256SUMS request failed for {manifest_url}: {e}"))
+        })?;
+
+    if let Some(len) = response.content_length() {
+        if len > MAX_CHECKSUM_BYTES {
+            return Err(InstallError::ChecksumFailed(format!(
+                "SHA256SUMS response for {manifest_url} is too large ({len} bytes, limit {MAX_CHECKSUM_BYTES})"
+            )));
+        }
+    }
+
+    let body = response
         .text()
         .await
         .map_err(|e| network_err(format!("failed to read SHA256SUMS body: {e}")))?;
@@ -616,7 +708,7 @@ pub async fn install_version_with_progress(
         em.emit(Phase::Resolving, 0, None, None);
     }
 
-    let registry = providers::registry(false);
+    let registry = providers::registry();
     let provider = registry
         .iter()
         .find(|p| p.id() == request.provider.as_str());
@@ -670,6 +762,9 @@ pub async fn install_version_with_progress(
                     version_info.version
                 ),
             })?;
+
+    // F003: Validate download URL origin before use.
+    validate_release_url(download_url)?;
 
     let archive_filename = download_url
         .rsplit('/')
@@ -742,6 +837,14 @@ pub async fn install_version_with_progress(
     match checksum_kind {
         ChecksumKind::Sha512Sidecar => {
             if let Some(checksum_url) = &version_info.checksum_url {
+                // F003: Validate checksum URL origin before fetching.
+                if let Err(e) = validate_release_url(checksum_url) {
+                    best_effort_cleanup(&temp_path, None);
+                    if let Some(em) = em {
+                        em.emit(Phase::Failed, 0, None, Some(e.to_string()));
+                    }
+                    return Err(e);
+                }
                 let expected_hex = match fetch_sha512_sidecar(&client, checksum_url).await {
                     Ok(h) => h,
                     Err(e) => {
@@ -779,14 +882,32 @@ pub async fn install_version_with_progress(
         }
 
         ChecksumKind::Sha256Manifest => {
-            let manifest_url = version_info.checksum_url.as_deref().ok_or_else(|| {
-                let e = InstallError::ChecksumMissing(format!(
-                    "provider requires SHA256SUMS manifest but none is available for version {}",
-                    version_info.version
-                ));
+            // F004: Expand ok_or_else to a match so Phase::Failed is emitted
+            // before returning, preventing the frontend progress bar from
+            // getting stuck in `Verifying` when checksum_url is absent.
+            let manifest_url = match version_info.checksum_url.as_deref() {
+                Some(u) => u,
+                None => {
+                    best_effort_cleanup(&temp_path, None);
+                    let err = InstallError::ChecksumMissing(format!(
+                        "provider requires SHA256SUMS manifest but none is available for version {}",
+                        version_info.version
+                    ));
+                    if let Some(em) = em {
+                        em.emit(Phase::Failed, 0, None, Some(err.to_string()));
+                    }
+                    return Err(err);
+                }
+            };
+
+            // F003: Validate checksum URL origin before fetching.
+            if let Err(e) = validate_release_url(manifest_url) {
                 best_effort_cleanup(&temp_path, None);
-                e
-            })?;
+                if let Some(em) = em {
+                    em.emit(Phase::Failed, 0, None, Some(e.to_string()));
+                }
+                return Err(e);
+            }
 
             let expected_hex =
                 match fetch_sha256_manifest(&client, manifest_url, &archive_filename).await {
@@ -1152,6 +1273,29 @@ mod tests {
         assert!(result.is_dir());
     }
 
+    /// F001: A symlink at the `compatibilitytools.d` component that resolves to
+    /// a sibling directory (i.e., the canonical path has no
+    /// `compatibilitytools.d` segment) must be refused with
+    /// `InstallError::InvalidPath`.
+    #[test]
+    fn rejects_symlink_redirect_escaping_compat_dir() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        // Create a sibling directory that the symlink will point to.
+        let real_target = temp.path().join("not_compat");
+        std::fs::create_dir_all(&real_target).expect("real target dir");
+
+        // Create a symlink named `compatibilitytools.d` pointing to the sibling.
+        let symlink_path = temp.path().join("compatibilitytools.d");
+        std::os::unix::fs::symlink(&real_target, &symlink_path).expect("create symlink");
+
+        let dest = symlink_path.to_string_lossy().to_string();
+        let result = validate_install_destination(&dest).unwrap_err();
+        assert!(
+            matches!(result, InstallError::InvalidPath(_)),
+            "expected InvalidPath for symlink-redirected compat dir, got: {result:?}"
+        );
+    }
+
     // ── hex_encode ────────────────────────────────────────────────────────────
 
     #[test]
@@ -1263,6 +1407,40 @@ mod tests {
             Some(ProtonUpInstallErrorKind::DependencyMissing),
             "with force=true the already-installed guard must be skipped"
         );
+    }
+
+    // ── validate_release_url ─────────────────────────────────────────────────
+
+    #[test]
+    fn validate_release_url_accepts_known_github_hosts() {
+        assert!(validate_release_url("https://github.com/GloriousEggroll/proton-ge-custom/releases/download/GE-Proton9-21/GE-Proton9-21.tar.gz").is_ok());
+        assert!(validate_release_url(
+            "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases"
+        )
+        .is_ok());
+        assert!(validate_release_url("https://objects.githubusercontent.com/github-production-release-asset-2e65be/GE-Proton9-21.tar.gz").is_ok());
+        assert!(validate_release_url(
+            "https://github-releases.githubusercontent.com/GE-Proton9-21.tar.gz"
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn validate_release_url_rejects_http_scheme() {
+        let result = validate_release_url("http://github.com/GloriousEggroll/proton-ge-custom/releases/download/GE-Proton9-21/GE-Proton9-21.tar.gz");
+        assert!(matches!(result, Err(InstallError::UntrustedUrl(_))));
+    }
+
+    #[test]
+    fn validate_release_url_rejects_untrusted_host() {
+        let result = validate_release_url("https://evil.example.com/GE-Proton9-21.tar.gz");
+        assert!(matches!(result, Err(InstallError::UntrustedUrl(_))));
+    }
+
+    #[test]
+    fn validate_release_url_rejects_malformed_url() {
+        let result = validate_release_url("not a url at all");
+        assert!(matches!(result, Err(InstallError::UntrustedUrl(_))));
     }
 
     // ── error helper ──────────────────────────────────────────────────────────

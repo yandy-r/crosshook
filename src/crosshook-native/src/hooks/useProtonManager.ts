@@ -60,6 +60,19 @@ function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const KNOWN_PROVIDER_IDS = new Set<ProtonUpProvider>([
+  'ge-proton',
+  'proton-cachyos',
+  'proton-em',
+  'boxtron',
+  'luxtorpeda',
+]);
+
+function asProvider(id: string | null | undefined): ProtonUpProvider {
+  if (id && (KNOWN_PROVIDER_IDS as Set<string>).has(id)) return id as ProtonUpProvider;
+  return 'ge-proton';
+}
+
 /**
  * Sort by `published_at` descending (newest first). ISO-8601 sorts
  * lexicographically, so string compare is sufficient. Undated entries
@@ -116,7 +129,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
   // Single-provider catalog (delegates to the legacy useProtonUp). Always
   // called to preserve hook-order invariants; auto-fetch is gated on a
   // concrete provider selection.
-  const catalogProvider = (selectedProviderId ?? 'ge-proton') as ProtonUpProvider;
+  const catalogProvider = asProvider(selectedProviderId);
   const protonUp = useProtonUp({
     autoFetchCatalog: !inAllMode,
     catalogProvider,
@@ -182,8 +195,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
             callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
               provider: id,
               force_refresh: allFetchVersion > 0,
-            }).catch((err: unknown): ProtonUpCatalogResponse => {
-              console.warn(`[useProtonManager] catalog fetch failed for ${id}:`, err);
+            }).catch((_err: unknown): ProtonUpCatalogResponse => {
               return {
                 versions: [],
                 cache: { stale: false, offline: true, fetched_at: undefined, expires_at: undefined },

@@ -91,8 +91,7 @@ pub trait ProtonReleaseProvider: Send + Sync {
 
 /// All active providers in priority order.
 ///
-pub fn registry(include_prereleases: bool) -> Vec<Arc<dyn ProtonReleaseProvider>> {
-    let _ = include_prereleases;
+pub fn registry() -> Vec<Arc<dyn ProtonReleaseProvider>> {
     #[allow(unused_mut)]
     let mut providers: Vec<Arc<dyn ProtonReleaseProvider>> = vec![
         Arc::new(ge_proton::GeProtonProvider::new()),
@@ -109,7 +108,7 @@ pub fn registry(include_prereleases: bool) -> Vec<Arc<dyn ProtonReleaseProvider>
 
 /// Look up a provider by its stable machine-readable id.
 pub fn find_provider_by_id(id: &str) -> Option<Arc<dyn ProtonReleaseProvider>> {
-    registry(false).into_iter().find(|p| p.id() == id)
+    registry().into_iter().find(|p| p.id() == id)
 }
 
 // ── Provider descriptor ───────────────────────────────────────────────────────
@@ -138,10 +137,54 @@ impl ProtonUpProviderDescriptor {
 ///
 /// Batch 4 will consume this from a Tauri handler.
 pub fn describe_providers() -> Vec<ProtonUpProviderDescriptor> {
-    registry(false)
+    registry()
         .iter()
         .map(|p| ProtonUpProviderDescriptor::from_provider(p.as_ref()))
         .collect()
+}
+
+// ── Shared GitHub fetch helper ────────────────────────────────────────────────
+
+/// Maximum response body size accepted from the GitHub Releases API.
+///
+/// A trickle attack can still buffer a large payload even with a 10 s timeout;
+/// this ceiling caps the byte volume we are willing to deserialize.
+const MAX_CATALOG_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
+
+/// Fetch and deserialize a GitHub Releases API response.
+///
+/// Enforces a [`MAX_CATALOG_BYTES`] ceiling on the `Content-Length` header before
+/// deserializing. All five providers share this helper so the guard is applied
+/// consistently.
+pub(super) async fn fetch_github_releases(
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<Vec<GhRelease>, ProviderError> {
+    use reqwest::StatusCode;
+
+    let response = client
+        .get(url)
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await?;
+
+    if response.status() == StatusCode::NOT_FOUND {
+        return Ok(Vec::new());
+    }
+
+    let response = response.error_for_status()?;
+
+    if let Some(len) = response.content_length() {
+        if len > MAX_CATALOG_BYTES {
+            return Err(ProviderError::Parse(format!(
+                "GitHub Releases response too large: {len} bytes (limit {MAX_CATALOG_BYTES})"
+            )));
+        }
+    }
+
+    let releases = response.json::<Vec<GhRelease>>().await?;
+    Ok(releases)
 }
 
 // ── Shared GitHub Releases API types (used by both providers) ─────────────────
@@ -306,7 +349,7 @@ mod tests {
 
     #[test]
     fn registry_contains_ge_proton_and_proton_cachyos() {
-        let ids: Vec<&str> = registry(false).iter().map(|p| p.id()).collect();
+        let ids: Vec<&str> = registry().iter().map(|p| p.id()).collect();
         assert!(
             ids.contains(&"ge-proton"),
             "registry must include ge-proton"
@@ -324,7 +367,7 @@ mod tests {
     #[cfg(feature = "experimental-providers")]
     #[test]
     fn registry_contains_experimental_providers_when_feature_enabled() {
-        let ids: Vec<&str> = registry(false).iter().map(|p| p.id()).collect();
+        let ids: Vec<&str> = registry().iter().map(|p| p.id()).collect();
         assert!(
             ids.contains(&"luxtorpeda"),
             "registry must include luxtorpeda with experimental-providers feature"

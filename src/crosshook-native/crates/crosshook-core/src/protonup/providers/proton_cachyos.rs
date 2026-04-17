@@ -4,7 +4,9 @@ use async_trait::async_trait;
 
 use crate::protonup::ProtonUpAvailableVersion;
 
-use super::{parse_releases, ChecksumKind, GhRelease, ProtonReleaseProvider, ProviderError};
+use super::{
+    fetch_github_releases, parse_releases, ChecksumKind, ProtonReleaseProvider, ProviderError,
+};
 
 const GH_RELEASES_URL: &str = "https://api.github.com/repos/CachyOS/proton-cachyos/releases";
 const MAX_RELEASES: usize = 30;
@@ -47,24 +49,7 @@ impl ProtonReleaseProvider for ProtonCachyOsProvider {
         client: &reqwest::Client,
         include_prereleases: bool,
     ) -> Result<Vec<ProtonUpAvailableVersion>, ProviderError> {
-        use reqwest::StatusCode;
-
-        let response = client
-            .get(GH_RELEASES_URL)
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28")
-            .send()
-            .await?;
-
-        if response.status() == StatusCode::NOT_FOUND {
-            return Ok(Vec::new());
-        }
-
-        let releases = response
-            .error_for_status()?
-            .json::<Vec<GhRelease>>()
-            .await?;
-
+        let releases = fetch_github_releases(client, GH_RELEASES_URL).await?;
         Ok(parse_releases(
             releases,
             self.id(),
