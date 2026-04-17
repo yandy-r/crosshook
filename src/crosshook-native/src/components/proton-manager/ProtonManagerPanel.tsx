@@ -38,7 +38,7 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
   const handleInstall = useCallback(
     async (versionDto: ProtonUpAvailableVersion) => {
       setInstallError(null);
-      if (!effectiveRoot) {
+      if (!effectiveRoot?.writable) {
         setInstallError('No writable install root available.');
         return;
       }
@@ -96,12 +96,25 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
       setUninstallWarning(null);
       setUninstallError(null);
       try {
+        const plan = await manager.planUninstall(toolPath);
+        if (!plan.success) {
+          setUninstallError(plan.error_message ?? 'Uninstall plan failed.');
+          return;
+        }
+
+        if (plan.conflicting_app_ids.length > 0) {
+          const confirmed = window.confirm(
+            `This Proton version is referenced by these Steam app IDs: ${plan.conflicting_app_ids.join(', ')}.\n\nProceed with uninstall?`
+          );
+          if (!confirmed) return;
+        }
+
         const result = await manager.uninstall(toolPath);
         if (!result.success) {
           setUninstallError(result.error_message ?? 'Uninstall failed.');
-        } else if (result.conflicting_app_ids.length > 0) {
+        } else if (plan.conflicting_app_ids.length > 0) {
           setUninstallWarning(
-            `Uninstalled. The following apps referenced this version: ${result.conflicting_app_ids.join(', ')}`
+            `Uninstalled. The following apps referenced this version: ${plan.conflicting_app_ids.join(', ')}`
           );
         }
       } catch (err) {
@@ -212,6 +225,12 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
         </div>
       ) : null}
 
+      {effectiveRoot && !effectiveRoot.writable ? (
+        <div className="crosshook-proton-manager__readonly-banner" role="alert">
+          The selected install root is read-only. Choose a writable root to install versions.
+        </div>
+      ) : null}
+
       {manager.activeOpIds.length > 0 ? (
         <div className="crosshook-proton-manager__progress-list">
           {manager.activeOpIds.map((opId) => (
@@ -293,7 +312,7 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
             {availableVersions.map((v) => {
               const providerDescriptor = providersById.get(v.provider);
               const providerSupportsInstall = providerDescriptor?.supports_install ?? false;
-              const rowCanInstall = hasWritableRoot && providerSupportsInstall;
+              const rowCanInstall = Boolean(effectiveRoot?.writable) && providerSupportsInstall;
               const key = `${v.provider}:${v.version}`;
               return (
                 <li key={key}>

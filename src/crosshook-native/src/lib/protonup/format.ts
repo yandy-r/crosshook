@@ -28,5 +28,6 @@ export function formatReleaseDate(iso: string | null | undefined): string | null
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+    timeZone: 'UTC',
   });
 }

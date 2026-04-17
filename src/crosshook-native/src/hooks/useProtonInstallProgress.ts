@@ -31,8 +31,8 @@ export function useProtonInstallProgress(opId: string | null) {
   const [progress, setProgress] = useState<ProtonInstallProgress | null>(null);
 
   useEffect(() => {
+    setProgress(null);
     if (!opId) {
-      setProgress(null);
       return;
     }
 

@@ -33,6 +33,59 @@ pub fn put_proton_catalog_impl(
             source,
         })?;
 
+    upsert_proton_catalog_rows(&tx, rows)?;
+
+    tx.commit().map_err(|source| MetadataStoreError::Database {
+        action: "commit proton catalog upsert transaction",
+        source,
+    })?;
+
+    Ok(())
+}
+
+/// Replace one provider snapshot atomically inside a single transaction.
+///
+/// Deletes all rows for `provider_id` first, then inserts `rows`.
+pub fn replace_proton_catalog_impl(
+    conn: &mut Connection,
+    provider_id: &str,
+    rows: &[ProtonCatalogRow],
+) -> Result<(), MetadataStoreError> {
+    let tx = conn
+        .transaction()
+        .map_err(|source| MetadataStoreError::Database {
+            action: "begin proton catalog replace transaction",
+            source,
+        })?;
+
+    tx.execute(
+        "DELETE FROM proton_release_catalog WHERE provider_id = ?1",
+        [provider_id],
+    )
+    .map_err(|source| MetadataStoreError::Database {
+        action: "clear proton catalog for provider",
+        source,
+    })?;
+
+    if rows.iter().any(|row| row.provider_id != provider_id) {
+        return Err(MetadataStoreError::Validation(format!(
+            "replace_proton_catalog rows contain provider ids that do not match target provider '{provider_id}'"
+        )));
+    }
+    upsert_proton_catalog_rows(&tx, rows)?;
+
+    tx.commit().map_err(|source| MetadataStoreError::Database {
+        action: "commit proton catalog replace transaction",
+        source,
+    })?;
+
+    Ok(())
+}
+
+fn upsert_proton_catalog_rows(
+    tx: &rusqlite::Transaction<'_>,
+    rows: &[ProtonCatalogRow],
+) -> Result<(), MetadataStoreError> {
     for row in rows {
         tx.execute(
             "INSERT OR REPLACE INTO proton_release_catalog (
@@ -57,12 +110,6 @@ pub fn put_proton_catalog_impl(
             source,
         })?;
     }
-
-    tx.commit().map_err(|source| MetadataStoreError::Database {
-        action: "commit proton catalog upsert transaction",
-        source,
-    })?;
-
     Ok(())
 }
 
@@ -254,5 +301,79 @@ mod tests {
         assert_eq!(rows.len(), 1, "upsert must not duplicate the row");
         assert_eq!(rows[0].payload_json, r#"{"updated":true}"#);
         assert_eq!(rows[0].asset_size, Some(1));
+    }
+
+    #[test]
+    fn replace_proton_catalog_replaces_provider_snapshot_atomically() {
+        let mut conn = open_v22();
+
+        let existing_rows = vec![
+            ProtonCatalogRow {
+                provider_id: "ge-proton".to_string(),
+                version_tag: "GE-Proton9-1".to_string(),
+                payload_json: r#"{"v":"old-1"}"#.to_string(),
+                release_url: None,
+                download_url: None,
+                checksum_url: None,
+                checksum_kind: None,
+                asset_size: None,
+                fetched_at: "2026-04-17T00:00:00Z".to_string(),
+                expires_at: None,
+            },
+            ProtonCatalogRow {
+                provider_id: "ge-proton".to_string(),
+                version_tag: "GE-Proton9-2".to_string(),
+                payload_json: r#"{"v":"old-2"}"#.to_string(),
+                release_url: None,
+                download_url: None,
+                checksum_url: None,
+                checksum_kind: None,
+                asset_size: None,
+                fetched_at: "2026-04-17T00:00:00Z".to_string(),
+                expires_at: None,
+            },
+        ];
+        put_proton_catalog_impl(&mut conn, &existing_rows).unwrap();
+
+        let replacement_rows = vec![ProtonCatalogRow {
+            provider_id: "ge-proton".to_string(),
+            version_tag: "GE-Proton9-9".to_string(),
+            payload_json: r#"{"v":"new"}"#.to_string(),
+            release_url: None,
+            download_url: None,
+            checksum_url: None,
+            checksum_kind: None,
+            asset_size: None,
+            fetched_at: "2026-04-18T00:00:00Z".to_string(),
+            expires_at: None,
+        }];
+        replace_proton_catalog_impl(&mut conn, "ge-proton", &replacement_rows).unwrap();
+
+        let rows = get_proton_catalog_impl(&conn, "ge-proton").unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].version_tag, "GE-Proton9-9");
+    }
+
+    #[test]
+    fn replace_proton_catalog_can_clear_provider_when_rows_empty() {
+        let mut conn = open_v22();
+        let row = ProtonCatalogRow {
+            provider_id: "ge-proton".to_string(),
+            version_tag: "GE-Proton9-1".to_string(),
+            payload_json: "{}".to_string(),
+            release_url: None,
+            download_url: None,
+            checksum_url: None,
+            checksum_kind: None,
+            asset_size: None,
+            fetched_at: "2026-04-17T00:00:00Z".to_string(),
+            expires_at: None,
+        };
+        put_proton_catalog_impl(&mut conn, &[row]).unwrap();
+
+        replace_proton_catalog_impl(&mut conn, "ge-proton", &[]).unwrap();
+
+        let rows = get_proton_catalog_impl(&conn, "ge-proton").unwrap();
+        assert!(rows.is_empty());
     }
 }

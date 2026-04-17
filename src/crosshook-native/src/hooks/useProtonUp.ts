@@ -43,7 +43,7 @@ function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-const CATALOG_PROVIDERS: ProtonUpProvider[] = ['ge-proton', 'proton-cachyos'];
+const CATALOG_PROVIDERS: ProtonUpProvider[] = ['ge-proton', 'proton-cachyos', 'proton-em'];
 
 /**
  * Find which catalog contains `version` (checks GE first, then Proton-CachyOS).
@@ -59,7 +59,7 @@ export async function resolveProtonUpProviderForVersion(version: string): Promis
     try {
       const response = await callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
         provider,
-        forceRefresh: false,
+        force_refresh: false,
       });
       if (response.versions.some((v) => v.version === trimmed)) {
         return provider;
@@ -96,7 +96,7 @@ export function useProtonUp(options: UseProtonUpOptions = {}): UseProtonUpResult
       try {
         const response = await callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
           provider: catalogProvider,
-          forceRefresh: fetchVersion > 0,
+          force_refresh: fetchVersion > 0,
         });
 
         if (!active) {

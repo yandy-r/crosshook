@@ -1457,6 +1457,17 @@ impl MetadataStore {
         })
     }
 
+    /// Atomically replace all cached rows for a provider.
+    pub fn replace_proton_catalog(
+        &self,
+        provider_id: &str,
+        rows: &[ProtonCatalogRow],
+    ) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("replace proton catalog", |conn| {
+            proton_catalog_store::replace_proton_catalog_impl(conn, provider_id, rows)
+        })
+    }
+
     // -------------------------------------------------------------------------
     // Prefix dependency state persistence
     // -------------------------------------------------------------------------

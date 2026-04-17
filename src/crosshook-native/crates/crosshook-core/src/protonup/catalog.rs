@@ -40,6 +40,11 @@ pub fn catalog_config(provider: ProtonUpProvider) -> CatalogProviderConfig {
             gh_releases_url: providers::proton_cachyos::gh_releases_url(),
             provider_id: "proton-cachyos",
         },
+        ProtonUpProvider::ProtonEm => CatalogProviderConfig {
+            cache_key: providers::proton_em::cache_key(),
+            gh_releases_url: providers::proton_em::gh_releases_url(),
+            provider_id: "proton-em",
+        },
     }
 }
 
@@ -78,6 +83,7 @@ pub async fn list_available_versions_by_id(
     metadata_store: &MetadataStore,
     force_refresh: bool,
     provider_id: &str,
+    include_prereleases: bool,
 ) -> ProtonUpCatalogResponse {
     // Step 1: cache-first (skip on force_refresh)
     if !force_refresh {
@@ -88,7 +94,7 @@ pub async fn list_available_versions_by_id(
     }
 
     // Step 2: live fetch via the provider trait
-    match fetch_live_catalog_by_id(provider_id).await {
+    match fetch_live_catalog_by_id(provider_id, include_prereleases).await {
         Ok(versions) => {
             let fetched_at = Utc::now().to_rfc3339();
             let expires_at = (Utc::now() + ChronoDuration::hours(CACHE_TTL_HOURS)).to_rfc3339();
@@ -99,6 +105,7 @@ pub async fn list_available_versions_by_id(
                 &versions,
                 &fetched_at,
                 &expires_at,
+                include_prereleases,
             );
 
             ProtonUpCatalogResponse {
@@ -141,21 +148,29 @@ pub async fn list_available_versions(
     metadata_store: &MetadataStore,
     force_refresh: bool,
     provider: ProtonUpProvider,
+    include_prereleases: bool,
 ) -> ProtonUpCatalogResponse {
-    list_available_versions_by_id(metadata_store, force_refresh, &provider.to_string()).await
+    list_available_versions_by_id(
+        metadata_store,
+        force_refresh,
+        &provider.to_string(),
+        include_prereleases,
+    )
+    .await
 }
 
 // ----- Live fetch -----
 
 async fn fetch_live_catalog_by_id(
     provider_id: &str,
+    include_prereleases: bool,
 ) -> Result<Vec<ProtonUpAvailableVersion>, providers::ProviderError> {
     let client = protonup_http_client().map_err(providers::ProviderError::Http)?;
 
     // Resolve the matching provider implementation from the registry.
-    let registry = providers::registry(false);
+    let registry = providers::registry(include_prereleases);
     match registry.iter().find(|p| p.id() == provider_id).cloned() {
-        Some(provider_impl) => provider_impl.fetch(client, false).await,
+        Some(provider_impl) => provider_impl.fetch(client, include_prereleases).await,
         None => {
             tracing::warn!(
                 provider_id,
@@ -288,10 +303,11 @@ fn persist_catalog(
     versions: &[ProtonUpAvailableVersion],
     fetched_at: &str,
     expires_at: &str,
+    include_prereleases: bool,
 ) {
     // Derive the provider's ChecksumKind from the registry for the checksum_kind column.
     let registry_checksum_kind: Option<String> = {
-        let registry = providers::registry(false);
+        let registry = providers::registry(include_prereleases);
         registry.iter().find(|p| p.id() == provider_id).map(|p| {
             serde_json::to_string(&p.checksum_kind())
                 .unwrap_or_default()
@@ -336,12 +352,12 @@ fn persist_catalog(
         })
         .collect();
 
-    if rows.is_empty() {
-        return;
-    }
-
-    if let Err(error) = metadata_store.put_proton_catalog(&rows) {
-        tracing::warn!(provider_id, %error, "failed to persist ProtonUp catalog to DB");
+    if let Err(error) = metadata_store.replace_proton_catalog(provider_id, &rows) {
+        tracing::warn!(
+            provider_id,
+            %error,
+            "failed to atomically replace ProtonUp catalog snapshot in DB"
+        );
     }
 }
 
@@ -355,11 +371,19 @@ mod tests {
     fn catalog_configs_have_distinct_cache_keys_and_urls() {
         let ge = catalog_config(ProtonUpProvider::GeProton);
         let cachy = catalog_config(ProtonUpProvider::ProtonCachyos);
+        let em = catalog_config(ProtonUpProvider::ProtonEm);
         assert_ne!(ge.cache_key, cachy.cache_key);
+        assert_ne!(ge.cache_key, em.cache_key);
+        assert_ne!(cachy.cache_key, em.cache_key);
         assert_ne!(ge.gh_releases_url, cachy.gh_releases_url);
+        assert_ne!(ge.gh_releases_url, em.gh_releases_url);
+        assert_ne!(cachy.gh_releases_url, em.gh_releases_url);
         assert_ne!(ge.provider_id, cachy.provider_id);
+        assert_ne!(ge.provider_id, em.provider_id);
+        assert_ne!(cachy.provider_id, em.provider_id);
         assert!(ge.gh_releases_url.contains("GloriousEggroll"));
         assert!(cachy.gh_releases_url.contains("CachyOS/proton-cachyos"));
+        assert!(em.gh_releases_url.contains("Etaash-mathamsetty/Proton"));
     }
 
     // ── Integration: v22 DB + catalog read/write path ─────────────────────────

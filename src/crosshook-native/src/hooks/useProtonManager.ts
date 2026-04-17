@@ -4,6 +4,7 @@ import { callCommand } from '@/lib/ipc';
 import type {
   InstallRootDescriptor,
   ProtonInstallHandle,
+  ProtonUninstallPlanResult,
   ProtonUninstallResult,
   ProtonUpAvailableVersion,
   ProtonUpCacheMeta,
@@ -48,6 +49,7 @@ export interface UseProtonManagerResult {
    */
   install: (request: ProtonUpInstallRequest, version: ProtonUpAvailableVersion) => Promise<ProtonInstallHandle>;
   cancel: (opId: string) => Promise<boolean>;
+  planUninstall: (toolPath: string) => Promise<ProtonUninstallPlanResult>;
   uninstall: (toolPath: string) => Promise<ProtonUninstallResult>;
   loading: boolean;
   error: string | null;
@@ -136,7 +138,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
         const [resolvedProviders, resolvedRoots] = await Promise.all([
           callCommand<ProtonUpProviderDescriptor[]>('protonup_list_providers'),
           callCommand<InstallRootDescriptor[]>('protonup_resolve_install_roots', {
-            steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
+            steam_client_install_path: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
           }),
         ]);
 
@@ -179,7 +181,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
           ids.map((id) =>
             callCommand<ProtonUpCatalogResponse>('protonup_list_available_versions', {
               provider: id,
-              forceRefresh: allFetchVersion > 0,
+              force_refresh: allFetchVersion > 0,
             }).catch((err: unknown): ProtonUpCatalogResponse => {
               console.warn(`[useProtonManager] catalog fetch failed for ${id}:`, err);
               return {
@@ -266,6 +268,16 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
     [steamClientInstallPath, installs]
   );
 
+  const planUninstall = useCallback(
+    async (toolPath: string): Promise<ProtonUninstallPlanResult> => {
+      return await callCommand<ProtonUninstallPlanResult>('protonup_plan_uninstall_version', {
+        toolPath,
+        steamClientInstallPath: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
+      });
+    },
+    [steamClientInstallPath]
+  );
+
   const defaultRoot = useMemo(() => roots.find((r) => r.writable) ?? null, [roots]);
 
   const catalog = useMemo(() => {
@@ -313,6 +325,7 @@ export function useProtonManager(opts: UseProtonManagerOptions = {}): UseProtonM
     dismissOp,
     install,
     cancel,
+    planUninstall,
     uninstall,
     loading,
     error,

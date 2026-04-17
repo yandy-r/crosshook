@@ -110,9 +110,10 @@ pub(crate) fn resolve_candidates_with(
         let s = client_path.to_string_lossy();
         if !s.trim().is_empty() {
             let configured_compat = client_path.join("compatibilitytools.d");
+            let configured_kind = classify_steam_root_kind(client_path);
             push_deduped(
                 &configured_compat,
-                InstallRootKind::NativeSteam,
+                configured_kind,
                 &mut raw,
                 &mut seen_canonical,
             );
@@ -207,6 +208,19 @@ fn probe_candidate(kind: InstallRootKind, path: PathBuf) -> InstallRootCandidate
 
     // ── 2. Writability probe ──────────────────────────────────────────────────
 
+    if path.exists() && !path.is_dir() {
+        tracing::debug!(
+            path = %path.display(),
+            "install root: rejected (path exists but is not a directory)"
+        );
+        return InstallRootCandidate {
+            kind,
+            path,
+            writable: false,
+            reason: Some("invalid-path".to_string()),
+        };
+    }
+
     if path.is_dir() {
         // Directory exists — try creating a tempfile inside it.
         match tempfile::NamedTempFile::new_in(&path) {
@@ -292,6 +306,15 @@ fn probe_candidate(kind: InstallRootKind, path: PathBuf) -> InstallRootCandidate
                 }
             }
         }
+    }
+}
+
+fn classify_steam_root_kind(client_path: &Path) -> InstallRootKind {
+    let marker = Path::new(".var/app/com.valvesoftware.Steam/data/Steam");
+    if client_path.ends_with(marker) {
+        InstallRootKind::FlatpakSteam
+    } else {
+        InstallRootKind::NativeSteam
     }
 }
 
@@ -530,5 +553,37 @@ mod tests {
             pick_default_with(&candidates, true).is_none(),
             "expected None under Flatpak when no candidate is writable"
         );
+    }
+
+    #[test]
+    fn configured_flatpak_steam_path_is_classified_as_flatpak() {
+        let home = tempdir().unwrap();
+        let configured = home
+            .path()
+            .join(".var/app/com.valvesoftware.Steam/data/Steam");
+        let candidates = resolve_candidates_with(Some(&configured), Some(home.path()), false);
+
+        let configured_candidate = candidates
+            .iter()
+            .find(|c| c.path == configured.join("compatibilitytools.d"))
+            .expect("configured candidate must be present");
+        assert_eq!(configured_candidate.kind, InstallRootKind::FlatpakSteam);
+    }
+
+    #[test]
+    fn probe_marks_existing_non_directory_path_as_invalid() {
+        let dir = tempdir().unwrap();
+        let steam_root = dir.path().join(".local/share/Steam");
+        fs::create_dir_all(&steam_root).unwrap();
+        let fake_compat_file = steam_root.join("compatibilitytools.d");
+        fs::write(&fake_compat_file, "not a directory").unwrap();
+
+        let candidates = resolve_candidates_with(Some(&steam_root), Some(dir.path()), false);
+        let configured_candidate = candidates
+            .iter()
+            .find(|c| c.path == fake_compat_file)
+            .expect("configured candidate should be discovered");
+        assert!(!configured_candidate.writable);
+        assert_eq!(configured_candidate.reason.as_deref(), Some("invalid-path"));
     }
 }

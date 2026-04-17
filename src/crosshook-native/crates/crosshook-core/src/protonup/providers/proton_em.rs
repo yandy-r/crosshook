@@ -51,7 +51,7 @@ impl ProtonReleaseProvider for ProtonEmProvider {
     async fn fetch(
         &self,
         client: &reqwest::Client,
-        _include_prereleases: bool,
+        include_prereleases: bool,
     ) -> Result<Vec<ProtonUpAvailableVersion>, ProviderError> {
         use reqwest::StatusCode;
 
@@ -71,7 +71,12 @@ impl ProtonReleaseProvider for ProtonEmProvider {
             .json::<Vec<GhRelease>>()
             .await?;
 
-        Ok(parse_releases(releases, self.id(), MAX_RELEASES))
+        Ok(parse_releases(
+            releases,
+            self.id(),
+            MAX_RELEASES,
+            include_prereleases,
+        ))
     }
 }
 
@@ -147,7 +152,7 @@ mod tests {
             ),
         ];
 
-        let versions = parse_releases(releases, "proton-em", MAX_RELEASES);
+        let versions = parse_releases(releases, "proton-em", MAX_RELEASES, false);
         assert_eq!(versions.len(), 1);
         assert_eq!(versions[0].version, "proton-em-9.0");
     }
@@ -161,7 +166,7 @@ mod tests {
             vec![tar_xz_asset("EM-10.0-37-HDR")],
         )];
 
-        let versions = parse_releases(releases, "proton-em", MAX_RELEASES);
+        let versions = parse_releases(releases, "proton-em", MAX_RELEASES, false);
         assert_eq!(versions.len(), 1);
         let v = &versions[0];
         assert_eq!(v.provider, "proton-em");

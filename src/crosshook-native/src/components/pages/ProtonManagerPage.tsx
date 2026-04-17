@@ -15,7 +15,7 @@ export function ProtonManagerPage({ steamClientInstallPath: steamPathProp }: Pro
   const { steamClientInstallPath: profileSteamPath } = useProfileContext();
 
   const effectiveSteamPath = useMemo(
-    () => steamPathProp ?? defaultSteamClientInstallPath ?? profileSteamPath ?? '',
+    () => steamPathProp || defaultSteamClientInstallPath || profileSteamPath || '',
     [steamPathProp, defaultSteamClientInstallPath, profileSteamPath]
   );
 

@@ -29,7 +29,7 @@ pub struct ProtonInstallProgress {
 /// Emitter handle.  Clone-cheap; backed by a `broadcast` channel.
 #[derive(Clone)]
 pub struct ProgressEmitter {
-    pub op_id: String,
+    op_id: String,
     tx: broadcast::Sender<ProtonInstallProgress>,
 }
 
@@ -49,6 +49,10 @@ impl ProgressEmitter {
     /// Subscribe to receive future events from this emitter.
     pub fn subscribe(&self) -> broadcast::Receiver<ProtonInstallProgress> {
         self.tx.subscribe()
+    }
+
+    pub fn op_id(&self) -> &str {
+        &self.op_id
     }
 
     /// Send a progress snapshot. Silently ignores the case where no receivers are listening.

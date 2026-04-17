@@ -502,6 +502,7 @@ pub fn run() {
             commands::protonup::protonup_resolve_install_roots,
             commands::protonup::protonup_install_version_async,
             commands::protonup::protonup_cancel_install,
+            commands::protonup::protonup_plan_uninstall_version,
             commands::protonup::protonup_uninstall_version,
             // UMU database
             commands::umu_database::refresh_umu_database,

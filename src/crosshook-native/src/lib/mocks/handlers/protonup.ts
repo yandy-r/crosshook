@@ -106,7 +106,7 @@ function getMockCacheMeta(): {
 
 export function registerProtonUp(map: Map<string, Handler>): void {
   map.set('protonup_list_available_versions', async (args): Promise<ProtonUpCatalogResponse> => {
-    const { provider } = (args ?? {}) as { provider?: string; forceRefresh?: boolean };
+    const { provider } = (args ?? {}) as { provider?: string; force_refresh?: boolean };
 
     return {
       versions: mockCatalogFor(provider),
@@ -247,7 +247,7 @@ export function registerProtonUp(map: Map<string, Handler>): void {
     return true;
   });
 
-  map.set('protonup_uninstall_version', (args) => {
+  map.set('protonup_plan_uninstall_version', (args) => {
     const { toolPath } = (args ?? {}) as { toolPath: string };
 
     if (toolPath.includes('usr/share') || toolPath.startsWith('/usr/')) {
@@ -256,6 +256,16 @@ export function registerProtonUp(map: Map<string, Handler>): void {
 
     if (toolPath.includes('conflict')) {
       return { success: true, conflicting_app_ids: ['12345', '67890'], error_message: null };
+    }
+
+    return { success: true, conflicting_app_ids: [], error_message: null };
+  });
+
+  map.set('protonup_uninstall_version', (args) => {
+    const { toolPath } = (args ?? {}) as { toolPath: string };
+
+    if (toolPath.includes('usr/share') || toolPath.startsWith('/usr/')) {
+      return { success: false, conflicting_app_ids: [], error_message: 'refusing to delete system path' };
     }
 
     return { success: true, conflicting_app_ids: [], error_message: null };

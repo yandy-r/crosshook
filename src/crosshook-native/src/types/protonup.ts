@@ -1,6 +1,6 @@
 // These types mirror the Rust DTOs in crosshook-core/src/protonup/mod.rs
 
-export type ProtonUpProvider = 'ge-proton' | 'proton-cachyos';
+export type ProtonUpProvider = 'ge-proton' | 'proton-cachyos' | 'proton-em';
 
 export interface ProtonUpAvailableVersion {
   provider: string;
@@ -100,6 +100,12 @@ export interface ProtonInstallProgress {
 }
 
 export interface ProtonUninstallResult {
+  success: boolean;
+  conflicting_app_ids: string[];
+  error_message?: string | null;
+}
+
+export interface ProtonUninstallPlanResult {
   success: boolean;
   conflicting_app_ids: string[];
   error_message?: string | null;

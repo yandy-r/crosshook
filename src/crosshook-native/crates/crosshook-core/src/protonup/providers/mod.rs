@@ -91,8 +91,6 @@ pub trait ProtonReleaseProvider: Send + Sync {
 
 /// All active providers in priority order.
 ///
-/// `include_prereleases` is threaded through for future per-provider filtering;
-/// current implementations always exclude drafts and pre-releases regardless.
 pub fn registry(include_prereleases: bool) -> Vec<Arc<dyn ProtonReleaseProvider>> {
     let _ = include_prereleases;
     #[allow(unused_mut)]
@@ -256,12 +254,47 @@ pub(super) fn parse_releases(
     releases: Vec<GhRelease>,
     provider_id: &str,
     max: usize,
+    include_prereleases: bool,
 ) -> Vec<ProtonUpAvailableVersion> {
     releases
         .into_iter()
-        .filter(|r| !r.draft && !r.prerelease)
+        .filter(|r| !r.draft && (include_prereleases || !r.prerelease))
         .take(max)
         .filter_map(|r| gh_release_to_version(r, provider_id))
+        .collect()
+}
+
+#[cfg_attr(not(feature = "experimental-providers"), allow(dead_code))]
+pub(super) fn build_versions_from_releases<F>(
+    releases: Vec<GhRelease>,
+    provider_id: &str,
+    max: usize,
+    include_prereleases: bool,
+    checksum_base_url: &str,
+    checksum_filename: &str,
+    asset_filter: F,
+) -> Vec<ProtonUpAvailableVersion>
+where
+    F: Fn(&GhAsset) -> bool,
+{
+    releases
+        .into_iter()
+        .filter(|r| !r.draft && (include_prereleases || !r.prerelease))
+        .take(max)
+        .filter_map(|r| {
+            let tarball = r.assets.iter().find(|a| asset_filter(a))?;
+            let checksum_url = format!("{checksum_base_url}/{}/{}", r.tag_name, checksum_filename);
+            Some(ProtonUpAvailableVersion {
+                provider: provider_id.to_string(),
+                version: r.tag_name,
+                release_url: Some(r.html_url),
+                download_url: Some(tarball.browser_download_url.clone()),
+                asset_size: Some(tarball.size),
+                checksum_url: Some(checksum_url),
+                checksum_kind: Some("sha256".to_string()),
+                published_at: r.published_at,
+            })
+        })
         .collect()
 }
 

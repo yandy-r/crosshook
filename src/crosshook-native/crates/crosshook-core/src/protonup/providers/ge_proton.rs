@@ -46,7 +46,7 @@ impl ProtonReleaseProvider for GeProtonProvider {
     async fn fetch(
         &self,
         client: &reqwest::Client,
-        _include_prereleases: bool,
+        include_prereleases: bool,
     ) -> Result<Vec<ProtonUpAvailableVersion>, ProviderError> {
         use reqwest::StatusCode;
 
@@ -66,7 +66,12 @@ impl ProtonReleaseProvider for GeProtonProvider {
             .json::<Vec<GhRelease>>()
             .await?;
 
-        Ok(parse_releases(releases, self.id(), MAX_RELEASES))
+        Ok(parse_releases(
+            releases,
+            self.id(),
+            MAX_RELEASES,
+            include_prereleases,
+        ))
     }
 }
 
@@ -132,7 +137,7 @@ mod tests {
             vec![tar_gz_asset("GE-Proton9-21"), sha512_asset("GE-Proton9-21")],
         )];
 
-        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES);
+        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES, false);
         assert_eq!(versions.len(), 1);
         let v = &versions[0];
         assert_eq!(v.version, "GE-Proton9-21");
@@ -161,7 +166,7 @@ mod tests {
             ),
         ];
 
-        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES);
+        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES, false);
         assert_eq!(versions.len(), 1);
         assert_eq!(versions[0].version, "GE-Proton9-20");
     }
@@ -183,9 +188,31 @@ mod tests {
             ),
         ];
 
-        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES);
+        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES, false);
         assert_eq!(versions.len(), 1);
         assert_eq!(versions[0].version, "GE-Proton9-20");
+    }
+
+    #[test]
+    fn includes_prerelease_releases_when_enabled() {
+        let releases = vec![
+            make_release(
+                "GE-Proton9-21-rc1",
+                false,
+                true,
+                vec![tar_gz_asset("GE-Proton9-21-rc1")],
+            ),
+            make_release(
+                "GE-Proton9-20",
+                false,
+                false,
+                vec![tar_gz_asset("GE-Proton9-20")],
+            ),
+        ];
+
+        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES, true);
+        assert_eq!(versions.len(), 2);
+        assert_eq!(versions[0].version, "GE-Proton9-21-rc1");
     }
 
     #[test]
@@ -198,7 +225,7 @@ mod tests {
             vec![sha512_asset("GE-Proton9-21")],
         )];
 
-        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES);
+        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES, false);
         assert!(versions.is_empty());
     }
 
@@ -211,7 +238,7 @@ mod tests {
             vec![tar_gz_asset("GE-Proton9-21"), sha512_asset("GE-Proton9-21")],
         )];
 
-        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES);
+        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES, false);
         let v = &versions[0];
         assert!(v.checksum_url.is_some());
         assert!(v.checksum_url.as_deref().unwrap().ends_with(".sha512sum"));
@@ -227,7 +254,7 @@ mod tests {
             vec![tar_gz_asset("GE-Proton9-21")],
         )];
 
-        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES);
+        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES, false);
         let v = &versions[0];
         assert!(v.checksum_url.is_none());
         assert!(v.checksum_kind.is_none());
@@ -242,13 +269,13 @@ mod tests {
             })
             .collect();
 
-        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES);
+        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES, false);
         assert_eq!(versions.len(), MAX_RELEASES);
     }
 
     #[test]
     fn empty_release_list_returns_empty() {
-        let versions = parse_releases(vec![], "ge-proton", MAX_RELEASES);
+        let versions = parse_releases(vec![], "ge-proton", MAX_RELEASES, false);
         assert!(versions.is_empty());
     }
 
@@ -261,7 +288,7 @@ mod tests {
             vec![tar_gz_asset("GE-Proton9-21")],
         )];
 
-        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES);
+        let versions = parse_releases(releases, "ge-proton", MAX_RELEASES, false);
         assert_eq!(
             versions[0].published_at.as_deref(),
             Some("2025-04-10T22:16:05Z")

@@ -8,7 +8,9 @@ use async_trait::async_trait;
 
 use crate::protonup::ProtonUpAvailableVersion;
 
-use super::{ChecksumKind, GhRelease, ProtonReleaseProvider, ProviderError};
+use super::{
+    build_versions_from_releases, ChecksumKind, GhRelease, ProtonReleaseProvider, ProviderError,
+};
 
 const GH_RELEASES_URL: &str = "https://api.github.com/repos/dreamer/boxtron/releases";
 const MAX_RELEASES: usize = 30;
@@ -50,7 +52,7 @@ impl ProtonReleaseProvider for BoxtronProvider {
     async fn fetch(
         &self,
         client: &reqwest::Client,
-        _include_prereleases: bool,
+        include_prereleases: bool,
     ) -> Result<Vec<ProtonUpAvailableVersion>, ProviderError> {
         use reqwest::StatusCode;
 
@@ -70,39 +72,23 @@ impl ProtonReleaseProvider for BoxtronProvider {
             .json::<Vec<GhRelease>>()
             .await?;
 
-        Ok(releases_to_versions(releases))
+        Ok(releases_to_versions(releases, include_prereleases))
     }
 }
 
-fn releases_to_versions(releases: Vec<GhRelease>) -> Vec<ProtonUpAvailableVersion> {
-    releases
-        .into_iter()
-        .filter(|r| !r.draft && !r.prerelease)
-        .take(MAX_RELEASES)
-        .filter_map(|r| {
-            // Boxtron publishes a per-release SHA256SUMS manifest.
-            let checksum_url = format!(
-                "https://github.com/dreamer/boxtron/releases/download/{}/SHA256SUMS",
-                r.tag_name
-            );
-            // Pick the primary .tar.gz asset (catalog-only, so we still record download_url).
-            let tarball = r
-                .assets
-                .iter()
-                .find(|a| a.name.ends_with(".tar.gz") && !a.name.contains(".sha"))?;
-
-            Some(ProtonUpAvailableVersion {
-                provider: "boxtron".to_string(),
-                version: r.tag_name,
-                release_url: Some(r.html_url),
-                download_url: Some(tarball.browser_download_url.clone()),
-                asset_size: Some(tarball.size),
-                checksum_url: Some(checksum_url),
-                checksum_kind: Some("sha256".to_string()),
-                published_at: r.published_at,
-            })
-        })
-        .collect()
+fn releases_to_versions(
+    releases: Vec<GhRelease>,
+    include_prereleases: bool,
+) -> Vec<ProtonUpAvailableVersion> {
+    build_versions_from_releases(
+        releases,
+        "boxtron",
+        MAX_RELEASES,
+        include_prereleases,
+        "https://github.com/dreamer/boxtron/releases/download",
+        "SHA256SUMS",
+        |asset| asset.name.ends_with(".tar.gz") && !asset.name.contains(".sha"),
+    )
 }
 
 /// The GitHub Releases API URL used by this provider.
@@ -157,7 +143,7 @@ mod tests {
             vec![tar_gz_asset("0.7.0")],
         )];
 
-        let versions = releases_to_versions(releases);
+        let versions = releases_to_versions(releases, false);
         assert_eq!(versions.len(), 1);
         let v = &versions[0];
         assert_eq!(v.provider, "boxtron");

@@ -766,10 +766,15 @@ pub async fn install_version_with_progress(
                 }
                 tracing::info!(version = %version_info.version, "SHA-512 checksum verified");
             } else {
-                tracing::warn!(
-                    version = %version_info.version,
-                    "no checksum URL available; skipping checksum verification"
+                let msg = format!(
+                    "provider requires SHA-512 sidecar checksum but no checksum URL is available for version {}",
+                    version_info.version
                 );
+                best_effort_cleanup(&temp_path, None);
+                if let Some(em) = em {
+                    em.emit(Phase::Failed, 0, None, Some(msg.clone()));
+                }
+                return Err(InstallError::ChecksumMissing(msg));
             }
         }
 
@@ -871,11 +876,29 @@ pub async fn install_version_with_progress(
     }
 
     let installed_dir = dest_dir.join(&top_level_dir);
-    if !request.force && installed_dir.exists() {
-        best_effort_cleanup(&temp_path, None);
-        return Err(InstallError::AlreadyInstalled {
-            path: installed_dir,
-        });
+    if installed_dir.exists() {
+        if !request.force {
+            best_effort_cleanup(&temp_path, None);
+            return Err(InstallError::AlreadyInstalled {
+                path: installed_dir,
+            });
+        }
+        if let Err(err) = fs::remove_dir_all(&installed_dir).await {
+            best_effort_cleanup(&temp_path, None);
+            let msg = format!(
+                "failed to remove existing install directory '{}' before forced reinstall: {err}",
+                installed_dir.display()
+            );
+            if let Some(em) = em {
+                em.emit(Phase::Failed, 0, None, Some(msg.clone()));
+            }
+            let is_permission = matches!(err.kind(), std::io::ErrorKind::PermissionDenied);
+            return if is_permission {
+                Err(InstallError::PermissionDenied(msg))
+            } else {
+                Err(InstallError::Unknown(msg))
+            };
+        }
     }
 
     // ── 11. Extract archive ───────────────────────────────────────────────────
@@ -905,6 +928,21 @@ pub async fn install_version_with_progress(
             return Err(e);
         }
     };
+
+    if let Some(tok) = &cancel {
+        if tok.is_cancelled() {
+            best_effort_cleanup(&temp_path, Some(&installed_dir));
+            if let Some(em) = em {
+                em.emit(
+                    Phase::Cancelled,
+                    0,
+                    None,
+                    Some("cancelled during extraction".to_string()),
+                );
+            }
+            return Err(InstallError::Cancelled);
+        }
+    }
 
     if extracted_top != top_level_dir {
         let msg = format!(
@@ -1139,13 +1177,22 @@ mod tests {
     async fn returns_already_installed_when_tool_dir_exists_and_force_false() {
         let mock_server = MockServer::start().await;
         let archive = minimal_ge_proton_tar_gz("GE-Proton9-21");
+        let digest = hex_encode(&Sha512::digest(&archive));
         Mock::given(method("GET"))
             .and(path("/archive.tar.gz"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(archive))
             .mount(&mock_server)
             .await;
+        Mock::given(method("GET"))
+            .and(path("/archive.tar.gz.sha512sum"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string(format!("{digest}  archive.tar.gz")),
+            )
+            .mount(&mock_server)
+            .await;
 
         let download_url = format!("{}/archive.tar.gz", mock_server.uri());
+        let checksum_url = format!("{}/archive.tar.gz.sha512sum", mock_server.uri());
 
         let temp = tempfile::tempdir().expect("temp dir");
         let compat_dir = temp.path().join("compatibilitytools.d");
@@ -1158,7 +1205,7 @@ mod tests {
             target_root: compat_dir.to_string_lossy().to_string(),
             force: false,
         };
-        let version_info = make_version("GE-Proton9-21", Some(&download_url), None);
+        let version_info = make_version("GE-Proton9-21", Some(&download_url), Some(&checksum_url));
 
         let result = install_version(&request, &version_info).await;
         assert!(!result.success);
@@ -1289,9 +1336,18 @@ mod tests {
         let mock_server = MockServer::start().await;
         // Serve a valid archive so all phases complete.
         let archive = minimal_ge_proton_tar_gz("GE-Proton9-22");
+        let digest = hex_encode(&Sha512::digest(&archive));
         Mock::given(method("GET"))
             .and(path("/GE-Proton9-22.tar.gz"))
             .respond_with(ResponseTemplate::new(200).set_body_bytes(archive))
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/GE-Proton9-22.tar.gz.sha512sum"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(format!("{digest}  GE-Proton9-22.tar.gz")),
+            )
             .mount(&mock_server)
             .await;
 
@@ -1306,7 +1362,8 @@ mod tests {
             target_root: compat_dir.to_string_lossy().to_string(),
             force: false,
         };
-        let version_info = make_version("GE-Proton9-22", Some(&download_url), None);
+        let checksum_url = format!("{}/GE-Proton9-22.tar.gz.sha512sum", mock_server.uri());
+        let version_info = make_version("GE-Proton9-22", Some(&download_url), Some(&checksum_url));
 
         let (emitter, mut rx) = ProgressEmitter::new("test-op-1");
 

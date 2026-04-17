@@ -48,6 +48,12 @@ pub struct AppSettingsIpcData {
     pub external_trainer_sources: Vec<ExternalTrainerSourceSubscription>,
     pub protonup_auto_suggest: bool,
     pub protonup_binary_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protonup_default_provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protonup_default_install_root: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protonup_include_prereleases: Option<bool>,
     pub umu_preference: UmuPreference,
     /// RFC 3339 timestamp of when the user dismissed the umu install nag; `None` = not dismissed.
     pub install_nag_dismissed_at: Option<String>,
@@ -93,6 +99,9 @@ impl AppSettingsIpcData {
             external_trainer_sources: data.external_trainer_sources,
             protonup_auto_suggest: data.protonup_auto_suggest,
             protonup_binary_path: data.protonup_binary_path,
+            protonup_default_provider: Some(data.protonup_default_provider),
+            protonup_default_install_root: Some(data.protonup_default_install_root),
+            protonup_include_prereleases: Some(data.protonup_include_prereleases),
             umu_preference: data.umu_preference,
             install_nag_dismissed_at: data.install_nag_dismissed_at,
             steam_deck_caveats_dismissed_at: data.steam_deck_caveats_dismissed_at,

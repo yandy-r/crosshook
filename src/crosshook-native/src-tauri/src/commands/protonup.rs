@@ -9,6 +9,7 @@ use crosshook_core::protonup::{
     ProtonUpAvailableVersion, ProtonUpCatalogResponse, ProtonUpInstallErrorKind,
     ProtonUpInstallRequest, ProtonUpInstallResult, ProtonUpSuggestion,
 };
+use crosshook_core::settings::SettingsStore;
 
 /// Default provider id used when the frontend omits the field. Unknown
 /// provider ids are passed through to the catalog (which returns empty
@@ -78,6 +79,22 @@ pub struct ProtonUninstallResponse {
     pub error_message: Option<String>,
 }
 
+/// Returned from `protonup_plan_uninstall_version` so the UI can surface
+/// `conflicting_app_ids` before any deletion happens.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProtonUninstallPlanResponse {
+    pub success: bool,
+    pub conflicting_app_ids: Vec<String>,
+    pub error_message: Option<String>,
+}
+
+fn load_include_prereleases(settings_store: &SettingsStore) -> bool {
+    settings_store
+        .load()
+        .map(|s| s.protonup_include_prereleases)
+        .unwrap_or(false)
+}
+
 // ── existing commands (preserved) ─────────────────────────────────────────────
 
 /// List available Proton versions from provider catalog.
@@ -90,15 +107,18 @@ pub struct ProtonUninstallResponse {
 #[tauri::command]
 pub async fn protonup_list_available_versions(
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
     provider: Option<String>,
     force_refresh: Option<bool>,
 ) -> Result<ProtonUpCatalogResponse, String> {
     let provider_id = provider.as_deref().unwrap_or(DEFAULT_PROVIDER_ID);
+    let include_prereleases = load_include_prereleases(&settings_store);
     Ok(
         crosshook_core::protonup::catalog::list_available_versions_by_id(
             &metadata_store,
             force_refresh.unwrap_or(false),
             provider_id,
+            include_prereleases,
         )
         .await,
     )
@@ -108,13 +128,16 @@ pub async fn protonup_list_available_versions(
 #[tauri::command]
 pub async fn protonup_install_version(
     metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
     request: ProtonUpInstallRequest,
 ) -> Result<ProtonUpInstallResult, String> {
+    let include_prereleases = load_include_prereleases(&settings_store);
     // Look up version info from catalog using the request's exact provider id.
     let catalog = crosshook_core::protonup::catalog::list_available_versions_by_id(
         &metadata_store,
         false,
         request.provider.as_str(),
+        include_prereleases,
     )
     .await;
 
@@ -190,11 +213,45 @@ pub async fn protonup_resolve_install_roots(
 #[tauri::command]
 pub async fn protonup_install_version_async(
     app: tauri::AppHandle,
+    metadata_store: State<'_, MetadataStore>,
+    settings_store: State<'_, SettingsStore>,
     request: ProtonUpInstallRequest,
     version: ProtonUpAvailableVersion,
     registry: State<'_, std::sync::Arc<ProtonInstallRegistry>>,
 ) -> Result<ProtonInstallHandle, String> {
     use crosshook_core::protonup::install::install_version_with_progress;
+    let include_prereleases = load_include_prereleases(&settings_store);
+    let catalog = crosshook_core::protonup::catalog::list_available_versions_by_id(
+        &metadata_store,
+        false,
+        request.provider.as_str(),
+        include_prereleases,
+    )
+    .await;
+
+    let Some(resolved_version) = catalog
+        .versions
+        .iter()
+        .find(|v| v.version == request.version && v.provider == request.provider)
+        .cloned()
+    else {
+        return Err(format!(
+            "requested version '{}' for provider '{}' was not found in the server catalog",
+            request.version, request.provider
+        ));
+    };
+
+    if version.provider != resolved_version.provider || version.version != resolved_version.version
+    {
+        return Err("install request/version mismatch with server catalog identity".to_string());
+    }
+    if version.download_url != resolved_version.download_url
+        || version.checksum_url != resolved_version.checksum_url
+        || version.checksum_kind != resolved_version.checksum_kind
+    {
+        return Err("install metadata did not match server-resolved catalog entry".to_string());
+    }
+
     use crosshook_core::protonup::progress::ProgressEmitter;
 
     let op_id = uuid::Uuid::new_v4().to_string();
@@ -222,7 +279,8 @@ pub async fn protonup_install_version_async(
     // Spawn the actual install task.
     tokio::spawn(async move {
         let _result =
-            install_version_with_progress(&request, &version, Some(emitter), Some(cancel)).await;
+            install_version_with_progress(&request, &resolved_version, Some(emitter), Some(cancel))
+                .await;
         registry_arc.remove(&op_id_task);
     });
 
@@ -250,7 +308,35 @@ pub async fn protonup_uninstall_version(
     tool_path: String,
     steam_client_install_path: Option<String>,
 ) -> Result<ProtonUninstallResponse, String> {
-    use crosshook_core::protonup::uninstall::{execute_uninstall, plan_uninstall};
+    use crosshook_core::protonup::uninstall::execute_uninstall_for_path;
+
+    let tool = std::path::Path::new(&tool_path);
+    let steam_buf = steam_client_install_path
+        .as_deref()
+        .map(std::path::PathBuf::from);
+    let steam = steam_buf.as_deref();
+
+    match execute_uninstall_for_path(tool, steam) {
+        Ok(()) => Ok(ProtonUninstallResponse {
+            success: true,
+            conflicting_app_ids: vec![],
+            error_message: None,
+        }),
+        Err(e) => Ok(ProtonUninstallResponse {
+            success: false,
+            conflicting_app_ids: vec![],
+            error_message: Some(e.to_string()),
+        }),
+    }
+}
+
+/// Plan a Proton uninstall without mutating disk.
+#[tauri::command]
+pub async fn protonup_plan_uninstall_version(
+    tool_path: String,
+    steam_client_install_path: Option<String>,
+) -> Result<ProtonUninstallPlanResponse, String> {
+    use crosshook_core::protonup::uninstall::plan_uninstall;
 
     let tool = std::path::Path::new(&tool_path);
     let steam_buf = steam_client_install_path
@@ -259,22 +345,12 @@ pub async fn protonup_uninstall_version(
     let steam = steam_buf.as_deref();
 
     match plan_uninstall(tool, steam) {
-        Ok(plan) => {
-            let conflicts = plan.conflicting_app_ids.clone();
-            match execute_uninstall(plan) {
-                Ok(()) => Ok(ProtonUninstallResponse {
-                    success: true,
-                    conflicting_app_ids: conflicts,
-                    error_message: None,
-                }),
-                Err(e) => Ok(ProtonUninstallResponse {
-                    success: false,
-                    conflicting_app_ids: conflicts,
-                    error_message: Some(e.to_string()),
-                }),
-            }
-        }
-        Err(e) => Ok(ProtonUninstallResponse {
+        Ok(plan) => Ok(ProtonUninstallPlanResponse {
+            success: true,
+            conflicting_app_ids: plan.conflicting_app_ids,
+            error_message: None,
+        }),
+        Err(e) => Ok(ProtonUninstallPlanResponse {
             success: false,
             conflicting_app_ids: vec![],
             error_message: Some(e.to_string()),

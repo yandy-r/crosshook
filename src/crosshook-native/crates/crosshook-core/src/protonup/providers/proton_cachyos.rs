@@ -45,7 +45,7 @@ impl ProtonReleaseProvider for ProtonCachyOsProvider {
     async fn fetch(
         &self,
         client: &reqwest::Client,
-        _include_prereleases: bool,
+        include_prereleases: bool,
     ) -> Result<Vec<ProtonUpAvailableVersion>, ProviderError> {
         use reqwest::StatusCode;
 
@@ -65,7 +65,12 @@ impl ProtonReleaseProvider for ProtonCachyOsProvider {
             .json::<Vec<GhRelease>>()
             .await?;
 
-        Ok(parse_releases(releases, self.id(), MAX_RELEASES))
+        Ok(parse_releases(
+            releases,
+            self.id(),
+            MAX_RELEASES,
+            include_prereleases,
+        ))
     }
 }
 
@@ -131,7 +136,7 @@ mod tests {
             ],
         )];
 
-        let versions = parse_releases(releases, "proton-cachyos", MAX_RELEASES);
+        let versions = parse_releases(releases, "proton-cachyos", MAX_RELEASES, false);
         assert_eq!(versions.len(), 1);
         assert_eq!(versions[0].provider, "proton-cachyos");
         assert_eq!(versions[0].version, "cachyos-10.0-20260330-slr");
@@ -162,7 +167,7 @@ mod tests {
             ],
         )];
 
-        let versions = parse_releases(releases, "proton-cachyos", MAX_RELEASES);
+        let versions = parse_releases(releases, "proton-cachyos", MAX_RELEASES, false);
         assert_eq!(versions.len(), 1);
         let url = versions[0].download_url.as_deref().unwrap();
         assert!(
@@ -188,7 +193,7 @@ mod tests {
             ),
         ];
 
-        let versions = parse_releases(releases, "proton-cachyos", MAX_RELEASES);
+        let versions = parse_releases(releases, "proton-cachyos", MAX_RELEASES, false);
         assert_eq!(versions.len(), 1);
         assert_eq!(versions[0].version, "cachyos-stable");
     }
@@ -206,7 +211,7 @@ mod tests {
             })
             .collect();
 
-        let versions = parse_releases(releases, "proton-cachyos", MAX_RELEASES);
+        let versions = parse_releases(releases, "proton-cachyos", MAX_RELEASES, false);
         assert_eq!(versions.len(), MAX_RELEASES);
     }
 }

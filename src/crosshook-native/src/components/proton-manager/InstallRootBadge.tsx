@@ -40,9 +40,13 @@ export function InstallRootBadge({ root, isDefault, isSelected, onSelect }: Inst
     <button
       type="button"
       className={classNames}
-      onClick={() => onSelect(root.path)}
+      onClick={() => {
+        if (root.writable) onSelect(root.path);
+      }}
       title={root.path}
       aria-pressed={isSelected}
+      disabled={!root.writable}
+      aria-disabled={!root.writable}
     >
       <span>{kindLabel(root.kind)}</span>
       <span className="crosshook-install-root-badge__path">{truncatePath(root.path)}</span>

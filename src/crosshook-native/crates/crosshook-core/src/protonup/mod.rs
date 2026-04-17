@@ -22,6 +22,7 @@ pub enum ProtonUpProvider {
     #[default]
     GeProton,
     ProtonCachyos,
+    ProtonEm,
 }
 
 impl std::fmt::Display for ProtonUpProvider {
@@ -29,6 +30,7 @@ impl std::fmt::Display for ProtonUpProvider {
         match self {
             Self::GeProton => write!(f, "ge-proton"),
             Self::ProtonCachyos => write!(f, "proton-cachyos"),
+            Self::ProtonEm => write!(f, "proton-em"),
         }
     }
 }
@@ -38,6 +40,7 @@ pub fn parse_protonup_provider(s: Option<&str>) -> ProtonUpProvider {
     match s.map(str::trim).filter(|x| !x.is_empty()) {
         None | Some("ge-proton") => ProtonUpProvider::GeProton,
         Some("proton-cachyos") => ProtonUpProvider::ProtonCachyos,
+        Some("proton-em") => ProtonUpProvider::ProtonEm,
         Some(_) => ProtonUpProvider::GeProton,
     }
 }
@@ -189,12 +192,27 @@ mod tests {
     }
 
     #[test]
+    fn proton_em_serializes_as_kebab_case() {
+        let json =
+            serde_json::to_string(&ProtonUpProvider::ProtonEm).expect("serialize ProtonUpProvider");
+        assert_eq!(json, r#""proton-em""#);
+    }
+
+    #[test]
+    fn proton_em_deserializes_from_kebab_case() {
+        let provider: ProtonUpProvider =
+            serde_json::from_str(r#""proton-em""#).expect("deserialize ProtonUpProvider");
+        assert_eq!(provider, ProtonUpProvider::ProtonEm);
+    }
+
+    #[test]
     fn display_matches_kebab_case_ids() {
         assert_eq!(ProtonUpProvider::GeProton.to_string(), "ge-proton");
         assert_eq!(
             ProtonUpProvider::ProtonCachyos.to_string(),
             "proton-cachyos"
         );
+        assert_eq!(ProtonUpProvider::ProtonEm.to_string(), "proton-em");
     }
 
     #[test]
@@ -211,6 +229,10 @@ mod tests {
         assert_eq!(
             parse_protonup_provider(Some("proton-cachyos")),
             ProtonUpProvider::ProtonCachyos
+        );
+        assert_eq!(
+            parse_protonup_provider(Some("proton-em")),
+            ProtonUpProvider::ProtonEm
         );
         assert_eq!(
             parse_protonup_provider(Some("unknown")),

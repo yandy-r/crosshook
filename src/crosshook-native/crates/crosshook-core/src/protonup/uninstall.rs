@@ -128,6 +128,17 @@ pub fn execute_uninstall(plan: UninstallPlan) -> Result<(), UninstallError> {
     std::fs::remove_dir_all(&plan.tool_dir).map_err(UninstallError::Io)
 }
 
+/// Convenience helper that resolves and executes uninstall in one call.
+///
+/// Intended for callers that do not need to show preflight conflicts.
+pub fn execute_uninstall_for_path(
+    tool_dir: &Path,
+    steam_client_install_path: Option<&Path>,
+) -> Result<(), UninstallError> {
+    let plan = plan_uninstall(tool_dir, steam_client_install_path)?;
+    execute_uninstall(plan)
+}
+
 // ── internal testable core ────────────────────────────────────────────────────
 
 /// Testable variant that accepts injected install-root candidates and steam
