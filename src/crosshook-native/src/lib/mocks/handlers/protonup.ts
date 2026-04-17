@@ -192,13 +192,13 @@ export function registerProtonUp(map: Map<string, Handler>): void {
     return [
       {
         kind: 'native-steam',
-        path: '/mock/home/.local/share/Steam/compatibilitytools.d',
+        path: '/home/devuser/.local/share/Steam/compatibilitytools.d',
         writable: true,
         reason: null,
       },
       {
         kind: 'flatpak-steam',
-        path: '/mock/home/.var/app/com.valvesoftware.Steam/data/Steam/compatibilitytools.d',
+        path: '/home/devuser/.var/app/com.valvesoftware.Steam/data/Steam/compatibilitytools.d',
         writable: false,
         reason: 'flatpak-steam-path-read-only',
       },
