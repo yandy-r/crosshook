@@ -1,24 +1,18 @@
 //! Host capability map and derived capability state.
 //!
-//! Mirrors [`super::catalog`] patterns for embedded TOML, optional user
-//! overrides, merge behavior, and process-global access via [`OnceLock`].
-
-use std::collections::HashSet;
-use std::path::Path;
-use std::sync::OnceLock;
+//! Struct definitions, [`CapabilityState`], and [`derive_capabilities`] live here.
+//! TOML parsing, map loading, and the process-global singleton are in
+//! [`super::capability_loader`].
 
 use serde::{Deserialize, Serialize};
 
+use super::capability_loader::global_capability_map;
 use super::{
     global_readiness_catalog, HostDistroFamily, HostToolCheckResult, HostToolInstallCommand,
     ReadinessCatalog, ReadinessCheckResult,
 };
 use crate::launch::runtime_helpers::resolve_umu_run_path;
 use crate::profile::health::HealthIssueSeverity;
-
-/// Embedded default capability map TOML (compile time).
-pub const DEFAULT_CAPABILITY_MAP_TOML: &str =
-    include_str!("../../../../assets/default_capability_map.toml");
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -58,25 +52,6 @@ pub struct CapabilityDefinition {
     pub optional_tools: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct RawCapabilityMapFile {
-    #[serde(default)]
-    catalog_version: u32,
-    #[serde(rename = "capability", default)]
-    capabilities: Vec<RawCapabilityDefinition>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RawCapabilityDefinition {
-    id: String,
-    label: String,
-    category: String,
-    #[serde(default)]
-    required_tools: Vec<String>,
-    #[serde(default)]
-    optional_tools: Vec<String>,
-}
-
 /// Validated in-memory capability map.
 #[derive(Debug, Clone)]
 pub struct CapabilityMap {
@@ -95,146 +70,6 @@ impl CapabilityMap {
     pub fn find_by_id(&self, id: &str) -> Option<&CapabilityDefinition> {
         self.entries.iter().find(|entry| entry.id == id)
     }
-}
-
-/// Parse TOML; returns valid entries, warnings for skipped rows, and `catalog_version`.
-pub fn parse_capability_map_toml(
-    toml_text: &str,
-    source_label: &str,
-) -> (Vec<CapabilityDefinition>, Vec<String>, u32) {
-    let mut warnings: Vec<String> = Vec::new();
-
-    let raw: RawCapabilityMapFile = match toml::from_str(toml_text) {
-        Ok(raw) => raw,
-        Err(err) => {
-            warnings.push(format!(
-                "capability map '{source_label}' failed to parse: {err}"
-            ));
-            return (Vec::new(), warnings, 1);
-        }
-    };
-    let catalog_version = raw.catalog_version.max(1);
-
-    let mut valid = Vec::new();
-    let mut seen_ids = HashSet::new();
-
-    for entry in raw.capabilities {
-        if entry.id.trim().is_empty() {
-            warnings.push("skipping capability entry with empty id".to_string());
-            continue;
-        }
-        if !seen_ids.insert(entry.id.clone()) {
-            warnings.push(format!("skipping duplicate capability id: {}", entry.id));
-            continue;
-        }
-        if entry.label.trim().is_empty() {
-            warnings.push(format!("skipping capability '{}': empty label", entry.id));
-            continue;
-        }
-        if entry.category.trim().is_empty() {
-            warnings.push(format!(
-                "skipping capability '{}': empty category",
-                entry.id
-            ));
-            continue;
-        }
-
-        let required_tools = sanitize_tool_list(&entry.required_tools);
-        let mut optional_tools = sanitize_tool_list(&entry.optional_tools);
-        optional_tools.retain(|tool_id| !required_tools.contains(tool_id));
-
-        if required_tools.is_empty() && optional_tools.is_empty() {
-            warnings.push(format!(
-                "skipping capability '{}': at least one required_tools or optional_tools entry is required",
-                entry.id
-            ));
-            continue;
-        }
-
-        valid.push(CapabilityDefinition {
-            id: entry.id,
-            label: entry.label,
-            category: entry.category,
-            required_tools,
-            optional_tools,
-        });
-    }
-
-    (valid, warnings, catalog_version)
-}
-
-pub fn merge_capability_maps(
-    default_entries: Vec<CapabilityDefinition>,
-    override_entries: Vec<CapabilityDefinition>,
-) -> Vec<CapabilityDefinition> {
-    let mut result = default_entries;
-    for over in override_entries {
-        if let Some(pos) = result.iter().position(|entry| entry.id == over.id) {
-            result[pos] = over;
-        } else {
-            result.push(over);
-        }
-    }
-    result
-}
-
-/// Load embedded default → optional user `host_capability_map.toml`.
-pub fn load_capability_map(user_config_dir: Option<&Path>) -> CapabilityMap {
-    let (default_entries, default_warnings, catalog_version) =
-        parse_capability_map_toml(DEFAULT_CAPABILITY_MAP_TOML, "embedded default");
-    for warning in &default_warnings {
-        tracing::warn!(warning = %warning, "default capability map warning");
-    }
-
-    let mut merged = default_entries;
-
-    let (user_entries, user_catalog_version_override) = user_config_dir
-        .map(|dir| dir.join("host_capability_map.toml"))
-        .filter(|path| path.exists())
-        .and_then(|path| {
-            std::fs::read_to_string(&path)
-                .map_err(|err| {
-                    tracing::warn!(
-                        path = %path.display(),
-                        %err,
-                        "failed to read user capability map"
-                    );
-                })
-                .ok()
-        })
-        .map(|text| {
-            let (entries, warnings, user_ver) = parse_capability_map_toml(&text, "user override");
-            for warning in &warnings {
-                tracing::warn!(warning = %warning, "user capability map warning");
-            }
-            let parse_failed = warnings
-                .iter()
-                .any(|warning| warning.contains("failed to parse:"));
-            let version_override = if parse_failed { None } else { Some(user_ver) };
-            (entries, version_override)
-        })
-        .unwrap_or((Vec::new(), None));
-
-    merged = merge_capability_maps(merged, user_entries);
-
-    CapabilityMap::from_entries(
-        user_catalog_version_override.unwrap_or(catalog_version),
-        merged,
-    )
-}
-
-static GLOBAL_CAPABILITY_MAP: OnceLock<CapabilityMap> = OnceLock::new();
-
-pub fn initialize_capability_map(capability_map: CapabilityMap) -> bool {
-    let ok = GLOBAL_CAPABILITY_MAP.set(capability_map).is_ok();
-    if !ok {
-        tracing::warn!("capability map was already initialized; ignoring duplicate set");
-    }
-    ok
-}
-
-pub fn global_capability_map() -> &'static CapabilityMap {
-    GLOBAL_CAPABILITY_MAP.get_or_init(|| load_capability_map(None))
 }
 
 pub fn derive_capabilities(result: &ReadinessCheckResult) -> Vec<Capability> {
@@ -297,23 +132,6 @@ fn derive_capabilities_with_map(
             }
         })
         .collect()
-}
-
-fn sanitize_tool_list(tool_ids: &[String]) -> Vec<String> {
-    let mut seen = HashSet::new();
-    let mut sanitized = Vec::new();
-
-    for tool_id in tool_ids {
-        let trimmed = tool_id.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        if seen.insert(trimmed.to_string()) {
-            sanitized.push(trimmed.to_string());
-        }
-    }
-
-    sanitized
 }
 
 fn resolve_tool_check(
@@ -387,7 +205,20 @@ fn synthesize_umu_run_check(
             }
         }
         Some(_) => None, // Explicit Warning/Error severity → not available.
-        None => resolve_umu_run_path(),
+        None => {
+            // When capabilities are derived from a cached SQLite snapshot the
+            // `checks` Vec is empty.  Before issuing a live host probe, check
+            // whether the cached snapshot already recorded a resolved path for
+            // umu_run — if so, trust the cache and skip the I/O-heavy probe.
+            result
+                .tool_checks
+                .iter()
+                .find(|c| c.tool_id == "umu_run")
+                .and_then(|c| c.resolved_path.as_deref())
+                .filter(|p| !p.trim().is_empty())
+                .map(|p| p.to_string())
+                .or_else(resolve_umu_run_path)
+        }
     };
 
     let available = probed_umu_path.is_some();
@@ -402,7 +233,7 @@ fn synthesize_umu_run_check(
                 result.detected_distro_family.clone()
             },
             command: guidance.install_command.clone(),
-            alternatives: guidance.description.clone(),
+            alternatives: String::new(),
         })
     } else {
         install_hint_for_tool(result, readiness_catalog, "umu_run")
@@ -516,7 +347,7 @@ fn collect_install_hints<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::onboarding::HostToolEntry;
+    use crate::onboarding::{HostToolEntry, UmuInstallGuidance};
     use crate::profile::health::HealthIssue;
 
     fn sample_catalog_entry(
@@ -648,77 +479,6 @@ mod tests {
             tool_checks,
             detected_distro_family: HostDistroFamily::Unknown.as_str().to_string(),
         }
-    }
-
-    #[test]
-    fn parse_default_embedded_capability_map_has_expected_entries() {
-        let (entries, warnings, _) =
-            parse_capability_map_toml(DEFAULT_CAPABILITY_MAP_TOML, "embedded");
-        assert!(warnings.is_empty(), "warnings: {warnings:?}");
-        assert!(entries.iter().any(|entry| entry.id == "gamescope"));
-        assert!(entries.iter().any(|entry| entry.id == "prefix_tools"));
-        assert!(entries.iter().any(|entry| entry.id == "non_steam_launch"));
-    }
-
-    #[test]
-    fn merge_replaces_by_capability_id() {
-        let merged = merge_capability_maps(
-            vec![CapabilityDefinition {
-                id: "gamescope".to_string(),
-                label: "Gamescope".to_string(),
-                category: "performance".to_string(),
-                required_tools: vec!["gamescope".to_string()],
-                optional_tools: vec![],
-            }],
-            vec![CapabilityDefinition {
-                id: "gamescope".to_string(),
-                label: "Patched".to_string(),
-                category: "performance".to_string(),
-                required_tools: vec!["gamescope".to_string()],
-                optional_tools: vec![],
-            }],
-        );
-        assert_eq!(merged.len(), 1);
-        assert_eq!(merged[0].label, "Patched");
-    }
-
-    #[test]
-    fn load_capability_map_user_override_replaces_default_entry() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        std::fs::write(
-            dir.path().join("host_capability_map.toml"),
-            r#"
-catalog_version = 7
-
-[[capability]]
-id = "gamescope"
-label = "Gamescope override"
-category = "performance"
-required_tools = ["gamescope"]
-optional_tools = []
-"#,
-        )
-        .expect("write override");
-
-        let loaded = load_capability_map(Some(dir.path()));
-        let gamescope = loaded.find_by_id("gamescope").expect("gamescope entry");
-        assert_eq!(gamescope.label, "Gamescope override");
-        assert_eq!(loaded.catalog_version, 7);
-    }
-
-    #[test]
-    fn load_capability_map_invalid_user_file_keeps_embedded_catalog_version() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        std::fs::write(
-            dir.path().join("host_capability_map.toml"),
-            "not valid toml [[[",
-        )
-        .expect("write invalid capability map");
-
-        let loaded = load_capability_map(Some(dir.path()));
-        let (_, _, embedded_ver) =
-            parse_capability_map_toml(DEFAULT_CAPABILITY_MAP_TOML, "embedded");
-        assert_eq!(loaded.catalog_version, embedded_ver.max(1));
     }
 
     #[test]
@@ -1002,6 +762,92 @@ optional_tools = []
         assert!(
             non_steam.missing_required.is_empty(),
             "non_steam_launch should have no missing required tools when umu-run is on PATH"
+        );
+    }
+
+    /// Regression (F007): `synthesize_umu_run_check` must not put the
+    /// human-readable `description` string into the `alternatives` field.
+    /// The `alternatives` slot is for alternative install methods; when
+    /// `UmuInstallGuidance` supplies none, the field must be empty.
+    #[test]
+    fn synthesize_umu_run_check_alternatives_empty_when_guidance_has_no_alternatives() {
+        let empty_dir = tempfile::tempdir().expect("tempdir");
+        let _path_guard =
+            crate::launch::test_support::ScopedCommandSearchPath::new(empty_dir.path());
+
+        let result = ReadinessCheckResult {
+            checks: vec![issue("umu_run_available", HealthIssueSeverity::Warning)],
+            all_passed: false,
+            critical_failures: 0,
+            warnings: 1,
+            umu_install_guidance: Some(UmuInstallGuidance {
+                install_command: "sudo pacman -S umu-launcher".to_string(),
+                docs_url: "https://example.invalid/umu".to_string(),
+                description:
+                    "Install umu-launcher on your Arch-based host to enable Non-Steam launch."
+                        .to_string(),
+            }),
+            steam_deck_caveats: None,
+            tool_checks: Vec::new(),
+            detected_distro_family: HostDistroFamily::Arch.as_str().to_string(),
+        };
+
+        let catalog = sample_readiness_catalog();
+        let check = synthesize_umu_run_check(&result, &catalog, true);
+        assert!(!check.is_available);
+        let guidance = check
+            .install_guidance
+            .expect("install_guidance must be present");
+        assert_eq!(guidance.command, "sudo pacman -S umu-launcher");
+        assert!(
+            guidance.alternatives.is_empty(),
+            "alternatives must not contain the description; got: {:?}",
+            guidance.alternatives
+        );
+    }
+
+    /// Regression (F006): when the `checks` Vec is empty (cached SQLite snapshot)
+    /// and `tool_checks` already has an `umu_run` entry with a non-empty
+    /// `resolved_path`, the live host probe (`resolve_umu_run_path`) must be
+    /// skipped.  We verify this by pointing PATH at an empty directory — if the
+    /// live probe ran it would return `None` and `is_available` would be `false`.
+    #[test]
+    fn synthesize_umu_run_check_uses_cached_resolved_path_skips_live_probe() {
+        let empty_dir = tempfile::tempdir().expect("tempdir");
+        let _path_guard =
+            crate::launch::test_support::ScopedCommandSearchPath::new(empty_dir.path());
+
+        let cached_path = "/cached/host/bin/umu-run".to_string();
+        let result = ReadinessCheckResult {
+            checks: Vec::new(),
+            all_passed: true,
+            critical_failures: 0,
+            warnings: 0,
+            umu_install_guidance: None,
+            steam_deck_caveats: None,
+            tool_checks: vec![HostToolCheckResult {
+                tool_id: "umu_run".to_string(),
+                display_name: "umu-launcher".to_string(),
+                is_available: true,
+                is_required: false,
+                category: "runtime".to_string(),
+                docs_url: String::new(),
+                tool_version: None,
+                resolved_path: Some(cached_path.clone()),
+                install_guidance: None,
+            }],
+            detected_distro_family: HostDistroFamily::Unknown.as_str().to_string(),
+        };
+
+        let catalog = sample_readiness_catalog();
+        let check = synthesize_umu_run_check(&result, &catalog, false);
+        assert!(
+            check.is_available,
+            "cached resolved_path must signal available without a live probe"
+        );
+        assert_eq!(
+            check.resolved_path.as_deref(),
+            Some("/cached/host/bin/umu-run")
         );
     }
 }
