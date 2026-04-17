@@ -16,6 +16,9 @@ pre-commit:
       glob: "src/crosshook-native/src/**/*.{ts,tsx}"
       root: "src/crosshook-native/"
       run: npx tsc --noEmit
+    host-gateway:
+      glob: "src/crosshook-native/{crates,src-tauri}/**/*.rs"
+      run: ./scripts/check-host-gateway.sh
     shellcheck:
       glob: "scripts/**/*.sh"
       run: shellcheck --severity=warning {staged_files}
