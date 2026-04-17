@@ -19,6 +19,10 @@ use super::global_readiness_catalog;
 
 const DETAIL_PROBE_TIMEOUT: Duration = Duration::from_millis(1500);
 const DETAIL_PROBE_POLL_INTERVAL: Duration = Duration::from_millis(25);
+/// Maximum bytes read from a child pipe per probe. Version output is never
+/// more than a few hundred bytes; capping at 16 KiB prevents a misbehaving or
+/// shadowed host binary from exhausting heap via an unbounded pipe drain.
+const VERSION_OUTPUT_CAP: u64 = 16 * 1024;
 
 const GENERIC_VERSION_ARG_CANDIDATES: &[&[&str]] = &[&["--version"], &["-V"], &["version"]];
 
@@ -194,12 +198,16 @@ fn run_version_probe(program: &str, args: &[&str]) -> Option<String> {
 }
 
 fn read_child_pipe(pipe: Option<impl Read>) -> String {
-    let Some(mut pipe) = pipe else {
+    let Some(pipe) = pipe else {
         return String::new();
     };
 
     let mut buffer = Vec::new();
-    if pipe.read_to_end(&mut buffer).is_err() {
+    if pipe
+        .take(VERSION_OUTPUT_CAP)
+        .read_to_end(&mut buffer)
+        .is_err()
+    {
         return String::new();
     }
     String::from_utf8_lossy(&buffer).into_owned()
@@ -330,6 +338,22 @@ mod tests {
                 "failed to parse {case:?}"
             );
         }
+    }
+
+    /// Regression: `read_child_pipe` must not read more than `VERSION_OUTPUT_CAP` bytes
+    /// regardless of how much the process writes.
+    #[test]
+    fn read_child_pipe_caps_output_at_version_output_cap() {
+        use super::{read_child_pipe, VERSION_OUTPUT_CAP};
+        let oversized = vec![b'x'; (VERSION_OUTPUT_CAP as usize) * 3];
+        let cursor = std::io::Cursor::new(oversized);
+        let result = read_child_pipe(Some(cursor));
+        assert!(
+            result.len() <= VERSION_OUTPUT_CAP as usize,
+            "expected at most {} bytes, got {}",
+            VERSION_OUTPUT_CAP,
+            result.len()
+        );
     }
 
     /// Regression: `probe_tool_version` must not stop when an earlier arg candidate

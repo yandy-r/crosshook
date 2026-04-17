@@ -9,13 +9,10 @@ export interface HostToolDashboardHandoffProps {
 export function HostToolDashboardHandoff({ onOpen, description }: HostToolDashboardHandoffProps) {
   return (
     <section className="crosshook-panel" aria-label="Host tool dashboard handoff">
-      <p className="crosshook-muted" style={{ marginBottom: 12 }}>
-        {description}
-      </p>
+      <p className="crosshook-muted crosshook-host-tool-dashboard-handoff__description">{description}</p>
       <button
         type="button"
-        className="crosshook-button crosshook-button--secondary"
-        style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
+        className="crosshook-button crosshook-button--secondary crosshook-host-tool-dashboard-handoff__action"
         onClick={onOpen}
       >
         Open Host Tool Dashboard

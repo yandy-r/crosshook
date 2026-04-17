@@ -115,6 +115,7 @@ export function useHostReadiness(): UseHostReadinessResult {
       }
 
       let nextSnapshot = snapshotFromReadinessResult(result);
+      setSnapshot(nextSnapshot);
 
       try {
         const cachedSnapshot = await callCommand<CachedHostReadinessSnapshot | null>(
@@ -125,14 +126,11 @@ export function useHostReadiness(): UseHostReadinessResult {
         }
         if (cachedSnapshot != null) {
           nextSnapshot = cachedSnapshot;
+          setSnapshot(nextSnapshot);
         }
-      } catch (snapshotError) {
-        if (!isMissingMockCommandError(snapshotError)) {
-          throw snapshotError;
-        }
+      } catch {
+        // Cache fetch is ancillary; live result already committed above
       }
-
-      setSnapshot(nextSnapshot);
 
       try {
         const nextCapabilities = await callCommand<Capability[]>('get_capabilities');

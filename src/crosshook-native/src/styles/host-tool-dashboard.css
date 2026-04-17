@@ -71,6 +71,18 @@
   gap: 16px;
 }
 
+/* ---------- Handoff block (onboarding → dedicated route) ---------------- */
+
+.crosshook-host-tool-dashboard-handoff__description {
+  margin-bottom: 12px;
+}
+
+.crosshook-host-tool-dashboard-handoff__action {
+  min-height: var(--crosshook-touch-target-min);
+}
+
+/* ---------- Section headings (between hero, tiles, and inventory) -------- */
+
 .crosshook-host-tool-dashboard-section__heading {
   font-size: 0.8rem;
   font-weight: 600;

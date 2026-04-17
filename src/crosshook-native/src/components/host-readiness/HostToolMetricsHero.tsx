@@ -29,15 +29,22 @@ function MetricCard({ count, label, accentColor, loading }: MetricCardProps) {
   );
 }
 
+function SkeletonCard() {
+  return (
+    <div className="crosshook-card crosshook-host-tool-dashboard-card" aria-hidden="true">
+      <div className="crosshook-host-tool-dashboard-skeleton crosshook-host-tool-dashboard-skeleton--count" />
+      <div className="crosshook-host-tool-dashboard-skeleton crosshook-host-tool-dashboard-skeleton--label" />
+    </div>
+  );
+}
+
 function SkeletonHero() {
   return (
     <>
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="crosshook-card crosshook-host-tool-dashboard-card" aria-hidden="true">
-          <div className="crosshook-host-tool-dashboard-skeleton crosshook-host-tool-dashboard-skeleton--count" />
-          <div className="crosshook-host-tool-dashboard-skeleton crosshook-host-tool-dashboard-skeleton--label" />
-        </div>
-      ))}
+      <SkeletonCard />
+      <SkeletonCard />
+      <SkeletonCard />
+      <SkeletonCard />
     </>
   );
 }

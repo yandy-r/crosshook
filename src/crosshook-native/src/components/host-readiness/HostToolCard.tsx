@@ -149,10 +149,8 @@ export function HostToolCard({
       return;
     }
 
-    void openUrl(docsUrl).catch((error) => {
-      console.error(`Failed to open host tool docs for ${tool.tool_id}`, error);
-    });
-  }, [docsUrl, tool.tool_id]);
+    void openUrl(docsUrl).catch(() => {});
+  }, [docsUrl]);
 
   const rootClassName = ['crosshook-panel', 'crosshook-host-tool-card', className].filter(Boolean).join(' ');
 
@@ -228,10 +226,9 @@ export function HostToolCard({
           className="crosshook-button crosshook-button--ghost crosshook-button--small"
           aria-expanded={detailsOpen}
           aria-busy={isProbingDetails}
+          disabled={isProbingDetails}
           onClick={() => {
-            void handleToggleDetails().catch((error) => {
-              console.error(`Failed to probe host tool details for ${tool.tool_id}`, error);
-            });
+            void handleToggleDetails();
           }}
         >
           {detailsOpen ? 'Hide details' : isProbingDetails ? 'Loading details…' : 'Details'}
@@ -257,9 +254,7 @@ export function HostToolCard({
                 type="button"
                 className="crosshook-button crosshook-button--secondary crosshook-button--small"
                 onClick={() => {
-                  void handleCopy('command', installCommand).catch((error) => {
-                    console.error(`Failed to copy install command for ${tool.tool_id}`, error);
-                  });
+                  void handleCopy('command', installCommand).catch(() => {});
                 }}
                 title={installCommand}
               >
@@ -312,9 +307,7 @@ export function HostToolCard({
                       type="button"
                       className="crosshook-button crosshook-button--secondary crosshook-button--small"
                       onClick={() => {
-                        void handleCopy('path', resolvedPath).catch((error) => {
-                          console.error(`Failed to copy resolved path for ${tool.tool_id}`, error);
-                        });
+                        void handleCopy('path', resolvedPath).catch(() => {});
                       }}
                       title={resolvedPath}
                     >

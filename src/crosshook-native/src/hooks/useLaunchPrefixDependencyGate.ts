@@ -25,8 +25,8 @@ export function useLaunchPrefixDependencyGate(): UseLaunchPrefixDependencyGateRe
         if (!cancelled) {
           setIsGamescopeRunning(inside);
         }
-      } catch (error) {
-        console.warn('check_gamescope_session failed; leaving prior Gamescope session state', error);
+      } catch {
+        // check_gamescope_session failed; leave prior Gamescope session state unchanged
       }
     })();
     return () => {
