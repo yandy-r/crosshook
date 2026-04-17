@@ -86,7 +86,8 @@ exercise a portal path.
 
 `src/crosshook-native/crates/crosshook-core/src/onboarding/details.rs:133,231-233,312-313`
 runs `gamemoderun --version` (or falls back to `gamemode --version`), strips the
-`gamemoderun ` / `gamemode ` prefix, and reports the version. Capability
+leading `gamemoderun` / `gamemode` token (plus the trailing space) from the
+output line, and reports the version. Capability
 registration: `src/crosshook-native/crates/crosshook-core/src/onboarding/capability.rs:394-397`
 lists a single `gamemode` required-tool entry with `required_tools: ["gamemode"]`.
 
