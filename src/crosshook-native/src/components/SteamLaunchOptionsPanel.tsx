@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
+import { useCapabilityGate } from '../hooks/useCapabilityGate';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
 import type { GamescopeConfig } from '../types/profile';
 import { copyToClipboard } from '../utils/clipboard';
@@ -24,6 +25,9 @@ export function SteamLaunchOptionsPanel({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copyLabel, setCopyLabel] = useState('Copy');
+  const gamescopeGate = useCapabilityGate('gamescope');
+  const mangohudGate = useCapabilityGate('mangohud');
+  const gamemodeGate = useCapabilityGate('gamemode');
 
   const _serializedCustomEnv = JSON.stringify(customEnvVars ?? null);
   const stableCustomEnv = useMemo<Readonly<Record<string, string>>>(() => {
@@ -96,6 +100,13 @@ export function SteamLaunchOptionsPanel({
   }
 
   const rootClass = ['crosshook-panel', 'crosshook-steam-launch-options', className].filter(Boolean).join(' ');
+  const advisoryLines = [
+    gamescopeConfig?.enabled && gamescopeGate.state === 'unavailable' ? gamescopeGate.rationale : null,
+    enabledOptionIds.includes('show_mangohud_overlay') && mangohudGate.state === 'unavailable'
+      ? mangohudGate.rationale
+      : null,
+    enabledOptionIds.includes('use_gamemode') && gamemodeGate.state === 'unavailable' ? gamemodeGate.rationale : null,
+  ].filter((value): value is string => Boolean(value));
 
   return (
     <section className={rootClass} aria-labelledby={titleId}>
@@ -109,6 +120,12 @@ export function SteamLaunchOptionsPanel({
           must end with <code>%command%</code>.
         </p>
       </div>
+
+      {advisoryLines.length > 0 ? (
+        <div className="crosshook-warning-banner" role="note">
+          {advisoryLines.join(' ')}
+        </div>
+      ) : null}
 
       {error ? <div className="crosshook-error-banner crosshook-error-banner--section">{error}</div> : null}
 

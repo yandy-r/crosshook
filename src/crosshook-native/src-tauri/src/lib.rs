@@ -8,7 +8,10 @@ use crosshook_core::launch::{initialize_catalog, load_catalog};
 use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::offline::{initialize_trainer_type_catalog, load_trainer_type_catalog};
-use crosshook_core::onboarding::{initialize_readiness_catalog, load_readiness_catalog};
+use crosshook_core::onboarding::{
+    initialize_capability_map, initialize_readiness_catalog, load_capability_map,
+    load_readiness_catalog,
+};
 use crosshook_core::platform::override_xdg_for_flatpak_host_access;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore};
@@ -132,6 +135,8 @@ pub fn run() {
 
     let readiness_catalog = load_readiness_catalog(Some(&settings_store.base_path));
     initialize_readiness_catalog(readiness_catalog);
+    let capability_map = load_capability_map(Some(&settings_store.base_path));
+    initialize_capability_map(capability_map);
 
     tauri::Builder::default()
         .setup({
@@ -420,6 +425,9 @@ pub fn run() {
             commands::version::acknowledge_version_change,
             commands::onboarding::check_readiness,
             commands::onboarding::check_generalized_readiness,
+            commands::onboarding::probe_host_tool_details,
+            commands::onboarding::get_cached_host_readiness_snapshot,
+            commands::onboarding::get_capabilities,
             commands::onboarding::dismiss_onboarding,
             commands::onboarding::dismiss_umu_install_nag,
             commands::onboarding::dismiss_steam_deck_caveats,

@@ -38,8 +38,35 @@ export interface HostToolCheckResult {
   category: string;
   /** Upstream / project documentation URL from the catalog. */
   docs_url?: string;
+  /** Parsed tool version from an optional detail probe. */
+  tool_version?: string | null;
+  /** Resolved host path from an optional detail probe. */
+  resolved_path?: string | null;
   /** Present when the tool is missing and Flatpak host guidance applies. */
   install_guidance: HostToolInstallCommand | null;
+}
+
+export type CapabilityState = 'available' | 'degraded' | 'unavailable';
+
+/** Derived capability status backed by one or more host tool probes. */
+export interface Capability {
+  id: string;
+  label: string;
+  category: string;
+  state: CapabilityState;
+  rationale: string | null;
+  required_tool_ids: string[];
+  optional_tool_ids: string[];
+  missing_required: HostToolCheckResult[];
+  missing_optional: HostToolCheckResult[];
+  install_hints: HostToolInstallCommand[];
+}
+
+/** Optional per-tool detail probe used by the host tool dashboard. */
+export interface HostToolDetails {
+  tool_id: string;
+  tool_version: string | null;
+  resolved_path: string | null;
 }
 
 export interface ReadinessCheckResult {

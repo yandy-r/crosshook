@@ -105,3 +105,14 @@ export function HealthIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function HostToolsIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props} aria-hidden="true">
+      {/* Wrench head + handle */}
+      <path d="M13.6 2.5a3.5 3.5 0 0 0-3.4 5.7L3 15.4 4.6 17l7.2-7.2a3.5 3.5 0 0 0 4.7-4.6l-2 2-1.6-1.6 2-2a3.5 3.5 0 0 0-1.3-.6z" />
+      {/* Bolt accent */}
+      <circle cx="4.6" cy="15.4" r="0.9" fill="currentColor" stroke="none" opacity={0.55} />
+    </svg>
+  );
+}

@@ -2,6 +2,7 @@
 
 ## 2026-04-15
 
+- When claiming a new UI surface is present, do not rely on the intended mount point alone. In this repo, verify the actual dev-path discoverability and default visibility in `npm run dev`, because a section hidden inside a collapsed Settings panel is effectively absent to users even if the component is mounted.
 - When adding distro-aware guidance for Flatpak host installs, do not assume `/run/host/etc/os-release` exists in every sandbox. In this repo, if host distro detection falls back to the sandbox `/etc/os-release`, Arch-derived hosts like CachyOS can be misclassified and show the generic `pipx` CTA instead of `pacman`.
 - When bringing up a new platform-specific execution path for the first time, do not describe the failure as a regression unless that exact path previously worked in shipped behavior. In this repo, a broken first Flatpak `umu-run` implementation during phase 5 is bring-up work on a new path, not a launch regression.
 - When a user confirms direct `"$PROTON" run` still works while a new `umu-run` path fails, do not keep blaming shared Proton host-env plumbing in the abstract. In this repo, treat that as evidence the bug is specific to `umu-run` resolution or `umu`-only env/command shape, and narrow the investigation there immediately.

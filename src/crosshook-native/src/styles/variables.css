@@ -19,6 +19,15 @@
   --crosshook-color-success: #28c76f;
   --crosshook-color-warning: #f5c542;
   --crosshook-color-danger: #ff758f;
+  --crosshook-color-capability-available: #4ade80;
+  --crosshook-color-capability-available-bg: rgba(74, 222, 128, 0.12);
+  --crosshook-color-capability-available-border: rgba(74, 222, 128, 0.28);
+  --crosshook-color-capability-degraded: #fbbf24;
+  --crosshook-color-capability-degraded-bg: rgba(251, 191, 36, 0.12);
+  --crosshook-color-capability-degraded-border: rgba(251, 191, 36, 0.28);
+  --crosshook-color-capability-unavailable: #f87171;
+  --crosshook-color-capability-unavailable-bg: rgba(248, 113, 113, 0.12);
+  --crosshook-color-capability-unavailable-border: rgba(248, 113, 113, 0.28);
   /* Icons/text on solid success / danger / accent fills (launch pipeline, chips) */
   --crosshook-color-on-success: #ffffff;
   --crosshook-color-on-error: #ffffff;

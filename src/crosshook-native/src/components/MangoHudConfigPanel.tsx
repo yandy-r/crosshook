@@ -1,4 +1,6 @@
 import { type ChangeEvent, useId } from 'react';
+import { open as openShell } from '@/lib/plugin-stubs/shell';
+import { useCapabilityGate } from '../hooks/useCapabilityGate';
 import { type MangoHudPreset, useMangoHudPresets } from '../hooks/useMangoHudPresets';
 import type { MangoHudConfig, MangoHudPosition } from '../types/profile';
 import { CollapsibleSection } from './ui/CollapsibleSection';
@@ -67,7 +69,9 @@ export function MangoHudConfigPanel({
   launchMethod,
 }: MangoHudConfigPanelProps) {
   const id = useId();
-  const isDisabled = disabled || !config.enabled;
+  const mangohudGate = useCapabilityGate('mangohud');
+  const isCapabilityUnavailable = mangohudGate.state === 'unavailable';
+  const isDisabled = disabled || !config.enabled || isCapabilityUnavailable;
   const showActivationHint = config.enabled && showMangoHudOverlayEnabled === false;
   const showMethodNote = launchMethod === 'steam_applaunch';
   const { presets } = useMangoHudPresets();
@@ -115,6 +119,41 @@ export function MangoHudConfigPanel({
           Enable per-profile MangoHud config
         </span>
       </label>
+
+      {mangohudGate.rationale ? (
+        <div
+          className={isCapabilityUnavailable ? 'crosshook-warning-banner' : 'crosshook-info-banner'}
+          role={isCapabilityUnavailable ? 'alert' : 'note'}
+        >
+          <div style={{ display: 'grid', gap: 8 }}>
+            <span>{mangohudGate.rationale}</span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {mangohudGate.onCopyCommand ? (
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--ghost crosshook-button--small"
+                  onClick={() => {
+                    void mangohudGate.onCopyCommand?.();
+                  }}
+                >
+                  Copy install command
+                </button>
+              ) : null}
+              {mangohudGate.docsUrl ? (
+                <button
+                  type="button"
+                  className="crosshook-button crosshook-button--ghost crosshook-button--small"
+                  onClick={() => {
+                    void openShell(mangohudGate.docsUrl ?? '');
+                  }}
+                >
+                  Open docs
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Activation hint */}
       {showActivationHint ? (

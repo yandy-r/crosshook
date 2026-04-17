@@ -1,5 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useCallback, useId, useMemo, useState } from 'react';
+import { open as openShell } from '@/lib/plugin-stubs/shell';
+import { type CapabilityGate, useCapabilityGate } from '../hooks/useCapabilityGate';
 import type { BundledOptimizationPreset, LaunchAutoSaveStatus, LaunchMethod } from '../types';
 import {
   findLaunchOptimizationConflicts,
@@ -42,6 +44,8 @@ interface GroupedOptions {
   category: LaunchOptimizationCategory;
   options: OptimizationEntry[];
 }
+
+type CapabilityId = 'gamescope' | 'mangohud' | 'gamemode' | 'prefix_tools' | 'non_steam_launch';
 
 function joinClasses(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(' ');
@@ -100,6 +104,25 @@ function formatConflictSummary(
   return `${optionsById[conflict.optionId]?.label ?? conflict.optionId} conflicts with ${optionsById[conflict.conflictsWith]?.label ?? conflict.conflictsWith}.`;
 }
 
+function capabilityIdForRequiredBinary(requiredBinary: string): CapabilityId | null {
+  switch (requiredBinary.trim()) {
+    case 'gamescope':
+      return 'gamescope';
+    case 'mangohud':
+      return 'mangohud';
+    case 'gamemoderun':
+      return 'gamemode';
+    case 'winetricks':
+    case 'protontricks':
+      return 'prefix_tools';
+    case 'umu-run':
+    case 'umu_run':
+      return 'non_steam_launch';
+    default:
+      return null;
+  }
+}
+
 function getGpuVendorLabel(option: OptimizationEntry): string | null {
   if (option.target_gpu_vendor === 'nvidia') {
     return 'NVIDIA';
@@ -125,6 +148,7 @@ function OptionGroup(props: {
   sectionTone: 'default' | 'advanced';
   optionsById: Record<string, OptimizationEntry>;
   conflictMatrix: Record<string, readonly string[]>;
+  capabilityGates: Record<CapabilityId, CapabilityGate>;
 }) {
   const {
     group,
@@ -139,6 +163,7 @@ function OptionGroup(props: {
     sectionTone,
     optionsById,
     conflictMatrix,
+    capabilityGates,
   } = props;
   const groupOptionIds = group.options.map((option) => option.id);
   const groupConflicts = selectedConflicts.filter((conflict) => {
@@ -177,6 +202,10 @@ function OptionGroup(props: {
           const checkboxId = `${tooltipIdPrefix}-${option.id}`;
           const tooltipIdValue = `${tooltipIdPrefix}-${option.id}-tooltip`;
           const conflictLabels = getConflictLabels(option, optionsById, conflictMatrix);
+          const capabilityId = capabilityIdForRequiredBinary(option.required_binary);
+          const capabilityGate = capabilityId ? capabilityGates[capabilityId] : null;
+          const capabilityUnavailable =
+            capabilityGate != null && capabilityGate.state === 'unavailable' && !isBlockedByConflict;
 
           return (
             <div
@@ -246,9 +275,11 @@ function OptionGroup(props: {
                       <span className="crosshook-launch-optimizations__option-pill crosshook-launch-optimizations__option-pill--disabled">
                         {isBlockedByConflict
                           ? 'Resolve conflict first'
-                          : isMethodSupported
-                            ? 'Unavailable'
-                            : 'Not for this method'}
+                          : capabilityUnavailable
+                            ? 'Host tool missing'
+                            : isMethodSupported
+                              ? 'Unavailable'
+                              : 'Not for this method'}
                       </span>
                     ) : null}
                   </div>
@@ -301,6 +332,35 @@ function OptionGroup(props: {
                       Selection is currently blocked by {formatConflictLabels(blockedByLabels)}.
                     </p>
                   ) : null}
+                  {capabilityUnavailable && capabilityGate?.rationale ? (
+                    <>
+                      <p className="crosshook-launch-optimizations__tooltip-copy">{capabilityGate.rationale}</p>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {capabilityGate.onCopyCommand ? (
+                          <button
+                            type="button"
+                            className="crosshook-button crosshook-button--ghost crosshook-button--small"
+                            onClick={() => {
+                              void capabilityGate.onCopyCommand?.();
+                            }}
+                          >
+                            Copy install command
+                          </button>
+                        ) : null}
+                        {capabilityGate.docsUrl ? (
+                          <button
+                            type="button"
+                            className="crosshook-button crosshook-button--ghost crosshook-button--small"
+                            onClick={() => {
+                              void openShell(capabilityGate.docsUrl ?? '');
+                            }}
+                          >
+                            Open docs
+                          </button>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
                   {conflictLabels.length > 0 ? (
                     <p className="crosshook-launch-optimizations__tooltip-copy">
                       Conflict note: {conflictLabels.join(', ')} should not be enabled together with this option.
@@ -330,6 +390,11 @@ export function LaunchOptimizationsPanel({
   onSaveManualPreset,
   catalog,
 }: LaunchOptimizationsPanelProps) {
+  const gamescopeGate = useCapabilityGate('gamescope');
+  const mangohudGate = useCapabilityGate('mangohud');
+  const gamemodeGate = useCapabilityGate('gamemode');
+  const prefixToolsGate = useCapabilityGate('prefix_tools');
+  const nonSteamLaunchGate = useCapabilityGate('non_steam_launch');
   const titleId = useId();
   const presetSelectId = useId();
   const manualPresetInputId = useId();
@@ -411,6 +476,16 @@ export function LaunchOptimizationsPanel({
       void onSelectOptimizationPreset?.(value);
     },
     [bundledOptimizationPresets, onApplyBundledPreset, onSelectOptimizationPreset]
+  );
+  const capabilityGates = useMemo<Record<CapabilityId, CapabilityGate>>(
+    () => ({
+      gamescope: gamescopeGate,
+      mangohud: mangohudGate,
+      gamemode: gamemodeGate,
+      prefix_tools: prefixToolsGate,
+      non_steam_launch: nonSteamLaunchGate,
+    }),
+    [gamescopeGate, mangohudGate, gamemodeGate, prefixToolsGate, nonSteamLaunchGate]
   );
 
   if (!catalog) {
@@ -589,6 +664,7 @@ export function LaunchOptimizationsPanel({
                     sectionTone="default"
                     optionsById={optionsById}
                     conflictMatrix={conflictMatrix}
+                    capabilityGates={capabilityGates}
                   />
                 ))}
               </div>
@@ -620,6 +696,7 @@ export function LaunchOptimizationsPanel({
                     sectionTone="advanced"
                     optionsById={optionsById}
                     conflictMatrix={conflictMatrix}
+                    capabilityGates={capabilityGates}
                   />
                 ))}
               </div>

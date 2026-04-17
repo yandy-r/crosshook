@@ -135,6 +135,10 @@ pub struct SettingsSaveRequest {
     #[serde(default)]
     pub umu_preference: Option<UmuPreference>,
     #[serde(default)]
+    pub host_tool_dashboard_dismissed_hints: Option<Vec<String>>,
+    #[serde(default)]
+    pub host_tool_dashboard_default_category_filter: Option<Option<String>>,
+    #[serde(default)]
     pub install_nag_dismissed_at: Option<Option<String>>,
     #[serde(default)]
     pub steam_deck_caveats_dismissed_at: Option<Option<String>>,
@@ -181,6 +185,12 @@ fn merge_settings_from_request(
             .protonup_binary_path
             .unwrap_or(current.protonup_binary_path),
         umu_preference: data.umu_preference.unwrap_or(current.umu_preference),
+        host_tool_dashboard_dismissed_hints: data
+            .host_tool_dashboard_dismissed_hints
+            .unwrap_or(current.host_tool_dashboard_dismissed_hints),
+        host_tool_dashboard_default_category_filter: data
+            .host_tool_dashboard_default_category_filter
+            .unwrap_or(current.host_tool_dashboard_default_category_filter),
         // Absent field preserves current value; explicit null clears the timestamp.
         install_nag_dismissed_at: data
             .install_nag_dismissed_at
@@ -315,6 +325,8 @@ mod tests {
             protonup_auto_suggest: None,
             protonup_binary_path: None,
             umu_preference: None,
+            host_tool_dashboard_dismissed_hints: None,
+            host_tool_dashboard_default_category_filter: None,
             install_nag_dismissed_at: None,
             steam_deck_caveats_dismissed_at: None,
         }

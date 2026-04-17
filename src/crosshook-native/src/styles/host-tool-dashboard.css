@@ -1,0 +1,543 @@
+/* ==========================================================================
+ * Host Tools Dashboard
+ *
+ * Visual structure mirrors the Health Dashboard (see theme.css ".crosshook-
+ * health-dashboard-*"): hero summary cards, capability tiles, then a toolbar
+ * + grouped inventory sections.
+ * ========================================================================== */
+
+/* ---------- Page-scoped layout (shell-modifier hooks) --------------------- */
+
+.crosshook-page-scroll-shell--host-tools {
+  /* Keep the standard column gap; no shell-specific overrides today. */
+}
+
+.crosshook-host-tool-dashboard-error {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-left: 4px solid var(--crosshook-color-danger);
+}
+
+.crosshook-host-tool-dashboard-error > p {
+  margin: 0;
+  flex: 1 1 auto;
+  color: var(--crosshook-color-text);
+}
+
+/* ---------- Hero: 4 summary cards (matches .crosshook-health-dashboard-card) */
+
+.crosshook-host-tool-dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--crosshook-grid-gap);
+}
+
+.crosshook-host-tool-dashboard-card {
+  border-left: 4px solid transparent;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.crosshook-host-tool-dashboard-card__count {
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.crosshook-host-tool-dashboard-card__label {
+  font-size: 0.875rem;
+}
+
+@media (max-width: 960px) {
+  .crosshook-host-tool-dashboard-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .crosshook-host-tool-dashboard-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Section headings (between hero, tiles, and inventory) -------- */
+
+.crosshook-host-tool-dashboard-section {
+  display: grid;
+  gap: 16px;
+}
+
+.crosshook-host-tool-dashboard-section__heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--crosshook-color-text-muted);
+  margin: 0;
+}
+
+/* ---------- Capability tiles --------------------------------------------- */
+
+.crosshook-host-tool-dashboard-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--crosshook-grid-gap);
+}
+
+.crosshook-host-tool-dashboard-tile {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px;
+  border: 1px solid var(--crosshook-color-border);
+  border-left-width: 4px;
+  border-radius: var(--crosshook-radius-md);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    var(--crosshook-color-bg-elevated);
+  box-shadow: var(--crosshook-shadow-soft);
+  align-content: start;
+}
+
+.crosshook-host-tool-dashboard-tile--available {
+  border-color: var(--crosshook-color-capability-available-border);
+  border-left-color: var(--crosshook-color-capability-available);
+  background:
+    linear-gradient(180deg, var(--crosshook-color-capability-available-bg), rgba(255, 255, 255, 0)),
+    var(--crosshook-color-bg-elevated);
+}
+
+.crosshook-host-tool-dashboard-tile--degraded {
+  border-color: var(--crosshook-color-capability-degraded-border);
+  border-left-color: var(--crosshook-color-capability-degraded);
+  background:
+    linear-gradient(180deg, var(--crosshook-color-capability-degraded-bg), rgba(255, 255, 255, 0)),
+    var(--crosshook-color-bg-elevated);
+}
+
+.crosshook-host-tool-dashboard-tile--unavailable {
+  border-color: var(--crosshook-color-capability-unavailable-border);
+  border-left-color: var(--crosshook-color-capability-unavailable);
+  background:
+    linear-gradient(180deg, var(--crosshook-color-capability-unavailable-bg), rgba(255, 255, 255, 0)),
+    var(--crosshook-color-bg-elevated);
+}
+
+.crosshook-host-tool-dashboard-tile__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.crosshook-host-tool-dashboard-tile__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+  flex-shrink: 0;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-host-tool-dashboard-tile--available .crosshook-host-tool-dashboard-tile__dot {
+  color: var(--crosshook-color-capability-available);
+}
+
+.crosshook-host-tool-dashboard-tile--degraded .crosshook-host-tool-dashboard-tile__dot {
+  color: var(--crosshook-color-capability-degraded);
+}
+
+.crosshook-host-tool-dashboard-tile--unavailable .crosshook-host-tool-dashboard-tile__dot {
+  color: var(--crosshook-color-capability-unavailable);
+}
+
+.crosshook-host-tool-dashboard-tile__label {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--crosshook-color-text);
+  line-height: 1.3;
+}
+
+.crosshook-host-tool-dashboard-tile__state {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.crosshook-host-tool-dashboard-tile__state--available {
+  color: var(--crosshook-color-capability-available);
+}
+
+.crosshook-host-tool-dashboard-tile__state--degraded {
+  color: var(--crosshook-color-capability-degraded);
+}
+
+.crosshook-host-tool-dashboard-tile__state--unavailable {
+  color: var(--crosshook-color-capability-unavailable);
+}
+
+.crosshook-host-tool-dashboard-tile__meta {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.crosshook-host-tool-dashboard-tile__rationale {
+  color: var(--crosshook-color-text-subtle);
+  font-style: italic;
+}
+
+.crosshook-host-tool-dashboard-tile__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ---------- Toolbar (refresh + last-checked + filters) ------------------- */
+
+.crosshook-host-tool-dashboard-toolbar {
+  display: grid;
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+.crosshook-host-tool-dashboard-toolbar__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  align-items: center;
+}
+
+.crosshook-host-tool-dashboard-toolbar__status-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+.crosshook-host-tool-dashboard-toolbar__status-value {
+  color: var(--crosshook-color-text);
+  font-weight: 600;
+}
+
+.crosshook-host-tool-dashboard-toolbar__refresh {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.crosshook-host-tool-dashboard-toolbar__filters {
+  border-top: 1px solid var(--crosshook-color-border);
+  padding-top: 12px;
+}
+
+@media (max-width: 720px) {
+  .crosshook-host-tool-dashboard-toolbar {
+    padding: 14px 16px;
+  }
+
+  .crosshook-host-tool-dashboard-toolbar__status {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* ---------- Skeletons (loading placeholders) ----------------------------- */
+
+.crosshook-host-tool-dashboard-skeleton {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04));
+  background-size: 200% 100%;
+  border-radius: var(--crosshook-radius-sm);
+  animation: crosshook-host-tool-dashboard-pulse 1.4s ease-in-out infinite;
+}
+
+.crosshook-host-tool-dashboard-skeleton--count {
+  height: 2.4rem;
+  width: 60%;
+}
+
+.crosshook-host-tool-dashboard-skeleton--label {
+  height: 0.875rem;
+  width: 80%;
+}
+
+.crosshook-host-tool-dashboard-skeleton--state {
+  height: 0.78rem;
+  width: 40%;
+}
+
+.crosshook-host-tool-dashboard-skeleton--meta {
+  height: 0.86rem;
+  width: 90%;
+}
+
+.crosshook-host-tool-dashboard-tile--skeleton {
+  border-left-color: transparent;
+}
+
+@keyframes crosshook-host-tool-dashboard-pulse {
+  0%,
+  100% {
+    background-position: 200% 0;
+  }
+  50% {
+    background-position: -200% 0;
+  }
+}
+
+/* ==========================================================================
+ * Existing inner shells (preserved): card-shell groups inside the inventory,
+ * status chips, banners, meta lists, empty states.
+ * ========================================================================== */
+
+.crosshook-host-tool-dashboard {
+  display: grid;
+  gap: var(--crosshook-grid-gap);
+  min-height: 0;
+}
+
+.crosshook-host-tool-dashboard__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.crosshook-host-tool-dashboard__filters-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.crosshook-host-tool-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--crosshook-grid-gap);
+  align-items: start;
+}
+
+.crosshook-host-tool-dashboard__card-shell {
+  display: grid;
+  gap: 16px;
+  min-height: 0;
+  padding: var(--crosshook-card-padding);
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
+    var(--crosshook-color-bg-elevated);
+  box-shadow: var(--crosshook-shadow-soft);
+}
+
+.crosshook-host-tool-dashboard__card-shell--muted {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0)),
+    color-mix(in srgb, var(--crosshook-color-bg-elevated) 88%, var(--crosshook-color-surface));
+}
+
+.crosshook-host-tool-dashboard__card-shell--available {
+  border-color: var(--crosshook-color-capability-available-border);
+}
+
+.crosshook-host-tool-dashboard__card-shell--degraded {
+  border-color: var(--crosshook-color-capability-degraded-border);
+}
+
+.crosshook-host-tool-dashboard__card-shell--unavailable {
+  border-color: var(--crosshook-color-capability-unavailable-border);
+}
+
+.crosshook-host-tool-dashboard__card-header {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.crosshook-host-tool-dashboard__card-title-group {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.crosshook-host-tool-dashboard__card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-host-tool-dashboard__card-summary {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  line-height: 1.5;
+}
+
+.crosshook-host-tool-dashboard__card-body {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+}
+
+.crosshook-host-tool-dashboard__card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.crosshook-host-tool-dashboard__meta-list {
+  display: grid;
+  gap: 10px;
+}
+
+.crosshook-host-tool-dashboard__meta-row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.crosshook-host-tool-dashboard__meta-label {
+  color: var(--crosshook-color-text-subtle);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.crosshook-host-tool-dashboard__meta-value {
+  color: var(--crosshook-color-text);
+  text-align: right;
+}
+
+.crosshook-host-tool-dashboard__banner {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--crosshook-color-border-strong);
+  border-radius: var(--crosshook-radius-md);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.crosshook-host-tool-dashboard__banner-title {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.crosshook-host-tool-dashboard__banner-copy {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  line-height: 1.5;
+}
+
+.crosshook-host-tool-dashboard__banner--available {
+  border-color: var(--crosshook-color-capability-available-border);
+  background: var(--crosshook-color-capability-available-bg);
+}
+
+.crosshook-host-tool-dashboard__banner--degraded {
+  border-color: var(--crosshook-color-capability-degraded-border);
+  background: var(--crosshook-color-capability-degraded-bg);
+}
+
+.crosshook-host-tool-dashboard__banner--unavailable {
+  border-color: var(--crosshook-color-capability-unavailable-border);
+  background: var(--crosshook-color-capability-unavailable-bg);
+}
+
+.crosshook-host-tool-dashboard__status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--crosshook-color-border-strong);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.crosshook-host-tool-dashboard__status-chip::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.crosshook-host-tool-dashboard__status-chip--available {
+  border-color: var(--crosshook-color-capability-available-border);
+  background: var(--crosshook-color-capability-available-bg);
+  color: var(--crosshook-color-capability-available);
+}
+
+.crosshook-host-tool-dashboard__status-chip--degraded {
+  border-color: var(--crosshook-color-capability-degraded-border);
+  background: var(--crosshook-color-capability-degraded-bg);
+  color: var(--crosshook-color-capability-degraded);
+}
+
+.crosshook-host-tool-dashboard__status-chip--unavailable {
+  border-color: var(--crosshook-color-capability-unavailable-border);
+  background: var(--crosshook-color-capability-unavailable-bg);
+  color: var(--crosshook-color-capability-unavailable);
+}
+
+.crosshook-host-tool-dashboard__empty-state {
+  display: grid;
+  gap: 10px;
+  place-items: center;
+  min-height: 220px;
+  padding: var(--crosshook-card-padding);
+  border: 1px dashed var(--crosshook-color-border-muted);
+  border-radius: var(--crosshook-radius-lg);
+  color: var(--crosshook-color-text-muted);
+  text-align: center;
+}
+
+@media (max-width: 960px) {
+  .crosshook-host-tool-dashboard__filters,
+  .crosshook-host-tool-dashboard__card-header,
+  .crosshook-host-tool-dashboard__card-footer,
+  .crosshook-host-tool-dashboard__meta-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .crosshook-host-tool-dashboard__meta-value {
+    text-align: left;
+  }
+}
+
+@media (max-width: 720px) {
+  .crosshook-host-tool-dashboard__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .crosshook-host-tool-dashboard__card-shell {
+    padding: var(--crosshook-panel-padding);
+  }
+}

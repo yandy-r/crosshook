@@ -456,6 +456,8 @@ fn evaluate_host_tool_checks(
                 is_required: entry.required,
                 category: entry.category.clone(),
                 docs_url: entry.docs_url.clone(),
+                tool_version: None,
+                resolved_path: None,
                 install_guidance: None,
             });
             continue;
@@ -480,6 +482,8 @@ fn evaluate_host_tool_checks(
             is_required: entry.required,
             category: entry.category.clone(),
             docs_url: entry.docs_url.clone(),
+            tool_version: None,
+            resolved_path: None,
             install_guidance: guidance,
         });
     }

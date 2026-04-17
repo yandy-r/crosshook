@@ -25,6 +25,7 @@ export interface OnboardingWizardProps {
   mode?: 'create' | 'edit';
   onComplete: () => void;
   onDismiss: () => void;
+  onOpenHostToolDashboard?: () => void;
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -85,7 +86,13 @@ function getTotalVisibleSteps(launchMethod: ResolvedLaunchMethod): number {
   return launchMethod === 'native' ? 4 : 5;
 }
 
-export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss }: OnboardingWizardProps) {
+export function OnboardingWizard({
+  open,
+  mode = 'create',
+  onComplete,
+  onDismiss,
+  onOpenHostToolDashboard,
+}: OnboardingWizardProps) {
   const portalHostRef = useRef<HTMLElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
@@ -352,6 +359,10 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
     advanceOrSkip(launchMethod);
   }
 
+  function handleOpenHostToolDashboard() {
+    onOpenHostToolDashboard?.();
+  }
+
   if (!open || !isMounted || !portalHostRef.current) {
     return null;
   }
@@ -432,6 +443,22 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 protonInstalls={protonInstalls}
                 protonInstallsError={protonInstallsError}
               />
+              {onOpenHostToolDashboard ? (
+                <section className="crosshook-panel" aria-label="Host tool dashboard handoff">
+                  <p className="crosshook-muted" style={{ marginBottom: 12 }}>
+                    Need the full host tool details while setting up runtime paths? Open the Settings dashboard without
+                    finishing onboarding.
+                  </p>
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--secondary"
+                    style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
+                    onClick={handleOpenHostToolDashboard}
+                  >
+                    Open Host Tool Dashboard
+                  </button>
+                </section>
+              ) : null}
             </section>
           )}
 
@@ -479,6 +506,22 @@ export function OnboardingWizard({ open, mode = 'create', onComplete, onDismiss 
                 onDismissSteamDeckCaveats={() => void dismissSteamDeckCaveats()}
                 onDismissReadinessNag={(toolId) => void dismissReadinessNag(toolId)}
               />
+              {onOpenHostToolDashboard ? (
+                <section className="crosshook-panel" aria-label="Host tool dashboard handoff">
+                  <p className="crosshook-muted" style={{ marginBottom: 12 }}>
+                    Want the full host readiness dashboard before saving? You can continue in Settings and come back to
+                    onboarding later.
+                  </p>
+                  <button
+                    type="button"
+                    className="crosshook-button crosshook-button--secondary"
+                    style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
+                    onClick={handleOpenHostToolDashboard}
+                  >
+                    Open Host Tool Dashboard
+                  </button>
+                </section>
+              ) : null}
             </section>
           )}
 
