@@ -4,7 +4,6 @@ import { callCommand } from '@/lib/ipc';
 import type { Capability, HostToolCheckResult, HostToolDetails, ReadinessCheckResult } from '../types/onboarding';
 
 const HOST_READINESS_STALE_MS = 24 * 60 * 60 * 1000;
-let hasBootstrappedLiveRefresh = false;
 
 export interface CachedHostReadinessSnapshot {
   checked_at: string;
@@ -102,6 +101,7 @@ export function useHostReadiness(): UseHostReadinessResult {
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(false);
   const requestIdRef = useRef(0);
+  const hasBootstrappedLiveRefreshRef = useRef(false);
 
   const refresh = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -211,8 +211,12 @@ export function useHostReadiness(): UseHostReadinessResult {
         setCapabilities(loadedCapabilities);
       }
 
-      if (loadedSnapshot == null || isSnapshotStale(loadedSnapshot.checked_at) || !hasBootstrappedLiveRefresh) {
-        hasBootstrappedLiveRefresh = true;
+      if (
+        loadedSnapshot == null ||
+        isSnapshotStale(loadedSnapshot.checked_at) ||
+        !hasBootstrappedLiveRefreshRef.current
+      ) {
+        hasBootstrappedLiveRefreshRef.current = true;
         try {
           await refresh();
         } catch {

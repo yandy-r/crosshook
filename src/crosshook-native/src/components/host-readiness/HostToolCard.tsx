@@ -154,93 +154,31 @@ export function HostToolCard({
     });
   }, [docsUrl, tool.tool_id]);
 
-  const rootClassName = ['crosshook-panel', className].filter(Boolean).join(' ');
+  const rootClassName = ['crosshook-panel', 'crosshook-host-tool-card', className].filter(Boolean).join(' ');
 
   return (
-    <article
-      className={rootClassName}
-      aria-labelledby={`host-tool-card-${tool.tool_id}`}
-      style={{
-        display: 'grid',
-        gap: 14,
-        border: '1px solid var(--crosshook-color-border-strong)',
-      }}
-    >
-      <header
-        style={{
-          display: 'grid',
-          gap: 10,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 12,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gap: 6,
-              minWidth: 0,
-              flex: '1 1 280px',
-            }}
-          >
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                minWidth: 0,
-              }}
-            >
+    <article className={rootClassName} aria-labelledby={`host-tool-card-${tool.tool_id}`}>
+      <header className="crosshook-host-tool-card__header">
+        <div className="crosshook-host-tool-card__header-row">
+          <div className="crosshook-host-tool-card__title-group">
+            <div className="crosshook-host-tool-card__title-row">
               <span
                 aria-hidden="true"
-                className={`crosshook-auto-populate__field-state--${availability.stateClass}`}
-                style={{
-                  fontSize: '1rem',
-                  lineHeight: 1,
-                  flexShrink: 0,
-                }}
+                className={`crosshook-auto-populate__field-state--${availability.stateClass} crosshook-host-tool-card__state-icon`}
               >
                 {availability.icon}
               </span>
-              <h3
-                id={`host-tool-card-${tool.tool_id}`}
-                style={{
-                  margin: 0,
-                  fontSize: '1rem',
-                  lineHeight: 1.3,
-                  minWidth: 0,
-                }}
-              >
+              <h3 id={`host-tool-card-${tool.tool_id}`} className="crosshook-host-tool-card__title">
                 {tool.display_name}
               </h3>
               <InfoTooltip content={getHostToolTooltipContent(tool.tool_id)} size={14} />
             </div>
-            <p
-              className="crosshook-help-text"
-              style={{
-                margin: 0,
-                wordBreak: 'break-word',
-              }}
-            >
+            <p className="crosshook-help-text crosshook-host-tool-card__tool-id">
               Tool ID: <code>{tool.tool_id}</code>
             </p>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-              justifyContent: 'flex-end',
-            }}
-          >
+          <div className="crosshook-host-tool-card__chips">
             <span className="crosshook-status-chip crosshook-status-chip--muted">{categoryLabel}</span>
             <span className="crosshook-status-chip crosshook-status-chip--muted">
               {tool.is_required ? 'Required' : 'Optional'}
@@ -252,40 +190,20 @@ export function HostToolCard({
         </div>
 
         {(toolVersion.length > 0 || resolvedPath.length > 0) && (
-          <dl
-            style={{
-              display: 'grid',
-              gap: 8,
-              margin: 0,
-            }}
-          >
+          <dl className="crosshook-host-tool-card__meta-list">
             {toolVersion.length > 0 ? (
-              <div
-                style={{
-                  display: 'grid',
-                  gap: 4,
-                }}
-              >
-                <dt className="crosshook-help-text" style={{ margin: 0, fontWeight: 600 }}>
-                  Version
-                </dt>
-                <dd style={{ margin: 0 }}>
+              <div className="crosshook-host-tool-card__meta-item">
+                <dt className="crosshook-help-text crosshook-host-tool-card__meta-term">Version</dt>
+                <dd className="crosshook-host-tool-card__meta-desc">
                   <code>{toolVersion}</code>
                 </dd>
               </div>
             ) : null}
 
             {resolvedPath.length > 0 ? (
-              <div
-                style={{
-                  display: 'grid',
-                  gap: 4,
-                }}
-              >
-                <dt className="crosshook-help-text" style={{ margin: 0, fontWeight: 600 }}>
-                  Resolved path
-                </dt>
-                <dd style={{ margin: 0, wordBreak: 'break-all' }}>
+              <div className="crosshook-host-tool-card__meta-item">
+                <dt className="crosshook-help-text crosshook-host-tool-card__meta-term">Resolved path</dt>
+                <dd className="crosshook-host-tool-card__meta-desc crosshook-host-tool-card__meta-desc--break-all">
                   <code>{resolvedPath}</code>
                 </dd>
               </div>
@@ -294,13 +212,7 @@ export function HostToolCard({
         )}
       </header>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="crosshook-host-tool-card__actions">
         <button
           type="button"
           className="crosshook-button crosshook-button--secondary crosshook-button--small"
@@ -327,39 +239,19 @@ export function HostToolCard({
       </div>
 
       {guidanceOpen ? (
-        <section
-          aria-label={`${tool.display_name} guidance`}
-          style={{
-            display: 'grid',
-            gap: 10,
-            padding: 12,
-            borderRadius: 12,
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-          }}
-        >
+        <section aria-label={`${tool.display_name} guidance`} className="crosshook-host-tool-card__section">
           {installCommand.length > 0 ? (
-            <div style={{ display: 'grid', gap: 4 }}>
-              <div className="crosshook-help-text" style={{ fontWeight: 600 }}>
+            <div className="crosshook-host-tool-card__section-row">
+              <div className="crosshook-help-text crosshook-host-tool-card__section-label">
                 {distroFamily.length > 0 ? `${distroFamily} install command` : 'Install command'}
               </div>
-              <code style={{ wordBreak: 'break-all' }}>{installCommand}</code>
+              <code className="crosshook-host-tool-card__section-code">{installCommand}</code>
             </div>
           ) : null}
 
-          {alternativeGuidance.length > 0 ? (
-            <p className="crosshook-help-text" style={{ margin: 0 }}>
-              {alternativeGuidance}
-            </p>
-          ) : null}
+          {alternativeGuidance.length > 0 ? <p className="crosshook-help-text">{alternativeGuidance}</p> : null}
 
-          <div
-            style={{
-              display: 'flex',
-              gap: 8,
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className="crosshook-host-tool-card__section-actions">
             {installCommand.length > 0 ? (
               <button
                 type="button"
@@ -399,35 +291,21 @@ export function HostToolCard({
       ) : null}
 
       {detailsOpen ? (
-        <section
-          aria-label={`${tool.display_name} details`}
-          style={{
-            display: 'grid',
-            gap: 10,
-            padding: 12,
-            borderRadius: 12,
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-          }}
-        >
+        <section aria-label={`${tool.display_name} details`} className="crosshook-host-tool-card__section">
           {detailValuesAvailable ? (
             <>
               {toolVersion.length > 0 ? (
-                <div style={{ display: 'grid', gap: 4 }}>
-                  <div className="crosshook-help-text" style={{ fontWeight: 600 }}>
-                    Detected version
-                  </div>
+                <div className="crosshook-host-tool-card__section-row">
+                  <div className="crosshook-help-text crosshook-host-tool-card__section-label">Detected version</div>
                   <code>{toolVersion}</code>
                 </div>
               ) : null}
 
               {resolvedPath.length > 0 ? (
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <div style={{ display: 'grid', gap: 4 }}>
-                    <div className="crosshook-help-text" style={{ fontWeight: 600 }}>
-                      Detected path
-                    </div>
-                    <code style={{ wordBreak: 'break-all' }}>{resolvedPath}</code>
+                <div className="crosshook-host-tool-card__section-path">
+                  <div className="crosshook-host-tool-card__section-row">
+                    <div className="crosshook-help-text crosshook-host-tool-card__section-label">Detected path</div>
+                    <code className="crosshook-host-tool-card__section-code">{resolvedPath}</code>
                   </div>
                   <div>
                     <button
@@ -447,7 +325,7 @@ export function HostToolCard({
               ) : null}
             </>
           ) : (
-            <p className="crosshook-help-text" style={{ margin: 0 }}>
+            <p className="crosshook-help-text">
               {isProbingDetails
                 ? 'Probing the host tool for version and path details…'
                 : 'No version or path details have been captured yet.'}

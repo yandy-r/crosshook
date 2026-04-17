@@ -541,3 +541,135 @@
     padding: var(--crosshook-panel-padding);
   }
 }
+
+/* ==========================================================================
+ * Host Tool Card
+ *
+ * Individual tool card rendered inside the inventory grid. Extends
+ * .crosshook-panel with card-specific layout; uses BEM blocks so visual
+ * structure lives here rather than as inline style props.
+ * ========================================================================== */
+
+.crosshook-host-tool-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--crosshook-color-border-strong);
+}
+
+/* ---------- Header ------------------------------------------------------- */
+
+.crosshook-host-tool-card__header {
+  display: grid;
+  gap: 10px;
+}
+
+.crosshook-host-tool-card__header-row {
+  display: grid;
+  gap: 10px;
+}
+
+.crosshook-host-tool-card__title-group {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.crosshook-host-tool-card__title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.crosshook-host-tool-card__state-icon {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.crosshook-host-tool-card__title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.crosshook-host-tool-card__tool-id {
+  word-break: break-word;
+}
+
+.crosshook-host-tool-card__chips {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+/* ---------- Meta list (version / resolved-path in header) --------------- */
+
+.crosshook-host-tool-card__meta-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.crosshook-host-tool-card__meta-item {
+  display: grid;
+  gap: 4px;
+}
+
+.crosshook-host-tool-card__meta-term {
+  font-weight: 600;
+}
+
+.crosshook-host-tool-card__meta-desc {
+  margin: 0;
+}
+
+.crosshook-host-tool-card__meta-desc--break-all {
+  word-break: break-all;
+}
+
+/* ---------- Primary action row ------------------------------------------ */
+
+.crosshook-host-tool-card__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Expandable sections (guidance / details) -------------------- */
+
+.crosshook-host-tool-card__section {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.crosshook-host-tool-card__section-row {
+  display: grid;
+  gap: 4px;
+}
+
+.crosshook-host-tool-card__section-label {
+  font-weight: 600;
+}
+
+.crosshook-host-tool-card__section-code {
+  word-break: break-all;
+}
+
+.crosshook-host-tool-card__section-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.crosshook-host-tool-card__section-path {
+  display: grid;
+  gap: 8px;
+}

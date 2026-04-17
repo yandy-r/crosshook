@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from 'react';
+import { useHostReadinessContext } from '../context/HostReadinessContext';
 import type { CapabilityState, HostToolCheckResult, HostToolInstallCommand } from '../types/onboarding';
 import { getFirstCapabilityDocsUrl } from '../utils/capabilityDocs';
 import { copyToClipboard } from '../utils/clipboard';
-import { useHostReadiness } from './useHostReadiness';
 
 const EMPTY_MISSING_REQUIRED: HostToolCheckResult[] = [];
 
@@ -18,7 +18,7 @@ export interface CapabilityGate {
 }
 
 export function useCapabilityGate(capabilityId: string): CapabilityGate {
-  const { capabilities } = useHostReadiness();
+  const { capabilities } = useHostReadinessContext();
 
   const capability = useMemo(
     () => capabilities.find((entry) => entry.id === capabilityId),

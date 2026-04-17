@@ -15,6 +15,7 @@ import ControllerPrompts from './components/layout/ControllerPrompts';
 import Sidebar, { type AppRoute } from './components/layout/Sidebar';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { CollectionsProvider } from './context/CollectionsContext';
+import { HostReadinessProvider } from './context/HostReadinessContext';
 import { LaunchStateProvider } from './context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from './context/PreferencesContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
@@ -307,9 +308,11 @@ export function App() {
       )}
       <ProfileProvider>
         <ProfileHealthProvider>
-          <CollectionsProvider>
-            <AppShell controllerMode={gamepadNav.controllerMode} />
-          </CollectionsProvider>
+          <HostReadinessProvider>
+            <CollectionsProvider>
+              <AppShell controllerMode={gamepadNav.controllerMode} />
+            </CollectionsProvider>
+          </HostReadinessProvider>
         </ProfileHealthProvider>
       </ProfileProvider>
     </main>

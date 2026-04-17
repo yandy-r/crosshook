@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
-import { useHostReadiness } from '../../hooks/useHostReadiness';
+import { useHostReadinessContext } from '../../context/HostReadinessContext';
 import type { HostToolCheckResult } from '../../types/onboarding';
 import CapabilityTilesSection from '../host-readiness/CapabilityTilesSection';
 import HostDelegationBanner from '../host-readiness/HostDelegationBanner';
@@ -49,7 +49,7 @@ function matchesSearch(tool: HostToolCheckResult, normalizedQuery: string): bool
 
 export function HostToolsPage() {
   const { snapshot, capabilities, isStale, lastCheckedAt, isRefreshing, error, refresh, probeTool } =
-    useHostReadiness();
+    useHostReadinessContext();
 
   const [categoryFilter, setCategoryFilter] = useState<HostToolCategoryFilter>('all');
   const [availabilityFilter, setAvailabilityFilter] = useState<HostToolAvailabilityFilter>('all');
@@ -117,7 +117,10 @@ export function HostToolsPage() {
   };
 
   return (
-    <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--host-tools" aria-busy={isRefreshing}>
+    <div
+      className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--host-tools"
+      aria-busy={isRefreshing}
+    >
       <div className="crosshook-route-stack" data-crosshook-focus-zone="content">
         <div className="crosshook-route-stack__body--scroll">
           <RouteBanner route="host-tools" />
