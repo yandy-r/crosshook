@@ -391,6 +391,7 @@ pub async fn launch_game(
         watchdog_killed: Arc::clone(&watchdog_killed),
     };
 
+    // clone before app is moved into spawn_log_stream
     let watchdog_app_handle = app.clone();
     spawn_log_stream(
         app,
@@ -621,19 +622,22 @@ async fn try_register_gamemode_portal_for_launch(
     if !should_register_gamemode_portal(request, effective_method) {
         return None;
     }
-    if !gamemode_portal::portal_available().await {
-        tracing::info!(
-            "gamemode portal registration skipped: org.freedesktop.portal.GameMode not reachable"
-        );
-        return None;
-    }
-    match gamemode_portal::register_self_pid_with_portal().await {
-        Ok(guard) => {
+    // Use probe_and_register_via_portal so introspection and registration
+    // share a single zbus::Connection::session() — one socket connect +
+    // SASL handshake + Hello exchange instead of two (F005).
+    match gamemode_portal::probe_and_register_via_portal().await {
+        Ok(Some(guard)) => {
             tracing::info!(
                 registered_pid = guard.registered_pid(),
                 "gamemode portal registration: backend=Portal"
             );
             Some(guard)
+        }
+        Ok(None) => {
+            tracing::info!(
+                "gamemode portal registration skipped: org.freedesktop.portal.GameMode not reachable"
+            );
+            None
         }
         Err(error) => {
             tracing::warn!(%error, "gamemode portal: RegisterGame failed; falling back to host gamemoderun wrapper only");

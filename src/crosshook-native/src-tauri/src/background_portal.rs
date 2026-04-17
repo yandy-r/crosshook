@@ -61,6 +61,13 @@ struct BackgroundGrantState {
     initialized: bool,
 }
 
+// `BackgroundGrantHolder` is registered via `tauri::Builder::manage()`, which
+// requires `Send + Sync`. This assertion fires at compile time so that a future
+// zbus release narrowing `zbus::Connection: Send + Sync` (guaranteed since
+// zbus >= 5) surfaces here rather than as an opaque error at the `.manage()`
+// call site.
+static_assertions::assert_impl_all!(BackgroundGrantHolder: Send, Sync);
+
 impl BackgroundGrantHolder {
     /// Creates a holder with the initial state determined by whether we are
     /// running under Flatpak.
@@ -109,6 +116,17 @@ impl BackgroundGrantHolder {
             Err(BackgroundError::NotSandboxed) => (BackgroundProtectionState::NotApplicable, None),
             Err(BackgroundError::PortalDenied) => (BackgroundProtectionState::Degraded, None),
             Err(BackgroundError::DBusProtocol(_)) => (BackgroundProtectionState::Unavailable, None),
+            Err(BackgroundError::AlreadyRequested) => {
+                // Violated the one-call-per-process contract; the prior grant
+                // (if any) remains valid but we cannot update the holder state
+                // here. Treat as Unavailable so the capability surface is
+                // conservative rather than silently stale.
+                tracing::warn!(
+                    "store_result called after RequestBackground already succeeded \
+                     or is in-flight; this is a programming error"
+                );
+                (BackgroundProtectionState::Unavailable, None)
+            }
         };
         {
             let mut state = self
@@ -170,9 +188,12 @@ impl BackgroundGrantHolder {
         if self.is_initialized() {
             return self.protection_state();
         }
-        // Subscribe before the final check to avoid missing a notification
-        // that fires between the check and the await.
-        let notified = self.ready.notified();
+        // Pin and enable the Notified future *before* the double-check so that
+        // any `notify_waiters` call that fires between enable() and the await
+        // is captured. Without enable(), a notification fired after creation
+        // but before the future is first polled would be silently dropped.
+        let mut notified = std::pin::pin!(self.ready.notified());
+        notified.as_mut().enable();
         if self.is_initialized() {
             return self.protection_state();
         }
@@ -187,12 +208,33 @@ impl Default for BackgroundGrantHolder {
     }
 }
 
+#[cfg(test)]
+impl BackgroundGrantHolder {
+    /// Test-only constructor that forces the initial state to
+    /// [`BackgroundProtectionState::Pending`] regardless of whether the
+    /// current process is actually running under Flatpak.
+    ///
+    /// Use this to exercise the `Pending → notify_waiters → <resolved>`
+    /// code path in unit tests without requiring a real Flatpak sandbox.
+    pub(crate) fn new_pending() -> Self {
+        Self {
+            inner: Mutex::new(BackgroundGrantState {
+                protection: BackgroundProtectionState::Pending,
+                grant: None,
+                initialized: false,
+            }),
+            ready: Arc::new(Notify::new()),
+        }
+    }
+}
+
 /// Tauri command: report the current background-protection state so the
 /// host-tool dashboard can surface it as a capability row.
 ///
 /// Returns [`BackgroundProtectionState::Pending`] transiently at startup
 /// under Flatpak while the one-time `request_background` call is in flight;
 /// the frontend should treat Pending as an indeterminate state and refresh.
+// TODO(frontend): wire get_background_protection_state — Rust side is complete; no TypeScript consumer yet. See ADR-0002 § Capability integration, which marks this UI integration as deferred.
 #[tauri::command]
 pub fn get_background_protection_state(
     holder: tauri::State<'_, BackgroundGrantHolder>,
@@ -306,5 +348,55 @@ mod tests {
                 BackgroundProtectionState::NotApplicable | BackgroundProtectionState::Degraded
             ));
         });
+    }
+
+    /// Exercises the full `Pending → store_result(PortalDenied) → Degraded`
+    /// cycle using the test-only `new_pending()` constructor.  A waiter is
+    /// registered before `store_result` fires to cover the F004 race window
+    /// where `wait_for_initialization` has subscribed to `Notify` but
+    /// `store_result` has not yet called `notify_waiters`.
+    #[test]
+    fn pending_holder_transitions_to_degraded_after_portal_denied() {
+        let holder = Arc::new(BackgroundGrantHolder::new_pending());
+        assert_eq!(
+            holder.protection_state(),
+            BackgroundProtectionState::Pending,
+            "new_pending() must start in Pending state"
+        );
+
+        // Keep a clone to inspect state after block_on consumes the other refs.
+        let holder_check = Arc::clone(&holder);
+        let holder_waiter = Arc::clone(&holder);
+        let rt = current_thread_runtime();
+        rt.block_on(async move {
+            // Spawn the waiter *before* store_result so it races through the
+            // enable() → double-check path in wait_for_initialization.
+            let waiter_handle = tokio::spawn(async move {
+                holder_waiter
+                    .wait_for_initialization(Duration::from_millis(500))
+                    .await
+            });
+
+            // Give the spawned task time to reach the Notified::enable() call
+            // so the notification fired by store_result is captured.
+            tokio::time::sleep(Duration::from_millis(50)).await;
+
+            holder.store_result(Err(BackgroundError::PortalDenied));
+
+            let state = waiter_handle.await.expect("waiter task must not panic");
+            assert_eq!(
+                state,
+                BackgroundProtectionState::Degraded,
+                "Pending holder must resolve to Degraded after PortalDenied"
+            );
+        });
+
+        // Also verify the holder's persisted state after the full cycle.
+        assert_eq!(
+            holder_check.protection_state(),
+            BackgroundProtectionState::Degraded
+        );
+        assert!(holder_check.is_initialized());
+        assert!(!holder_check.has_active_grant());
     }
 }

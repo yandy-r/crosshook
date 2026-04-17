@@ -11,9 +11,10 @@
 //!   to keep CrossHook running (and its `gamescope_watchdog` alive) while
 //!   the window is minimized during long game sessions.
 //!
-//! Both modules expose pure decision helpers that are testable without a
-//! live D-Bus connection; the D-Bus side lives behind a trait seam so
-//! `#[cfg(test)]` fakes can be injected.
+//! Pure decision helpers (`resolve_backend`, `background_supported`) are
+//! unit-testable; the D-Bus entry points (`portal_available`,
+//! `request_background`) are guarded by `is_flatpak()` and documented as
+//! requiring a live session bus.
 
 pub mod background;
 pub mod gamemode;

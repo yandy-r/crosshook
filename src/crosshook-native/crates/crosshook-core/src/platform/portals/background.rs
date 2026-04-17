@@ -14,7 +14,10 @@
 
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::time::Duration;
 
+use futures_util::StreamExt as _;
 use zvariant::OwnedObjectPath;
 use zvariant::OwnedValue;
 use zvariant::Value;
@@ -27,6 +30,33 @@ const PORTAL_DESKTOP_BUS: &str = "org.freedesktop.portal.Desktop";
 const PORTAL_DESKTOP_PATH: &str = "/org/freedesktop/portal/desktop";
 /// Background portal interface name.
 const PORTAL_BACKGROUND_INTERFACE: &str = "org.freedesktop.portal.Background";
+/// D-Bus interface name for an in-flight portal request handle.
+const PORTAL_REQUEST_INTERFACE: &str = "org.freedesktop.portal.Request";
+
+/// How long to wait for the `Response` signal before treating the request as
+/// denied. 60 s matches typical portal timeout documentation; the user dialog
+/// is modal so a minute is generous.
+const PORTAL_RESPONSE_TIMEOUT: Duration = Duration::from_secs(60);
+
+// ---------------------------------------------------------------------------
+// One-call-per-process debounce (ADR-0002 § Background portal contract)
+// ---------------------------------------------------------------------------
+//
+// State machine for REQUEST_STATE:
+//
+//   IDLE ──(attempt)──► IN_FLIGHT ──(success)──► SUCCEEDED
+//                            │
+//                            └──(failure)──► IDLE    (one retry allowed)
+//
+// A second call after SUCCEEDED returns `BackgroundError::AlreadyRequested`.
+// A failure leaves the state IDLE so the caller (or the one retry the ADR
+// permits) can try again. Concurrent calls are sequenced by the compare-exchange:
+// only one reaches IN_FLIGHT; the other sees IN_FLIGHT and is rejected.
+const STATE_IDLE: u8 = 0;
+const STATE_IN_FLIGHT: u8 = 1;
+const STATE_SUCCEEDED: u8 = 2;
+
+static REQUEST_STATE: AtomicU8 = AtomicU8::new(STATE_IDLE);
 
 /// Returns `true` iff CrossHook is running under Flatpak and should attempt
 /// a Background portal request. On native builds this is `false` and
@@ -43,11 +73,28 @@ pub fn background_supported() -> bool {
 /// Shell's "Background Apps" list).
 /// `autostart` is passed through — CrossHook always passes `false`.
 ///
+/// Awaits the `Response` signal on the returned `org.freedesktop.portal.Request`
+/// object path before returning, so the caller receives a confirmed grant (or
+/// a concrete denial) rather than an optimistic object path.
+///
+/// # One-call-per-process contract
+///
+/// This function **must be called at most once per successful grant** per
+/// process lifetime (ADR-0002 § Background portal contract). A second call
+/// after a successful grant returns [`BackgroundError::AlreadyRequested`].
+/// A failed attempt leaves the guard idle so a single retry is permitted,
+/// matching the ADR's "retried at most once after initial failure" note.
+/// Concurrent calls are serialised by an atomic guard: only one proceeds to
+/// IN_FLIGHT; the other is rejected with [`BackgroundError::AlreadyRequested`].
+///
 /// # Errors
 ///
 /// - [`BackgroundError::NotSandboxed`] — native build; caller should skip.
+/// - [`BackgroundError::AlreadyRequested`] — a successful grant already exists
+///   for this process, or another call is already in-flight.
 /// - [`BackgroundError::PortalDenied`] — portal returned a non-success
-///   response (user declined, policy denied, etc.). Caller should degrade
+///   response (user declined, policy denied, etc.), or the `Response` signal
+///   did not arrive within [`PORTAL_RESPONSE_TIMEOUT`]. Caller should degrade
 ///   gracefully (capability becomes `Degraded`; watchdog still runs).
 /// - [`BackgroundError::DBusProtocol`] — transport-level failure.
 pub async fn request_background(
@@ -58,6 +105,48 @@ pub async fn request_background(
         return Err(BackgroundError::NotSandboxed);
     }
 
+    // Enforce the one-call-per-successful-grant contract. See the state
+    // machine in the module-level comment above REQUEST_STATE.
+    if REQUEST_STATE
+        .compare_exchange(
+            STATE_IDLE,
+            STATE_IN_FLIGHT,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        )
+        .is_err()
+    {
+        // State is either IN_FLIGHT (concurrent call) or SUCCEEDED (grant
+        // already confirmed). Both cases are rejected.
+        return Err(BackgroundError::AlreadyRequested);
+    }
+
+    // Run the actual D-Bus exchange in an inner block so we can uniformly
+    // reset the state to IDLE on any failure path (the `?` operator would
+    // otherwise short-circuit past the state reset).
+    let result = request_background_inner(reason, autostart).await;
+
+    match &result {
+        Ok(_) => {
+            REQUEST_STATE.store(STATE_SUCCEEDED, Ordering::Release);
+        }
+        Err(_) => {
+            // Reset to IDLE so the caller can retry once, matching the ADR's
+            // "retried at most once after initial failure" note.
+            REQUEST_STATE.store(STATE_IDLE, Ordering::Release);
+        }
+    }
+
+    result
+}
+
+/// Inner implementation of `request_background`. Called only when the debounce
+/// gate has transitioned state to IN_FLIGHT. Uses `?` freely; the caller
+/// resets state on error.
+async fn request_background_inner(
+    reason: &str,
+    autostart: bool,
+) -> Result<BackgroundGrant, BackgroundError> {
     let connection = zbus::Connection::session().await?;
     let proxy = zbus::Proxy::new(
         &connection,
@@ -77,13 +166,46 @@ pub async fn request_background(
     // Do not pass a commandline — the portal infers CrossHook's from its
     // .desktop entry. Do not request dbus-activatable (false default).
 
+    // Obtain the Request object path first; then subscribe to its Response
+    // signal. Per the xdg-desktop-portal spec the portal holds the Response
+    // until a consumer exists, so subscribing immediately after the method
+    // call is safe for all portal implementations CrossHook targets.
     let request_path: OwnedObjectPath = proxy.call("RequestBackground", &("", &options)).await?;
+
+    tracing::debug!(
+        reason,
+        autostart,
+        request_path = %request_path.as_str(),
+        "background portal: RequestBackground submitted; awaiting Response signal"
+    );
+
+    // Subscribe to the Response signal on the returned Request handle.
+    let req_proxy = zbus::Proxy::new(
+        &connection,
+        PORTAL_DESKTOP_BUS,
+        request_path.as_str(),
+        PORTAL_REQUEST_INTERFACE,
+    )
+    .await?;
+    let mut stream = req_proxy.receive_signal("Response").await?;
+
+    // Await the Response signal with a bounded timeout.
+    // On timeout we treat the request as denied — the user dismissed the
+    // dialog without answering, or the portal is unresponsive.
+    let msg = tokio::time::timeout(PORTAL_RESPONSE_TIMEOUT, stream.next())
+        .await
+        // timeout elapsed → treat as denied
+        .map_err(|_| BackgroundError::PortalDenied)?
+        // stream closed without a message → portal gone
+        .ok_or(BackgroundError::PortalDenied)?;
+
+    let (code, results): (u32, HashMap<String, OwnedValue>) = msg.body().deserialize()?;
+    parse_response_payload(code, &results)?;
 
     tracing::info!(
         reason,
         autostart,
-        request_path = %request_path.as_str(),
-        "background portal: RequestBackground accepted; watchdog protection active"
+        "background portal: grant confirmed; watchdog protection active"
     );
 
     Ok(BackgroundGrant {
@@ -144,8 +266,13 @@ impl Drop for BackgroundGrant {
 pub enum BackgroundError {
     /// The process is not running under Flatpak. Caller should skip.
     NotSandboxed,
+    /// `request_background` was called after a successful grant already exists
+    /// for this process lifetime. The Background portal contract (ADR-0002)
+    /// allows at most one successful request per process.
+    AlreadyRequested,
     /// The portal returned a "denied" response (user declined or policy
-    /// blocks background apps).
+    /// blocks background apps), or the `Response` signal did not arrive
+    /// within the timeout.
     PortalDenied,
     /// Transport-level D-Bus failure.
     DBusProtocol(zbus::Error),
@@ -157,6 +284,10 @@ impl fmt::Display for BackgroundError {
             Self::NotSandboxed => {
                 f.write_str("not running under Flatpak; RequestBackground is a no-op")
             }
+            Self::AlreadyRequested => f.write_str(
+                "RequestBackground already succeeded for this process; \
+                 must not be called again",
+            ),
             Self::PortalDenied => f.write_str("xdg-desktop-portal denied the background request"),
             Self::DBusProtocol(inner) => write!(f, "D-Bus transport error: {inner}"),
         }
@@ -287,5 +418,8 @@ mod tests {
             .to_string()
             .contains("not running under Flatpak"));
         assert!(BackgroundError::PortalDenied.to_string().contains("denied"));
+        assert!(BackgroundError::AlreadyRequested
+            .to_string()
+            .contains("already succeeded"));
     }
 }

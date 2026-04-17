@@ -181,6 +181,8 @@ pub enum BackgroundError {
 }
 ```
 
+> **Note:** The implementation uses hand-written `fmt::Display` + `std::error::Error` impls to avoid the `thiserror` dependency; the `#[derive(thiserror::Error)]` form above is illustrative only.
+
 ### Lifecycle
 
 1. **Startup.** The Tauri `.setup(...)` closure in `src-tauri/src/lib.rs` spawns one task on `tauri::async_runtime::spawn` that calls `request_background("keep CrossHook running during launches", /*autostart=*/false)` and hands the result to `BackgroundGrantHolder::store_result`. If `background_supported()` returns `false` the call short-circuits and no D-Bus traffic occurs.
@@ -217,6 +219,8 @@ A new synthetic capability `background_protection` joins the existing host-tool 
 | Flatpak + portal unreachable (`zbus::Error`) | `Unavailable`     | "xdg-desktop-portal is not reachable; watchdog protection disabled."              |
 
 This integrates cleanly with `crosshook-core/src/onboarding/capability.rs::check_generalized_readiness` — it's derived state, not a persisted column, so **no SQLite schema change is required** (schema v21 unchanged).
+
+> **UI integration deferred.** The `get_background_protection_state` Tauri command is registered and present in `.invoke_handler`, but no TypeScript consumer currently calls it. A `// TODO(frontend)` comment is in place at the command site in `src-tauri/src/background_portal.rs`. Wiring the dashboard row is tracked as a follow-up frontend task.
 
 ### Error handling
 

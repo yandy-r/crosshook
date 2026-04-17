@@ -54,19 +54,19 @@ impl fmt::Display for GameModeBackend {
 ///
 /// The truth table (ADR-0002):
 ///
-/// | `is_flatpak` | `portal_available` | `host_gamemoderun_available` | Result            |
-/// | ------------ | ------------------ | ---------------------------- | ----------------- |
-/// | false        | _                  | true                         | `HostGamemodeRun` |
-/// | false        | _                  | false                        | `Unavailable`     |
-/// | true         | true               | _                            | `Portal`          |
-/// | true         | false              | true                         | `HostGamemodeRun` |
-/// | true         | false              | false                        | `Unavailable`     |
+/// | `is_in_flatpak` | `portal_is_available` | `host_gamemoderun_available` | Result            |
+/// | --------------- | --------------------- | ---------------------------- | ----------------- |
+/// | false           | _                     | true                         | `HostGamemodeRun` |
+/// | false           | _                     | false                        | `Unavailable`     |
+/// | true            | true                  | _                            | `Portal`          |
+/// | true            | false                 | true                         | `HostGamemodeRun` |
+/// | true            | false                 | false                        | `Unavailable`     |
 pub fn resolve_backend(
-    is_flatpak: bool,
-    portal_available: bool,
+    is_in_flatpak: bool,
+    portal_is_available: bool,
     host_gamemoderun_available: bool,
 ) -> GameModeBackend {
-    if is_flatpak && portal_available {
+    if is_in_flatpak && portal_is_available {
         return GameModeBackend::Portal;
     }
     if host_gamemoderun_available {
@@ -82,19 +82,30 @@ pub fn resolve_backend(
 /// Flatpak, connects to the session bus, queries the portal's introspection,
 /// and looks for the GameMode interface. All errors are swallowed into
 /// `false` — the caller falls back to `HostGamemodeRun` semantics.
+///
+/// Prefer [`probe_and_register_via_portal`] on the hot launch path; it
+/// reuses the same session-bus connection for both introspection and
+/// registration (one `Connection::session()` instead of two).
 pub async fn portal_available() -> bool {
     if !is_flatpak() {
         return false;
     }
-    probe_portal_via_introspection().await.unwrap_or(false)
+    async {
+        let connection = zbus::Connection::session().await?;
+        probe_portal_interface(&connection).await
+    }
+    .await
+    .unwrap_or(false)
 }
 
-/// Inner probe separated so unit tests can stub the D-Bus side via the
-/// trait seam in [`GameModePortal`]. Not exposed publicly.
-async fn probe_portal_via_introspection() -> Result<bool, GameModeError> {
-    let connection = zbus::Connection::session().await?;
-    // Introspect the portal object; look for the GameMode interface.
-    let proxy = zbus::fdo::IntrospectableProxy::builder(&connection)
+/// Introspects the portal object on `connection` and returns `true` if the
+/// `org.freedesktop.portal.GameMode` interface is advertised.
+///
+/// Separated from connection setup so both `portal_available` and
+/// `probe_and_register_via_portal` can reuse the same logic without
+/// duplicating the introspection XML parse.
+async fn probe_portal_interface(connection: &zbus::Connection) -> Result<bool, GameModeError> {
+    let proxy = zbus::fdo::IntrospectableProxy::builder(connection)
         .destination(PORTAL_DESKTOP_BUS)?
         .path(PORTAL_DESKTOP_PATH)?
         .build()
@@ -103,12 +114,75 @@ async fn probe_portal_via_introspection() -> Result<bool, GameModeError> {
     Ok(xml.contains(PORTAL_GAMEMODE_INTERFACE))
 }
 
+/// Probes the GameMode portal interface **and**, if available, registers
+/// CrossHook's own PID — all over a single `zbus::Connection::session()`.
+///
+/// This is the preferred entry point for the hot launch path: it avoids the
+/// double socket connect + SASL handshake + `Hello` exchange that would occur
+/// if `portal_available()` and `register_self_pid_with_portal()` were called
+/// separately.
+///
+/// Returns:
+/// - `Ok(None)` when the process is not running under Flatpak.
+/// - `Ok(None)` when the portal interface is not advertised (logged at
+///   `info!`; caller falls back to host `gamemoderun`).
+/// - `Ok(Some(guard))` on successful registration.
+/// - `Err(_)` on D-Bus transport failure or a rejected `RegisterGame` call.
+pub async fn probe_and_register_via_portal() -> Result<Option<GameModeRegistration>, GameModeError>
+{
+    if !is_flatpak() {
+        return Ok(None);
+    }
+
+    let connection = zbus::Connection::session().await?;
+
+    // Introspect on the same connection — no second socket open.
+    let available = probe_portal_interface(&connection).await?;
+    tracing::debug!(available, "gamemode portal: introspection result");
+
+    if !available {
+        return Ok(None);
+    }
+
+    // Reuse the same connection for the registration call.
+    let proxy = zbus::Proxy::new(
+        &connection,
+        PORTAL_DESKTOP_BUS,
+        PORTAL_DESKTOP_PATH,
+        PORTAL_GAMEMODE_INTERFACE,
+    )
+    .await?;
+
+    let self_pid: u32 = std::process::id();
+
+    // RegisterGame(pid: u32) -> i32 (0 on success, non-zero on error per the
+    // portal interface definition). The portal handles sandbox→host PID
+    // translation internally.
+    let status: i32 = proxy.call("RegisterGame", &self_pid).await?;
+    if status != 0 {
+        return Err(GameModeError::RegistrationRejected(format!(
+            "RegisterGame returned non-zero status {status}"
+        )));
+    }
+
+    tracing::info!(
+        self_pid,
+        "gamemode portal: registered CrossHook self-PID via org.freedesktop.portal.GameMode"
+    );
+
+    Ok(Some(GameModeRegistration {
+        connection: Some(connection),
+        registered_pid: self_pid,
+    }))
+}
+
 /// Registers CrossHook's own PID with the GameMode portal.
 ///
-/// **Preconditions**: `resolve_backend(..)` returned `GameModeBackend::Portal`.
-/// Callers MUST pair the returned guard with the existing `gamemoderun`
-/// wrapper for host games — the portal registration is only for CrossHook's
-/// own sandbox PID, not for host game PIDs.
+/// **Preconditions**: `resolve_backend(..)` returned `GameModeBackend::Portal`
+/// AND the caller has already confirmed `portal_available()` returns `true`.
+/// On the hot launch path prefer [`probe_and_register_via_portal`] instead,
+/// which combines the introspection probe and registration into a single
+/// session-bus connection.
 ///
 /// The returned [`GameModeRegistration`] is RAII; dropping it unregisters
 /// the PID via the portal's `UnregisterGame` method.
