@@ -11,6 +11,7 @@ import {
   LaunchIcon,
   LibraryIcon,
   ProfilesIcon,
+  ProtonManagerIcon,
   SettingsIcon,
 } from '../icons/SidebarIcons';
 import { ROUTE_NAV_LABEL } from './routeMetadata';
@@ -25,7 +26,8 @@ export type AppRoute =
   | 'compatibility'
   | 'settings'
   | 'health'
-  | 'host-tools';
+  | 'host-tools'
+  | 'proton-manager';
 
 export interface SidebarProps {
   activeRoute: AppRoute;
@@ -64,6 +66,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       { route: 'health', label: ROUTE_NAV_LABEL.health, icon: HealthIcon },
       { route: 'host-tools', label: ROUTE_NAV_LABEL['host-tools'], icon: HostToolsIcon },
+      { route: 'proton-manager', label: ROUTE_NAV_LABEL['proton-manager'], icon: ProtonManagerIcon },
     ],
   },
   {

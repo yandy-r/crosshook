@@ -193,3 +193,24 @@ export function HostToolsArt() {
     </svg>
   );
 }
+
+export function ProtonManagerArt() {
+  return (
+    <svg {...SVG_DEFAULTS} aria-hidden="true">
+      {/* Download tray */}
+      <rect x="10" y="38" width="44" height="14" rx="3" opacity={0.35} />
+      {/* Download arrow shaft */}
+      <line x1="32" y1="8" x2="32" y2="36" strokeWidth={2} opacity={0.45} />
+      {/* Arrow head */}
+      <path d="M23 27 L32 38 L41 27" strokeWidth={2} opacity={0.45} />
+      {/* Progress bar track + filled */}
+      <rect x="14" y="44" width="36" height="3" rx="1.5" opacity={0.18} />
+      <rect x="14" y="44" width="22" height="3" rx="1.5" fill="currentColor" opacity={0.32} stroke="none" />
+      {/* Proton "P" hint — version chip */}
+      <rect x="12" y="14" width="12" height="10" rx="2" opacity={0.22} />
+      <path d="M15 17 h4 a2 2 0 0 1 0 4 h-4" opacity={0.4} strokeWidth={1.5} />
+      {/* Accent dot */}
+      <circle cx="50" cy="14" r="2" fill="currentColor" opacity={0.22} stroke="none" />
+    </svg>
+  );
+}

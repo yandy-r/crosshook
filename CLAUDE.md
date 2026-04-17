@@ -46,7 +46,9 @@ For storage changes, plans must also:
 
 Operational metadata lives in **`~/.local/share/crosshook/metadata.db`** (WAL, `0600`). Migrations: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`.
 
-- **Current schema version**: **21**
+- **Current schema version**: **23**
+- **Migration v22→v23**: evicts `proton_release_catalog` rows so additive DTO fields (e.g. `published_at`) repopulate on next fetch. No schema change.
+- **Tables added in v22**: `proton_release_catalog` (native Proton download manager catalog cache; migration also evicts legacy `protonup:catalog:*` entries from `external_cache_entries`)
 - **Tables added in v21**: `host_readiness_catalog`, `readiness_nag_dismissals`, `host_readiness_snapshots`
 
 Full table inventory, persistence classification, and `external_cache_entries` payload limits: [`AGENTS.md`](AGENTS.md) § _SQLite Metadata DB_.

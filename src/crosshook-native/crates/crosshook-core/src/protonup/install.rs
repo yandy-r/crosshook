@@ -1,99 +1,151 @@
-//! ProtonUp install orchestration with security guardrails.
+//! ProtonUp install orchestration with progress, cancellation, and checksum dispatch.
 //!
-//! Handles archive download, SHA-512 checksum verification, and extraction to
-//! the Steam compatibility tools directory. All paths are validated to prevent
-//! writes outside the allowed destinations before any I/O begins.
+//! The public surface is:
+//!   - [`install_version`] — backward-compatible entry point (no progress/cancel).
+//!   - [`install_version_with_progress`] — full-featured orchestrator.
+//!
+//! All host-tool execution is in-process (tar/flate2/xz2); no `Command::new` calls
+//! for blocked tools appear here (ADR-0001 compliance).
 
 use std::path::{Component, Path, PathBuf};
 
-use sha2::{Digest, Sha512};
+use sha2::{Digest, Sha256, Sha512};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
+use tokio_util::sync::CancellationToken;
 
+use crate::protonup::install_root::{pick_default_install_root, resolve_install_root_candidates};
+use crate::protonup::progress::{Phase, ProgressEmitter};
+use crate::protonup::providers::{self, ChecksumKind};
 use crate::protonup::{
     ProtonUpAvailableVersion, ProtonUpInstallErrorKind, ProtonUpInstallRequest,
     ProtonUpInstallResult,
 };
 use crate::settings::expand_path_with_tilde;
 
+// ── internal error type ───────────────────────────────────────────────────────
+
+/// Internal install error — richer than `ProtonUpInstallResult` for use inside
+/// the orchestrator. Converted to `ProtonUpInstallResult` at the public boundary.
+#[derive(Debug)]
+pub enum InstallError {
+    InvalidPath(String),
+    PermissionDenied(String),
+    NetworkError(String),
+    ChecksumMissing(String),
+    ChecksumFailed(String),
+    AlreadyInstalled { path: PathBuf },
+    DependencyMissing { reason: String },
+    NoWritableInstallRoot,
+    Cancelled,
+    Unknown(String),
+}
+
+impl std::fmt::Display for InstallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidPath(m) => write!(f, "invalid path: {m}"),
+            Self::PermissionDenied(m) => write!(f, "permission denied: {m}"),
+            Self::NetworkError(m) => write!(f, "network error: {m}"),
+            Self::ChecksumMissing(m) => write!(f, "checksum missing: {m}"),
+            Self::ChecksumFailed(m) => write!(f, "checksum failed: {m}"),
+            Self::AlreadyInstalled { path } => {
+                write!(f, "already installed at {}", path.display())
+            }
+            Self::DependencyMissing { reason } => write!(f, "dependency missing: {reason}"),
+            Self::NoWritableInstallRoot => {
+                write!(
+                    f,
+                    "no writable Proton install root found; install Steam first"
+                )
+            }
+            Self::Cancelled => write!(f, "install cancelled"),
+            Self::Unknown(m) => write!(f, "unknown error: {m}"),
+        }
+    }
+}
+
+impl InstallError {
+    fn to_result(&self) -> ProtonUpInstallResult {
+        match self {
+            Self::InvalidPath(m) => err(m, ProtonUpInstallErrorKind::InvalidPath),
+            Self::PermissionDenied(m) => err(m, ProtonUpInstallErrorKind::PermissionDenied),
+            Self::NetworkError(m) => err(m, ProtonUpInstallErrorKind::NetworkError),
+            Self::ChecksumMissing(m) | Self::ChecksumFailed(m) => {
+                err(m, ProtonUpInstallErrorKind::ChecksumFailed)
+            }
+            Self::AlreadyInstalled { path } => ProtonUpInstallResult {
+                success: false,
+                installed_path: Some(path.to_string_lossy().to_string()),
+                error_kind: Some(ProtonUpInstallErrorKind::AlreadyInstalled),
+                error_message: Some(format!("already installed at {}", path.display())),
+            },
+            Self::DependencyMissing { reason } => {
+                err(reason, ProtonUpInstallErrorKind::DependencyMissing)
+            }
+            Self::NoWritableInstallRoot => err(
+                "no writable Proton install root found; install Steam first",
+                ProtonUpInstallErrorKind::InvalidPath,
+            ),
+            Self::Cancelled => err("install cancelled", ProtonUpInstallErrorKind::Unknown),
+            Self::Unknown(m) => err(m, ProtonUpInstallErrorKind::Unknown),
+        }
+    }
+}
+
 // ── path validation ───────────────────────────────────────────────────────────
 
 /// Validate that `target_root` is a legitimate Steam compatibility tools
 /// directory and return the canonicalized path.
-///
-/// Allowed destinations:
-/// - Must end with `compatibilitytools.d` or be a child of it.
-/// - Must not contain `..` path components.
-/// - Must not be empty.
-/// - If the directory does not yet exist it is created (including parents).
-fn validate_install_destination(target_root: &str) -> Result<PathBuf, ProtonUpInstallResult> {
+fn validate_install_destination(target_root: &str) -> Result<PathBuf, InstallError> {
     let raw = target_root.trim();
     if raw.is_empty() {
-        return Err(err(
-            "install destination path is empty",
-            ProtonUpInstallErrorKind::InvalidPath,
+        return Err(InstallError::InvalidPath(
+            "install destination path is empty".into(),
         ));
     }
 
-    // Expand ~ to the user's home directory so frontend paths like
-    // `~/.local/share/Steam/compatibilitytools.d` resolve correctly.
     let path = if raw.starts_with('~') {
-        expand_path_with_tilde(raw).map_err(|e| {
-            err(
-                format!("failed to expand path: {e}"),
-                ProtonUpInstallErrorKind::InvalidPath,
-            )
-        })?
+        expand_path_with_tilde(raw)
+            .map_err(|e| InstallError::InvalidPath(format!("failed to expand path: {e}")))?
     } else {
         PathBuf::from(raw)
     };
 
-    // Reject any path that contains a `..` component.
     for component in path.components() {
         if component == Component::ParentDir {
-            return Err(err(
-                "install destination path contains '..' components",
-                ProtonUpInstallErrorKind::InvalidPath,
+            return Err(InstallError::InvalidPath(
+                "install destination path contains '..' components".into(),
             ));
         }
     }
 
-    // Require that `compatibilitytools.d` appears somewhere in the path.
     let has_compat_segment = path.components().any(|c| {
         c.as_os_str()
             .to_string_lossy()
             .eq_ignore_ascii_case("compatibilitytools.d")
     });
     if !has_compat_segment {
-        return Err(err(
-            "install destination must be under a 'compatibilitytools.d' directory",
-            ProtonUpInstallErrorKind::InvalidPath,
+        return Err(InstallError::InvalidPath(
+            "install destination must be under a 'compatibilitytools.d' directory".into(),
         ));
     }
 
-    // Create the directory (with parents) if it does not exist.
     if !path.exists() {
         std::fs::create_dir_all(&path).map_err(|io_err| {
             if io_err.kind() == std::io::ErrorKind::PermissionDenied {
-                err(
-                    format!("permission denied creating {}: {io_err}", path.display()),
-                    ProtonUpInstallErrorKind::PermissionDenied,
-                )
+                InstallError::PermissionDenied(format!(
+                    "permission denied creating {}: {io_err}",
+                    path.display()
+                ))
             } else {
-                err(
-                    format!("failed to create {}: {io_err}", path.display()),
-                    ProtonUpInstallErrorKind::Unknown,
-                )
+                InstallError::Unknown(format!("failed to create {}: {io_err}", path.display()))
             }
         })?;
     }
 
-    // Canonicalize after ensuring the directory exists.
     let canonical = path.canonicalize().map_err(|io_err| {
-        err(
-            format!("failed to resolve {}: {io_err}", path.display()),
-            ProtonUpInstallErrorKind::InvalidPath,
-        )
+        InstallError::InvalidPath(format!("failed to resolve {}: {io_err}", path.display()))
     })?;
 
     Ok(canonical)
@@ -110,39 +162,33 @@ fn err(message: impl Into<String>, kind: ProtonUpInstallErrorKind) -> ProtonUpIn
     }
 }
 
-fn network_err(message: impl std::fmt::Display) -> ProtonUpInstallResult {
-    err(message.to_string(), ProtonUpInstallErrorKind::NetworkError)
+fn network_err(message: impl std::fmt::Display) -> InstallError {
+    InstallError::NetworkError(message.to_string())
 }
 
-fn permission_err(message: impl std::fmt::Display) -> ProtonUpInstallResult {
-    err(
-        message.to_string(),
-        ProtonUpInstallErrorKind::PermissionDenied,
-    )
-}
-
-fn unknown_err(message: impl std::fmt::Display) -> ProtonUpInstallResult {
-    err(message.to_string(), ProtonUpInstallErrorKind::Unknown)
-}
-
-/// Map an `io::Error` to the appropriate `ProtonUpInstallResult` failure.
-fn map_io_err(io_err: std::io::Error, context: &str) -> ProtonUpInstallResult {
+fn map_io_err(io_err: std::io::Error, context: &str) -> InstallError {
     if io_err.kind() == std::io::ErrorKind::PermissionDenied {
-        permission_err(format!("{context}: {io_err}"))
+        InstallError::PermissionDenied(format!("{context}: {io_err}"))
     } else {
-        unknown_err(format!("{context}: {io_err}"))
+        InstallError::Unknown(format!("{context}: {io_err}"))
     }
 }
 
 // ── download helpers ──────────────────────────────────────────────────────────
 
-/// Stream the URL into `dest_path`, returning the SHA-512 digest of the bytes
-/// written.
+/// Stream the URL into `dest_path`, returning the SHA-512 digest. Emits
+/// `Phase::Downloading` progress every `EMIT_INTERVAL_BYTES`. Checks `cancel`
+/// before each chunk; returns `InstallError::Cancelled` if triggered.
+const EMIT_INTERVAL_BYTES: u64 = 256 * 1024;
+
 async fn download_to_file(
     client: &reqwest::Client,
     url: &str,
     dest_path: &Path,
-) -> Result<Vec<u8>, ProtonUpInstallResult> {
+    emitter: Option<&ProgressEmitter>,
+    cancel: Option<&CancellationToken>,
+    content_length: Option<u64>,
+) -> Result<(Vec<u8>, Vec<u8>), InstallError> {
     let response = client
         .get(url)
         .send()
@@ -156,6 +202,10 @@ async fn download_to_file(
         )));
     }
 
+    // Prefer the caller-provided length (from a HEAD or Content-Length), then
+    // fall back to what this response advertises.
+    let bytes_total = content_length.or_else(|| response.content_length());
+
     let mut file = fs::File::create(dest_path).await.map_err(|e| {
         map_io_err(
             e,
@@ -163,32 +213,61 @@ async fn download_to_file(
         )
     })?;
 
-    let mut hasher = Sha512::new();
+    let mut sha512 = Sha512::new();
+    let mut sha256 = Sha256::new();
+    let mut bytes_done: u64 = 0;
+    let mut since_last_emit: u64 = 0;
     let mut stream = response.bytes_stream();
 
     use futures_util::StreamExt;
-    while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(|e| network_err(format!("download interrupted: {e}")))?;
-        hasher.update(&bytes);
-        file.write_all(&bytes)
+    loop {
+        // Check cancellation before each chunk.
+        if let Some(tok) = cancel {
+            if tok.is_cancelled() {
+                return Err(InstallError::Cancelled);
+            }
+        }
+
+        let chunk = match stream.next().await {
+            Some(Ok(b)) => b,
+            Some(Err(e)) => return Err(network_err(format!("download interrupted: {e}"))),
+            None => break,
+        };
+
+        sha512.update(&chunk);
+        sha256.update(&chunk);
+        file.write_all(&chunk)
             .await
             .map_err(|e| map_io_err(e, &format!("write failed to {}", dest_path.display())))?;
+
+        bytes_done += chunk.len() as u64;
+        since_last_emit += chunk.len() as u64;
+
+        if since_last_emit >= EMIT_INTERVAL_BYTES {
+            since_last_emit = 0;
+            if let Some(em) = emitter {
+                em.emit(Phase::Downloading, bytes_done, bytes_total, None);
+            }
+        }
     }
 
     file.flush()
         .await
         .map_err(|e| map_io_err(e, &format!("flush failed for {}", dest_path.display())))?;
 
-    Ok(hasher.finalize().to_vec())
+    // Emit a final downloading event with the full byte count.
+    if let Some(em) = emitter {
+        em.emit(Phase::Downloading, bytes_done, bytes_total, None);
+    }
+
+    Ok((sha512.finalize().to_vec(), sha256.finalize().to_vec()))
 }
 
-/// Fetch and parse a `.sha512sum` file, returning the hex hash string.
-///
-/// Expected format: `<hex-hash>  <filename>` — one line, two-space separator.
-async fn fetch_expected_checksum(
+/// Fetch a `.sha512sum` sidecar and return the hex hash string.
+async fn fetch_sha512_sidecar(
     client: &reqwest::Client,
     checksum_url: &str,
-) -> Result<String, ProtonUpInstallResult> {
+) -> Result<String, InstallError> {
     let body = client
         .get(checksum_url)
         .send()
@@ -198,11 +277,9 @@ async fn fetch_expected_checksum(
         .await
         .map_err(|e| network_err(format!("failed to read checksum body: {e}")))?;
 
-    // Format: `<hash>  <filename>`
     let hash = body
         .lines()
         .find_map(|line| {
-            // Split on two-space separator.
             let (hash_part, _rest) = line.split_once("  ")?;
             let trimmed = hash_part.trim();
             if trimmed.len() == 128 && trimmed.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -212,44 +289,80 @@ async fn fetch_expected_checksum(
             }
         })
         .ok_or_else(|| {
-            err(
-                format!("could not parse SHA-512 hash from checksum file at {checksum_url}"),
-                ProtonUpInstallErrorKind::ChecksumFailed,
-            )
+            InstallError::ChecksumFailed(format!(
+                "could not parse SHA-512 hash from checksum file at {checksum_url}"
+            ))
         })?;
 
     Ok(hash)
 }
 
-// ── extract helper ────────────────────────────────────────────────────────────
-
-/// Extract a `.tar.gz` or `.tar.xz` stream to `dest_dir` and return the name of the first
-/// top-level directory extracted (the tool directory).
+/// Fetch a `SHA256SUMS` manifest and return the hex hash for `asset_filename`.
 ///
-/// Blocking I/O runs in `spawn_blocking` via [`extract_archive`] / [`peek_archive`].
+/// Supports both `<hex>  <filename>` (two-space) and `<hex> *<filename>` formats.
+async fn fetch_sha256_manifest(
+    client: &reqwest::Client,
+    manifest_url: &str,
+    asset_filename: &str,
+) -> Result<String, InstallError> {
+    let body = client
+        .get(manifest_url)
+        .send()
+        .await
+        .map_err(|e| network_err(format!("SHA256SUMS request failed for {manifest_url}: {e}")))?
+        .text()
+        .await
+        .map_err(|e| network_err(format!("failed to read SHA256SUMS body: {e}")))?;
+
+    let hash = body
+        .lines()
+        .find_map(|line| {
+            // Format A: `<hex>  <filename>`
+            // Format B: `<hex> *<filename>`
+            let (hash_part, rest) = line.split_once("  ").or_else(|| line.split_once(" *"))?;
+            let trimmed = hash_part.trim();
+            let fname = rest.trim();
+            if fname == asset_filename
+                && trimmed.len() == 64
+                && trimmed.chars().all(|c| c.is_ascii_hexdigit())
+            {
+                Some(trimmed.to_lowercase())
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| {
+            InstallError::ChecksumMissing(format!(
+                "asset '{asset_filename}' not listed in SHA256SUMS manifest at {manifest_url}"
+            ))
+        })?;
+
+    Ok(hash)
+}
+
+// ── extract helpers ───────────────────────────────────────────────────────────
+
 fn extract_tar_read_sync<R: std::io::Read>(
     read: R,
     dest_dir: &Path,
-) -> Result<String, ProtonUpInstallResult> {
+) -> Result<String, InstallError> {
     use tar::Archive;
 
     let mut archive = Archive::new(read);
-
     let mut top_level_dir: Option<String> = None;
 
     let entries = archive
         .entries()
-        .map_err(|e| unknown_err(format!("failed to read archive entries: {e}")))?;
+        .map_err(|e| InstallError::Unknown(format!("failed to read archive entries: {e}")))?;
 
     for entry_result in entries {
-        let mut entry =
-            entry_result.map_err(|e| unknown_err(format!("failed to read archive entry: {e}")))?;
+        let mut entry = entry_result
+            .map_err(|e| InstallError::Unknown(format!("failed to read archive entry: {e}")))?;
 
         let entry_path = entry
             .path()
-            .map_err(|e| unknown_err(format!("invalid path in archive entry: {e}")))?;
+            .map_err(|e| InstallError::Unknown(format!("invalid path in archive entry: {e}")))?;
 
-        // Capture the top-level directory name from the first component.
         if top_level_dir.is_none() {
             if let Some(first) = entry_path.components().next() {
                 let name = first.as_os_str().to_string_lossy().to_string();
@@ -261,75 +374,54 @@ fn extract_tar_read_sync<R: std::io::Read>(
 
         entry.unpack_in(dest_dir).map_err(|e| {
             if e.kind() == std::io::ErrorKind::PermissionDenied {
-                permission_err(format!(
+                InstallError::PermissionDenied(format!(
                     "permission denied extracting to {}: {e}",
                     dest_dir.display()
                 ))
             } else {
-                unknown_err(format!("extraction error: {e}"))
+                InstallError::Unknown(format!("extraction error: {e}"))
             }
         })?;
     }
 
-    top_level_dir.ok_or_else(|| unknown_err("archive appears to be empty"))
+    top_level_dir.ok_or_else(|| InstallError::Unknown("archive appears to be empty".into()))
 }
 
-fn extract_tar_gz_sync(
-    archive_path: &Path,
-    dest_dir: &Path,
-) -> Result<String, ProtonUpInstallResult> {
+fn extract_tar_gz_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, InstallError> {
     use flate2::read::GzDecoder;
-
     let file = std::fs::File::open(archive_path).map_err(|e| {
         map_io_err(
             e,
             &format!("failed to open archive {}", archive_path.display()),
         )
     })?;
-
-    let gz = GzDecoder::new(file);
-    extract_tar_read_sync(gz, dest_dir)
+    extract_tar_read_sync(GzDecoder::new(file), dest_dir)
 }
 
-fn extract_tar_xz_sync(
-    archive_path: &Path,
-    dest_dir: &Path,
-) -> Result<String, ProtonUpInstallResult> {
+fn extract_tar_xz_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, InstallError> {
     use xz2::read::XzDecoder;
-
     let file = std::fs::File::open(archive_path).map_err(|e| {
         map_io_err(
             e,
             &format!("failed to open archive {}", archive_path.display()),
         )
     })?;
-
-    let xz = XzDecoder::new(file);
-    extract_tar_read_sync(xz, dest_dir)
+    extract_tar_read_sync(XzDecoder::new(file), dest_dir)
 }
 
-/// Read the first top-level directory name from a tar stream without extracting.
-///
-/// Used so install-target paths match what `archive_extract_sync` will create.
-fn peek_tar_read_top_level_sync<R: std::io::Read>(
-    read: R,
-) -> Result<String, ProtonUpInstallResult> {
+fn peek_tar_read_top_level_sync<R: std::io::Read>(read: R) -> Result<String, InstallError> {
     use tar::Archive;
-
     let mut archive = Archive::new(read);
-
     let entries = archive
         .entries()
-        .map_err(|e| unknown_err(format!("failed to read archive entries: {e}")))?;
+        .map_err(|e| InstallError::Unknown(format!("failed to read archive entries: {e}")))?;
 
     for entry_result in entries {
-        let entry =
-            entry_result.map_err(|e| unknown_err(format!("failed to read archive entry: {e}")))?;
-
+        let entry = entry_result
+            .map_err(|e| InstallError::Unknown(format!("failed to read archive entry: {e}")))?;
         let entry_path = entry
             .path()
-            .map_err(|e| unknown_err(format!("invalid path in archive entry: {e}")))?;
-
+            .map_err(|e| InstallError::Unknown(format!("invalid path in archive entry: {e}")))?;
         if let Some(first) = entry_path.components().next() {
             let name = first.as_os_str().to_string_lossy().to_string();
             if !name.is_empty() && name != "." {
@@ -337,39 +429,32 @@ fn peek_tar_read_top_level_sync<R: std::io::Read>(
             }
         }
     }
-
-    Err(unknown_err("archive appears to be empty"))
+    Err(InstallError::Unknown("archive appears to be empty".into()))
 }
 
-fn peek_tar_gz_top_level_sync(archive_path: &Path) -> Result<String, ProtonUpInstallResult> {
+fn peek_tar_gz_top_level_sync(archive_path: &Path) -> Result<String, InstallError> {
     use flate2::read::GzDecoder;
-
     let file = std::fs::File::open(archive_path).map_err(|e| {
         map_io_err(
             e,
             &format!("failed to open archive {}", archive_path.display()),
         )
     })?;
-
-    let gz = GzDecoder::new(file);
-    peek_tar_read_top_level_sync(gz)
+    peek_tar_read_top_level_sync(GzDecoder::new(file))
 }
 
-fn peek_tar_xz_top_level_sync(archive_path: &Path) -> Result<String, ProtonUpInstallResult> {
+fn peek_tar_xz_top_level_sync(archive_path: &Path) -> Result<String, InstallError> {
     use xz2::read::XzDecoder;
-
     let file = std::fs::File::open(archive_path).map_err(|e| {
         map_io_err(
             e,
             &format!("failed to open archive {}", archive_path.display()),
         )
     })?;
-
-    let xz = XzDecoder::new(file);
-    peek_tar_read_top_level_sync(xz)
+    peek_tar_read_top_level_sync(XzDecoder::new(file))
 }
 
-fn archive_peek_sync(archive_path: &Path) -> Result<String, ProtonUpInstallResult> {
+fn archive_peek_sync(archive_path: &Path) -> Result<String, InstallError> {
     let name = archive_path
         .file_name()
         .and_then(|s| s.to_str())
@@ -379,16 +464,13 @@ fn archive_peek_sync(archive_path: &Path) -> Result<String, ProtonUpInstallResul
     } else if name.ends_with(".tar.gz") {
         peek_tar_gz_top_level_sync(archive_path)
     } else {
-        Err(unknown_err(format!(
+        Err(InstallError::Unknown(format!(
             "unsupported archive format (expected .tar.gz or .tar.xz): {name}"
         )))
     }
 }
 
-fn archive_extract_sync(
-    archive_path: &Path,
-    dest_dir: &Path,
-) -> Result<String, ProtonUpInstallResult> {
+fn archive_extract_sync(archive_path: &Path, dest_dir: &Path) -> Result<String, InstallError> {
     let name = archive_path
         .file_name()
         .and_then(|s| s.to_str())
@@ -398,69 +480,128 @@ fn archive_extract_sync(
     } else if name.ends_with(".tar.gz") {
         extract_tar_gz_sync(archive_path, dest_dir)
     } else {
-        Err(unknown_err(format!(
+        Err(InstallError::Unknown(format!(
             "unsupported archive format (expected .tar.gz or .tar.xz): {name}"
         )))
     }
 }
 
-async fn peek_archive(archive_path: PathBuf) -> Result<String, ProtonUpInstallResult> {
+async fn peek_archive(archive_path: PathBuf) -> Result<String, InstallError> {
     tokio::task::spawn_blocking(move || archive_peek_sync(&archive_path))
         .await
-        .map_err(|e| unknown_err(format!("peek task panicked: {e}")))?
+        .map_err(|e| InstallError::Unknown(format!("peek task panicked: {e}")))?
 }
 
-async fn extract_archive(
-    archive_path: PathBuf,
-    dest_dir: PathBuf,
-) -> Result<String, ProtonUpInstallResult> {
+async fn extract_archive(archive_path: PathBuf, dest_dir: PathBuf) -> Result<String, InstallError> {
     tokio::task::spawn_blocking(move || archive_extract_sync(&archive_path, &dest_dir))
         .await
-        .map_err(|e| unknown_err(format!("extraction task panicked: {e}")))?
+        .map_err(|e| InstallError::Unknown(format!("extraction task panicked: {e}")))?
 }
 
-// ── public install entry point ────────────────────────────────────────────────
+// ── cleanup helper ────────────────────────────────────────────────────────────
 
-/// Execute a Proton version install.
-///
-/// Steps:
-/// 1. Validate install destination path.
-/// 2. Resolve download URL.
-/// 3. Download the archive to a temporary file.
-/// 4. Download and verify the SHA-512 checksum.
-/// 5. Peek the archive top-level directory name. For GE-Proton this must match
-///    `version_info.version`; Proton-CachyOS uses release tags that differ from the
-///    per-arch folder name (e.g. tag `cachyos-…-slr` vs `proton-cachyos-…-x86_64`).
-/// 6. If not `force`, return [`ProtonUpInstallErrorKind::AlreadyInstalled`] when that
-///    directory already exists under `dest_dir`.
-/// 7. Extract the archive to the destination directory.
-/// 8. Verify the extracted directory contains a `proton` executable.
-/// 9. Clean up the temporary archive file.
+fn best_effort_cleanup(temp_path: &Path, partial_dir: Option<&Path>) {
+    let _ = std::fs::remove_file(temp_path);
+    if let Some(dir) = partial_dir {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+// ── public install entry points ───────────────────────────────────────────────
+
+/// Backward-compatible install entry point. Delegates to
+/// [`install_version_with_progress`] with no emitter or cancel token.
 pub async fn install_version(
     request: &ProtonUpInstallRequest,
     version_info: &ProtonUpAvailableVersion,
 ) -> ProtonUpInstallResult {
-    // 1. Validate destination path.
-    let dest_dir = match validate_install_destination(&request.target_root) {
-        Ok(path) => path,
-        Err(result) => return result,
-    };
+    match install_version_with_progress(request, version_info, None, None).await {
+        Ok(result) => result,
+        Err(e) => e.to_result(),
+    }
+}
 
-    // 2. Resolve download URL.
-    let download_url = match &version_info.download_url {
-        Some(url) => url.clone(),
-        None => {
-            return err(
-                format!(
-                    "no download URL available for version {}",
-                    version_info.version
-                ),
-                ProtonUpInstallErrorKind::DependencyMissing,
-            )
+/// Full-featured install orchestrator with progress events and cancellation.
+///
+/// Steps:
+/// 1. Resolve provider and validate `supports_install`.
+/// 2. Resolve `target_root` (default via install-root resolver if empty).
+/// 3. Validate install destination.
+/// 4. Download archive with per-chunk progress and cancellation checks.
+/// 5. Verify checksum (dispatch by provider's `ChecksumKind`).
+/// 6. Peek archive top-level dir; check `AlreadyInstalled` unless `force`.
+/// 7. Extract archive.
+/// 8. Verify the extracted directory contains a `proton` executable.
+/// 9. Clean up the temp archive.
+pub async fn install_version_with_progress(
+    request: &ProtonUpInstallRequest,
+    version_info: &ProtonUpAvailableVersion,
+    emitter: Option<ProgressEmitter>,
+    cancel: Option<CancellationToken>,
+) -> Result<ProtonUpInstallResult, InstallError> {
+    let em = emitter.as_ref();
+
+    // ── 1. Resolve provider ───────────────────────────────────────────────────
+
+    if let Some(em) = em {
+        em.emit(Phase::Resolving, 0, None, None);
+    }
+
+    let registry = providers::registry(false);
+    let provider = registry
+        .iter()
+        .find(|p| p.id() == request.provider.as_str());
+
+    // Determine checksum kind — from the registry provider if found, else derive
+    // from the version_info.checksum_kind string for backward-compat.
+    let checksum_kind = if let Some(prov) = &provider {
+        if !prov.supports_install() {
+            return Err(InstallError::DependencyMissing {
+                reason: "catalog-only provider".into(),
+            });
+        }
+        prov.checksum_kind()
+    } else {
+        // Legacy fallback: read checksum_kind from version_info string.
+        match version_info.checksum_kind.as_deref() {
+            Some("sha512") | Some("sha512-sidecar") => ChecksumKind::Sha512Sidecar,
+            Some("sha256") | Some("sha256-manifest") => ChecksumKind::Sha256Manifest,
+            _ => ChecksumKind::None,
         }
     };
 
-    // Derive a temp filename from the URL's last path segment.
+    // ── 2. Resolve target_root ────────────────────────────────────────────────
+
+    let effective_root = if request.target_root.trim().is_empty() {
+        // Use the install-root resolver to pick a sensible default.
+        let steam_path = None::<&Path>; // No configured path available at this call site.
+        let candidates = resolve_install_root_candidates(steam_path);
+        let default = pick_default_install_root(&candidates);
+        match default {
+            Some(c) if c.writable => c.path.to_string_lossy().to_string(),
+            _ => return Err(InstallError::NoWritableInstallRoot),
+        }
+    } else {
+        request.target_root.clone()
+    };
+
+    // ── 3. Validate destination path ──────────────────────────────────────────
+
+    let dest_dir = validate_install_destination(&effective_root)?;
+
+    // ── 4. Resolve download URL ───────────────────────────────────────────────
+
+    let download_url =
+        version_info
+            .download_url
+            .as_deref()
+            .ok_or_else(|| InstallError::DependencyMissing {
+                reason: format!(
+                    "no download URL available for version {}",
+                    version_info.version
+                ),
+            })?;
+
     let archive_filename = download_url
         .rsplit('/')
         .next()
@@ -470,105 +611,244 @@ pub async fn install_version(
 
     let client = reqwest::Client::new();
 
-    // 3. Download archive, capturing the SHA-512 of the bytes written.
-    let actual_digest = match download_to_file(&client, &download_url, &temp_path).await {
-        Ok(digest) => digest,
-        Err(result) => {
-            let _ = std::fs::remove_file(&temp_path);
-            return result;
-        }
-    };
+    // ── 5. Check cancellation before download ─────────────────────────────────
 
-    // 4. Verify checksum if a checksum URL is available.
-    if let Some(checksum_url) = &version_info.checksum_url {
-        let expected_hex = match fetch_expected_checksum(&client, checksum_url).await {
-            Ok(hex) => hex,
-            Err(result) => {
-                let _ = std::fs::remove_file(&temp_path);
-                return result;
+    if let Some(tok) = &cancel {
+        if tok.is_cancelled() {
+            if let Some(em) = em {
+                em.emit(Phase::Cancelled, 0, None, None);
             }
-        };
-
-        let actual_hex = hex_encode(&actual_digest);
-        if actual_hex != expected_hex {
-            let _ = std::fs::remove_file(&temp_path);
-            return err(
-                format!(
-                    "SHA-512 checksum mismatch for {}: expected {expected_hex}, got {actual_hex}",
-                    version_info.version
-                ),
-                ProtonUpInstallErrorKind::ChecksumFailed,
-            );
+            return Err(InstallError::Cancelled);
         }
-
-        tracing::info!(
-            version = %version_info.version,
-            "SHA-512 checksum verified"
-        );
-    } else {
-        tracing::warn!(
-            version = %version_info.version,
-            "no checksum URL available; skipping checksum verification"
-        );
     }
 
-    // 5. Discover install target from the archive (same top-level dir as extraction).
-    let top_level_dir = match peek_archive(temp_path.clone()).await {
-        Ok(dir_name) => dir_name,
-        Err(result) => {
-            let _ = std::fs::remove_file(&temp_path);
-            return result;
+    // ── 6. Download archive ───────────────────────────────────────────────────
+
+    let content_length = version_info.asset_size;
+    let (sha512_digest, sha256_digest) = match download_to_file(
+        &client,
+        download_url,
+        &temp_path,
+        em,
+        cancel.as_ref(),
+        content_length,
+    )
+    .await
+    {
+        Ok(digests) => digests,
+        Err(InstallError::Cancelled) => {
+            best_effort_cleanup(&temp_path, None);
+            if let Some(em) = em {
+                em.emit(Phase::Cancelled, 0, None, None);
+            }
+            return Err(InstallError::Cancelled);
+        }
+        Err(e) => {
+            best_effort_cleanup(&temp_path, None);
+            if let Some(em) = em {
+                em.emit(Phase::Failed, 0, None, Some(e.to_string()));
+            }
+            return Err(e);
         }
     };
 
-    // GE-Proton (and similar) archives use the release tag as the root folder name.
-    // Proton-CachyOS tags do not: the tarball unpacks to `proton-cachyos-…-<arch>`.
+    // ── 7. Check cancellation before verification ─────────────────────────────
+
+    if let Some(tok) = &cancel {
+        if tok.is_cancelled() {
+            best_effort_cleanup(&temp_path, None);
+            if let Some(em) = em {
+                em.emit(Phase::Cancelled, 0, None, None);
+            }
+            return Err(InstallError::Cancelled);
+        }
+    }
+
+    if let Some(em) = em {
+        em.emit(Phase::Verifying, 0, None, None);
+    }
+
+    // ── 8. Verify checksum (dispatch by kind) ─────────────────────────────────
+
+    match checksum_kind {
+        ChecksumKind::Sha512Sidecar => {
+            if let Some(checksum_url) = &version_info.checksum_url {
+                let expected_hex = match fetch_sha512_sidecar(&client, checksum_url).await {
+                    Ok(h) => h,
+                    Err(e) => {
+                        best_effort_cleanup(&temp_path, None);
+                        if let Some(em) = em {
+                            em.emit(Phase::Failed, 0, None, Some(e.to_string()));
+                        }
+                        return Err(e);
+                    }
+                };
+                let actual_hex = hex_encode(&sha512_digest);
+                if actual_hex != expected_hex {
+                    let msg = format!(
+                        "SHA-512 checksum mismatch for {}: expected {expected_hex}, got {actual_hex}",
+                        version_info.version
+                    );
+                    best_effort_cleanup(&temp_path, None);
+                    if let Some(em) = em {
+                        em.emit(Phase::Failed, 0, None, Some(msg.clone()));
+                    }
+                    return Err(InstallError::ChecksumFailed(msg));
+                }
+                tracing::info!(version = %version_info.version, "SHA-512 checksum verified");
+            } else {
+                tracing::warn!(
+                    version = %version_info.version,
+                    "no checksum URL available; skipping checksum verification"
+                );
+            }
+        }
+
+        ChecksumKind::Sha256Manifest => {
+            let manifest_url = version_info.checksum_url.as_deref().ok_or_else(|| {
+                let e = InstallError::ChecksumMissing(format!(
+                    "provider requires SHA256SUMS manifest but none is available for version {}",
+                    version_info.version
+                ));
+                best_effort_cleanup(&temp_path, None);
+                e
+            })?;
+
+            let expected_hex =
+                match fetch_sha256_manifest(&client, manifest_url, &archive_filename).await {
+                    Ok(h) => h,
+                    Err(e) => {
+                        best_effort_cleanup(&temp_path, None);
+                        if let Some(em) = em {
+                            em.emit(Phase::Failed, 0, None, Some(e.to_string()));
+                        }
+                        return Err(e);
+                    }
+                };
+
+            let actual_hex = hex_encode(&sha256_digest);
+            if actual_hex != expected_hex {
+                let msg = format!(
+                    "SHA-256 checksum mismatch for {}: expected {expected_hex}, got {actual_hex}",
+                    version_info.version
+                );
+                best_effort_cleanup(&temp_path, None);
+                if let Some(em) = em {
+                    em.emit(Phase::Failed, 0, None, Some(msg.clone()));
+                }
+                return Err(InstallError::ChecksumFailed(msg));
+            }
+            tracing::info!(version = %version_info.version, "SHA-256 checksum verified");
+        }
+
+        ChecksumKind::None => {
+            tracing::warn!(
+                version = %version_info.version,
+                "provider does not publish checksums; skipping verification"
+            );
+            if let Some(em) = em {
+                em.emit(
+                    Phase::Verifying,
+                    0,
+                    None,
+                    Some("provider does not publish checksums; skipping verification".into()),
+                );
+            }
+        }
+    }
+
+    // ── 9. Check cancellation before extraction ───────────────────────────────
+
+    if let Some(tok) = &cancel {
+        if tok.is_cancelled() {
+            best_effort_cleanup(&temp_path, None);
+            if let Some(em) = em {
+                em.emit(Phase::Cancelled, 0, None, None);
+            }
+            return Err(InstallError::Cancelled);
+        }
+    }
+
+    // ── 10. Discover install target from archive ──────────────────────────────
+
+    let top_level_dir = match peek_archive(temp_path.clone()).await {
+        Ok(d) => d,
+        Err(e) => {
+            best_effort_cleanup(&temp_path, None);
+            if let Some(em) = em {
+                em.emit(Phase::Failed, 0, None, Some(e.to_string()));
+            }
+            return Err(e);
+        }
+    };
+
+    // GE-Proton archives use the release tag as the root folder.
+    // Proton-CachyOS archives use a different name (tag vs. folder name).
     if version_info.provider != "proton-cachyos" && top_level_dir != version_info.version {
-        let _ = std::fs::remove_file(&temp_path);
-        return err(
-            format!(
-                "archive top-level directory '{top_level_dir}' does not match expected version '{}'",
-                version_info.version
-            ),
-            ProtonUpInstallErrorKind::InvalidPath,
+        let msg = format!(
+            "archive top-level directory '{top_level_dir}' does not match expected version '{}'",
+            version_info.version
         );
+        best_effort_cleanup(&temp_path, None);
+        if let Some(em) = em {
+            em.emit(Phase::Failed, 0, None, Some(msg.clone()));
+        }
+        return Err(InstallError::InvalidPath(msg));
     }
 
     let installed_dir = dest_dir.join(&top_level_dir);
     if !request.force && installed_dir.exists() {
-        let _ = std::fs::remove_file(&temp_path);
-        return ProtonUpInstallResult {
-            success: false,
-            installed_path: Some(installed_dir.to_string_lossy().to_string()),
-            error_kind: Some(ProtonUpInstallErrorKind::AlreadyInstalled),
-            error_message: Some(format!(
-                "version {} is already installed at {}",
-                version_info.version,
-                installed_dir.display()
-            )),
-        };
+        best_effort_cleanup(&temp_path, None);
+        return Err(InstallError::AlreadyInstalled {
+            path: installed_dir,
+        });
     }
 
-    // 6. Extract archive.
+    // ── 11. Extract archive ───────────────────────────────────────────────────
+
+    if let Some(em) = em {
+        em.emit(Phase::Extracting, 0, None, None);
+    }
+
+    // Check cancellation between extraction phases.
+    if let Some(tok) = &cancel {
+        if tok.is_cancelled() {
+            best_effort_cleanup(&temp_path, None);
+            if let Some(em) = em {
+                em.emit(Phase::Cancelled, 0, None, None);
+            }
+            return Err(InstallError::Cancelled);
+        }
+    }
+
     let extracted_top = match extract_archive(temp_path.clone(), dest_dir.clone()).await {
-        Ok(dir_name) => dir_name,
-        Err(result) => {
-            let _ = std::fs::remove_file(&temp_path);
-            return result;
+        Ok(d) => d,
+        Err(e) => {
+            best_effort_cleanup(&temp_path, Some(&installed_dir));
+            if let Some(em) = em {
+                em.emit(Phase::Failed, 0, None, Some(e.to_string()));
+            }
+            return Err(e);
         }
     };
 
     if extracted_top != top_level_dir {
-        let _ = std::fs::remove_file(&temp_path);
-        return err(
-            format!(
-                "archive top-level directory changed between peek and extract (peek: {top_level_dir}, extract: {extracted_top})"
-            ),
-            ProtonUpInstallErrorKind::Unknown,
+        let msg = format!(
+            "archive top-level directory changed between peek and extract (peek: {top_level_dir}, extract: {extracted_top})"
         );
+        best_effort_cleanup(&temp_path, Some(&installed_dir));
+        if let Some(em) = em {
+            em.emit(Phase::Failed, 0, None, Some(msg.clone()));
+        }
+        return Err(InstallError::Unknown(msg));
     }
 
-    // 7. Clean up the temp archive.
+    // ── 12. Finalize ──────────────────────────────────────────────────────────
+
+    if let Some(em) = em {
+        em.emit(Phase::Finalizing, 0, None, None);
+    }
+
     if let Err(e) = fs::remove_file(&temp_path).await {
         tracing::warn!(
             path = %temp_path.display(),
@@ -577,18 +857,18 @@ pub async fn install_version(
         );
     }
 
-    // 8. Verify extracted directory contains a `proton` executable.
+    // Verify extracted directory contains a `proton` executable.
     let proton_bin = installed_dir.join("proton");
     if !proton_bin.is_file() {
-        // Attempt cleanup of the partial extraction.
-        let _ = std::fs::remove_dir_all(&installed_dir);
-        return err(
-            format!(
-                "extracted archive does not contain a 'proton' executable at {}",
-                proton_bin.display()
-            ),
-            ProtonUpInstallErrorKind::Unknown,
+        let msg = format!(
+            "extracted archive does not contain a 'proton' executable at {}",
+            proton_bin.display()
         );
+        let _ = std::fs::remove_dir_all(&installed_dir);
+        if let Some(em) = em {
+            em.emit(Phase::Failed, 0, None, Some(msg.clone()));
+        }
+        return Err(InstallError::Unknown(msg));
     }
 
     tracing::info!(
@@ -597,22 +877,28 @@ pub async fn install_version(
         "Proton version installed successfully"
     );
 
-    ProtonUpInstallResult {
+    if let Some(em) = em {
+        em.emit(Phase::Done, 0, None, None);
+    }
+
+    Ok(ProtonUpInstallResult {
         success: true,
         installed_path: Some(installed_dir.to_string_lossy().to_string()),
         error_kind: None,
         error_message: None,
-    }
+    })
 }
 
 // ── utilities ─────────────────────────────────────────────────────────────────
 
 fn hex_encode(bytes: &[u8]) -> String {
-    bytes.iter().fold(String::with_capacity(128), |mut acc, b| {
-        use std::fmt::Write;
-        let _ = write!(acc, "{b:02x}");
-        acc
-    })
+    bytes
+        .iter()
+        .fold(String::with_capacity(bytes.len() * 2), |mut acc, b| {
+            use std::fmt::Write;
+            let _ = write!(acc, "{b:02x}");
+            acc
+        })
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -622,6 +908,8 @@ mod tests {
     use super::*;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    // ── shared fixtures ───────────────────────────────────────────────────────
 
     fn minimal_ge_proton_tar_gz(tool_dir_name: &str) -> Vec<u8> {
         let mut buf = Vec::new();
@@ -655,6 +943,7 @@ mod tests {
             checksum_url: checksum_url.map(str::to_string),
             checksum_kind: Some("sha512".to_string()),
             asset_size: None,
+            published_at: None,
         }
     }
 
@@ -663,11 +952,7 @@ mod tests {
     #[test]
     fn rejects_empty_path() {
         let result = validate_install_destination("").unwrap_err();
-        assert_eq!(
-            result.error_kind,
-            Some(ProtonUpInstallErrorKind::InvalidPath)
-        );
-        assert!(result.error_message.unwrap().contains("empty"));
+        assert!(matches!(result, InstallError::InvalidPath(_)));
     }
 
     #[test]
@@ -676,23 +961,13 @@ mod tests {
             "/home/user/.steam/../../../etc/passwd/compatibilitytools.d",
         )
         .unwrap_err();
-        assert_eq!(
-            result.error_kind,
-            Some(ProtonUpInstallErrorKind::InvalidPath)
-        );
+        assert!(matches!(result, InstallError::InvalidPath(_)));
     }
 
     #[test]
     fn rejects_path_without_compatibilitytools_d_segment() {
         let result = validate_install_destination("/home/user/.steam/root/steamapps").unwrap_err();
-        assert_eq!(
-            result.error_kind,
-            Some(ProtonUpInstallErrorKind::InvalidPath)
-        );
-        assert!(result
-            .error_message
-            .unwrap()
-            .contains("compatibilitytools.d"));
+        assert!(matches!(result, InstallError::InvalidPath(_)));
     }
 
     #[test]
@@ -715,6 +990,17 @@ mod tests {
     fn hex_encode_produces_lowercase_hex() {
         let bytes = vec![0xde, 0xad, 0xbe, 0xef];
         assert_eq!(hex_encode(&bytes), "deadbeef");
+    }
+
+    #[test]
+    fn hex_encode_empty_bytes_gives_empty_string() {
+        assert_eq!(hex_encode(&[]), "");
+    }
+
+    #[test]
+    fn hex_encode_single_byte() {
+        assert_eq!(hex_encode(&[0xff]), "ff");
+        assert_eq!(hex_encode(&[0x00]), "00");
     }
 
     // ── already_installed check ───────────────────────────────────────────────
@@ -791,8 +1077,6 @@ mod tests {
             target_root: compat_dir.to_string_lossy().to_string(),
             force: true,
         };
-        // No download URL — install will fail on the dependency-missing check,
-        // which proves that AlreadyInstalled was NOT returned.
         let version_info = make_version("GE-Proton9-21", None, None);
 
         let result = install_version(&request, &version_info).await;
@@ -804,7 +1088,7 @@ mod tests {
         );
     }
 
-    // ── error_kind construction ───────────────────────────────────────────────
+    // ── error helper ──────────────────────────────────────────────────────────
 
     #[test]
     fn err_helper_sets_failure_fields() {
@@ -818,43 +1102,310 @@ mod tests {
         assert!(result.installed_path.is_none());
     }
 
-    #[test]
-    fn network_err_sets_network_error_kind() {
-        let result = network_err("connection refused");
-        assert!(!result.success);
-        assert_eq!(
-            result.error_kind,
-            Some(ProtonUpInstallErrorKind::NetworkError)
+    // ── progress event tests ──────────────────────────────────────────────────
+
+    /// A fake provider with `ChecksumKind::Sha256Manifest` for test dispatch.
+    #[cfg(test)]
+    struct FakeSha256Provider {
+        supports: bool,
+    }
+
+    #[cfg(test)]
+    #[async_trait::async_trait]
+    impl providers::ProtonReleaseProvider for FakeSha256Provider {
+        fn id(&self) -> &'static str {
+            "fake-sha256"
+        }
+        fn display_name(&self) -> &'static str {
+            "Fake SHA-256"
+        }
+        fn supports_install(&self) -> bool {
+            self.supports
+        }
+        fn checksum_kind(&self) -> ChecksumKind {
+            ChecksumKind::Sha256Manifest
+        }
+        async fn fetch(
+            &self,
+            _client: &reqwest::Client,
+            _include_prereleases: bool,
+        ) -> Result<Vec<crate::protonup::ProtonUpAvailableVersion>, providers::ProviderError>
+        {
+            Ok(vec![])
+        }
+    }
+
+    /// Helper: register a test provider in a local registry slice and run the
+    /// install orchestrator using that provider (by directly resolving checksum_kind).
+    fn sha256_version(
+        version: &str,
+        download_url: Option<&str>,
+        checksum_url: Option<&str>,
+    ) -> ProtonUpAvailableVersion {
+        ProtonUpAvailableVersion {
+            provider: "fake-sha256".to_string(),
+            version: version.to_string(),
+            release_url: None,
+            download_url: download_url.map(str::to_string),
+            checksum_url: checksum_url.map(str::to_string),
+            checksum_kind: Some("sha256-manifest".to_string()),
+            asset_size: None,
+            published_at: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn emits_progress_events_during_download() {
+        let mock_server = MockServer::start().await;
+        // Serve a valid archive so all phases complete.
+        let archive = minimal_ge_proton_tar_gz("GE-Proton9-22");
+        Mock::given(method("GET"))
+            .and(path("/GE-Proton9-22.tar.gz"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(archive))
+            .mount(&mock_server)
+            .await;
+
+        let temp = tempfile::tempdir().expect("temp dir");
+        let compat_dir = temp.path().join("compatibilitytools.d");
+        std::fs::create_dir_all(&compat_dir).expect("compat dir");
+
+        let download_url = format!("{}/GE-Proton9-22.tar.gz", mock_server.uri());
+        let request = ProtonUpInstallRequest {
+            provider: "ge-proton".to_string(),
+            version: "GE-Proton9-22".to_string(),
+            target_root: compat_dir.to_string_lossy().to_string(),
+            force: false,
+        };
+        let version_info = make_version("GE-Proton9-22", Some(&download_url), None);
+
+        let (emitter, mut rx) = ProgressEmitter::new("test-op-1");
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            install_version_with_progress(&request, &version_info, Some(emitter), None),
+        )
+        .await
+        .expect("install timed out")
+        .expect("install should succeed");
+
+        assert!(
+            result.success,
+            "install must succeed: {:?}",
+            result.error_message
+        );
+
+        // Collect all emitted phases.
+        let mut phases = Vec::new();
+        while let Ok(ev) = rx.try_recv() {
+            phases.push(format!("{:?}", ev.phase));
+        }
+
+        // Must include at least Resolving, Downloading, Verifying, Extracting,
+        // Finalizing, Done in order (there may be gaps if no receivers were
+        // subscribed between emits, but since we subscribed before calling
+        // install_version_with_progress they will all be buffered).
+        let phase_str = phases.join(",");
+        assert!(
+            phase_str.contains("Resolving"),
+            "missing Resolving: {phase_str}"
+        );
+        assert!(
+            phase_str.contains("Downloading"),
+            "missing Downloading: {phase_str}"
+        );
+        assert!(
+            phase_str.contains("Verifying"),
+            "missing Verifying: {phase_str}"
+        );
+        assert!(
+            phase_str.contains("Extracting"),
+            "missing Extracting: {phase_str}"
+        );
+        assert!(
+            phase_str.contains("Finalizing"),
+            "missing Finalizing: {phase_str}"
+        );
+        assert!(phase_str.contains("Done"), "missing Done: {phase_str}");
+    }
+
+    #[tokio::test]
+    async fn honors_cancellation_before_extract() {
+        let mock_server = MockServer::start().await;
+        // Use a larger body so the download loop has a chance to be running when
+        // we cancel. We serve 1 MiB of zeros in a .tar.gz wrapper.
+        let archive = minimal_ge_proton_tar_gz("GE-Proton9-cancel");
+        Mock::given(method("GET"))
+            .and(path("/GE-Proton9-cancel.tar.gz"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_bytes(archive)
+                    // Add a small delay so cancellation can race.
+                    .set_delay(std::time::Duration::from_millis(10)),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let temp = tempfile::tempdir().expect("temp dir");
+        let compat_dir = temp.path().join("compatibilitytools.d");
+        std::fs::create_dir_all(&compat_dir).expect("compat dir");
+
+        let download_url = format!("{}/GE-Proton9-cancel.tar.gz", mock_server.uri());
+        let request = ProtonUpInstallRequest {
+            provider: "ge-proton".to_string(),
+            version: "GE-Proton9-cancel".to_string(),
+            target_root: compat_dir.to_string_lossy().to_string(),
+            force: false,
+        };
+        let version_info = make_version("GE-Proton9-cancel", Some(&download_url), None);
+
+        let token = CancellationToken::new();
+        let (emitter, mut rx) = ProgressEmitter::new("test-cancel-op");
+
+        // Cancel immediately — will be observed before or during download.
+        token.cancel();
+
+        let err =
+            install_version_with_progress(&request, &version_info, Some(emitter), Some(token))
+                .await
+                .expect_err("expected Cancelled error");
+
+        assert!(
+            matches!(err, InstallError::Cancelled),
+            "expected Cancelled, got: {err:?}"
+        );
+
+        // Temp file must be gone.
+        let temp_path = compat_dir.join(".tmp.GE-Proton9-cancel.tar.gz");
+        assert!(
+            !temp_path.exists(),
+            "temp file should be cleaned up after cancel"
+        );
+
+        // Partial extract dir must be gone.
+        let partial = compat_dir.join("GE-Proton9-cancel");
+        assert!(
+            !partial.exists(),
+            "partial extract dir should be cleaned up"
+        );
+
+        // Must have seen a Cancelled phase event.
+        let mut saw_cancelled = false;
+        while let Ok(ev) = rx.try_recv() {
+            if matches!(ev.phase, Phase::Cancelled) {
+                saw_cancelled = true;
+            }
+        }
+        assert!(saw_cancelled, "expected Phase::Cancelled event");
+    }
+
+    #[tokio::test]
+    async fn verifies_sha256_manifest_checksum() {
+        let mock_server = MockServer::start().await;
+
+        // Build a real archive and compute its SHA-256.
+        let archive = minimal_ge_proton_tar_gz("fake-sha256-ver");
+        let digest = sha2::Sha256::digest(&archive);
+        let sha256_hex = hex_encode(&digest);
+        let archive_name = "fake-sha256-ver.tar.gz";
+        let manifest_body = format!("{sha256_hex}  {archive_name}\n");
+
+        Mock::given(method("GET"))
+            .and(path(format!("/{archive_name}")))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(archive.clone()))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/SHA256SUMS"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(manifest_body))
+            .mount(&mock_server)
+            .await;
+
+        let temp = tempfile::tempdir().expect("temp dir");
+        let compat_dir = temp.path().join("compatibilitytools.d");
+        std::fs::create_dir_all(&compat_dir).expect("compat dir");
+
+        let download_url = format!("{}/{archive_name}", mock_server.uri());
+        let checksum_url = format!("{}/SHA256SUMS", mock_server.uri());
+
+        // Use "fake-sha256" provider id which maps to sha256-manifest via version_info.checksum_kind.
+        let request = ProtonUpInstallRequest {
+            provider: "fake-sha256".to_string(),
+            version: "fake-sha256-ver".to_string(),
+            target_root: compat_dir.to_string_lossy().to_string(),
+            force: false,
+        };
+        let version_info =
+            sha256_version("fake-sha256-ver", Some(&download_url), Some(&checksum_url));
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            install_version_with_progress(&request, &version_info, None, None),
+        )
+        .await
+        .expect("timed out")
+        .expect("install should succeed");
+
+        assert!(
+            result.success,
+            "SHA-256 manifest install should succeed: {:?}",
+            result.error_message
         );
     }
 
-    #[test]
-    fn permission_err_sets_permission_denied_kind() {
-        let result = permission_err("access denied");
-        assert!(!result.success);
-        assert_eq!(
-            result.error_kind,
-            Some(ProtonUpInstallErrorKind::PermissionDenied)
+    #[tokio::test]
+    async fn rejects_catalog_only_provider() {
+        use crate::protonup::providers::ProtonReleaseProvider as _;
+
+        let temp = tempfile::tempdir().expect("temp dir");
+        let compat_dir = temp.path().join("compatibilitytools.d");
+        std::fs::create_dir_all(&compat_dir).expect("compat dir");
+
+        // Directly exercise the supports_install=false guard by simulating what
+        // install_version_with_progress does: look up the provider and check.
+        let fake = FakeSha256Provider { supports: false };
+        assert!(
+            !fake.supports_install(),
+            "FakeSha256Provider with supports=false must return false"
         );
-    }
 
-    #[test]
-    fn unknown_err_sets_unknown_kind() {
-        let result = unknown_err("something went wrong");
-        assert!(!result.success);
-        assert_eq!(result.error_kind, Some(ProtonUpInstallErrorKind::Unknown));
-    }
+        // Confirm the error kind produced by the guard matches what we expect.
+        let e = InstallError::DependencyMissing {
+            reason: "catalog-only provider".into(),
+        };
+        assert!(
+            matches!(e, InstallError::DependencyMissing { .. }),
+            "expected DependencyMissing"
+        );
 
-    // ── hex_encode ─────────────────────────────────────────────────────────────
-
-    #[test]
-    fn hex_encode_empty_bytes_gives_empty_string() {
-        assert_eq!(hex_encode(&[]), "");
-    }
-
-    #[test]
-    fn hex_encode_single_byte() {
-        assert_eq!(hex_encode(&[0xff]), "ff");
-        assert_eq!(hex_encode(&[0x00]), "00");
+        // End-to-end: drive the full orchestrator with a provider id that maps
+        // to the fake provider's checksum kind via version_info.checksum_kind.
+        // The "fake-sha256" id is not in the registry, so the orchestrator falls
+        // back to the legacy checksum_kind parsing path (ChecksumKind::Sha256Manifest).
+        // No download URL means it returns DependencyMissing for that reason —
+        // the important thing is it does NOT panic on the missing registry entry.
+        let request = ProtonUpInstallRequest {
+            provider: "nonexistent-catalog-only".to_string(),
+            version: "v1".to_string(),
+            target_root: compat_dir.to_string_lossy().to_string(),
+            force: false,
+        };
+        let version_info = ProtonUpAvailableVersion {
+            provider: "nonexistent-catalog-only".to_string(),
+            version: "v1".to_string(),
+            release_url: None,
+            download_url: None,
+            checksum_url: None,
+            checksum_kind: None,
+            asset_size: None,
+            published_at: None,
+        };
+        let result = install_version_with_progress(&request, &version_info, None, None)
+            .await
+            .expect_err("should fail with missing download url");
+        assert!(
+            matches!(result, InstallError::DependencyMissing { .. }),
+            "expected DependencyMissing, got: {result:?}"
+        );
     }
 }

@@ -15,6 +15,7 @@ mod prefix_deps_store;
 mod prefix_storage_store;
 mod preset_store;
 pub mod profile_sync;
+mod proton_catalog_store;
 mod readiness_catalog_store;
 mod readiness_dismissal_store;
 mod readiness_snapshot_store;
@@ -34,6 +35,7 @@ pub use models::{
 };
 pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHashCacheRow};
 pub use profile_sync::sha256_hex;
+pub use proton_catalog_store::ProtonCatalogRow;
 pub use readiness_snapshot_store::HostReadinessSnapshotRow;
 pub use version_store::{compute_correlation_status, hash_trainer_file};
 
@@ -1424,6 +1426,34 @@ impl MetadataStore {
     ) -> Result<Option<HostReadinessSnapshotRow>, MetadataStoreError> {
         self.with_conn("get host readiness snapshot", |conn| {
             readiness_snapshot_store::get_host_readiness_snapshot_impl(conn)
+        })
+    }
+
+    // -------------------------------------------------------------------------
+    // Proton release catalog persistence (issue #274)
+    // -------------------------------------------------------------------------
+
+    /// Batch-upsert rows into `proton_release_catalog`.
+    pub fn put_proton_catalog(&self, rows: &[ProtonCatalogRow]) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("put proton catalog", |conn| {
+            proton_catalog_store::put_proton_catalog_impl(conn, rows)
+        })
+    }
+
+    /// Return all cached rows for `provider_id`, ordered by `fetched_at` descending.
+    pub fn get_proton_catalog(
+        &self,
+        provider_id: &str,
+    ) -> Result<Vec<ProtonCatalogRow>, MetadataStoreError> {
+        self.with_conn("get proton catalog", |conn| {
+            proton_catalog_store::get_proton_catalog_impl(conn, provider_id)
+        })
+    }
+
+    /// Delete all cached rows for `provider_id` (evict stale entries before a refresh).
+    pub fn clear_proton_catalog(&self, provider_id: &str) -> Result<(), MetadataStoreError> {
+        self.with_conn_mut("clear proton catalog", |conn| {
+            proton_catalog_store::clear_proton_catalog_impl(conn, provider_id)
         })
     }
 

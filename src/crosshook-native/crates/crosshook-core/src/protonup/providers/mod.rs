@@ -1,0 +1,337 @@
+//! Provider trait and shared GitHub Releases parsing infrastructure.
+//!
+//! Each provider (GE-Proton, Proton-CachyOS, …) implements [`ProtonReleaseProvider`]
+//! and is registered in [`registry`]. `catalog.rs` iterates the registry rather
+//! than hard-coding per-provider branches.
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use serde::Deserialize;
+
+use super::ProtonUpAvailableVersion;
+
+pub mod ge_proton;
+pub mod proton_cachyos;
+pub mod proton_em;
+
+#[cfg(feature = "experimental-providers")]
+pub mod boxtron;
+#[cfg(feature = "experimental-providers")]
+pub mod luxtorpeda;
+
+// ── Error type ────────────────────────────────────────────────────────────────
+
+/// Errors that a provider's `fetch` implementation may surface.
+#[derive(Debug)]
+pub enum ProviderError {
+    Http(reqwest::Error),
+    Parse(String),
+}
+
+impl std::fmt::Display for ProviderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Http(e) => write!(f, "http error: {e}"),
+            Self::Parse(msg) => write!(f, "parse error: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for ProviderError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Http(e) => Some(e),
+            Self::Parse(_) => None,
+        }
+    }
+}
+
+impl From<reqwest::Error> for ProviderError {
+    fn from(e: reqwest::Error) -> Self {
+        Self::Http(e)
+    }
+}
+
+// ── Checksum kind ─────────────────────────────────────────────────────────────
+
+/// How a provider publishes checksums alongside its release archives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ChecksumKind {
+    Sha512Sidecar,
+    Sha256Manifest,
+    None,
+}
+
+// ── Trait ─────────────────────────────────────────────────────────────────────
+
+/// A Proton compatibility-tool release provider.
+///
+/// Implementations are stateless; they carry only static configuration.
+#[async_trait]
+pub trait ProtonReleaseProvider: Send + Sync {
+    /// Stable machine-readable identifier (e.g. `"ge-proton"`).
+    fn id(&self) -> &'static str;
+    /// Human-readable display name.
+    fn display_name(&self) -> &'static str;
+    /// Whether CrossHook's native install path supports this provider.
+    fn supports_install(&self) -> bool;
+    /// Checksum strategy used by this provider's releases.
+    fn checksum_kind(&self) -> ChecksumKind;
+    /// Fetch available releases from upstream.
+    async fn fetch(
+        &self,
+        client: &reqwest::Client,
+        include_prereleases: bool,
+    ) -> Result<Vec<ProtonUpAvailableVersion>, ProviderError>;
+}
+
+// ── Registry ──────────────────────────────────────────────────────────────────
+
+/// All active providers in priority order.
+///
+/// `include_prereleases` is threaded through for future per-provider filtering;
+/// current implementations always exclude drafts and pre-releases regardless.
+pub fn registry(include_prereleases: bool) -> Vec<Arc<dyn ProtonReleaseProvider>> {
+    let _ = include_prereleases;
+    #[allow(unused_mut)]
+    let mut providers: Vec<Arc<dyn ProtonReleaseProvider>> = vec![
+        Arc::new(ge_proton::GeProtonProvider::new()),
+        Arc::new(proton_cachyos::ProtonCachyOsProvider::new()),
+        Arc::new(proton_em::ProtonEmProvider::new()),
+    ];
+    #[cfg(feature = "experimental-providers")]
+    {
+        providers.push(Arc::new(luxtorpeda::LuxtorpedaProvider::new()));
+        providers.push(Arc::new(boxtron::BoxtronProvider::new()));
+    }
+    providers
+}
+
+/// Look up a provider by its stable machine-readable id.
+pub fn find_provider_by_id(id: &str) -> Option<Arc<dyn ProtonReleaseProvider>> {
+    registry(false).into_iter().find(|p| p.id() == id)
+}
+
+// ── Provider descriptor ───────────────────────────────────────────────────────
+
+/// Serialisable snapshot of a provider's static metadata, for IPC/UI use.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProtonUpProviderDescriptor {
+    pub id: String,
+    pub display_name: String,
+    pub supports_install: bool,
+    pub checksum_kind: ChecksumKind,
+}
+
+impl ProtonUpProviderDescriptor {
+    pub fn from_provider(provider: &dyn ProtonReleaseProvider) -> Self {
+        Self {
+            id: provider.id().to_string(),
+            display_name: provider.display_name().to_string(),
+            supports_install: provider.supports_install(),
+            checksum_kind: provider.checksum_kind(),
+        }
+    }
+}
+
+/// Describe all registered providers as serialisable DTOs.
+///
+/// Batch 4 will consume this from a Tauri handler.
+pub fn describe_providers() -> Vec<ProtonUpProviderDescriptor> {
+    registry(false)
+        .iter()
+        .map(|p| ProtonUpProviderDescriptor::from_provider(p.as_ref()))
+        .collect()
+}
+
+// ── Shared GitHub Releases API types (used by both providers) ─────────────────
+
+/// A single release from the GitHub Releases API.
+#[derive(Debug, Deserialize)]
+pub(super) struct GhRelease {
+    pub tag_name: String,
+    pub html_url: String,
+    #[serde(default)]
+    pub draft: bool,
+    #[serde(default)]
+    pub prerelease: bool,
+    #[serde(default)]
+    pub assets: Vec<GhAsset>,
+    /// ISO-8601 UTC publication timestamp from GitHub. Absent on some drafts.
+    #[serde(default)]
+    pub published_at: Option<String>,
+}
+
+/// A single asset attached to a GitHub release.
+#[derive(Debug, Deserialize)]
+pub(super) struct GhAsset {
+    pub name: String,
+    pub browser_download_url: String,
+    pub size: u64,
+}
+
+// ── Shared parsing helpers ────────────────────────────────────────────────────
+
+/// Strip `.tar.gz` / `.tar.xz` from an asset filename so we can match
+/// sidecar `.sha512sum` files.
+pub(super) fn tarball_stem(name: &str) -> Option<&str> {
+    name.strip_suffix(".tar.gz")
+        .or_else(|| name.strip_suffix(".tar.xz"))
+}
+
+/// Find the `.sha512sum` sidecar asset for `tarball_name`.
+pub(super) fn find_matching_sha512sum<'a>(
+    assets: &'a [GhAsset],
+    tarball_name: &str,
+) -> Option<&'a GhAsset> {
+    let stem = tarball_stem(tarball_name)?;
+    let expected = format!("{stem}.sha512sum");
+    assets.iter().find(|a| a.name == expected)
+}
+
+/// Pick the primary downloadable archive for a release.
+///
+/// GE-Proton publishes `.tar.gz`. Proton-CachyOS publishes `.tar.xz` for
+/// several architectures; we prefer the Linux x86_64 baseline, then x86_64_v3,
+/// then any non-ARM `.tar.xz`.
+pub(super) fn pick_tarball_asset<'a>(
+    assets: &'a [GhAsset],
+    provider_id: &str,
+) -> Option<&'a GhAsset> {
+    if provider_id == "proton-cachyos" {
+        let xz: Vec<&GhAsset> = assets
+            .iter()
+            .filter(|a| a.name.ends_with(".tar.xz"))
+            .collect();
+
+        let baseline_x86 = xz.iter().find(|a| {
+            let n = a.name.as_str();
+            n.contains("x86_64") && !n.contains("x86_64_v3")
+        });
+        let v3 = xz.iter().find(|a| a.name.contains("x86_64_v3"));
+        let non_arm = xz.iter().find(|a| !a.name.to_lowercase().contains("arm"));
+
+        baseline_x86
+            .or(v3)
+            .or(non_arm)
+            .copied()
+            .or_else(|| xz.first().copied())
+    } else {
+        assets.iter().find(|a| a.name.ends_with(".tar.gz"))
+    }
+}
+
+/// Convert a single GitHub release into a `ProtonUpAvailableVersion`.
+///
+/// Returns `None` when no supported archive asset is found.
+pub(super) fn gh_release_to_version(
+    release: GhRelease,
+    provider_id: &str,
+) -> Option<ProtonUpAvailableVersion> {
+    let tarball = pick_tarball_asset(&release.assets, provider_id)?;
+    let checksum = find_matching_sha512sum(&release.assets, &tarball.name);
+
+    Some(ProtonUpAvailableVersion {
+        provider: provider_id.to_string(),
+        version: release.tag_name,
+        release_url: Some(release.html_url),
+        download_url: Some(tarball.browser_download_url.clone()),
+        asset_size: Some(tarball.size),
+        checksum_url: checksum.map(|a| a.browser_download_url.clone()),
+        checksum_kind: checksum.map(|_| "sha512".to_string()),
+        published_at: release.published_at,
+    })
+}
+
+/// Convert a list of GitHub releases into `ProtonUpAvailableVersion` entries,
+/// skipping drafts, pre-releases, and releases without a supported tarball.
+/// Caps at `max` entries.
+pub(super) fn parse_releases(
+    releases: Vec<GhRelease>,
+    provider_id: &str,
+    max: usize,
+) -> Vec<ProtonUpAvailableVersion> {
+    releases
+        .into_iter()
+        .filter(|r| !r.draft && !r.prerelease)
+        .take(max)
+        .filter_map(|r| gh_release_to_version(r, provider_id))
+        .collect()
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registry_contains_ge_proton_and_proton_cachyos() {
+        let ids: Vec<&str> = registry(false).iter().map(|p| p.id()).collect();
+        assert!(
+            ids.contains(&"ge-proton"),
+            "registry must include ge-proton"
+        );
+        assert!(
+            ids.contains(&"proton-cachyos"),
+            "registry must include proton-cachyos"
+        );
+        assert!(
+            ids.contains(&"proton-em"),
+            "registry must include proton-em"
+        );
+    }
+
+    #[cfg(feature = "experimental-providers")]
+    #[test]
+    fn registry_contains_experimental_providers_when_feature_enabled() {
+        let ids: Vec<&str> = registry(false).iter().map(|p| p.id()).collect();
+        assert!(
+            ids.contains(&"luxtorpeda"),
+            "registry must include luxtorpeda with experimental-providers feature"
+        );
+        assert!(
+            ids.contains(&"boxtron"),
+            "registry must include boxtron with experimental-providers feature"
+        );
+    }
+
+    #[test]
+    fn find_provider_by_id_returns_known_provider() {
+        let p = find_provider_by_id("ge-proton").expect("ge-proton must be found");
+        assert_eq!(p.id(), "ge-proton");
+    }
+
+    #[test]
+    fn find_provider_by_id_returns_none_for_unknown() {
+        assert!(
+            find_provider_by_id("nonexistent-provider").is_none(),
+            "unknown id must return None"
+        );
+    }
+
+    #[test]
+    fn describe_providers_includes_at_least_two_entries() {
+        let descriptors = describe_providers();
+        assert!(
+            descriptors.len() >= 2,
+            "expected at least two provider descriptors, got {}",
+            descriptors.len()
+        );
+    }
+
+    #[test]
+    fn descriptor_round_trips_via_serde_json() {
+        let descriptors = describe_providers();
+        let first = descriptors.first().expect("at least one descriptor");
+        let json = serde_json::to_string(first).expect("serialisation must succeed");
+        let parsed: ProtonUpProviderDescriptor =
+            serde_json::from_str(&json).expect("deserialisation must succeed");
+        assert_eq!(parsed.id, first.id);
+        assert_eq!(parsed.display_name, first.display_name);
+        assert_eq!(parsed.supports_install, first.supports_install);
+        assert_eq!(parsed.checksum_kind, first.checksum_kind);
+    }
+}

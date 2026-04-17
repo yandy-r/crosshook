@@ -6,7 +6,11 @@
 
 pub mod catalog;
 pub mod install;
+pub mod install_root;
 pub mod matching;
+pub mod progress;
+pub mod providers;
+pub mod uninstall;
 
 use serde::{Deserialize, Serialize};
 
@@ -53,6 +57,11 @@ pub struct ProtonUpAvailableVersion {
     pub checksum_kind: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_size: Option<u64>,
+    /// ISO-8601 UTC release timestamp from the upstream GitHub release.
+    ///
+    /// `#[serde(default)]` so older cached `payload_json` rows (pre-v22.1) still deserialize.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<String>,
 }
 
 /// Cache freshness metadata attached to catalog responses.
@@ -279,6 +288,7 @@ mod tests {
                     checksum_url: Some("https://example.com/file.sha512sum".to_string()),
                     checksum_kind: Some("sha512".to_string()),
                     asset_size: Some(123_456),
+                    published_at: Some("2024-01-01T00:00:00Z".to_string()),
                 },
                 ProtonUpAvailableVersion {
                     provider: "ge-proton".to_string(),
@@ -288,6 +298,7 @@ mod tests {
                     checksum_url: None,
                     checksum_kind: None,
                     asset_size: None,
+                    published_at: None,
                 },
             ],
             cache: ProtonUpCacheMeta {
@@ -323,6 +334,7 @@ mod tests {
             checksum_url: None,
             checksum_kind: None,
             asset_size: None,
+            published_at: None,
         };
 
         let json = serde_json::to_string(&version).expect("serialize version");
@@ -331,6 +343,16 @@ mod tests {
         assert!(!json.contains("download_url"));
         assert!(!json.contains("checksum_url"));
         assert!(!json.contains("asset_size"));
+        assert!(!json.contains("published_at"));
+    }
+
+    #[test]
+    fn available_version_deserializes_without_published_at() {
+        // Older cached rows may not include published_at; ensure #[serde(default)] kicks in.
+        let legacy = r#"{"provider":"ge-proton","version":"GE-Proton9-20"}"#;
+        let v: ProtonUpAvailableVersion =
+            serde_json::from_str(legacy).expect("legacy JSON must deserialize");
+        assert!(v.published_at.is_none());
     }
 
     // ── ProtonUpInstallResult round-trip ──────────────────────────────────────

@@ -149,6 +149,12 @@ pub struct SettingsSaveRequest {
     pub install_nag_dismissed_at: Option<Option<String>>,
     #[serde(default)]
     pub steam_deck_caveats_dismissed_at: Option<Option<String>>,
+    #[serde(default)]
+    pub protonup_default_provider: Option<String>,
+    #[serde(default)]
+    pub protonup_default_install_root: Option<String>,
+    #[serde(default)]
+    pub protonup_include_prereleases: Option<bool>,
 }
 
 fn merge_settings_from_request(
@@ -205,6 +211,15 @@ fn merge_settings_from_request(
         steam_deck_caveats_dismissed_at: data
             .steam_deck_caveats_dismissed_at
             .unwrap_or(current.steam_deck_caveats_dismissed_at),
+        protonup_default_provider: data
+            .protonup_default_provider
+            .unwrap_or(current.protonup_default_provider),
+        protonup_default_install_root: data
+            .protonup_default_install_root
+            .unwrap_or(current.protonup_default_install_root),
+        protonup_include_prereleases: data
+            .protonup_include_prereleases
+            .unwrap_or(current.protonup_include_prereleases),
     }
 }
 
@@ -336,6 +351,9 @@ mod tests {
             host_tool_dashboard_default_category_filter: None,
             install_nag_dismissed_at: None,
             steam_deck_caveats_dismissed_at: None,
+            protonup_default_provider: None,
+            protonup_default_install_root: None,
+            protonup_include_prereleases: None,
         }
     }
 

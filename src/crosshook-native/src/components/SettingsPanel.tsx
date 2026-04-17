@@ -13,6 +13,7 @@ import type {
   PrefixStorageEntry,
   StaleStagedTrainerEntry,
 } from '../types/prefix-storage';
+import type { InstallRootDescriptor, ProtonUpProviderDescriptor } from '../types/protonup';
 import { chooseDirectory, chooseFile } from '../utils/dialog';
 import { CollapsibleSection } from './ui/CollapsibleSection';
 import { ThemedSelect } from './ui/ThemedSelect';
@@ -874,6 +875,119 @@ function SteamGridDbSection({
   );
 }
 
+function ProtonManagerDefaultsSection({
+  settings,
+  steamClientInstallPath,
+  onPersistSettings,
+}: {
+  settings: AppSettingsData;
+  steamClientInstallPath: string;
+  onPersistSettings: (patch: Partial<AppSettingsData>) => Promise<void>;
+}) {
+  const [providers, setProviders] = useState<ProtonUpProviderDescriptor[]>([]);
+  const [roots, setRoots] = useState<InstallRootDescriptor[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    void callCommand<ProtonUpProviderDescriptor[]>('protonup_list_providers')
+      .then((result) => {
+        if (active) setProviders(result);
+      })
+      .catch(() => {
+        if (active) setProviders([]);
+      });
+
+    void callCommand<InstallRootDescriptor[]>('protonup_resolve_install_roots', {
+      steam_client_install_path: steamClientInstallPath.length > 0 ? steamClientInstallPath : undefined,
+    })
+      .then((result) => {
+        if (active) setRoots(result);
+      })
+      .catch(() => {
+        if (active) setRoots([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [steamClientInstallPath]);
+
+  const installableProviders = useMemo(() => providers.filter((p) => p.supports_install), [providers]);
+
+  return (
+    <CollapsibleSection
+      title="Proton manager defaults"
+      defaultOpen={false}
+      className="crosshook-panel crosshook-settings-section"
+      meta={<span className="crosshook-muted">Native Proton download manager</span>}
+    >
+      <p className="crosshook-muted crosshook-settings-help">
+        These settings control the native Proton download manager. They do not affect the legacy ProtonUp-Qt advisory
+        suggestions.
+      </p>
+
+      {installableProviders.length > 0 ? (
+        <div className="crosshook-settings-field-row">
+          <label className="crosshook-label" htmlFor="protonup-default-provider">
+            Default provider
+          </label>
+          <select
+            id="protonup-default-provider"
+            className="crosshook-input"
+            value={settings.protonup_default_provider ?? ''}
+            onChange={(event) => void onPersistSettings({ protonup_default_provider: event.target.value })}
+          >
+            <option value="">Auto (first available)</option>
+            {installableProviders.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.display_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      {roots.length > 0 ? (
+        <div className="crosshook-settings-field-row">
+          <label className="crosshook-label" htmlFor="protonup-default-install-root">
+            Default install root
+          </label>
+          <select
+            id="protonup-default-install-root"
+            className="crosshook-input"
+            value={settings.protonup_default_install_root ?? ''}
+            onChange={(event) => void onPersistSettings({ protonup_default_install_root: event.target.value })}
+          >
+            <option value="">Auto-pick (first writable)</option>
+            {roots.map((r) => (
+              <option key={r.path} value={r.path} disabled={!r.writable}>
+                {r.path}
+                {r.writable ? '' : ' (read-only)'}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      <label className="crosshook-settings-checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.protonup_include_prereleases ?? false}
+          onChange={(event) => void onPersistSettings({ protonup_include_prereleases: event.target.checked })}
+          className="crosshook-settings-checkbox"
+        />
+        <span>
+          <span className="crosshook-label">Include pre-release versions</span>
+          <p className="crosshook-muted crosshook-settings-note">
+            When enabled, the native Proton manager catalog will include release candidates and beta versions.
+          </p>
+        </span>
+      </label>
+    </CollapsibleSection>
+  );
+}
+
 export function SettingsPanel({
   settings,
   onPersistSettings,
@@ -1099,6 +1213,12 @@ export function SettingsPanel({
               </div>
             </div>
           </CollapsibleSection>
+
+          <ProtonManagerDefaultsSection
+            settings={settings}
+            steamClientInstallPath={steamClientInstallPath}
+            onPersistSettings={onPersistSettings}
+          />
 
           <CollapsibleSection
             title="Logging and UI"

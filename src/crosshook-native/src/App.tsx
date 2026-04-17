@@ -36,6 +36,7 @@ const VALID_APP_ROUTES: Record<AppRoute, true> = {
   settings: true,
   health: true,
   'host-tools': true,
+  'proton-manager': true,
 };
 
 function isAppRoute(value: string): value is AppRoute {

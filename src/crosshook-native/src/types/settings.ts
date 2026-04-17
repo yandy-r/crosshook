@@ -34,6 +34,12 @@ export interface SettingsSaveRequest {
   protonup_auto_suggest?: boolean;
   /** Optional path override for the ProtonUp binary; empty = auto-detect. */
   protonup_binary_path?: string;
+  /** Default provider id used by the native Proton manager; empty = first available. */
+  protonup_default_provider?: string;
+  /** Default install root path for the native Proton manager; empty = auto-pick writable root. */
+  protonup_default_install_root?: string;
+  /** When true, include pre-release versions in the native Proton manager catalog. */
+  protonup_include_prereleases?: boolean;
   /** Non-Steam launch preference: `auto` (umu when available, else Proton), `umu` (always umu-run), `proton` (always direct Proton). */
   umu_preference: UmuPreference;
   /** Capability-level hint dismissals for the host-tool dashboard. */
@@ -76,6 +82,9 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     external_trainer_sources: s.external_trainer_sources,
     protonup_auto_suggest: s.protonup_auto_suggest,
     protonup_binary_path: s.protonup_binary_path,
+    protonup_default_provider: s.protonup_default_provider,
+    protonup_default_install_root: s.protonup_default_install_root,
+    protonup_include_prereleases: s.protonup_include_prereleases,
     umu_preference: s.umu_preference,
     host_tool_dashboard_dismissed_hints: s.host_tool_dashboard_dismissed_hints,
     host_tool_dashboard_default_category_filter: s.host_tool_dashboard_default_category_filter,
@@ -117,6 +126,9 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   external_trainer_sources: [],
   protonup_auto_suggest: true,
   protonup_binary_path: '',
+  protonup_default_provider: '',
+  protonup_default_install_root: '',
+  protonup_include_prereleases: false,
   umu_preference: 'auto',
   host_tool_dashboard_dismissed_hints: [],
   host_tool_dashboard_default_category_filter: null,

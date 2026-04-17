@@ -1,0 +1,405 @@
+/* ── Proton Manager ─────────────────────────────────────────────────────────
+ * BEM-like classes for the ProtonManagerPanel and child components.
+ * Uses design tokens from variables.css; does not override global styles.
+ */
+
+.crosshook-proton-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.crosshook-proton-manager__header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crosshook-proton-manager__roots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+/* ── Banners ────────────────────────────────────────────────────────────── */
+
+.crosshook-proton-manager__stale-banner {
+  padding: 10px 14px;
+  background: var(--crosshook-autosave-warning-bg);
+  border: 1px solid var(--crosshook-autosave-warning-border);
+  border-radius: var(--crosshook-radius-sm);
+  color: var(--crosshook-color-warning);
+  font-size: 0.85rem;
+}
+
+.crosshook-proton-manager__readonly-banner {
+  padding: 12px 16px;
+  background: var(--crosshook-color-danger-bg);
+  border: 1px solid var(--crosshook-color-danger);
+  border-radius: var(--crosshook-radius-sm);
+  color: var(--crosshook-color-danger);
+  font-size: 0.9rem;
+}
+
+.crosshook-proton-manager__error-banner {
+  padding: 10px 14px;
+  background: var(--crosshook-color-danger-bg);
+  border: 1px solid var(--crosshook-color-danger);
+  border-radius: var(--crosshook-radius-sm);
+  color: var(--crosshook-color-danger);
+  font-size: 0.85rem;
+}
+
+/* ── Active progress bars ───────────────────────────────────────────────── */
+
+.crosshook-proton-manager__progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Version list ───────────────────────────────────────────────────────── */
+
+.crosshook-proton-manager__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.crosshook-proton-manager__section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--crosshook-color-text-subtle);
+  padding: 8px 4px 4px;
+}
+
+.crosshook-proton-manager__empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.9rem;
+}
+
+/* ── Provider picker (segmented radio group) ─────────────────────────────── */
+
+.crosshook-provider-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-provider-picker__legend {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--crosshook-color-text-subtle);
+  margin-bottom: 4px;
+}
+
+.crosshook-provider-picker__options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.crosshook-provider-picker__divider {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--crosshook-color-border-strong);
+  margin: 0 2px;
+}
+
+.crosshook-provider-picker__option--all:has(input:checked) {
+  border-color: var(--crosshook-color-accent-strong);
+  font-weight: 600;
+}
+
+.crosshook-provider-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--crosshook-color-border-strong);
+  border-radius: var(--crosshook-radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--crosshook-color-text-muted);
+  background: transparent;
+  transition: border-color var(--crosshook-transition-fast), background var(--crosshook-transition-fast);
+}
+
+.crosshook-provider-picker__option:has(input:checked) {
+  border-color: var(--crosshook-color-accent);
+  background: var(--crosshook-color-accent-soft);
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-provider-picker__option:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.crosshook-provider-picker__radio {
+  /* visually hidden but still accessible */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.crosshook-provider-picker__badge {
+  font-size: 0.7rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--crosshook-color-border-muted);
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-provider-picker__badge--catalog-only {
+  background: var(--crosshook-color-warning);
+  color: #000;
+  opacity: 0.8;
+}
+
+/* ── Install root badge ─────────────────────────────────────────────────── */
+
+.crosshook-install-root-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--crosshook-color-border-strong);
+  border-radius: var(--crosshook-radius-sm);
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--crosshook-color-text-muted);
+  background: transparent;
+  transition: border-color var(--crosshook-transition-fast), background var(--crosshook-transition-fast);
+  user-select: none;
+}
+
+.crosshook-install-root-badge--selected {
+  border-color: var(--crosshook-color-accent);
+  background: var(--crosshook-color-accent-soft);
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-install-root-badge--muted {
+  opacity: 0.55;
+}
+
+.crosshook-install-root-badge__path {
+  font-family: var(--crosshook-font-mono);
+  font-size: 0.75rem;
+  color: var(--crosshook-color-text-subtle);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crosshook-install-root-badge__pill {
+  font-size: 0.68rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.crosshook-install-root-badge__pill--writable {
+  background: var(--crosshook-color-capability-available-bg);
+  border: 1px solid var(--crosshook-color-capability-available-border);
+  color: var(--crosshook-color-capability-available);
+}
+
+.crosshook-install-root-badge__pill--readonly {
+  background: var(--crosshook-color-danger-bg);
+  border: 1px solid var(--crosshook-color-danger);
+  color: var(--crosshook-color-danger);
+}
+
+.crosshook-install-root-badge__default-tag {
+  font-size: 0.68rem;
+  color: var(--crosshook-color-accent-strong);
+  font-weight: 600;
+}
+
+/* ── Version row ────────────────────────────────────────────────────────── */
+
+.crosshook-version-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: var(--crosshook-radius-sm);
+  border: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface);
+  gap: 12px;
+  min-height: 44px;
+}
+
+.crosshook-version-row--installed {
+  border-color: var(--crosshook-color-border-strong);
+  background: var(--crosshook-color-bg-elevated);
+}
+
+.crosshook-version-row__left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.crosshook-version-row__headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.crosshook-version-row__tag {
+  font-family: var(--crosshook-font-mono);
+  font-size: 0.85rem;
+  color: var(--crosshook-color-text);
+  font-weight: 600;
+}
+
+.crosshook-version-row__provider {
+  font-size: 0.75rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-version-row__meta {
+  font-size: 0.72rem;
+  color: var(--crosshook-color-text-subtle);
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+.crosshook-version-row__meta-sep {
+  opacity: 0.6;
+}
+
+.crosshook-version-row__status-pill {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.crosshook-version-row__status-pill--installed {
+  background: var(--crosshook-color-capability-available-bg);
+  border: 1px solid var(--crosshook-color-capability-available-border);
+  color: var(--crosshook-color-capability-available);
+}
+
+.crosshook-version-row__status-pill--available {
+  background: var(--crosshook-color-accent-soft);
+  border: 1px solid var(--crosshook-protondb-accent-border);
+  color: var(--crosshook-color-accent-strong);
+}
+
+.crosshook-version-row__right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Install progress bar ───────────────────────────────────────────────── */
+
+.crosshook-install-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 1px solid var(--crosshook-color-border-strong);
+  border-radius: var(--crosshook-radius-sm);
+  background: var(--crosshook-color-bg-elevated);
+}
+
+.crosshook-install-progress__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.crosshook-install-progress__label {
+  font-size: 0.82rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-install-progress__phase {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-install-progress__phase--done {
+  color: var(--crosshook-color-success);
+}
+
+.crosshook-install-progress__phase--failed {
+  color: var(--crosshook-color-danger);
+}
+
+.crosshook-install-progress__phase--cancelled {
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-install-progress__track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--crosshook-color-border-strong);
+  overflow: hidden;
+}
+
+.crosshook-install-progress__fill {
+  height: 100%;
+  background: var(--crosshook-color-accent);
+  border-radius: 3px;
+  transition: width 200ms linear;
+}
+
+.crosshook-install-progress__fill--done {
+  background: var(--crosshook-color-success);
+}
+
+.crosshook-install-progress__fill--failed {
+  background: var(--crosshook-color-danger);
+}
+
+.crosshook-install-progress__message {
+  font-size: 0.75rem;
+  color: var(--crosshook-color-text-subtle);
+  font-family: var(--crosshook-font-mono);
+}

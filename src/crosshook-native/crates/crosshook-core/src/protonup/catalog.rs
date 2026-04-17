@@ -4,23 +4,23 @@
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use chrono::{Duration as ChronoDuration, Utc};
-use reqwest::StatusCode;
-use rusqlite::{params, OptionalExtension};
-use serde::Deserialize;
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 
-use crate::metadata::{MetadataStore, MetadataStoreError};
+use crate::metadata::{MetadataStore, ProtonCatalogRow};
 use crate::protonup::{
-    ProtonUpAvailableVersion, ProtonUpCacheMeta, ProtonUpCatalogResponse, ProtonUpProvider,
+    providers, ProtonUpAvailableVersion, ProtonUpCacheMeta, ProtonUpCatalogResponse,
+    ProtonUpProvider,
 };
 
 const CACHE_TTL_HOURS: i64 = 6;
 const REQUEST_TIMEOUT_SECS: u64 = 10;
-const MAX_RELEASES: usize = 30;
 
 static PROTONUP_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
-/// Per-provider GitHub Releases API URL, SQLite cache key, and `provider` string on rows.
+/// Per-provider GitHub Releases API URL and `provider_id` string on rows.
+///
+/// Retained for use by `fetch_live_catalog`'s fallback HTTP path and the
+/// existing `catalog_configs_have_distinct_cache_keys_and_urls` test.
 #[derive(Debug, Clone, Copy)]
 pub struct CatalogProviderConfig {
     pub cache_key: &'static str,
@@ -31,47 +31,16 @@ pub struct CatalogProviderConfig {
 pub fn catalog_config(provider: ProtonUpProvider) -> CatalogProviderConfig {
     match provider {
         ProtonUpProvider::GeProton => CatalogProviderConfig {
-            cache_key: "protonup:catalog:ge-proton",
-            gh_releases_url:
-                "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases",
+            cache_key: providers::ge_proton::cache_key(),
+            gh_releases_url: providers::ge_proton::gh_releases_url(),
             provider_id: "ge-proton",
         },
         ProtonUpProvider::ProtonCachyos => CatalogProviderConfig {
-            cache_key: "protonup:catalog:proton-cachyos",
-            gh_releases_url: "https://api.github.com/repos/CachyOS/proton-cachyos/releases",
+            cache_key: providers::proton_cachyos::cache_key(),
+            gh_releases_url: providers::proton_cachyos::gh_releases_url(),
             provider_id: "proton-cachyos",
         },
     }
-}
-
-// ----- GitHub Release API response types (private) -----
-
-#[derive(Debug, Deserialize)]
-struct GhRelease {
-    tag_name: String,
-    html_url: String,
-    #[serde(default)]
-    draft: bool,
-    #[serde(default)]
-    prerelease: bool,
-    #[serde(default)]
-    assets: Vec<GhAsset>,
-}
-
-#[derive(Debug, Deserialize)]
-struct GhAsset {
-    name: String,
-    browser_download_url: String,
-    size: u64,
-}
-
-// ----- Internal cache row -----
-
-#[derive(Debug)]
-struct CachedCatalogRow {
-    payload_json: String,
-    fetched_at: String,
-    expires_at: Option<String>,
 }
 
 // ----- HTTP client -----
@@ -105,45 +74,49 @@ pub async fn list_available_versions(
     force_refresh: bool,
     provider: ProtonUpProvider,
 ) -> ProtonUpCatalogResponse {
-    let cfg = catalog_config(provider);
+    let cfg = catalog_config(provider.clone());
 
     // Step 1: cache-first (skip on force_refresh)
     if !force_refresh {
-        if let Some(cached) = load_cached_row(metadata_store, false, cfg.cache_key) {
-            if let Some(response) = parse_cached_row(cached, false) {
-                return response;
-            }
+        let rows = load_catalog_rows(metadata_store, cfg.provider_id);
+        if let Some(response) = build_response_from_rows(&rows, false) {
+            return response;
         }
     }
 
-    // Step 2: live fetch
-    match fetch_live_catalog(&cfg).await {
+    // Step 2: live fetch via the provider trait
+    match fetch_live_catalog(&cfg, provider).await {
         Ok(versions) => {
             let fetched_at = Utc::now().to_rfc3339();
             let expires_at = (Utc::now() + ChronoDuration::hours(CACHE_TTL_HOURS)).to_rfc3339();
 
-            let response = ProtonUpCatalogResponse {
+            // Use v22 proton_release_catalog table — one row per (provider_id, version_tag).
+            persist_catalog(
+                metadata_store,
+                cfg.provider_id,
+                &versions,
+                &fetched_at,
+                &expires_at,
+            );
+
+            ProtonUpCatalogResponse {
                 versions,
                 cache: ProtonUpCacheMeta {
                     stale: false,
                     offline: false,
                     fetched_at: Some(fetched_at),
-                    expires_at: Some(expires_at.clone()),
+                    expires_at: Some(expires_at),
                 },
-            };
-
-            persist_catalog(metadata_store, &response, &expires_at, &cfg);
-            response
+            }
         }
 
         Err(error) => {
-            tracing::warn!(%error, cache_key = cfg.cache_key, "ProtonUp live catalog fetch failed — trying stale cache");
+            tracing::warn!(%error, provider_id = cfg.provider_id, "ProtonUp live catalog fetch failed — trying stale cache");
 
             // Step 3: stale fallback
-            if let Some(stale) = load_cached_row(metadata_store, true, cfg.cache_key) {
-                if let Some(response) = parse_cached_row(stale, true) {
-                    return response;
-                }
+            let stale_rows = load_catalog_rows(metadata_store, cfg.provider_id);
+            if let Some(response) = build_response_from_rows(&stale_rows, true) {
+                return response;
             }
 
             // Step 4: completely offline, no cache
@@ -164,8 +137,21 @@ pub async fn list_available_versions(
 
 async fn fetch_live_catalog(
     cfg: &CatalogProviderConfig,
-) -> Result<Vec<ProtonUpAvailableVersion>, reqwest::Error> {
-    let client = protonup_http_client()?;
+    provider: ProtonUpProvider,
+) -> Result<Vec<ProtonUpAvailableVersion>, providers::ProviderError> {
+    let client = protonup_http_client().map_err(providers::ProviderError::Http)?;
+
+    // Resolve the matching provider implementation from the registry.
+    let registry = providers::registry(false);
+    let impl_ = registry.iter().find(|p| p.id() == cfg.provider_id).cloned();
+
+    if let Some(provider_impl) = impl_ {
+        return provider_impl.fetch(client, false).await;
+    }
+
+    // Fallback: plain HTTP request using the configured URL (covers any provider
+    // not yet in the registry — should not happen in practice).
+    use reqwest::StatusCode;
 
     let response = client
         .get(cfg.gh_releases_url)
@@ -178,178 +164,191 @@ async fn fetch_live_catalog(
         return Ok(Vec::new());
     }
 
+    let _ = provider; // used only for the fallback path signature
     let releases = response
         .error_for_status()?
-        .json::<Vec<GhRelease>>()
+        .json::<Vec<providers::GhRelease>>()
         .await?;
 
-    Ok(parse_releases(releases, cfg.provider_id))
-}
-
-/// Strip `.tar.gz` / `.tar.xz` from an asset filename for matching sidecar `.sha512sum` files.
-fn tarball_stem(name: &str) -> Option<&str> {
-    name.strip_suffix(".tar.gz")
-        .or_else(|| name.strip_suffix(".tar.xz"))
-}
-
-/// Pick the primary downloadable archive for a release.
-///
-/// GE-Proton publishes `.tar.gz`. Proton-CachyOS publishes `.tar.xz` for several
-/// architectures; we prefer Linux x86_64 baseline, then x86_64_v3, then any non-ARM `.tar.xz`.
-fn pick_tarball_asset<'a>(assets: &'a [GhAsset], provider_id: &str) -> Option<&'a GhAsset> {
-    if provider_id == "proton-cachyos" {
-        let xz: Vec<&GhAsset> = assets
-            .iter()
-            .filter(|a| a.name.ends_with(".tar.xz"))
-            .collect();
-
-        let baseline_x86 = xz.iter().find(|a| {
-            let n = a.name.as_str();
-            n.contains("x86_64") && !n.contains("x86_64_v3")
-        });
-        let v3 = xz.iter().find(|a| a.name.contains("x86_64_v3"));
-        let non_arm = xz.iter().find(|a| !a.name.to_lowercase().contains("arm"));
-
-        baseline_x86
-            .or(v3)
-            .or(non_arm)
-            .copied()
-            .or_else(|| xz.first().copied())
-    } else {
-        assets.iter().find(|a| a.name.ends_with(".tar.gz"))
-    }
-}
-
-fn find_matching_sha512sum<'a>(assets: &'a [GhAsset], tarball_name: &str) -> Option<&'a GhAsset> {
-    let stem = tarball_stem(tarball_name)?;
-    let expected = format!("{stem}.sha512sum");
-    assets.iter().find(|a| a.name == expected)
-}
-
-fn gh_release_to_version(
-    release: GhRelease,
-    provider_id: &str,
-) -> Option<ProtonUpAvailableVersion> {
-    let tarball = pick_tarball_asset(&release.assets, provider_id)?;
-
-    let checksum = find_matching_sha512sum(&release.assets, &tarball.name);
-
-    Some(ProtonUpAvailableVersion {
-        provider: provider_id.to_string(),
-        version: release.tag_name,
-        release_url: Some(release.html_url),
-        download_url: Some(tarball.browser_download_url.clone()),
-        asset_size: Some(tarball.size),
-        checksum_url: checksum.map(|a| a.browser_download_url.clone()),
-        checksum_kind: checksum.map(|_| "sha512".to_string()),
-    })
+    Ok(providers::parse_releases(releases, cfg.provider_id, 30))
 }
 
 // ----- Cache helpers -----
 
-fn load_cached_row(
-    metadata_store: &MetadataStore,
-    allow_expired: bool,
-    cache_key: &str,
-) -> Option<CachedCatalogRow> {
-    if !metadata_store.is_available() {
-        return None;
-    }
-
-    let now = Utc::now().to_rfc3339();
-    let action = if allow_expired {
-        "load a cached ProtonUp catalog row"
-    } else {
-        "load a valid cached ProtonUp catalog row"
-    };
-
-    metadata_store
-        .with_sqlite_conn(action, |conn| {
-            let sql = if allow_expired {
-                "SELECT payload_json, fetched_at, expires_at \
-                 FROM external_cache_entries WHERE cache_key = ?1 LIMIT 1"
-            } else {
-                "SELECT payload_json, fetched_at, expires_at \
-                 FROM external_cache_entries \
-                 WHERE cache_key = ?1 AND (expires_at IS NULL OR expires_at > ?2) LIMIT 1"
-            };
-
-            let row_params = if allow_expired {
-                params![cache_key]
-            } else {
-                params![cache_key, now]
-            };
-
-            conn.query_row(sql, row_params, |row| {
-                Ok(CachedCatalogRow {
-                    payload_json: row.get::<_, Option<String>>(0)?.unwrap_or_default(),
-                    fetched_at: row.get::<_, String>(1)?,
-                    expires_at: row.get::<_, Option<String>>(2)?,
-                })
-            })
-            .optional()
-            .map_err(|source| MetadataStoreError::Database {
-                action: "query a ProtonUp catalog cache row",
-                source,
-            })
-        })
-        .ok()
-        .flatten()
-}
-
-fn parse_cached_row(row: CachedCatalogRow, is_stale: bool) -> Option<ProtonUpCatalogResponse> {
-    if row.payload_json.trim().is_empty() {
-        return None;
-    }
-
-    let mut response = serde_json::from_str::<ProtonUpCatalogResponse>(&row.payload_json).ok()?;
-
-    response.cache = ProtonUpCacheMeta {
-        stale: is_stale,
-        offline: is_stale,
-        fetched_at: Some(row.fetched_at),
-        expires_at: row.expires_at,
-    };
-
-    Some(response)
-}
-
-/// Convert a list of GitHub releases into `ProtonUpAvailableVersion` entries,
-/// applying the same filtering rules used during live fetches: skip drafts,
-/// pre-releases, and releases without a supported tarball (`.tar.gz` for GE-Proton,
-/// `.tar.xz` for Proton-CachyOS). Cap at `MAX_RELEASES`.
+/// Load all rows for `provider_id` from the v22 `proton_release_catalog` table.
 ///
-/// Extracted to allow unit-testing without network I/O.
-fn parse_releases(releases: Vec<GhRelease>, provider_id: &str) -> Vec<ProtonUpAvailableVersion> {
-    releases
-        .into_iter()
-        .filter(|r| !r.draft && !r.prerelease)
-        .take(MAX_RELEASES)
-        .filter_map(|r| gh_release_to_version(r, provider_id))
-        .collect()
+/// Returns an empty vec when the store is unavailable or has no rows for this provider.
+fn load_catalog_rows(metadata_store: &MetadataStore, provider_id: &str) -> Vec<ProtonCatalogRow> {
+    if !metadata_store.is_available() {
+        return Vec::new();
+    }
+
+    match metadata_store.get_proton_catalog(provider_id) {
+        Ok(rows) => rows,
+        Err(error) => {
+            tracing::warn!(%error, provider_id, "failed to load ProtonUp catalog rows from DB");
+            Vec::new()
+        }
+    }
 }
 
+/// Convert a set of `ProtonCatalogRow`s into a `ProtonUpCatalogResponse`.
+///
+/// When `is_stale` is false the caller should only pass rows whose `expires_at`
+/// has not yet elapsed — this function treats whatever is given as authoritative.
+/// When `is_stale` is true the rows may be expired; mark the response accordingly.
+///
+/// Returns `None` when `rows` is empty or every row fails to deserialize.
+fn build_response_from_rows(
+    rows: &[ProtonCatalogRow],
+    is_stale: bool,
+) -> Option<ProtonUpCatalogResponse> {
+    if rows.is_empty() {
+        return None;
+    }
+
+    let now = Utc::now();
+    let ttl_cutoff = now - ChronoDuration::hours(CACHE_TTL_HOURS);
+
+    // When not forcing stale, skip if all rows are expired.
+    if !is_stale {
+        let all_expired = rows.iter().all(|r| {
+            // Prefer expires_at if present; fall back to fetched_at + TTL.
+            if let Some(ref exp) = r.expires_at {
+                DateTime::parse_from_rfc3339(exp)
+                    .map(|dt| dt.with_timezone(&Utc) <= now)
+                    .unwrap_or(true)
+            } else {
+                DateTime::parse_from_rfc3339(&r.fetched_at)
+                    .map(|dt| dt.with_timezone(&Utc) <= ttl_cutoff)
+                    .unwrap_or(true)
+            }
+        });
+        if all_expired {
+            return None;
+        }
+    }
+
+    // Deserialize each row's payload_json into a ProtonUpAvailableVersion.
+    let versions: Vec<ProtonUpAvailableVersion> = rows
+        .iter()
+        .filter_map(|r| match serde_json::from_str(&r.payload_json) {
+            Ok(v) => Some(v),
+            Err(err) => {
+                tracing::warn!(
+                    provider_id = %r.provider_id,
+                    version_tag = %r.version_tag,
+                    %err,
+                    "failed to parse ProtonUp catalog row payload — treating as missing"
+                );
+                None
+            }
+        })
+        .collect();
+
+    if versions.is_empty() {
+        return None;
+    }
+
+    // cache_meta.fetched_at: the oldest fetched_at across all rows defines the age of cached data.
+    let oldest_fetched_at = rows
+        .iter()
+        .map(|r| r.fetched_at.as_str())
+        .min()
+        .map(str::to_owned);
+
+    // Determine staleness from the oldest row's age when not already forced stale.
+    let actually_stale = is_stale || {
+        oldest_fetched_at
+            .as_deref()
+            .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&Utc) <= ttl_cutoff)
+            .unwrap_or(false)
+    };
+
+    // expires_at for the response: use the minimum expires_at across rows that have one.
+    let min_expires_at = rows
+        .iter()
+        .filter_map(|r| r.expires_at.as_deref())
+        .min()
+        .map(str::to_owned);
+
+    Some(ProtonUpCatalogResponse {
+        versions,
+        cache: ProtonUpCacheMeta {
+            stale: actually_stale,
+            offline: is_stale,
+            fetched_at: oldest_fetched_at,
+            expires_at: min_expires_at,
+        },
+    })
+}
+
+/// Persist fetched versions into the v22 `proton_release_catalog` table.
+///
+/// Each `ProtonUpAvailableVersion` becomes one row keyed on `(provider_id, version_tag)`.
+/// The provider-level `ChecksumKind` from the registry is serialized into `checksum_kind`
+/// so the install path can choose the right verification strategy without re-fetching.
 fn persist_catalog(
     metadata_store: &MetadataStore,
-    response: &ProtonUpCatalogResponse,
+    provider_id: &str,
+    versions: &[ProtonUpAvailableVersion],
+    fetched_at: &str,
     expires_at: &str,
-    cfg: &CatalogProviderConfig,
 ) {
-    let Ok(payload) = serde_json::to_string(response) else {
-        tracing::warn!(
-            cache_key = cfg.cache_key,
-            "failed to serialize ProtonUp catalog payload"
-        );
-        return;
+    // Derive the provider's ChecksumKind from the registry for the checksum_kind column.
+    let registry_checksum_kind: Option<String> = {
+        let registry = providers::registry(false);
+        registry.iter().find(|p| p.id() == provider_id).map(|p| {
+            serde_json::to_string(&p.checksum_kind())
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_owned()
+        })
     };
 
-    if let Err(error) = metadata_store.put_cache_entry(
-        cfg.gh_releases_url,
-        cfg.cache_key,
-        &payload,
-        Some(expires_at),
-    ) {
-        tracing::warn!(cache_key = cfg.cache_key, %error, "failed to persist ProtonUp catalog cache");
+    let rows: Vec<ProtonCatalogRow> = versions
+        .iter()
+        .filter_map(|v| {
+            let payload_json = match serde_json::to_string(v) {
+                Ok(s) => s,
+                Err(err) => {
+                    tracing::warn!(
+                        provider_id,
+                        version = %v.version,
+                        %err,
+                        "failed to serialize ProtonUp version for catalog row — skipping"
+                    );
+                    return None;
+                }
+            };
+
+            Some(ProtonCatalogRow {
+                provider_id: provider_id.to_owned(),
+                version_tag: v.version.clone(),
+                payload_json,
+                release_url: v.release_url.clone(),
+                download_url: v.download_url.clone(),
+                checksum_url: v.checksum_url.clone(),
+                // Use the row's own checksum_kind when present; otherwise fall back to
+                // the provider-level registry value.
+                checksum_kind: v
+                    .checksum_kind
+                    .clone()
+                    .or_else(|| registry_checksum_kind.clone()),
+                asset_size: v.asset_size.map(|s| s as i64),
+                fetched_at: fetched_at.to_owned(),
+                expires_at: Some(expires_at.to_owned()),
+            })
+        })
+        .collect();
+
+    if rows.is_empty() {
+        return;
+    }
+
+    if let Err(error) = metadata_store.put_proton_catalog(&rows) {
+        tracing::warn!(provider_id, %error, "failed to persist ProtonUp catalog to DB");
     }
 }
 
@@ -358,58 +357,6 @@ fn persist_catalog(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Build a minimal `GhRelease` for testing.
-    fn make_release(
-        tag_name: &str,
-        draft: bool,
-        prerelease: bool,
-        assets: Vec<GhAsset>,
-    ) -> GhRelease {
-        GhRelease {
-            tag_name: tag_name.to_string(),
-            html_url: format!("https://github.com/example/releases/tag/{tag_name}"),
-            draft,
-            prerelease,
-            assets,
-        }
-    }
-
-    fn tar_gz_asset(tag_name: &str) -> GhAsset {
-        GhAsset {
-            name: format!("{tag_name}.tar.gz"),
-            browser_download_url: format!(
-                "https://github.com/releases/download/{tag_name}/{tag_name}.tar.gz"
-            ),
-            size: 1_234_567,
-        }
-    }
-
-    fn sha512_asset(tag_name: &str) -> GhAsset {
-        GhAsset {
-            name: format!("{tag_name}.sha512sum"),
-            browser_download_url: format!(
-                "https://github.com/releases/download/{tag_name}/{tag_name}.sha512sum"
-            ),
-            size: 128,
-        }
-    }
-
-    fn tar_xz_named(name: &str) -> GhAsset {
-        GhAsset {
-            name: name.to_string(),
-            browser_download_url: format!("https://github.com/releases/download/x/{name}"),
-            size: 300_000_000,
-        }
-    }
-
-    fn sha512_named(name: &str) -> GhAsset {
-        GhAsset {
-            name: name.to_string(),
-            browser_download_url: format!("https://github.com/releases/download/x/{name}"),
-            size: 128,
-        }
-    }
 
     #[test]
     fn catalog_configs_have_distinct_cache_keys_and_urls() {
@@ -422,186 +369,167 @@ mod tests {
         assert!(cachy.gh_releases_url.contains("CachyOS/proton-cachyos"));
     }
 
-    #[test]
-    fn parse_gh_release_extracts_version_and_urls() {
-        let releases = vec![make_release(
-            "GE-Proton9-21",
-            false,
-            false,
-            vec![tar_gz_asset("GE-Proton9-21"), sha512_asset("GE-Proton9-21")],
-        )];
+    // ── Integration: v22 DB + catalog read/write path ─────────────────────────
 
-        let versions = parse_releases(releases, "ge-proton");
-        assert_eq!(versions.len(), 1);
-        let v = &versions[0];
-        assert_eq!(v.version, "GE-Proton9-21");
-        assert_eq!(v.provider, "ge-proton");
-        assert!(v.download_url.as_deref().unwrap().ends_with(".tar.gz"));
-        assert!(v.release_url.as_deref().unwrap().contains("GE-Proton9-21"));
-        assert!(v.checksum_url.is_some());
-        assert_eq!(v.checksum_kind.as_deref(), Some("sha512"));
-        assert_eq!(v.asset_size, Some(1_234_567));
+    fn make_version(version: &str) -> ProtonUpAvailableVersion {
+        ProtonUpAvailableVersion {
+            provider: "ge-proton".to_string(),
+            version: version.to_string(),
+            release_url: Some(format!("https://example.com/release/{version}")),
+            download_url: Some(format!("https://example.com/{version}.tar.gz")),
+            checksum_url: Some(format!("https://example.com/{version}.sha512sum")),
+            checksum_kind: Some("sha512".to_string()),
+            asset_size: Some(500_000_000),
+            published_at: Some("2024-06-01T00:00:00Z".to_string()),
+        }
+    }
+
+    fn make_row(
+        provider_id: &str,
+        version_tag: &str,
+        fetched_at: &str,
+        expires_at: Option<&str>,
+        version: &ProtonUpAvailableVersion,
+    ) -> ProtonCatalogRow {
+        ProtonCatalogRow {
+            provider_id: provider_id.to_string(),
+            version_tag: version_tag.to_string(),
+            payload_json: serde_json::to_string(version).unwrap(),
+            release_url: version.release_url.clone(),
+            download_url: version.download_url.clone(),
+            checksum_url: version.checksum_url.clone(),
+            checksum_kind: version.checksum_kind.clone(),
+            asset_size: version.asset_size.map(|s| s as i64),
+            fetched_at: fetched_at.to_string(),
+            expires_at: expires_at.map(str::to_owned),
+        }
+    }
+
+    /// Fresh v22 in-memory store (runs all migrations including 21→22).
+    fn open_store() -> MetadataStore {
+        MetadataStore::open_in_memory().expect("open in-memory metadata store")
     }
 
     #[test]
-    fn parse_releases_stamps_proton_cachyos_provider() {
-        let tb = "proton-cachyos-10.0-20260330-slr-x86_64.tar.xz";
-        let releases = vec![make_release(
-            "cachyos-10.0-20260330-slr",
-            false,
-            false,
-            vec![
-                tar_xz_named(tb),
-                sha512_named("proton-cachyos-10.0-20260330-slr-x86_64.sha512sum"),
-            ],
-        )];
-
-        let versions = parse_releases(releases, "proton-cachyos");
-        assert_eq!(versions.len(), 1);
-        assert_eq!(versions[0].provider, "proton-cachyos");
-        assert_eq!(versions[0].version, "cachyos-10.0-20260330-slr");
-        assert!(versions[0]
-            .download_url
-            .as_deref()
-            .unwrap()
-            .ends_with(".tar.xz"));
-        assert!(versions[0]
-            .checksum_url
-            .as_deref()
-            .unwrap()
-            .contains("x86_64.sha512sum"));
+    fn empty_store_returns_no_response() {
+        let store = open_store();
+        let rows = load_catalog_rows(&store, "ge-proton");
+        assert!(rows.is_empty());
+        let resp = build_response_from_rows(&rows, false);
+        assert!(resp.is_none(), "empty store should produce no response");
     }
 
     #[test]
-    fn proton_cachyos_prefers_baseline_x86_64_over_v3_and_arm() {
-        let releases = vec![make_release(
-            "cachyos-test",
-            false,
-            false,
-            vec![
-                tar_xz_named("proton-cachyos-test-arm64.tar.xz"),
-                tar_xz_named("proton-cachyos-test-x86_64_v3.tar.xz"),
-                tar_xz_named("proton-cachyos-test-x86_64.tar.xz"),
-                sha512_named("proton-cachyos-test-x86_64.sha512sum"),
-                sha512_named("proton-cachyos-test-x86_64_v3.sha512sum"),
-            ],
-        )];
+    fn fresh_rows_return_non_stale_response() {
+        let store = open_store();
 
-        let versions = parse_releases(releases, "proton-cachyos");
-        assert_eq!(versions.len(), 1);
-        let url = versions[0].download_url.as_deref().unwrap();
+        // Both rows fetched recently (well within TTL) and not yet expired.
+        let future = (Utc::now() + ChronoDuration::hours(5)).to_rfc3339();
+        let fetched = Utc::now().to_rfc3339();
+
+        let v1 = make_version("GE-Proton9-1");
+        let v2 = make_version("GE-Proton9-2");
+        let rows = vec![
+            make_row("ge-proton", "GE-Proton9-1", &fetched, Some(&future), &v1),
+            make_row("ge-proton", "GE-Proton9-2", &fetched, Some(&future), &v2),
+        ];
+
+        store.put_proton_catalog(&rows).expect("put rows");
+
+        let loaded = load_catalog_rows(&store, "ge-proton");
+        assert_eq!(loaded.len(), 2);
+
+        let resp = build_response_from_rows(&loaded, false)
+            .expect("should produce a response from fresh rows");
+        assert_eq!(resp.versions.len(), 2);
+        assert!(!resp.cache.stale, "fresh rows should not be stale");
+        assert!(!resp.cache.offline);
+        assert!(resp.cache.fetched_at.is_some());
+    }
+
+    #[test]
+    fn stale_oldest_row_makes_response_stale() {
+        let store = open_store();
+
+        // One row older than 6 h (stale), one fresh.
+        let stale_fetched = (Utc::now() - ChronoDuration::hours(7)).to_rfc3339();
+        let fresh_fetched = Utc::now().to_rfc3339();
+        let future = (Utc::now() + ChronoDuration::hours(5)).to_rfc3339();
+
+        let v1 = make_version("GE-Proton9-1");
+        let v2 = make_version("GE-Proton9-2");
+        let rows = vec![
+            // Stale row: no expires_at, fetched_at older than TTL.
+            make_row("ge-proton", "GE-Proton9-1", &stale_fetched, None, &v1),
+            // Fresh row: expires in future.
+            make_row(
+                "ge-proton",
+                "GE-Proton9-2",
+                &fresh_fetched,
+                Some(&future),
+                &v2,
+            ),
+        ];
+
+        store.put_proton_catalog(&rows).expect("put rows");
+
+        let loaded = load_catalog_rows(&store, "ge-proton");
+        assert_eq!(loaded.len(), 2);
+
+        // Calling build_response_from_rows with is_stale=false:
+        // all_expired check: v1 has no expires_at → uses fetched_at + TTL → expired;
+        // v2 has a future expires_at → not expired. So not all_expired → proceeds.
+        // Staleness check: oldest fetched_at (stale_fetched, 7h ago) < ttl_cutoff → stale=true.
+        let resp = build_response_from_rows(&loaded, false)
+            .expect("should produce a response even with one stale row");
+        assert_eq!(resp.versions.len(), 2);
         assert!(
-            url.contains("x86_64.tar.xz") && !url.contains("x86_64_v3"),
-            "expected baseline x86_64, got {url}"
+            resp.cache.stale,
+            "oldest row older than TTL should mark response as stale"
         );
     }
 
     #[test]
-    fn skips_draft_releases() {
-        let releases = vec![
-            make_release(
-                "GE-Proton9-21",
-                true,
-                false,
-                vec![tar_gz_asset("GE-Proton9-21")],
-            ),
-            make_release(
-                "GE-Proton9-20",
-                false,
-                false,
-                vec![tar_gz_asset("GE-Proton9-20")],
-            ),
+    fn all_expired_rows_return_none_for_fresh_check() {
+        let store = open_store();
+
+        // Both rows have expires_at in the past.
+        let past = (Utc::now() - ChronoDuration::hours(1)).to_rfc3339();
+        let fetched = (Utc::now() - ChronoDuration::hours(7)).to_rfc3339();
+
+        let v1 = make_version("GE-Proton9-1");
+        let v2 = make_version("GE-Proton9-2");
+        let rows = vec![
+            make_row("ge-proton", "GE-Proton9-1", &fetched, Some(&past), &v1),
+            make_row("ge-proton", "GE-Proton9-2", &fetched, Some(&past), &v2),
         ];
 
-        let versions = parse_releases(releases, "ge-proton");
-        assert_eq!(versions.len(), 1);
-        assert_eq!(versions[0].version, "GE-Proton9-20");
+        store.put_proton_catalog(&rows).expect("put rows");
+
+        let loaded = load_catalog_rows(&store, "ge-proton");
+        let resp = build_response_from_rows(&loaded, false);
+        assert!(
+            resp.is_none(),
+            "all-expired rows should return None for a non-stale (fresh-only) check"
+        );
+
+        // But stale check should still return them.
+        let stale_resp = build_response_from_rows(&loaded, true);
+        assert!(
+            stale_resp.is_some(),
+            "stale=true should return expired rows as fallback"
+        );
     }
 
     #[test]
-    fn skips_prerelease_releases() {
-        let releases = vec![
-            make_release(
-                "GE-Proton9-21-rc1",
-                false,
-                true,
-                vec![tar_gz_asset("GE-Proton9-21-rc1")],
-            ),
-            make_release(
-                "GE-Proton9-20",
-                false,
-                false,
-                vec![tar_gz_asset("GE-Proton9-20")],
-            ),
-        ];
+    fn no_network_offline_path_returns_empty_not_error() {
+        // A disabled store (no DB) should yield empty rows → no panic.
+        let store = MetadataStore::disabled();
+        let rows = load_catalog_rows(&store, "ge-proton");
+        assert!(rows.is_empty());
 
-        let versions = parse_releases(releases, "ge-proton");
-        assert_eq!(versions.len(), 1);
-        assert_eq!(versions[0].version, "GE-Proton9-20");
-    }
-
-    #[test]
-    fn skips_releases_without_tar_gz() {
-        let releases = vec![make_release(
-            "GE-Proton9-21",
-            false,
-            false,
-            // Only a checksum — no .tar.gz present.
-            vec![sha512_asset("GE-Proton9-21")],
-        )];
-
-        let versions = parse_releases(releases, "ge-proton");
-        assert!(versions.is_empty());
-    }
-
-    #[test]
-    fn extracts_checksum_url_when_present() {
-        let releases = vec![make_release(
-            "GE-Proton9-21",
-            false,
-            false,
-            vec![tar_gz_asset("GE-Proton9-21"), sha512_asset("GE-Proton9-21")],
-        )];
-
-        let versions = parse_releases(releases, "ge-proton");
-        let v = &versions[0];
-        assert!(v.checksum_url.is_some());
-        assert!(v.checksum_url.as_deref().unwrap().ends_with(".sha512sum"));
-        assert_eq!(v.checksum_kind.as_deref(), Some("sha512"));
-    }
-
-    #[test]
-    fn checksum_url_is_none_when_no_sha512sum_asset() {
-        let releases = vec![make_release(
-            "GE-Proton9-21",
-            false,
-            false,
-            vec![tar_gz_asset("GE-Proton9-21")],
-        )];
-
-        let versions = parse_releases(releases, "ge-proton");
-        let v = &versions[0];
-        assert!(v.checksum_url.is_none());
-        assert!(v.checksum_kind.is_none());
-    }
-
-    #[test]
-    fn caps_at_max_releases() {
-        // Generate MAX_RELEASES + 5 valid releases.
-        let releases: Vec<GhRelease> = (0..MAX_RELEASES + 5)
-            .map(|i| {
-                let tag = format!("GE-Proton9-{i}");
-                make_release(&tag, false, false, vec![tar_gz_asset(&tag)])
-            })
-            .collect();
-
-        let versions = parse_releases(releases, "ge-proton");
-        assert_eq!(versions.len(), MAX_RELEASES);
-    }
-
-    #[test]
-    fn empty_release_list_returns_empty() {
-        let versions = parse_releases(vec![], "ge-proton");
-        assert!(versions.is_empty());
+        // build_response_from_rows on empty gives None, which maps to offline empty.
+        let resp = build_response_from_rows(&rows, false);
+        assert!(resp.is_none());
     }
 }

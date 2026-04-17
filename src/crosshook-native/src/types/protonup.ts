@@ -10,6 +10,8 @@ export interface ProtonUpAvailableVersion {
   checksum_url?: string;
   checksum_kind?: string;
   asset_size?: number;
+  /** ISO-8601 UTC release timestamp from upstream GitHub. */
+  published_at?: string | null;
 }
 
 export interface ProtonUpCacheMeta {
@@ -54,4 +56,51 @@ export interface ProtonUpSuggestion {
   community_version?: string;
   matched_install_name?: string;
   recommended_version?: string;
+}
+
+// Types for the native Proton download manager (Issue #274).
+// Mirror the Rust DTOs from the protonup::manager / protonup::resolver modules.
+
+export interface ProtonUpProviderDescriptor {
+  id: string;
+  display_name: string;
+  supports_install: boolean;
+  checksum_kind: 'sha512-sidecar' | 'sha256-manifest' | 'none';
+}
+
+export type InstallRootKind = 'native-steam' | 'flatpak-steam';
+
+export interface InstallRootDescriptor {
+  kind: InstallRootKind;
+  path: string;
+  writable: boolean;
+  reason?: string | null;
+}
+
+export interface ProtonInstallHandle {
+  op_id: string;
+}
+
+export type ProtonInstallPhase =
+  | 'resolving'
+  | 'downloading'
+  | 'verifying'
+  | 'extracting'
+  | 'finalizing'
+  | 'done'
+  | 'failed'
+  | 'cancelled';
+
+export interface ProtonInstallProgress {
+  op_id: string;
+  phase: ProtonInstallPhase;
+  bytes_done: number;
+  bytes_total?: number | null;
+  message?: string | null;
+}
+
+export interface ProtonUninstallResult {
+  success: boolean;
+  conflicting_app_ids: string[];
+  error_message?: string | null;
 }

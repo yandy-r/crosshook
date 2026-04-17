@@ -3,6 +3,11 @@ name = "crosshook-core"
 version = "0.2.11"
 edition = "2021"
 
+[features]
+default = []
+# Enable catalog-only Luxtorpeda + Boxtron providers (Batch 3). Disabled in AppImage/Flatpak release builds.
+experimental-providers = []
+
 [dependencies]
 chrono = "0.4"
 csv = "1"
@@ -14,6 +19,7 @@ serde_json = "1"
 toml = "1.1.0"
 tar = "0.4"
 tokio = { version = "1", features = ["fs", "process", "rt", "sync", "time"] }
+tokio-util = { version = "0.7" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
@@ -22,6 +28,7 @@ tracing-subscriber = { version = "0.3", features = [
 ] }
 rusqlite = { version = "0.39.0", features = ["bundled"] }
 quick-xml = "0.39.2"
+async-trait = "0.1"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls", "stream"] }
 sha2 = "0.11.0"
@@ -42,5 +49,5 @@ workspace = true
 
 [dev-dependencies]
 tempfile = "3"
-tokio = { version = "1", features = ["macros", "rt"] }
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "time"] }
 wiremock = "0.6"
