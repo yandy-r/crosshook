@@ -187,6 +187,24 @@ pub(super) async fn fetch_github_releases(
     Ok(releases)
 }
 
+/// Fetch GitHub releases and convert them into provider versions using the
+/// shared archive-selection rules.
+pub(super) async fn fetch_github_versions(
+    client: &reqwest::Client,
+    url: &str,
+    provider_id: &str,
+    max: usize,
+    include_prereleases: bool,
+) -> Result<Vec<ProtonUpAvailableVersion>, ProviderError> {
+    let releases = fetch_github_releases(client, url).await?;
+    Ok(parse_releases(
+        releases,
+        provider_id,
+        max,
+        include_prereleases,
+    ))
+}
+
 // ── Shared GitHub Releases API types (used by both providers) ─────────────────
 
 /// A single release from the GitHub Releases API.
@@ -302,8 +320,8 @@ pub(super) fn parse_releases(
     releases
         .into_iter()
         .filter(|r| !r.draft && (include_prereleases || !r.prerelease))
-        .take(max)
         .filter_map(|r| gh_release_to_version(r, provider_id))
+        .take(max)
         .collect()
 }
 
@@ -323,7 +341,6 @@ where
     releases
         .into_iter()
         .filter(|r| !r.draft && (include_prereleases || !r.prerelease))
-        .take(max)
         .filter_map(|r| {
             let tarball = r.assets.iter().find(|a| asset_filter(a))?;
             let checksum_url = format!("{checksum_base_url}/{}/{}", r.tag_name, checksum_filename);
@@ -338,6 +355,7 @@ where
                 published_at: r.published_at,
             })
         })
+        .take(max)
         .collect()
 }
 
@@ -346,6 +364,42 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn make_release(
+        tag_name: &str,
+        draft: bool,
+        prerelease: bool,
+        assets: Vec<GhAsset>,
+    ) -> GhRelease {
+        GhRelease {
+            tag_name: tag_name.to_string(),
+            html_url: format!("https://github.com/example/releases/tag/{tag_name}"),
+            draft,
+            prerelease,
+            assets,
+            published_at: Some("2026-04-17T12:00:00Z".to_string()),
+        }
+    }
+
+    fn tar_gz_asset(tag_name: &str) -> GhAsset {
+        GhAsset {
+            name: format!("{tag_name}.tar.gz"),
+            browser_download_url: format!(
+                "https://github.com/example/releases/download/{tag_name}/{tag_name}.tar.gz"
+            ),
+            size: 1234,
+        }
+    }
+
+    fn checksum_only_asset(tag_name: &str) -> GhAsset {
+        GhAsset {
+            name: format!("{tag_name}.sha512sum"),
+            browser_download_url: format!(
+                "https://github.com/example/releases/download/{tag_name}/{tag_name}.sha512sum"
+            ),
+            size: 128,
+        }
+    }
 
     #[test]
     fn registry_contains_ge_proton_and_proton_cachyos() {
@@ -413,5 +467,70 @@ mod tests {
         assert_eq!(parsed.display_name, first.display_name);
         assert_eq!(parsed.supports_install, first.supports_install);
         assert_eq!(parsed.checksum_kind, first.checksum_kind);
+    }
+
+    #[test]
+    fn parse_releases_caps_successful_versions_instead_of_attempted_releases() {
+        let releases = vec![
+            make_release(
+                "invalid-1",
+                false,
+                false,
+                vec![checksum_only_asset("invalid-1")],
+            ),
+            make_release(
+                "invalid-2",
+                false,
+                false,
+                vec![checksum_only_asset("invalid-2")],
+            ),
+            make_release("valid-1", false, false, vec![tar_gz_asset("valid-1")]),
+            make_release("valid-2", false, false, vec![tar_gz_asset("valid-2")]),
+        ];
+
+        let versions = parse_releases(releases, "ge-proton", 2, false);
+        let tags: Vec<&str> = versions
+            .iter()
+            .map(|version| version.version.as_str())
+            .collect();
+
+        assert_eq!(tags, vec!["valid-1", "valid-2"]);
+    }
+
+    #[cfg(feature = "experimental-providers")]
+    #[test]
+    fn build_versions_from_releases_caps_successful_versions_instead_of_attempted_releases() {
+        let releases = vec![
+            make_release(
+                "invalid-1",
+                false,
+                false,
+                vec![checksum_only_asset("invalid-1")],
+            ),
+            make_release(
+                "invalid-2",
+                false,
+                false,
+                vec![checksum_only_asset("invalid-2")],
+            ),
+            make_release("valid-1", false, false, vec![tar_gz_asset("valid-1")]),
+            make_release("valid-2", false, false, vec![tar_gz_asset("valid-2")]),
+        ];
+
+        let versions = build_versions_from_releases(
+            releases,
+            "boxtron",
+            2,
+            false,
+            "https://github.com/example/releases/download",
+            "SHA256SUMS",
+            |asset| asset.name.ends_with(".tar.gz"),
+        );
+        let tags: Vec<&str> = versions
+            .iter()
+            .map(|version| version.version.as_str())
+            .collect();
+
+        assert_eq!(tags, vec!["valid-1", "valid-2"]);
     }
 }

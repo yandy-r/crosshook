@@ -11,6 +11,12 @@ interface ProtonManagerPanelProps {
   steamClientInstallPath?: string;
 }
 
+interface PendingUninstallConfirmation {
+  toolPath: string;
+  versionLabel: string;
+  conflictingAppIds: string[];
+}
+
 export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPanelProps) {
   const manager = useProtonManager({ steamClientInstallPath });
 
@@ -19,6 +25,7 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
   const [uninstallError, setUninstallError] = useState<string | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [pendingUninstall, setPendingUninstall] = useState<PendingUninstallConfirmation | null>(null);
 
   const effectiveRoot = useMemo(() => {
     if (selectedRootPath !== null) {
@@ -91,30 +98,18 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
     [manager]
   );
 
-  const handleUninstall = useCallback(
-    async (toolPath: string) => {
+  const performUninstall = useCallback(
+    async (toolPath: string, versionLabel: string, conflictingAppIds: string[]) => {
       setUninstallWarning(null);
       setUninstallError(null);
+      setPendingUninstall(null);
       try {
-        const plan = await manager.planUninstall(toolPath);
-        if (!plan.success) {
-          setUninstallError(plan.error_message ?? 'Uninstall plan failed.');
-          return;
-        }
-
-        if (plan.conflicting_app_ids.length > 0) {
-          const confirmed = window.confirm(
-            `This Proton version is referenced by these Steam app IDs: ${plan.conflicting_app_ids.join(', ')}.\n\nProceed with uninstall?`
-          );
-          if (!confirmed) return;
-        }
-
         const result = await manager.uninstall(toolPath);
         if (!result.success) {
           setUninstallError(result.error_message ?? 'Uninstall failed.');
-        } else if (plan.conflicting_app_ids.length > 0) {
+        } else if (conflictingAppIds.length > 0) {
           setUninstallWarning(
-            `Uninstalled. The following apps referenced this version: ${plan.conflicting_app_ids.join(', ')}`
+            `${versionLabel} was uninstalled. The following Steam app IDs referenced it: ${conflictingAppIds.join(', ')}`
           );
         }
       } catch (err) {
@@ -123,6 +118,46 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
     },
     [manager]
   );
+
+  const handleUninstall = useCallback(
+    async (toolPath: string, versionLabel: string) => {
+      setUninstallWarning(null);
+      setUninstallError(null);
+      setPendingUninstall(null);
+      try {
+        const plan = await manager.planUninstall(toolPath);
+        if (!plan.success) {
+          setUninstallError(plan.error_message ?? 'Uninstall plan failed.');
+          return;
+        }
+
+        if (plan.conflicting_app_ids.length > 0) {
+          setPendingUninstall({
+            toolPath,
+            versionLabel,
+            conflictingAppIds: plan.conflicting_app_ids,
+          });
+          return;
+        }
+
+        await performUninstall(toolPath, versionLabel, []);
+      } catch (err) {
+        setUninstallError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [performUninstall, manager]
+  );
+
+  const handleConfirmUninstall = useCallback(() => {
+    if (pendingUninstall === null) {
+      return;
+    }
+    void performUninstall(pendingUninstall.toolPath, pendingUninstall.versionLabel, pendingUninstall.conflictingAppIds);
+  }, [pendingUninstall, performUninstall]);
+
+  const handleCancelUninstallConfirmation = useCallback(() => {
+    setPendingUninstall(null);
+  }, []);
 
   // Filter installed list by selected provider. In All mode, show everything.
   // `null` classification (tag doesn't match any known provider) is surfaced
@@ -177,6 +212,12 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
 
   return (
     <div className="crosshook-proton-manager">
+      <div className="crosshook-visually-hidden" aria-live="assertive" aria-atomic="true">
+        {pendingUninstall
+          ? `${pendingUninstall.versionLabel} is still referenced by Steam app IDs ${pendingUninstall.conflictingAppIds.join(', ')}. Confirm uninstall to continue.`
+          : ''}
+      </div>
+
       <div className="crosshook-proton-manager__header">
         <ProviderPicker
           providers={manager.providers}
@@ -229,6 +270,40 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
         <div className="crosshook-proton-manager__readonly-banner" role="alert">
           The selected install root is read-only. Choose a writable root to install versions.
         </div>
+      ) : null}
+
+      {pendingUninstall ? (
+        <section
+          className="crosshook-proton-manager__confirm-banner"
+          aria-labelledby="proton-manager-uninstall-confirm-title"
+          aria-describedby="proton-manager-uninstall-confirm-body"
+        >
+          <div className="crosshook-proton-manager__confirm-copy">
+            <h3 id="proton-manager-uninstall-confirm-title" className="crosshook-proton-manager__confirm-title">
+              Confirm uninstall of {pendingUninstall.versionLabel}
+            </h3>
+            <p id="proton-manager-uninstall-confirm-body" className="crosshook-proton-manager__confirm-text">
+              This version is still referenced by Steam app IDs {pendingUninstall.conflictingAppIds.join(', ')}.
+              Uninstalling it may break launches for those apps until another Proton version is selected in Steam.
+            </p>
+          </div>
+          <div className="crosshook-proton-manager__confirm-actions">
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--ghost crosshook-button--ghost--small"
+              onClick={handleCancelUninstallConfirmation}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--danger"
+              onClick={handleConfirmUninstall}
+            >
+              Uninstall anyway
+            </button>
+          </div>
+        </section>
       ) : null}
 
       {manager.activeOpIds.length > 0 ? (
@@ -290,7 +365,7 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
                     installing={false}
                     canInstall={false}
                     onInstall={() => undefined}
-                    onUninstall={() => void handleUninstall(install.path)}
+                    onUninstall={() => void handleUninstall(install.path, install.name)}
                     publishedAt={catalogMatch?.published_at ?? null}
                     assetSize={catalogMatch?.asset_size ?? null}
                   />

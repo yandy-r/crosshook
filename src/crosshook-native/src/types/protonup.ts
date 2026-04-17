@@ -40,6 +40,7 @@ export type ProtonUpInstallErrorKind =
   | 'network_error'
   | 'invalid_path'
   | 'already_installed'
+  | 'cancelled'
   | 'unknown';
 
 export interface ProtonUpInstallResult {

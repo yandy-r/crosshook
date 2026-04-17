@@ -63,16 +63,19 @@ catalog fetch and download URL resolution:
 
 - `supports_install() -> bool` — signals whether the provider has enough
   metadata (download URL, file size) to drive the install orchestrator in
-  `install.rs`. Providers with incomplete API responses (e.g. a future
-  Proton-EM integration) set this to `false` and are surfaced as
-  browse-only in the UI.
+  `install.rs`. Providers with incomplete API responses set this to `false`
+  and are surfaced as browse-only in the UI. Providers such as Proton-EM
+  can still opt into installation when the catalog supplies the required
+  archive metadata even if checksum coverage is unavailable.
 - `checksum_kind() -> ChecksumKind` — declares one of `Sha512Sidecar`
   (GE-Proton: a separate `.sha512sum` sidecar file), `Sha256Manifest`
   (a provider that embeds checksums in the release body), or `None`
-  (provider supplies no checksum; install is allowed but flagged). The
-  install orchestrator in `install.rs` reads this discriminant and selects
-  the matching verification path, keeping the orchestrator free of
-  per-provider conditionals.
+  (provider supplies no checksum; install is still allowed, but the
+  verification phase emits a warning and continues). `None` is a
+  first-class, explicitly flagged install path today and is used by
+  Proton-EM. The install orchestrator in `install.rs` reads this
+  discriminant and selects the matching verification path, keeping the
+  orchestrator free of per-provider conditionals.
 
 The existing `ProtonUpProvider` enum in `protonup/mod.rs` and the
 `CatalogProviderConfig` struct in `catalog.rs` are refactored to delegate

@@ -2,6 +2,15 @@
 
 use tokio::sync::broadcast;
 
+/// Bounded backlog for progress snapshots sent to UI listeners.
+///
+/// Progress events are best-effort status updates, not an audit log. The
+/// channel is intentionally lossy under back-pressure so a stalled UI cannot
+/// grow unbounded memory while download/verify/extract work continues. Lagging
+/// receivers should expect `broadcast::error::RecvError::Lagged` and treat the
+/// next snapshot as the current install state.
+const PROGRESS_EVENT_BUFFER_CAP: usize = 64;
+
 /// Install lifecycle phase.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -36,7 +45,7 @@ pub struct ProgressEmitter {
 impl ProgressEmitter {
     /// Create a new emitter and its paired receiver.
     pub fn new(op_id: impl Into<String>) -> (Self, broadcast::Receiver<ProtonInstallProgress>) {
-        let (tx, rx) = broadcast::channel(64);
+        let (tx, rx) = broadcast::channel(PROGRESS_EVENT_BUFFER_CAP);
         (
             Self {
                 op_id: op_id.into(),
@@ -47,6 +56,11 @@ impl ProgressEmitter {
     }
 
     /// Subscribe to receive future events from this emitter.
+    ///
+    /// The bounded channel only retains the most recent
+    /// [`PROGRESS_EVENT_BUFFER_CAP`] snapshots. Slow consumers may receive
+    /// `broadcast::error::RecvError::Lagged` and should continue with the next
+    /// available snapshot.
     pub fn subscribe(&self) -> broadcast::Receiver<ProtonInstallProgress> {
         self.tx.subscribe()
     }

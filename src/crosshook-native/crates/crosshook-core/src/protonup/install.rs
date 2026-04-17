@@ -89,7 +89,7 @@ impl InstallError {
                 "no writable Proton install root found; install Steam first",
                 ProtonUpInstallErrorKind::InvalidPath,
             ),
-            Self::Cancelled => err("install cancelled", ProtonUpInstallErrorKind::Unknown),
+            Self::Cancelled => err("install cancelled", ProtonUpInstallErrorKind::Cancelled),
             Self::UntrustedUrl(m) => err(m, ProtonUpInstallErrorKind::NetworkError),
             Self::Unknown(m) => err(m, ProtonUpInstallErrorKind::Unknown),
         }
@@ -183,6 +183,21 @@ fn err(message: impl Into<String>, kind: ProtonUpInstallErrorKind) -> ProtonUpIn
 
 fn network_err(message: impl std::fmt::Display) -> InstallError {
     InstallError::NetworkError(message.to_string())
+}
+
+fn validate_archive_filename(archive_filename: &str) -> Result<(), InstallError> {
+    if archive_filename.is_empty()
+        || archive_filename.contains('/')
+        || archive_filename.contains('\\')
+        || archive_filename.contains('\0')
+        || archive_filename.contains("..")
+    {
+        return Err(InstallError::InvalidPath(
+            "download URL resolved to an unsafe archive filename".into(),
+        ));
+    }
+
+    Ok(())
 }
 
 fn map_io_err(io_err: std::io::Error, context: &str) -> InstallError {
@@ -496,6 +511,90 @@ fn first_normal_path_component(path: &Path) -> Option<String> {
     None
 }
 
+fn normalize_archive_relative_path(path: &Path) -> Option<PathBuf> {
+    use std::path::Component;
+
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => continue,
+            Component::Normal(segment) => normalized.push(segment),
+            Component::ParentDir => {
+                if !normalized.pop() {
+                    return None;
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => return None,
+        }
+    }
+
+    Some(normalized)
+}
+
+fn validate_link_entry(
+    entry_path: &Path,
+    entry_type: tar::EntryType,
+    link_target: &Path,
+) -> Result<(), InstallError> {
+    let Some(top_level) = first_normal_path_component(entry_path) else {
+        return Err(InstallError::InvalidPath(format!(
+            "archive link entry '{}' has no valid top-level directory",
+            entry_path.display()
+        )));
+    };
+
+    let top_level = Path::new(&top_level);
+    let invalid_target = || {
+        InstallError::InvalidPath(format!(
+            "archive link '{}' points outside the install root via '{}'",
+            entry_path.display(),
+            link_target.display()
+        ))
+    };
+
+    if link_target.is_absolute() {
+        return Err(invalid_target());
+    }
+
+    let entry_parent = entry_path.parent().unwrap_or_else(|| Path::new(""));
+    let symlink_target = normalize_archive_relative_path(&entry_parent.join(link_target));
+    if entry_type.is_symlink() {
+        let Some(symlink_target) = symlink_target else {
+            return Err(invalid_target());
+        };
+        if !symlink_target.starts_with(top_level) {
+            return Err(invalid_target());
+        }
+        return Ok(());
+    }
+
+    if entry_type.is_hard_link() {
+        let direct_target = normalize_archive_relative_path(link_target);
+        let is_safe_direct = direct_target
+            .as_ref()
+            .is_some_and(|candidate| candidate.starts_with(top_level));
+        let is_safe_parent_relative = symlink_target
+            .as_ref()
+            .is_some_and(|candidate| candidate.starts_with(top_level));
+        if !(is_safe_direct || is_safe_parent_relative) {
+            return Err(invalid_target());
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_unpack_result(entry_path: &Path, unpacked: bool) -> Result<(), InstallError> {
+    if unpacked {
+        Ok(())
+    } else {
+        Err(InstallError::InvalidPath(format!(
+            "archive entry '{}' escapes the install root",
+            entry_path.display()
+        )))
+    }
+}
+
 fn extract_tar_read_sync<R: std::io::Read>(
     read: R,
     dest_dir: &Path,
@@ -515,13 +614,29 @@ fn extract_tar_read_sync<R: std::io::Read>(
 
         let entry_path = entry
             .path()
-            .map_err(|e| InstallError::Unknown(format!("invalid path in archive entry: {e}")))?;
+            .map_err(|e| InstallError::Unknown(format!("invalid path in archive entry: {e}")))?
+            .into_owned();
 
         if top_level_dir.is_none() {
             top_level_dir = first_normal_path_component(&entry_path);
         }
 
-        entry.unpack_in(dest_dir).map_err(|e| {
+        if entry.header().entry_type().is_symlink() || entry.header().entry_type().is_hard_link() {
+            let link_target = entry
+                .link_name()
+                .map_err(|e| {
+                    InstallError::Unknown(format!("invalid link target in archive entry: {e}"))
+                })?
+                .ok_or_else(|| {
+                    InstallError::InvalidPath(format!(
+                        "archive link entry '{}' is missing a link target",
+                        entry_path.display()
+                    ))
+                })?;
+            validate_link_entry(&entry_path, entry.header().entry_type(), &link_target)?;
+        }
+
+        let unpacked = entry.unpack_in(dest_dir).map_err(|e| {
             if e.kind() == std::io::ErrorKind::PermissionDenied {
                 InstallError::PermissionDenied(format!(
                     "permission denied extracting to {}: {e}",
@@ -531,6 +646,7 @@ fn extract_tar_read_sync<R: std::io::Read>(
                 InstallError::Unknown(format!("extraction error: {e}"))
             }
         })?;
+        validate_unpack_result(&entry_path, unpacked)?;
     }
 
     top_level_dir.ok_or_else(|| InstallError::Unknown("archive appears to be empty".into()))
@@ -771,6 +887,7 @@ pub async fn install_version_with_progress(
         .next()
         .unwrap_or("proton-archive.tar.gz")
         .to_string();
+    validate_archive_filename(&archive_filename)?;
     let temp_path = dest_dir.join(format!(".tmp.{archive_filename}"));
 
     let client = reqwest::Client::new();
@@ -1245,6 +1362,13 @@ mod tests {
     }
 
     #[test]
+    fn cancelled_maps_to_cancelled_error_kind() {
+        let result = InstallError::Cancelled.to_result();
+        assert_eq!(result.error_kind, Some(ProtonUpInstallErrorKind::Cancelled));
+        assert_eq!(result.error_message.as_deref(), Some("install cancelled"));
+    }
+
+    #[test]
     fn rejects_path_with_parent_dir_component() {
         let result = validate_install_destination(
             "/home/user/.steam/../../../etc/passwd/compatibilitytools.d",
@@ -1273,6 +1397,28 @@ mod tests {
         assert!(result.is_dir());
     }
 
+    #[test]
+    fn validate_archive_filename_accepts_safe_name() {
+        assert!(validate_archive_filename("GE-Proton9-21.tar.gz").is_ok());
+    }
+
+    #[test]
+    fn validate_archive_filename_rejects_unsafe_names() {
+        for filename in [
+            "",
+            "../evil.tar.gz",
+            "bad\\name.tar.gz",
+            "bad/name.tar.gz",
+            "bad\0name.tar.gz",
+        ] {
+            let result = validate_archive_filename(filename);
+            assert!(
+                matches!(result, Err(InstallError::InvalidPath(_))),
+                "expected InvalidPath for {filename:?}, got {result:?}"
+            );
+        }
+    }
+
     /// F001: A symlink at the `compatibilitytools.d` component that resolves to
     /// a sibling directory (i.e., the canonical path has no
     /// `compatibilitytools.d` segment) must be refused with
@@ -1293,6 +1439,114 @@ mod tests {
         assert!(
             matches!(result, InstallError::InvalidPath(_)),
             "expected InvalidPath for symlink-redirected compat dir, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn extract_tar_rejects_link_entries_that_escape_install_root() {
+        for (entry_type, path, target) in [
+            (tar::EntryType::Symlink, "GE-Proton9-21/escape", "/etc"),
+            (
+                tar::EntryType::Symlink,
+                "GE-Proton9-21/escape",
+                "../../../etc",
+            ),
+            (
+                tar::EntryType::Link,
+                "GE-Proton9-21/hardlink",
+                "../outside/proton",
+            ),
+        ] {
+            let temp = tempfile::tempdir().expect("temp dir");
+            let mut buf = Vec::new();
+            {
+                let mut builder = tar::Builder::new(&mut buf);
+                let mut header = tar::Header::new_gnu();
+                header.set_entry_type(entry_type);
+                header.set_path(path).expect("link path");
+                header.set_link_name(target).expect("link target");
+                header.set_size(0);
+                header.set_mode(0o777);
+                header.set_cksum();
+                builder
+                    .append(&header, std::io::empty())
+                    .expect("append link entry");
+                builder.finish().expect("finish tar");
+            }
+
+            let result = extract_tar_read_sync(buf.as_slice(), temp.path());
+            assert!(
+                matches!(result, Err(InstallError::InvalidPath(_))),
+                "expected InvalidPath for tar link entry {path}, got {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn extract_tar_allows_safe_symlink_entries_within_archive_root() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let mut buf = Vec::new();
+        {
+            let mut builder = tar::Builder::new(&mut buf);
+
+            let mut dir_header = tar::Header::new_gnu();
+            dir_header.set_entry_type(tar::EntryType::Directory);
+            dir_header
+                .set_path("GE-Proton9-21/usr/bin")
+                .expect("dir path");
+            dir_header.set_size(0);
+            dir_header.set_mode(0o755);
+            dir_header.set_cksum();
+            builder
+                .append(&dir_header, std::io::empty())
+                .expect("append directory");
+
+            let mut symlink_header = tar::Header::new_gnu();
+            symlink_header.set_entry_type(tar::EntryType::Symlink);
+            symlink_header
+                .set_path("GE-Proton9-21/bin")
+                .expect("symlink path");
+            symlink_header
+                .set_link_name("usr/bin")
+                .expect("symlink target");
+            symlink_header.set_size(0);
+            symlink_header.set_mode(0o777);
+            symlink_header.set_cksum();
+            builder
+                .append(&symlink_header, std::io::empty())
+                .expect("append symlink");
+
+            let payload = b"proton-binary";
+            let mut file_header = tar::Header::new_gnu();
+            file_header.set_entry_type(tar::EntryType::Regular);
+            file_header
+                .set_path("GE-Proton9-21/bin/proton")
+                .expect("file path");
+            file_header.set_size(payload.len() as u64);
+            file_header.set_mode(0o755);
+            file_header.set_cksum();
+            builder
+                .append(&file_header, payload.as_slice())
+                .expect("append payload");
+
+            builder.finish().expect("finish tar");
+        }
+
+        let extracted = extract_tar_read_sync(buf.as_slice(), temp.path()).expect("extract tar");
+        assert_eq!(extracted, "GE-Proton9-21");
+        assert_eq!(
+            std::fs::read(temp.path().join("GE-Proton9-21/usr/bin/proton"))
+                .expect("read extracted payload"),
+            b"proton-binary"
+        );
+    }
+
+    #[test]
+    fn validate_unpack_result_rejects_skipped_entries() {
+        let result = validate_unpack_result(Path::new("GE-Proton9-21/../../escape"), false);
+        assert!(
+            matches!(result, Err(InstallError::InvalidPath(_))),
+            "expected InvalidPath for skipped traversal entry, got {result:?}"
         );
     }
 

@@ -7,9 +7,7 @@ use async_trait::async_trait;
 
 use crate::protonup::ProtonUpAvailableVersion;
 
-use super::{
-    fetch_github_releases, parse_releases, ChecksumKind, ProtonReleaseProvider, ProviderError,
-};
+use super::{fetch_github_versions, ChecksumKind, ProtonReleaseProvider, ProviderError};
 
 const GH_RELEASES_URL: &str = "https://api.github.com/repos/Etaash-mathamsetty/Proton/releases";
 const MAX_RELEASES: usize = 30;
@@ -55,13 +53,14 @@ impl ProtonReleaseProvider for ProtonEmProvider {
         client: &reqwest::Client,
         include_prereleases: bool,
     ) -> Result<Vec<ProtonUpAvailableVersion>, ProviderError> {
-        let releases = fetch_github_releases(client, GH_RELEASES_URL).await?;
-        Ok(parse_releases(
-            releases,
+        fetch_github_versions(
+            client,
+            GH_RELEASES_URL,
             self.id(),
             MAX_RELEASES,
             include_prereleases,
-        ))
+        )
+        .await
     }
 }
 
@@ -79,7 +78,7 @@ pub fn cache_key() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{GhAsset, GhRelease};
+    use super::super::{parse_releases, GhAsset, GhRelease};
     use super::*;
 
     fn make_release(

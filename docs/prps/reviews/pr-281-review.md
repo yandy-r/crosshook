@@ -59,47 +59,47 @@ Ambitious, well-scoped replacement for ProtonUp-Qt orchestration — clean `Prot
 ### MEDIUM
 
 - **[F010]** `docs/architecture/adr-0003-proton-download-manager.md:67` — The ADR treats Proton-EM as a "future" browse-only provider with `supports_install() → false`, but the shipped `proton_em.rs:38` sets `supports_install() → true` with `ChecksumKind::None`. Leaves the `ChecksumKind::None` install pathway undocumented in the authoritative design record. [maintainability]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Maintainability
   - **Suggested fix**: Update ADR-0003 § _Provider trait_ to reflect that Proton-EM ships install-capable with `ChecksumKind::None`, and add a note that `None` is a first-class (flagged) install path rather than a deferred case.
 - **[F011]** `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs:90` — `InstallError::Cancelled` maps to `ProtonUpInstallErrorKind::Unknown` in `to_result()`. Today this is reached only through the legacy `install_version` wrapper (which discards the error variant), but any future caller that inspects `error_kind` will misclassify cancellations. [completeness]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Completeness
   - **Suggested fix**: Add a `Cancelled` variant to `ProtonUpInstallErrorKind` on both the Rust enum and the TS union in `src/types/protonup.ts`, and route `InstallError::Cancelled` to it.
 - **[F012]** `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs:407` — `tar::Archive::unpack_in` (crate 0.4.x) enforces the destination-prefix invariant on regular entries, but does not sanitize symlink _targets_ during extraction. An archive containing `GE-ProtonX/escape -> /etc` followed by `GE-ProtonX/escape/payload` can effect a symlink-chain escape outside `dest_dir`. [security]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Security
   - **Suggested fix**: Either (a) iterate `archive.entries_with_seek()?` first and reject any `Symlink`/`Hardlink` whose `link_name()` resolves (via `dest_dir.join(link).canonicalize()`) outside `dest_dir`, or (b) disable symlink/hardlink extraction for the Proton tarballs (none of GE-Proton / CachyOS / EM require them for operation). Document the choice in a module-level comment.
 - **[F013]** `src/crosshook-native/crates/crosshook-core/src/protonup/install.rs:674` — `archive_filename` derived from the last `/`-segment of `download_url` is not validated for path separators or `..` before being interpolated into `format!(".tmp.{archive_filename}")`. Not directly exploitable (destination is canonicalized under `compatibilitytools.d`), but a hardening gap that depends on F001 being fixed. [security]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Security
   - **Suggested fix**: After deriving `archive_filename`, reject any value that contains `/`, `\\`, NUL, or `..` components: `if archive_filename.is_empty() || archive_filename.contains('/') || archive_filename.contains("..") { return Err(InstallError::InvalidPath(...)); }`.
 - **[F014]** `src/crosshook-native/crates/crosshook-core/src/protonup/progress.rs:39` — The 64-slot broadcast channel silently drops progress messages under back-pressure (`let _ = tx.send(...)`). The 256 KiB `EMIT_INTERVAL_BYTES` throttle in the download phase is fine; the non-download phases have no rate limit and, combined with the Tauri event pump at `src-tauri/.../commands/protonup.rs:273`, can flood the webview during fast verify/extract transitions. [performance]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Performance
   - **Suggested fix**: Either (a) document the 64-slot cap as the intentional rate limit, or (b) add a minimum-interval coalescer in the pump task (e.g., 50 ms) so the webview receives at most 20 progress events/second regardless of phase. Verify with a stress-test that an 80 Mbps download does not emit more than 10 events/s.
 - **[F015]** `src/crosshook-native/crates/crosshook-core/src/protonup/providers/boxtron.rs:79` (and `luxtorpeda.rs:79`) — Both catalog-only providers define an identical `releases_to_versions` function whose body is a single call to `build_versions_from_releases`. The abstraction adds zero value. [maintainability]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Maintainability
   - **Suggested fix**: Inline the three-line call and delete the local `releases_to_versions` functions in both files.
 - **[F016]** `src/crosshook-native/crates/crosshook-core/src/protonup/providers/ge_proton.rs:59` (and `proton_cachyos.rs`, `proton_em.rs`) — All three installable providers have identical `fetch()` bodies (same headers, same `error_for_status`, same deserialize-then-`parse_releases`). The only differences are the URL constant and, in one case, a feature flag. The trait exists to deduplicate this. [maintainability]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Maintainability
   - **Suggested fix**: Extract `async fn fetch_github_releases(client: &reqwest::Client, url: &str) -> Result<Vec<GhRelease>, ProviderError>` as `pub(super)` in `providers/mod.rs` and have the five providers call it, keeping only `parse_releases(...)` in the provider body. (This also gives F005 a single choke point for size limits.)
 - **[F017]** `src/crosshook-native/crates/crosshook-core/src/protonup/providers/mod.rs:253` — `parse_releases` applies `take(max)` before `filter_map(gh_release_to_version)`. If the first `max` GitHub releases are drafts or lack a supported tarball asset, `filter_map` drops them and the final vector is short. Example: a catalog with `max = 30` draft/no-tarball entries followed by 30 valid releases returns 0 entries instead of 30. [correctness]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Correctness
   - **Suggested fix**: Reorder to `.filter(...).filter_map(|r| gh_release_to_version(r, provider_id)).take(max).collect()` so `take` caps successfully parsed versions rather than releases attempted.
 - **[F018]** `src/crosshook-native/crates/crosshook-core/src/protonup/uninstall.rs:32` — `SYSTEM_PREFIX_DENYLIST` covers `/usr`, `/opt`, `/snap`, and the Flatpak runtime tree, but not `/home` or `/root`. The `PathOutsideKnownRoots` check at step 3 still prevents deletion of arbitrary home paths, so the refusal fires via the _wrong_ gate. Defense-in-depth matters here because this module is the last line before `fs::remove_dir_all`. [security]
-  - **Status**: Open
+  - **Status**: Failed
   - **Category**: Security
   - **Suggested fix**: Add `"/home"` and `"/root"` to `SYSTEM_PREFIX_DENYLIST` so broad home-directory paths produce `UninstallError::SystemPathRefused` (the stated property) rather than relying on step 3.
 - **[F019]** `src/crosshook-native/crates/crosshook-core/src/protonup/uninstall.rs:147` — The system-path refusal test accepts either `SystemPathRefused` or `PathOutsideKnownRoots`. There is no isolated test that the canonical `STEAM_SYSTEM_ROOTS` entries are refused specifically via `SystemPathRefused`. A regression that removed the `STEAM_SYSTEM_ROOTS` list would still pass. [completeness]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Completeness
   - **Suggested fix**: Add a test that constructs a tempdir whose canonical path matches one of the `STEAM_SYSTEM_ROOTS` entries (via a bind-style tempdir or by calling `plan_uninstall_core` with a pre-canonicalized path) and asserts `UninstallError::SystemPathRefused` exactly.
 - **[F020]** `src/crosshook-native/src/components/proton-manager/ProtonManagerPanel.tsx:106` — Uninstall confirmation uses `window.confirm()`, a synchronous native dialog that bypasses the app's styling, accessibility baseline, and keyboard-trap conventions. [maintainability]
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Maintainability
   - **Suggested fix**: Replace with the project's modal/dialog component (consistent with how other destructive actions confirm) or an inline `aria-live`-backed confirmation pattern; preserve the existing "type the version to confirm" affordance if one exists elsewhere in the app.
 

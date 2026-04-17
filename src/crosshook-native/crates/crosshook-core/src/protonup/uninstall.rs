@@ -173,6 +173,14 @@ fn plan_uninstall_core(
         .map_err(|_| UninstallError::NotFound(tool_dir.to_path_buf()))?;
     let canonical_tool_dir = normalize_tool_dir_path(&canonical);
 
+    plan_uninstall_canonicalized(canonical_tool_dir, install_candidates, mappings)
+}
+
+fn plan_uninstall_canonicalized(
+    canonical_tool_dir: PathBuf,
+    install_candidates: &[crate::protonup::install_root::InstallRootCandidate],
+    mappings: &crate::steam::proton::CompatToolMappings,
+) -> Result<UninstallPlan, UninstallError> {
     // ── 2. System-path refusal ────────────────────────────────────────────────
 
     for &root in STEAM_SYSTEM_ROOTS {
@@ -233,6 +241,19 @@ fn plan_uninstall_core(
         conflicting_app_ids,
         root_kind: candidate.kind,
     })
+}
+
+#[cfg(test)]
+fn plan_uninstall_with_canonical_path(
+    canonical_tool_dir: &Path,
+    install_candidates: &[crate::protonup::install_root::InstallRootCandidate],
+    mappings: &crate::steam::proton::CompatToolMappings,
+) -> Result<UninstallPlan, UninstallError> {
+    plan_uninstall_canonicalized(
+        canonical_tool_dir.to_path_buf(),
+        install_candidates,
+        mappings,
+    )
 }
 
 // ── private helpers ───────────────────────────────────────────────────────────
@@ -319,68 +340,95 @@ mod tests {
 
     // ── test 1 ────────────────────────────────────────────────────────────────
 
-    /// A path under `/usr/share/steam/compatibilitytools.d` must be refused
-    /// even if it would otherwise pass other checks.
-    ///
-    /// We cannot `fs::canonicalize` a non-existent `/usr` path, so we skip
-    /// this test if the system path doesn't exist (i.e. in a sandbox without
-    /// `/usr/share/steam`). Instead we test the denylist logic by constructing
-    /// a tempdir that mimics the system structure only when possible.
-    ///
-    /// The real system-path guard is exercised at the prefix-denylist level:
-    /// any path that starts_with `/usr` is refused by `SYSTEM_PREFIX_DENYLIST`.
-    /// We verify this with a temp path whose canonical form starts with `/usr`
-    /// — which is impossible in a normal tempdir. So instead we verify that the
-    /// `plan_uninstall_core` denylist logic triggers for a known system root
-    /// by constructing the plan with a pre-canonicalized path equal to one of
-    /// the system roots.
     #[test]
-    fn plan_uninstall_refuses_system_path() {
-        // We need a canonical path that resolves to a system denylist entry.
-        // Use the first SYSTEM_PREFIX_DENYLIST entry ("/usr"). If /usr exists
-        // we can build a subpath directly; if it doesn't we skip.
-        let usr = PathBuf::from("/usr");
-        if !usr.exists() {
-            return; // sandbox without /usr — skip
-        }
+    fn plan_uninstall_refuses_system_prefix_path() {
+        let canonical_tool_dir =
+            PathBuf::from("/usr/share/steam/compatibilitytools.d/GE-Proton10-1");
 
-        // Build a path under /usr/share/steam/compatibilitytools.d/SomeTool.
-        // We don't need it to exist; we test the prefix check via a fake
-        // canonical that we inject directly.
-        let fake_system_path = PathBuf::from("/usr/share/steam/compatibilitytools.d/GE-Proton10-1");
-
-        // We call the internal core with a pre-canonicalized path by cheating:
-        // create a tempdir and then check that any path starting with /usr is
-        // caught by the denylist before it reaches the user-root check.
-        // Since we can't canonicalize a non-existent path, we test via a real
-        // tempdir that is then checked against the denylist prefix.
-        //
-        // The simplest approach: verify that `plan_uninstall` on a path that
-        // starts with /usr returns SystemPathRefused. We use /usr itself (which
-        // exists) so canonicalize succeeds.
-        let result = plan_uninstall_with(
-            &PathBuf::from("/usr"),
+        let result = plan_uninstall_with_canonical_path(
+            &canonical_tool_dir,
             &[candidate(
-                PathBuf::from("/usr"),
+                PathBuf::from("/usr/share/steam/compatibilitytools.d"),
                 InstallRootKind::NativeSteam,
             )],
-            &[],
+            &empty_mappings(),
         );
 
-        // The denylist check happens before the user-root check.
-        // /usr is in SYSTEM_PREFIX_DENYLIST, so this must be refused.
-        // However, /usr's parent is /, so the user-root check would also fail.
-        // Either way we want SystemPathRefused or PathOutsideKnownRoots — both
-        // indicate the path was rejected. What matters is Ok() is not returned.
-        assert!(result.is_err(), "expected an error for a /usr path, got Ok");
-        match result.unwrap_err() {
-            UninstallError::SystemPathRefused(_) | UninstallError::PathOutsideKnownRoots(_) => {}
-            other => panic!("expected SystemPathRefused or PathOutsideKnownRoots, got: {other}"),
-        }
+        assert!(
+            matches!(
+                result,
+                Err(UninstallError::SystemPathRefused(ref path)) if path == &canonical_tool_dir
+            ),
+            "expected SystemPathRefused for /usr prefix, got: {result:?}"
+        );
+    }
 
-        // Also verify a path that is explicitly listed in STEAM_SYSTEM_ROOTS.
-        // Build it as a real /usr/... subpath only if /usr exists.
-        let _ = fake_system_path; // used for documentation; not canonicalized
+    #[test]
+    fn plan_uninstall_refuses_explicit_steam_system_root() {
+        let canonical_tool_dir = PathBuf::from(STEAM_SYSTEM_ROOTS[0]).join("GE-Proton10-1");
+
+        let result = plan_uninstall_with_canonical_path(
+            &canonical_tool_dir,
+            &[candidate(
+                PathBuf::from(STEAM_SYSTEM_ROOTS[0]),
+                InstallRootKind::NativeSteam,
+            )],
+            &empty_mappings(),
+        );
+
+        assert!(
+            matches!(
+                result,
+                Err(UninstallError::SystemPathRefused(ref path)) if path == &canonical_tool_dir
+            ),
+            "expected SystemPathRefused for explicit Steam system root, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn plan_uninstall_home_prefix_outside_known_roots() {
+        let canonical_tool_dir = PathBuf::from("/home/test-user/Games/GE-Proton10-1");
+
+        let result = plan_uninstall_with_canonical_path(
+            &canonical_tool_dir,
+            &[candidate(
+                PathBuf::from("/home/test-user/.local/share/Steam/compatibilitytools.d"),
+                InstallRootKind::NativeSteam,
+            )],
+            &empty_mappings(),
+        );
+
+        assert!(
+            matches!(
+                result,
+                Err(UninstallError::PathOutsideKnownRoots(ref path)) if path == &canonical_tool_dir
+            ),
+            "expected PathOutsideKnownRoots for broad /home prefix, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn plan_uninstall_accepts_valid_home_compat_root() {
+        let compat_root = PathBuf::from("/home/test-user/.local/share/Steam/compatibilitytools.d");
+        let canonical_tool_dir = compat_root.join("GE-Proton10-1");
+
+        let result = plan_uninstall_with_canonical_path(
+            &canonical_tool_dir,
+            &[candidate(compat_root, InstallRootKind::NativeSteam)],
+            &empty_mappings(),
+        );
+
+        assert!(
+            matches!(
+                result,
+                Ok(UninstallPlan {
+                    ref tool_dir,
+                    root_kind: InstallRootKind::NativeSteam,
+                    ..
+                }) if tool_dir == &canonical_tool_dir
+            ),
+            "expected valid home compat root to be accepted, got: {result:?}"
+        );
     }
 
     // ── test 2 ────────────────────────────────────────────────────────────────

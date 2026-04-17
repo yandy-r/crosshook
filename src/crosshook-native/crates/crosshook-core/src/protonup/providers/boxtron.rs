@@ -9,8 +9,8 @@ use async_trait::async_trait;
 use crate::protonup::ProtonUpAvailableVersion;
 
 use super::{
-    build_versions_from_releases, fetch_github_releases, ChecksumKind, GhRelease,
-    ProtonReleaseProvider, ProviderError,
+    build_versions_from_releases, fetch_github_releases, ChecksumKind, ProtonReleaseProvider,
+    ProviderError,
 };
 
 const GH_RELEASES_URL: &str = "https://api.github.com/repos/dreamer/boxtron/releases";
@@ -56,23 +56,16 @@ impl ProtonReleaseProvider for BoxtronProvider {
         include_prereleases: bool,
     ) -> Result<Vec<ProtonUpAvailableVersion>, ProviderError> {
         let releases = fetch_github_releases(client, GH_RELEASES_URL).await?;
-        Ok(releases_to_versions(releases, include_prereleases))
+        Ok(build_versions_from_releases(
+            releases,
+            "boxtron",
+            MAX_RELEASES,
+            include_prereleases,
+            "https://github.com/dreamer/boxtron/releases/download",
+            "SHA256SUMS",
+            |asset| asset.name.ends_with(".tar.gz") && !asset.name.contains(".sha"),
+        ))
     }
-}
-
-fn releases_to_versions(
-    releases: Vec<GhRelease>,
-    include_prereleases: bool,
-) -> Vec<ProtonUpAvailableVersion> {
-    build_versions_from_releases(
-        releases,
-        "boxtron",
-        MAX_RELEASES,
-        include_prereleases,
-        "https://github.com/dreamer/boxtron/releases/download",
-        "SHA256SUMS",
-        |asset| asset.name.ends_with(".tar.gz") && !asset.name.contains(".sha"),
-    )
 }
 
 /// The GitHub Releases API URL used by this provider.
@@ -127,7 +120,15 @@ mod tests {
             vec![tar_gz_asset("0.7.0")],
         )];
 
-        let versions = releases_to_versions(releases, false);
+        let versions = build_versions_from_releases(
+            releases,
+            "boxtron",
+            MAX_RELEASES,
+            false,
+            "https://github.com/dreamer/boxtron/releases/download",
+            "SHA256SUMS",
+            |asset| asset.name.ends_with(".tar.gz") && !asset.name.contains(".sha"),
+        );
         assert_eq!(versions.len(), 1);
         let v = &versions[0];
         assert_eq!(v.provider, "boxtron");

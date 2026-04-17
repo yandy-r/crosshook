@@ -56,6 +56,46 @@
   font-size: 0.85rem;
 }
 
+.crosshook-proton-manager__confirm-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--crosshook-color-danger-bg);
+  border: 1px solid var(--crosshook-color-danger);
+  border-radius: var(--crosshook-radius-sm);
+}
+
+.crosshook-proton-manager__confirm-copy {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.crosshook-proton-manager__confirm-title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-proton-manager__confirm-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-proton-manager__confirm-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 /* ── Active progress bars ───────────────────────────────────────────────── */
 
 .crosshook-proton-manager__progress-list {

@@ -105,6 +105,7 @@ pub enum ProtonUpInstallErrorKind {
     NetworkError,
     InvalidPath,
     AlreadyInstalled,
+    Cancelled,
     Unknown,
 }
 
@@ -117,6 +118,7 @@ impl std::fmt::Display for ProtonUpInstallErrorKind {
             Self::NetworkError => write!(f, "network_error"),
             Self::InvalidPath => write!(f, "invalid_path"),
             Self::AlreadyInstalled => write!(f, "already_installed"),
+            Self::Cancelled => write!(f, "cancelled"),
             Self::Unknown => write!(f, "unknown"),
         }
     }
@@ -280,6 +282,7 @@ mod tests {
                 ProtonUpInstallErrorKind::AlreadyInstalled,
                 "already_installed",
             ),
+            (ProtonUpInstallErrorKind::Cancelled, "cancelled"),
             (ProtonUpInstallErrorKind::Unknown, "unknown"),
         ];
 
@@ -294,6 +297,13 @@ mod tests {
         let kind: ProtonUpInstallErrorKind =
             serde_json::from_str(r#""checksum_failed""#).expect("deserialize ChecksumFailed");
         assert_eq!(kind, ProtonUpInstallErrorKind::ChecksumFailed);
+    }
+
+    #[test]
+    fn install_error_kind_deserializes_cancelled() {
+        let kind: ProtonUpInstallErrorKind =
+            serde_json::from_str(r#""cancelled""#).expect("deserialize Cancelled");
+        assert_eq!(kind, ProtonUpInstallErrorKind::Cancelled);
     }
 
     // ── ProtonUpCatalogResponse round-trip ────────────────────────────────────
