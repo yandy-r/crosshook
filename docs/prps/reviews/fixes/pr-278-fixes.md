@@ -22,22 +22,22 @@
 
 ## Fixes Applied
 
-| ID   | Severity | File                                                                     | Line | Status | Notes                                                                                                          |
-| ---- | -------- | ------------------------------------------------------------------------ | ---- | ------ | -------------------------------------------------------------------------------------------------------------- |
-| F005 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/capability.rs` | 1    | Fixed  | Extracted loader/map concerns into `capability_loader.rs`; `capability.rs` now focused on capability models/derivation. |
-| F006 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/capability.rs` | 390  | Fixed  | Reused cached `umu_run.resolved_path` before falling back to live `resolve_umu_run_path()` probe.            |
-| F007 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/capability.rs` | 405  | Fixed  | Stopped mapping guidance description into install alternatives (`alternatives` now empty unless explicitly provided). |
-| F008 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/details.rs`    | 202  | Fixed  | Capped child pipe reads with `take(VERSION_OUTPUT_CAP)` to prevent unbounded buffering.                       |
-| F009 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/readiness.rs`  | 1    | Fixed  | Split distro-detection and install-advice helpers into dedicated modules; reduced `readiness.rs` size.        |
-| F010 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/readiness.rs`  | 171  | Fixed  | Removed hardcoded per-distro fallback command matrix in favor of catalog-authoritative behavior + generic fallback. |
-| F011 | MEDIUM   | `src/crosshook-native/src/components/host-readiness/HostToolCard.tsx`     | 153  | Fixed  | Removed production `console.error` logging from action error paths.                                            |
-| F012 | MEDIUM   | `src/crosshook-native/src/hooks/useHostReadiness.ts`                      | 125  | Fixed  | Committed live snapshot before optional cache enrichment so cache IPC failures cannot discard fresh data.      |
-| F013 | MEDIUM   | `src/crosshook-native/src/hooks/useLaunchPrefixDependencyGate.ts`         | 29   | Fixed  | Removed non-actionable `console.warn` in recoverable failure path.                                             |
-| F014 | LOW      | `src/crosshook-native/crates/crosshook-core/src/onboarding/details.rs`    | 143  | Fixed  | Shared bounded pipe-drain fix with F008 covers defense-in-depth EOF/drain concern.                            |
-| F015 | LOW      | `src/crosshook-native/src/components/host-readiness/HostToolCard.tsx`     | 253  | Fixed  | Added `disabled={isProbingDetails}` to the Details button while probes are running.                           |
-| F016 | LOW      | `src/crosshook-native/src/components/host-readiness/HostToolDashboardHandoff.tsx` | 12   | Fixed  | Replaced two inline styles with BEM classes backed by `host-tool-dashboard.css`.                              |
-| F017 | LOW      | `src/crosshook-native/src/components/host-readiness/HostToolMetricsHero.tsx` | 17   | Fixed  | Replaced index-based skeleton keys with explicit stable skeleton elements.                                     |
-| F018 | LOW      | `src/crosshook-native/src/hooks/useHostReadiness.ts`                      | 7    | Fixed  | Hook now uses scoped `useRef` bootstrap flag (module-level persistent mutable flag no longer in use).         |
+| ID   | Severity | File                                                                              | Line | Status | Notes                                                                                                                   |
+| ---- | -------- | --------------------------------------------------------------------------------- | ---- | ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| F005 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/capability.rs`         | 1    | Fixed  | Extracted loader/map concerns into `capability_loader.rs`; `capability.rs` now focused on capability models/derivation. |
+| F006 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/capability.rs`         | 390  | Fixed  | Reused cached `umu_run.resolved_path` before falling back to live `resolve_umu_run_path()` probe.                       |
+| F007 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/capability.rs`         | 405  | Fixed  | Stopped mapping guidance description into install alternatives (`alternatives` now empty unless explicitly provided).   |
+| F008 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/details.rs`            | 202  | Fixed  | Capped child pipe reads with `take(VERSION_OUTPUT_CAP)` to prevent unbounded buffering.                                 |
+| F009 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/readiness.rs`          | 1    | Fixed  | Split distro-detection and install-advice helpers into dedicated modules; reduced `readiness.rs` size.                  |
+| F010 | MEDIUM   | `src/crosshook-native/crates/crosshook-core/src/onboarding/readiness.rs`          | 171  | Fixed  | Removed hardcoded per-distro fallback command matrix in favor of catalog-authoritative behavior + generic fallback.     |
+| F011 | MEDIUM   | `src/crosshook-native/src/components/host-readiness/HostToolCard.tsx`             | 153  | Fixed  | Removed production `console.error` logging from action error paths.                                                     |
+| F012 | MEDIUM   | `src/crosshook-native/src/hooks/useHostReadiness.ts`                              | 125  | Fixed  | Committed live snapshot before optional cache enrichment so cache IPC failures cannot discard fresh data.               |
+| F013 | MEDIUM   | `src/crosshook-native/src/hooks/useLaunchPrefixDependencyGate.ts`                 | 29   | Fixed  | Removed non-actionable `console.warn` in recoverable failure path.                                                      |
+| F014 | LOW      | `src/crosshook-native/crates/crosshook-core/src/onboarding/details.rs`            | 143  | Fixed  | Shared bounded pipe-drain fix with F008 covers defense-in-depth EOF/drain concern.                                      |
+| F015 | LOW      | `src/crosshook-native/src/components/host-readiness/HostToolCard.tsx`             | 253  | Fixed  | Added `disabled={isProbingDetails}` to the Details button while probes are running.                                     |
+| F016 | LOW      | `src/crosshook-native/src/components/host-readiness/HostToolDashboardHandoff.tsx` | 12   | Fixed  | Replaced two inline styles with BEM classes backed by `host-tool-dashboard.css`.                                        |
+| F017 | LOW      | `src/crosshook-native/src/components/host-readiness/HostToolMetricsHero.tsx`      | 17   | Fixed  | Replaced index-based skeleton keys with explicit stable skeleton elements.                                              |
+| F018 | LOW      | `src/crosshook-native/src/hooks/useHostReadiness.ts`                              | 7    | Fixed  | Hook now uses scoped `useRef` bootstrap flag (module-level persistent mutable flag no longer in use).                   |
 
 ## Files Changed
 
@@ -61,11 +61,11 @@ None.
 
 ## Validation Results
 
-| Check      | Result | Notes |
-| ---------- | ------ | ----- |
-| Type check | Pass   | `npx tsc --noEmit` |
+| Check      | Result | Notes                                                                                          |
+| ---------- | ------ | ---------------------------------------------------------------------------------------------- |
+| Type check | Pass   | `npx tsc --noEmit`                                                                             |
 | Tests      | Fail   | `npm test` is not defined in `src/crosshook-native/package.json` (`Missing script: \"test\"`). |
-| Rust tests | Pass   | `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core` |
+| Rust tests | Pass   | `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`                 |
 
 ## Next Steps
 
