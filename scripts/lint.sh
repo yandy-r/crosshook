@@ -13,11 +13,14 @@ Usage: ./scripts/lint.sh [--fix] [--modified] [--rust] [--ts] [--shell] [--host-
 Run linters across the full stack.
 
   --fix           Apply auto-fixes where possible
-  --modified      Limit file-based linting to modified git files (staged, unstaged, untracked)
+  --modified      Limit file-based linting to modified git files (staged, unstaged, untracked).
+                  Does not narrow --host-gateway: that check always scans the full tree,
+                  because a bypass introduced in an unmodified file would otherwise escape
+                  detection on a focused run.
   --rust          Rust only (clippy + rustfmt check)
   --ts            TypeScript only (biome + tsc)
   --shell         Shell scripts only (shellcheck)
-  --host-gateway  Host-command gateway check only (ADR-0001)
+  --host-gateway  Host-command gateway check only (ADR-0001; always full-tree scan)
   --all           All checks (default)
 EOF
 }
@@ -150,6 +153,9 @@ fi
 
 if (( RUN_HOST_GATEWAY )); then
   echo "=== Host-gateway ==="
+  if (( MODIFIED_ONLY )); then
+    echo "note: --modified does not narrow host-gateway scope; running full-tree scan."
+  fi
   "$ROOT_DIR/scripts/check-host-gateway.sh" || EXIT_CODE=1
 fi
 

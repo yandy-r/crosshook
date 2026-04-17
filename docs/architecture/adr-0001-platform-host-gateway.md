@@ -23,7 +23,9 @@ These three failure modes are invisible in native or AppImage builds, which is e
 All host-tool execution at the Flatpak boundary routes through
 `src/crosshook-native/crates/crosshook-core/src/platform.rs`.
 
-No module in `crosshook-core` or `src-tauri` directly calls `Command::new("<host-tool>")` with a literal tool name that belongs to the host. Every such invocation must use one of the gateway functions listed below.
+For the **denylisted strict host-only tools** (`proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`) no module in `crosshook-core` or `src-tauri` may call `Command::new("<tool>")` directly with a literal tool name — every invocation must use one of the gateway functions listed below. This is the only rule enforced by `scripts/check-host-gateway.sh`.
+
+For other host tools (e.g. `git`, `getent`, `lspci`, `unshare`) direct `Command::new("<tool>")` calls are **permitted** in native-only branches, provided every such call site pairs with an `is_flatpak()` guard that routes the Flatpak branch through `platform::host_*`. These exceptions are enumerated under _Escape hatches_ below and are maintained by review, not by the script.
 
 ### Public API table
 
