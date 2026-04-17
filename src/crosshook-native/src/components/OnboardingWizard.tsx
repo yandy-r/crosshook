@@ -9,6 +9,7 @@ import type { OnboardingWizardStage } from '../types/onboarding';
 import { resolveLaunchMethod } from '../utils/launch';
 import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
+import { HostToolDashboardHandoff } from './host-readiness/HostToolDashboardHandoff';
 import { ControllerPrompts } from './layout/ControllerPrompts';
 import { GameSection } from './profile-sections/GameSection';
 import { MediaSection } from './profile-sections/MediaSection';
@@ -444,20 +445,10 @@ export function OnboardingWizard({
                 protonInstallsError={protonInstallsError}
               />
               {onOpenHostToolDashboard ? (
-                <section className="crosshook-panel" aria-label="Host tool dashboard handoff">
-                  <p className="crosshook-muted" style={{ marginBottom: 12 }}>
-                    Need the full host tool details while setting up runtime paths? Open the Settings dashboard without
-                    finishing onboarding.
-                  </p>
-                  <button
-                    type="button"
-                    className="crosshook-button crosshook-button--secondary"
-                    style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                    onClick={handleOpenHostToolDashboard}
-                  >
-                    Open Host Tool Dashboard
-                  </button>
-                </section>
+                <HostToolDashboardHandoff
+                  onOpen={handleOpenHostToolDashboard}
+                  description="Need the full host tool details while setting up runtime paths? Open the Host Tools page without finishing onboarding."
+                />
               ) : null}
             </section>
           )}
@@ -507,20 +498,10 @@ export function OnboardingWizard({
                 onDismissReadinessNag={(toolId) => void dismissReadinessNag(toolId)}
               />
               {onOpenHostToolDashboard ? (
-                <section className="crosshook-panel" aria-label="Host tool dashboard handoff">
-                  <p className="crosshook-muted" style={{ marginBottom: 12 }}>
-                    Want the full host readiness dashboard before saving? You can continue in Settings and come back to
-                    onboarding later.
-                  </p>
-                  <button
-                    type="button"
-                    className="crosshook-button crosshook-button--secondary"
-                    style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                    onClick={handleOpenHostToolDashboard}
-                  >
-                    Open Host Tool Dashboard
-                  </button>
-                </section>
+                <HostToolDashboardHandoff
+                  onOpen={handleOpenHostToolDashboard}
+                  description="Want the full host readiness dashboard before saving? Open the Host Tools page and return to onboarding later."
+                />
               ) : null}
             </section>
           )}

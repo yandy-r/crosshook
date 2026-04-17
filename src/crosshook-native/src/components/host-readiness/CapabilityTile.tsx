@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
 import { open as openUrl } from '@/lib/plugin-stubs/shell';
 import type { Capability, CapabilityState } from '../../types/onboarding';
+import { getFirstCapabilityDocsUrl } from '../../utils/capabilityDocs';
 import { copyToClipboard } from '../../utils/clipboard';
 
 export interface CapabilityTileProps {
@@ -26,28 +28,40 @@ function formatCount(missing: number, total: number, kind: 'required' | 'optiona
   return `${ready} of ${total} ${kind} ${total === 1 ? 'tool' : 'tools'} ready`;
 }
 
-function firstDocsUrl(capability: Capability): string | null {
-  const fromMissing = capability.missing_required.find((t) => t.docs_url)?.docs_url;
-  if (fromMissing) return fromMissing;
-  const fromOptional = capability.missing_optional.find((t) => t.docs_url)?.docs_url;
-  return fromOptional ?? null;
-}
-
 export function CapabilityTile({ capability }: CapabilityTileProps) {
   const requiredTotal = capability.required_tool_ids.length;
   const requiredMissing = capability.missing_required.length;
   const optionalTotal = capability.optional_tool_ids.length;
   const optionalMissing = capability.missing_optional.length;
-  const docsUrl = firstDocsUrl(capability);
+  const docsUrl = getFirstCapabilityDocsUrl(capability);
   const installHint = capability.install_hints[0];
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current !== null) {
+        clearTimeout(copyResetTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleCopy = async () => {
     if (!installHint) return;
     try {
       await copyToClipboard(installHint.command);
+      setCopyStatus('copied');
     } catch {
-      // Clipboard failures are non-fatal; user can manually copy from the inventory below.
+      setCopyStatus('failed');
     }
+
+    if (copyResetTimerRef.current !== null) {
+      clearTimeout(copyResetTimerRef.current);
+    }
+    copyResetTimerRef.current = setTimeout(() => {
+      copyResetTimerRef.current = null;
+      setCopyStatus('idle');
+    }, 2000);
   };
 
   const handleOpenDocs = () => {
@@ -88,7 +102,7 @@ export function CapabilityTile({ capability }: CapabilityTileProps) {
               onClick={() => void handleCopy()}
               title={`Copy install command for ${installHint.distro_family}`}
             >
-              Copy install hint
+              {copyStatus === 'copied' ? 'Copied!' : copyStatus === 'failed' ? 'Copy failed' : 'Copy install hint'}
             </button>
           ) : null}
           {docsUrl ? (

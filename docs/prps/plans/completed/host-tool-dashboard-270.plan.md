@@ -203,11 +203,11 @@ Each batch must complete before the next begins. Inside a batch, steps are file-
 - Action: append `.crosshook-host-tool-dashboard__scroll` to the `SCROLLABLE` selector string. Mandatory per AGENTS/CLAUDE rules.
 - Risk: Low.
 
-**C.8 Expose dashboard in Settings and add onboarding cross-link.** _Depends on [C.6]._
+**C.8 Host Tools sidebar route + onboarding cross-link.** _Depends on [C.6]._
 
-- Files: `src/crosshook-native/src/components/SettingsPanel.tsx` (+~40 LOC: new "Host Tools" section) **and** `src/crosshook-native/src/components/OnboardingWizard.tsx` (+~15 LOC: "Open full dashboard" link in the review/runtime stage).
-- Action: Settings section renders `<HostToolDashboard />` inside an existing collapsible section. Onboarding wizard gets a non-modal button that opens the Settings dashboard route (via existing navigation). Both entries route to the same single source — no duplicate mount of `useHostReadiness`.
-- Risk: Low-Medium (SettingsPanel is 1300+ LOC; add new section at a clean insertion point near existing onboarding toggles to minimize diff surface).
+- Files: `src/crosshook-native/src/components/pages/HostToolsPage.tsx` (new page; owns `useHostReadiness()` for the route), `src/crosshook-native/src/components/layout/Sidebar.tsx` + `routeMetadata.ts` (new sidebar entry), `src/crosshook-native/src/components/icons/SidebarIcons.tsx` (icon), and `src/crosshook-native/src/components/OnboardingWizard.tsx` (+~15 LOC: "Open Host Tool Dashboard" button on runtime and review steps).
+- Action: Host Tools is a first-class sidebar route; the page composes the dashboard (banner, metrics, filters, inventory). Settings may link to the same route; the onboarding wizard uses a non-modal button that navigates to the Host Tools route. Both the sidebar entry and the wizard handoff target the same dedicated page — no duplicate page-level mount of `useHostReadiness` on that route (gating panels use `useCapabilityGate`, which reads from `useHostReadiness` per consumer).
+- Risk: Low-Medium.
 
 ### Phase D — Gating wiring (parallelizable per-panel)
 
@@ -334,7 +334,7 @@ Manual UI verification (no configured frontend test framework; use dev scripts):
 
 Mapped to the four acceptance criteria in the issue:
 
-- [ ] **(Acc. 1)** A single `HostToolDashboard` surface is reachable from Settings and from the onboarding wizard, listing detected host tools, versions, paths, required-vs-optional grouping, and readiness.
+- [ ] **(Acc. 1)** A single host tool dashboard surface (`HostToolsPage`) is reachable via the Host Tools sidebar route and from the onboarding wizard (and optionally Settings links), listing detected host tools, versions, paths, required-vs-optional grouping, and readiness — same route for sidebar and wizard (no duplicate page-level `useHostReadiness` mount on that route).
 - [ ] **(Acc. 2)** Disabled capability toggles (at minimum gamescope, MangoHud, prefix_tools, launch optimizations rows) render a standardized rationale + install-command + docs CTA via `useCapabilityGate`.
 - [ ] **(Acc. 3)** Dashboard copy and `HostDelegationBanner` explicitly state host-delegation; no string anywhere implies sandbox bundling is supported.
 - [ ] **(Acc. 4)** Dashboard, onboarding, and gated panels all consume `useHostReadiness` / `useCapabilityGate` — no per-page re-probe, no duplicated install-command strings (verifiable by grepping for raw `pacman -S umu-launcher` etc. outside `crosshook-core` catalog TOML).

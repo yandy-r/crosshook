@@ -528,6 +528,25 @@ function maybeSynthesizeOnboardingEvent(): void {
   setTimeout(tryEmit, ONBOARDING_EMIT_INITIAL_MS);
 }
 
+/** Strip install guidance for dismissed tools (matches real IPC `get_cached_host_readiness_snapshot`). */
+function sanitizeCachedSnapshot(snapshot: CachedHostReadinessSnapshot | null): CachedHostReadinessSnapshot | null {
+  if (snapshot == null) {
+    return null;
+  }
+
+  const cloned = structuredClone(snapshot);
+  const dismissedToolIds = getStore().dismissedReadinessToolIds;
+  cloned.tool_checks = cloned.tool_checks.map((tool) =>
+    dismissedToolIds.has(tool.tool_id)
+      ? {
+          ...tool,
+          install_guidance: null,
+        }
+      : tool
+  );
+  return cloned;
+}
+
 // Eagerly schedule the synthesized event at module init so it fires even if
 // nothing else triggers `registerOnboarding()` later. The guard above makes
 // the second call from `registerOnboarding()` a no-op.
@@ -550,32 +569,18 @@ export function registerOnboarding(map: Map<string, Handler>): void {
   });
 
   map.set('get_cached_host_readiness_snapshot', async (): Promise<CachedHostReadinessSnapshot | null> => {
-    if (cachedHostReadinessSnapshot == null) {
-      return null;
-    }
-
-    const snapshot = structuredClone(cachedHostReadinessSnapshot);
-    const dismissedToolIds = getStore().dismissedReadinessToolIds;
-    snapshot.tool_checks = snapshot.tool_checks.map((tool) =>
-      dismissedToolIds.has(tool.tool_id)
-        ? {
-            ...tool,
-            install_guidance: null,
-          }
-        : tool
-    );
-    return snapshot;
+    return sanitizeCachedSnapshot(cachedHostReadinessSnapshot);
   });
 
   map.set('get_capabilities', async (): Promise<Capability[]> => {
     if (cachedHostReadinessSnapshot == null) {
       persistReadinessSnapshot(buildBaseReadinessPayload());
     }
-    const snapshot = cachedHostReadinessSnapshot;
-    if (snapshot == null) {
+    const sanitized = sanitizeCachedSnapshot(cachedHostReadinessSnapshot);
+    if (sanitized == null) {
       return [];
     }
-    return structuredClone(deriveMockCapabilities(snapshot.tool_checks));
+    return structuredClone(deriveMockCapabilities(sanitized.tool_checks));
   });
 
   map.set('dismiss_onboarding', async (): Promise<null> => {

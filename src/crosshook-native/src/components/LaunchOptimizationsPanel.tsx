@@ -123,6 +123,21 @@ function capabilityIdForRequiredBinary(requiredBinary: string): CapabilityId | n
   }
 }
 
+/** Catalog `required_binary` name → `HostToolCheckResult.tool_id` / capability map tool id. */
+function toolIdForRequiredBinary(requiredBinary: string): string | null {
+  switch (requiredBinary.trim()) {
+    case 'gamemoderun':
+      return 'gamemode';
+    case 'umu-run':
+    case 'umu_run':
+      return 'umu_run';
+    default: {
+      const trimmed = requiredBinary.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+  }
+}
+
 function getGpuVendorLabel(option: OptimizationEntry): string | null {
   if (option.target_gpu_vendor === 'nvidia') {
     return 'NVIDIA';
@@ -204,8 +219,10 @@ function OptionGroup(props: {
           const conflictLabels = getConflictLabels(option, optionsById, conflictMatrix);
           const capabilityId = capabilityIdForRequiredBinary(option.required_binary);
           const capabilityGate = capabilityId ? capabilityGates[capabilityId] : null;
-          const capabilityUnavailable =
-            capabilityGate != null && capabilityGate.state === 'unavailable' && !isBlockedByConflict;
+          const requiredToolId = toolIdForRequiredBinary(option.required_binary);
+          const isRequiredBinaryMissing =
+            capabilityGate != null && requiredToolId != null && capabilityGate.missingToolIds.includes(requiredToolId);
+          const rowDisabled = !isSupported || isRequiredBinaryMissing;
 
           return (
             <div
@@ -214,7 +231,7 @@ function OptionGroup(props: {
                 'crosshook-launch-optimizations__option',
                 isEnabled && 'crosshook-launch-optimizations__option--enabled',
                 isTooltipOpen && 'crosshook-launch-optimizations__option--tooltip-open',
-                !isSupported && 'crosshook-launch-optimizations__option--disabled'
+                rowDisabled && 'crosshook-launch-optimizations__option--disabled'
               )}
             >
               <div className="crosshook-launch-optimizations__option-body">
@@ -223,7 +240,7 @@ function OptionGroup(props: {
                   className="crosshook-launch-optimizations__checkbox"
                   type="checkbox"
                   checked={isEnabled}
-                  disabled={!isSupported}
+                  disabled={rowDisabled}
                   onChange={(event) => onToggleOption(option.id, event.target.checked)}
                 />
 
@@ -271,11 +288,11 @@ function OptionGroup(props: {
                         Blocked by {formatConflictLabels(blockedByLabels)}
                       </span>
                     ) : null}
-                    {!isSupported ? (
+                    {rowDisabled ? (
                       <span className="crosshook-launch-optimizations__option-pill crosshook-launch-optimizations__option-pill--disabled">
                         {isBlockedByConflict
                           ? 'Resolve conflict first'
-                          : capabilityUnavailable
+                          : isRequiredBinaryMissing
                             ? 'Host tool missing'
                             : isMethodSupported
                               ? 'Unavailable'
@@ -332,7 +349,7 @@ function OptionGroup(props: {
                       Selection is currently blocked by {formatConflictLabels(blockedByLabels)}.
                     </p>
                   ) : null}
-                  {capabilityUnavailable && capabilityGate?.rationale ? (
+                  {isRequiredBinaryMissing && capabilityGate?.rationale ? (
                     <>
                       <p className="crosshook-launch-optimizations__tooltip-copy">{capabilityGate.rationale}</p>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

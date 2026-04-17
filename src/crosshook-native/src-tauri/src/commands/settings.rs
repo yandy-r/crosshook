@@ -53,6 +53,10 @@ pub struct AppSettingsIpcData {
     pub install_nag_dismissed_at: Option<String>,
     /// RFC 3339 timestamp of when the user dismissed the Steam Deck caveats; `None` = not dismissed.
     pub steam_deck_caveats_dismissed_at: Option<String>,
+    /// Capability ids whose inline install-hint banners were dismissed in gating rows (TOML preference).
+    pub host_tool_dashboard_dismissed_hints: Vec<String>,
+    /// Default category filter for the Host Tools dashboard (`None` = all).
+    pub host_tool_dashboard_default_category_filter: Option<String>,
 }
 
 impl AppSettingsIpcData {
@@ -92,6 +96,9 @@ impl AppSettingsIpcData {
             umu_preference: data.umu_preference,
             install_nag_dismissed_at: data.install_nag_dismissed_at,
             steam_deck_caveats_dismissed_at: data.steam_deck_caveats_dismissed_at,
+            host_tool_dashboard_dismissed_hints: data.host_tool_dashboard_dismissed_hints,
+            host_tool_dashboard_default_category_filter: data
+                .host_tool_dashboard_default_category_filter,
         }
     }
 }
@@ -511,5 +518,36 @@ mod tests {
             json.contains(&timestamp),
             "serialized IPC DTO must contain the timestamp value"
         );
+    }
+
+    #[test]
+    fn settings_ipc_includes_host_tool_dashboard_fields_in_serialized_output() {
+        let data = AppSettingsData {
+            host_tool_dashboard_dismissed_hints: vec!["gamescope".to_string()],
+            host_tool_dashboard_default_category_filter: Some("runtime".to_string()),
+            ..Default::default()
+        };
+        let resolved = PathBuf::from("/tmp/profiles");
+        let active = PathBuf::from("/tmp/profiles");
+        let ipc = AppSettingsIpcData::from_parts(data, &resolved, &active);
+        assert_eq!(
+            ipc.host_tool_dashboard_dismissed_hints,
+            vec!["gamescope".to_string()]
+        );
+        assert_eq!(
+            ipc.host_tool_dashboard_default_category_filter.as_deref(),
+            Some("runtime")
+        );
+        let json = serde_json::to_string(&ipc).expect("serialization must not fail");
+        assert!(
+            json.contains("host_tool_dashboard_dismissed_hints"),
+            "serialized IPC DTO must contain host_tool_dashboard_dismissed_hints"
+        );
+        assert!(
+            json.contains("host_tool_dashboard_default_category_filter"),
+            "serialized IPC DTO must contain host_tool_dashboard_default_category_filter"
+        );
+        assert!(json.contains("gamescope"));
+        assert!(json.contains("runtime"));
     }
 }

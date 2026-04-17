@@ -136,7 +136,7 @@
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  background: currentColor;
+  background: currentcolor;
   flex-shrink: 0;
   color: var(--crosshook-color-text-subtle);
 }
@@ -485,7 +485,7 @@
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: currentColor;
+  background: currentcolor;
 }
 
 .crosshook-host-tool-dashboard__status-chip--available {

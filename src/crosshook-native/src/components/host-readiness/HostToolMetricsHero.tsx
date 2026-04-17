@@ -73,7 +73,7 @@ export function HostToolMetricsHero({ toolChecks, capabilities, loading }: HostT
   return (
     <section
       className="crosshook-host-tool-dashboard-cards"
-      aria-busy={showSkeleton}
+      aria-busy={loading}
       aria-label="Host tool readiness summary"
     >
       {showSkeleton ? (
@@ -84,21 +84,21 @@ export function HostToolMetricsHero({ toolChecks, capabilities, loading }: HostT
             count={totalTools}
             label="Total tools"
             accentColor="var(--crosshook-color-accent)"
-            loading={false}
+            loading={loading}
           />
           <MetricCard
             count={requiredReady}
             label={requiredTotal > 0 ? `Required ready (of ${requiredTotal})` : 'Required ready'}
             accentColor={requiredAccent}
-            loading={false}
+            loading={loading}
           />
           <MetricCard
             count={optionalAvailable}
             label={optionalTotal > 0 ? `Capabilities available (of ${optionalTotal})` : 'Capabilities available'}
             accentColor={optionalAccent}
-            loading={false}
+            loading={loading}
           />
-          <MetricCard count={missingRequired} label="Missing required" accentColor={missingAccent} loading={false} />
+          <MetricCard count={missingRequired} label="Missing required" accentColor={missingAccent} loading={loading} />
         </>
       )}
     </section>

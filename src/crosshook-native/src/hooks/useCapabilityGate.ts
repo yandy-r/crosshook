@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import type { Capability, CapabilityState, HostToolCheckResult, HostToolInstallCommand } from '../types/onboarding';
+import type { CapabilityState, HostToolCheckResult, HostToolInstallCommand } from '../types/onboarding';
+import { getFirstCapabilityDocsUrl } from '../utils/capabilityDocs';
 import { copyToClipboard } from '../utils/clipboard';
 import { useHostReadiness } from './useHostReadiness';
 
@@ -9,20 +10,11 @@ export interface CapabilityGate {
   state: CapabilityState;
   rationale: string | null;
   missingRequired: HostToolCheckResult[];
+  /** Tool ids missing for this capability (required ∪ optional). */
+  missingToolIds: string[];
   installHint: HostToolInstallCommand | null;
-  onDismiss?: () => void;
   onCopyCommand?: () => Promise<void>;
   docsUrl: string | null;
-}
-
-function firstDocsUrl(capability: Capability | undefined): string | null {
-  if (capability == null) {
-    return null;
-  }
-
-  const missingTools = [...capability.missing_required, ...capability.missing_optional];
-  const docsUrl = missingTools.find((tool) => (tool.docs_url ?? '').trim() !== '')?.docs_url?.trim();
-  return docsUrl && docsUrl.length > 0 ? docsUrl : null;
 }
 
 export function useCapabilityGate(capabilityId: string): CapabilityGate {
@@ -35,7 +27,13 @@ export function useCapabilityGate(capabilityId: string): CapabilityGate {
 
   const installHint = capability?.install_hints[0] ?? null;
   const canCopyCommand = (installHint?.command ?? '').trim() !== '';
-  const canDismiss = installHint !== null || (capability?.missing_required.length ?? 0) > 0;
+
+  const missingToolIds = useMemo(() => {
+    if (capability == null) {
+      return [];
+    }
+    return [...capability.missing_required, ...capability.missing_optional].map((t) => t.tool_id);
+  }, [capability]);
 
   const onCopyCommand = useCallback(async () => {
     if (!canCopyCommand || installHint == null) {
@@ -44,22 +42,17 @@ export function useCapabilityGate(capabilityId: string): CapabilityGate {
     await copyToClipboard(installHint.command);
   }, [canCopyCommand, installHint]);
 
-  const onDismiss = useCallback(() => {
-    // Placeholder for the per-tool nag dismissal wiring that lands with the
-    // host readiness dashboard consumers.
-  }, []);
-
   return useMemo(
     () => ({
       state: capability?.state ?? 'unavailable',
       rationale: capability?.rationale ?? null,
       missingRequired: capability?.missing_required ?? EMPTY_MISSING_REQUIRED,
+      missingToolIds,
       installHint,
-      onDismiss: canDismiss ? onDismiss : undefined,
       onCopyCommand: canCopyCommand ? onCopyCommand : undefined,
-      docsUrl: firstDocsUrl(capability),
+      docsUrl: getFirstCapabilityDocsUrl(capability),
     }),
-    [capability, canCopyCommand, canDismiss, installHint, onCopyCommand, onDismiss]
+    [capability, canCopyCommand, installHint, missingToolIds, onCopyCommand]
   );
 }
 

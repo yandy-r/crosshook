@@ -112,9 +112,10 @@ fn normalize_and_validate_resolved_path(path: String) -> Option<String> {
 
 fn probe_tool_version(tool_id: &str, resolved_path: &str) -> Option<String> {
     for args in version_arg_candidates(tool_id) {
-        let output = run_version_probe(resolved_path, args)?;
-        if let Some(version) = parse_version_output(tool_id, &output) {
-            return Some(version);
+        if let Some(output) = run_version_probe(resolved_path, args) {
+            if let Some(version) = parse_version_output(tool_id, &output) {
+                return Some(version);
+            }
         }
     }
 
@@ -277,7 +278,7 @@ fn is_allowed_version_char(ch: char) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_version_line;
+    use super::{parse_version_line, probe_tool_version};
 
     #[derive(Debug)]
     struct VersionParseCase {
@@ -329,5 +330,30 @@ mod tests {
                 "failed to parse {case:?}"
             );
         }
+    }
+
+    /// Regression: `probe_tool_version` must not stop when an earlier arg candidate
+    /// yields no stdout (run_version_probe returns None); later candidates must run.
+    #[test]
+    #[cfg(unix)]
+    fn probe_tool_version_tries_later_candidates_when_earlier_probe_returns_none() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let stub = dir.path().join("fake-gamemode");
+        std::fs::write(
+            &stub,
+            r#"#!/bin/sh
+if [ "$1" = "--version" ]; then exit 0; fi
+if [ "$1" = "-v" ]; then echo "gamemode 1.2.3"; exit 0; fi
+exit 1
+"#,
+        )
+        .expect("write stub");
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod stub");
+
+        let path = stub.to_string_lossy();
+        let out = probe_tool_version("gamemode", &path);
+        assert_eq!(out.as_deref(), Some("1.2.3"));
     }
 }

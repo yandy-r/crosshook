@@ -460,13 +460,13 @@ fn capability_rationale(
         }
         CapabilityState::Degraded => {
             let tools = format_tool_list(missing_optional);
-            let noun = if missing_optional.len() == 1 {
-                "is"
+            let (tool_word, verb) = if missing_optional.len() == 1 {
+                ("optional tool", "is")
             } else {
-                "are"
+                ("optional tools", "are")
             };
             Some(format!(
-                "{label} is degraded because optional tool {tools} {noun} not available on the host."
+                "{label} is degraded because {tool_word} {tools} {verb} not available on the host."
             ))
         }
     }
@@ -840,6 +840,64 @@ optional_tools = []
         );
         assert_eq!(capability.install_hints.len(), 1);
         assert_eq!(capability.install_hints[0].command, "install protontricks");
+    }
+
+    #[test]
+    fn derive_capabilities_multiple_missing_optional_degraded_rationale_uses_plural_tool_word() {
+        let umu_dir = tempfile::tempdir().expect("tempdir");
+        let umu_stub = umu_dir.path().join("umu-run");
+        std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").expect("write umu stub");
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod umu stub");
+        let _path_guard = crate::launch::test_support::ScopedCommandSearchPath::new(umu_dir.path());
+
+        let result = readiness_result(vec![
+            tool_check("gamescope", "Gamescope", "performance", true),
+            tool_check("mangohud", "MangoHud", "overlay", true),
+            tool_check("gamemode", "GameMode", "performance", true),
+            HostToolCheckResult {
+                tool_id: "winetricks".to_string(),
+                display_name: "Winetricks".to_string(),
+                is_available: false,
+                is_required: false,
+                category: "prefix_tools".to_string(),
+                docs_url: "https://example.invalid/winetricks".to_string(),
+                tool_version: None,
+                resolved_path: None,
+                install_guidance: None,
+            },
+            HostToolCheckResult {
+                tool_id: "protontricks".to_string(),
+                display_name: "Protontricks".to_string(),
+                is_available: false,
+                is_required: false,
+                category: "prefix_tools".to_string(),
+                docs_url: "https://example.invalid/protontricks".to_string(),
+                tool_version: None,
+                resolved_path: None,
+                install_guidance: None,
+            },
+        ]);
+
+        let capabilities = derive_capabilities_with_map(
+            &result,
+            &sample_capability_map(),
+            &sample_readiness_catalog(),
+        );
+        let capability = capabilities
+            .iter()
+            .find(|capability| capability.id == "prefix_tools")
+            .expect("prefix_tools");
+
+        assert_eq!(capability.state, CapabilityState::Degraded);
+        assert_eq!(capability.missing_optional.len(), 2);
+        assert_eq!(
+            capability.rationale.as_deref(),
+            Some(
+                "Prefix tools is degraded because optional tools Winetricks and Protontricks are not available on the host."
+            )
+        );
     }
 
     #[test]

@@ -271,6 +271,6 @@ No additional external research was conducted for this capstone. All claims trac
 - Issue `#270` is now implemented through the host tool dashboard + shared capability-gating work tracked in `docs/internal/host-tool-dashboard.md`.
 - The shipped implementation covers the recommended detection/guidance path:
   - shared host readiness snapshot consumption
-  - one Settings-hosted dashboard surface
+  - a dedicated Host Tools sidebar route/page
   - onboarding handoff into the dashboard
   - panel-level capability gating for host-tool-dependent workflows
