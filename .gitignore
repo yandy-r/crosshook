@@ -23,6 +23,9 @@ src/crosshook-native/target/
 # Task tracking
 tasks/todo.md
 
+# claude
+/.claude/worktrees/
+
 # Codex
 .codex
 .codex-tmp/
