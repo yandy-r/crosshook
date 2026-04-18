@@ -12,7 +12,8 @@
     ".gitignore",
     ".editorconfig",
     ".prettierrc*",
-    ".eslintrc*"
+    ".eslintrc*",
+    "temp.md"
   ],
   "worktreeCopyIgnores": [
     "**/node_modules/**",
