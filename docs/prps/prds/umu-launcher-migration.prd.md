@@ -360,14 +360,14 @@ Phase 1 tracker [#254](https://github.com/yandy-r/crosshook/issues/254) links th
 
 ### Deferred / out of scope
 
-| #   | Issue                                                                              | Topic                                    |
-| --- | ---------------------------------------------------------------------------------- | ---------------------------------------- |
-| 248 | [No Steam profile umu migration](https://github.com/yandy-r/crosshook/issues/248)  | Two PV containers                        |
-| 249 | [Custom Proton “tinkerer” UX](https://github.com/yandy-r/crosshook/issues/249)     | Opt-out only in PRD                      |
-| 250 | [Non-x86_64](https://github.com/yandy-r/crosshook/issues/250)                      | umu arch scope                           |
-| 251 | [v1 HTTP GAMEID (see #247)](https://github.com/yandy-r/crosshook/issues/251)       | Closed as duplicate of #247 (2026-04-14) |
-| 252 | [Bundle umu in Flatpak](https://github.com/yandy-r/crosshook/issues/252)           | Host-shared preferred                    |
-| 253 | [winetricks/protontricks via umu](https://github.com/yandy-r/crosshook/issues/253) | Wine-native, unchanged                   |
+| #   | Issue                                                                              | Topic                                                     |
+| --- | ---------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 248 | [No Steam profile umu migration](https://github.com/yandy-r/crosshook/issues/248)  | Two PV containers (closed as NOT_PLANNED 2026-04-17)      |
+| 249 | [Custom Proton “tinkerer” UX](https://github.com/yandy-r/crosshook/issues/249)     | Opt-out only in PRD                                       |
+| 250 | [Non-x86_64](https://github.com/yandy-r/crosshook/issues/250)                      | umu arch scope                                            |
+| 251 | [v1 HTTP GAMEID (see #247)](https://github.com/yandy-r/crosshook/issues/251)       | Closed as duplicate of #247 (2026-04-14)                  |
+| 252 | [Bundle umu in Flatpak](https://github.com/yandy-r/crosshook/issues/252)           | Host-shared preferred (closed as NOT_PLANNED 2026-04-16)  |
+| 253 | [winetricks/protontricks via umu](https://github.com/yandy-r/crosshook/issues/253) | Wine-native, unchanged (closed as NOT_PLANNED 2026-04-17) |
 
 ---
 
