@@ -15,9 +15,8 @@ use tauri::{Emitter as _, State};
 use tokio_util::sync::CancellationToken;
 
 /// Default provider id used when the frontend omits the field. Unknown
-/// provider ids are passed through to the catalog (which returns empty
-/// when the registry doesn't recognise them) rather than silently
-/// downgrading to GE-Proton.
+/// provider ids still attempt cache-first reads; a failed live fetch falls
+/// back to stale cached rows when present instead of silently clearing them.
 const DEFAULT_PROVIDER_ID: &str = "ge-proton";
 
 // ── ProtonInstallRegistry ─────────────────────────────────────────────────────

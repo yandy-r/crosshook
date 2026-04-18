@@ -61,18 +61,42 @@ async fn protonup_http_client() -> Result<&'static reqwest::Client, reqwest::Err
         .await
 }
 
+// ----- Cache key (stable vs prerelease snapshots) -----
+
+/// SQLite `provider_id` column stores this scoped key so stable and prerelease
+/// catalog snapshots do not overwrite each other.
+fn scoped_cache_key(logical_provider_id: &str, include_prereleases: bool) -> String {
+    format!(
+        "{}:{}",
+        logical_provider_id,
+        if include_prereleases {
+            "prereleases"
+        } else {
+            "stable"
+        }
+    )
+}
+
+/// Strip `:stable` / `:prereleases` for [`providers::registry`] lookup (checksum kind, etc.).
+fn logical_provider_id_for_registry(scoped_provider_id: &str) -> &str {
+    scoped_provider_id
+        .strip_suffix(":stable")
+        .or_else(|| scoped_provider_id.strip_suffix(":prereleases"))
+        .unwrap_or(scoped_provider_id)
+}
+
 // ----- Public entry point -----
 
 /// Fetch available versions by provider id with cache-live-stale fallback.
 ///
 /// Dispatch goes through the [`providers::registry`], so any provider id the
 /// registry knows about (including `proton-em` and experimental providers)
-/// works. Unknown ids yield an empty catalog rather than silently falling
-/// back to GE-Proton.
+/// works. Unknown ids surface stale cache when possible; otherwise an empty
+/// offline response.
 ///
 /// 1. If `force_refresh` is false, return a valid (non-expired) cache hit immediately.
 /// 2. Attempt a live fetch via the provider trait.
-/// 3. On network failure, fall back to a stale cache entry.
+/// 3. On network failure **or** empty/unknown live results, fall back to a stale cache entry.
 /// 4. If no cache exists at all, return an empty offline response.
 pub async fn list_available_versions_by_id(
     metadata_store: &MetadataStore,
@@ -80,9 +104,11 @@ pub async fn list_available_versions_by_id(
     provider_id: &str,
     include_prereleases: bool,
 ) -> ProtonUpCatalogResponse {
+    let cache_key = scoped_cache_key(provider_id, include_prereleases);
+
     // Step 1: cache-first (skip on force_refresh)
     if !force_refresh {
-        let rows = load_catalog_rows(metadata_store, provider_id);
+        let rows = load_catalog_rows(metadata_store, &cache_key);
         if let Some(response) = build_response_from_rows(&rows, false) {
             return response;
         }
@@ -90,13 +116,13 @@ pub async fn list_available_versions_by_id(
 
     // Step 2: live fetch via the provider trait
     match fetch_live_catalog_by_id(provider_id, include_prereleases).await {
-        Ok(versions) => {
+        Ok(versions) if !versions.is_empty() => {
             let fetched_at = Utc::now().to_rfc3339();
             let expires_at = (Utc::now() + ChronoDuration::hours(CACHE_TTL_HOURS)).to_rfc3339();
 
             persist_catalog(
                 metadata_store,
-                provider_id,
+                &cache_key,
                 &versions,
                 &fetched_at,
                 &expires_at,
@@ -113,26 +139,38 @@ pub async fn list_available_versions_by_id(
             }
         }
 
+        Ok(_) => {
+            tracing::warn!(
+                provider_id,
+                "ProtonUp live catalog returned empty — trying stale cache"
+            );
+            stale_fallback_or_offline(metadata_store, &cache_key)
+        }
+
         Err(error) => {
             tracing::warn!(%error, provider_id, "ProtonUp live catalog fetch failed — trying stale cache");
-
-            // Step 3: stale fallback
-            let stale_rows = load_catalog_rows(metadata_store, provider_id);
-            if let Some(response) = build_response_from_rows(&stale_rows, true) {
-                return response;
-            }
-
-            // Step 4: completely offline, no cache
-            ProtonUpCatalogResponse {
-                versions: Vec::new(),
-                cache: ProtonUpCacheMeta {
-                    stale: false,
-                    offline: true,
-                    fetched_at: None,
-                    expires_at: None,
-                },
-            }
+            stale_fallback_or_offline(metadata_store, &cache_key)
         }
+    }
+}
+
+fn stale_fallback_or_offline(
+    metadata_store: &MetadataStore,
+    cache_key: &str,
+) -> ProtonUpCatalogResponse {
+    let stale_rows = load_catalog_rows(metadata_store, cache_key);
+    if let Some(response) = build_response_from_rows(&stale_rows, true) {
+        return response;
+    }
+
+    ProtonUpCatalogResponse {
+        versions: Vec::new(),
+        cache: ProtonUpCacheMeta {
+            stale: false,
+            offline: true,
+            fetched_at: None,
+            expires_at: None,
+        },
     }
 }
 
@@ -170,27 +208,31 @@ async fn fetch_live_catalog_by_id(
         None => {
             tracing::warn!(
                 provider_id,
-                "Unknown Proton provider id — returning empty catalog"
+                "Unknown Proton provider id — treating as failed live fetch so stale cache is preserved"
             );
-            Ok(Vec::new())
+            Err(providers::ProviderError::Parse(format!(
+                "unknown provider id: {provider_id}"
+            )))
         }
     }
 }
 
 // ----- Cache helpers -----
 
-/// Load all rows for `provider_id` from the v22 `proton_release_catalog` table.
+/// Load all rows for `cache_key` from the v22 `proton_release_catalog` table.
 ///
-/// Returns an empty vec when the store is unavailable or has no rows for this provider.
-fn load_catalog_rows(metadata_store: &MetadataStore, provider_id: &str) -> Vec<ProtonCatalogRow> {
+/// `cache_key` is the scoped id from [`scoped_cache_key`].
+///
+/// Returns an empty vec when the store is unavailable or has no rows for this key.
+fn load_catalog_rows(metadata_store: &MetadataStore, cache_key: &str) -> Vec<ProtonCatalogRow> {
     if !metadata_store.is_available() {
         return Vec::new();
     }
 
-    match metadata_store.get_proton_catalog(provider_id) {
+    match metadata_store.get_proton_catalog(cache_key) {
         Ok(rows) => rows,
         Err(error) => {
-            tracing::warn!(%error, provider_id, "failed to load ProtonUp catalog rows from DB");
+            tracing::warn!(%error, cache_key, "failed to load ProtonUp catalog rows from DB");
             Vec::new()
         }
     }
@@ -290,20 +332,24 @@ fn build_response_from_rows(
 
 /// Persist fetched versions into the v22 `proton_release_catalog` table.
 ///
-/// Each `ProtonUpAvailableVersion` becomes one row keyed on `(provider_id, version_tag)`.
+/// Each `ProtonUpAvailableVersion` becomes one row keyed on `(scoped_cache_key, version_tag)`.
 /// The provider-level `ChecksumKind` from the registry is serialized into `checksum_kind`
 /// so the install path can choose the right verification strategy without re-fetching.
+///
+/// `scoped_provider_id` is the result of [`scoped_cache_key`]; row `provider_id` matches it.
 fn persist_catalog(
     metadata_store: &MetadataStore,
-    provider_id: &str,
+    scoped_provider_id: &str,
     versions: &[ProtonUpAvailableVersion],
     fetched_at: &str,
     expires_at: &str,
 ) {
+    let logical = logical_provider_id_for_registry(scoped_provider_id);
+
     // Derive the provider's ChecksumKind from the registry for the checksum_kind column.
     let registry_checksum_kind: Option<String> = {
         let registry = providers::registry();
-        registry.iter().find(|p| p.id() == provider_id).map(|p| {
+        registry.iter().find(|p| p.id() == logical).map(|p| {
             serde_json::to_string(&p.checksum_kind())
                 .unwrap_or_default()
                 .trim_matches('"')
@@ -318,7 +364,7 @@ fn persist_catalog(
                 Ok(s) => s,
                 Err(err) => {
                     tracing::warn!(
-                        provider_id,
+                        scoped_provider_id,
                         version = %v.version,
                         %err,
                         "failed to serialize ProtonUp version for catalog row — skipping"
@@ -328,7 +374,7 @@ fn persist_catalog(
             };
 
             Some(ProtonCatalogRow {
-                provider_id: provider_id.to_owned(),
+                provider_id: scoped_provider_id.to_owned(),
                 version_tag: v.version.clone(),
                 payload_json,
                 release_url: v.release_url.clone(),
@@ -347,9 +393,9 @@ fn persist_catalog(
         })
         .collect();
 
-    if let Err(error) = metadata_store.replace_proton_catalog(provider_id, &rows) {
+    if let Err(error) = metadata_store.replace_proton_catalog(scoped_provider_id, &rows) {
         tracing::warn!(
-            provider_id,
+            scoped_provider_id,
             %error,
             "failed to atomically replace ProtonUp catalog snapshot in DB"
         );
@@ -379,6 +425,24 @@ mod tests {
         assert!(ge.gh_releases_url.contains("GloriousEggroll"));
         assert!(cachy.gh_releases_url.contains("CachyOS/proton-cachyos"));
         assert!(em.gh_releases_url.contains("Etaash-mathamsetty/Proton"));
+    }
+
+    #[test]
+    fn scoped_cache_key_parts() {
+        assert_eq!(scoped_cache_key("ge-proton", false), "ge-proton:stable");
+        assert_eq!(scoped_cache_key("ge-proton", true), "ge-proton:prereleases");
+    }
+
+    #[test]
+    fn logical_provider_id_for_registry_strips_suffix() {
+        assert_eq!(
+            logical_provider_id_for_registry("ge-proton:stable"),
+            "ge-proton"
+        );
+        assert_eq!(
+            logical_provider_id_for_registry("proton-cachyos:prereleases"),
+            "proton-cachyos"
+        );
     }
 
     // ── Integration: v22 DB + catalog read/write path ─────────────────────────
@@ -425,7 +489,7 @@ mod tests {
     #[test]
     fn empty_store_returns_no_response() {
         let store = open_store();
-        let rows = load_catalog_rows(&store, "ge-proton");
+        let rows = load_catalog_rows(&store, "ge-proton:stable");
         assert!(rows.is_empty());
         let resp = build_response_from_rows(&rows, false);
         assert!(resp.is_none(), "empty store should produce no response");
@@ -441,14 +505,15 @@ mod tests {
 
         let v1 = make_version("GE-Proton9-1");
         let v2 = make_version("GE-Proton9-2");
+        let scoped = "ge-proton:stable";
         let rows = vec![
-            make_row("ge-proton", "GE-Proton9-1", &fetched, Some(&future), &v1),
-            make_row("ge-proton", "GE-Proton9-2", &fetched, Some(&future), &v2),
+            make_row(scoped, "GE-Proton9-1", &fetched, Some(&future), &v1),
+            make_row(scoped, "GE-Proton9-2", &fetched, Some(&future), &v2),
         ];
 
         store.put_proton_catalog(&rows).expect("put rows");
 
-        let loaded = load_catalog_rows(&store, "ge-proton");
+        let loaded = load_catalog_rows(&store, scoped);
         assert_eq!(loaded.len(), 2);
 
         let resp = build_response_from_rows(&loaded, false)
@@ -457,6 +522,41 @@ mod tests {
         assert!(!resp.cache.stale, "fresh rows should not be stale");
         assert!(!resp.cache.offline);
         assert!(resp.cache.fetched_at.is_some());
+    }
+
+    #[test]
+    fn stable_and_prerelease_snapshots_coexist() {
+        let store = open_store();
+        let future = (Utc::now() + ChronoDuration::hours(5)).to_rfc3339();
+        let fetched = Utc::now().to_rfc3339();
+
+        let v_stable = make_version("GE-Proton9-1");
+        let v_pre = make_version("GE-Proton9-0-rc1");
+
+        store
+            .put_proton_catalog(&[make_row(
+                "ge-proton:stable",
+                "GE-Proton9-1",
+                &fetched,
+                Some(&future),
+                &v_stable,
+            )])
+            .expect("put stable");
+        store
+            .put_proton_catalog(&[make_row(
+                "ge-proton:prereleases",
+                "GE-Proton9-0-rc1",
+                &fetched,
+                Some(&future),
+                &v_pre,
+            )])
+            .expect("put prerelease");
+
+        let stable_loaded = load_catalog_rows(&store, "ge-proton:stable");
+        let pre_loaded = load_catalog_rows(&store, "ge-proton:prereleases");
+        assert_eq!(stable_loaded.len(), 1);
+        assert_eq!(pre_loaded.len(), 1);
+        assert_ne!(stable_loaded[0].version_tag, pre_loaded[0].version_tag);
     }
 
     #[test]
@@ -470,22 +570,17 @@ mod tests {
 
         let v1 = make_version("GE-Proton9-1");
         let v2 = make_version("GE-Proton9-2");
+        let scoped = "ge-proton:stable";
         let rows = vec![
             // Stale row: no expires_at, fetched_at older than TTL.
-            make_row("ge-proton", "GE-Proton9-1", &stale_fetched, None, &v1),
+            make_row(scoped, "GE-Proton9-1", &stale_fetched, None, &v1),
             // Fresh row: expires in future.
-            make_row(
-                "ge-proton",
-                "GE-Proton9-2",
-                &fresh_fetched,
-                Some(&future),
-                &v2,
-            ),
+            make_row(scoped, "GE-Proton9-2", &fresh_fetched, Some(&future), &v2),
         ];
 
         store.put_proton_catalog(&rows).expect("put rows");
 
-        let loaded = load_catalog_rows(&store, "ge-proton");
+        let loaded = load_catalog_rows(&store, scoped);
         assert_eq!(loaded.len(), 2);
 
         // Calling build_response_from_rows with is_stale=false:
@@ -511,14 +606,15 @@ mod tests {
 
         let v1 = make_version("GE-Proton9-1");
         let v2 = make_version("GE-Proton9-2");
+        let scoped = "ge-proton:stable";
         let rows = vec![
-            make_row("ge-proton", "GE-Proton9-1", &fetched, Some(&past), &v1),
-            make_row("ge-proton", "GE-Proton9-2", &fetched, Some(&past), &v2),
+            make_row(scoped, "GE-Proton9-1", &fetched, Some(&past), &v1),
+            make_row(scoped, "GE-Proton9-2", &fetched, Some(&past), &v2),
         ];
 
         store.put_proton_catalog(&rows).expect("put rows");
 
-        let loaded = load_catalog_rows(&store, "ge-proton");
+        let loaded = load_catalog_rows(&store, scoped);
         let resp = build_response_from_rows(&loaded, false);
         assert!(
             resp.is_none(),
@@ -537,11 +633,26 @@ mod tests {
     fn no_network_offline_path_returns_empty_not_error() {
         // A disabled store (no DB) should yield empty rows → no panic.
         let store = MetadataStore::disabled();
-        let rows = load_catalog_rows(&store, "ge-proton");
+        let rows = load_catalog_rows(&store, "ge-proton:stable");
         assert!(rows.is_empty());
 
         // build_response_from_rows on empty gives None, which maps to offline empty.
         let resp = build_response_from_rows(&rows, false);
         assert!(resp.is_none());
+    }
+
+    #[tokio::test]
+    async fn unknown_provider_force_refresh_falls_back_to_stale_scoped_cache() {
+        let store = open_store();
+        let future = (Utc::now() + ChronoDuration::hours(5)).to_rfc3339();
+        let fetched = Utc::now().to_rfc3339();
+        let v1 = make_version("GE-Proton9-1");
+        let key = scoped_cache_key("totally-unknown-xyz", false);
+        let row = make_row(&key, "GE-Proton9-1", &fetched, Some(&future), &v1);
+        store.put_proton_catalog(&[row]).expect("seed cache");
+
+        let resp = list_available_versions_by_id(&store, true, "totally-unknown-xyz", false).await;
+        assert_eq!(resp.versions.len(), 1);
+        assert_eq!(resp.versions[0].version, "GE-Proton9-1");
     }
 }

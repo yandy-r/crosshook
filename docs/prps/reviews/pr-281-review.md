@@ -10,7 +10,7 @@
 
 ## Summary
 
-Ambitious, well-scoped replacement for ProtonUp-Qt orchestration — clean `ProtonReleaseProvider` trait, streaming install orchestrator with cancel tokens, Flatpak `:ro` resolver, SQLite v22/v23 schema work, and matching TS/React UI. Validation is green (1058 cargo tests, clippy `-D warnings`, rustfmt, biome, tsc, host-gateway). However, the native download-and-extract path — which is supply-chain-adjacent — ships with one CRITICAL symlink-redirect vulnerability in the `compatibilitytools.d` install-root check and three HIGH hardening gaps around URL origin allowlisting and unbounded response bodies. Merge blocked until F001–F004 and F007 are addressed; the remaining findings are strong improvements but not strict blockers.
+Ambitious, well-scoped replacement for ProtonUp-Qt orchestration — clean `ProtonReleaseProvider` trait, streaming install orchestrator with cancel tokens, Flatpak `:ro` resolver, SQLite v22/v23 schema work, and matching TS/React UI. Validation is green (1058 cargo tests, clippy `-D warnings`, rustfmt, biome, tsc, host-gateway). F001–F004 and F007 are now **Fixed** in the findings table. Merge remains blocked on **F018** (High — `SYSTEM_PREFIX_DENYLIST` defense-in-depth for `/home` / `/root` in uninstall); **F021** (Low — pre-existing migration transaction pattern) is documented as out of scope for this PR.
 
 ## Findings
 
@@ -46,7 +46,7 @@ Ambitious, well-scoped replacement for ProtonUp-Qt orchestration — clean `Prot
 - **[F007]** `src/crosshook-native/src/components/proton-manager/InstallProgressBar.tsx:91` — The Cancel button (rendered in the non-terminal branch) has no `aria-label`, while the Dismiss button at :82 correctly sets `aria-label="Dismiss install status"`. Screen-reader users tabbing to an active install will hit an unlabeled interactive control. [a11y]
   - **Status**: Fixed
   - **Category**: Maintainability
-  - **Suggested fix**: Add `aria-label={\`Cancel install ${opId.slice(0, 8)}\`}`(or a stable`"Cancel Proton install"`) to the Cancel`<button>`, mirroring the Dismiss button pattern.
+  - **Suggested fix**: Add ``aria-label={`Cancel install ${opId.slice(0, 8)}`}`` (or a stable `"Cancel Proton install"`) to the Cancel `<button>`, mirroring the Dismiss button pattern.
 - **[F008]** `src/crosshook-native/src/hooks/useProtonManager.ts:186` — `console.warn` left in production code inside the per-provider catalog fan-out catch block. Fires on every provider catalog failure in the shipped binary. Per CLAUDE.md, `console.log`/`console.warn` should not be in shipped frontend code. [pattern]
   - **Status**: Fixed
   - **Category**: Pattern Compliance

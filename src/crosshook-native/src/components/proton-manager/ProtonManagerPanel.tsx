@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useProtonManager } from '../../hooks/useProtonManager';
 import { classifyInstallProvider, normalizeInstallToTag } from '../../lib/protonup/classifyInstall';
 import type { ProtonUpAvailableVersion, ProtonUpInstallRequest } from '../../types/protonup';
@@ -45,9 +45,34 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
 
   const providersById = useMemo(() => new Map(manager.providers.map((p) => [p.id, p])), [manager.providers]);
 
-  // Track which versions are actively installing (keyed by `${provider}:${version}`
-  // so the same tag on two providers is tracked independently in All mode).
-  const [installingKeys, setInstallingKeys] = useState<Set<string>>(new Set());
+  // Track in-flight installs until IPC returns (`pendingKeys`) and until the op is
+  // dismissed from `activeOpIds` (`keyToOpId`). `manager.install` resolves early with
+  // a handle — do not clear the row state in `finally` or the user can double-install.
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
+  const [keyToOpId, setKeyToOpId] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const active = new Set(manager.activeOpIds);
+    setKeyToOpId((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const [k, opId] of prev) {
+        if (!active.has(opId)) {
+          next.delete(k);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [manager.activeOpIds]);
+
+  const installingKeys = useMemo(() => {
+    const out = new Set<string>(pendingKeys);
+    for (const k of keyToOpId.keys()) {
+      out.add(k);
+    }
+    return out;
+  }, [pendingKeys, keyToOpId]);
 
   const handleInstall = useCallback(
     async (versionDto: ProtonUpAvailableVersion) => {
@@ -64,13 +89,26 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
       };
 
       const key = `${versionDto.provider}:${versionDto.version}`;
-      setInstallingKeys((prev) => new Set(prev).add(key));
+      setPendingKeys((prev) => new Set(prev).add(key));
       try {
-        await manager.install(request, versionDto);
+        const handle = await manager.install(request, versionDto);
+        setKeyToOpId((prev) => {
+          const next = new Map(prev);
+          next.set(key, handle.op_id);
+          return next;
+        });
       } catch (err) {
         setInstallError(err instanceof Error ? err.message : String(err));
+        setKeyToOpId((prev) => {
+          if (!prev.has(key)) {
+            return prev;
+          }
+          const next = new Map(prev);
+          next.delete(key);
+          return next;
+        });
       } finally {
-        setInstallingKeys((prev) => {
+        setPendingKeys((prev) => {
           const next = new Set(prev);
           next.delete(key);
           return next;
@@ -401,7 +439,7 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
             {displayedInstalls.map(({ install, classified, catalogMatch }) => {
               const rowProvider = classified ?? 'unknown';
               return (
-                <li key={install.name}>
+                <li key={install.path}>
                   <VersionRow
                     version={install.name}
                     provider={rowProvider}

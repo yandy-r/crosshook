@@ -82,6 +82,9 @@ function mockCatalogFor(provider: string | undefined): ProtonUpAvailableVersion[
       return PROTON_EM_VERSIONS;
     case 'ge-proton':
       return GE_PROTON_VERSIONS;
+    case 'all':
+    case undefined:
+      return [...GE_PROTON_VERSIONS, ...CACHYOS_VERSIONS, ...PROTON_EM_VERSIONS];
     default:
       return [];
   }
