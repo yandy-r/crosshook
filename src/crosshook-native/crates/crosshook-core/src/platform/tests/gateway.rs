@@ -152,7 +152,7 @@ fn host_std_command_with_env_threads_envs_as_env_args_in_flatpak() {
         ("WINEPREFIX".to_string(), "/home/alice/.wine".to_string()),
         ("DXVK_ASYNC".to_string(), "1".to_string()),
     ]);
-    let cmd = host_std_command_with_env_inner("wine", &envs, &BTreeMap::new(), true);
+    let cmd = host_std_command_with_env_inner("wine", &envs, None, &BTreeMap::new(), true);
     assert_eq!(cmd.get_program(), "flatpak-spawn");
     let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
     assert_eq!(args[0], std::ffi::OsStr::new("--host"));
@@ -168,7 +168,7 @@ fn host_std_command_with_env_threads_envs_as_env_args_in_flatpak() {
 #[test]
 fn host_std_command_with_env_uses_envs_method_when_not_flatpak() {
     let envs = BTreeMap::from([("DXVK_ASYNC".to_string(), "1".to_string())]);
-    let cmd = host_std_command_with_env_inner("wine", &envs, &BTreeMap::new(), false);
+    let cmd = host_std_command_with_env_inner("wine", &envs, None, &BTreeMap::new(), false);
     assert_eq!(cmd.get_program(), "wine");
     let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
     assert!(args.is_empty(), "expected no extra args for non-flatpak");
@@ -176,4 +176,40 @@ fn host_std_command_with_env_uses_envs_method_when_not_flatpak() {
     assert!(envs_on_cmd.iter().any(|(key, value)| {
         *key == std::ffi::OsStr::new("DXVK_ASYNC") && *value == Some(std::ffi::OsStr::new("1"))
     }));
+}
+
+#[test]
+fn host_std_command_with_env_threads_directory_in_flatpak() {
+    let envs = BTreeMap::from([("DXVK_ASYNC".to_string(), "1".to_string())]);
+    let cmd = host_std_command_with_env_inner(
+        "wine",
+        &envs,
+        Some("/run/host/mnt/games/The Witcher 3"),
+        &BTreeMap::new(),
+        true,
+    );
+    let args: Vec<&std::ffi::OsStr> = cmd.get_args().collect();
+    assert_eq!(args[0], std::ffi::OsStr::new("--host"));
+    assert!(
+        args.iter()
+            .any(|arg| { *arg == std::ffi::OsStr::new("--directory=/mnt/games/The Witcher 3") }),
+        "expected normalized --directory arg, got: {args:?}"
+    );
+}
+
+#[test]
+fn host_std_command_with_env_sets_current_dir_when_not_flatpak() {
+    let envs = BTreeMap::from([("DXVK_ASYNC".to_string(), "1".to_string())]);
+    let cmd = host_std_command_with_env_inner(
+        "wine",
+        &envs,
+        Some("/tmp/workdir"),
+        &BTreeMap::new(),
+        false,
+    );
+    assert_eq!(
+        cmd.get_current_dir()
+            .map(|path| path.to_string_lossy().into_owned()),
+        Some("/tmp/workdir".to_string())
+    );
 }

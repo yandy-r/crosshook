@@ -5,7 +5,7 @@ use super::super::xdg::apply_xdg_host_override;
 use super::common::{FakeEnv, ScopedEnv, TEST_ENV_KEY};
 
 #[test]
-fn xdg_override_sets_all_three_paths_from_home() {
+fn xdg_override_sets_all_four_paths_from_home() {
     let mut env = FakeEnv::default();
     let applied = apply_xdg_host_override(Some(PathBuf::from("/home/alice")), &mut env);
     assert!(applied);
@@ -23,6 +23,10 @@ fn xdg_override_sets_all_three_paths_from_home() {
             (
                 "XDG_CACHE_HOME".to_string(),
                 OsString::from("/home/alice/.cache")
+            ),
+            (
+                "XDG_STATE_HOME".to_string(),
+                OsString::from("/home/alice/.local/state")
             ),
         ]
     );
@@ -73,6 +77,12 @@ fn xdg_override_prefers_host_xdg_config_home_when_set() {
         .find(|(key, _)| key == "XDG_DATA_HOME")
         .expect("XDG_DATA_HOME must be written");
     assert_eq!(data_write.1, OsString::from("/home/alice/.local/share"));
+    let state_write = env
+        .writes
+        .iter()
+        .find(|(key, _)| key == "XDG_STATE_HOME")
+        .expect("XDG_STATE_HOME must be written");
+    assert_eq!(state_write.1, OsString::from("/home/alice/.local/state"));
 }
 
 #[test]
@@ -101,6 +111,10 @@ fn xdg_override_prefers_all_host_xdg_vars_when_set() {
             ),
             ("XDG_DATA_HOME".to_string(), OsString::from("/data/share")),
             ("XDG_CACHE_HOME".to_string(), OsString::from("/data/cache")),
+            (
+                "XDG_STATE_HOME".to_string(),
+                OsString::from("/home/alice/.local/state")
+            ),
         ]
     );
 }

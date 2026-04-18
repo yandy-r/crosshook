@@ -250,15 +250,17 @@ pub fn host_std_command_with_env(
     envs: &BTreeMap<String, String>,
     custom_env_vars: &BTreeMap<String, String>,
 ) -> StdCommand {
-    host_std_command_with_env_inner(program, envs, custom_env_vars, is_flatpak())
+    host_std_command_with_env_inner(program, envs, None, custom_env_vars, is_flatpak())
 }
 
 pub(crate) fn host_std_command_with_env_inner(
     program: &str,
     envs: &BTreeMap<String, String>,
+    directory: Option<&str>,
     custom_env_vars: &BTreeMap<String, String>,
     flatpak: bool,
 ) -> StdCommand {
+    let normalized_directory = normalize_host_working_directory(directory);
     if flatpak {
         tracing::debug!(
             program,
@@ -266,6 +268,9 @@ pub(crate) fn host_std_command_with_env_inner(
         );
         let mut cmd = StdCommand::new("flatpak-spawn");
         cmd.arg("--host").arg("--clear-env");
+        if let Some(directory) = normalized_directory.as_deref() {
+            cmd.arg(format!("--directory={directory}"));
+        }
         for (key, value) in envs {
             cmd.arg(format!("--env={key}={value}"));
         }
@@ -298,6 +303,9 @@ pub(crate) fn host_std_command_with_env_inner(
         }
         let mut cmd = StdCommand::new(program);
         cmd.envs(&combined);
+        if let Some(directory) = normalized_directory {
+            cmd.current_dir(directory);
+        }
         cmd
     }
 }

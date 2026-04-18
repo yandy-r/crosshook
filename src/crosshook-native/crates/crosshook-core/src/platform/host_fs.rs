@@ -143,7 +143,7 @@ pub fn host_path_is_executable_file(path: &Path) -> bool {
         return is_executable_file_sync(path);
     }
     let mut cmd = host_std_command("test");
-    cmd.arg("-x").arg(path);
+    cmd.arg("-f").arg(path).arg("-a").arg("-x").arg(path);
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::null());
     cmd.stderr(Stdio::null());

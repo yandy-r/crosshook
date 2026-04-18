@@ -42,7 +42,7 @@ pub fn normalize_flatpak_host_path(path: &str) -> String {
         return host_path;
     }
 
-    path.to_string()
+    trimmed.to_string()
 }
 
 fn looks_like_document_portal_path(path: &str) -> bool {

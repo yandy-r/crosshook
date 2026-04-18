@@ -65,6 +65,10 @@ fn normalize_flatpak_host_path_leaves_non_host_paths_unchanged() {
         normalize_flatpak_host_path("relative/path/to/file"),
         "relative/path/to/file"
     );
+    assert_eq!(
+        normalize_flatpak_host_path("  /tmp/test-path  "),
+        "/tmp/test-path"
+    );
 }
 
 #[cfg(target_os = "linux")]

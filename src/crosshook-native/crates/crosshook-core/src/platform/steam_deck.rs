@@ -60,7 +60,7 @@ pub(crate) fn is_steam_deck_from_sources(
             .trim_matches(|ch: char| ch == '"' || ch == '\'');
         match key {
             "VARIANT_ID" if value.eq_ignore_ascii_case("steamdeck") => return true,
-            "ID" if value == "steamos" => return true,
+            "ID" if value.eq_ignore_ascii_case("steamos") => return true,
             _ => {}
         }
     }

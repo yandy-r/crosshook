@@ -48,6 +48,13 @@ fn steam_deck_detected_via_id_steamos_in_os_release() {
 }
 
 #[test]
+fn steam_deck_detected_via_uppercase_id_steamos_in_os_release() {
+    let os_release = "ID=STEAMOS\nVERSION_ID=3.5\n";
+    let result = is_steam_deck_from_sources(|_| None, Some(os_release));
+    assert!(result, "ID=STEAMOS should be detected case-insensitively");
+}
+
+#[test]
 fn steam_deck_not_detected_for_arch_id() {
     let os_release = "ID=arch\nID_LIKE=\nVERSION_ID=\n";
     let result = is_steam_deck_from_sources(|_| None, Some(os_release));
