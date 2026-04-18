@@ -1,12 +1,12 @@
 # Git hooks (install: `./scripts/setup-dev-hooks.sh` — see https://lefthook.dev/install/).
-# Pre-commit mirrors `./scripts/lint.sh --fix --modified && ./scripts/format.sh --modified`,
-# re-staging any files the scripts rewrite.
+# Pre-commit mirrors `./scripts/lint.sh --fix --staged && ./scripts/format.sh --staged`,
+# re-staging any files the scripts rewrite. Unstaged edits are left alone.
 pre-commit:
   piped: true
   commands:
-    lint-fix-modified:
-      run: ./scripts/lint.sh --fix --modified
+    lint-fix-staged:
+      run: ./scripts/lint.sh --fix --staged
       stage_fixed: true
-    format-modified:
-      run: ./scripts/format.sh --modified
+    format-staged:
+      run: ./scripts/format.sh --staged
       stage_fixed: true

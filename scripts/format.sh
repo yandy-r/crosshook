@@ -8,11 +8,15 @@ source "$ROOT_DIR/scripts/lib/modified-files.sh"
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/format.sh [--modified] [--rust] [--ts] [--docs] [--all]
+Usage: ./scripts/format.sh [--staged] [--unstaged] [--modified]
+                           [--rust] [--ts] [--docs] [--all]
 
 Format code across the full stack.
 
-  --modified  Limit file-based formatting to modified git files (staged, unstaged, untracked)
+  --staged    Limit formatting to staged files (git diff --cached)
+  --unstaged  Limit formatting to unstaged + untracked files
+  --modified  Shorthand for --staged --unstaged (staged ∪ unstaged ∪ untracked)
+              Scope flags are additive; combining --staged --unstaged equals --modified.
   --rust      Rust only (rustfmt)
   --ts        TypeScript/React only (biome)
   --docs      Markdown/JSON only (prettier)
@@ -20,14 +24,17 @@ Format code across the full stack.
 EOF
 }
 
-MODIFIED_ONLY=0
+SCOPE_STAGED=0
+SCOPE_UNSTAGED=0
 RUN_RUST=0
 RUN_TS=0
 RUN_DOCS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --modified) MODIFIED_ONLY=1; shift ;;
+    --staged) SCOPE_STAGED=1; shift ;;
+    --unstaged) SCOPE_UNSTAGED=1; shift ;;
+    --modified) SCOPE_STAGED=1; SCOPE_UNSTAGED=1; shift ;;
     --rust) RUN_RUST=1; shift ;;
     --ts) RUN_TS=1; shift ;;
     --docs) RUN_DOCS=1; shift ;;
@@ -37,6 +44,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if (( SCOPE_STAGED && SCOPE_UNSTAGED )); then
+  SCOPE="modified"
+elif (( SCOPE_STAGED )); then
+  SCOPE="staged"
+elif (( SCOPE_UNSTAGED )); then
+  SCOPE="unstaged"
+else
+  SCOPE=""
+fi
+SCOPED=$(( SCOPE_STAGED || SCOPE_UNSTAGED ))
+
 # Default to all if nothing specified
 if (( !RUN_RUST && !RUN_TS && !RUN_DOCS )); then
   RUN_RUST=1
@@ -45,9 +63,9 @@ if (( !RUN_RUST && !RUN_TS && !RUN_DOCS )); then
 fi
 
 if (( RUN_RUST )); then
-  if (( MODIFIED_ONLY )); then
+  if (( SCOPED )); then
     rust_files=()
-    mapfile -t rust_files < <(list_modified_repo_paths "src/crosshook-native/" ".rs")
+    mapfile -t rust_files < <(list_scoped_repo_paths "$SCOPE" "src/crosshook-native/" ".rs")
 
     if (( ${#rust_files[@]} == 0 )); then
       echo "=== Rust ==="
@@ -63,9 +81,9 @@ if (( RUN_RUST )); then
 fi
 
 if (( RUN_TS )); then
-  if (( MODIFIED_ONLY )); then
+  if (( SCOPED )); then
     ts_files=()
-    mapfile -t ts_files < <(list_modified_repo_paths "src/crosshook-native/src/" \
+    mapfile -t ts_files < <(list_scoped_repo_paths "$SCOPE" "src/crosshook-native/src/" \
       ".ts" ".tsx" ".js" ".jsx" ".mjs" ".cjs" ".mts" ".cts" ".json" ".jsonc" ".css")
 
     if (( ${#ts_files[@]} == 0 )); then
@@ -84,9 +102,9 @@ if (( RUN_TS )); then
 fi
 
 if (( RUN_DOCS )); then
-  if (( MODIFIED_ONLY )); then
+  if (( SCOPED )); then
     docs_files=()
-    mapfile -t docs_files < <(list_modified_repo_paths "" ".md")
+    mapfile -t docs_files < <(list_scoped_repo_paths "$SCOPE" "" ".md")
 
     if (( ${#docs_files[@]} == 0 )); then
       echo "=== Markdown/JSON ==="

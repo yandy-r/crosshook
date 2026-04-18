@@ -8,13 +8,17 @@ source "$ROOT_DIR/scripts/lib/modified-files.sh"
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/lint.sh [--fix] [--modified] [--rust] [--ts] [--shell] [--host-gateway] [--all]
+Usage: ./scripts/lint.sh [--fix] [--staged] [--unstaged] [--modified]
+                         [--rust] [--ts] [--shell] [--host-gateway] [--all]
 
 Run linters across the full stack.
 
   --fix           Apply auto-fixes where possible
-  --modified      Limit file-based linting to modified git files (staged, unstaged, untracked).
-                  Does not narrow --host-gateway: that check always scans the full tree,
+  --staged        Limit file-based linting to staged files (git diff --cached)
+  --unstaged      Limit file-based linting to unstaged + untracked files
+  --modified      Shorthand for --staged --unstaged (staged ∪ unstaged ∪ untracked)
+                  Scope flags are additive; combining --staged --unstaged equals --modified.
+                  None of these narrow --host-gateway: that check always scans the full tree,
                   because a bypass introduced in an unmodified file would otherwise escape
                   detection on a focused run.
   --rust          Rust only (clippy + rustfmt check)
@@ -26,7 +30,8 @@ EOF
 }
 
 FIX=0
-MODIFIED_ONLY=0
+SCOPE_STAGED=0
+SCOPE_UNSTAGED=0
 RUN_RUST=0
 RUN_TS=0
 RUN_SHELL=0
@@ -36,7 +41,9 @@ EXIT_CODE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --fix) FIX=1; shift ;;
-    --modified) MODIFIED_ONLY=1; shift ;;
+    --staged) SCOPE_STAGED=1; shift ;;
+    --unstaged) SCOPE_UNSTAGED=1; shift ;;
+    --modified) SCOPE_STAGED=1; SCOPE_UNSTAGED=1; shift ;;
     --rust) RUN_RUST=1; shift ;;
     --ts) RUN_TS=1; shift ;;
     --shell) RUN_SHELL=1; shift ;;
@@ -47,6 +54,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if (( SCOPE_STAGED && SCOPE_UNSTAGED )); then
+  SCOPE="modified"
+elif (( SCOPE_STAGED )); then
+  SCOPE="staged"
+elif (( SCOPE_UNSTAGED )); then
+  SCOPE="unstaged"
+else
+  SCOPE=""
+fi
+SCOPED=$(( SCOPE_STAGED || SCOPE_UNSTAGED ))
+
 # Default to all if nothing specified
 if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY )); then
   RUN_RUST=1
@@ -56,9 +74,9 @@ if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY )); then
 fi
 
 if (( RUN_RUST )); then
-  if (( MODIFIED_ONLY )); then
+  if (( SCOPED )); then
     rust_files=()
-    mapfile -t rust_files < <(list_modified_repo_paths "src/crosshook-native/" ".rs")
+    mapfile -t rust_files < <(list_scoped_repo_paths "$SCOPE" "src/crosshook-native/" ".rs")
 
     if (( ${#rust_files[@]} == 0 )); then
       echo "=== Rust ==="
@@ -96,12 +114,12 @@ if (( RUN_RUST )); then
 fi
 
 if (( RUN_TS )); then
-  if (( MODIFIED_ONLY )); then
+  if (( SCOPED )); then
     ts_biome_files=()
     ts_typecheck_files=()
-    mapfile -t ts_biome_files < <(list_modified_repo_paths "src/crosshook-native/src/" \
+    mapfile -t ts_biome_files < <(list_scoped_repo_paths "$SCOPE" "src/crosshook-native/src/" \
       ".ts" ".tsx" ".js" ".jsx" ".mjs" ".cjs" ".mts" ".cts" ".json" ".jsonc" ".css")
-    mapfile -t ts_typecheck_files < <(list_modified_repo_paths "src/crosshook-native/src/" \
+    mapfile -t ts_typecheck_files < <(list_scoped_repo_paths "$SCOPE" "src/crosshook-native/src/" \
       ".ts" ".tsx" ".mts" ".cts")
 
     if (( ${#ts_biome_files[@]} == 0 )); then
@@ -134,9 +152,9 @@ if (( RUN_TS )); then
 fi
 
 if (( RUN_SHELL )); then
-  if (( MODIFIED_ONLY )); then
+  if (( SCOPED )); then
     shell_files=()
-    mapfile -t shell_files < <(list_modified_repo_paths "scripts/" ".sh")
+    mapfile -t shell_files < <(list_scoped_repo_paths "$SCOPE" "scripts/" ".sh")
 
     if (( ${#shell_files[@]} == 0 )); then
       echo "=== Shell ==="
@@ -153,8 +171,8 @@ fi
 
 if (( RUN_HOST_GATEWAY )); then
   echo "=== Host-gateway ==="
-  if (( MODIFIED_ONLY )); then
-    echo "note: --modified does not narrow host-gateway scope; running full-tree scan."
+  if (( SCOPED )); then
+    echo "note: scope flags do not narrow host-gateway; running full-tree scan."
   fi
   "$ROOT_DIR/scripts/check-host-gateway.sh" || EXIT_CODE=1
 fi
