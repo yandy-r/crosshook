@@ -90,7 +90,7 @@ pub(super) fn proton_request() -> (tempfile::TempDir, LaunchRequest) {
     let (temp_dir, mut request) = steam_request();
     request.method = METHOD_PROTON_RUN.to_string();
     request.game_path = request.game_path.replace("game.sh", "game.exe");
-    fs::write(&request.game_path, b"game").expect("game exe");
+    write_executable_file(Path::new(&request.game_path));
     request.runtime = RuntimeLaunchConfig {
         prefix_path: request.steam.compatdata_path.clone(),
         proton_path: request.steam.proton_path.clone(),

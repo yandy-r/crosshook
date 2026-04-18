@@ -82,4 +82,10 @@ fn validate_all_collects_multiple_custom_env_issues() {
     ]);
     let issues = validate_all(&request);
     assert_eq!(issues.len(), 2);
+    assert!(issues
+        .iter()
+        .any(|issue| { issue.code.as_deref() == Some("custom_env_var_reserved_key") }));
+    assert!(issues
+        .iter()
+        .any(|issue| { issue.code.as_deref() == Some("custom_env_var_key_contains_equals") }));
 }

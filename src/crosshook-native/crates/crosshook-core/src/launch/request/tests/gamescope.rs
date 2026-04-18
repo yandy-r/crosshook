@@ -12,10 +12,9 @@ fn gamescope_validation_passes_for_steam_applaunch() {
         ..Default::default()
     };
     let issues = validate_all(&request);
-    let gamescope_method_issue = issues.iter().any(|i| {
-        i.message
-            .contains("only supported for proton_run and steam_applaunch")
-    });
+    let gamescope_method_issue = issues
+        .iter()
+        .any(|issue| issue.code.as_deref() == Some("gamescope_not_supported_for_method"));
     assert!(
         !gamescope_method_issue,
         "steam_applaunch should not emit GamescopeNotSupportedForMethod"
@@ -30,10 +29,9 @@ fn gamescope_validation_rejected_for_native() {
         ..Default::default()
     };
     let issues = validate_all(&request);
-    let gamescope_method_issue = issues.iter().any(|i| {
-        i.message
-            .contains("only supported for proton_run and steam_applaunch")
-    });
+    let gamescope_method_issue = issues
+        .iter()
+        .any(|issue| issue.code.as_deref() == Some("gamescope_not_supported_for_method"));
     assert!(
         gamescope_method_issue,
         "native method should emit GamescopeNotSupportedForMethod"
@@ -55,9 +53,9 @@ fn trainer_only_validation_uses_trainer_gamescope_before_main_gamescope() {
 
     let issues = validate_all(&request);
     assert!(
-        issues.iter().any(|issue| issue
-            .message
-            .contains("Both width and height must be set for internal resolution.")),
+        issues
+            .iter()
+            .any(|issue| { issue.code.as_deref() == Some("gamescope_resolution_pair_incomplete") }),
         "expected trainer gamescope validation issue in: {issues:?}"
     );
 }

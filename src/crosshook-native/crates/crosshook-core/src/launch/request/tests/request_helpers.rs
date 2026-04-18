@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::PathBuf;
 
 use crate::launch::request::{LaunchOptimizationsRequest, LaunchRequest, METHOD_PROTON_RUN};
 
@@ -128,7 +129,9 @@ fn log_target_slug_prefers_game_name_for_non_steam_methods() {
 #[test]
 fn native_request_fixture_can_be_mutated_to_windows_exe() {
     let (_temp_dir, mut request) = super::support::native_request();
-    request.game_path = request.game_path.replace("game.sh", "game.exe");
+    let mut game_path = PathBuf::from(&request.game_path);
+    game_path.set_extension("exe");
+    request.game_path = game_path.to_string_lossy().into_owned();
     fs::write(&request.game_path, b"game").expect("game exe");
 
     assert!(request.game_path.ends_with(".exe"));

@@ -42,7 +42,7 @@ fn steam_applaunch_validate_all_collects_launch_optimization_issue() {
     assert!(
         issues
             .iter()
-            .any(|issue| issue.message.contains("unknown_toggle")),
+            .any(|issue| issue.code.as_deref() == Some("unknown_launch_optimization")),
         "expected optimization issue in: {issues:?}"
     );
 }
@@ -200,12 +200,18 @@ fn validate_all_collects_multiple_issues() {
         "expected at least 4 issues, got {}: {issues:?}",
         issues.len()
     );
-
-    let messages: Vec<&str> = issues.iter().map(|i| i.message.as_str()).collect();
-    assert!(messages.iter().any(|m| m.contains("game executable path")));
-    assert!(messages.iter().any(|m| m.contains("Steam App ID")));
-    assert!(messages.iter().any(|m| m.contains("compatdata path")));
-    assert!(messages.iter().any(|m| m.contains("Proton path")));
+    assert!(issues
+        .iter()
+        .any(|issue| issue.code.as_deref() == Some("game_path_required")));
+    assert!(issues
+        .iter()
+        .any(|issue| issue.code.as_deref() == Some("steam_app_id_required")));
+    assert!(issues
+        .iter()
+        .any(|issue| { issue.code.as_deref() == Some("steam_compat_data_path_required") }));
+    assert!(issues
+        .iter()
+        .any(|issue| { issue.code.as_deref() == Some("steam_proton_path_required") }));
 }
 
 #[test]
@@ -220,14 +226,16 @@ fn validate_all_proton_collects_directive_error_alongside_path_issues() {
         "expected at least 2 issues, got {}: {issues:?}",
         issues.len()
     );
-
-    let messages: Vec<&str> = issues.iter().map(|i| i.message.as_str()).collect();
     assert!(
-        messages.iter().any(|m| m.contains("prefix path")),
-        "expected prefix path issue in: {messages:?}"
+        issues
+            .iter()
+            .any(|issue| issue.code.as_deref() == Some("runtime_prefix_path_required")),
+        "expected prefix path issue in: {issues:?}"
     );
     assert!(
-        messages.iter().any(|m| m.contains("unknown_toggle")),
-        "expected directive error issue in: {messages:?}"
+        issues
+            .iter()
+            .any(|issue| issue.code.as_deref() == Some("unknown_launch_optimization")),
+        "expected directive error issue in: {issues:?}"
     );
 }
