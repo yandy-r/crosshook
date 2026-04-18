@@ -19,6 +19,7 @@ mod proton_catalog_store;
 mod readiness_catalog_store;
 mod readiness_dismissal_store;
 mod readiness_snapshot_store;
+mod store;
 mod suggestion_store;
 mod version_store;
 
@@ -37,6 +38,7 @@ pub use offline_store::{CommunityTapOfflineRow, OfflineReadinessRow, TrainerHash
 pub use profile_sync::sha256_hex;
 pub use proton_catalog_store::ProtonCatalogRow;
 pub use readiness_snapshot_store::HostReadinessSnapshotRow;
+pub use store::MetadataStore;
 pub use version_store::{compute_correlation_status, hash_trainer_file};
 
 use crate::community::taps::CommunityTapSyncResult;
@@ -44,127 +46,10 @@ use crate::discovery::TrainerSearchResponse;
 use crate::launch::diagnostics::models::DiagnosticReport;
 use crate::profile::{CollectionDefaultsSection, GameProfile, ProfileStore};
 use chrono::Utc;
-use directories::BaseDirs;
-use rusqlite::{params, params_from_iter, Connection, OptionalExtension};
+use rusqlite::{params, params_from_iter, OptionalExtension};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
-
-#[derive(Clone)]
-pub struct MetadataStore {
-    conn: Option<Arc<Mutex<Connection>>>,
-    available: bool,
-}
 
 impl MetadataStore {
-    fn in_clause_placeholders(count: usize) -> String {
-        std::iter::repeat_n("?", count)
-            .collect::<Vec<_>>()
-            .join(", ")
-    }
-
-    pub fn try_new() -> Result<Self, String> {
-        let path = BaseDirs::new()
-            .ok_or("home directory not found — CrossHook requires a user home directory")?
-            .data_local_dir()
-            .join("crosshook/metadata.db");
-        Self::open(&path).map_err(|error| error.to_string())
-    }
-
-    pub fn with_path(path: &Path) -> Result<Self, MetadataStoreError> {
-        Self::open(path)
-    }
-
-    pub fn open_in_memory() -> Result<Self, MetadataStoreError> {
-        Self::open_with_connection(db::open_in_memory()?)
-    }
-
-    pub fn disabled() -> Self {
-        Self {
-            conn: None,
-            available: false,
-        }
-    }
-
-    pub fn is_available(&self) -> bool {
-        self.available && self.conn.is_some()
-    }
-
-    fn open(path: &Path) -> Result<Self, MetadataStoreError> {
-        Self::open_with_connection(db::open_at_path(path)?)
-    }
-
-    fn open_with_connection(conn: Connection) -> Result<Self, MetadataStoreError> {
-        migrations::run_migrations(&conn)?;
-        Ok(Self {
-            conn: Some(Arc::new(Mutex::new(conn))),
-            available: true,
-        })
-    }
-
-    fn with_conn<F, T>(&self, action: &'static str, f: F) -> Result<T, MetadataStoreError>
-    where
-        F: FnOnce(&Connection) -> Result<T, MetadataStoreError>,
-        T: Default,
-    {
-        if !self.available {
-            return Ok(T::default());
-        }
-
-        let Some(conn) = &self.conn else {
-            return Ok(T::default());
-        };
-
-        let guard = conn.lock().map_err(|_| {
-            MetadataStoreError::Corrupt(format!("metadata store mutex poisoned while {action}"))
-        })?;
-        f(&guard)
-    }
-
-    fn with_conn_mut<F, T>(&self, action: &'static str, f: F) -> Result<T, MetadataStoreError>
-    where
-        F: FnOnce(&mut Connection) -> Result<T, MetadataStoreError>,
-        T: Default,
-    {
-        if !self.available {
-            return Ok(T::default());
-        }
-
-        let Some(conn) = &self.conn else {
-            return Ok(T::default());
-        };
-
-        let mut guard = conn.lock().map_err(|_| {
-            MetadataStoreError::Corrupt(format!("metadata store mutex poisoned while {action}"))
-        })?;
-        f(&mut guard)
-    }
-
-    /// Runs `f` with a shared SQLite `Connection` lock. Unlike [`Self::with_conn`], the return
-    /// type does not need [`Default`] (used for batch health + offline on one connection).
-    pub fn with_sqlite_conn<R, F>(
-        &self,
-        action: &'static str,
-        f: F,
-    ) -> Result<R, MetadataStoreError>
-    where
-        F: FnOnce(&rusqlite::Connection) -> Result<R, MetadataStoreError>,
-    {
-        if !self.available {
-            return Err(MetadataStoreError::Corrupt(
-                "metadata store unavailable".to_string(),
-            ));
-        }
-        let Some(conn) = &self.conn else {
-            return Err(MetadataStoreError::Corrupt(
-                "metadata store connection missing".to_string(),
-            ));
-        };
-        let guard = conn.lock().map_err(|_| {
-            MetadataStoreError::Corrupt(format!("metadata store mutex poisoned while {action}"))
-        })?;
-        f(&guard)
-    }
-
     pub fn observe_profile_write(
         &self,
         name: &str,
@@ -1585,7 +1470,7 @@ mod tests {
         LauncherSection, LocalOverrideSection, ProfileStore, RuntimeSection, SteamSection,
         TrainerLoadingMode, TrainerSection,
     };
-    use rusqlite::params;
+    use rusqlite::{params, Connection};
     use std::fs;
     use std::os::unix::fs::{symlink, PermissionsExt};
     use std::path::PathBuf;
