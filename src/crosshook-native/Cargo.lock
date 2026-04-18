@@ -651,6 +651,7 @@ dependencies = [
 name = "crosshook-core"
 version = "0.2.11"
 dependencies = [
+ "async-trait",
  "chrono",
  "csv",
  "directories",
@@ -667,6 +668,7 @@ dependencies = [
  "tar",
  "tempfile",
  "tokio",
+ "tokio-util",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
@@ -693,6 +695,7 @@ dependencies = [
  "tauri-plugin-shell",
  "tempfile",
  "tokio",
+ "tokio-util",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
  "uuid",
@@ -4887,6 +4890,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]

@@ -116,3 +116,16 @@ export function HostToolsIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function ProtonManagerIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props} aria-hidden="true">
+      {/* Download tray */}
+      <rect x="2" y="13" width="16" height="5" rx="1.5" />
+      {/* Arrow */}
+      <path d="M10 2.5v8.5m0 0-3-3m3 3 3-3" />
+      {/* Version chip accent */}
+      <circle cx="16" cy="3.5" r="1.2" fill="currentColor" stroke="none" opacity={0.55} />
+    </svg>
+  );
+}

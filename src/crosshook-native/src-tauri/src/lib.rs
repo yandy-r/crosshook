@@ -354,6 +354,7 @@ pub fn run() {
         .manage(commands::update::UpdateProcessState::new())
         .manage(commands::run_executable::RunExecutableProcessState::new())
         .manage(commands::prefix_deps::PrefixDepsInstallState::new())
+        .manage(std::sync::Arc::new(commands::protonup::ProtonInstallRegistry::default()))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -497,6 +498,12 @@ pub fn run() {
             commands::protonup::protonup_list_available_versions,
             commands::protonup::protonup_install_version,
             commands::protonup::protonup_get_suggestion,
+            commands::protonup::protonup_list_providers,
+            commands::protonup::protonup_resolve_install_roots,
+            commands::protonup::protonup_install_version_async,
+            commands::protonup::protonup_cancel_install,
+            commands::protonup::protonup_plan_uninstall_version,
+            commands::protonup::protonup_uninstall_version,
             // UMU database
             commands::umu_database::refresh_umu_database,
             commands::umu_database::check_umu_coverage,

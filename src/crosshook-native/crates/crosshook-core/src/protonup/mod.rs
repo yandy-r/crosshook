@@ -6,7 +6,11 @@
 
 pub mod catalog;
 pub mod install;
+pub mod install_root;
 pub mod matching;
+pub mod progress;
+pub mod providers;
+pub mod uninstall;
 
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +22,7 @@ pub enum ProtonUpProvider {
     #[default]
     GeProton,
     ProtonCachyos,
+    ProtonEm,
 }
 
 impl std::fmt::Display for ProtonUpProvider {
@@ -25,6 +30,7 @@ impl std::fmt::Display for ProtonUpProvider {
         match self {
             Self::GeProton => write!(f, "ge-proton"),
             Self::ProtonCachyos => write!(f, "proton-cachyos"),
+            Self::ProtonEm => write!(f, "proton-em"),
         }
     }
 }
@@ -34,6 +40,7 @@ pub fn parse_protonup_provider(s: Option<&str>) -> ProtonUpProvider {
     match s.map(str::trim).filter(|x| !x.is_empty()) {
         None | Some("ge-proton") => ProtonUpProvider::GeProton,
         Some("proton-cachyos") => ProtonUpProvider::ProtonCachyos,
+        Some("proton-em") => ProtonUpProvider::ProtonEm,
         Some(_) => ProtonUpProvider::GeProton,
     }
 }
@@ -53,6 +60,11 @@ pub struct ProtonUpAvailableVersion {
     pub checksum_kind: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asset_size: Option<u64>,
+    /// ISO-8601 UTC release timestamp from the upstream GitHub release.
+    ///
+    /// `#[serde(default)]` so older cached `payload_json` rows (pre-v22.1) still deserialize.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<String>,
 }
 
 /// Cache freshness metadata attached to catalog responses.
@@ -93,6 +105,7 @@ pub enum ProtonUpInstallErrorKind {
     NetworkError,
     InvalidPath,
     AlreadyInstalled,
+    Cancelled,
     Unknown,
 }
 
@@ -105,6 +118,7 @@ impl std::fmt::Display for ProtonUpInstallErrorKind {
             Self::NetworkError => write!(f, "network_error"),
             Self::InvalidPath => write!(f, "invalid_path"),
             Self::AlreadyInstalled => write!(f, "already_installed"),
+            Self::Cancelled => write!(f, "cancelled"),
             Self::Unknown => write!(f, "unknown"),
         }
     }
@@ -180,12 +194,27 @@ mod tests {
     }
 
     #[test]
+    fn proton_em_serializes_as_kebab_case() {
+        let json =
+            serde_json::to_string(&ProtonUpProvider::ProtonEm).expect("serialize ProtonUpProvider");
+        assert_eq!(json, r#""proton-em""#);
+    }
+
+    #[test]
+    fn proton_em_deserializes_from_kebab_case() {
+        let provider: ProtonUpProvider =
+            serde_json::from_str(r#""proton-em""#).expect("deserialize ProtonUpProvider");
+        assert_eq!(provider, ProtonUpProvider::ProtonEm);
+    }
+
+    #[test]
     fn display_matches_kebab_case_ids() {
         assert_eq!(ProtonUpProvider::GeProton.to_string(), "ge-proton");
         assert_eq!(
             ProtonUpProvider::ProtonCachyos.to_string(),
             "proton-cachyos"
         );
+        assert_eq!(ProtonUpProvider::ProtonEm.to_string(), "proton-em");
     }
 
     #[test]
@@ -202,6 +231,10 @@ mod tests {
         assert_eq!(
             parse_protonup_provider(Some("proton-cachyos")),
             ProtonUpProvider::ProtonCachyos
+        );
+        assert_eq!(
+            parse_protonup_provider(Some("proton-em")),
+            ProtonUpProvider::ProtonEm
         );
         assert_eq!(
             parse_protonup_provider(Some("unknown")),
@@ -249,6 +282,7 @@ mod tests {
                 ProtonUpInstallErrorKind::AlreadyInstalled,
                 "already_installed",
             ),
+            (ProtonUpInstallErrorKind::Cancelled, "cancelled"),
             (ProtonUpInstallErrorKind::Unknown, "unknown"),
         ];
 
@@ -265,6 +299,13 @@ mod tests {
         assert_eq!(kind, ProtonUpInstallErrorKind::ChecksumFailed);
     }
 
+    #[test]
+    fn install_error_kind_deserializes_cancelled() {
+        let kind: ProtonUpInstallErrorKind =
+            serde_json::from_str(r#""cancelled""#).expect("deserialize Cancelled");
+        assert_eq!(kind, ProtonUpInstallErrorKind::Cancelled);
+    }
+
     // ── ProtonUpCatalogResponse round-trip ────────────────────────────────────
 
     #[test]
@@ -279,6 +320,7 @@ mod tests {
                     checksum_url: Some("https://example.com/file.sha512sum".to_string()),
                     checksum_kind: Some("sha512".to_string()),
                     asset_size: Some(123_456),
+                    published_at: Some("2024-01-01T00:00:00Z".to_string()),
                 },
                 ProtonUpAvailableVersion {
                     provider: "ge-proton".to_string(),
@@ -288,6 +330,7 @@ mod tests {
                     checksum_url: None,
                     checksum_kind: None,
                     asset_size: None,
+                    published_at: None,
                 },
             ],
             cache: ProtonUpCacheMeta {
@@ -323,6 +366,7 @@ mod tests {
             checksum_url: None,
             checksum_kind: None,
             asset_size: None,
+            published_at: None,
         };
 
         let json = serde_json::to_string(&version).expect("serialize version");
@@ -331,6 +375,16 @@ mod tests {
         assert!(!json.contains("download_url"));
         assert!(!json.contains("checksum_url"));
         assert!(!json.contains("asset_size"));
+        assert!(!json.contains("published_at"));
+    }
+
+    #[test]
+    fn available_version_deserializes_without_published_at() {
+        // Older cached rows may not include published_at; ensure #[serde(default)] kicks in.
+        let legacy = r#"{"provider":"ge-proton","version":"GE-Proton9-20"}"#;
+        let v: ProtonUpAvailableVersion =
+            serde_json::from_str(legacy).expect("legacy JSON must deserialize");
+        assert!(v.published_at.is_none());
     }
 
     // ── ProtonUpInstallResult round-trip ──────────────────────────────────────

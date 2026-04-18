@@ -9,6 +9,7 @@ import {
   LaunchArt,
   LibraryArt,
   ProfilesArt,
+  ProtonManagerArt,
   SettingsArt,
 } from './PageBanner';
 import type { AppRoute } from './Sidebar';
@@ -96,6 +97,13 @@ export const ROUTE_METADATA: Record<AppRoute, RouteMetadataEntry> = {
       'Inspect detected host tools, capability state, and install guidance for everything CrossHook delegates to your host.',
     Art: HostToolsArt,
   },
+  'proton-manager': {
+    navLabel: 'Proton Manager',
+    sectionEyebrow: 'Dashboards',
+    bannerTitle: 'Proton Manager',
+    bannerSummary: 'Download, install, and manage Proton compatibility tool versions for your Steam library.',
+    Art: ProtonManagerArt,
+  },
 };
 
 /** Sidebar + status row labels (single source of truth). */
@@ -110,4 +118,5 @@ export const ROUTE_NAV_LABEL: Record<AppRoute, string> = {
   settings: ROUTE_METADATA.settings.navLabel,
   health: ROUTE_METADATA.health.navLabel,
   'host-tools': ROUTE_METADATA['host-tools'].navLabel,
+  'proton-manager': ROUTE_METADATA['proton-manager'].navLabel,
 };

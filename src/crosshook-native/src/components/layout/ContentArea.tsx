@@ -9,6 +9,7 @@ import InstallPage from '../pages/InstallPage';
 import LaunchPage from '../pages/LaunchPage';
 import LibraryPage from '../pages/LibraryPage';
 import ProfilesPage from '../pages/ProfilesPage';
+import ProtonManagerPage from '../pages/ProtonManagerPage';
 import SettingsPage from '../pages/SettingsPage';
 import type { AppRoute } from './Sidebar';
 
@@ -53,6 +54,8 @@ export function ContentArea({ route, onNavigate }: ContentAreaProps) {
         return <HealthDashboardPage onNavigate={onNavigate} />;
       case 'host-tools':
         return <HostToolsPage />;
+      case 'proton-manager':
+        return <ProtonManagerPage />;
       case 'library':
         return <LibraryPage onNavigate={onNavigate} />;
       default: {

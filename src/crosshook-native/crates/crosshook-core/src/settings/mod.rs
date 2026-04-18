@@ -29,6 +29,10 @@ fn default_protonup_auto_suggest() -> bool {
     true
 }
 
+fn default_protonup_default_provider() -> String {
+    "ge-proton".to_string()
+}
+
 fn default_recent_files_limit() -> u32 {
     10
 }
@@ -215,6 +219,15 @@ pub struct AppSettingsData {
     /// Optional path override for ProtonUp binary; empty = auto-detect.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub protonup_binary_path: String,
+    /// Which provider to preselect in the Proton manager UI (e.g. `"ge-proton"`).
+    #[serde(default = "default_protonup_default_provider")]
+    pub protonup_default_provider: String,
+    /// Override the auto-picked install root for Proton downloads; empty = auto-resolve.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub protonup_default_install_root: String,
+    /// When true, include GitHub prereleases in the Proton catalog.
+    #[serde(default)]
+    pub protonup_include_prereleases: bool,
     /// User preference for umu-launcher vs direct Proton invocation.
     #[serde(default)]
     pub umu_preference: UmuPreference,
@@ -260,6 +273,9 @@ impl Default for AppSettingsData {
             external_trainer_sources: default_external_trainer_sources(),
             protonup_auto_suggest: default_protonup_auto_suggest(),
             protonup_binary_path: String::new(),
+            protonup_default_provider: default_protonup_default_provider(),
+            protonup_default_install_root: String::new(),
+            protonup_include_prereleases: false,
             umu_preference: UmuPreference::Auto,
             host_tool_dashboard_dismissed_hints: Vec::new(),
             host_tool_dashboard_default_category_filter: None,
@@ -308,6 +324,15 @@ impl fmt::Debug for AppSettingsData {
             .field("external_trainer_sources", &self.external_trainer_sources)
             .field("protonup_auto_suggest", &self.protonup_auto_suggest)
             .field("protonup_binary_path", &self.protonup_binary_path)
+            .field("protonup_default_provider", &self.protonup_default_provider)
+            .field(
+                "protonup_default_install_root",
+                &self.protonup_default_install_root,
+            )
+            .field(
+                "protonup_include_prereleases",
+                &self.protonup_include_prereleases,
+            )
             .field("umu_preference", &self.umu_preference)
             .field(
                 "host_tool_dashboard_dismissed_hints",
@@ -637,6 +662,42 @@ mod tests {
             loaded.protonup_binary_path.is_empty(),
             "protonup_binary_path should default to empty"
         );
+    }
+
+    #[test]
+    fn settings_backward_compat_without_protonup_manager_fields() {
+        // TOML that has pre-v22 settings including protonup_auto_suggest / protonup_binary_path
+        // but NOT the three new manager fields. Must parse cleanly and fill defaults.
+        let legacy_toml = r#"
+protonup_auto_suggest = true
+protonup_binary_path = ""
+# deliberately omit protonup_default_provider, protonup_default_install_root, protonup_include_prereleases
+        "#;
+        let parsed: AppSettingsData = toml::from_str(legacy_toml).expect("parses legacy toml");
+        assert_eq!(parsed.protonup_default_provider, "ge-proton");
+        assert_eq!(parsed.protonup_default_install_root, "");
+        assert!(!parsed.protonup_include_prereleases);
+    }
+
+    #[test]
+    fn settings_roundtrip_protonup_manager_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SettingsStore::with_base_path(dir.path().to_path_buf());
+        let settings = AppSettingsData {
+            protonup_default_provider: "proton-cachyos".to_string(),
+            protonup_default_install_root: "/home/user/.steam/root/compatibilitytools.d"
+                .to_string(),
+            protonup_include_prereleases: true,
+            ..Default::default()
+        };
+        store.save(&settings).unwrap();
+        let loaded = store.load().unwrap();
+        assert_eq!(loaded.protonup_default_provider, "proton-cachyos");
+        assert_eq!(
+            loaded.protonup_default_install_root,
+            "/home/user/.steam/root/compatibilitytools.d"
+        );
+        assert!(loaded.protonup_include_prereleases);
     }
 
     #[test]

@@ -40,6 +40,7 @@ ground-truth facts change. Never duplicate `CLAUDE.md` policy prose here.
 
 - **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, AppImage). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
 - **Host-tool gateway**: Host-tool execution at the Flatpak boundary **must** route through `src/crosshook-native/crates/crosshook-core/src/platform.rs` (`host_command`, `host_std_command`, `host_command_with_env`, `host_command_exists`, and friends). Direct `Command::new("<host-tool>")` for tools in the denylist (`proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`) is rejected by `scripts/check-host-gateway.sh`. See [`docs/architecture/adr-0001-platform-host-gateway.md`](docs/architecture/adr-0001-platform-host-gateway.md) for the full contract, scope boundary (does not apply to in-sandbox subprocess code), and escape hatches.
+- **Proton download manager**: Native Proton version management (AppImage + Flatpak parity, provider catalog, install/uninstall) is handled by the dedicated Proton Manager at the `/proton-manager` route. Catalog data lives in the `proton_release_catalog` SQLite table (v22). Architecture decisions are documented in [`docs/architecture/adr-0003-proton-download-manager.md`](docs/architecture/adr-0003-proton-download-manager.md).
 - **Architecture**: Business logic lives in `crosshook-core`. Keep `crosshook-cli` and `src-tauri` thin (IPC and CLI only).
 - **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path.
 - **Tauri IPC**: Expose backend operations as `#[tauri::command]` handlers with **`snake_case` names** matching frontend `invoke()` calls. Use **Serde** on all types that cross the IPC boundary.
@@ -171,35 +172,36 @@ src/crosshook-native/              # Primary source root
 **Location**: `~/.local/share/crosshook/metadata.db`
 **Mode**: WAL (write-ahead logging)
 **Permissions**: `0600` (owner read/write only)
-**Current schema version**: 21
+**Current schema version**: 23
 **Access**: `MetadataStore::try_new()` in `crosshook-core`
 **Migrations**: `src/crosshook-native/crates/crosshook-core/src/metadata/migrations.rs`
 
 ### Table inventory
 
-| Table                            | Since schema | Purpose                                                                |
-| -------------------------------- | :----------: | ---------------------------------------------------------------------- |
-| `profiles`                       |      v1      | Core profile records                                                   |
-| `profile_name_history`           |      v1      | Rename audit trail                                                     |
-| `launchers`                      |      v3      | Known launcher executables                                             |
-| `launch_operations`              |      v3      | Per-launch history and diagnostics                                     |
-| `community_taps`                 |      v4      | Subscribed community tap sources                                       |
-| `community_profiles`             |      v4      | Fetched community profile snapshots                                    |
-| `external_cache_entries`         |      v4      | Generic HTTP response cache (512 KiB payload cap per entry)            |
-| `collections`                    |      v4      | Named profile collections                                              |
-| `collection_profiles`            |      v4      | Collection ↔ profile membership                                        |
-| `health_snapshots`               |      v6      | Periodic profile health check results                                  |
-| `version_snapshots`              |      v9      | Game/trainer version correlation records; includes `trainer_file_hash` |
-| `bundled_optimization_presets`   |     v10      | Built-in optimization preset definitions                               |
-| `profile_launch_preset_metadata` |     v10      | Per-profile preset activation state                                    |
-| `config_revisions`               |     v11      | TOML snapshots with SHA-256 for config history/rollback                |
-| `optimization_catalog`           |     v12      | Data-driven optimization catalog entries                               |
-| `trainer_hash_cache`             |     v13      | SHA-256 hash per trainer per profile                                   |
-| `offline_readiness_snapshots`    |     v13      | Offline readiness state snapshots                                      |
-| `community_tap_offline_state`    |     v13      | Per-tap offline availability state                                     |
-| `host_readiness_catalog`         |     v21      | Persisted host-tool readiness catalog (from TOML merge)                |
-| `readiness_nag_dismissals`       |     v21      | TTL dismissals for per-tool readiness nags (global)                    |
-| `host_readiness_snapshots`       |     v21      | Last cached generalized host readiness snapshot (single row)           |
+| Table                            | Since schema | Purpose                                                                                                                                                     |
+| -------------------------------- | :----------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `profiles`                       |      v1      | Core profile records                                                                                                                                        |
+| `profile_name_history`           |      v1      | Rename audit trail                                                                                                                                          |
+| `launchers`                      |      v3      | Known launcher executables                                                                                                                                  |
+| `launch_operations`              |      v3      | Per-launch history and diagnostics                                                                                                                          |
+| `community_taps`                 |      v4      | Subscribed community tap sources                                                                                                                            |
+| `community_profiles`             |      v4      | Fetched community profile snapshots                                                                                                                         |
+| `external_cache_entries`         |      v4      | Generic HTTP response cache (512 KiB payload cap per entry)                                                                                                 |
+| `collections`                    |      v4      | Named profile collections                                                                                                                                   |
+| `collection_profiles`            |      v4      | Collection ↔ profile membership                                                                                                                             |
+| `health_snapshots`               |      v6      | Periodic profile health check results                                                                                                                       |
+| `version_snapshots`              |      v9      | Game/trainer version correlation records; includes `trainer_file_hash`                                                                                      |
+| `bundled_optimization_presets`   |     v10      | Built-in optimization preset definitions                                                                                                                    |
+| `profile_launch_preset_metadata` |     v10      | Per-profile preset activation state                                                                                                                         |
+| `config_revisions`               |     v11      | TOML snapshots with SHA-256 for config history/rollback                                                                                                     |
+| `optimization_catalog`           |     v12      | Data-driven optimization catalog entries                                                                                                                    |
+| `trainer_hash_cache`             |     v13      | SHA-256 hash per trainer per profile                                                                                                                        |
+| `offline_readiness_snapshots`    |     v13      | Offline readiness state snapshots                                                                                                                           |
+| `community_tap_offline_state`    |     v13      | Per-tap offline availability state                                                                                                                          |
+| `host_readiness_catalog`         |     v21      | Persisted host-tool readiness catalog (from TOML merge)                                                                                                     |
+| `readiness_nag_dismissals`       |     v21      | TTL dismissals for per-tool readiness nags (global)                                                                                                         |
+| `host_readiness_snapshots`       |     v21      | Last cached generalized host readiness snapshot (single row)                                                                                                |
+| `proton_release_catalog`         |     v22      | Cached Proton release metadata (per-provider, per-version). TTL-driven. Legacy `external_cache_entries` `protonup:catalog:*` keys are evicted on migration. |
 
 ### Persistence design classification
 

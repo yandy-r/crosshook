@@ -48,6 +48,12 @@ pub struct AppSettingsIpcData {
     pub external_trainer_sources: Vec<ExternalTrainerSourceSubscription>,
     pub protonup_auto_suggest: bool,
     pub protonup_binary_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protonup_default_provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protonup_default_install_root: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protonup_include_prereleases: Option<bool>,
     pub umu_preference: UmuPreference,
     /// RFC 3339 timestamp of when the user dismissed the umu install nag; `None` = not dismissed.
     pub install_nag_dismissed_at: Option<String>,
@@ -93,6 +99,9 @@ impl AppSettingsIpcData {
             external_trainer_sources: data.external_trainer_sources,
             protonup_auto_suggest: data.protonup_auto_suggest,
             protonup_binary_path: data.protonup_binary_path,
+            protonup_default_provider: Some(data.protonup_default_provider),
+            protonup_default_install_root: Some(data.protonup_default_install_root),
+            protonup_include_prereleases: Some(data.protonup_include_prereleases),
             umu_preference: data.umu_preference,
             install_nag_dismissed_at: data.install_nag_dismissed_at,
             steam_deck_caveats_dismissed_at: data.steam_deck_caveats_dismissed_at,
@@ -149,6 +158,12 @@ pub struct SettingsSaveRequest {
     pub install_nag_dismissed_at: Option<Option<String>>,
     #[serde(default)]
     pub steam_deck_caveats_dismissed_at: Option<Option<String>>,
+    #[serde(default)]
+    pub protonup_default_provider: Option<String>,
+    #[serde(default)]
+    pub protonup_default_install_root: Option<String>,
+    #[serde(default)]
+    pub protonup_include_prereleases: Option<bool>,
 }
 
 fn merge_settings_from_request(
@@ -205,6 +220,15 @@ fn merge_settings_from_request(
         steam_deck_caveats_dismissed_at: data
             .steam_deck_caveats_dismissed_at
             .unwrap_or(current.steam_deck_caveats_dismissed_at),
+        protonup_default_provider: data
+            .protonup_default_provider
+            .unwrap_or(current.protonup_default_provider),
+        protonup_default_install_root: data
+            .protonup_default_install_root
+            .unwrap_or(current.protonup_default_install_root),
+        protonup_include_prereleases: data
+            .protonup_include_prereleases
+            .unwrap_or(current.protonup_include_prereleases),
     }
 }
 
@@ -336,6 +360,9 @@ mod tests {
             host_tool_dashboard_default_category_filter: None,
             install_nag_dismissed_at: None,
             steam_deck_caveats_dismissed_at: None,
+            protonup_default_provider: None,
+            protonup_default_install_root: None,
+            protonup_include_prereleases: None,
         }
     }
 
