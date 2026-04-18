@@ -14,12 +14,6 @@ pub struct MetadataStore {
 }
 
 impl MetadataStore {
-    pub(super) fn in_clause_placeholders(count: usize) -> String {
-        std::iter::repeat_n("?", count)
-            .collect::<Vec<_>>()
-            .join(", ")
-    }
-
     pub fn try_new() -> Result<Self, String> {
         let path = BaseDirs::new()
             .ok_or("home directory not found — CrossHook requires a user home directory")?

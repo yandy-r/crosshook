@@ -2,6 +2,7 @@ use std::path::Path;
 
 use rusqlite::params_from_iter;
 
+use super::util::in_clause_placeholders;
 use super::{profile_sync, MetadataStore, MetadataStoreError};
 use crate::metadata::models::{SyncReport, SyncSource};
 use crate::profile::{GameProfile, ProfileStore};
@@ -42,7 +43,7 @@ impl MetadataStore {
         }
 
         self.with_conn("query profile ids for names", |conn| {
-            let placeholders = Self::in_clause_placeholders(profile_names.len());
+            let placeholders = in_clause_placeholders(profile_names.len());
             let sql = format!(
                 "SELECT current_filename, profile_id \
                  FROM profiles \
