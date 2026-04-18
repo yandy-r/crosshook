@@ -262,13 +262,6 @@ One canonical example per tier, distilled from the three hooks + three component
 
 ## 6. Implementation Phases
 
-<!--
-  STATUS: pending | in-progress | complete
-  PARALLEL: phases that can run concurrently
-  DEPENDS: phases that must complete first
-  PRP: link to generated plan file once created
--->
-
 | #   | Phase                                          | Description                                                                                                                 | Status  | Parallel | Depends | PRP Plan |
 | --- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------- | -------- |
 | 1   | Framework scaffolding + initial suite          | Wire Vitest + RTL + helpers; ship 3 hooks + 3 components as the proving suite                                               | pending | -        | -       | -        |
@@ -387,12 +380,12 @@ One canonical example per tier, distilled from the three hooks + three component
 
 ## 9. Open Questions
 
-- [ ] **Coverage enforcement scoping** — should the 60% gate run on the whole suite with `include`/`exclude` globs, or as a separate `vitest run --coverage` invocation with narrower config? Decide during Phase 4.
-- [ ] **Playwright smoke retries in CI** — current `playwright.config.ts:40` uses `retries: CI ? 1 : 0`. Should this move to 2 for CI stability, or stay at 1 and force root-cause fixes? Measure in Phase 2.
-- [ ] **`useProfile` test strategy** — 1668 lines, 4 debounced timers, event subscription, serialized write chain. Is the right unit a single mega-test file or split by concern (auto-save / event / validation / rollback)? Decide when Phase 3+ starts.
-- [ ] **Coverage ratchet** — v1 is 60%. What's the cadence for raising it (70 → 80%)? Per-phase or per-release?
-- [ ] **Frontend-only PR fast-lane** — should Vitest be the _only_ required check for PRs that touch only `src/crosshook-native/src/**`, skipping the Rust/shell jobs via `paths:` filters? Revisit once CI budget is measured.
-- [ ] **Tauri E2E with WebDriver** — the repo's Playwright smoke runs against the Vite dev server (Chromium), not against real Tauri (WebKitGTK). Does this gap warrant a `tauri-driver`-based E2E track eventually? Out-of-scope for v1, but worth tracking.
+- **Coverage enforcement scoping** — should the 60% gate run on the whole suite with `include`/`exclude` globs, or as a separate `vitest run --coverage` invocation with narrower config? Decide during Phase 4.
+- **Playwright smoke retries in CI** — current `playwright.config.ts:40` uses `retries: CI ? 1 : 0`. Should this move to 2 for CI stability, or stay at 1 and force root-cause fixes? Measure in Phase 2.
+- **useProfile test strategy** — 1668 lines, 4 debounced timers, event subscription, serialized write chain. Is the right unit a single mega-test file or split by concern (auto-save / event / validation / rollback)? Decide when Phase 3+ starts.
+- **Coverage ratchet** — v1 is 60%. What's the cadence for raising it (70 → 80%)? Per-phase or per-release?
+- **Frontend-only PR fast-lane** — should Vitest be the _only_ required check for PRs that touch only `src/crosshook-native/src/**`, skipping the Rust/shell jobs via `paths:` filters? Revisit once CI budget is measured.
+- **Tauri E2E with WebDriver** — the repo's Playwright smoke runs against the Vite dev server (Chromium), not against real Tauri (WebKitGTK). Does this gap warrant a `tauri-driver`-based E2E track eventually? Out-of-scope for v1, but worth tracking.
 
 ---
 
