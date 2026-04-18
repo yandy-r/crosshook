@@ -15,6 +15,47 @@ const MAX_TRAINER_NAME_BYTES: usize = 512;
 const MAX_AUTHOR_BYTES: usize = 512;
 const MAX_VERSION_BYTES: usize = 256;
 
+/// Index a community tap sync result and its trainer sources in one call.
+///
+/// Wraps [`index_community_tap_result`] + [`index_trainer_sources`], looking up
+/// the `tap_id` between the two steps via a row read on `community_taps`.
+pub fn index_community_tap_result_with_trainers(
+    conn: &mut Connection,
+    result: &CommunityTapSyncResult,
+) -> Result<(), MetadataStoreError> {
+    index_community_tap_result(conn, result)?;
+
+    if result.index.trainer_sources.is_empty() {
+        return Ok(());
+    }
+
+    let tap_url = &result.workspace.subscription.url;
+    let tap_branch = result
+        .workspace
+        .subscription
+        .branch
+        .as_deref()
+        .unwrap_or("");
+
+    let tap_id = conn
+        .query_row(
+            "SELECT tap_id FROM community_taps WHERE tap_url = ?1 AND tap_branch = ?2",
+            params![tap_url, tap_branch],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|source| MetadataStoreError::Database {
+            action: "look up tap_id for trainer sources indexing",
+            source,
+        })?;
+
+    if let Some(tap_id) = tap_id {
+        index_trainer_sources(conn, &tap_id, &result.index.trainer_sources)?;
+    }
+
+    Ok(())
+}
+
 /// Index the sync result for a single community tap into the metadata store.
 ///
 /// If the tap's HEAD commit is unchanged since the last index, this is a no-op
