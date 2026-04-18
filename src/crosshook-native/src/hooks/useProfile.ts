@@ -126,6 +126,7 @@ export type LaunchOptimizationsStatus = LaunchOptimizationsStatusType;
 
 export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const { catalog, loading: catalogLoading } = useLaunchOptimizationCatalog();
+  const catalogLoaded = catalog !== null;
   const optionsById = useMemo(() => (catalog ? buildOptionsById(catalog.entries) : {}), [catalog]);
   const conflictMatrix = useMemo(() => (catalog ? buildConflictMatrix(catalog.entries) : {}), [catalog]);
 
@@ -134,6 +135,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
 
   const crud = useProfileCrud({
     optionsById,
+    catalogLoaded,
     autoSelectFirstProfile: options.autoSelectFirstProfile ?? true,
     setLastSavedProfileSnapshot: (nextProfile) => setLastSavedProfileSnapshotRef.current(nextProfile),
     clearAutosaveTimers: () => clearAutosaveTimersRef.current(),
@@ -145,6 +147,7 @@ export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
     selectedProfile: crud.selectedProfile,
     hasExistingSavedProfile: crud.hasExistingSavedProfile,
     optionsById,
+    catalogLoaded,
     conflictMatrix,
     setProfile: crud.setProfile,
     setDirty: crud.setDirty,

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { ConfigDiffResult, ConfigRevisionSummary, ConfigRollbackResult } from '../../types';
 import { formatInvokeError } from './formatInvokeError';
@@ -16,32 +16,45 @@ export interface UseProfileHistoryOptions {
 }
 
 export function useProfileHistory({ loadProfile, onAfterRollback }: UseProfileHistoryOptions) {
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyInFlightCount, setHistoryInFlightCount] = useState(0);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  const beginHistoryRequest = useCallback(() => {
+    setHistoryInFlightCount((c) => c + 1);
+  }, []);
+
+  const endHistoryRequest = useCallback(() => {
+    setHistoryInFlightCount((c) => Math.max(0, c - 1));
+  }, []);
+
+  const historyLoading = useMemo(() => historyInFlightCount > 0, [historyInFlightCount]);
 
   const onAfterRollbackRef = useRef(onAfterRollback);
   onAfterRollbackRef.current = onAfterRollback;
 
-  const fetchConfigHistory = useCallback(async (name: string, limit?: number): Promise<ConfigRevisionSummary[]> => {
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      return await callCommand<ConfigRevisionSummary[]>('profile_config_history', {
-        name,
-        ...(limit !== undefined ? { limit } : {}),
-      });
-    } catch (err) {
-      const message = formatInvokeError(err);
-      setHistoryError(message);
-      throw message;
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, []);
+  const fetchConfigHistory = useCallback(
+    async (name: string, limit?: number): Promise<ConfigRevisionSummary[]> => {
+      beginHistoryRequest();
+      setHistoryError(null);
+      try {
+        return await callCommand<ConfigRevisionSummary[]>('profile_config_history', {
+          name,
+          ...(limit !== undefined ? { limit } : {}),
+        });
+      } catch (err) {
+        const message = formatInvokeError(err);
+        setHistoryError(message);
+        throw message;
+      } finally {
+        endHistoryRequest();
+      }
+    },
+    [beginHistoryRequest, endHistoryRequest]
+  );
 
   const fetchConfigDiff = useCallback(
     async (name: string, revisionId: number, rightRevisionId?: number): Promise<ConfigDiffResult> => {
-      setHistoryLoading(true);
+      beginHistoryRequest();
       setHistoryError(null);
       try {
         return await callCommand<ConfigDiffResult>('profile_config_diff', {
@@ -54,15 +67,15 @@ export function useProfileHistory({ loadProfile, onAfterRollback }: UseProfileHi
         setHistoryError(message);
         throw message;
       } finally {
-        setHistoryLoading(false);
+        endHistoryRequest();
       }
     },
-    []
+    [beginHistoryRequest, endHistoryRequest]
   );
 
   const rollbackConfig = useCallback(
     async (name: string, revisionId: number): Promise<ConfigRollbackResult> => {
-      setHistoryLoading(true);
+      beginHistoryRequest();
       setHistoryError(null);
       try {
         const result = await callCommand<ConfigRollbackResult>('profile_config_rollback', {
@@ -80,25 +93,28 @@ export function useProfileHistory({ loadProfile, onAfterRollback }: UseProfileHi
         setHistoryError(message);
         throw message;
       } finally {
-        setHistoryLoading(false);
+        endHistoryRequest();
       }
     },
-    [loadProfile]
+    [beginHistoryRequest, endHistoryRequest, loadProfile]
   );
 
-  const markKnownGood = useCallback(async (name: string, revisionId: number): Promise<void> => {
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      await callCommand('profile_mark_known_good', { name, revisionId });
-    } catch (err) {
-      const message = formatInvokeError(err);
-      setHistoryError(message);
-      throw message;
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, []);
+  const markKnownGood = useCallback(
+    async (name: string, revisionId: number): Promise<void> => {
+      beginHistoryRequest();
+      setHistoryError(null);
+      try {
+        await callCommand('profile_mark_known_good', { name, revisionId });
+      } catch (err) {
+        const message = formatInvokeError(err);
+        setHistoryError(message);
+        throw message;
+      } finally {
+        endHistoryRequest();
+      }
+    },
+    [beginHistoryRequest, endHistoryRequest]
+  );
 
   return {
     historyLoading,

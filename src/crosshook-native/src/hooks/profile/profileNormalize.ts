@@ -8,7 +8,8 @@ import { deriveGameName, deriveLauncherDisplayName, stripAutomaticLauncherSuffix
 
 function normalizeLaunchPresetsSection(
   profile: GameProfile,
-  optionsById: Record<string, OptimizationEntry>
+  optionsById: Record<string, OptimizationEntry>,
+  catalogLoaded: boolean
 ): {
   presets: Record<string, LaunchOptimizations>;
   active_preset: string;
@@ -22,7 +23,7 @@ function normalizeLaunchPresetsSection(
         continue;
       }
       presets[name] = {
-        enabled_option_ids: normalizeLaunchOptimizationIds(value?.enabled_option_ids, optionsById),
+        enabled_option_ids: normalizeLaunchOptimizationIds(value?.enabled_option_ids, optionsById, catalogLoaded),
       };
     }
   }
@@ -32,15 +33,17 @@ function normalizeLaunchPresetsSection(
 
 export function normalizeProfileForEdit(
   profile: SerializedGameProfile | GameProfile,
-  optionsById: Record<string, OptimizationEntry>
+  optionsById: Record<string, OptimizationEntry>,
+  catalogLoaded: boolean
 ): GameProfile {
   const normalizedProfile = normalizeSerializedGameProfile(profile);
   const method = resolveLaunchMethod(normalizedProfile);
   const runtime = normalizedProfile.runtime;
-  const { presets, active_preset } = normalizeLaunchPresetsSection(normalizedProfile, optionsById);
+  const { presets, active_preset } = normalizeLaunchPresetsSection(normalizedProfile, optionsById, catalogLoaded);
   let enabledOptionIds = normalizeLaunchOptimizationIds(
     normalizedProfile.launch.optimizations?.enabled_option_ids,
-    optionsById
+    optionsById,
+    catalogLoaded
   );
   if (active_preset && presets[active_preset]) {
     enabledOptionIds = presets[active_preset].enabled_option_ids;
@@ -82,9 +85,10 @@ export function normalizeProfileForEdit(
 
 export function normalizeProfileForSave(
   profile: GameProfile,
-  optionsById: Record<string, OptimizationEntry>
+  optionsById: Record<string, OptimizationEntry>,
+  catalogLoaded: boolean
 ): GameProfile {
-  const normalized = normalizeProfileForEdit(profile, optionsById);
+  const normalized = normalizeProfileForEdit(profile, optionsById, catalogLoaded);
 
   return {
     ...normalized,

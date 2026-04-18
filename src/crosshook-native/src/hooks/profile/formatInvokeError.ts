@@ -13,7 +13,11 @@ export function formatInvokeError(err: unknown): string {
     }
   }
   try {
-    return JSON.stringify(err);
+    const result = JSON.stringify(err);
+    if (typeof result === 'string') {
+      return result;
+    }
+    return String(err);
   } catch {
     return String(err);
   }

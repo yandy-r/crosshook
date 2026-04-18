@@ -36,6 +36,8 @@ export interface ProfileLoadOptions {
 
 interface UseProfileCrudOptions {
   optionsById: Record<string, OptimizationEntry>;
+  /** True once optimization catalog fetch completed successfully (`catalog !== null` in `useProfile`). */
+  catalogLoaded: boolean;
   autoSelectFirstProfile: boolean;
   setLastSavedProfileSnapshot: (profile: GameProfile) => void;
   clearAutosaveTimers: () => void;
@@ -43,6 +45,7 @@ interface UseProfileCrudOptions {
 
 export function useProfileCrud({
   optionsById,
+  catalogLoaded,
   autoSelectFirstProfile,
   setLastSavedProfileSnapshot,
   clearAutosaveTimers,
@@ -140,7 +143,7 @@ export function useProfileCrud({
           name: trimmed,
           collectionId,
         });
-        const normalized = normalizeProfileForEdit(loaded, optionsById);
+        const normalized = normalizeProfileForEdit(loaded, optionsById, catalogLoaded);
         setSelectedProfile(trimmed);
         setProfileName(trimmed);
         setProfile(normalized);
@@ -166,7 +169,7 @@ export function useProfileCrud({
         setLoading(false);
       }
     },
-    [optionsById, setLastSavedProfileSnapshot, syncProfileMetadata]
+    [catalogLoaded, optionsById, setLastSavedProfileSnapshot, syncProfileMetadata]
   );
 
   const refreshProfiles = useCallback(async () => {
@@ -198,6 +201,7 @@ export function useProfileCrud({
 
   const finalizeProfileDeletion = useCallback(
     async (name: string) => {
+      const trimmedDeleted = name.trim();
       const settings = await callCommand<AppSettingsData>('settings_load');
       if (settings.last_used_profile === name) {
         await callCommand('settings_save', {
@@ -218,11 +222,16 @@ export function useProfileCrud({
         return;
       }
 
+      const currentSelected = selectedProfile.trim();
+      if (currentSelected && names.includes(currentSelected) && currentSelected !== trimmedDeleted) {
+        return;
+      }
+
       await loadProfile(names[0], {
         loadErrorContext: 'Profile deleted, but loading the next profile failed',
       });
     },
-    [loadFavorites, loadProfile, setLastSavedProfileSnapshot]
+    [loadFavorites, loadProfile, selectedProfile, setLastSavedProfileSnapshot]
   );
 
   const hydrateProfile = useCallback(
@@ -233,7 +242,7 @@ export function useProfileCrud({
         return;
       }
 
-      const normalizedProfile = normalizeProfileForEdit(nextProfile, optionsById);
+      const normalizedProfile = normalizeProfileForEdit(nextProfile, optionsById, catalogLoaded);
       setSelectedProfile(profiles.includes(trimmedName) ? trimmedName : '');
       setProfileName(trimmedName);
       setProfile(normalizedProfile);
@@ -241,7 +250,7 @@ export function useProfileCrud({
       setDirty(true);
       setError(null);
     },
-    [optionsById, profiles, setLastSavedProfileSnapshot]
+    [catalogLoaded, optionsById, profiles, setLastSavedProfileSnapshot]
   );
 
   const updateProfile = useCallback((updater: (current: GameProfile) => GameProfile) => {
@@ -273,7 +282,7 @@ export function useProfileCrud({
       setError(null);
 
       try {
-        const normalizedProfile = normalizeProfileForSave(draftProfile, optionsById);
+        const normalizedProfile = normalizeProfileForSave(draftProfile, optionsById, catalogLoaded);
         await callCommand('profile_save', { name: trimmedName, data: normalizedProfile });
         setLastSavedProfileSnapshot(normalizedProfile);
         await syncProfileMetadata(trimmedName, normalizedProfile);
@@ -288,7 +297,7 @@ export function useProfileCrud({
         setSaving(false);
       }
     },
-    [loadProfile, optionsById, refreshProfiles, setLastSavedProfileSnapshot, syncProfileMetadata]
+    [catalogLoaded, loadProfile, optionsById, refreshProfiles, setLastSavedProfileSnapshot, syncProfileMetadata]
   );
 
   const saveProfile = useCallback(async () => {

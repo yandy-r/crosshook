@@ -23,6 +23,7 @@ interface UseProfileLaunchAutosaveOptions {
   selectedProfile: string;
   hasExistingSavedProfile: boolean;
   optionsById: Record<string, OptimizationEntry>;
+  catalogLoaded: boolean;
   conflictMatrix: Readonly<Record<string, readonly string[]>>;
   setProfile: Dispatch<SetStateAction<GameProfile>>;
   setDirty: Dispatch<SetStateAction<boolean>>;
@@ -34,6 +35,7 @@ export function useProfileLaunchAutosave({
   selectedProfile,
   hasExistingSavedProfile,
   optionsById,
+  catalogLoaded,
   conflictMatrix,
   setProfile,
   setDirty,
@@ -147,7 +149,8 @@ export function useProfileLaunchAutosave({
         optionId,
         nextEnabled,
         optionsById,
-        conflictMatrix
+        conflictMatrix,
+        catalogLoaded
       );
       if (!result.ok) {
         setLaunchOptimizationsStatus({
@@ -160,7 +163,7 @@ export function useProfileLaunchAutosave({
       setProfile(result.profile);
       setDirty((currentDirty: boolean) => currentDirty || !hasExistingSavedProfileRef.current);
     },
-    [conflictMatrix, optionsById, setDirty, setProfile]
+    [catalogLoaded, conflictMatrix, optionsById, setDirty, setProfile]
   );
   const switchLaunchOptimizationPreset = useCallback(
     async (presetName: string): Promise<void> => {
@@ -208,7 +211,11 @@ export function useProfileLaunchAutosave({
         });
         return;
       }
-      const targetPresetIds = normalizeLaunchOptimizationIds(targetSection.enabled_option_ids, optionsById);
+      const targetPresetIds = normalizeLaunchOptimizationIds(
+        targetSection.enabled_option_ids,
+        optionsById,
+        catalogLoaded
+      );
       setError(null);
       pendingLaunchPresetRef.current = key;
       try {
@@ -260,6 +267,7 @@ export function useProfileLaunchAutosave({
       enqueueLaunchProfileWrite,
       flushPendingLaunchOptimizationsSave,
       hasExistingSavedProfile,
+      catalogLoaded,
       optionsById,
       profileName,
       setDirty,
@@ -301,7 +309,10 @@ export function useProfileLaunchAutosave({
             presetId: pid,
           })
         );
-        const normalized = normalizeProfileForEdit(updated, optionsById);
+        if (selectedProfileRef.current.trim() !== trimmedName) {
+          return;
+        }
+        const normalized = normalizeProfileForEdit(updated, optionsById, catalogLoaded);
         setProfile(normalized);
         lastSavedLaunchOptimizationIdsRef.current = normalized.launch.optimizations.enabled_option_ids;
         setLaunchOptimizationsStatus({
@@ -325,6 +336,7 @@ export function useProfileLaunchAutosave({
       enqueueLaunchProfileWrite,
       flushPendingLaunchOptimizationsSave,
       hasExistingSavedProfile,
+      catalogLoaded,
       optionsById,
       profileName,
       setDirty,
@@ -375,7 +387,8 @@ export function useProfileLaunchAutosave({
       launchOptimizationsAutosaveTimerRef.current = null;
       const ids = normalizeLaunchOptimizationIds(
         profileRef.current.launch.optimizations.enabled_option_ids,
-        optionsById
+        optionsById,
+        catalogLoaded
       );
       setOptimizationPresetActionBusy(true);
       setError(null);
@@ -387,7 +400,10 @@ export function useProfileLaunchAutosave({
             enabledOptionIds: ids,
           })
         );
-        const normalized = normalizeProfileForEdit(updated, optionsById);
+        if (selectedProfileRef.current.trim() !== trimmedName) {
+          return;
+        }
+        const normalized = normalizeProfileForEdit(updated, optionsById, catalogLoaded);
         setProfile(normalized);
         lastSavedLaunchOptimizationIdsRef.current = normalized.launch.optimizations.enabled_option_ids;
         setLaunchOptimizationsStatus({
@@ -412,6 +428,7 @@ export function useProfileLaunchAutosave({
       enqueueLaunchProfileWrite,
       flushPendingLaunchOptimizationsSave,
       hasExistingSavedProfile,
+      catalogLoaded,
       optionsById,
       profileName,
       setDirty,

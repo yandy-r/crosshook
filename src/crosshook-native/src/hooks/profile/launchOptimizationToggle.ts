@@ -12,7 +12,8 @@ export function applyLaunchOptimizationToggle(
   optionId: LaunchOptimizationId,
   nextEnabled: boolean,
   optionsById: Record<string, OptimizationEntry>,
-  conflictMatrix: Readonly<Record<string, readonly string[]>>
+  conflictMatrix: Readonly<Record<string, readonly string[]>>,
+  catalogLoaded: boolean
 ): ApplyLaunchOptimizationToggleResult {
   const currentIds = current.launch.optimizations.enabled_option_ids;
   const conflictingIds = nextEnabled ? getConflictingLaunchOptimizationIds(optionId, currentIds, conflictMatrix) : [];
@@ -23,7 +24,7 @@ export function applyLaunchOptimizationToggle(
   }
 
   const nextIds = nextEnabled
-    ? normalizeLaunchOptimizationIds([...currentIds, optionId], optionsById)
+    ? normalizeLaunchOptimizationIds([...currentIds, optionId], optionsById, catalogLoaded)
     : currentIds.filter((currentOptionId) => currentOptionId !== optionId);
 
   const activeKey = (current.launch.active_preset ?? '').trim();

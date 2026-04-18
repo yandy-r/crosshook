@@ -3,19 +3,21 @@ import type { OptimizationEntry } from '../../utils/optimization-catalog';
 
 export function normalizeLaunchOptimizationIds(
   ids: readonly string[] | undefined,
-  optionsById: Record<string, OptimizationEntry>
+  optionsById: Record<string, OptimizationEntry>,
+  catalogLoaded: boolean
 ): LaunchOptimizationId[] {
   if (ids === undefined) {
     return [];
   }
 
-  const catalogLoaded = Object.keys(optionsById).length > 0;
+  /** When false, catalog fetch has not completed — pass IDs through (lenient). When true, filter to known IDs (strict, including empty catalog). */
+  const catalogReadyForFiltering = catalogLoaded;
   const normalized: LaunchOptimizationId[] = [];
   const seenIds = new Set<LaunchOptimizationId>();
 
   for (const optionId of ids) {
     // When catalog is not yet loaded, pass IDs through without filtering (lenient mode).
-    if (catalogLoaded && !(optionId in optionsById)) {
+    if (catalogReadyForFiltering && !(optionId in optionsById)) {
       continue;
     }
 
