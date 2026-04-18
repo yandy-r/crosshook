@@ -13,22 +13,9 @@ impl MetadataStore {
         profile_id: &str,
         profile: &GameProfile,
     ) -> Result<crate::offline::OfflineReadinessReport, MetadataStoreError> {
-        if !self.available {
-            return Err(MetadataStoreError::Corrupt(
-                "metadata store unavailable".to_string(),
-            ));
-        }
-        let Some(conn) = &self.conn else {
-            return Err(MetadataStoreError::Corrupt(
-                "metadata store connection missing".to_string(),
-            ));
-        };
-        let guard = conn.lock().map_err(|_| {
-            MetadataStoreError::Corrupt(
-                "metadata store mutex poisoned while check offline readiness".to_string(),
-            )
-        })?;
-        crate::offline::check_offline_preflight(profile_name, profile_id, profile, &guard)
+        self.with_sqlite_conn("check offline readiness", |conn| {
+            crate::offline::check_offline_preflight(profile_name, profile_id, profile, conn)
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
