@@ -53,6 +53,54 @@ fn peek_tar_with_dot_slash_prefix_returns_real_top_level() {
 }
 
 #[test]
+fn peek_tar_rejects_root_level_regular_file() {
+    let mut buf = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut buf);
+        let mut header = tar::Header::new_gnu();
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_path("proton").expect("file path");
+        header.set_size(0);
+        header.set_cksum();
+        builder.append(&header, std::io::empty()).unwrap();
+        builder.finish().unwrap();
+    }
+
+    let result = peek_tar_read_top_level_sync(buf.as_slice());
+    assert!(
+        matches!(result, Err(InstallError::InvalidPath(_))),
+        "expected InvalidPath for root-level file, got {result:?}"
+    );
+}
+
+#[test]
+fn extract_tar_rejects_divergent_top_level_directory() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let mut buf = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut buf);
+
+        for path in ["GE-Proton9-21/proton", "OtherTool/proton"] {
+            let mut header = tar::Header::new_gnu();
+            header.set_entry_type(tar::EntryType::Regular);
+            header.set_path(path).expect("file path");
+            header.set_size(0);
+            header.set_mode(0o755);
+            header.set_cksum();
+            builder.append(&header, std::io::empty()).unwrap();
+        }
+
+        builder.finish().unwrap();
+    }
+
+    let result = extract_tar_read_sync(buf.as_slice(), temp.path());
+    assert!(
+        matches!(result, Err(InstallError::InvalidPath(_))),
+        "expected InvalidPath for divergent top-level directories, got {result:?}"
+    );
+}
+
+#[test]
 fn extract_tar_rejects_link_entries_that_escape_install_root() {
     for (entry_type, path, target) in [
         (tar::EntryType::Symlink, "GE-Proton9-21/escape", "/etc"),

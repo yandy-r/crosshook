@@ -96,6 +96,44 @@ fn validate_link_entry(
     Ok(())
 }
 
+fn validate_entry_path_within_archive_root(
+    entry_path: &Path,
+    entry_type: tar::EntryType,
+    expected_top_level: &mut Option<String>,
+) -> Result<(), InstallError> {
+    let entry_top_level = first_normal_path_component(entry_path).ok_or_else(|| {
+        InstallError::InvalidPath(format!(
+            "archive entry '{}' is not under a valid top-level directory",
+            entry_path.display()
+        ))
+    })?;
+    let normal_component_count = entry_path
+        .components()
+        .filter(|component| matches!(component, std::path::Component::Normal(_)))
+        .count();
+
+    if normal_component_count == 1 && !entry_type.is_dir() {
+        return Err(InstallError::InvalidPath(format!(
+            "archive entry '{}' is a root-level file or link; expected a top-level directory wrapper",
+            entry_path.display()
+        )));
+    }
+
+    match expected_top_level {
+        Some(expected) if expected == &entry_top_level => Ok(()),
+        Some(expected) => Err(InstallError::InvalidPath(format!(
+            "archive entry '{}' escapes expected top-level directory '{}' via '{}'",
+            entry_path.display(),
+            expected,
+            entry_top_level
+        ))),
+        None => {
+            *expected_top_level = Some(entry_top_level);
+            Ok(())
+        }
+    }
+}
+
 pub(super) fn validate_unpack_result(
     entry_path: &Path,
     unpacked: bool,
@@ -133,10 +171,11 @@ pub(super) fn extract_tar_read_sync<R: std::io::Read>(
                 InstallError::Unknown(format!("invalid path in archive entry: {error}"))
             })?
             .into_owned();
-
-        if top_level_dir.is_none() {
-            top_level_dir = first_normal_path_component(&entry_path);
-        }
+        validate_entry_path_within_archive_root(
+            &entry_path,
+            entry.header().entry_type(),
+            &mut top_level_dir,
+        )?;
 
         if entry.header().entry_type().is_symlink() || entry.header().entry_type().is_hard_link() {
             let link_target = entry
@@ -199,6 +238,7 @@ pub(super) fn peek_tar_read_top_level_sync<R: std::io::Read>(
     use tar::Archive;
 
     let mut archive = Archive::new(read);
+    let mut top_level_dir = None;
     let entries = archive.entries().map_err(|error| {
         InstallError::Unknown(format!("failed to read archive entries: {error}"))
     })?;
@@ -210,12 +250,14 @@ pub(super) fn peek_tar_read_top_level_sync<R: std::io::Read>(
         let entry_path = entry.path().map_err(|error| {
             InstallError::Unknown(format!("invalid path in archive entry: {error}"))
         })?;
-        if let Some(name) = first_normal_path_component(&entry_path) {
-            return Ok(name);
-        }
+        validate_entry_path_within_archive_root(
+            &entry_path,
+            entry.header().entry_type(),
+            &mut top_level_dir,
+        )?;
     }
 
-    Err(InstallError::Unknown("archive appears to be empty".into()))
+    top_level_dir.ok_or_else(|| InstallError::Unknown("archive appears to be empty".into()))
 }
 
 fn enrich_peek_err(archive_path: &Path, err: InstallError) -> InstallError {

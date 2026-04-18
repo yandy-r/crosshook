@@ -333,6 +333,9 @@ async fn rejects_catalog_only_provider() {
         "expected DependencyMissing"
     );
 
+    // In the default build the registry does not contain a test-only catalog-only
+    // provider, so this assertion covers the fallback path for an unknown
+    // provider id without panicking.
     let request = ProtonUpInstallRequest {
         provider: "nonexistent-catalog-only".to_string(),
         version: "v1".to_string(),
@@ -355,5 +358,42 @@ async fn rejects_catalog_only_provider() {
     assert!(
         matches!(result, InstallError::DependencyMissing { .. }),
         "expected DependencyMissing, got: {result:?}"
+    );
+}
+
+#[cfg(feature = "experimental-providers")]
+#[tokio::test]
+async fn experimental_catalog_only_provider_is_rejected_before_download() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let compat_dir = temp.path().join("compatibilitytools.d");
+    std::fs::create_dir_all(&compat_dir).expect("compat dir");
+
+    let request = ProtonUpInstallRequest {
+        provider: "luxtorpeda".to_string(),
+        version: "v1".to_string(),
+        target_root: compat_dir.to_string_lossy().to_string(),
+        force: false,
+    };
+    let version_info = ProtonUpAvailableVersion {
+        provider: "luxtorpeda".to_string(),
+        version: "v1".to_string(),
+        release_url: None,
+        download_url: Some(
+            "https://github.com/example/example/releases/download/v1/tool.tar.gz".to_string(),
+        ),
+        checksum_url: Some(
+            "https://github.com/example/example/releases/download/v1/SHA256SUMS".to_string(),
+        ),
+        checksum_kind: Some("sha256-manifest".to_string()),
+        asset_size: Some(1),
+        published_at: None,
+    };
+
+    let result = install_version_with_progress(&request, &version_info, None, None)
+        .await
+        .expect_err("catalog-only provider should be rejected");
+    assert!(
+        matches!(result, InstallError::DependencyMissing { reason } if reason == "catalog-only provider"),
+        "expected catalog-only provider rejection, got: {result:?}"
     );
 }

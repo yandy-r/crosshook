@@ -46,6 +46,21 @@ fn accepts_and_creates_valid_destination() {
 }
 
 #[test]
+fn rejects_existing_file_as_install_destination() {
+    let temp = tempfile::tempdir().expect("temp dir");
+    let compat_dir = temp.path().join("compatibilitytools.d");
+    std::fs::create_dir_all(&compat_dir).expect("compat dir");
+    let file_path = compat_dir.join("not-a-directory");
+    std::fs::write(&file_path, "nope").expect("write file");
+
+    let result = validate_install_destination(file_path.to_string_lossy().as_ref()).unwrap_err();
+    assert!(
+        matches!(result, InstallError::InvalidPath(_)),
+        "expected InvalidPath for file install destination, got {result:?}"
+    );
+}
+
+#[test]
 fn validate_archive_filename_accepts_safe_name() {
     assert!(validate_archive_filename("GE-Proton9-21.tar.gz").is_ok());
 }

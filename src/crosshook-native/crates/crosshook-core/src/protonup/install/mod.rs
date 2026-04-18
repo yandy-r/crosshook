@@ -8,11 +8,11 @@
 //! for blocked tools appear here (ADR-0001 compliance).
 //!
 //! Known limitation: archive extraction is offloaded to `spawn_blocking`, but the
-//! synchronous tar loop does not observe cancellation mid-extract. For large
-//! archives, cancellation is only seen before or after extraction completes. A
-//! full fix requires a streaming async tar extractor; manually iterating
-//! `archive.entries()?` and checking `cancel.is_cancelled()` between entries
-//! would also enable per-entry symlink validation.
+//! synchronous tar loop in [`archive::extract_tar_read_sync`] does not observe
+//! cancellation mid-extract. For large archives, cancellation is only seen
+//! before or after extraction completes. A full fix requires a streaming async
+//! tar extractor, or explicitly checking `cancel.is_cancelled()` between
+//! archive entries.
 
 mod archive;
 mod download;
@@ -33,6 +33,8 @@ use archive::{
 };
 #[cfg(test)]
 use download::hex_encode;
+#[cfg(test)]
+use download::{fetch_sha256_manifest, fetch_sha512_sidecar};
 #[cfg(test)]
 use errors::err;
 #[cfg(test)]

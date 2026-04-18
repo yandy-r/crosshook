@@ -41,6 +41,13 @@ pub(super) fn validate_install_destination(target_root: &str) -> Result<PathBuf,
         ));
     }
 
+    if path.exists() && !path.is_dir() {
+        return Err(InstallError::InvalidPath(format!(
+            "install destination '{}' exists and is not a directory",
+            path.display()
+        )));
+    }
+
     if !path.exists() {
         std::fs::create_dir_all(&path).map_err(|io_err| {
             if io_err.kind() == std::io::ErrorKind::PermissionDenied {

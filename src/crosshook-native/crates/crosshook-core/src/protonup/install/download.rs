@@ -126,24 +126,7 @@ pub(super) async fn fetch_sha512_sidecar(
     client: &reqwest::Client,
     checksum_url: &str,
 ) -> Result<String, InstallError> {
-    let response = client.get(checksum_url).send().await.map_err(|error| {
-        network_err(format!(
-            "checksum request failed for {checksum_url}: {error}"
-        ))
-    })?;
-
-    if let Some(length) = response.content_length() {
-        if length > MAX_CHECKSUM_BYTES {
-            return Err(InstallError::ChecksumFailed(format!(
-                "checksum response for {checksum_url} is too large ({length} bytes, limit {MAX_CHECKSUM_BYTES})"
-            )));
-        }
-    }
-
-    let body = response
-        .text()
-        .await
-        .map_err(|error| network_err(format!("failed to read checksum body: {error}")))?;
+    let body = fetch_limited_text_body(client, checksum_url, "checksum").await?;
 
     body.lines()
         .find_map(|line| {
@@ -170,24 +153,7 @@ pub(super) async fn fetch_sha256_manifest(
     manifest_url: &str,
     asset_filename: &str,
 ) -> Result<String, InstallError> {
-    let response = client.get(manifest_url).send().await.map_err(|error| {
-        network_err(format!(
-            "SHA256SUMS request failed for {manifest_url}: {error}"
-        ))
-    })?;
-
-    if let Some(length) = response.content_length() {
-        if length > MAX_CHECKSUM_BYTES {
-            return Err(InstallError::ChecksumFailed(format!(
-                "SHA256SUMS response for {manifest_url} is too large ({length} bytes, limit {MAX_CHECKSUM_BYTES})"
-            )));
-        }
-    }
-
-    let body = response
-        .text()
-        .await
-        .map_err(|error| network_err(format!("failed to read SHA256SUMS body: {error}")))?;
+    let body = fetch_limited_text_body(client, manifest_url, "SHA256SUMS").await?;
 
     body.lines()
         .find_map(|line| {
@@ -208,6 +174,53 @@ pub(super) async fn fetch_sha256_manifest(
                 "asset '{asset_filename}' not listed in SHA256SUMS manifest at {manifest_url}"
             ))
         })
+}
+
+async fn fetch_limited_text_body(
+    client: &reqwest::Client,
+    url: &str,
+    response_label: &str,
+) -> Result<String, InstallError> {
+    let response = client.get(url).send().await.map_err(|error| {
+        network_err(format!(
+            "{response_label} request failed for {url}: {error}"
+        ))
+    })?;
+
+    if !response.status().is_success() {
+        return Err(network_err(format!(
+            "server returned {} for {url}",
+            response.status()
+        )));
+    }
+
+    if let Some(length) = response.content_length() {
+        if length > MAX_CHECKSUM_BYTES {
+            return Err(InstallError::ChecksumFailed(format!(
+                "{response_label} response for {url} is too large ({length} bytes, limit {MAX_CHECKSUM_BYTES})"
+            )));
+        }
+    }
+
+    let mut bytes = Vec::new();
+    let mut stream = response.bytes_stream();
+
+    use futures_util::StreamExt;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|error| {
+            network_err(format!("failed to read {response_label} body: {error}"))
+        })?;
+        bytes.extend_from_slice(&chunk);
+        if bytes.len() as u64 > MAX_CHECKSUM_BYTES {
+            return Err(InstallError::ChecksumFailed(format!(
+                "{response_label} response for {url} exceeded limit {MAX_CHECKSUM_BYTES} bytes"
+            )));
+        }
+    }
+
+    String::from_utf8(bytes)
+        .map_err(|error| network_err(format!("failed to decode {response_label} body: {error}")))
 }
 
 pub(super) fn hex_encode(bytes: &[u8]) -> String {
