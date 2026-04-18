@@ -25,6 +25,7 @@ Normative guidelines for AI agents in this repository. For stack overview, direc
 - **Research and planning**: Feature research and plans **must** be: **feature-complete** (no deferred work), **testable**, **maintainable**, **documented**, **data-driven**, **modular**, and **reusable**.
 - **Persistence planning**: Every feature plan/research artifact must classify new or changed data as one of: user-editable preferences (TOML settings), operational/history/cache metadata (SQLite metadata DB), or ephemeral runtime state (memory only). Plans must include a short persistence/usability section covering migration/backward compatibility, offline behavior, degraded fallback behavior, and user visibility/editability expectations.
 - **Large features**: Must be split into smaller, manageable phases and tasks, with clear dependencies and a clear order of execution.
+- **Large Files**: Files larger than 500 lines **must** be refactored into smaller modules or components for maintainability and readability.
 
 ## SHOULD (implementation)
 
