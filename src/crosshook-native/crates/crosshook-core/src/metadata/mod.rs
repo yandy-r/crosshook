@@ -1,9 +1,54 @@
 //! SQLite metadata-DB facade.
 //!
 //! This module is a thin re-export surface. Business logic lives in per-domain
-//! submodules (`store.rs`, `*_ops.rs`, `launch_queries.rs`, `*_store.rs`). Tests
-//! are split into per-domain `*_tests.rs` files that share fixtures via
-//! `test_support.rs`.
+//! submodules; `mod.rs` itself holds only `mod …;` declarations, `pub use`
+//! re-exports, and module-level documentation.
+//!
+//! # Layout
+//!
+//! The `MetadataStore` struct is defined in [`store`]. Every public method is
+//! implemented on `MetadataStore` via additional `impl` blocks spread across
+//! the per-domain files below. Callers keep using `crate::metadata::...`
+//! paths unchanged.
+//!
+//! ## Core
+//!
+//! - [`store`] — `MetadataStore` struct, constructors, `with_conn*` helpers
+//! - [`util`] — shared utilities (`in_clause_placeholders`)
+//! - [`db`] — SQLite connection opening (permissions, symlink guard)
+//! - [`migrations`] — schema migrations (current: **v23**)
+//! - [`models`] — shared row types, error type, size limits
+//!
+//! ## Per-domain operations (`*_ops.rs` → delegates to `*_store.rs`)
+//!
+//! - [`profile_ops`] / [`profile_sync`] — profile write/rename/delete/sync
+//! - [`launcher_ops`] / [`launcher_sync`] / [`launch_history`] — launcher exports, launch ops
+//! - [`community_ops`] / [`community_index`] — community tap indexing, trainer search
+//! - [`collections_ops`] / [`collections`] — collections, favorites, per-collection defaults
+//! - [`cache_ops`] / [`cache_store`] — generic external cache (`external_cache_entries`)
+//! - [`launch_queries`] — usage-insights queries (`query_most_launched`, etc.)
+//! - [`health_ops`] / [`health_store`] — profile health snapshots
+//! - [`game_image_ops`] / [`game_image_store`] — Steam game image cache
+//! - [`offline_ops`] / [`offline_store`] — offline readiness, trainer hash cache, tap offline state
+//! - [`version_ops`] / [`version_store`] — version snapshots + correlation status
+//! - [`config_history_ops`] / [`config_history_store`] — TOML config revision history
+//! - [`preset_ops`] / [`preset_store`] — bundled + per-profile optimization presets
+//! - [`catalog_ops`] — optimization / readiness / readiness-snapshot / proton release catalogs
+//! - [`prefix_ops`] / [`prefix_deps_store`] / [`prefix_storage_store`] — prefix dep state and storage snapshots
+//! - [`suggestion_store`] / [`readiness_dismissal_store`] — dismissal tables (own `impl` blocks)
+//!
+//! ## Tests
+//!
+//! Tests are split into per-domain `*_tests.rs` files sharing fixtures via
+//! [`test_support`]:
+//!
+//! - [`profile_sync_tests`], [`launcher_tests`], [`community_index_tests`]
+//! - [`cache_tests`], [`collections_crud_tests`], [`collections_defaults_tests`]
+//! - [`collections_favorites_tests`], [`launch_queries_tests`]
+//! - [`migrations_sanity_tests`], [`trainer_hash_tests`]
+//! - [`version_store_tests`], [`correlation_status_tests`]
+//!
+//! This layout is a refactor of a previously-3,747-line `mod.rs`; see issue #291.
 
 mod cache_ops;
 mod cache_store;
