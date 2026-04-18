@@ -100,7 +100,7 @@ pub enum SteamExternalLauncherExportError {
 impl fmt::Display for SteamExternalLauncherExportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidRequest(error) => f.write_str(error.message()),
+            Self::InvalidRequest(error) => error.fmt(f),
             Self::CouldNotResolveHomePath => {
                 f.write_str("Could not resolve a host home path for launcher export.")
             }

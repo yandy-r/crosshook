@@ -1,6 +1,7 @@
 use super::super::{
     preview_desktop_entry_content, preview_trainer_script_content,
-    SteamExternalLauncherExportRequest,
+    SteamExternalLauncherExportError, SteamExternalLauncherExportRequest,
+    SteamExternalLauncherExportValidationError,
 };
 
 #[test]
@@ -62,8 +63,13 @@ fn preview_script_fails_when_trainer_path_empty() {
         ..Default::default()
     };
 
-    let result = preview_trainer_script_content(&request);
-    assert!(result.is_err());
+    let error = preview_trainer_script_content(&request).unwrap_err();
+    assert!(matches!(
+        error,
+        SteamExternalLauncherExportError::InvalidRequest(
+            SteamExternalLauncherExportValidationError::TrainerPathRequired
+        )
+    ));
 }
 
 #[test]
@@ -77,6 +83,11 @@ fn preview_desktop_fails_when_trainer_path_empty() {
         ..Default::default()
     };
 
-    let result = preview_desktop_entry_content(&request);
-    assert!(result.is_err());
+    let error = preview_desktop_entry_content(&request).unwrap_err();
+    assert!(matches!(
+        error,
+        SteamExternalLauncherExportError::InvalidRequest(
+            SteamExternalLauncherExportValidationError::TrainerPathRequired
+        )
+    ));
 }

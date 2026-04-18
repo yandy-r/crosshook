@@ -5,6 +5,43 @@ use super::super::paths::{
 };
 use super::super::{resolve_target_home_path, sanitize_launcher_slug};
 
+static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+struct ScopedHome {
+    original: Option<String>,
+    _guard: std::sync::MutexGuard<'static, ()>,
+}
+
+impl ScopedHome {
+    fn unset() -> Self {
+        let guard = HOME_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let original = std::env::var("HOME").ok();
+        // SAFETY: tests serialize HOME mutation through HOME_LOCK.
+        unsafe { std::env::remove_var("HOME") };
+        Self {
+            original,
+            _guard: guard,
+        }
+    }
+}
+
+impl Drop for ScopedHome {
+    fn drop(&mut self) {
+        match &self.original {
+            Some(value) => {
+                // SAFETY: tests serialize HOME mutation through HOME_LOCK.
+                unsafe { std::env::set_var("HOME", value) };
+            }
+            None => {
+                // SAFETY: tests serialize HOME mutation through HOME_LOCK.
+                unsafe { std::env::remove_var("HOME") };
+            }
+        }
+    }
+}
+
 #[test]
 fn slug_generation_collapses_non_alphanumeric_runs() {
     assert_eq!(
@@ -86,4 +123,22 @@ fn resolves_home_from_steam_client_suffix() {
         ),
         "/home/user"
     );
+}
+
+#[test]
+fn resolves_home_from_flatpak_steam_client_suffix() {
+    assert_eq!(
+        resolve_target_home_path(
+            "/tmp/wrong/compatdata/steam",
+            "/home/user/.var/app/com.valvesoftware.Steam/data/Steam"
+        ),
+        "/home/user"
+    );
+}
+
+#[test]
+fn rejects_invalid_preferred_home_when_no_better_fallback_exists() {
+    let _home = ScopedHome::unset();
+    assert_eq!(resolve_target_home_path("relative/path", ""), "");
+    assert_eq!(resolve_target_home_path("/tmp/compatdata/steam", ""), "");
 }

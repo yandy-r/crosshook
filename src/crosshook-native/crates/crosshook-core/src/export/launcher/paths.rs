@@ -82,7 +82,11 @@ pub fn resolve_target_home_path(
         }
     }
 
-    normalized_preferred_home_path
+    if looks_like_usable_host_unix_path(&normalized_preferred_home_path) {
+        normalized_preferred_home_path
+    } else {
+        String::new()
+    }
 }
 
 fn try_resolve_home_from_steam_client_install_path(
@@ -90,6 +94,7 @@ fn try_resolve_home_from_steam_client_install_path(
 ) -> Option<String> {
     const LOCAL_SHARE_STEAM_SUFFIX: &str = "/.local/share/Steam";
     const DOT_STEAM_ROOT_SUFFIX: &str = "/.steam/root";
+    const FLATPAK_STEAM_SUFFIX: &str = "/.var/app/com.valvesoftware.Steam/data/Steam";
 
     if steam_client_install_path.trim().is_empty() {
         return None;
@@ -103,6 +108,13 @@ fn try_resolve_home_from_steam_client_install_path(
     }
 
     if let Some(home_path) = steam_client_install_path.strip_suffix(DOT_STEAM_ROOT_SUFFIX) {
+        let home_path = home_path.trim();
+        if !home_path.is_empty() {
+            return Some(home_path.to_string());
+        }
+    }
+
+    if let Some(home_path) = steam_client_install_path.strip_suffix(FLATPAK_STEAM_SUFFIX) {
         let home_path = home_path.trim();
         if !home_path.is_empty() {
             return Some(home_path.to_string());
