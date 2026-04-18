@@ -1,22 +1,16 @@
-use std::path::Path;
-
-use super::support::command_env_value;
+use super::support::{command_env_value, write_executable_file_with_contents};
 use crate::launch::script_runner::{
     build_flatpak_steam_trainer_command, build_proton_trainer_command,
 };
 use crate::launch::LaunchRequest;
 
-fn write_umu_stub(dir: &Path) {
-    let umu_stub = dir.join("umu-run");
-    std::fs::write(&umu_stub, "#!/bin/sh\nexit 0\n").unwrap();
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(&umu_stub, std::fs::Permissions::from_mode(0o755)).unwrap();
-}
-
 #[test]
 fn proton_trainer_command_swaps_to_umu_run_when_umu_preferred() {
     let dir = tempfile::tempdir().unwrap();
-    write_umu_stub(dir.path());
+    write_executable_file_with_contents(
+        dir.path().join("umu-run").as_path(),
+        b"#!/bin/sh\nexit 0\n",
+    );
     let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
 
     use crate::settings::UmuPreference;
@@ -95,7 +89,10 @@ fn proton_trainer_command_falls_back_to_proton_when_umu_preferred_but_missing() 
 #[test]
 fn auto_preference_uses_umu_trainer_when_present() {
     let dir = tempfile::tempdir().unwrap();
-    write_umu_stub(dir.path());
+    write_executable_file_with_contents(
+        dir.path().join("umu-run").as_path(),
+        b"#!/bin/sh\nexit 0\n",
+    );
     let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
 
     use crate::settings::UmuPreference;
@@ -166,7 +163,10 @@ fn auto_preference_trainer_falls_back_to_proton_when_missing() {
 #[test]
 fn flatpak_steam_trainer_command_never_uses_umu_even_when_preferred() {
     let dir = tempfile::tempdir().unwrap();
-    write_umu_stub(dir.path());
+    write_executable_file_with_contents(
+        dir.path().join("umu-run").as_path(),
+        b"#!/bin/sh\nexit 0\n",
+    );
     let _guard = crate::launch::test_support::ScopedCommandSearchPath::new(dir.path());
 
     use crate::settings::UmuPreference;

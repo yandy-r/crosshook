@@ -6,7 +6,11 @@ use tokio::process::Command;
 use crate::launch::LaunchRequest;
 
 pub(super) fn write_executable_file(path: &Path) {
-    fs::write(path, b"test").expect("write file");
+    write_executable_file_with_contents(path, b"test");
+}
+
+pub(super) fn write_executable_file_with_contents(path: &Path, contents: &[u8]) {
+    fs::write(path, contents).expect("write file");
 
     #[cfg(unix)]
     {

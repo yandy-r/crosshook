@@ -45,12 +45,7 @@ pub(super) fn stage_trainer_into_prefix(
 
     fs::create_dir_all(&staged_directory)?;
     fs::copy(trainer_host_path, &staged_host_path)?;
-    stage_trainer_support_files(
-        trainer_source_dir,
-        &staged_directory,
-        trainer_file_name,
-        trainer_base_name.to_string_lossy().as_ref(),
-    )?;
+    stage_trainer_support_files(trainer_source_dir, &staged_directory, trainer_file_name)?;
 
     Ok(format!(
         "C:\\CrossHook\\StagedTrainers\\{}\\{}",
@@ -63,7 +58,6 @@ fn stage_trainer_support_files(
     trainer_source_dir: &Path,
     staged_target_dir: &Path,
     trainer_file_name: &std::ffi::OsStr,
-    trainer_base_name: &str,
 ) -> std::io::Result<()> {
     for entry in fs::read_dir(trainer_source_dir)? {
         let entry = entry?;
@@ -74,7 +68,7 @@ fn stage_trainer_support_files(
             continue;
         }
 
-        if path.is_file() && should_stage_support_file(&file_name, trainer_base_name) {
+        if path.is_file() && should_stage_support_file(&file_name) {
             fs::copy(&path, staged_target_dir.join(&file_name))?;
         }
     }
@@ -89,7 +83,7 @@ fn stage_trainer_support_files(
     Ok(())
 }
 
-fn should_stage_support_file(file_name: &std::ffi::OsStr, _trainer_base_name: &str) -> bool {
+fn should_stage_support_file(file_name: &std::ffi::OsStr) -> bool {
     let file_name = file_name.to_string_lossy();
     let extension = file_name
         .rsplit_once('.')
