@@ -1,0 +1,44 @@
+name: PR title
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Validate Conventional Commit PR title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Types mirror CLAUDE.md § "Git & Conventional Commits".
+          types: |
+            feat
+            fix
+            docs
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            style
+          requireScope: false
+          # Squash merges use the PR title as the commit subject, so reject
+          # placeholder prefixes that agents sometimes open PRs with.
+          subjectPattern: '^(?!\[WIP\]|\[Draft\]|Initial plan|WIP:|Draft:).+'
+          subjectPatternError: |
+            The PR title subject "{subject}" looks like a placeholder.
+            Remove "[WIP]" / "Draft:" / "Initial plan" and use a Conventional
+            Commit title — the PR title becomes the squash-merge commit subject
+            and lands in CHANGELOG.md verbatim. Use GitHub's native Draft PR
+            status for work-in-progress instead.
