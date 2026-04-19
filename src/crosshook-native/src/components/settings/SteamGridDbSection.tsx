@@ -22,8 +22,9 @@ export function SteamGridDbSection({ hasApiKey, onApiKeyChange }: SteamGridDbSec
     setIsSaving(true);
     setSaveError(null);
     setSaved(false);
+    const trimmedKey = localKey.trim();
     try {
-      await onApiKeyChange(localKey);
+      await onApiKeyChange(trimmedKey);
       setLocalKey('');
       setSaved(true);
       setLastAction('save');
