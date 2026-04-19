@@ -34,7 +34,10 @@ pub fn build_dependency_health_issues(
 
     let mut seen = HashSet::new();
 
-    for verb in required_verbs.iter().filter(|verb| seen.insert(verb.as_str())) {
+    for verb in required_verbs
+        .iter()
+        .filter(|verb| seen.insert(verb.as_str()))
+    {
         let state = dep_states
             .iter()
             .find(|row| row.package_name == *verb && row.prefix_path == active_prefix)
