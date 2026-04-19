@@ -389,6 +389,21 @@ export function registerSystem(map: Map<string, Handler>): void {
   map.set('get_trainer_type_catalog', async (): Promise<TrainerTypeEntry[]> => {
     return structuredClone(MOCK_TRAINER_TYPE_CATALOG);
   });
+
+  // --- background portal ---
+
+  map.set('get_background_protection_state', async (): Promise<string> => {
+    // Return 'NotApplicable' for non-Flatpak dev environment
+    return 'NotApplicable';
+  });
+
+  // --- path normalization ---
+
+  map.set('normalize_host_path', async (args): Promise<string> => {
+    const { path } = args as { path: string };
+    // In dev mode, just return the path as-is (no Flatpak normalization needed)
+    return path;
+  });
 }
 
 export function resetSystemMockState(): void {

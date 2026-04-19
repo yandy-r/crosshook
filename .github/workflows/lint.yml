@@ -72,6 +72,10 @@ jobs:
         working-directory: src/crosshook-native
         run: npx tsc --noEmit
 
+      - name: Run Vitest
+        working-directory: src/crosshook-native
+        run: npx vitest run --coverage
+
   shell:
     name: Shell (shellcheck + host-gateway)
     runs-on: ubuntu-latest
@@ -83,3 +87,31 @@ jobs:
 
       - name: Host-gateway guardrail
         run: ./scripts/check-host-gateway.sh
+
+      - name: Mock coverage contract gate
+        run: ./scripts/check-mock-coverage.sh
+
+  smoke:
+    name: Playwright smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: src/crosshook-native/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/crosshook-native
+        run: npm ci
+
+      - name: Install Playwright + browser deps
+        working-directory: src/crosshook-native
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke suite
+        working-directory: src/crosshook-native
+        run: npm run test:smoke
