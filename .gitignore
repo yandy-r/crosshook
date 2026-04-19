@@ -49,3 +49,6 @@ docs/**/Thumbs.db
 .playwright-mcp/
 temp.md
 node_modules/
+
+# Test coverage reports
+src/crosshook-native/coverage/
