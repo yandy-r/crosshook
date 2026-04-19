@@ -86,10 +86,10 @@
   --crosshook-radius-sm: 10px;
   --crosshook-content-width: 1440px;
   --crosshook-touch-target-min: 48px;
-  --crosshook-touch-target-compact: 36px;
-  --crosshook-button-height-compact: 28px;
+  --crosshook-touch-target-compact: 44px;
+  --crosshook-button-height-compact: 44px;
   --crosshook-layout-main-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
-  --crosshook-subtab-min-height: 40px;
+  --crosshook-subtab-min-height: 44px;
   --crosshook-subtab-padding-inline: 16px;
   --crosshook-panel-padding: 20px;
   --crosshook-card-padding: 28px;
@@ -112,7 +112,7 @@
   --crosshook-sidebar-width: 200px;
   --crosshook-sidebar-width-collapsed: 56px;
   --crosshook-console-drawer-height: 280px;
-  --crosshook-console-drawer-handle-height: 40px;
+  --crosshook-console-drawer-handle-height: 44px;
   /* Breathing room between route scroll content and the horizontal resize / collapsed console strip */
   --crosshook-content-console-gap: 12px;
   --crosshook-resize-handle-thickness: 14px;
@@ -159,6 +159,34 @@
   --crosshook-skeleton-color-to: var(--crosshook-color-bg-elevated);
 }
 
+:root[data-crosshook-theme='high-contrast'] {
+  color-scheme: dark;
+
+  --crosshook-color-bg: #0b0c12;
+  --crosshook-color-bg-elevated: #101322;
+  --crosshook-color-surface: #0f172a;
+  --crosshook-color-surface-strong: #0a0f1c;
+  --crosshook-color-border: #e2e8f0;
+  --crosshook-color-border-strong: #f8fafc;
+  --crosshook-color-border-muted: rgba(248, 250, 252, 0.4);
+  --crosshook-color-text: #f8fafc;
+  --crosshook-color-text-muted: rgba(248, 250, 252, 0.9);
+  --crosshook-color-text-subtle: rgba(226, 232, 240, 0.8);
+  --crosshook-color-accent: #facc15;
+  --crosshook-color-accent-strong: #f97316;
+  --crosshook-color-accent-soft: rgba(250, 204, 21, 0.35);
+  --crosshook-focus-ring-inner: rgba(250, 204, 21, 0.4);
+  --crosshook-color-success: #22d3ee;
+  --crosshook-color-warning: #facc15;
+  --crosshook-color-danger: #fb7185;
+  --crosshook-divider-color: rgba(248, 250, 252, 0.36);
+  --crosshook-color-not-configured-bg: rgba(255, 255, 255, 0.12);
+  --crosshook-color-not-configured-text: rgba(248, 250, 252, 0.9);
+  --crosshook-color-not-configured-label: rgba(248, 250, 252, 0.86);
+  --crosshook-shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.52);
+  --crosshook-shadow-strong: 0 28px 70px rgba(0, 0, 0, 0.6);
+}
+
 :root[data-crosshook-controller-mode='true'] {
   --crosshook-touch-target-min: 56px;
   --crosshook-touch-target-compact: 44px;
@@ -199,7 +227,7 @@
     --crosshook-page-padding: 14px;
     --crosshook-grid-gap: 12px;
     --crosshook-touch-target-min: 44px;
-    --crosshook-touch-target-compact: 32px;
+    --crosshook-touch-target-compact: 44px;
     --crosshook-panel-padding: 16px;
     --crosshook-card-padding: 20px;
     --crosshook-launch-panel-padding: 20px;

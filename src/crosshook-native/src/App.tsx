@@ -20,6 +20,7 @@ import { LaunchStateProvider } from './context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from './context/PreferencesContext';
 import { ProfileProvider, useProfileContext } from './context/ProfileContext';
 import { ProfileHealthProvider } from './context/ProfileHealthContext';
+import { useAriaLabelHydration, useHighContrastTheme } from './hooks/useAccessibilityEnhancements';
 import { useCollections } from './hooks/useCollections';
 import { useGamepadNav } from './hooks/useGamepadNav';
 import { useScrollEnhance } from './hooks/useScrollEnhance';
@@ -64,6 +65,12 @@ function ConsoleDock({ panelRef }: { panelRef: RefObject<PanelImperativeHandle |
   }, [defaultCollapsed, panelRef]);
 
   return <ConsoleDrawer panelRef={panelRef} defaultCollapsed={defaultCollapsed} />;
+}
+
+function AccessibilityThemeSync() {
+  const { settings } = usePreferencesContext();
+  useHighContrastTheme(settings.high_contrast);
+  return null;
 }
 
 function AppShell({ controllerMode }: { controllerMode: boolean }) {
@@ -180,6 +187,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
   return (
     <Tooltip.Provider delayDuration={200}>
       <PreferencesProvider activeProfileName={lastProfile}>
+        <AccessibilityThemeSync />
         <LaunchStateProvider>
           <Tabs.Root
             orientation="vertical"
@@ -298,6 +306,7 @@ export function App() {
   const gamepadOptions = useMemo(() => ({ onBack: handleGamepadBack }), []);
   const gamepadNav = useGamepadNav(gamepadOptions);
   useScrollEnhance();
+  useAriaLabelHydration();
 
   return (
     <main
