@@ -41,6 +41,7 @@ pub(crate) async fn launch_profile(
     let settings = settings_store
         .load()
         .map_err(|e| CliError::General(format!("settings load: {e}")))?;
+    // Profile runtime override takes precedence over the global default.
     let effective_umu_preference = profile
         .runtime
         .umu_preference
@@ -127,7 +128,6 @@ pub(crate) async fn launch_profile(
                 }
             }
             spawn_helper(&request, &helper, &log_path)
-                .await
                 .map_err(|e| CliError::LaunchFailure(e.to_string()))?
         }
         METHOD_PROTON_RUN => {
@@ -301,7 +301,7 @@ fn launch_log_path(profile_name: &str) -> PathBuf {
     launch_log_dir().join(format!("{safe_name}.log"))
 }
 
-async fn spawn_helper(
+fn spawn_helper(
     request: &LaunchRequest,
     helper_script: &Path,
     log_path: &Path,

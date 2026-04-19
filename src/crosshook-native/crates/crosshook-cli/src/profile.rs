@@ -93,6 +93,7 @@ pub(crate) async fn handle_profile_command(
                     .join(format!("{profile_name}.crosshook.json"))
             });
 
+            // W-4 security mitigation: reject symlinks at output path
             if output_path
                 .symlink_metadata()
                 .map(|m| m.file_type().is_symlink())
