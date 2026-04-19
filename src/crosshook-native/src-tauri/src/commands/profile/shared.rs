@@ -214,3 +214,47 @@ pub(super) fn apply_collection_defaults(
         }
     }
 }
+
+/// Loads a profile, applies a mutation closure, then saves and observes the change.
+///
+/// This is the canonical helper for profile section updates (`profile.launch.mangohud`,
+/// `profile.launch.gamescope`, `profile.launch.trainer_gamescope`, etc.). It:
+/// 1. Loads the profile
+/// 2. Invokes the mutation closure `mutate_fn` to modify it in-place
+/// 3. Saves via `ProfileStore`
+/// 4. Observes the write via `MetadataStore`
+/// 5. Captures a config revision snapshot
+///
+/// Used by `profile_save_mangohud_config`, `profile_save_gamescope_config`, and
+/// `profile_save_trainer_gamescope_config` to eliminate 50+ lines of duplication.
+pub(super) fn save_profile_section<F>(
+    name: &str,
+    store: &crosshook_core::profile::ProfileStore,
+    metadata_store: &MetadataStore,
+    source: ConfigRevisionSource,
+    mutate_fn: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&mut GameProfile),
+{
+    let mut profile = store.load(name).map_err(|e| e.to_string())?;
+    mutate_fn(&mut profile);
+    store.save(name, &profile).map_err(|e| e.to_string())?;
+
+    let profile_path = store.base_path.join(format!("{name}.toml"));
+    if let Err(e) = metadata_store.observe_profile_write(
+        name,
+        &profile,
+        &profile_path,
+        SyncSource::AppWrite,
+        None,
+    ) {
+        tracing::warn!(
+            %e,
+            profile_name = %name,
+            "metadata sync after profile section save failed"
+        );
+    }
+    capture_config_revision(name, &profile, source, None, metadata_store);
+    Ok(())
+}

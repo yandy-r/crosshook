@@ -23,7 +23,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_0_to_1(conn)?;
         conn.pragma_update(None, "user_version", 1_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 1",
                 source,
             })?;
     }
@@ -32,7 +32,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_1_to_2(conn)?;
         conn.pragma_update(None, "user_version", 2_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 2",
                 source,
             })?;
     }
@@ -41,7 +41,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_2_to_3(conn)?;
         conn.pragma_update(None, "user_version", 3_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 3",
                 source,
             })?;
     }
@@ -50,7 +50,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_3_to_4(conn)?;
         conn.pragma_update(None, "user_version", 4_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 4",
                 source,
             })?;
     }
@@ -59,7 +59,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_4_to_5(conn)?;
         conn.pragma_update(None, "user_version", 5_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 5",
                 source,
             })?;
     }
@@ -68,7 +68,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_5_to_6(conn)?;
         conn.pragma_update(None, "user_version", 6_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 6",
                 source,
             })?;
     }
@@ -77,7 +77,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_6_to_7(conn)?;
         conn.pragma_update(None, "user_version", 7_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 7",
                 source,
             })?;
     }
@@ -86,7 +86,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_7_to_8(conn)?;
         conn.pragma_update(None, "user_version", 8_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 8",
                 source,
             })?;
     }
@@ -95,7 +95,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_8_to_9(conn)?;
         conn.pragma_update(None, "user_version", 9_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 9",
                 source,
             })?;
     }
@@ -104,7 +104,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v1_v10::migrate_9_to_10(conn)?;
         conn.pragma_update(None, "user_version", 10_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 10",
                 source,
             })?;
     }
@@ -113,7 +113,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_10_to_11(conn)?;
         conn.pragma_update(None, "user_version", 11_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "update metadata schema version",
+                action: "update metadata schema version to 11",
                 source,
             })?;
     }
@@ -122,7 +122,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_11_to_12(conn)?;
         conn.pragma_update(None, "user_version", 12_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 12",
+                action: "update metadata schema version to 12",
                 source,
             })?;
     }
@@ -131,7 +131,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_12_to_13(conn)?;
         conn.pragma_update(None, "user_version", 13_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 13",
+                action: "update metadata schema version to 13",
                 source,
             })?;
     }
@@ -140,7 +140,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_13_to_14(conn)?;
         conn.pragma_update(None, "user_version", 14_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 14",
+                action: "update metadata schema version to 14",
                 source,
             })?;
     }
@@ -149,7 +149,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_14_to_15(conn)?;
         conn.pragma_update(None, "user_version", 15_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 15",
+                action: "update metadata schema version to 15",
                 source,
             })?;
     }
@@ -158,7 +158,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_15_to_16(conn)?;
         conn.pragma_update(None, "user_version", 16_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 16",
+                action: "update metadata schema version to 16",
                 source,
             })?;
     }
@@ -167,7 +167,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_16_to_17(conn)?;
         conn.pragma_update(None, "user_version", 17_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 17",
+                action: "update metadata schema version to 17",
                 source,
             })?;
     }
@@ -176,7 +176,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_17_to_18(conn)?;
         conn.pragma_update(None, "user_version", 18_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 18",
+                action: "update metadata schema version to 18",
                 source,
             })?;
     }
@@ -185,7 +185,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_18_to_19(conn)?;
         conn.pragma_update(None, "user_version", 19_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 19",
+                action: "update metadata schema version to 19",
                 source,
             })?;
     }
@@ -194,7 +194,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v11_v20::migrate_19_to_20(conn)?;
         conn.pragma_update(None, "user_version", 20_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 20",
+                action: "update metadata schema version to 20",
                 source,
             })?;
     }
@@ -203,7 +203,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v21_v23::migrate_20_to_21(conn)?;
         conn.pragma_update(None, "user_version", 21_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 21",
+                action: "update metadata schema version to 21",
                 source,
             })?;
     }
@@ -212,7 +212,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v21_v23::migrate_21_to_22(conn)?;
         conn.pragma_update(None, "user_version", 22_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 22",
+                action: "update metadata schema version to 22",
                 source,
             })?;
     }
@@ -221,7 +221,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), MetadataStoreError> {
         v21_v23::migrate_22_to_23(conn)?;
         conn.pragma_update(None, "user_version", 23_u32)
             .map_err(|source| MetadataStoreError::Database {
-                action: "set user_version to 23",
+                action: "update metadata schema version to 23",
                 source,
             })?;
     }
