@@ -74,8 +74,7 @@ fn png_magic_bytes_are_accepted() {
 #[test]
 fn svg_is_rejected() {
     // SVG is XML text — no magic bytes; infer will return None → octet-stream
-    let svg_bytes =
-        b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";
+    let svg_bytes = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";
     let result = validate_image_bytes(svg_bytes);
     assert!(
         result.is_err(),
@@ -197,7 +196,10 @@ fn safe_path_rejects_dotdot_app_id() {
 fn safe_path_rejects_slash_in_filename() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let result = safe_image_cache_path(tmp.path(), "440", "../../evil.jpg");
-    assert!(result.is_err(), "path traversal via filename must be rejected");
+    assert!(
+        result.is_err(),
+        "path traversal via filename must be rejected"
+    );
 }
 
 #[test]
