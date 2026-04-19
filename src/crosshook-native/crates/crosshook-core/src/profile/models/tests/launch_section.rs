@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use crate::launch::request::METHOD_PROTON_RUN;
+
 use super::super::*;
 use super::fixtures::*;
 
@@ -21,7 +23,7 @@ fn launch_presets_toml_roundtrip() {
     use std::collections::BTreeMap;
 
     let mut launch = LaunchSection::default();
-    launch.method = "proton_run".to_string();
+    launch.method = METHOD_PROTON_RUN.to_string();
     launch.optimizations.enabled_option_ids = vec!["use_gamemode".to_string()];
     launch.active_preset = "quality".to_string();
     let mut presets = BTreeMap::new();
@@ -266,9 +268,9 @@ executable_path = "/games/x.exe"
 path = "/t/y.exe"
 type = "fling"
 [launch]
-method = "proton_run"
 "#;
-    let p: GameProfile = toml::from_str(toml).expect("deserialize");
+    let toml = toml.to_string() + &format!(r#"method = "{}""#, METHOD_PROTON_RUN);
+    let p: GameProfile = toml::from_str(&toml).expect("deserialize");
     assert!(p.launch.network_isolation);
 }
 

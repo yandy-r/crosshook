@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use crate::launch::request::{METHOD_NATIVE, METHOD_PROTON_RUN};
+
 use super::super::*;
 use super::fixtures::*;
 
@@ -104,7 +106,7 @@ fn effective_profile_with_none_equals_shim() {
 #[test]
 fn effective_profile_with_merges_collection_defaults_between_base_and_local_override() {
     let mut profile = sample_profile();
-    profile.launch.method = "native".to_string();
+    profile.launch.method = METHOD_NATIVE.to_string();
     profile
         .launch
         .custom_env_vars
@@ -120,7 +122,7 @@ fn effective_profile_with_merges_collection_defaults_between_base_and_local_over
         .custom_env_vars
         .insert("PROFILE_ONLY".to_string(), "OVERRIDDEN".to_string());
     defaults.network_isolation = Some(false);
-    defaults.method = Some("proton_run".to_string());
+    defaults.method = Some(METHOD_PROTON_RUN.to_string());
 
     let merged = profile.effective_profile_with(Some(&defaults));
 
@@ -128,7 +130,7 @@ fn effective_profile_with_merges_collection_defaults_between_base_and_local_over
     assert_eq!(merged.game.executable_path, "/local/game.exe");
 
     // ── Layer 2 (collection defaults) applies ──
-    assert_eq!(merged.launch.method, "proton_run");
+    assert_eq!(merged.launch.method, METHOD_PROTON_RUN);
     assert!(!merged.launch.network_isolation);
     assert_eq!(
         merged
@@ -148,7 +150,7 @@ fn effective_profile_with_merges_collection_defaults_between_base_and_local_over
 #[test]
 fn effective_profile_with_none_fields_do_not_overwrite_profile() {
     let mut profile = sample_profile();
-    profile.launch.method = "native".to_string();
+    profile.launch.method = METHOD_NATIVE.to_string();
     profile.launch.network_isolation = true;
     profile.launch.gamescope = GamescopeConfig::default();
     profile
@@ -161,7 +163,7 @@ fn effective_profile_with_none_fields_do_not_overwrite_profile() {
     assert!(defaults.is_empty());
     let merged = profile.effective_profile_with(Some(&defaults));
 
-    assert_eq!(merged.launch.method, "native");
+    assert_eq!(merged.launch.method, METHOD_NATIVE);
     assert!(merged.launch.network_isolation);
     assert_eq!(
         merged.launch.custom_env_vars.get("PROFILE_KEY").cloned(),
@@ -174,14 +176,14 @@ fn effective_profile_with_none_fields_do_not_overwrite_profile() {
 #[test]
 fn effective_profile_with_ignores_whitespace_only_method() {
     let mut profile = sample_profile();
-    profile.launch.method = "native".to_string();
+    profile.launch.method = METHOD_NATIVE.to_string();
 
     let mut defaults = CollectionDefaultsSection::default();
     defaults.method = Some("   ".to_string()); // whitespace-only must NOT clobber profile
 
     let merged = profile.effective_profile_with(Some(&defaults));
     assert_eq!(
-        merged.launch.method, "native",
+        merged.launch.method, METHOD_NATIVE,
         "whitespace method must not clobber profile"
     );
 }
