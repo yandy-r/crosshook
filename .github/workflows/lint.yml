@@ -74,7 +74,7 @@ jobs:
 
       - name: Run Vitest
         working-directory: src/crosshook-native
-        run: npx vitest run --coverage
+        run: npm run test:coverage
 
   shell:
     name: Shell (shellcheck + host-gateway)
