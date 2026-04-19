@@ -13,19 +13,22 @@ export function RecentFailuresPanel({ profiles }: { profiles: EnrichedProfileHea
   return (
     <CollapsibleSection title="Recent Failures" defaultOpen={false}>
       <ul className="crosshook-health-dashboard-failures-list">
-        {profiles.map((report) => (
-          <li key={report.name} className="crosshook-health-dashboard-failures-item">
-            <span className="crosshook-health-dashboard-failures-item__name">{report.name}</span>
-            <span className="crosshook-status-chip crosshook-health-dashboard-failures-item__count">
-              {report.metadata?.failure_count_30d} failure{report.metadata?.failure_count_30d !== 1 ? 's' : ''} (30d)
-            </span>
-            <span className="crosshook-muted crosshook-health-dashboard-failures-item__last-success">
-              {report.metadata?.last_success
-                ? `Last success ${formatRelativeTime(report.metadata.last_success)}`
-                : 'No successful launches recorded'}
-            </span>
-          </li>
-        ))}
+        {profiles.map((report) => {
+          const count = report.metadata?.failure_count_30d ?? 0;
+          return (
+            <li key={report.name} className="crosshook-health-dashboard-failures-item">
+              <span className="crosshook-health-dashboard-failures-item__name">{report.name}</span>
+              <span className="crosshook-status-chip crosshook-health-dashboard-failures-item__count">
+                {count} failure{count === 1 ? '' : 's'} (30d)
+              </span>
+              <span className="crosshook-muted crosshook-health-dashboard-failures-item__last-success">
+                {report.metadata?.last_success
+                  ? `Last success ${formatRelativeTime(report.metadata.last_success)}`
+                  : 'No successful launches recorded'}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </CollapsibleSection>
   );

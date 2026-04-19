@@ -7,6 +7,12 @@ import { OfflineReadinessPanel } from '../../OfflineReadinessPanel';
 import { CollapsibleSection } from '../../ui/CollapsibleSection';
 import { buildCategoryCounts, categorizeIssue } from './utils';
 
+function getProtonPathField(issueField: string): ProtonPathField | null {
+  if (issueField === 'steam.proton_path') return 'steam_proton_path';
+  if (issueField === 'runtime.proton_path') return 'runtime_proton_path';
+  return null;
+}
+
 export function IssueBreakdownPanel({ profiles }: { profiles: EnrichedProfileHealthReport[] }) {
   const { categoryCounts, totalRawIssues } = useMemo(() => buildCategoryCounts(profiles), [profiles]);
 
@@ -58,6 +64,7 @@ export function IssueDetailRow({
     applyResult,
     isApplying,
     error: migrationError,
+    clearMigrationError,
     scanMigrations,
     applySingleMigration,
   } = useProtonMigration();
@@ -72,15 +79,10 @@ export function IssueDetailRow({
     return () => clearTimeout(timer);
   }, [applyResult]);
 
-  function getProtonPathField(issueField: string): ProtonPathField | null {
-    if (issueField === 'steam.proton_path') return 'steam_proton_path';
-    if (issueField === 'runtime.proton_path') return 'runtime_proton_path';
-    return null;
-  }
-
   async function handleUpdateProton(issueField: string) {
     setActiveMigrationField(issueField);
     setSuccessNotice(null);
+    clearMigrationError();
     await scanMigrations();
   }
 

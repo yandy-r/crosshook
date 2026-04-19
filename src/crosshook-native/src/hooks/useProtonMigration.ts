@@ -20,6 +20,10 @@ export function useProtonMigration() {
   const [batchResult, setBatchResult] = useState<BatchMigrationResult | null>(null);
   const [batchError, setBatchError] = useState<string | null>(null);
 
+  const clearMigrationError = useCallback(() => {
+    setError(null);
+  }, []);
+
   const scanMigrations = useCallback(async (steamClientInstallPath?: string): Promise<MigrationScanResult | null> => {
     setIsScanning(true);
     setError(null);
@@ -88,6 +92,7 @@ export function useProtonMigration() {
     isBatchApplying,
     batchResult,
     batchError,
+    clearMigrationError,
     scanMigrations,
     applySingleMigration,
     applyBatchMigration,

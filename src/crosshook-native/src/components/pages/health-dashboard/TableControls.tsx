@@ -1,6 +1,13 @@
 import { formatRelativeTime } from '../../../utils/format';
 import type { SortDirection, SortField, StatusFilter } from './constants';
 
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'healthy', label: 'Healthy' },
+  { value: 'stale', label: 'Stale' },
+  { value: 'broken', label: 'Broken' },
+];
+
 export function TableToolbar({
   statusFilter,
   onStatusFilter,
@@ -34,18 +41,11 @@ export function TableToolbar({
   isVersionScanning?: boolean;
   versionScanProgress?: { done: number; total: number } | null;
 }) {
-  const statusOptions: { value: StatusFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'healthy', label: 'Healthy' },
-    { value: 'stale', label: 'Stale' },
-    { value: 'broken', label: 'Broken' },
-  ];
-
   return (
     <div className="crosshook-health-dashboard-toolbar">
       <fieldset className="crosshook-health-dashboard-toolbar__filters crosshook-fieldset-reset">
         <legend className="crosshook-visually-hidden">Filter by status</legend>
-        {statusOptions.map((opt) => (
+        {STATUS_OPTIONS.map((opt) => (
           <button
             key={opt.value}
             type="button"
