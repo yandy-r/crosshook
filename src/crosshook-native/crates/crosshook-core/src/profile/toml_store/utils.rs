@@ -55,7 +55,7 @@ pub fn validate_name(name: &str) -> Result<String, ProfileStoreError> {
     if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
         return Err(ProfileStoreError::InvalidName(name.to_string()));
     }
-    if trimmed.chars().any(|character| character.is_control()) {
+    if trimmed.chars().any(char::is_control) {
         return Err(ProfileStoreError::InvalidName(name.to_string()));
     }
 
