@@ -8,7 +8,7 @@ use crate::game_images::models::GameImageError;
 // Constants
 // ---------------------------------------------------------------------------
 
-const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024; // 5 MB
+pub(super) const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_IMAGE_MIMES: &[&str] = &["image/jpeg", "image/png", "image/webp"];
 
 // ---------------------------------------------------------------------------

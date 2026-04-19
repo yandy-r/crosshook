@@ -1,13 +1,7 @@
 use crate::game_images::models::{GameImageError, GameImageType};
 
 use super::http::http_client;
-use super::validation::validate_image_bytes;
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024; // 5 MB
+use super::validation::MAX_IMAGE_BYTES;
 
 // ---------------------------------------------------------------------------
 // Download helpers
@@ -55,11 +49,7 @@ pub(super) async fn try_portrait_candidates(app_id: &str) -> Result<Vec<u8>, Gam
     let mut last_err = None;
     for url in &candidates {
         match download_image_bytes(url).await {
-            Ok(bytes) => {
-                // Validate the downloaded bytes before returning
-                validate_image_bytes(&bytes)?;
-                return Ok(bytes);
-            }
+            Ok(bytes) => return Ok(bytes),
             Err(e) => last_err = Some(e),
         }
     }

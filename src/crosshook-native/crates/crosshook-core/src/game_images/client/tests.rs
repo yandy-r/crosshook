@@ -1,10 +1,10 @@
-use crate::game_images::models::{GameImageSource, GameImageType};
+use crate::game_images::models::{GameImageError, GameImageSource, GameImageType};
 use crate::metadata::MetadataStore;
 
 use super::cache::{filename_for, parse_expiration};
 use super::download::{build_download_url, portrait_candidate_urls};
 use super::http::is_allowed_redirect_host;
-use super::validation::{safe_image_cache_path, validate_image_bytes};
+use super::validation::{safe_image_cache_path, validate_image_bytes, MAX_IMAGE_BYTES};
 
 // -----------------------------------------------------------------------
 // app_id validation
@@ -95,7 +95,7 @@ fn html_text_is_rejected() {
 fn oversized_content_is_rejected() {
     let oversized = vec![0xFF_u8, 0xD8, 0xFF, 0xE0];
     // We don't allocate 5 MB here; instead test the boundary directly.
-    let mut large = vec![0u8; 5 * 1024 * 1024 + 1];
+    let mut large = vec![0u8; MAX_IMAGE_BYTES + 1];
     // Set JPEG magic so format check would pass if not for size check
     large[0] = 0xFF;
     large[1] = 0xD8;
@@ -187,7 +187,7 @@ fn safe_path_rejects_dotdot_app_id() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let result = safe_image_cache_path(tmp.path(), "../etc", "cover_steam_cdn.jpg");
     assert!(
-        result.is_err(),
+        matches!(result, Err(GameImageError::InvalidAppId)),
         "path traversal via app_id must be rejected"
     );
 }
@@ -197,7 +197,7 @@ fn safe_path_rejects_slash_in_filename() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let result = safe_image_cache_path(tmp.path(), "440", "../../evil.jpg");
     assert!(
-        result.is_err(),
+        matches!(result, Err(GameImageError::InvalidFilename)),
         "path traversal via filename must be rejected"
     );
 }
@@ -219,7 +219,10 @@ fn safe_path_accepts_valid_inputs() {
 fn safe_path_rejects_empty_app_id() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let result = safe_image_cache_path(tmp.path(), "", "cover_steam_cdn.jpg");
-    assert!(result.is_err(), "empty app_id must be rejected");
+    assert!(
+        matches!(result, Err(GameImageError::InvalidAppId)),
+        "empty app_id must be rejected"
+    );
 }
 
 // -----------------------------------------------------------------------
