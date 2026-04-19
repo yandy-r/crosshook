@@ -313,7 +313,7 @@ pub fn profile_config_diff(
     };
 
     let left_label = format!("revision/{revision_id}");
-    let (diff_text, added_lines, removed_lines, truncated) = compute_unified_diff(
+    let (mut diff_text, added_lines, removed_lines, mut truncated) = compute_unified_diff(
         &left_label,
         &right_label,
         &left_row.snapshot_toml,
@@ -321,10 +321,13 @@ pub fn profile_config_diff(
     );
 
     if diff_text.len() > MAX_DIFF_OUTPUT_BYTES {
-        return Err(format!(
-            "diff output for revision {revision_id} exceeds the {MAX_DIFF_OUTPUT_BYTES}-byte limit ({} bytes)",
-            diff_text.len()
-        ));
+        // Find the largest valid UTF-8 char boundary <= MAX_DIFF_OUTPUT_BYTES
+        let mut truncate_at = MAX_DIFF_OUTPUT_BYTES;
+        while truncate_at > 0 && !diff_text.is_char_boundary(truncate_at) {
+            truncate_at -= 1;
+        }
+        diff_text.truncate(truncate_at);
+        truncated = true;
     }
 
     Ok(ConfigDiffResult {

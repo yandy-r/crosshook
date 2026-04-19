@@ -9,6 +9,7 @@ use tauri::{AppHandle, State};
 
 use super::shared::{
     capture_config_revision, emit_profiles_changed, map_error, observe_profile_write_launch_change,
+    save_profile_section,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,12 +71,16 @@ pub fn profile_save_launch_optimizations(
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
-    save_launch_optimizations_for_profile(&name, &optimizations, &store)?;
+    let profile_name = name.trim();
+    if profile_name.is_empty() {
+        return Err("profile name is required".to_string());
+    }
+    save_launch_optimizations_for_profile(profile_name, &optimizations, &store)?;
 
-    if let Ok(updated) = store.load(&name) {
-        let profile_path = store.base_path.join(format!("{name}.toml"));
+    if let Ok(updated) = store.load(profile_name) {
+        let profile_path = store.base_path.join(format!("{profile_name}.toml"));
         if let Err(e) = metadata_store.observe_profile_write(
-            &name,
+            profile_name,
             &updated,
             &profile_path,
             crosshook_core::metadata::SyncSource::AppWrite,
@@ -83,12 +88,12 @@ pub fn profile_save_launch_optimizations(
         ) {
             tracing::warn!(
                 %e,
-                profile_name = %name,
+                profile_name = %profile_name,
                 "metadata sync after save_launch_optimizations failed"
             );
         }
         capture_config_revision(
-            &name,
+            profile_name,
             &updated,
             ConfigRevisionSource::LaunchOptimizationSave,
             None,
@@ -106,27 +111,15 @@ pub fn profile_save_mangohud_config(
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
-    let mut profile = store.load(&name).map_err(|e| e.to_string())?;
-    profile.launch.mangohud = config;
-    store.save(&name, &profile).map_err(|e| e.to_string())?;
-    let profile_path = store.base_path.join(format!("{name}.toml"));
-    if let Err(e) = metadata_store.observe_profile_write(
+    save_profile_section(
         &name,
-        &profile,
-        &profile_path,
-        crosshook_core::metadata::SyncSource::AppWrite,
-        None,
-    ) {
-        tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save_mangohud_config failed");
-    }
-    capture_config_revision(
-        &name,
-        &profile,
-        ConfigRevisionSource::ManualSave,
-        None,
+        &store,
         &metadata_store,
-    );
-    Ok(())
+        ConfigRevisionSource::ManualSave,
+        |profile| {
+            profile.launch.mangohud = config;
+        },
+    )
 }
 
 #[tauri::command]
@@ -136,27 +129,15 @@ pub fn profile_save_gamescope_config(
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
-    let mut profile = store.load(&name).map_err(|e| e.to_string())?;
-    profile.launch.gamescope = config;
-    store.save(&name, &profile).map_err(|e| e.to_string())?;
-    let profile_path = store.base_path.join(format!("{name}.toml"));
-    if let Err(e) = metadata_store.observe_profile_write(
+    save_profile_section(
         &name,
-        &profile,
-        &profile_path,
-        crosshook_core::metadata::SyncSource::AppWrite,
-        None,
-    ) {
-        tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save_gamescope_config failed");
-    }
-    capture_config_revision(
-        &name,
-        &profile,
-        ConfigRevisionSource::ManualSave,
-        None,
+        &store,
         &metadata_store,
-    );
-    Ok(())
+        ConfigRevisionSource::ManualSave,
+        |profile| {
+            profile.launch.gamescope = config;
+        },
+    )
 }
 
 #[tauri::command]
@@ -166,27 +147,15 @@ pub fn profile_save_trainer_gamescope_config(
     store: State<'_, ProfileStore>,
     metadata_store: State<'_, MetadataStore>,
 ) -> Result<(), String> {
-    let mut profile = store.load(&name).map_err(|e| e.to_string())?;
-    profile.launch.trainer_gamescope = config;
-    store.save(&name, &profile).map_err(|e| e.to_string())?;
-    let profile_path = store.base_path.join(format!("{name}.toml"));
-    if let Err(e) = metadata_store.observe_profile_write(
+    save_profile_section(
         &name,
-        &profile,
-        &profile_path,
-        crosshook_core::metadata::SyncSource::AppWrite,
-        None,
-    ) {
-        tracing::warn!(%e, profile_name = %name, "metadata sync after profile_save_trainer_gamescope_config failed");
-    }
-    capture_config_revision(
-        &name,
-        &profile,
-        ConfigRevisionSource::ManualSave,
-        None,
+        &store,
         &metadata_store,
-    );
-    Ok(())
+        ConfigRevisionSource::ManualSave,
+        |profile| {
+            profile.launch.trainer_gamescope = config;
+        },
+    )
 }
 
 #[tauri::command]
@@ -251,17 +220,32 @@ pub fn profile_apply_bundled_optimization_preset(
         &metadata_store,
     );
 
-    if let Ok(Some(profile_id)) = metadata_store.lookup_profile_id(profile_name) {
-        if let Err(e) = metadata_store.upsert_profile_launch_preset_metadata(
-            &profile_id,
-            &toml_key,
-            ProfileLaunchPresetOrigin::Bundled,
-            Some(row.preset_id.as_str()),
-        ) {
+    match metadata_store.lookup_profile_id(profile_name) {
+        Ok(Some(profile_id)) => {
+            if let Err(e) = metadata_store.upsert_profile_launch_preset_metadata(
+                &profile_id,
+                &toml_key,
+                ProfileLaunchPresetOrigin::Bundled,
+                Some(row.preset_id.as_str()),
+            ) {
+                tracing::warn!(
+                    %e,
+                    profile_name = %profile_name,
+                    "failed to upsert bundled preset metadata row"
+                );
+            }
+        }
+        Ok(None) => {
+            tracing::debug!(
+                profile_name = %profile_name,
+                "profile_id not yet indexed — skipping preset metadata upsert"
+            );
+        }
+        Err(e) => {
             tracing::warn!(
                 %e,
                 profile_name = %profile_name,
-                "failed to upsert bundled preset metadata row"
+                "lookup_profile_id failed during preset metadata upsert"
             );
         }
     }
@@ -304,17 +288,32 @@ pub fn profile_save_manual_optimization_preset(
     );
 
     if metadata_store.is_available() {
-        if let Ok(Some(profile_id)) = metadata_store.lookup_profile_id(profile_name) {
-            if let Err(e) = metadata_store.upsert_profile_launch_preset_metadata(
-                &profile_id,
-                key,
-                ProfileLaunchPresetOrigin::User,
-                None,
-            ) {
+        match metadata_store.lookup_profile_id(profile_name) {
+            Ok(Some(profile_id)) => {
+                if let Err(e) = metadata_store.upsert_profile_launch_preset_metadata(
+                    &profile_id,
+                    key,
+                    ProfileLaunchPresetOrigin::User,
+                    None,
+                ) {
+                    tracing::warn!(
+                        %e,
+                        profile_name = %profile_name,
+                        "failed to upsert user preset metadata row"
+                    );
+                }
+            }
+            Ok(None) => {
+                tracing::debug!(
+                    profile_name = %profile_name,
+                    "profile_id not yet indexed — skipping preset metadata upsert"
+                );
+            }
+            Err(e) => {
                 tracing::warn!(
                     %e,
                     profile_name = %profile_name,
-                    "failed to upsert user preset metadata row"
+                    "lookup_profile_id failed during preset metadata upsert"
                 );
             }
         }
