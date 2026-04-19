@@ -5,6 +5,21 @@ use std::io;
 
 use crate::export::launcher::strip_trainer_suffix;
 
+/// Checks if a path is a regular file (not a symlink, directory, or other special file).
+/// Uses `symlink_metadata` to avoid following symlinks.
+///
+/// Returns `true` only if the path exists and is a regular file.
+/// Returns `false` for symlinks, directories, broken symlinks, and non-existent paths.
+pub(super) fn is_regular_file_safe(path: &str) -> bool {
+    if path.is_empty() {
+        return false;
+    }
+
+    fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_file())
+        .unwrap_or(false)
+}
+
 /// Verifies that a file is safe to delete:
 /// 1. Must be a regular file (not a symlink or directory)
 /// 2. Must contain the CrossHook watermark
