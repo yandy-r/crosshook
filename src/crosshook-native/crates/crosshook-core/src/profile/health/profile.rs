@@ -178,7 +178,7 @@ where
                     remediation: "The profile TOML may be malformed. Delete and re-create the profile, or edit the file manually.".to_string(),
                     severity: HealthIssueSeverity::Error,
                 }],
-                checked_at: Utc::now().to_rfc3339(),
+                checked_at: now.clone(),
             },
         };
         profiles.push(report);

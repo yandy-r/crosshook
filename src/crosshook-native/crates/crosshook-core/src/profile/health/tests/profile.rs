@@ -3,13 +3,10 @@ use std::fs;
 use tempfile::tempdir;
 
 use crate::profile::toml_store::ProfileStore;
-use crate::profile::{
-    GameProfile, GameSection, InjectionSection, LaunchSection, RuntimeSection, SteamSection,
-    TrainerSection,
-};
+use crate::profile::GameProfile;
 
 use super::super::{batch_check_health, check_profile_health, HealthStatus};
-use super::fixtures::{healthy_steam_profile, make_executable};
+use super::fixtures::{healthy_steam_profile, make_executable, make_proton_run_profile};
 
 #[test]
 fn healthy_profile_reports_healthy_status() {
@@ -202,31 +199,11 @@ fn proton_run_method_checks_runtime_prefix_not_steam() {
     let proton = tmp.path().join("proton");
     make_executable(&proton);
 
-    let profile = GameProfile {
-        game: GameSection {
-            name: "Proton Game".to_string(),
-            executable_path: game_exe.to_string_lossy().to_string(),
-            custom_cover_art_path: String::new(),
-            custom_portrait_art_path: String::new(),
-            custom_background_art_path: String::new(),
-        },
-        trainer: TrainerSection::default(),
-        injection: InjectionSection::default(),
-        steam: SteamSection::default(),
-        runtime: RuntimeSection {
-            prefix_path: prefix.to_string_lossy().to_string(),
-            proton_path: proton.to_string_lossy().to_string(),
-            working_directory: String::new(),
-            steam_app_id: String::new(),
-            umu_game_id: String::new(),
-            umu_preference: None,
-        },
-        launch: LaunchSection {
-            method: "proton_run".to_string(),
-            ..Default::default()
-        },
-        local_override: crate::profile::LocalOverrideSection::default(),
-    };
+    let profile = make_proton_run_profile(
+        &game_exe.to_string_lossy(),
+        &prefix.to_string_lossy(),
+        &proton.to_string_lossy(),
+    );
 
     let report = check_profile_health("proton-run-game", &profile);
 
@@ -251,31 +228,11 @@ fn host_mounted_runtime_proton_path_is_healthy() {
     let proton = tmp.path().join("proton");
     make_executable(&proton);
 
-    let profile = GameProfile {
-        game: GameSection {
-            name: "Proton Game".to_string(),
-            executable_path: game_exe.to_string_lossy().to_string(),
-            custom_cover_art_path: String::new(),
-            custom_portrait_art_path: String::new(),
-            custom_background_art_path: String::new(),
-        },
-        trainer: TrainerSection::default(),
-        injection: InjectionSection::default(),
-        steam: SteamSection::default(),
-        runtime: RuntimeSection {
-            prefix_path: format!("/run/host{}", prefix.to_string_lossy()),
-            proton_path: format!("/run/host{}", proton.to_string_lossy()),
-            working_directory: String::new(),
-            steam_app_id: String::new(),
-            umu_game_id: String::new(),
-            umu_preference: None,
-        },
-        launch: LaunchSection {
-            method: "proton_run".to_string(),
-            ..Default::default()
-        },
-        local_override: crate::profile::LocalOverrideSection::default(),
-    };
+    let profile = make_proton_run_profile(
+        &game_exe.to_string_lossy(),
+        &format!("/run/host{}", prefix.to_string_lossy()),
+        &format!("/run/host{}", proton.to_string_lossy()),
+    );
 
     let report = check_profile_health("proton-run-host-mounted", &profile);
 
