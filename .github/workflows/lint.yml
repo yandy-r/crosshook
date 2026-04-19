@@ -70,7 +70,7 @@ jobs:
 
       - name: TypeScript type check
         working-directory: src/crosshook-native
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Run Vitest
         working-directory: src/crosshook-native

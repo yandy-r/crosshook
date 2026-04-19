@@ -66,12 +66,10 @@ test.describe('launch pipeline visualization', () => {
     // Wait for pipeline to be visible
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
 
-    // Check if detail-bearing nodes exist (nodes with detail text render triggers)
+    // Wait for detail-bearing nodes (nodes with detail text render triggers) to appear
+    // These are derived from preview_launch, so we need to wait for them
     const triggers = page.locator('.crosshook-launch-pipeline__node-trigger');
-    const triggerCount = await triggers.count();
-
-    // Skip test if no detail-bearing nodes exist in current fixture
-    test.skip(triggerCount === 0, 'No detail-bearing nodes in fixture');
+    await expect(triggers).not.toHaveCount(0);
 
     // Hover the first trigger to open tooltip
     await triggers.first().hover();
