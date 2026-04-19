@@ -21,3 +21,6 @@ pub mod steam_metadata;
 pub mod storage;
 pub mod umu_database;
 pub mod update;
+
+#[cfg(feature = "ts-rs")]
+pub mod ts_rs_exports;

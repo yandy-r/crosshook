@@ -6,6 +6,9 @@
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "ts-rs")]
+use ts_rs::TS;
+
 use super::capability_loader::global_capability_map;
 use super::{
     global_readiness_catalog, HostDistroFamily, HostToolCheckResult, HostToolInstallCommand,
@@ -15,6 +18,11 @@ use crate::launch::runtime_helpers::resolve_umu_run_path;
 use crate::profile::health::HealthIssueSeverity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-rs", derive(TS))]
+#[cfg_attr(
+    feature = "ts-rs",
+    ts(export, export_to = "generated/onboarding.ts")
+)]
 #[serde(rename_all = "snake_case")]
 pub enum CapabilityState {
     Available,
@@ -23,6 +31,11 @@ pub enum CapabilityState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts-rs", derive(TS))]
+#[cfg_attr(
+    feature = "ts-rs",
+    ts(export, export_to = "generated/onboarding.ts")
+)]
 pub struct Capability {
     pub id: String,
     pub label: String,
