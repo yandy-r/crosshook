@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { isTauri, isBrowserDevUi } from '../runtime';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { isBrowserDevUi, isTauri } from '../runtime';
 
 describe('runtime.ts', () => {
   const originalWindow = global.window;
