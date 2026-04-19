@@ -95,7 +95,7 @@ export function makeProfileDraft(overrides: Partial<GameProfile> = {}): GameProf
       proton_path: '',
     },
   };
-  return {
+  const profile: GameProfile = {
     ...base,
     ...overrides,
     game: {
@@ -118,26 +118,31 @@ export function makeProfileDraft(overrides: Partial<GameProfile> = {}): GameProf
       ...base.launch,
       ...(overrides.launch ?? {}),
     },
-    local_override: {
+  };
+
+  if (overrides.local_override !== undefined) {
+    profile.local_override = {
       ...baseLocalOverride,
-      ...(overrides.local_override ?? {}),
+      ...overrides.local_override,
       game: {
         ...baseLocalOverride.game,
-        ...(overrides.local_override?.game ?? {}),
+        ...(overrides.local_override.game ?? {}),
       },
       trainer: {
         ...baseLocalOverride.trainer,
-        ...(overrides.local_override?.trainer ?? {}),
-        extra_protontricks: [...(overrides.local_override?.trainer?.extra_protontricks ?? [])],
+        ...(overrides.local_override.trainer ?? {}),
+        extra_protontricks: [...(overrides.local_override.trainer?.extra_protontricks ?? [])],
       },
       steam: {
         ...baseLocalOverride.steam,
-        ...(overrides.local_override?.steam ?? {}),
+        ...(overrides.local_override.steam ?? {}),
       },
       runtime: {
         ...baseLocalOverride.runtime,
-        ...(overrides.local_override?.runtime ?? {}),
+        ...(overrides.local_override.runtime ?? {}),
       },
-    },
-  };
+    };
+  }
+
+  return profile;
 }

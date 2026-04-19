@@ -156,6 +156,7 @@ afterEach(() => {
   cleanup();
   resetMockHandlers();
   MockIntersectionObserver.reset();
+  matchMediaListeners.clear();
   for (const handle of animationFrameHandles.values()) {
     window.clearTimeout(handle);
   }

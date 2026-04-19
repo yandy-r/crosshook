@@ -20,7 +20,7 @@ import type { Handler } from './types';
 
 // --- Module-scope state ---
 
-let externalSources: ExternalTrainerSourceSubscription[] = [
+const DEFAULT_EXTERNAL_SOURCES: ExternalTrainerSourceSubscription[] = [
   {
     sourceId: 'mock-source-1',
     displayName: 'Mock Trainer Index',
@@ -29,6 +29,8 @@ let externalSources: ExternalTrainerSourceSubscription[] = [
     enabled: true,
   },
 ];
+
+let externalSources: ExternalTrainerSourceSubscription[] = structuredClone(DEFAULT_EXTERNAL_SOURCES);
 
 // --- discovery ---
 
@@ -390,13 +392,5 @@ export function registerSystem(map: Map<string, Handler>): void {
 }
 
 export function resetSystemMockState(): void {
-  externalSources = [
-    {
-      sourceId: 'mock-source-1',
-      displayName: 'Mock Trainer Index',
-      baseUrl: 'https://mock.example.invalid/trainers',
-      sourceType: 'rss',
-      enabled: true,
-    },
-  ];
+  externalSources = structuredClone(DEFAULT_EXTERNAL_SOURCES);
 }

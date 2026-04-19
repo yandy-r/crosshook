@@ -14,7 +14,12 @@ function GamepadNavHarness({ enabled = false, onBack }: HarnessProps) {
   latestState = nav;
 
   return (
-    <div ref={(node) => (nav.rootRef.current = node)} data-testid="nav-root">
+    <div
+      ref={(node) => {
+        nav.rootRef.current = node;
+      }}
+      data-testid="nav-root"
+    >
       <nav data-crosshook-focus-zone="sidebar">
         <button type="button" value="library" data-state="active">
           Library
