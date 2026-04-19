@@ -1,10 +1,9 @@
-use std::path::Path;
-
 use super::super::optimizations::build_steam_launch_options_command;
 use super::super::request::LaunchRequest;
 use super::super::runtime_helpers::build_gamescope_args;
 use super::super::script_runner::{force_no_umu_for_launch_request, should_use_umu};
 use super::types::ResolvedLaunchMethod;
+use crate::launch::trainer_paths::build_staged_trainer_path;
 use crate::profile::{GamescopeConfig, TrainerLoadingMode};
 
 /// Builds a human-readable command string showing the effective launch command.
@@ -81,21 +80,8 @@ pub(super) fn resolve_trainer_launch_path_for_preview(request: &LaunchRequest) -
     match request.trainer_loading_mode {
         TrainerLoadingMode::SourceDirectory => request.trainer_host_path.trim().to_string(),
         TrainerLoadingMode::CopyToPrefix => {
-            let path = Path::new(request.trainer_host_path.trim());
-            let file_stem = path
-                .file_stem()
-                .map(|segment| segment.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            let file_name = path
-                .file_name()
-                .map(|segment| segment.to_string_lossy().into_owned())
-                .unwrap_or_default();
-
-            if file_stem.is_empty() || file_name.is_empty() {
-                request.trainer_host_path.trim().to_string()
-            } else {
-                format!("C:\\CrossHook\\StagedTrainers\\{file_stem}\\{file_name}")
-            }
+            build_staged_trainer_path(request.trainer_host_path.as_str())
+                .unwrap_or_else(|| request.trainer_host_path.trim().to_string())
         }
     }
 }

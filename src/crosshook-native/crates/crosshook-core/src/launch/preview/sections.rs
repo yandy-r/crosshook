@@ -6,6 +6,7 @@ use crate::launch::request::{
 };
 use crate::launch::runtime_helpers::{resolve_proton_paths, resolve_steam_client_install_path};
 use crate::launch::script_runner::{force_no_umu_for_launch_request, should_use_umu};
+use crate::launch::trainer_paths::build_staged_trainer_path;
 use crate::profile::TrainerLoadingMode;
 
 /// Builds Proton setup details. Returns `None` for native method.
@@ -81,22 +82,7 @@ pub(super) fn build_trainer_info(
     let loading_mode = request.trainer_loading_mode;
 
     let staged_path = if request.trainer_loading_mode == TrainerLoadingMode::CopyToPrefix {
-        let path = Path::new(request.trainer_host_path.trim());
-        let file_stem = path
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let file_name = path
-            .file_name()
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        if !file_stem.is_empty() && !file_name.is_empty() {
-            Some(format!(
-                "C:\\CrossHook\\StagedTrainers\\{file_stem}\\{file_name}"
-            ))
-        } else {
-            None
-        }
+        build_staged_trainer_path(request.trainer_host_path.as_str())
     } else {
         None
     };
