@@ -1,6 +1,6 @@
 # Tauri WebKitGTK E2E Testing Spike
 
-**Issue**: [#350](https://github.com/yandy-r/crosshook/issues/350)
+**Issue**: [#347](https://github.com/yandy-r/crosshook/issues/347)
 **Parent Tracker**: [#282](https://github.com/yandy-r/crosshook/issues/282)
 **Status**: Research phase complete; prototype pending
 **Date**: 2026-04-19
@@ -184,7 +184,7 @@ From [01-research-findings.md](./01-research-findings.md):
 
 ---
 
-## Success Criteria (from Issue #350)
+## Success Criteria (from Issue #347)
 
 - [x] Reliably launches a Tauri bundle in CI without flake amplification
   - **Assessment**: Viable with xvfb + retry logic; expect 10-20% retry rate
@@ -200,11 +200,21 @@ From [01-research-findings.md](./01-research-findings.md):
 
 ## References
 
-- [Issue #350: Tauri E2E via tauri-driver](https://github.com/yandy-r/crosshook/issues/350)
+- [Issue #347: Tauri E2E via tauri-driver](https://github.com/yandy-r/crosshook/issues/347)
 - [Parent Tracker #282: Frontend Test Framework](https://github.com/yandy-r/crosshook/issues/282)
 - [Frontend Test Framework PRD](../../prps/prds/frontend-test-framework.prd.md) (§3.2 smoke budget, §9 open questions)
 - [Tauri v2 WebDriver Docs](https://v2.tauri.app/develop/tests/webdriver/)
 - [tauri-driver GitHub](https://github.com/tauri-apps/tauri/tree/dev/crates/tauri-driver)
+
+---
+
+## Persistence Classification
+
+**Per CLAUDE.md § "Research and planning quality bar"**: This spike introduces **no persisted data**. All research artifacts are documentation-only (markdown files in `docs/research/`). If the prototype phase proceeds to implementation:
+
+- **TOML settings**: None planned (uses existing settings)
+- **SQLite metadata**: None planned (no new tables or columns)
+- **Runtime-only state**: Test execution state (ephemeral, not persisted)
 
 ---
 

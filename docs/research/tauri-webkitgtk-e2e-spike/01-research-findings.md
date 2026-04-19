@@ -1,6 +1,6 @@
 # Tauri E2E via tauri-driver: Research Findings
 
-**Issue**: [#350](https://github.com/yandy-r/crosshook/issues/350)
+**Issue**: [#347](https://github.com/yandy-r/crosshook/issues/347)
 **Date**: 2026-04-19
 **Status**: Research Phase
 
@@ -17,6 +17,8 @@ This document summarizes research into using `tauri-driver` for E2E testing agai
 ## 1. tauri-driver v2 Maturity Assessment
 
 ### Current State (April 2026)
+
+**Sources checked**: 2026-04-19 via web research and GitHub API
 
 | Aspect              | Status            | Notes                                                    |
 | ------------------- | ----------------- | -------------------------------------------------------- |
@@ -60,7 +62,7 @@ Test Code (WebDriverIO/etc)
 - **webkit2gtk-driver**: Available in most Linux distro repos
 - **Installation**:
   ```bash
-  sudo apt-get install libwebkit2gtk-4.0-dev webkit2gtk-driver
+  sudo apt-get install libwebkit2gtk-4.1-dev webkit2gtk-driver
   ```
 
 ### Platform Suitability
@@ -156,7 +158,7 @@ const { remote } = require('webdriverio');
 const client = await remote({
   capabilities: {
     'tauri:options': {
-      binary: './src-tauri/target/debug/crosshook-native',
+      application: './target/debug/crosshook-native',
       args: [],
       webviewOptions: {},
     },
@@ -434,7 +436,7 @@ on:
 
 ## 11. Adoption Decision Framework
 
-### Success Criteria (from Issue #350)
+### Success Criteria (from Issue #347)
 
 | Criterion                                      | Current Assessment                         | Status                      |
 | ---------------------------------------------- | ------------------------------------------ | --------------------------- |
@@ -567,7 +569,7 @@ on:
 - [tauri-driver GitHub](https://github.com/tauri-apps/tauri/tree/dev/crates/tauri-driver)
 - [WebDriverIO Documentation](https://webdriver.io/)
 - [CrossHook Frontend Test Framework PRD](../../../prps/prds/frontend-test-framework.prd.md) (§9 open questions)
-- [Issue #350](https://github.com/yandy-r/crosshook/issues/350)
+- [Issue #347](https://github.com/yandy-r/crosshook/issues/347)
 - [Parent Tracker #282](https://github.com/yandy-r/crosshook/issues/282)
 
 ---

@@ -278,7 +278,7 @@ After completing the scoring, fill this out:
 
 **Next steps**:
 
-1. Document findings in issue #350
+1. Document findings in issue #347
 2. Update PRD §9 with "deferred; revisit Q3 2026"
 3. Close issue as "deferred" with "v2" milestone
 
@@ -309,7 +309,7 @@ After completing the scoring, fill this out:
 
 **Next steps**:
 
-1. Document crash logs and environment details in issue #350
+1. Document crash logs and environment details in issue #347
 2. File upstream bug with tauri-driver project
 3. Rely on manual WebKitGTK verification until upstream fix
 
@@ -348,5 +348,5 @@ After completing the scoring, fill this out:
 
 - [01-research-findings.md](./01-research-findings.md)
 - [02-prototype-setup.md](./02-prototype-setup.md)
-- [Issue #350](https://github.com/yandy-r/crosshook/issues/350)
+- [Issue #347](https://github.com/yandy-r/crosshook/issues/347)
 - [Frontend Test Framework PRD](../../prps/prds/frontend-test-framework.prd.md) (§3.2 budget, §9 open questions)

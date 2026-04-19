@@ -133,7 +133,8 @@ Create `src/crosshook-native/tests/e2e/wdio.conf.js`:
 const path = require('node:path');
 
 // Path to the debug Tauri binary (must be built before running tests)
-const TAURI_BINARY = path.resolve(__dirname, '../../src-tauri/target/debug/crosshook-native');
+// Note: Cargo workspace outputs to src/crosshook-native/target/debug/
+const TAURI_BINARY = path.resolve(__dirname, '../../target/debug/crosshook-native');
 
 exports.config = {
   // Test runner
@@ -340,8 +341,10 @@ cargo build -p src-tauri
 **Expected binary location**:
 
 ```
-src/crosshook-native/src-tauri/target/debug/crosshook-native
+src/crosshook-native/target/debug/crosshook-native
 ```
+
+**Note**: The Cargo workspace outputs build artifacts to `src/crosshook-native/target/` (shared by all workspace members), not `src-tauri/target/`.
 
 ### Run tauri-driver Manually (Optional Verification)
 
@@ -468,10 +471,10 @@ WEBKIT_DISABLE_COMPOSITING_MODE=1 npm run test:e2e
 
 ```bash
 # Verify binary runs manually
-./src-tauri/target/debug/crosshook-native
+./target/debug/crosshook-native
 
 # Check dependencies
-ldd ./src-tauri/target/debug/crosshook-native | grep webkit
+ldd ./target/debug/crosshook-native | grep webkit
 ```
 
 ### Issue: "unsupported operation" errors
@@ -534,9 +537,9 @@ After Phase 1 success:
 
 1. **Write 2 more focused tests** (file picker IPC, CSS layout assertion)
 2. **Measure flakiness**: Run tests 10 times, count failures
-3. **Proceed to Phase 3**: CI integration dry run (see [03-ci-integration.md](./03-ci-integration.md))
+3. **Proceed to Phase 3**: CI integration dry run (measure timing and flakiness; document in [03-decision-framework.md](./03-decision-framework.md))
 
-If Phase 1 fails or reveals showstoppers, document findings in [04-decision-log.md](./04-decision-log.md) and make adopt/defer/drop recommendation.
+If Phase 1 fails or reveals showstoppers, document findings and make adopt/defer/drop recommendation using the decision framework in [03-decision-framework.md](./03-decision-framework.md).
 
 ---
 
@@ -545,4 +548,4 @@ If Phase 1 fails or reveals showstoppers, document findings in [04-decision-log.
 - [tauri-driver Documentation](https://v2.tauri.app/develop/tests/webdriver/)
 - [WebDriverIO v9 Docs](https://webdriver.io/docs/gettingstarted)
 - [CrossHook Build Scripts](../../scripts/build-native.sh)
-- [Issue #350](https://github.com/yandy-r/crosshook/issues/350)
+- [Issue #347](https://github.com/yandy-r/crosshook/issues/347)
