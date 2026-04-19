@@ -4,8 +4,8 @@ use super::derive::derive_capabilities_with_map;
 use super::tool_check::synthesize_umu_run_check;
 use super::types::{CapabilityDefinition, CapabilityMap, CapabilityState};
 use crate::onboarding::{
-    HostDistroFamily, HostToolCheckResult, HostToolEntry, HostToolInstallCommand,
-    ReadinessCatalog, ReadinessCheckResult, UmuInstallGuidance,
+    HostDistroFamily, HostToolCheckResult, HostToolEntry, HostToolInstallCommand, ReadinessCatalog,
+    ReadinessCheckResult, UmuInstallGuidance,
 };
 use crate::profile::health::{HealthIssue, HealthIssueSeverity};
 
@@ -325,8 +325,7 @@ fn derive_capabilities_empty_tool_checks_fixture() {
     // fallback in `synthesize_umu_run_check` deterministically returns None,
     // independent of whether the dev/CI host has umu-run installed.
     let empty_dir = tempfile::tempdir().expect("tempdir");
-    let _path_guard =
-        crate::launch::test_support::ScopedCommandSearchPath::new(empty_dir.path());
+    let _path_guard = crate::launch::test_support::ScopedCommandSearchPath::new(empty_dir.path());
 
     let result = ReadinessCheckResult {
         checks: Vec::new(),
@@ -431,8 +430,7 @@ fn derive_capabilities_from_cached_snapshot_detects_umu_via_live_probe() {
 #[test]
 fn synthesize_umu_run_check_alternatives_empty_when_guidance_has_no_alternatives() {
     let empty_dir = tempfile::tempdir().expect("tempdir");
-    let _path_guard =
-        crate::launch::test_support::ScopedCommandSearchPath::new(empty_dir.path());
+    let _path_guard = crate::launch::test_support::ScopedCommandSearchPath::new(empty_dir.path());
 
     let result = ReadinessCheckResult {
         checks: vec![issue("umu_run_available", HealthIssueSeverity::Warning)],
@@ -442,9 +440,8 @@ fn synthesize_umu_run_check_alternatives_empty_when_guidance_has_no_alternatives
         umu_install_guidance: Some(UmuInstallGuidance {
             install_command: "sudo pacman -S umu-launcher".to_string(),
             docs_url: "https://example.invalid/umu".to_string(),
-            description:
-                "Install umu-launcher on your Arch-based host to enable Non-Steam launch."
-                    .to_string(),
+            description: "Install umu-launcher on your Arch-based host to enable Non-Steam launch."
+                .to_string(),
         }),
         steam_deck_caveats: None,
         tool_checks: Vec::new(),
@@ -473,8 +470,7 @@ fn synthesize_umu_run_check_alternatives_empty_when_guidance_has_no_alternatives
 #[test]
 fn synthesize_umu_run_check_uses_cached_resolved_path_skips_live_probe() {
     let empty_dir = tempfile::tempdir().expect("tempdir");
-    let _path_guard =
-        crate::launch::test_support::ScopedCommandSearchPath::new(empty_dir.path());
+    let _path_guard = crate::launch::test_support::ScopedCommandSearchPath::new(empty_dir.path());
 
     let cached_path = "/cached/host/bin/umu-run".to_string();
     let result = ReadinessCheckResult {

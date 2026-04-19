@@ -18,5 +18,9 @@ use super::{global_readiness_catalog, ReadinessCheckResult};
 
 /// Derives capabilities from a readiness check result using the global capability map.
 pub fn derive_capabilities(result: &ReadinessCheckResult) -> Vec<Capability> {
-    derive::derive_capabilities_with_map(result, global_capability_map(), global_readiness_catalog())
+    derive::derive_capabilities_with_map(
+        result,
+        global_capability_map(),
+        global_readiness_catalog(),
+    )
 }
