@@ -2,9 +2,9 @@
 #
 # check-mock-coverage.sh — diff #[tauri::command] handlers against mock handler registry
 #
-# Contributor convenience tool: shows drift between Rust command handlers and the
-# browser-dev-mode mock handler registry (src/crosshook-native/src/lib/mocks/).
-# Not a CI gate. Always exits 0 unless an internal tool call fails.
+# CI gate (Phase 2): verifies that Rust command handlers and browser-dev-mode mock
+# handler registry (src/crosshook-native/src/lib/mocks/) stay in sync. Exits 1 on
+# non-empty drift (missing or orphaned mock handlers).
 #
 # Usage:
 #   ./scripts/check-mock-coverage.sh
@@ -83,6 +83,7 @@ rg -U --multiline --no-filename \
 #
 # A multiline regex captures the first string-literal argument to `map.set(`,
 # accepting either single or double quotes and arbitrary whitespace.
+# Excludes dev-only helpers prefixed with '_mock_'.
 MOCK_TMP="$(mktemp)"
 
 rg -U --multiline --no-filename \
@@ -90,6 +91,7 @@ rg -U --multiline --no-filename \
    -r '$1' \
    -o \
    "$MOCK_HANDLERS_DIR" \
+   | grep -v '^_mock_' \
    | sort -u > "$MOCK_TMP"
 
 RUST_COUNT=$(wc -l < "$RUST_TMP" | tr -d ' ')
@@ -131,6 +133,10 @@ else
   printf '%s\n' "$ORPHANED"
 fi
 
-# Per Task 3.3 spec: contributor convenience tool, not a CI gate.
-# Always exit 0 once the report has been emitted.
+# Per PRD Phase 2 (yandy-r/crosshook#284): contract drift gate flipped to exit 1.
+# A non-empty drift report (missing or orphaned mock handlers) fails CI.
+if [[ $MISSING_COUNT -gt 0 || $ORPHANED_COUNT -gt 0 ]]; then
+  exit 1
+fi
+
 exit 0

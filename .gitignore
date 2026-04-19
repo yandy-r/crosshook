@@ -50,5 +50,5 @@ docs/**/Thumbs.db
 temp.md
 node_modules/
 
-# Test coverage reports
+# Test coverage output
 src/crosshook-native/coverage/

@@ -66,9 +66,41 @@ test.describe('launch pipeline visualization', () => {
     // Wait for pipeline to be visible
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
 
-    // Populated fixture with proton_run has detail-bearing nodes — triggers must exist
+    // Browser dev mode does not auto-select a profile on startup, so load one
+    // through the real launch-page control before requesting a preview.
+    const profileSelect = page.locator('#launch-profile-selector');
+    await expect(profileSelect).toBeVisible();
+    await profileSelect.click();
+    await page.getByRole('option', { name: 'Test Game Alpha', exact: true }).click();
+    await expect(profileSelect).toContainText('Test Game Alpha');
+
+    // Seeded mock profiles intentionally start without an executable path, so
+    // update the draft through the real profile form before previewing.
+    const profilesTab = page.getByRole('tab', { name: 'Profiles', exact: true });
+    await expect(profilesTab).toBeVisible();
+    await profilesTab.click();
+    await expect(profilesTab).toHaveAttribute('aria-current', 'page');
+
+    const gamePathField = page.getByLabel('Game Path', { exact: true });
+    await expect(gamePathField).toBeVisible();
+    await gamePathField.fill('/home/devuser/Games/TestGameAlpha/game.exe');
+
+    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
+    await expect(launchTab).toBeVisible();
+    await launchTab.click();
+    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+
+    // Launch the game to drive the pipeline into the two-step waiting state.
+    // That overlay adds a detail-bearing trainer node without opening the
+    // preview modal, so the tooltip trigger remains interactable.
+    const launchGameButton = page.getByRole('button', { name: /^launch game$/i });
+    await expect(launchGameButton).toBeVisible();
+    await expect(launchGameButton).toBeEnabled();
+    await launchGameButton.click();
+
+    // Wait for the waiting-state detail trigger to appear.
     const triggers = page.locator('.crosshook-launch-pipeline__node-trigger');
-    expect(await triggers.count()).toBeGreaterThan(0);
+    await expect(triggers).not.toHaveCount(0);
 
     // Hover the first trigger to open tooltip
     await triggers.first().hover();
