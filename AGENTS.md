@@ -107,6 +107,13 @@ cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core
 ./scripts/lint.sh --fix              # auto-fix all linters
 ./scripts/check-host-gateway.sh      # check platform.rs gateway contract (ADR-0001)
 ./scripts/format.sh                  # format all code
+npm test                             # Vitest (happy-dom)
+npm run test:watch                   # Vitest watch
+npm run test:coverage                # Vitest + coverage
+npm run test:smoke                   # Playwright smoke (browser dev mode)
+npm run test:smoke:update
+npm run test:smoke:install
+npm run typecheck
 ```
 
 Primary source root: `src/crosshook-native/`. CI release workflow: `.github/workflows/release.yml`. CI lint workflow: `.github/workflows/lint.yml`.
