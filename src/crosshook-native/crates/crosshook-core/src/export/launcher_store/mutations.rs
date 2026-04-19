@@ -9,10 +9,30 @@ use crate::export::launcher::{
 };
 use crate::profile::GameProfile;
 
-use super::fs_ops::{remove_file_if_exists, remove_old_launcher_file, verify_crosshook_file};
+use super::fs_ops::{
+    is_regular_file_safe, remove_file_if_exists, remove_old_launcher_file, verify_crosshook_file,
+};
 use super::paths::{derive_launcher_paths, derive_launcher_paths_from_slug};
 use super::types::{LauncherDeleteResult, LauncherRenameResult, LauncherStoreError};
 use super::{DESKTOP_ENTRY_WATERMARK, SCRIPT_WATERMARK};
+
+/// Verifies that a destination path is safe to write to:
+/// - If the path doesn't exist, it's safe
+/// - If it exists and is a regular file with the CrossHook watermark, it's safe
+/// - Otherwise (symlink, directory, or non-CrossHook file), it's unsafe
+fn verify_destination_safe(path: &str, watermark: &str) -> Result<(), String> {
+    // If destination doesn't exist, it's safe to write
+    if !is_regular_file_safe(path) && !Path::new(path).exists() {
+        return Ok(());
+    }
+
+    // If destination exists, verify it's a CrossHook-owned regular file
+    match verify_crosshook_file(path, watermark) {
+        Ok(None) => Ok(()), // Safe to overwrite
+        Ok(Some(reason)) => Err(reason),
+        Err(e) => Err(format!("Failed to verify destination: {e}")),
+    }
+}
 
 pub(super) fn delete_launcher_at_paths(
     script_path: String,
@@ -134,9 +154,8 @@ pub fn rename_launcher_files(
     );
 
     // Check if old files exist. If neither exists, return early with renamed: false
-    let old_script_exists = !old_script_path.is_empty() && Path::new(&old_script_path).exists();
-    let old_desktop_exists =
-        !old_desktop_entry_path.is_empty() && Path::new(&old_desktop_entry_path).exists();
+    let old_script_exists = is_regular_file_safe(&old_script_path);
+    let old_desktop_exists = is_regular_file_safe(&old_desktop_entry_path);
 
     if !old_script_exists && !old_desktop_exists {
         return Ok(LauncherRenameResult {
@@ -148,6 +167,45 @@ pub fn rename_launcher_files(
             desktop_entry_renamed: false,
             old_script_cleanup_warning: None,
             old_desktop_entry_cleanup_warning: None,
+        });
+    }
+
+    // Before writing, verify that destination paths are safe:
+    // - If destination exists, it must be a regular file with the CrossHook watermark
+    // - Symlinks and non-CrossHook files should be rejected
+    // - Skip verification if old and new paths are the same (slug unchanged)
+    let mut old_script_cleanup_warning = None;
+    let mut old_desktop_entry_cleanup_warning = None;
+    let slug_changed = old_launcher_slug != new_slug;
+
+    if slug_changed && old_script_exists {
+        if let Err(reason) = verify_destination_safe(&new_script_path, SCRIPT_WATERMARK) {
+            old_script_cleanup_warning =
+                Some(format!("Refusing to overwrite new script path: {reason}"));
+        }
+    }
+
+    if slug_changed && old_desktop_exists {
+        if let Err(reason) =
+            verify_destination_safe(&new_desktop_entry_path, DESKTOP_ENTRY_WATERMARK)
+        {
+            old_desktop_entry_cleanup_warning = Some(format!(
+                "Refusing to overwrite new desktop entry path: {reason}"
+            ));
+        }
+    }
+
+    // If either destination is unsafe, return early without writing
+    if old_script_cleanup_warning.is_some() || old_desktop_entry_cleanup_warning.is_some() {
+        return Ok(LauncherRenameResult {
+            old_slug: old_launcher_slug.to_string(),
+            new_slug,
+            new_script_path,
+            new_desktop_entry_path,
+            script_renamed: false,
+            desktop_entry_renamed: false,
+            old_script_cleanup_warning,
+            old_desktop_entry_cleanup_warning,
         });
     }
 
@@ -173,11 +231,11 @@ pub fn rename_launcher_files(
         desktop_entry_renamed = true;
     }
 
-    let mut old_script_cleanup_warning = None;
-    let mut old_desktop_entry_cleanup_warning = None;
+    // Reset cleanup warnings before attempting to delete old files
+    old_script_cleanup_warning = None;
+    old_desktop_entry_cleanup_warning = None;
 
     // If old paths differ from new paths (slug changed), delete old files
-    let slug_changed = old_launcher_slug != new_slug;
     if slug_changed {
         if old_script_exists {
             old_script_cleanup_warning =

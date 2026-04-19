@@ -288,3 +288,47 @@ fn parse_display_name_returns_none_without_name_line() {
         None
     );
 }
+
+#[test]
+fn check_treats_symlink_as_nonexistent() {
+    use std::os::unix::fs as unix_fs;
+
+    let temp = tempdir().expect("temp dir");
+    let home = temp.path().to_string_lossy().into_owned();
+    let (script_path, _desktop_path) = derive_test_paths(&home, "Symlink Test");
+
+    // Create a symlink at the script path
+    let real_file = temp.path().join("real-script.sh");
+    fs::write(&real_file, "#!/usr/bin/env bash\n# real file").expect("write real file");
+    let parent = Path::new(&script_path).parent().expect("parent");
+    fs::create_dir_all(parent).expect("mkdir");
+    unix_fs::symlink(&real_file, &script_path).expect("symlink");
+
+    let info = check_launcher_exists("Symlink Test", "", "/fake/trainer.exe", &home, "")
+        .expect("check launcher exists");
+
+    // Symlinks should not be reported as existing
+    assert!(
+        !info.script_exists,
+        "symlink should not be reported as existing"
+    );
+}
+
+#[test]
+fn check_treats_directory_as_nonexistent() {
+    let temp = tempdir().expect("temp dir");
+    let home = temp.path().to_string_lossy().into_owned();
+    let (script_path, _desktop_path) = derive_test_paths(&home, "Directory Test");
+
+    // Create a directory at the script path
+    fs::create_dir_all(&script_path).expect("create directory");
+
+    let info = check_launcher_exists("Directory Test", "", "/fake/trainer.exe", &home, "")
+        .expect("check launcher exists");
+
+    // Directories should not be reported as existing
+    assert!(
+        !info.script_exists,
+        "directory should not be reported as existing"
+    );
+}

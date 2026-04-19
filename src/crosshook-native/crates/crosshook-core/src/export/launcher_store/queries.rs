@@ -2,7 +2,6 @@
 
 use std::fs;
 use std::io;
-use std::path::Path;
 
 use crate::export::launcher::{
     build_trainer_script_content, combine_host_unix_path, resolve_target_home_path,
@@ -11,7 +10,7 @@ use crate::export::launcher::{
 use crate::profile::{resolve_launch_method, GameProfile};
 use crate::settings::UmuPreference;
 
-use super::fs_ops::extract_display_name_from_desktop;
+use super::fs_ops::{extract_display_name_from_desktop, is_regular_file_safe};
 use super::paths::derive_launcher_paths;
 use super::types::{LauncherInfo, LauncherStoreError};
 
@@ -30,9 +29,8 @@ pub fn check_launcher_exists(
         steam_client_install_path,
     );
 
-    let script_exists = !script_path.is_empty() && Path::new(&script_path).exists();
-    let desktop_entry_exists =
-        !desktop_entry_path.is_empty() && Path::new(&desktop_entry_path).exists();
+    let script_exists = is_regular_file_safe(&script_path);
+    let desktop_entry_exists = is_regular_file_safe(&desktop_entry_path);
 
     // Check staleness: compare Name= line in .desktop against expected
     let is_stale = if desktop_entry_exists {
@@ -67,9 +65,8 @@ pub fn check_launcher_exists_for_request(
         &request.steam_client_install_path,
     );
 
-    let script_exists = !script_path.is_empty() && Path::new(&script_path).exists();
-    let desktop_entry_exists =
-        !desktop_entry_path.is_empty() && Path::new(&desktop_entry_path).exists();
+    let script_exists = is_regular_file_safe(&script_path);
+    let desktop_entry_exists = is_regular_file_safe(&desktop_entry_path);
 
     let script_is_stale = if script_exists {
         let expected_script = build_trainer_script_content(request, &resolved_name);
@@ -207,14 +204,19 @@ pub fn list_launchers(
         let script_path =
             combine_host_unix_path(&home, ".local/share/crosshook/launchers", &file_name_str);
 
+        // Only process entries that are regular files (skip symlinks and directories)
+        if !is_regular_file_safe(&script_path) {
+            continue;
+        }
+
         let desktop_entry_path = combine_host_unix_path(
             &home,
             ".local/share/applications",
             &format!("crosshook-{slug}-trainer.desktop"),
         );
 
-        let script_exists = Path::new(&script_path).exists();
-        let desktop_entry_exists = Path::new(&desktop_entry_path).exists();
+        let script_exists = is_regular_file_safe(&script_path);
+        let desktop_entry_exists = is_regular_file_safe(&desktop_entry_path);
 
         // Try to extract display name from the Name= line in the .desktop file
         let display_name = if desktop_entry_exists {

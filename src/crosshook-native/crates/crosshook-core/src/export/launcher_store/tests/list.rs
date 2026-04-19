@@ -1,5 +1,6 @@
 //! Tests for `list_launchers` and `find_orphaned_launchers`.
 
+use std::fs;
 use tempfile::tempdir;
 
 use crate::export::launcher::combine_host_unix_path;
@@ -88,4 +89,68 @@ fn find_orphaned_launchers_returns_only_unknown_slugs() {
 
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].launcher_slug, "orphan-game");
+}
+
+#[test]
+fn list_ignores_symlink_launchers() {
+    use std::os::unix::fs as unix_fs;
+
+    let temp = tempdir().expect("temp dir");
+    let home = temp.path().to_string_lossy().into_owned();
+
+    // Create a regular launcher script
+    let script_a = combine_host_unix_path(
+        &home,
+        ".local/share/crosshook/launchers",
+        "regular-game-trainer.sh",
+    );
+    create_file_with_content(&script_a, "#!/usr/bin/env bash\n# script a");
+
+    // Create a symlink launcher script
+    let script_b = combine_host_unix_path(
+        &home,
+        ".local/share/crosshook/launchers",
+        "symlink-game-trainer.sh",
+    );
+    let real_file = temp.path().join("real-script.sh");
+    fs::write(&real_file, "#!/usr/bin/env bash\n# script b").expect("write real file");
+    let parent = std::path::Path::new(&script_b).parent().expect("parent");
+    fs::create_dir_all(parent).expect("mkdir");
+    unix_fs::symlink(&real_file, &script_b).expect("symlink");
+
+    let result = list_launchers(&home, "");
+
+    // Should only find the regular file, not the symlink
+    assert_eq!(result.len(), 1, "should only find regular file");
+    assert_eq!(result[0].launcher_slug, "regular-game");
+    assert!(result[0].script_exists);
+}
+
+#[test]
+fn list_ignores_directory_at_launcher_path() {
+    let temp = tempdir().expect("temp dir");
+    let home = temp.path().to_string_lossy().into_owned();
+
+    // Create a regular launcher script
+    let script_a = combine_host_unix_path(
+        &home,
+        ".local/share/crosshook/launchers",
+        "regular-game-trainer.sh",
+    );
+    create_file_with_content(&script_a, "#!/usr/bin/env bash\n# script a");
+
+    // Create a directory where a launcher script would be
+    let script_b = combine_host_unix_path(
+        &home,
+        ".local/share/crosshook/launchers",
+        "directory-game-trainer.sh",
+    );
+    fs::create_dir_all(&script_b).expect("create directory");
+
+    let result = list_launchers(&home, "");
+
+    // Should only find the regular file, not the directory
+    assert_eq!(result.len(), 1, "should only find regular file");
+    assert_eq!(result[0].launcher_slug, "regular-game");
+    assert!(result[0].script_exists);
 }
