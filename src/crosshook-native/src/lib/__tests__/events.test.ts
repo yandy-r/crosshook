@@ -96,30 +96,31 @@ describe('events.ts', () => {
   });
 
   describe('Tauri Mode', () => {
-    beforeEach(() => {
-      vi.spyOn(runtime, 'isTauri').mockReturnValue(true);
-    });
-
     it('should return false when trying to emit in Tauri mode', () => {
+      vi.spyOn(runtime, 'isTauri').mockReturnValue(true);
       const result = emitMockEvent('tauri-event', { data: 'test' });
       expect(result).toBe(false);
     });
 
     it('should delegate to Tauri listen API', async () => {
+      vi.resetModules();
+      vi.doMock('@/lib/runtime', () => ({
+        isTauri: () => true,
+        isBrowserDevUi: () => false,
+      }));
+
       const mockListen = vi.fn(() => Promise.resolve(() => {}));
       vi.doMock('@tauri-apps/api/event', () => ({
         listen: mockListen,
       }));
 
+      const { subscribeEvent } = await import('../events');
       const handler = vi.fn();
 
-      // In real Tauri mode, this would use the imported listen function
-      // For this test, we're verifying the path is taken
       await subscribeEvent('tauri-test', handler);
 
-      // The actual Tauri listen would be called, but we can't easily test
-      // the dynamic import without more complex mocking
-      expect(runtime.isTauri()).toBe(true);
+      expect(mockListen).toHaveBeenCalledTimes(1);
+      expect(mockListen).toHaveBeenCalledWith('tauri-test', handler);
     });
   });
 });

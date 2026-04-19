@@ -1,5 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { isBrowserDevUi, isTauri } from '../runtime';
+
+// Typed helper to avoid 'any' casts
+interface MockWindow {
+  __TAURI_INTERNALS__?: Record<string, unknown>;
+}
 
 describe('runtime.ts', () => {
   const originalWindow = global.window;
@@ -14,7 +19,7 @@ describe('runtime.ts', () => {
       // Mock window with Tauri internals
       global.window = {
         __TAURI_INTERNALS__: {},
-      } as any;
+      } as unknown as Window & typeof globalThis;
 
       expect(isTauri()).toBe(true);
     });
@@ -27,7 +32,7 @@ describe('runtime.ts', () => {
     });
 
     it('should return false when __TAURI_INTERNALS__ is missing', () => {
-      global.window = {} as any;
+      global.window = {} as unknown as Window & typeof globalThis;
 
       expect(isTauri()).toBe(false);
     });
@@ -35,7 +40,7 @@ describe('runtime.ts', () => {
 
   describe('isBrowserDevUi()', () => {
     it('should return true in plain browser context', () => {
-      global.window = {} as any;
+      global.window = {} as unknown as Window & typeof globalThis;
 
       expect(isBrowserDevUi()).toBe(true);
       expect(isTauri()).toBe(false);
@@ -44,7 +49,7 @@ describe('runtime.ts', () => {
     it('should return false in Tauri context', () => {
       global.window = {
         __TAURI_INTERNALS__: {},
-      } as any;
+      } as unknown as Window & typeof globalThis;
 
       expect(isBrowserDevUi()).toBe(false);
       expect(isTauri()).toBe(true);
@@ -61,11 +66,11 @@ describe('runtime.ts', () => {
   describe('Runtime detection consistency', () => {
     it('should be mutually exclusive', () => {
       // Test with Tauri
-      global.window = { __TAURI_INTERNALS__: {} } as any;
+      global.window = { __TAURI_INTERNALS__: {} } as unknown as Window & typeof globalThis;
       expect(isTauri() && isBrowserDevUi()).toBe(false);
 
       // Test with browser
-      global.window = {} as any;
+      global.window = {} as unknown as Window & typeof globalThis;
       expect(isTauri() && isBrowserDevUi()).toBe(false);
       expect(!isTauri() && isBrowserDevUi()).toBe(true);
     });
