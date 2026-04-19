@@ -13,6 +13,7 @@ import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
 import { GameDetailsModal } from '../library/GameDetailsModal';
 import { LibraryGrid } from '../library/LibraryGrid';
+import { LibraryList } from '../library/LibraryList';
 import { LibraryToolbar } from '../library/LibraryToolbar';
 import { useGameDetailsModalState } from '../library/useGameDetailsModalState';
 
@@ -218,17 +219,31 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
                     onViewModeChange={handleViewModeChange}
                   />
                 </div>
-                <LibraryGrid
-                  profiles={filtered}
-                  selectedName={selectedProfile}
-                  onOpenDetails={handleOpenGameDetails}
-                  onLaunch={handleLaunch}
-                  onEdit={handleEdit}
-                  onToggleFavorite={handleToggleFavorite}
-                  launchingName={launchingName}
-                  onNavigate={onNavigate}
-                  onContextMenu={handleCardContextMenu}
-                />
+                {viewMode === 'grid' ? (
+                  <LibraryGrid
+                    profiles={filtered}
+                    selectedName={selectedProfile}
+                    onOpenDetails={handleOpenGameDetails}
+                    onLaunch={handleLaunch}
+                    onEdit={handleEdit}
+                    onToggleFavorite={handleToggleFavorite}
+                    launchingName={launchingName}
+                    onNavigate={onNavigate}
+                    onContextMenu={handleCardContextMenu}
+                  />
+                ) : (
+                  <LibraryList
+                    profiles={filtered}
+                    selectedName={selectedProfile}
+                    onOpenDetails={handleOpenGameDetails}
+                    onLaunch={handleLaunch}
+                    onEdit={handleEdit}
+                    onToggleFavorite={handleToggleFavorite}
+                    launchingName={launchingName}
+                    onNavigate={onNavigate}
+                    onContextMenu={handleCardContextMenu}
+                  />
+                )}
               </div>
             </div>
           </div>
