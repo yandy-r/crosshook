@@ -66,6 +66,12 @@ test.describe('launch pipeline visualization', () => {
     // Wait for pipeline to be visible
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
 
+    // Detail-bearing nodes only appear after preview is loaded.
+    // Click the game preview button to trigger preview_launch.
+    const gamePreviewButton = page.getByRole('button', { name: /preview.*game/i });
+    await expect(gamePreviewButton).toBeVisible();
+    await gamePreviewButton.click();
+
     // Wait for detail-bearing nodes (nodes with detail text render triggers) to appear
     // These are derived from preview_launch, so we need to wait for them
     const triggers = page.locator('.crosshook-launch-pipeline__node-trigger');
