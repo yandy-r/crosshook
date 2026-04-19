@@ -47,12 +47,15 @@ pub fn profile_to_shareable_toml(
     ))
 }
 
-pub fn validate_name(name: &str) -> Result<(), ProfileStoreError> {
+pub fn validate_name(name: &str) -> Result<String, ProfileStoreError> {
     const WINDOWS_RESERVED_PATH_CHARACTERS: [char; 9] =
         ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
     let trimmed = name.trim();
     if trimmed.is_empty() || trimmed == "." || trimmed == ".." {
+        return Err(ProfileStoreError::InvalidName(name.to_string()));
+    }
+    if trimmed.chars().any(char::is_control) {
         return Err(ProfileStoreError::InvalidName(name.to_string()));
     }
 
@@ -71,7 +74,7 @@ pub fn validate_name(name: &str) -> Result<(), ProfileStoreError> {
         return Err(ProfileStoreError::InvalidName(name.to_string()));
     }
 
-    Ok(())
+    Ok(trimmed.to_string())
 }
 
 /// Strips a trailing `(Copy)` or `(Copy N)` suffix from a profile name, returning
