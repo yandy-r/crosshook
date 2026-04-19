@@ -12,6 +12,7 @@ import type { Handler } from './types';
 let lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
 let lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
 const runningGames: Set<string> = new Set();
+const pendingLaunchTimers = new Set<number>();
 
 // ---------------------------------------------------------------------------
 // Fixture helpers (BR-11)
@@ -90,6 +91,14 @@ function makePreviewEnvVars(): LaunchPreview['environment'] {
   ];
 }
 
+function scheduleLaunchTimeout(callback: () => void, delayMs: number): void {
+  const id = window.setTimeout(() => {
+    pendingLaunchTimers.delete(id);
+    callback();
+  }, delayMs);
+  pendingLaunchTimers.add(id);
+}
+
 // ---------------------------------------------------------------------------
 // Event scheduling after launch_game / launch_trainer
 // ---------------------------------------------------------------------------
@@ -101,7 +110,7 @@ function scheduleLaunchLogSequence(
   afterLogsDelayMs: number
 ): void {
   logLines.forEach((line, index) => {
-    setTimeout(
+    scheduleLaunchTimeout(
       () => {
         emitMockEvent('launch-log', line);
       },
@@ -110,13 +119,13 @@ function scheduleLaunchLogSequence(
   });
 
   const diagnosticDelay = delayBetweenMs * (logLines.length + 1) + afterLogsDelayMs;
-  setTimeout(() => {
+  scheduleLaunchTimeout(() => {
     const report = makeDiagnosticReport(helperLogPath);
     emitMockEvent('launch-diagnostic', report);
   }, diagnosticDelay);
 
   const completeDelay = diagnosticDelay + 200;
-  setTimeout(() => {
+  scheduleLaunchTimeout(() => {
     emitMockEvent('launch-complete', { code: 0, signal: null });
   }, completeDelay);
 }
@@ -425,4 +434,14 @@ export function registerLaunch(map: Map<string, Handler>): void {
   map.set('_mock_get_last_trainer_log_path', async (): Promise<string> => {
     return lastTrainerHelperLogPath;
   });
+}
+
+export function resetLaunchMockState(): void {
+  lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
+  lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
+  runningGames.clear();
+  for (const timerId of pendingLaunchTimers) {
+    window.clearTimeout(timerId);
+  }
+  pendingLaunchTimers.clear();
 }

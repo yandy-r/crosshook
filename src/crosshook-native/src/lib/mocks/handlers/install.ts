@@ -5,6 +5,7 @@ import type { Handler } from './types';
 
 /** Tracks the profile name of the currently in-flight install, if any. */
 let installInFlight: string | null = null;
+const pendingInstallTimers = new Set<number>();
 
 function buildMockInstallResult(request: InstallGameRequest): InstallGameResult {
   const base = createDefaultProfile();
@@ -57,11 +58,20 @@ function buildMockInstallResult(request: InstallGameRequest): InstallGameResult 
   };
 }
 
+function scheduleInstallTimeout(callback: () => void, delayMs: number): number {
+  const id = window.setTimeout(() => {
+    pendingInstallTimers.delete(id);
+    callback();
+  }, delayMs);
+  pendingInstallTimers.add(id);
+  return id;
+}
+
 function scheduleInstallEvents(profileName: string): void {
   const started = { profileName, phase: 'started', progress: 0, message: 'Starting installer…' };
   emitMockEvent('install-started', started);
 
-  window.setTimeout(() => {
+  scheduleInstallTimeout(() => {
     emitMockEvent('install-progress', {
       profileName,
       phase: 'running_installer',
@@ -70,7 +80,7 @@ function scheduleInstallEvents(profileName: string): void {
     });
   }, 200);
 
-  window.setTimeout(() => {
+  scheduleInstallTimeout(() => {
     emitMockEvent('install-progress', {
       profileName,
       phase: 'running_installer',
@@ -79,7 +89,7 @@ function scheduleInstallEvents(profileName: string): void {
     });
   }, 500);
 
-  window.setTimeout(() => {
+  scheduleInstallTimeout(() => {
     emitMockEvent('install-progress', {
       profileName,
       phase: 'running_installer',
@@ -88,7 +98,7 @@ function scheduleInstallEvents(profileName: string): void {
     });
   }, 900);
 
-  window.setTimeout(() => {
+  scheduleInstallTimeout(() => {
     emitMockEvent('install-progress', {
       profileName,
       phase: 'running_installer',
@@ -141,7 +151,9 @@ export function registerInstall(map: Map<string, Handler>): void {
       scheduleInstallEvents(profileName);
 
       // Simulate install duration (~1.5 s total)
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 1500));
+      await new Promise<void>((resolve) => {
+        scheduleInstallTimeout(resolve, 1500);
+      });
 
       const result = buildMockInstallResult(request);
 
@@ -160,4 +172,12 @@ export function registerInstall(map: Map<string, Handler>): void {
       }
     }
   });
+}
+
+export function resetInstallMockState(): void {
+  installInFlight = null;
+  for (const timerId of pendingInstallTimers) {
+    window.clearTimeout(timerId);
+  }
+  pendingInstallTimers.clear();
 }

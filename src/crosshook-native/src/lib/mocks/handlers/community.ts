@@ -194,3 +194,7 @@ export function registerCommunity(map: Map<string, Handler>): void {
     };
   });
 }
+
+export function resetCommunityMockState(): void {
+  taps = [{ ...MOCK_TAP }];
+}

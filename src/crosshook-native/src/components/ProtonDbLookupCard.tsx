@@ -77,13 +77,13 @@ export function ProtonDbLookupCard({
 }: ProtonDbLookupCardProps) {
   const titleId = useId();
   const [copyLabels, setCopyLabels] = useState<Record<string, string>>({});
-  const copyTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const copyTimeouts = useRef<Map<string, number>>(new Map());
   const lookup = useProtonDbLookup(appId);
 
   useEffect(() => {
     return () => {
       copyTimeouts.current.forEach((id) => {
-        clearTimeout(id);
+        window.clearTimeout(id);
       });
     };
   }, []);
@@ -134,7 +134,7 @@ export function ProtonDbLookupCard({
     }
 
     const existing = copyTimeouts.current.get(copyKey);
-    if (existing) clearTimeout(existing);
+    if (existing) window.clearTimeout(existing);
     const id = window.setTimeout(() => {
       setCopyLabels((current) => ({ ...current, [copyKey]: 'Copy' }));
       copyTimeouts.current.delete(copyKey);

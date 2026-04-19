@@ -92,6 +92,7 @@ function mockCatalogFor(provider: string | undefined): ProtonUpAvailableVersion[
 
 /** Tracks in-flight mock installs so protonup_cancel_install can drop remaining emissions. */
 const activeInstalls = new Set<string>();
+const pendingInstallTimers = new Set<number>();
 
 function getMockCacheMeta(): {
   stale: boolean;
@@ -105,6 +106,14 @@ function getMockCacheMeta(): {
     fetched_at: new Date().toISOString(),
     expires_at: new Date(Date.now() + 3_600_000).toISOString(),
   };
+}
+
+function scheduleInstallEvent(delayMs: number, callback: () => void): void {
+  const id = window.setTimeout(() => {
+    pendingInstallTimers.delete(id);
+    callback();
+  }, delayMs);
+  pendingInstallTimers.add(id);
 }
 
 export function registerProtonUp(map: Map<string, Handler>): void {
@@ -213,10 +222,10 @@ export function registerProtonUp(map: Map<string, Handler>): void {
     activeInstalls.add(opId);
 
     const schedule = (delayMs: number, payload: Record<string, unknown>) => {
-      window.setTimeout(() => {
+      scheduleInstallEvent(delayMs, () => {
         if (!activeInstalls.has(opId)) return;
         emitMockEvent('protonup:install:progress', { op_id: opId, ...payload });
-      }, delayMs);
+      });
     };
 
     schedule(0, { phase: 'resolving', bytes_done: 0, bytes_total: null });
@@ -228,7 +237,7 @@ export function registerProtonUp(map: Map<string, Handler>): void {
     schedule(900, { phase: 'extracting', bytes_done: 100_000_000, bytes_total: 100_000_000 });
     schedule(1100, { phase: 'finalizing', bytes_done: 100_000_000, bytes_total: 100_000_000 });
 
-    window.setTimeout(() => {
+    scheduleInstallEvent(1200, () => {
       if (!activeInstalls.has(opId)) return;
       activeInstalls.delete(opId);
       emitMockEvent('protonup:install:progress', {
@@ -237,7 +246,7 @@ export function registerProtonUp(map: Map<string, Handler>): void {
         bytes_done: 100_000_000,
         bytes_total: 100_000_000,
       });
-    }, 1200);
+    });
 
     return { op_id: opId };
   });
@@ -273,4 +282,12 @@ export function registerProtonUp(map: Map<string, Handler>): void {
 
     return { success: true, conflicting_app_ids: [], error_message: null };
   });
+}
+
+export function resetProtonUpMockState(): void {
+  activeInstalls.clear();
+  for (const timerId of pendingInstallTimers) {
+    window.clearTimeout(timerId);
+  }
+  pendingInstallTimers.clear();
 }

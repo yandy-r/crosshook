@@ -20,6 +20,7 @@ const healthSnapshots = new Map<string, EnrichedProfileHealthReport>();
 
 // Tracks which profile names have had their version changes acknowledged
 const acknowledgedVersions = new Set<string>();
+const pendingHealthTimers = new Set<number>();
 
 // ---------------------------------------------------------------------------
 // Synthetic data helpers
@@ -140,6 +141,14 @@ function buildVersionCheckResult(profileName: string): VersionCheckResult {
   };
 }
 
+function scheduleHealthEvent(delayMs: number, callback: () => void): void {
+  const id = window.setTimeout(() => {
+    pendingHealthTimers.delete(id);
+    callback();
+  }, delayMs);
+  pendingHealthTimers.add(id);
+}
+
 // ---------------------------------------------------------------------------
 // Handler registration
 // ---------------------------------------------------------------------------
@@ -150,9 +159,9 @@ export function registerHealth(map: Map<string, Handler>): void {
     const profiles = getSeededProfiles();
     const summary = buildBatchSummary(profiles);
     // Emit event after a short delay so the hook's event listener fires after mount
-    setTimeout(() => {
+    scheduleHealthEvent(400, () => {
       emitMockEvent('profile-health-batch-complete', summary);
-    }, 400);
+    });
     return summary;
   });
 
@@ -216,9 +225,9 @@ export function registerHealth(map: Map<string, Handler>): void {
     }
     const result = buildVersionCheckResult(name);
     // Emit version-scan-complete after a short delay
-    setTimeout(() => {
+    scheduleHealthEvent(300, () => {
       emitMockEvent('version-scan-complete', { scanned: 1, mismatches: 0 });
-    }, 300);
+    });
     return result;
   });
 
@@ -262,4 +271,13 @@ export function registerHealth(map: Map<string, Handler>): void {
     }
     return null;
   });
+}
+
+export function resetHealthMockState(): void {
+  healthSnapshots.clear();
+  acknowledgedVersions.clear();
+  for (const timerId of pendingHealthTimers) {
+    window.clearTimeout(timerId);
+  }
+  pendingHealthTimers.clear();
 }

@@ -12,21 +12,26 @@ export { getActiveFixture } from '../fixture';
 export type { DebugToggles } from '../toggles';
 export { getActiveToggles, togglesToChipFragments } from '../toggles';
 
-import { registerCollections } from './handlers/collections';
-import { registerCommunity } from './handlers/community';
-import { registerHealth } from './handlers/health';
-import { registerInstall } from './handlers/install';
+import { resetBrowserEventBus } from '../events';
+
+import { registerCollections, resetCollectionsMockState } from './handlers/collections';
+import { registerCommunity, resetCommunityMockState } from './handlers/community';
+import { registerHealth, resetHealthMockState } from './handlers/health';
+import { registerInstall, resetInstallMockState } from './handlers/install';
+import { resetLaunchMockState } from './handlers/launch';
 import { registerLauncher } from './handlers/launcher';
 import { registerLibrary } from './handlers/library';
-import { registerOnboarding } from './handlers/onboarding';
+import { registerOnboarding, resetOnboardingMockState } from './handlers/onboarding';
+import { resetProfileMockState } from './handlers/profile';
 import { registerProton } from './handlers/proton';
-import { registerProtonDb } from './handlers/protondb';
-import { registerProtonUp } from './handlers/protonup';
-import { registerSystem } from './handlers/system';
+import { registerProtonDb, resetProtonDbMockState } from './handlers/protondb';
+import { registerProtonUp, resetProtonUpMockState } from './handlers/protonup';
+import { registerSystem, resetSystemMockState } from './handlers/system';
 import type { Handler } from './handlers/types';
 import { registerUmuDatabase } from './handlers/umu_database';
-import { registerUpdate } from './handlers/update';
-import { wrapAllHandlers } from './wrapHandler';
+import { registerUpdate, resetUpdateMockState } from './handlers/update';
+import { resetStore } from './store';
+import { resetWrappedHandlerState, wrapAllHandlers } from './wrapHandler';
 
 export type { Handler };
 
@@ -58,4 +63,21 @@ export function registerMocks(): Map<string, Handler> {
   // every entry in the map is wrapped exactly once. See `wrapHandler.ts` for
   // the BR-11 shell-critical read exemption rules.
   return wrapAllHandlers(map);
+}
+
+export function resetMockEnvironment(): void {
+  resetBrowserEventBus();
+  resetStore();
+  resetCollectionsMockState();
+  resetCommunityMockState();
+  resetHealthMockState();
+  resetInstallMockState();
+  resetLaunchMockState();
+  resetOnboardingMockState();
+  resetProfileMockState();
+  resetProtonDbMockState();
+  resetProtonUpMockState();
+  resetSystemMockState();
+  resetUpdateMockState();
+  resetWrappedHandlerState();
 }

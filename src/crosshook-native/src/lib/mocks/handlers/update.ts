@@ -6,6 +6,7 @@ import type { Handler } from './types';
 let updateInFlight: string | null = null;
 /** Set to true when cancel_update is called during a running update. */
 let updateCancelled = false;
+const pendingUpdateTimers = new Set<number>();
 
 function validateRequest(request: UpdateGameRequest): void {
   if (!request.updater_path || request.updater_path.trim().length === 0) {
@@ -17,6 +18,14 @@ function validateRequest(request: UpdateGameRequest): void {
   if (!request.prefix_path || request.prefix_path.trim().length === 0) {
     throw new Error('[dev-mock] A prefix path is required.');
   }
+}
+
+function scheduleUpdateTimeout(callback: () => void, delayMs: number): void {
+  const id = window.setTimeout(() => {
+    pendingUpdateTimers.delete(id);
+    callback();
+  }, delayMs);
+  pendingUpdateTimers.add(id);
 }
 
 export function registerUpdate(map: Map<string, Handler>): void {
@@ -45,7 +54,7 @@ export function registerUpdate(map: Map<string, Handler>): void {
     // The hook subscribes to update-complete to transition stage.
     // We do not emit update-started or update-progress because useUpdateGame.ts
     // does not subscribe to those events; only update-complete is consumed.
-    setTimeout(() => {
+    scheduleUpdateTimeout(() => {
       const exitCode: number | null = updateCancelled ? null : 0;
 
       emitMockEvent('update-complete', exitCode);
@@ -67,4 +76,13 @@ export function registerUpdate(map: Map<string, Handler>): void {
     }
     // Best-effort; no error if nothing is running
   });
+}
+
+export function resetUpdateMockState(): void {
+  updateInFlight = null;
+  updateCancelled = false;
+  for (const timerId of pendingUpdateTimers) {
+    window.clearTimeout(timerId);
+  }
+  pendingUpdateTimers.clear();
 }

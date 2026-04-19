@@ -20,6 +20,8 @@
 import { getActiveToggles } from '../toggles';
 import type { Handler } from './handlers/types';
 
+const pendingDelayTimers = new Set<number>();
+
 /**
  * Shell-critical reads that MUST resolve under every fixture/toggle combination
  * per BR-11. These commands are exempt from `?errors=true` rejection so the
@@ -112,11 +114,24 @@ export function wrapHandler(name: string, handler: Handler): Handler {
     }
 
     if (toggles.delayMs > 0) {
-      await new Promise<void>((resolve) => setTimeout(resolve, toggles.delayMs));
+      await new Promise<void>((resolve) => {
+        const id = window.setTimeout(() => {
+          pendingDelayTimers.delete(id);
+          resolve();
+        }, toggles.delayMs);
+        pendingDelayTimers.add(id);
+      });
     }
 
     return handler(args);
   };
+}
+
+export function resetWrappedHandlerState(): void {
+  for (const timerId of pendingDelayTimers) {
+    window.clearTimeout(timerId);
+  }
+  pendingDelayTimers.clear();
 }
 
 /**

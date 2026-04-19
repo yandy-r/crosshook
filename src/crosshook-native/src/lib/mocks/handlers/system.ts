@@ -388,3 +388,15 @@ export function registerSystem(map: Map<string, Handler>): void {
     return structuredClone(MOCK_TRAINER_TYPE_CATALOG);
   });
 }
+
+export function resetSystemMockState(): void {
+  externalSources = [
+    {
+      sourceId: 'mock-source-1',
+      displayName: 'Mock Trainer Index',
+      baseUrl: 'https://mock.example.invalid/trainers',
+      sourceType: 'rss',
+      enabled: true,
+    },
+  ];
+}
