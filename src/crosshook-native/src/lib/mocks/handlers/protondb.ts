@@ -211,3 +211,7 @@ export function registerProtonDb(map: Map<string, Handler>): void {
     return null;
   });
 }
+
+export function resetProtonDbMockState(): void {
+  dismissedSuggestions.clear();
+}

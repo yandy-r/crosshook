@@ -62,6 +62,7 @@ interface MockHostToolDefinition {
 }
 
 let cachedHostReadinessSnapshot: CachedHostReadinessSnapshot | null = null;
+const pendingOnboardingTimers = new Set<number>();
 
 const MOCK_CAPABILITY_DEFINITIONS: readonly MockCapabilityDefinition[] = [
   {
@@ -507,6 +508,14 @@ function maybeSynthesizeOnboardingEvent(): void {
 
   let attempts = 0;
 
+  const scheduleOnboardingTimeout = (callback: () => void, delayMs: number): void => {
+    const id = window.setTimeout(() => {
+      pendingOnboardingTimers.delete(id);
+      callback();
+    }, delayMs);
+    pendingOnboardingTimers.add(id);
+  };
+
   const tryEmit = (): void => {
     if (onboardingEventSynthesized) return;
     const store = getStore();
@@ -522,10 +531,10 @@ function maybeSynthesizeOnboardingEvent(): void {
     if (attempts >= ONBOARDING_EMIT_MAX_ATTEMPTS) {
       return;
     }
-    setTimeout(tryEmit, ONBOARDING_EMIT_RETRY_MS);
+    scheduleOnboardingTimeout(tryEmit, ONBOARDING_EMIT_RETRY_MS);
   };
 
-  setTimeout(tryEmit, ONBOARDING_EMIT_INITIAL_MS);
+  scheduleOnboardingTimeout(tryEmit, ONBOARDING_EMIT_INITIAL_MS);
 }
 
 /** Strip install guidance for dismissed tools (matches real IPC `get_cached_host_readiness_snapshot`). */
@@ -653,6 +662,17 @@ export function registerOnboarding(map: Map<string, Handler>): void {
       ],
     };
   });
+}
+
+export function resetOnboardingMockState(): void {
+  onboardingDismissed = false;
+  onboardingEventSynthesized = false;
+  onboardingSynthesisScheduled = false;
+  cachedHostReadinessSnapshot = null;
+  for (const timerId of pendingOnboardingTimers) {
+    window.clearTimeout(timerId);
+  }
+  pendingOnboardingTimers.clear();
 }
 
 export { onboardingDismissed };

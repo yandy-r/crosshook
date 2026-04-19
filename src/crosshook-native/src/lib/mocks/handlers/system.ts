@@ -20,7 +20,7 @@ import type { Handler } from './types';
 
 // --- Module-scope state ---
 
-let externalSources: ExternalTrainerSourceSubscription[] = [
+const DEFAULT_EXTERNAL_SOURCES: ExternalTrainerSourceSubscription[] = [
   {
     sourceId: 'mock-source-1',
     displayName: 'Mock Trainer Index',
@@ -29,6 +29,8 @@ let externalSources: ExternalTrainerSourceSubscription[] = [
     enabled: true,
   },
 ];
+
+let externalSources: ExternalTrainerSourceSubscription[] = structuredClone(DEFAULT_EXTERNAL_SOURCES);
 
 // --- discovery ---
 
@@ -387,4 +389,8 @@ export function registerSystem(map: Map<string, Handler>): void {
   map.set('get_trainer_type_catalog', async (): Promise<TrainerTypeEntry[]> => {
     return structuredClone(MOCK_TRAINER_TYPE_CATALOG);
   });
+}
+
+export function resetSystemMockState(): void {
+  externalSources = structuredClone(DEFAULT_EXTERNAL_SOURCES);
 }

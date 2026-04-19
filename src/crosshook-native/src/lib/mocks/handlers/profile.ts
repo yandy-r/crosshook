@@ -682,3 +682,9 @@ export function registerProfile(map: Map<string, Handler>): void {
     })
   );
 }
+
+export function resetProfileMockState(): void {
+  profileFavorites.clear();
+  profileConfigHistory.clear();
+  nextRevisionId = 1;
+}

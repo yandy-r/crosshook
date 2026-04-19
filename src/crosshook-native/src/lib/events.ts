@@ -27,3 +27,7 @@ export function emitMockEvent(name: string, payload: unknown): boolean {
   }
   return true;
 }
+
+export function resetBrowserEventBus(): void {
+  browserBus.clear();
+}

@@ -326,3 +326,19 @@ export function registerCollections(map: Map<string, Handler>): void {
     };
   });
 }
+
+export function resetCollectionsMockState(): void {
+  collections = [
+    {
+      collection_id: 'mock-collection-1',
+      name: 'Action / Adventure',
+      description: 'Seeded fixture collection for dev mode',
+      profile_count: 0,
+      created_at: new Date('2026-04-01T12:00:00Z').toISOString(),
+      updated_at: new Date('2026-04-01T12:00:00Z').toISOString(),
+    },
+  ];
+  membership.clear();
+  membership.set('mock-collection-1', new Set());
+  mockDefaults.clear();
+}
