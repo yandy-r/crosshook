@@ -134,7 +134,6 @@ pub struct SettingsSaveRequest {
     pub community_taps: Vec<CommunityTapSubscription>,
     pub onboarding_completed: bool,
     pub offline_mode: bool,
-    pub high_contrast: bool,
     pub default_proton_path: String,
     pub default_launch_method: String,
     pub default_bundled_optimization_preset_id: String,
