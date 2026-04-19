@@ -73,6 +73,34 @@ pub(super) fn healthy_steam_profile(tmp: &Path) -> GameProfile {
     }
 }
 
+pub(super) fn make_proton_run_profile(game_exe: &str, prefix: &str, proton: &str) -> GameProfile {
+    GameProfile {
+        game: GameSection {
+            name: "Proton Game".to_string(),
+            executable_path: game_exe.to_string(),
+            custom_cover_art_path: String::new(),
+            custom_portrait_art_path: String::new(),
+            custom_background_art_path: String::new(),
+        },
+        trainer: TrainerSection::default(),
+        injection: InjectionSection::default(),
+        steam: SteamSection::default(),
+        runtime: RuntimeSection {
+            prefix_path: prefix.to_string(),
+            proton_path: proton.to_string(),
+            working_directory: String::new(),
+            steam_app_id: String::new(),
+            umu_game_id: String::new(),
+            umu_preference: None,
+        },
+        launch: LaunchSection {
+            method: "proton_run".to_string(),
+            ..Default::default()
+        },
+        local_override: crate::profile::LocalOverrideSection::default(),
+    }
+}
+
 pub(super) fn make_dep_row(package: &str, state: &str) -> PrefixDependencyStateRow {
     PrefixDependencyStateRow {
         id: 0,

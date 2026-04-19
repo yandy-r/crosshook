@@ -21,11 +21,11 @@ pub(super) fn check_file_path(
     }
 
     let original = path.trim();
-    if let Ok(meta) = fs::metadata(original) {
-        if meta.is_file() {
-            return None;
-        }
-        return Some((
+    let metadata = fs::metadata(original);
+
+    match &metadata {
+        Ok(meta) if meta.is_file() => None,
+        Ok(_) => Some((
             HealthIssue {
                 field: field.to_string(),
                 path: display.clone(),
@@ -35,15 +35,9 @@ pub(super) fn check_file_path(
                 severity: severity_on_broken,
             },
             false,
-        ));
-    }
-
-    if path_is_file_visible_or_host(path) {
-        return None;
-    }
-
-    if path_exists_visible_or_host(path) {
-        return Some((
+        )),
+        Err(_) if path_is_file_visible_or_host(path) => None,
+        Err(_) if path_exists_visible_or_host(path) => Some((
             HealthIssue {
                 field: field.to_string(),
                 path: display.clone(),
@@ -53,41 +47,17 @@ pub(super) fn check_file_path(
                 severity: severity_on_broken,
             },
             false,
-        ));
-    }
-
-    match fs::metadata(original) {
-        Ok(meta) if meta.is_file() => {
-            // Exists and is a file — healthy
-            None
-        }
-        Ok(_) => {
-            // Exists but wrong type (directory, symlink to dir, etc.)
-            Some((
-                HealthIssue {
-                    field: field.to_string(),
-                    path: display.to_string(),
-                    message: format!("Path exists but is not a file: {display}"),
-                    remediation: "Select the file itself, not a directory or other path type."
-                        .to_string(),
-                    severity: severity_on_broken,
-                },
-                false,
-            ))
-        }
-        Err(err) if err.kind() == ErrorKind::NotFound => {
-            // Missing from disk → Stale
-            Some((
-                HealthIssue {
-                    field: field.to_string(),
-                    path: display.to_string(),
-                    message: format!("Path does not exist: {display}"),
-                    remediation: "Re-browse to the file or verify the path is correct.".to_string(),
-                    severity: HealthIssueSeverity::Warning,
-                },
-                true,
-            ))
-        }
+        )),
+        Err(err) if err.kind() == ErrorKind::NotFound => Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display.to_string(),
+                message: format!("Path does not exist: {display}"),
+                remediation: "Re-browse to the file or verify the path is correct.".to_string(),
+                severity: HealthIssueSeverity::Warning,
+            },
+            true,
+        )),
         Err(err) if err.kind() == ErrorKind::PermissionDenied => Some((
             HealthIssue {
                 field: field.to_string(),
@@ -98,19 +68,16 @@ pub(super) fn check_file_path(
             },
             false,
         )),
-        Err(err) => {
-            // Other I/O errors are treated as broken
-            Some((
-                HealthIssue {
-                    field: field.to_string(),
-                    path: display.to_string(),
-                    message: format!("Could not access path: {err}"),
-                    remediation: "Verify the path is valid and accessible.".to_string(),
-                    severity: severity_on_broken,
-                },
-                false,
-            ))
-        }
+        Err(err) => Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display.to_string(),
+                message: format!("Could not access path: {err}"),
+                remediation: "Verify the path is valid and accessible.".to_string(),
+                severity: severity_on_broken,
+            },
+            false,
+        )),
     }
 }
 
@@ -148,45 +115,25 @@ pub(super) fn check_required_directory(field: &str, path: &str) -> Option<(Healt
     }
 
     let original = path.trim();
-    if let Ok(meta) = fs::metadata(original) {
-        if meta.is_dir() {
-            return None;
-        }
-        return Some((
-            HealthIssue {
-                field: field.to_string(),
-                path: display.clone(),
-                message: format!("Path exists but is not a directory: {display}"),
-                remediation: "Select the directory itself, not a file inside it.".to_string(),
-                severity: HealthIssueSeverity::Error,
-            },
-            false,
-        ));
-    }
+    let metadata = fs::metadata(original);
 
-    if path_is_dir_visible_or_host(path) {
-        return None;
-    }
-
-    if path_exists_visible_or_host(path) {
-        return Some((
-            HealthIssue {
-                field: field.to_string(),
-                path: display.clone(),
-                message: format!("Path exists but is not a directory: {display}"),
-                remediation: "Select the directory itself, not a file inside it.".to_string(),
-                severity: HealthIssueSeverity::Error,
-            },
-            false,
-        ));
-    }
-
-    match fs::metadata(original) {
+    match &metadata {
         Ok(meta) if meta.is_dir() => None,
         Ok(_) => Some((
             HealthIssue {
                 field: field.to_string(),
-                path: display.to_string(),
+                path: display.clone(),
+                message: format!("Path exists but is not a directory: {display}"),
+                remediation: "Select the directory itself, not a file inside it.".to_string(),
+                severity: HealthIssueSeverity::Error,
+            },
+            false,
+        )),
+        Err(_) if path_is_dir_visible_or_host(path) => None,
+        Err(_) if path_exists_visible_or_host(path) => Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display.clone(),
                 message: format!("Path exists but is not a directory: {display}"),
                 remediation: "Select the directory itself, not a file inside it.".to_string(),
                 severity: HealthIssueSeverity::Error,
@@ -244,88 +191,9 @@ pub(super) fn check_required_executable(field: &str, path: &str) -> Option<(Heal
     }
 
     let original = path.trim();
-    if let Ok(meta) = fs::metadata(original) {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if !meta.is_file() {
-                return Some((
-                    HealthIssue {
-                        field: field.to_string(),
-                        path: display.clone(),
-                        message: format!("Path exists but is not a file: {display}"),
-                        remediation: "Select the executable file itself.".to_string(),
-                        severity: HealthIssueSeverity::Error,
-                    },
-                    false,
-                ));
-            }
-            if meta.permissions().mode() & 0o111 == 0 {
-                return Some((
-                    HealthIssue {
-                        field: field.to_string(),
-                        path: display.clone(),
-                        message: format!(
-                            "File is not executable (no execute permission): {display}"
-                        ),
-                        remediation: "Run 'chmod +x' on the file to make it executable."
-                            .to_string(),
-                        severity: HealthIssueSeverity::Error,
-                    },
-                    false,
-                ));
-            }
-            return None;
-        }
-        #[cfg(not(unix))]
-        {
-            if meta.is_file() {
-                return None;
-            }
-            return Some((
-                HealthIssue {
-                    field: field.to_string(),
-                    path: display.clone(),
-                    message: format!("Path exists but is not a file: {display}"),
-                    remediation: "Select the executable file itself.".to_string(),
-                    severity: HealthIssueSeverity::Error,
-                },
-                false,
-            ));
-        }
-    }
+    let metadata = fs::metadata(original);
 
-    if path_is_executable_visible_or_host(path) {
-        return None;
-    }
-
-    if path_is_file_visible_or_host(path) {
-        return Some((
-            HealthIssue {
-                field: field.to_string(),
-                path: display.clone(),
-                message: format!("File is not executable (no execute permission): {display}"),
-                remediation: "Run 'chmod +x' on the file to make it executable.".to_string(),
-                severity: HealthIssueSeverity::Error,
-            },
-            false,
-        ));
-    }
-
-    if path_exists_visible_or_host(path) {
-        return Some((
-            HealthIssue {
-                field: field.to_string(),
-                path: display.clone(),
-                message: format!("Path exists but is not a file: {display}"),
-                remediation: "Select the executable file itself.".to_string(),
-                severity: HealthIssueSeverity::Error,
-            },
-            false,
-        ));
-    }
-
-    match fs::metadata(original) {
+    match &metadata {
         Ok(meta) => {
             #[cfg(unix)]
             {
@@ -334,7 +202,7 @@ pub(super) fn check_required_executable(field: &str, path: &str) -> Option<(Heal
                     return Some((
                         HealthIssue {
                             field: field.to_string(),
-                            path: display.to_string(),
+                            path: display.clone(),
                             message: format!("Path exists but is not a file: {display}"),
                             remediation: "Select the executable file itself.".to_string(),
                             severity: HealthIssueSeverity::Error,
@@ -346,7 +214,7 @@ pub(super) fn check_required_executable(field: &str, path: &str) -> Option<(Heal
                     return Some((
                         HealthIssue {
                             field: field.to_string(),
-                            path: display.to_string(),
+                            path: display.clone(),
                             message: format!(
                                 "File is not executable (no execute permission): {display}"
                             ),
@@ -361,21 +229,42 @@ pub(super) fn check_required_executable(field: &str, path: &str) -> Option<(Heal
             }
             #[cfg(not(unix))]
             {
-                if !meta.is_file() {
-                    return Some((
-                        HealthIssue {
-                            field: field.to_string(),
-                            path: display.to_string(),
-                            message: format!("Path exists but is not a file: {display}"),
-                            remediation: "Select the executable file itself.".to_string(),
-                            severity: HealthIssueSeverity::Error,
-                        },
-                        false,
-                    ));
+                if meta.is_file() {
+                    return None;
                 }
-                None
+                Some((
+                    HealthIssue {
+                        field: field.to_string(),
+                        path: display.clone(),
+                        message: format!("Path exists but is not a file: {display}"),
+                        remediation: "Select the executable file itself.".to_string(),
+                        severity: HealthIssueSeverity::Error,
+                    },
+                    false,
+                ))
             }
         }
+        Err(_) if path_is_executable_visible_or_host(path) => None,
+        Err(_) if path_is_file_visible_or_host(path) => Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display.clone(),
+                message: format!("File is not executable (no execute permission): {display}"),
+                remediation: "Run 'chmod +x' on the file to make it executable.".to_string(),
+                severity: HealthIssueSeverity::Error,
+            },
+            false,
+        )),
+        Err(_) if path_exists_visible_or_host(path) => Some((
+            HealthIssue {
+                field: field.to_string(),
+                path: display.clone(),
+                message: format!("Path exists but is not a file: {display}"),
+                remediation: "Select the executable file itself.".to_string(),
+                severity: HealthIssueSeverity::Error,
+            },
+            false,
+        )),
         Err(err) if err.kind() == ErrorKind::NotFound => Some((
             HealthIssue {
                 field: field.to_string(),
