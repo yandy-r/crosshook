@@ -4,7 +4,7 @@ use tempfile::tempdir;
 
 use super::super::utils::validate_name;
 use crate::profile::models::{CollectionDefaultsSection, LocalOverrideSection};
-use crate::profile::toml_store::ProfileStore;
+use crate::profile::toml_store::{ProfileStore, ProfileStoreError};
 
 use super::fixtures::sample_profile;
 
@@ -19,7 +19,10 @@ fn save_load_list_and_delete_round_trip() {
     assert_eq!(store.load("elden-ring").unwrap(), profile);
 
     store.delete("elden-ring").unwrap();
-    assert!(store.load("elden-ring").is_err());
+    assert!(matches!(
+        store.load("elden-ring"),
+        Err(ProfileStoreError::NotFound(_))
+    ));
     assert!(store.list().unwrap().is_empty());
 }
 
@@ -160,12 +163,28 @@ method = "native"
 
 #[test]
 fn validate_name_rejects_invalid_names() {
-    assert!(validate_name("").is_err());
-    assert!(validate_name(".").is_err());
-    assert!(validate_name("..").is_err());
-    assert!(validate_name("foo/bar").is_err());
-    assert!(validate_name("foo\\bar").is_err());
-    assert!(validate_name("foo:bar").is_err());
+    for invalid in ["", ".", "..", "foo/bar", "foo\\bar", "foo:bar"] {
+        assert!(matches!(
+            validate_name(invalid),
+            Err(ProfileStoreError::InvalidName(name)) if name == invalid
+        ));
+    }
+}
+
+#[test]
+fn validate_name_rejects_control_characters() {
+    for invalid in ["my\tprofile", "my\nprofile", "bad\u{7f}name", "nul\0inside"] {
+        assert!(matches!(
+            validate_name(invalid),
+            Err(ProfileStoreError::InvalidName(name)) if name == invalid
+        ));
+    }
+}
+
+#[test]
+fn validate_name_returns_canonical_trimmed_name() {
+    assert_eq!(validate_name("  spaced  ").unwrap(), "spaced");
+    assert_eq!(validate_name("name").unwrap(), "name");
 }
 
 #[test]
@@ -192,7 +211,7 @@ fn test_rename_not_found() {
     fs::create_dir_all(&store.base_path).unwrap();
 
     let result = store.rename("nonexistent", "new-name");
-    assert!(result.is_err());
+    assert!(matches!(result, Err(ProfileStoreError::NotFound(_))));
 }
 
 #[test]
@@ -225,8 +244,6 @@ fn test_rename_preserves_content() {
 
 #[test]
 fn test_rename_rejects_existing_target_profile() {
-    use crate::profile::toml_store::ProfileStoreError;
-
     let temp_dir = tempdir().unwrap();
     let store = ProfileStore::with_base_path(temp_dir.path().join("profiles"));
     let source_profile = sample_profile();

@@ -268,12 +268,10 @@ impl ProfileStore {
     }
 
     pub fn rename(&self, old_name: &str, new_name: &str) -> Result<(), ProfileStoreError> {
-        let old_name = old_name.trim();
-        let new_name = new_name.trim();
-        validate_name(old_name)?;
-        validate_name(new_name)?;
-        let old_path = self.profile_path(old_name)?;
-        let new_path = self.profile_path(new_name)?;
+        let old_name = validate_name(old_name)?;
+        let new_name = validate_name(new_name)?;
+        let old_path = self.profile_path(&old_name)?;
+        let new_path = self.profile_path(&new_name)?;
         if !old_path.exists() {
             return Err(ProfileStoreError::NotFound(old_path));
         }
@@ -285,9 +283,9 @@ impl ProfileStore {
         }
         fs::rename(&old_path, &new_path)?;
 
-        let old_mangohud = mangohud::mangohud_conf_path(&self.base_path, old_name);
+        let old_mangohud = mangohud::mangohud_conf_path(&self.base_path, &old_name);
         if old_mangohud.exists() {
-            let new_mangohud = mangohud::mangohud_conf_path(&self.base_path, new_name);
+            let new_mangohud = mangohud::mangohud_conf_path(&self.base_path, &new_name);
             if let Err(err) = fs::rename(&old_mangohud, &new_mangohud) {
                 tracing::warn!(
                     old_profile = old_name,
@@ -322,13 +320,13 @@ impl ProfileStore {
             .and_then(|value| value.to_str())
             .ok_or_else(|| ProfileStoreError::InvalidName(legacy_path.display().to_string()))?;
 
-        validate_name(profile_name)?;
+        let profile_name = validate_name(profile_name)?;
         let legacy_profile = legacy::load(
             legacy_path.parent().unwrap_or_else(|| Path::new("")),
-            profile_name,
+            &profile_name,
         )?;
         let profile = GameProfile::from(legacy_profile);
-        self.save(profile_name, &profile)?;
+        self.save(&profile_name, &profile)?;
         Ok(profile)
     }
 
@@ -353,10 +351,10 @@ impl ProfileStore {
         &self,
         source_name: &str,
     ) -> Result<DuplicateProfileResult, ProfileStoreError> {
-        validate_name(source_name)?;
-        let profile = self.load(source_name)?;
+        let source_name = validate_name(source_name)?;
+        let profile = self.load(&source_name)?;
         let existing_names = self.list()?;
-        let new_name = Self::generate_unique_copy_name(source_name, &existing_names)?;
+        let new_name = Self::generate_unique_copy_name(&source_name, &existing_names)?;
         self.save(&new_name, &profile)?;
         Ok(DuplicateProfileResult {
             name: new_name,
@@ -389,15 +387,13 @@ impl ProfileStore {
         };
         let candidate = format!("{base} (Copy)");
         if !existing_names.iter().any(|n| n == &candidate) {
-            validate_name(&candidate)?;
-            return Ok(candidate);
+            return validate_name(&candidate);
         }
 
         for i in 2..=1000 {
             let candidate = format!("{base} (Copy {i})");
             if !existing_names.iter().any(|n| n == &candidate) {
-                validate_name(&candidate)?;
-                return Ok(candidate);
+                return validate_name(&candidate);
             }
         }
 
@@ -407,8 +403,8 @@ impl ProfileStore {
     }
 
     pub(crate) fn profile_path(&self, name: &str) -> Result<PathBuf, ProfileStoreError> {
-        validate_name(name)?;
-        Ok(self.base_path.join(format!("{name}.toml")))
+        let validated_name = validate_name(name)?;
+        Ok(self.base_path.join(format!("{validated_name}.toml")))
     }
 
     /// Returns whether a profile TOML already exists for `name`.
