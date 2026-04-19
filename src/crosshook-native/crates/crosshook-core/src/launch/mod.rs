@@ -11,6 +11,7 @@ pub mod preview;
 pub mod request;
 pub mod runtime_helpers;
 pub mod script_runner;
+pub mod trainer_paths;
 #[cfg(test)]
 pub(crate) mod test_support;
 pub mod trainer_hash;

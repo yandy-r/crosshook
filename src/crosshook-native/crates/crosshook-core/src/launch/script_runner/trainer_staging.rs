@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::launch::runtime_helpers::resolve_wine_prefix_path;
+use crate::launch::trainer_paths::build_staged_trainer_path;
 
 const STAGED_TRAINER_ROOT: &str = "CrossHook/StagedTrainers";
 const SUPPORT_DIRECTORIES: [&str; 9] = [
@@ -47,11 +48,8 @@ pub(super) fn stage_trainer_into_prefix(
     fs::copy(trainer_host_path, &staged_host_path)?;
     stage_trainer_support_files(trainer_source_dir, &staged_directory, trainer_file_name)?;
 
-    Ok(format!(
-        "C:\\CrossHook\\StagedTrainers\\{}\\{}",
-        trainer_base_name.to_string_lossy(),
-        trainer_file_name.to_string_lossy()
-    ))
+    build_staged_trainer_path(&trainer_host_path.to_string_lossy())
+        .ok_or_else(|| io_error("trainer host path cannot be staged"))
 }
 
 fn stage_trainer_support_files(
