@@ -55,6 +55,21 @@ export function LoggingAndUiSection({ settings, onPersistSettings }: LoggingAndU
           </p>
         </span>
       </label>
+      <label className="crosshook-settings-checkbox-row">
+        <input
+          type="checkbox"
+          checked={settings.high_contrast}
+          onChange={(event) => void onPersistSettings({ high_contrast: event.target.checked })}
+          className="crosshook-settings-checkbox"
+        />
+        <span>
+          <span className="crosshook-label">Enable high-contrast theme</span>
+          <p className="crosshook-muted crosshook-settings-note">
+            Increases foreground/background contrast, focus rings, and outlines for better visibility and screen reader
+            cues.
+          </p>
+        </span>
+      </label>
       <div className="crosshook-settings-field-row">
         <label className="crosshook-label" htmlFor="recent-files-limit">
           Recent files limit (per list)

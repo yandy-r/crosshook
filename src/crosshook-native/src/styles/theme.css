@@ -28,6 +28,27 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root[data-crosshook-theme='high-contrast'] {
+  background: var(--crosshook-color-bg);
+  color: var(--crosshook-color-text);
+}
+
+:root[data-crosshook-theme='high-contrast'] html {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.06), transparent 30%), var(--crosshook-color-bg);
+}
+
+:root[data-crosshook-theme='high-contrast'] .crosshook-app {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.06), transparent 22%),
+    linear-gradient(135deg, rgba(250, 204, 21, 0.1), transparent 35%),
+    var(--crosshook-color-bg);
+  color: var(--crosshook-color-text);
+}
+
+:root[data-crosshook-theme='high-contrast'] a {
+  color: var(--crosshook-color-accent-strong);
+}
+
 *,
 *::before,
 *::after {

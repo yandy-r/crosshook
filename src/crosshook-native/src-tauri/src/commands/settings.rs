@@ -29,6 +29,7 @@ pub struct AppSettingsIpcData {
     pub community_taps: Vec<CommunityTapSubscription>,
     pub onboarding_completed: bool,
     pub offline_mode: bool,
+    pub high_contrast: bool,
     pub has_steamgriddb_api_key: bool,
     pub default_proton_path: String,
     pub default_launch_method: String,
@@ -77,6 +78,7 @@ impl AppSettingsIpcData {
             community_taps: data.community_taps,
             onboarding_completed: data.onboarding_completed,
             offline_mode: data.offline_mode,
+            high_contrast: data.high_contrast,
             has_steamgriddb_api_key: data
                 .steamgriddb_api_key
                 .as_deref()
@@ -132,6 +134,7 @@ pub struct SettingsSaveRequest {
     pub community_taps: Vec<CommunityTapSubscription>,
     pub onboarding_completed: bool,
     pub offline_mode: bool,
+    pub high_contrast: bool,
     pub default_proton_path: String,
     pub default_launch_method: String,
     pub default_bundled_optimization_preset_id: String,
@@ -144,6 +147,8 @@ pub struct SettingsSaveRequest {
     pub auto_install_prefix_deps: bool,
     pub discovery_enabled: bool,
     pub external_trainer_sources: Option<Vec<ExternalTrainerSourceSubscription>>,
+    #[serde(default)]
+    pub high_contrast: Option<bool>,
     #[serde(default)]
     pub protonup_auto_suggest: Option<bool>,
     #[serde(default)]
@@ -200,6 +205,7 @@ fn merge_settings_from_request(
         external_trainer_sources: data
             .external_trainer_sources
             .unwrap_or(current.external_trainer_sources),
+        high_contrast: data.high_contrast.unwrap_or(current.high_contrast),
         protonup_auto_suggest: data
             .protonup_auto_suggest
             .unwrap_or(current.protonup_auto_suggest),
@@ -363,6 +369,7 @@ mod tests {
             protonup_default_provider: None,
             protonup_default_install_root: None,
             protonup_include_prereleases: None,
+            high_contrast: None,
         }
     }
 
@@ -370,6 +377,7 @@ mod tests {
     fn merge_preserves_install_nag_dismissed_at_when_omitted() {
         let current = AppSettingsData {
             install_nag_dismissed_at: Some("2026-04-15T12:00:00Z".to_string()),
+            high_contrast: true,
             ..Default::default()
         };
         let request = make_save_request();
@@ -378,6 +386,25 @@ mod tests {
             merged.install_nag_dismissed_at,
             Some("2026-04-15T12:00:00Z".to_string()),
             "absent field must preserve existing timestamp"
+        );
+        assert!(
+            merged.high_contrast,
+            "absent field must preserve high_contrast preference"
+        );
+    }
+
+    #[test]
+    fn merge_sets_high_contrast_when_provided() {
+        let current = AppSettingsData {
+            high_contrast: false,
+            ..Default::default()
+        };
+        let mut request = make_save_request();
+        request.high_contrast = Some(true);
+        let merged = merge_settings_from_request(request, current);
+        assert!(
+            merged.high_contrast,
+            "explicit true must set high_contrast to enabled in merged settings"
         );
     }
 
@@ -448,6 +475,7 @@ mod tests {
         let timestamp = "2026-04-15T10:00:00Z".to_string();
         let data = AppSettingsData {
             install_nag_dismissed_at: Some(timestamp.clone()),
+            high_contrast: true,
             ..Default::default()
         };
         let resolved = PathBuf::from("/tmp/profiles");
@@ -461,6 +489,10 @@ mod tests {
         assert!(
             json.contains(&timestamp),
             "serialized IPC DTO must contain the timestamp value"
+        );
+        assert!(
+            json.contains("high_contrast"),
+            "serialized IPC DTO must include the high_contrast key"
         );
     }
 

@@ -18,6 +18,8 @@ export interface SettingsSaveRequest {
   community_taps: CommunityTapSubscription[];
   onboarding_completed: boolean;
   offline_mode: boolean;
+  /** High-contrast UI toggle for accessibility. */
+  high_contrast?: boolean;
   default_proton_path: string;
   default_launch_method: string;
   default_bundled_optimization_preset_id: string;
@@ -59,6 +61,8 @@ export interface AppSettingsData extends SettingsSaveRequest {
   resolved_profiles_directory: string;
   active_profiles_directory: string;
   profiles_directory_requires_restart: boolean;
+  /** High-contrast UI toggle for accessibility. */
+  high_contrast: boolean;
 }
 
 export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
@@ -68,6 +72,7 @@ export function toSettingsSaveRequest(s: AppSettingsData): SettingsSaveRequest {
     community_taps: s.community_taps,
     onboarding_completed: s.onboarding_completed,
     offline_mode: s.offline_mode,
+    high_contrast: s.high_contrast,
     default_proton_path: s.default_proton_path,
     default_launch_method: s.default_launch_method,
     default_bundled_optimization_preset_id: s.default_bundled_optimization_preset_id,
@@ -108,6 +113,7 @@ export const DEFAULT_APP_SETTINGS: AppSettingsData = {
   community_taps: [],
   onboarding_completed: false,
   offline_mode: false,
+  high_contrast: false,
   has_steamgriddb_api_key: false,
   default_proton_path: '',
   default_launch_method: '',

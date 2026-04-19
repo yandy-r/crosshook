@@ -180,6 +180,9 @@ pub struct AppSettingsData {
     pub community_taps: Vec<CommunityTapSubscription>,
     pub onboarding_completed: bool,
     pub offline_mode: bool,
+    /// High-contrast UI toggle for accessibility. Defaults to false.
+    #[serde(default)]
+    pub high_contrast: bool,
     pub steamgriddb_api_key: Option<String>,
     /// Default Proton path applied to new profiles when `runtime.proton_path` is empty.
     pub default_proton_path: String,
@@ -258,6 +261,7 @@ impl Default for AppSettingsData {
             community_taps: Vec::new(),
             onboarding_completed: false,
             offline_mode: false,
+            high_contrast: false,
             steamgriddb_api_key: None,
             default_proton_path: String::new(),
             default_launch_method: String::new(),
@@ -293,6 +297,7 @@ impl fmt::Debug for AppSettingsData {
             .field("community_taps", &self.community_taps)
             .field("onboarding_completed", &self.onboarding_completed)
             .field("offline_mode", &self.offline_mode)
+            .field("high_contrast", &self.high_contrast)
             .field(
                 "steamgriddb_api_key",
                 &self
@@ -562,6 +567,25 @@ mod tests {
 
         let settings = store.load().unwrap();
         assert!(!settings.offline_mode);
+    }
+
+    #[test]
+    fn high_contrast_defaults_false_when_absent() {
+        let temp_dir = tempdir().unwrap();
+        let store = SettingsStore::with_base_path(temp_dir.path().join("config").join("crosshook"));
+
+        fs::create_dir_all(&store.base_path).unwrap();
+        fs::write(
+            store.settings_path(),
+            "auto_load_last_profile = false\nlast_used_profile = \"\"\n",
+        )
+        .unwrap();
+
+        let settings = store.load().unwrap();
+        assert!(
+            !settings.high_contrast,
+            "high_contrast should default to false when not present in settings.toml"
+        );
     }
 
     #[test]
