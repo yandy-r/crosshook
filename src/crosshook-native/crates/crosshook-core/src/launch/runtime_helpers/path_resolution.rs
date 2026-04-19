@@ -5,7 +5,9 @@ use std::process::Stdio;
 
 use tokio::process::Command;
 
-use crate::platform::normalize_flatpak_host_path;
+use crate::platform::{
+    normalize_flatpak_host_path, normalized_path_is_dir_on_host, normalized_path_is_file_on_host,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedProtonPaths {
@@ -141,8 +143,7 @@ fn validated_steam_client_install_path(raw_path: &str) -> Option<String> {
         return None;
     }
 
-    let candidate = Path::new(trimmed);
-    if is_steam_client_install_root(candidate) {
+    if is_steam_client_install_root_str(trimmed) {
         Some(trimmed.to_string())
     } else {
         None
@@ -150,8 +151,19 @@ fn validated_steam_client_install_path(raw_path: &str) -> Option<String> {
 }
 
 fn is_steam_client_install_root(path: &Path) -> bool {
-    path.join("steamapps").is_dir()
-        && (path.join("config").is_dir()
-            || path.join("steam.sh").is_file()
-            || path.join("ubuntu12_32").is_dir())
+    is_steam_client_install_root_str(&path.to_string_lossy())
+}
+
+/// Checks if the given path is a valid Steam client install root using host-aware filesystem probes.
+/// This works correctly in both native and Flatpak environments.
+fn is_steam_client_install_root_str(path: &str) -> bool {
+    let steamapps_path = format!("{path}/steamapps");
+    let config_path = format!("{path}/config");
+    let steam_sh_path = format!("{path}/steam.sh");
+    let ubuntu12_32_path = format!("{path}/ubuntu12_32");
+
+    normalized_path_is_dir_on_host(&steamapps_path)
+        && (normalized_path_is_dir_on_host(&config_path)
+            || normalized_path_is_file_on_host(&steam_sh_path)
+            || normalized_path_is_dir_on_host(&ubuntu12_32_path))
 }
