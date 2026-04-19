@@ -7,6 +7,34 @@ use crate::launch::request::{LaunchRequest, METHOD_PROTON_RUN};
 // Serialize all tests that mutate process-global env vars (HOME, XDG_DATA_HOME, XDG_DATA_DIRS).
 static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+struct EnvGuard {
+    saved: Vec<(&'static str, Option<std::ffi::OsString>)>,
+}
+
+impl EnvGuard {
+    fn set(vars: &[(&'static str, &std::ffi::OsStr)]) -> Self {
+        let saved = vars
+            .iter()
+            .map(|(k, _)| (*k, std::env::var_os(k)))
+            .collect();
+        for (k, v) in vars {
+            std::env::set_var(k, v);
+        }
+        Self { saved }
+    }
+}
+
+impl Drop for EnvGuard {
+    fn drop(&mut self) {
+        for (k, v) in self.saved.drain(..) {
+            match v {
+                Some(val) => std::env::set_var(k, val),
+                None => std::env::remove_var(k),
+            }
+        }
+    }
+}
+
 // Minimal fixture CSV — Ghost of Tsushima (546590) present; Witcher 3 (292030) absent.
 const FIXTURE_CSV: &str = "\
 TITLE,STORE,CODENAME,UMU_ID,COMMON ACRONYM (Optional),NOTE (Optional),EXE_STRINGS (Optional)
@@ -23,9 +51,11 @@ fn preview_reports_csv_coverage_found_when_app_id_matches() {
     let csv_dir = xdg_data_home.join("crosshook");
     std::fs::create_dir_all(&csv_dir).unwrap();
     std::fs::write(csv_dir.join("umu-database.csv"), FIXTURE_CSV).unwrap();
-    std::env::set_var("HOME", tmp.path());
-    std::env::set_var("XDG_DATA_HOME", &xdg_data_home);
-    std::env::set_var("XDG_DATA_DIRS", "");
+    let _guard = EnvGuard::set(&[
+        ("HOME", tmp.path().as_os_str()),
+        ("XDG_DATA_HOME", xdg_data_home.as_os_str()),
+        ("XDG_DATA_DIRS", std::ffi::OsStr::new("")),
+    ]);
     crate::umu_database::coverage::clear_cache_for_test();
 
     let (_td, mut request) = proton_request();
@@ -48,9 +78,11 @@ fn preview_reports_csv_coverage_missing_when_app_id_absent() {
     let csv_dir = xdg_data_home.join("crosshook");
     std::fs::create_dir_all(&csv_dir).unwrap();
     std::fs::write(csv_dir.join("umu-database.csv"), FIXTURE_CSV).unwrap();
-    std::env::set_var("HOME", tmp.path());
-    std::env::set_var("XDG_DATA_HOME", &xdg_data_home);
-    std::env::set_var("XDG_DATA_DIRS", "");
+    let _guard = EnvGuard::set(&[
+        ("HOME", tmp.path().as_os_str()),
+        ("XDG_DATA_HOME", xdg_data_home.as_os_str()),
+        ("XDG_DATA_DIRS", std::ffi::OsStr::new("")),
+    ]);
     crate::umu_database::coverage::clear_cache_for_test();
 
     let (_td, mut request) = proton_request();
@@ -84,9 +116,12 @@ fn preview_reports_csv_coverage_unknown_when_no_csv_source() {
     let _env = ENV_LOCK.lock().unwrap();
     let tmp = tempfile::tempdir().unwrap();
     // Point HOME and XDG_DATA_HOME at an empty tempdir — no CSV anywhere reachable.
-    std::env::set_var("HOME", tmp.path());
-    std::env::set_var("XDG_DATA_HOME", tmp.path().join("local_share"));
-    std::env::set_var("XDG_DATA_DIRS", "");
+    let xdg_data_home = tmp.path().join("local_share");
+    let _guard = EnvGuard::set(&[
+        ("HOME", tmp.path().as_os_str()),
+        ("XDG_DATA_HOME", xdg_data_home.as_os_str()),
+        ("XDG_DATA_DIRS", std::ffi::OsStr::new("")),
+    ]);
     crate::umu_database::coverage::clear_cache_for_test();
 
     let (_td, mut request) = proton_request();
