@@ -44,6 +44,7 @@ export interface UseFocusTrapReturn {
 /** Depth of open `useFocusTrap` instances that locked the body. */
 let modalBodyLockDepth = 0;
 let savedBodyOverflow = '';
+const modalPanelStack: HTMLElement[] = [];
 
 interface InertRegistryEntry {
   count: number;
@@ -79,6 +80,25 @@ function unregisterInertElement(element: HTMLElement): void {
     element.setAttribute('aria-hidden', entry.ariaHidden);
   }
   modalInertRegistry.delete(element);
+}
+
+function registerModalPanel(panel: HTMLElement): void {
+  const existingIndex = modalPanelStack.indexOf(panel);
+  if (existingIndex !== -1) {
+    modalPanelStack.splice(existingIndex, 1);
+  }
+  modalPanelStack.push(panel);
+}
+
+function unregisterModalPanel(panel: HTMLElement): void {
+  const existingIndex = modalPanelStack.lastIndexOf(panel);
+  if (existingIndex !== -1) {
+    modalPanelStack.splice(existingIndex, 1);
+  }
+}
+
+function isTopmostModalPanel(panel: HTMLElement): boolean {
+  return modalPanelStack[modalPanelStack.length - 1] === panel;
 }
 
 // ---------------------------------------------------------------------------
@@ -165,7 +185,9 @@ export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFo
     const panel = panelRef.current;
     // Find the portal host — walk up from panel to find the direct child of body
     const portalHost = panel ? findPortalHost(panel) : null;
-    if (!portalHost) return;
+    if (!panel || !portalHost) return;
+
+    registerModalPanel(panel);
 
     // Save current focus
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -195,9 +217,27 @@ export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFo
       }
     });
 
+    const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      const currentPanel = panelRef.current;
+      if (!currentPanel || !isTopmostModalPanel(currentPanel)) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      onClose();
+    };
+
+    document.addEventListener('keydown', handleDocumentKeyDown, true);
+
     return () => {
       microtaskSuppressRef.current = true;
       window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleDocumentKeyDown, true);
+      unregisterModalPanel(panel);
       for (const el of touchedInertRef.current) {
         unregisterInertElement(el);
       }
@@ -228,7 +268,7 @@ export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFo
         }
       });
     };
-  }, [open, panelRef, initialFocusRef]);
+  }, [open, panelRef, initialFocusRef, onClose]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape') {
