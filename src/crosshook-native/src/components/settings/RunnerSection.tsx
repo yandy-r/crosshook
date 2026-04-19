@@ -2,6 +2,7 @@ import { useUmuDatabaseRefresh } from '../../hooks/useUmuDatabaseRefresh';
 import type { AppSettingsData, UmuPreference } from '../../types';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
+import { formatTimestamp } from './format';
 
 interface RunnerSectionProps {
   settings: AppSettingsData;
@@ -51,7 +52,7 @@ export function RunnerSection({ settings, onPersistSettings }: RunnerSectionProp
           </button>
           <div className="crosshook-muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
             {lastRefreshStatus?.cached_at
-              ? `Last refreshed: ${new Date(lastRefreshStatus.cached_at).toLocaleString()}`
+              ? `Last refreshed: ${formatTimestamp(lastRefreshStatus.cached_at)}`
               : lastRefreshStatus
                 ? `Status: ${lastRefreshStatus.reason}`
                 : 'Not refreshed this session'}
