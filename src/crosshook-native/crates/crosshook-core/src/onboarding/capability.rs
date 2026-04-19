@@ -19,10 +19,7 @@ use crate::profile::health::HealthIssueSeverity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(TS))]
-#[cfg_attr(
-    feature = "ts-rs",
-    ts(export, export_to = "generated/onboarding.ts")
-)]
+#[cfg_attr(feature = "ts-rs", ts(export, export_to = "generated/onboarding.ts"))]
 #[serde(rename_all = "snake_case")]
 pub enum CapabilityState {
     Available,
@@ -32,10 +29,7 @@ pub enum CapabilityState {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(TS))]
-#[cfg_attr(
-    feature = "ts-rs",
-    ts(export, export_to = "generated/onboarding.ts")
-)]
+#[cfg_attr(feature = "ts-rs", ts(export, export_to = "generated/onboarding.ts"))]
 pub struct Capability {
     pub id: String,
     pub label: String,

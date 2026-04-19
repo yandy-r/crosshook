@@ -3,9 +3,15 @@
 /**
  * A single path-field issue found during health check.
  */
-export type HealthIssue = { field: string, path: string, message: string, remediation: string, severity: HealthIssueSeverity, };
+export type HealthIssue = {
+  field: string;
+  path: string;
+  message: string;
+  remediation: string;
+  severity: HealthIssueSeverity;
+};
 
 /**
  * Per-issue severity — distinct from `ValidationSeverity` which always returns Fatal.
  */
-export type HealthIssueSeverity = "error" | "warning" | "info";
+export type HealthIssueSeverity = 'error' | 'warning' | 'info';

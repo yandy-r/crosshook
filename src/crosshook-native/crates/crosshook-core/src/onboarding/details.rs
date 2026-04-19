@@ -31,10 +31,7 @@ const GENERIC_VERSION_ARG_CANDIDATES: &[&[&str]] = &[&["--version"], &["-V"], &[
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts-rs", derive(TS))]
-#[cfg_attr(
-    feature = "ts-rs",
-    ts(export, export_to = "generated/onboarding.ts")
-)]
+#[cfg_attr(feature = "ts-rs", ts(export, export_to = "generated/onboarding.ts"))]
 pub struct HostToolDetails {
     pub tool_id: String,
     #[serde(default)]
