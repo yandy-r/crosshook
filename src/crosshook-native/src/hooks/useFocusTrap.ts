@@ -170,11 +170,16 @@ function findPortalHost(el: HTMLElement): HTMLElement | null {
  * ```
  */
 export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFocusTrapOptions): UseFocusTrapReturn {
+  const onCloseRef = useRef(onClose);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   /** Elements this instance registered with {@link modalInertRegistry}. */
   const touchedInertRef = useRef<HTMLElement[]>([]);
   /** Suppresses the deferred focus-restore microtask after cleanup runs. */
   const microtaskSuppressRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
@@ -226,9 +231,10 @@ export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFo
         return;
       }
       event.preventDefault();
+      // Stop capture-phase handlers from other modals; this trap owns Escape.
       event.stopPropagation();
       event.stopImmediatePropagation();
-      onClose();
+      onCloseRef.current?.();
     };
 
     document.addEventListener('keydown', handleDocumentKeyDown, true);
@@ -268,7 +274,7 @@ export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFo
         }
       });
     };
-  }, [open, panelRef, initialFocusRef, onClose]);
+  }, [open, panelRef, initialFocusRef]);
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === 'Escape') {
