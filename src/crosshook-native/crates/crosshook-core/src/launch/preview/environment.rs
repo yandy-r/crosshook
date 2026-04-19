@@ -211,6 +211,21 @@ pub(super) fn inject_mangohud_config_preview_env(
     gamescope_active: bool,
     wrappers_had_mangohud: bool,
 ) {
+    fn ensure_mangohud_read_cfg(
+        env: &mut Vec<PreviewEnvVar>,
+        gamescope_active: bool,
+        wrappers_had_mangohud: bool,
+    ) {
+        if gamescope_active && wrappers_had_mangohud {
+            insert_preview_env_if_absent(
+                env,
+                "MANGOHUD_CONFIG",
+                "read_cfg",
+                EnvVarSource::ProfileCustom,
+            );
+        }
+    }
+
     if !request.mangohud.enabled {
         return;
     }
@@ -223,14 +238,7 @@ pub(super) fn inject_mangohud_config_preview_env(
             Some(n) => n,
             None => {
                 // Still fall through to set read_cfg below if gamescope is active.
-                if gamescope_active && wrappers_had_mangohud {
-                    insert_preview_env_if_absent(
-                        env,
-                        "MANGOHUD_CONFIG",
-                        "read_cfg",
-                        EnvVarSource::ProfileCustom,
-                    );
-                }
+                ensure_mangohud_read_cfg(env, gamescope_active, wrappers_had_mangohud);
                 return;
             }
         };
@@ -238,14 +246,7 @@ pub(super) fn inject_mangohud_config_preview_env(
         let base_path = match BaseDirs::new() {
             Some(dirs) => dirs.config_dir().join("crosshook").join("profiles"),
             None => {
-                if gamescope_active && wrappers_had_mangohud {
-                    insert_preview_env_if_absent(
-                        env,
-                        "MANGOHUD_CONFIG",
-                        "read_cfg",
-                        EnvVarSource::ProfileCustom,
-                    );
-                }
+                ensure_mangohud_read_cfg(env, gamescope_active, wrappers_had_mangohud);
                 return;
             }
         };
@@ -262,12 +263,5 @@ pub(super) fn inject_mangohud_config_preview_env(
     }
 
     // Always set read_cfg for gamescope compatibility, regardless of who supplied MANGOHUD_CONFIGFILE.
-    if gamescope_active && wrappers_had_mangohud {
-        insert_preview_env_if_absent(
-            env,
-            "MANGOHUD_CONFIG",
-            "read_cfg",
-            EnvVarSource::ProfileCustom,
-        );
-    }
+    ensure_mangohud_read_cfg(env, gamescope_active, wrappers_had_mangohud);
 }
