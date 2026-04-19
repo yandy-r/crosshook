@@ -35,11 +35,6 @@ fn preview_validation_passes_for_valid_request() {
     let preview = build_launch_preview(&request).expect("preview");
     assert!(
         preview.validation.issues.is_empty(),
-        "expected validation to pass, issues: {:?}",
-        preview.validation.issues
-    );
-    assert!(
-        preview.validation.issues.is_empty(),
         "expected no issues, got: {:?}",
         preview.validation.issues
     );

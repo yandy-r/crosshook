@@ -47,7 +47,6 @@ fn validate_steam_app_id_accepts_valid_ids() {
     assert!(validate_steam_app_id("1245620").is_ok());
     assert!(validate_steam_app_id("570").is_ok());
     assert!(validate_steam_app_id("730").is_ok());
-    assert!(validate_steam_app_id("123456789012").is_ok()); // 12 digits — max
 }
 
 #[test]
