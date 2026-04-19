@@ -8,6 +8,13 @@ Normative guidelines for AI agents in this repository. For stack overview, direc
 2. This file and repo policy in `AGENTS.md` / `.cursorrules`.
 3. General best practices when nothing above conflicts.
 
+## Worktrees
+
+When working in worktrees, for ceratin scripts to succeed such as `./scripts/lint.sh`, `./scripts/format.sh` the following commands are required.
+
+- **In worktree root**: `npm install -D --no-save typescript@{current-project-version} biome`
+- `cd src/crosshook-native && npm ci`
+
 ## MUST / MUST NOT
 
 - **Platform**: CrossHook is a **native Linux** desktop app (Tauri v2, AppImage). It does **not** run under Wine/Proton; it **orchestrates** launching Windows games via Proton/Wine.
