@@ -52,8 +52,7 @@ beforeEach(() => configureMockHandlers());
 it('stores readiness results after runChecks resolves', async () => {
   configureMockHandlers({
     handlerOverrides: {
-      check_generalized_readiness: async () =>
-        makeReadinessResult({ all_passed: true, critical_failures: 0 }),
+      check_generalized_readiness: async () => makeReadinessResult({ all_passed: true, critical_failures: 0 }),
     },
   });
 
