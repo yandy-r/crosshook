@@ -23,7 +23,7 @@ pub(crate) fn is_executable_file_sync(path: &Path) -> bool {
 }
 
 /// Returns true if `path` may be probed on the host for system Steam compat-tool directories.
-/// Only absolute paths under `/usr` or `/usr/local` (no `..`) are allowed.
+/// Only absolute paths under `/usr` (no `..`) are allowed.
 pub fn is_allowed_host_system_compat_listing_path(path: &Path) -> bool {
     if !path.is_absolute() {
         return false;
@@ -35,8 +35,7 @@ pub fn is_allowed_host_system_compat_listing_path(path: &Path) -> bool {
         return false;
     }
     let root = Path::new("/usr");
-    let local = Path::new("/usr/local");
-    path.starts_with(root) || path.starts_with(local)
+    path.starts_with(root)
 }
 
 /// Returns whether `path` exists as a directory on the host when in Flatpak.
@@ -150,6 +149,9 @@ pub fn host_path_is_executable_file(path: &Path) -> bool {
     cmd.status().map(|s| s.success()).unwrap_or(false)
 }
 
+/// Normalizes `path` for Flatpak and checks for a regular file, using host
+/// probes only for allowlisted system paths and otherwise relying on the
+/// container-visible view (which still includes `/run/host` when present).
 pub fn normalized_path_is_file(path: &str) -> bool {
     let normalized = normalize_flatpak_host_path(path);
     let trimmed = normalized.trim();
@@ -227,7 +229,10 @@ pub fn normalized_path_exists_on_host(path: &str) -> bool {
     normalized_path_host_test(path, "-e")
 }
 
-/// Returns whether `path` is a regular file on the host-visible filesystem after Flatpak normalization.
+/// Normalizes `path` for Flatpak and unconditionally probes the host-visible
+/// filesystem for a regular file (via `test -f`), requiring an absolute path
+/// when inside Flatpak. Use this when the caller specifically needs a host
+/// check even if the system path allowlist would block local probing.
 pub fn normalized_path_is_file_on_host(path: &str) -> bool {
     normalized_path_host_test(path, "-f")
 }
