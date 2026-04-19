@@ -1,4 +1,5 @@
 const TRAINER_SUFFIX: &str = " - Trainer";
+const FALLBACK_SLUG: &str = "crosshook-trainer";
 
 pub(crate) fn resolve_display_name(
     preferred_name: &str,
@@ -22,7 +23,7 @@ pub(crate) fn resolve_display_name(
     if !steam_app_id.trim().is_empty() {
         format!("steam-{steam_app_id}-trainer")
     } else {
-        "crosshook-trainer".to_string()
+        FALLBACK_SLUG.to_string()
     }
 }
 
@@ -37,7 +38,7 @@ pub(crate) fn strip_trainer_suffix(value: &str) -> String {
 
 pub fn sanitize_launcher_slug(value: &str) -> String {
     if value.trim().is_empty() {
-        return "crosshook-trainer".to_string();
+        return FALLBACK_SLUG.to_string();
     }
 
     let mut slug = String::with_capacity(value.len());
@@ -60,7 +61,7 @@ pub fn sanitize_launcher_slug(value: &str) -> String {
 
     let slug = slug.trim_matches('-').to_string();
     if slug.is_empty() {
-        "crosshook-trainer".to_string()
+        FALLBACK_SLUG.to_string()
     } else {
         slug
     }
