@@ -1,13 +1,11 @@
 //! Tests for community profile index operations.
 
 use super::constants::*;
+use super::db;
 use super::helpers::check_a6_bounds;
 use super::trainer_sources::index_trainer_sources;
-use super::db;
 use crate::community::index::CommunityProfileIndexEntry;
-use crate::community::{
-    CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating,
-};
+use crate::community::{CommunityProfileManifest, CommunityProfileMetadata, CompatibilityRating};
 use crate::discovery::models::{TrainerSourceEntry, TrainerSourcesManifest};
 use crate::metadata::migrations;
 use crate::profile::GameProfile;
@@ -55,11 +53,7 @@ fn make_manifest(game_name: &str, source_url: &str) -> TrainerSourcesManifest {
     }
 }
 
-fn make_trainer_source_entry(
-    name: &str,
-    url: &str,
-    notes: Option<String>,
-) -> TrainerSourceEntry {
+fn make_trainer_source_entry(name: &str, url: &str, notes: Option<String>) -> TrainerSourceEntry {
     TrainerSourceEntry {
         source_name: name.to_string(),
         source_url: url.to_string(),
@@ -70,10 +64,7 @@ fn make_trainer_source_entry(
     }
 }
 
-fn make_manifest_with_entry(
-    game_name: &str,
-    entry: TrainerSourceEntry,
-) -> TrainerSourcesManifest {
+fn make_manifest_with_entry(game_name: &str, entry: TrainerSourceEntry) -> TrainerSourcesManifest {
     TrainerSourcesManifest {
         schema_version: 1,
         game_name: game_name.to_string(),
@@ -243,8 +234,7 @@ fn index_trainer_sources_enforces_a6_bounds_on_game_name() {
     let tap_id = insert_test_tap(&conn);
 
     let oversized_game_name = "a".repeat(MAX_GAME_NAME_BYTES + 1);
-    let entry =
-        make_trainer_source_entry("Valid Source", "https://example.com/trainer.exe", None);
+    let entry = make_trainer_source_entry("Valid Source", "https://example.com/trainer.exe", None);
     let manifest = make_manifest_with_entry(&oversized_game_name, entry);
     let sources = vec![("sources/some-game".to_string(), manifest)];
 
@@ -260,8 +250,7 @@ fn index_trainer_sources_enforces_a6_bounds_on_source_name() {
     let tap_id = insert_test_tap(&conn);
 
     let oversized_name = "a".repeat(MAX_SOURCE_NAME_BYTES + 1);
-    let entry =
-        make_trainer_source_entry(&oversized_name, "https://example.com/trainer.exe", None);
+    let entry = make_trainer_source_entry(&oversized_name, "https://example.com/trainer.exe", None);
     let manifest = make_manifest_with_entry("Some Game", entry);
     let sources = vec![("sources/some-game".to_string(), manifest)];
 

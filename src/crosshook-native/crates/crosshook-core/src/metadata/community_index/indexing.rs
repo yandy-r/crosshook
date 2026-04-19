@@ -42,7 +42,11 @@ pub fn index_community_tap_result_with_trainers(
         })?;
 
     if let Some(tap_id) = tap_id {
-        super::trainer_sources::index_trainer_sources(conn, &tap_id, &result.index.trainer_sources)?;
+        super::trainer_sources::index_trainer_sources(
+            conn,
+            &tap_id,
+            &result.index.trainer_sources,
+        )?;
     }
 
     Ok(())
