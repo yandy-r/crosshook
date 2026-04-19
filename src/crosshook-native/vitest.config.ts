@@ -22,15 +22,32 @@ export default defineConfig({
     exclude: ['tests/**', 'src-tauri/**', 'dist/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
-      include: ['src/**/*.{ts,tsx}'],
+      reporter: ['text', 'html', 'json-summary'],
+      // PRD Phase 4: Critical surfaces only
+      include: [
+        'src/hooks/**/*.{ts,tsx}',
+        'src/lib/ipc.ts',
+        'src/lib/events.ts',
+        'src/lib/runtime.ts',
+        'src/components/pages/*.tsx',
+      ],
       exclude: [
         'src/**/*.test.{ts,tsx}',
         'src/**/*.spec.{ts,tsx}',
         'src/test/**',
         'src/lib/mocks/**',
-        'src/types/**',
+        // Deferred per PRD §4.6 (Phase 4 note)
+        'src/hooks/useProfile.ts',
+        // Hook utilities/subdirectories
+        'src/hooks/install/**',
+        'src/hooks/profile/**',
       ],
+      thresholds: {
+        lines: 60,
+        functions: 60,
+        branches: 60,
+        statements: 60,
+      },
     },
   },
 });
