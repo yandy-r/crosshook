@@ -269,7 +269,7 @@ path = "/t/y.exe"
 type = "fling"
 [launch]
 "#;
-    let toml = toml.to_string() + &format!(r#"method = "{}""#, METHOD_PROTON_RUN);
+    let toml = toml.to_string() + &format!(r#"method = "{METHOD_PROTON_RUN}""#);
     let p: GameProfile = toml::from_str(&toml).expect("deserialize");
     assert!(p.launch.network_isolation);
 }
