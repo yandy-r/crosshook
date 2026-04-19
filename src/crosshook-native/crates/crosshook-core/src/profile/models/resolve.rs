@@ -1,22 +1,27 @@
+use crate::launch::request::{METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH};
+
 use super::legacy::looks_like_windows_executable;
 use super::profile::GameProfile;
 
 pub fn resolve_launch_method(profile: &GameProfile) -> &str {
     let method = profile.launch.method.trim();
 
-    if matches!(method, "steam_applaunch" | "proton_run" | "native") {
+    if matches!(
+        method,
+        METHOD_STEAM_APPLAUNCH | METHOD_PROTON_RUN | METHOD_NATIVE
+    ) {
         return method;
     }
 
     if profile.steam.enabled {
-        return "steam_applaunch";
+        return METHOD_STEAM_APPLAUNCH;
     }
 
     if looks_like_windows_executable(&profile.game.executable_path) {
-        return "proton_run";
+        return METHOD_PROTON_RUN;
     }
 
-    "native"
+    METHOD_NATIVE
 }
 
 /// Returns the effective Steam App ID to use for art/metadata resolution.
