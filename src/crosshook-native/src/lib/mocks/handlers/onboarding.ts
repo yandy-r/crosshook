@@ -446,7 +446,7 @@ function resolveCapabilityToolCheck(
       is_available: false,
       is_required: isRequired,
       category: 'runtime',
-      docs_url: undefined,
+      docs_url: '',
       tool_version: null,
       resolved_path: null,
       install_guidance: null,

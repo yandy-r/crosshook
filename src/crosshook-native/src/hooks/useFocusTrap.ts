@@ -44,6 +44,7 @@ export interface UseFocusTrapReturn {
 /** Depth of open `useFocusTrap` instances that locked the body. */
 let modalBodyLockDepth = 0;
 let savedBodyOverflow = '';
+const modalPanelStack: HTMLElement[] = [];
 
 interface InertRegistryEntry {
   count: number;
@@ -79,6 +80,25 @@ function unregisterInertElement(element: HTMLElement): void {
     element.setAttribute('aria-hidden', entry.ariaHidden);
   }
   modalInertRegistry.delete(element);
+}
+
+function registerModalPanel(panel: HTMLElement): void {
+  const existingIndex = modalPanelStack.indexOf(panel);
+  if (existingIndex !== -1) {
+    modalPanelStack.splice(existingIndex, 1);
+  }
+  modalPanelStack.push(panel);
+}
+
+function unregisterModalPanel(panel: HTMLElement): void {
+  const existingIndex = modalPanelStack.lastIndexOf(panel);
+  if (existingIndex !== -1) {
+    modalPanelStack.splice(existingIndex, 1);
+  }
+}
+
+function isTopmostModalPanel(panel: HTMLElement): boolean {
+  return modalPanelStack[modalPanelStack.length - 1] === panel;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,11 +170,16 @@ function findPortalHost(el: HTMLElement): HTMLElement | null {
  * ```
  */
 export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFocusTrapOptions): UseFocusTrapReturn {
+  const onCloseRef = useRef(onClose);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   /** Elements this instance registered with {@link modalInertRegistry}. */
   const touchedInertRef = useRef<HTMLElement[]>([]);
   /** Suppresses the deferred focus-restore microtask after cleanup runs. */
   const microtaskSuppressRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open || typeof document === 'undefined') return;
@@ -165,7 +190,9 @@ export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFo
     const panel = panelRef.current;
     // Find the portal host — walk up from panel to find the direct child of body
     const portalHost = panel ? findPortalHost(panel) : null;
-    if (!portalHost) return;
+    if (!panel || !portalHost) return;
+
+    registerModalPanel(panel);
 
     // Save current focus
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -195,9 +222,28 @@ export function useFocusTrap({ open, panelRef, onClose, initialFocusRef }: UseFo
       }
     });
 
+    const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      const currentPanel = panelRef.current;
+      if (!currentPanel || !isTopmostModalPanel(currentPanel)) {
+        return;
+      }
+      event.preventDefault();
+      // Stop capture-phase handlers from other modals; this trap owns Escape.
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      onCloseRef.current?.();
+    };
+
+    document.addEventListener('keydown', handleDocumentKeyDown, true);
+
     return () => {
       microtaskSuppressRef.current = true;
       window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleDocumentKeyDown, true);
+      unregisterModalPanel(panel);
       for (const el of touchedInertRef.current) {
         unregisterInertElement(el);
       }
