@@ -1,7 +1,12 @@
 # Frontend smoke tests
 
-Playwright smoke harness for CrossHook's browser dev mode (`vite --mode webdev`).
-This is the first frontend test framework in the repo and is intentionally minimal.
+CrossHook has two frontend layers:
+
+- **Vitest + RTL (happy-dom)** for hooks/components (`src/**/__tests__/`). Commands:
+  `npm test`, `npm run test:watch`, `npm run test:coverage`. See `docs/TESTING.md` for patterns and
+  IPC mocking guidance.
+- **Playwright smoke (this directory)** for route-level sanity against browser dev mode
+  (`vite --mode webdev`). Covers navigation, dev-mode chip, and console hygiene.
 
 ## First-time setup
 
