@@ -56,7 +56,11 @@ pub async fn gamescope_watchdog(
         tokio::select! {
             _ = tokio::time::sleep(GAMESCOPE_POLL_INTERVAL) => {}
             reason = cancel_rx.recv() => {
-                let reason = cancel_reason(reason);
+                let reason = match reason {
+                    Ok(r) => r,
+                    Err(broadcast::error::RecvError::Lagged(_)) => cancel_reason_after_lag(&mut cancel_rx),
+                    Err(broadcast::error::RecvError::Closed) => TeardownReason::ReceiverClosed,
+                };
                 tracing::info!(
                     exe = %exe_name,
                     gamescope_pid = observation_target.pid,
@@ -69,6 +73,11 @@ pub async fn gamescope_watchdog(
         }
     }
     if !game_seen {
+        // Intentional: we never observed the child exe inside the gamescope
+        // subtree within the startup window. No teardown happened, so we do
+        // not mark `outcome` here — the stream finalizer will attribute this
+        // launch as `TeardownReason::NaturalExit`, which is honest: the
+        // watchdog took no action.
         tracing::debug!(
             exe = %exe_name,
             "gamescope watchdog: game process never appeared, standing down"
@@ -88,7 +97,11 @@ pub async fn gamescope_watchdog(
         tokio::select! {
             _ = tokio::time::sleep(GAMESCOPE_POLL_INTERVAL) => {}
             reason = cancel_rx.recv() => {
-                let reason = cancel_reason(reason);
+                let reason = match reason {
+                    Ok(r) => r,
+                    Err(broadcast::error::RecvError::Lagged(_)) => cancel_reason_after_lag(&mut cancel_rx),
+                    Err(broadcast::error::RecvError::Closed) => TeardownReason::ReceiverClosed,
+                };
                 tracing::info!(
                     exe = %exe_name,
                     gamescope_pid = observation_target.pid,
@@ -158,23 +171,22 @@ pub(crate) async fn shutdown_gamescope_tree(
     kill_remaining_descendants_task(descendants, target.host_namespace).await;
 }
 
-/// Normalize a broadcast-channel receive result into a [`TeardownReason`].
-///
-/// - `Ok(reason)` — an authentic cancel was delivered; pass it through.
-/// - `Err(Closed)` — the registry entry was torn down (sender dropped),
-///   typically because the child process exited first and the stream
-///   finalizer deregistered. Distinct from a parent-driven cascade, so
-///   report it as [`TeardownReason::ReceiverClosed`] to avoid falsely
-///   attributing a `LinkedSessionExit` in diagnostics.
-/// - `Err(Lagged)` — we missed one or more signals but a cancel was queued.
-///   The semantic is still "parent (or user) requested teardown", so treat
-///   it as [`TeardownReason::LinkedSessionExit`] — it's the closest
-///   available truth and the finalizer log records the lag separately.
-fn cancel_reason(recv: Result<TeardownReason, broadcast::error::RecvError>) -> TeardownReason {
-    match recv {
+/// Peek past a lag: after a `Lagged` error, the receiver is re-synced and
+/// the most recent queued message is immediately available. Attempts one
+/// non-blocking `try_recv` and returns the resolved reason. On `Empty` or
+/// a secondary `Lagged`, falls back to `LinkedSessionExit` (the most common
+/// cancel source in practice) as the closest available truth. Used by
+/// cancel-drain helpers and the watchdog poll loop to recover the real
+/// cancel reason after a lag, preserving audit fidelity (e.g. a
+/// `UserRequest` that would otherwise be silently misattributed).
+pub(crate) fn cancel_reason_after_lag(
+    receiver: &mut broadcast::Receiver<TeardownReason>,
+) -> TeardownReason {
+    match receiver.try_recv() {
         Ok(reason) => reason,
-        Err(broadcast::error::RecvError::Closed) => TeardownReason::ReceiverClosed,
-        Err(broadcast::error::RecvError::Lagged(_)) => TeardownReason::LinkedSessionExit,
+        Err(broadcast::error::TryRecvError::Empty) => TeardownReason::LinkedSessionExit,
+        Err(broadcast::error::TryRecvError::Closed) => TeardownReason::ReceiverClosed,
+        Err(broadcast::error::TryRecvError::Lagged(_)) => TeardownReason::LinkedSessionExit,
     }
 }
 
@@ -287,31 +299,36 @@ fn kill_remaining_descendants(pids: &[u32], host_namespace: bool) {
 mod tests {
     use super::*;
 
-    #[test]
-    fn cancel_reason_maps_ok() {
+    #[tokio::test]
+    async fn cancel_reason_after_lag_recovers_queued_signal() {
+        let (tx, mut rx) = broadcast::channel::<TeardownReason>(2);
+        // Queue a UserRequest, then let the channel "lag" by overflowing.
+        tx.send(TeardownReason::UserRequest).unwrap();
         assert_eq!(
-            cancel_reason(Ok(TeardownReason::LinkedSessionExit)),
-            TeardownReason::LinkedSessionExit,
-        );
-        assert_eq!(
-            cancel_reason(Ok(TeardownReason::UserRequest)),
+            cancel_reason_after_lag(&mut rx),
             TeardownReason::UserRequest,
+            "the most-recent queued message must be recovered, not defaulted"
         );
     }
 
-    #[test]
-    fn cancel_reason_maps_closed_to_receiver_closed() {
+    #[tokio::test]
+    async fn cancel_reason_after_lag_defaults_when_empty() {
+        let (_tx, mut rx) = broadcast::channel::<TeardownReason>(2);
         assert_eq!(
-            cancel_reason(Err(broadcast::error::RecvError::Closed)),
-            TeardownReason::ReceiverClosed,
-        );
-    }
-
-    #[test]
-    fn cancel_reason_maps_lagged_to_linked_session_exit() {
-        assert_eq!(
-            cancel_reason(Err(broadcast::error::RecvError::Lagged(3))),
+            cancel_reason_after_lag(&mut rx),
             TeardownReason::LinkedSessionExit,
+            "empty channel falls back to LinkedSessionExit"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_reason_after_lag_maps_closed_to_receiver_closed() {
+        let (tx, mut rx) = broadcast::channel::<TeardownReason>(2);
+        drop(tx);
+        assert_eq!(
+            cancel_reason_after_lag(&mut rx),
+            TeardownReason::ReceiverClosed,
+            "closed channel distinct from LinkedSessionExit"
         );
     }
 }

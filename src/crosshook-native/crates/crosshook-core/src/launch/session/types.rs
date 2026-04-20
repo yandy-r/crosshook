@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
@@ -41,7 +42,11 @@ pub enum SessionKind {
 
 /// Why a session was torn down. Persisted into `launch_operations.diagnostic_json`
 /// so operators can trace cleanup paths after the fact.
+///
+/// Serialized as snake_case to match the surrounding diagnostics schema
+/// (`FailureMode`, `ValidationSeverity`).
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TeardownReason {
     /// Process exited on its own; no watchdog intervention needed.
     NaturalExit,
@@ -83,6 +88,12 @@ impl fmt::Display for TeardownReason {
 /// watchdog that its owning launch should tear down (e.g. the parent game
 /// exited). `parent` is set by [`link_to_parent`][super::registry::LaunchSessionRegistry::link_to_parent]
 /// so `cancel_linked_children` can find child sessions.
+///
+/// `registered_at` records when the entry was inserted so
+/// [`sessions_for_profile`][super::registry::LaunchSessionRegistry::sessions_for_profile]
+/// can return deterministic, insertion-ordered results regardless of the
+/// underlying `HashMap` iteration order — used by the trainer spawn path to
+/// prefer the most-recently-registered game as its parent.
 #[derive(Clone)]
 pub(super) struct SessionEntry {
     pub(super) id: SessionId,
@@ -90,6 +101,7 @@ pub(super) struct SessionEntry {
     pub(super) profile_key: String,
     pub(super) parent: Option<SessionId>,
     pub(super) cancel_tx: broadcast::Sender<TeardownReason>,
+    pub(super) registered_at: Instant,
 }
 
 impl SessionEntry {
@@ -104,6 +116,7 @@ impl SessionEntry {
             profile_key,
             parent: None,
             cancel_tx,
+            registered_at: Instant::now(),
         };
         (entry, cancel_rx)
     }

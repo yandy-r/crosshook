@@ -16,6 +16,13 @@ use super::types::{LinkError, SessionEntry, SessionId, SessionKind, TeardownReas
 /// all mutation happens under a short-lived `Mutex` lock, and teardown
 /// broadcasts are sent with the lock released so watchdog receivers do not
 /// block the registry.
+///
+/// **Poison policy**: every method calls `.expect("launch session registry
+/// poisoned")` when locking. The registry has no recoverable degraded state
+/// — if a thread panics while holding the lock (which requires a panic
+/// during `HashMap` / `Vec` ops, typically OOM), every subsequent call
+/// propagates a secondary panic rather than silently corrupting session
+/// state. Treat poison as an unrecoverable invariant violation.
 #[derive(Default)]
 pub struct LaunchSessionRegistry {
     inner: Mutex<HashMap<SessionId, SessionEntry>>,
@@ -79,20 +86,80 @@ impl LaunchSessionRegistry {
         Ok(())
     }
 
-    /// List session ids for a profile, optionally filtered by kind. Used by
-    /// the trainer spawn path to discover its parent game session.
+    /// List session ids for a profile, optionally filtered by kind. Results
+    /// are ordered **most-recently-registered first** so callers can pick
+    /// the newest game as parent via `.into_iter().next()` deterministically,
+    /// independent of the underlying `HashMap` iteration order.
     pub fn sessions_for_profile(
         &self,
         profile_key: &str,
         kind_filter: Option<SessionKind>,
     ) -> Vec<SessionId> {
         let guard = self.inner.lock().expect("launch session registry poisoned");
-        guard
+        let mut matches: Vec<&SessionEntry> = guard
             .values()
             .filter(|entry| entry.profile_key == profile_key)
             .filter(|entry| kind_filter.is_none_or(|kind| entry.kind == kind))
-            .map(|entry| entry.id)
-            .collect()
+            .collect();
+        // Most-recent first: sort by negation (reverse-sort of registered_at).
+        matches.sort_by_key(|entry| std::cmp::Reverse(entry.registered_at));
+        matches.into_iter().map(|entry| entry.id).collect()
+    }
+
+    /// Atomically register a new session and, if a compatible parent exists
+    /// for the same profile with the given kind, link to it — all under a
+    /// single lock acquisition. Closes the register → lookup → link race
+    /// window where a parent could finalize between the trainer's
+    /// `register` and its follow-up `link_to_parent`.
+    ///
+    /// Returns `(session_id, cancel_rx, Option<parent_session_id>)`. When no
+    /// compatible parent is found (or when the kinds don't form a legal
+    /// trainer → game link), the session is registered un-linked and the
+    /// caller receives `None`. Parent selection favors the most
+    /// recently-registered match.
+    ///
+    /// The `parent_kind` is the kind the parent must have. Currently only
+    /// the trainer → game pairing is linked; any other combination registers
+    /// the session without attempting a link (consistent with the validation
+    /// in [`link_to_parent`]).
+    pub fn register_and_link_to_parent_of_kind(
+        &self,
+        kind: SessionKind,
+        profile_key: impl Into<String>,
+        parent_kind: SessionKind,
+    ) -> (
+        SessionId,
+        broadcast::Receiver<TeardownReason>,
+        Option<SessionId>,
+    ) {
+        let profile_key = profile_key.into();
+        let (mut entry, rx) = SessionEntry::new(kind, profile_key.clone());
+        let child_id = entry.id;
+        let mut guard = self.inner.lock().expect("launch session registry poisoned");
+
+        // Only allow trainer → game links, mirroring link_to_parent's validation.
+        let link_is_legal = kind == SessionKind::Trainer && parent_kind == SessionKind::Game;
+
+        let parent_id = if link_is_legal {
+            // Find the most-recently-registered parent candidate inside the
+            // same lock acquisition used to insert the child.
+            guard
+                .values()
+                .filter(|candidate| {
+                    candidate.profile_key == profile_key && candidate.kind == parent_kind
+                })
+                .max_by_key(|candidate| candidate.registered_at)
+                .map(|candidate| candidate.id)
+        } else {
+            None
+        };
+
+        if let Some(parent) = parent_id {
+            entry.parent = Some(parent);
+        }
+
+        guard.insert(child_id, entry);
+        (child_id, rx, parent_id)
     }
 
     /// Broadcast `reason` to every child linked to `parent_id`. Returns the
@@ -288,13 +355,92 @@ mod tests {
         let (trainer_id, _t_rx) = registry.register(SessionKind::Trainer, "profile-a");
         let (_other_game_id, _o_rx) = registry.register(SessionKind::Game, "profile-b");
 
+        // Order-invariant asserts: a future test that adds a second matching
+        // session (see sessions_for_profile_returns_most_recent_first) would
+        // otherwise flake on HashMap iteration order.
         let games = registry.sessions_for_profile("profile-a", Some(SessionKind::Game));
-        assert_eq!(games, vec![game_id]);
+        assert_eq!(games.len(), 1);
+        assert!(games.contains(&game_id));
 
         let trainers = registry.sessions_for_profile("profile-a", Some(SessionKind::Trainer));
-        assert_eq!(trainers, vec![trainer_id]);
+        assert_eq!(trainers.len(), 1);
+        assert!(trainers.contains(&trainer_id));
 
         let all = registry.sessions_for_profile("profile-a", None);
         assert_eq!(all.len(), 2);
+    }
+
+    #[test]
+    fn sessions_for_profile_returns_most_recent_first() {
+        let registry = LaunchSessionRegistry::new();
+        let (first_game_id, _f_rx) = registry.register(SessionKind::Game, "profile-a");
+        // Force a monotonic Instant tick so the second entry sorts strictly
+        // after the first even on fast clocks.
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let (second_game_id, _s_rx) = registry.register(SessionKind::Game, "profile-a");
+
+        let games = registry.sessions_for_profile("profile-a", Some(SessionKind::Game));
+        assert_eq!(games.len(), 2);
+        assert_eq!(
+            games[0], second_game_id,
+            "most-recently-registered game should be first"
+        );
+        assert_eq!(games[1], first_game_id);
+    }
+
+    #[tokio::test]
+    async fn register_and_link_to_parent_of_kind_attaches_most_recent_parent() {
+        let registry = LaunchSessionRegistry::new();
+        let (_old_game_id, _old_rx) = registry.register(SessionKind::Game, "profile-a");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        let (new_game_id, _new_rx) = registry.register(SessionKind::Game, "profile-a");
+
+        let (trainer_id, mut trainer_rx, parent_id) = registry.register_and_link_to_parent_of_kind(
+            SessionKind::Trainer,
+            "profile-a",
+            SessionKind::Game,
+        );
+        assert_eq!(parent_id, Some(new_game_id), "trainer links to newest game");
+
+        let signalled =
+            registry.cancel_linked_children(new_game_id, TeardownReason::LinkedSessionExit);
+        assert_eq!(signalled, 1);
+        let received = trainer_rx.recv().await.expect("trainer receives cascade");
+        assert_eq!(received, TeardownReason::LinkedSessionExit);
+
+        // Cleanup — silence lint on unused.
+        let _ = trainer_id;
+    }
+
+    #[test]
+    fn register_and_link_to_parent_of_kind_returns_none_when_no_candidate() {
+        let registry = LaunchSessionRegistry::new();
+        let (trainer_id, _rx, parent_id) = registry.register_and_link_to_parent_of_kind(
+            SessionKind::Trainer,
+            "orphan-profile",
+            SessionKind::Game,
+        );
+        assert_eq!(parent_id, None, "no game → no link");
+        // Trainer is still registered — useful for the caller to deregister later.
+        assert_eq!(registry.len(), 1);
+        registry.deregister(trainer_id);
+    }
+
+    #[test]
+    fn register_and_link_to_parent_of_kind_rejects_illegal_pairings() {
+        let registry = LaunchSessionRegistry::new();
+        let (_existing_trainer, _rx1) = registry.register(SessionKind::Trainer, "profile-a");
+        // Attempt a trainer → trainer link via the atomic API. The registry
+        // must refuse the link even when a same-kind candidate exists, to
+        // match link_to_parent's validation contract.
+        let (_new_trainer, _rx2, parent_id) = registry.register_and_link_to_parent_of_kind(
+            SessionKind::Trainer,
+            "profile-a",
+            SessionKind::Trainer,
+        );
+        assert_eq!(
+            parent_id, None,
+            "trainer → trainer pairing must not be linked"
+        );
     }
 }

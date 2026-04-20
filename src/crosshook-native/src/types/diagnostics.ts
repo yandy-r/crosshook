@@ -44,6 +44,16 @@ export interface ActionableSuggestion {
   severity: LaunchValidationSeverity;
 }
 
+export const TEARDOWN_REASONS = [
+  'natural_exit',
+  'watchdog_natural_exit',
+  'linked_session_exit',
+  'user_request',
+  'receiver_closed',
+] as const;
+
+export type TeardownReason = (typeof TEARDOWN_REASONS)[number];
+
 export interface DiagnosticReport {
   severity: LaunchValidationSeverity;
   summary: string;
@@ -53,6 +63,14 @@ export interface DiagnosticReport {
   launch_method: string;
   log_tail_path: string | null;
   analyzed_at: string;
+  /**
+   * Populated by the Rust stream finalizer to record why this launch was
+   * torn down — set by the gamescope watchdog when it fires, or by the
+   * cancel-drain path for launches that have no gamescope tree (e.g. a
+   * non-gamescope trainer cascaded by its parent game). Absent from
+   * pre-#230 `launch_operations.diagnostic_json` rows.
+   */
+  teardown_reason?: TeardownReason;
 }
 
 function isSeverity(value: unknown): value is LaunchValidationSeverity {
@@ -123,7 +141,8 @@ export function isDiagnosticReport(value: unknown): value is DiagnosticReport {
     candidate.suggestions.every(isActionableSuggestion) &&
     typeof candidate.launch_method === 'string' &&
     (candidate.log_tail_path === null || typeof candidate.log_tail_path === 'string') &&
-    typeof candidate.analyzed_at === 'string'
+    typeof candidate.analyzed_at === 'string' &&
+    (candidate.teardown_reason === undefined || TEARDOWN_REASONS.includes(candidate.teardown_reason as TeardownReason))
   );
 }
 

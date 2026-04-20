@@ -7,8 +7,10 @@
 //! channel, so watchdogs are responsible for their own process trees. The
 //! registry never touches PIDs directly.
 
+mod drain;
 mod registry;
 mod types;
 
+pub use drain::drain_cancel_into_outcome;
 pub use registry::LaunchSessionRegistry;
 pub use types::{LinkError, SessionId, SessionKind, TeardownReason, WatchdogOutcome};

@@ -64,6 +64,11 @@ pub struct LaunchResult {
     pub warnings: Vec<LaunchValidationIssue>,
 }
 
+/// Context plumbed from a launch command into the log-stream task so the
+/// stream finalizer can persist diagnostics and reconcile launch-session
+/// lifecycle. `session_id`, `session_kind`, and `session_registry` are
+/// required — every launch registers with the session registry up front,
+/// so these carry no "session might not exist" optionality.
 #[derive(Clone)]
 pub(crate) struct LaunchStreamContext {
     pub(crate) metadata_store: MetadataStore,
@@ -73,7 +78,7 @@ pub(crate) struct LaunchStreamContext {
     pub(crate) profile_name: Option<String>,
     pub(crate) steam_client_path: String,
     pub(crate) watchdog_outcome: WatchdogOutcome,
-    pub(crate) session_id: Option<SessionId>,
-    pub(crate) session_kind: Option<SessionKind>,
-    pub(crate) session_registry: Option<Arc<LaunchSessionRegistry>>,
+    pub(crate) session_id: SessionId,
+    pub(crate) session_kind: SessionKind,
+    pub(crate) session_registry: Arc<LaunchSessionRegistry>,
 }

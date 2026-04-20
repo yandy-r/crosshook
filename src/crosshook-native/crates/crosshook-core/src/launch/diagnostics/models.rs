@@ -17,10 +17,12 @@ pub struct DiagnosticReport {
     pub launch_method: String,
     pub log_tail_path: Option<String>,
     pub analyzed_at: String,
-    /// Populated by the stream finalizer when the gamescope watchdog fires.
-    /// Traces why the launch was torn down — natural exit, linked-session
-    /// cascade, or explicit user request. Optional for backward-compat with
-    /// pre-#230 `launch_operations.diagnostic_json` rows.
+    /// Populated by the stream finalizer to record why this launch was torn
+    /// down — set by the gamescope watchdog when it fires, or by the
+    /// cancel-drain path for launches that have no gamescope tree to tear
+    /// down (e.g. a non-gamescope trainer cascaded by its parent game).
+    /// Optional for backward-compat with pre-#230
+    /// `launch_operations.diagnostic_json` rows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub teardown_reason: Option<TeardownReason>,
 }

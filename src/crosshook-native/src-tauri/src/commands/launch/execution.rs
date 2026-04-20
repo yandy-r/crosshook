@@ -3,14 +3,15 @@ use std::process::Stdio;
 use std::sync::Arc;
 
 use crosshook_core::launch::{
-    gamescope_watchdog as gamescope_watchdog_core, is_inside_gamescope_session,
+    drain_cancel_into_outcome, gamescope_watchdog as gamescope_watchdog_core,
+    is_inside_gamescope_session,
     script_runner::{
         build_flatpak_steam_trainer_command, build_helper_command, build_native_game_command,
         build_proton_game_command, build_proton_trainer_command, build_trainer_command,
         gamescope_pid_capture_path,
     },
-    validate, LaunchRequest, LaunchSessionRegistry, SessionId, SessionKind, TeardownReason,
-    WatchdogOutcome, METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
+    validate, LaunchRequest, LaunchSessionRegistry, SessionKind, TeardownReason, WatchdogOutcome,
+    METHOD_NATIVE, METHOD_PROTON_RUN, METHOD_STEAM_APPLAUNCH,
 };
 use crosshook_core::metadata::MetadataStore;
 use crosshook_core::profile::ProfileStore;
@@ -150,9 +151,9 @@ pub async fn launch_game(
         profile_name: snap_profile_name,
         steam_client_path: snap_steam_client_path,
         watchdog_outcome: watchdog_outcome.clone(),
-        session_id: Some(session_id),
-        session_kind: Some(SessionKind::Game),
-        session_registry: Some(session_registry.clone()),
+        session_id,
+        session_kind: SessionKind::Game,
+        session_registry: session_registry.clone(),
     };
 
     let watchdog_app_handle = app.clone();
@@ -165,18 +166,16 @@ pub async fn launch_game(
         gamemode_portal_guard,
     );
 
-    if gamescope_active {
-        if let Some(pid) = child_pid {
-            spawn_gamescope_watchdog(
-                &watchdog_app_handle,
-                pid,
-                game_exe_name,
-                watchdog_outcome,
-                flatpak_gamescope_pid_capture,
-                cancel_rx,
-            );
-        }
-    }
+    consume_cancel_channel(
+        gamescope_active,
+        child_pid,
+        &watchdog_app_handle,
+        session_id,
+        game_exe_name,
+        watchdog_outcome,
+        flatpak_gamescope_pid_capture,
+        cancel_rx,
+    );
 
     Ok(LaunchResult {
         succeeded: true,
@@ -303,31 +302,28 @@ pub async fn launch_trainer(
 
     let profile_key = session_profile_key(&request);
     let watchdog_outcome = WatchdogOutcome::new();
-    let (session_id, cancel_rx) = session_registry.register(SessionKind::Trainer, &profile_key);
 
-    // Link this trainer session to the active game session for the same
-    // profile (if any). When the game finalizes, the trainer's cancel channel
-    // receives LinkedSessionExit and its watchdog tears the trainer tree down.
-    if let Some(parent_id) = session_registry
-        .sessions_for_profile(&profile_key, Some(SessionKind::Game))
-        .into_iter()
-        .next()
-    {
-        if let Err(error) = session_registry.link_to_parent(session_id, parent_id) {
-            tracing::warn!(
-                %error,
-                trainer_session = %session_id,
-                parent_session = %parent_id,
-                "launch session: trainer → game link skipped"
-            );
-        } else {
-            tracing::info!(
-                trainer_session = %session_id,
-                parent_session = %parent_id,
-                profile_key = %profile_key,
-                "launch session: trainer linked to game parent"
-            );
-        }
+    // Atomic register + parent lookup + link in a single lock acquisition —
+    // closes the race where the game could finalize between a trainer's
+    // register and its follow-up link_to_parent.
+    let (session_id, cancel_rx, parent_id) = session_registry.register_and_link_to_parent_of_kind(
+        SessionKind::Trainer,
+        &profile_key,
+        SessionKind::Game,
+    );
+    if let Some(parent) = parent_id {
+        tracing::info!(
+            trainer_session = %session_id,
+            parent_session = %parent,
+            profile_key = %profile_key,
+            "launch session: trainer linked to game parent"
+        );
+    } else {
+        tracing::debug!(
+            trainer_session = %session_id,
+            profile_key = %profile_key,
+            "launch session: trainer registered without parent game"
+        );
     }
 
     let stream_context = LaunchStreamContext {
@@ -338,9 +334,9 @@ pub async fn launch_trainer(
         profile_name: snap_profile_name,
         steam_client_path: snap_steam_client_path,
         watchdog_outcome: watchdog_outcome.clone(),
-        session_id: Some(session_id),
-        session_kind: Some(SessionKind::Trainer),
-        session_registry: Some(session_registry.clone()),
+        session_id,
+        session_kind: SessionKind::Trainer,
+        session_registry: session_registry.clone(),
     };
 
     let trainer_exe_name = Path::new(&request.trainer_host_path)
@@ -359,36 +355,16 @@ pub async fn launch_trainer(
         gamemode_portal_guard,
     );
 
-    // Spawn a trainer-side gamescope watchdog with the same gating predicate
-    // as the game path. The watchdog receives this trainer session's cancel
-    // channel, so a parent game finalize broadcasts straight into its poll
-    // loop.
-    if trainer_gamescope_active {
-        if let Some(pid) = child_pid {
-            spawn_gamescope_watchdog(
-                &watchdog_app_handle,
-                pid,
-                trainer_exe_name,
-                watchdog_outcome,
-                flatpak_trainer_pid_capture,
-                cancel_rx,
-            );
-        }
-    } else {
-        // Even without gamescope the session still needs its receiver drained
-        // so the broadcast channel stays healthy and any incoming cancel is
-        // recorded in the launch log. The trainer process will exit on its
-        // own lifecycle; stream finalization handles deregister. We pass a
-        // clone of the watchdog outcome so a received cancel still attributes
-        // the correct `TeardownReason` into `diagnostic_json` — using
-        // `record_reason` (not `mark`) because no gamescope tree is being
-        // torn down here.
-        tauri::async_runtime::spawn(drain_cancel_on_trainer_no_watchdog(
-            session_id,
-            watchdog_outcome.clone(),
-            cancel_rx,
-        ));
-    }
+    consume_cancel_channel(
+        trainer_gamescope_active,
+        child_pid,
+        &watchdog_app_handle,
+        session_id,
+        trainer_exe_name,
+        watchdog_outcome,
+        flatpak_trainer_pid_capture,
+        cancel_rx,
+    );
 
     Ok(LaunchResult {
         succeeded: true,
@@ -398,37 +374,51 @@ pub async fn launch_trainer(
     })
 }
 
-async fn drain_cancel_on_trainer_no_watchdog(
-    session_id: SessionId,
-    outcome: WatchdogOutcome,
-    mut cancel_rx: broadcast::Receiver<TeardownReason>,
+/// Unified cancel-channel plumbing for both game and trainer launches.
+/// Spawns the gamescope watchdog when a compositor exists to tear down;
+/// otherwise spawns the core [`drain_cancel_into_outcome`] helper so the
+/// session's cancel receiver still has a live consumer that attributes
+/// `TeardownReason` into the diagnostic report. This closes the blind-spot
+/// where a session without a watchdog would drop its receiver and miss any
+/// cascade or user-initiated cancel.
+#[allow(clippy::too_many_arguments)]
+fn consume_cancel_channel(
+    gamescope_active: bool,
+    child_pid: Option<u32>,
+    watchdog_app_handle: &AppHandle,
+    session_id: crosshook_core::launch::SessionId,
+    exe_name: String,
+    watchdog_outcome: WatchdogOutcome,
+    host_pid_capture_path: Option<PathBuf>,
+    cancel_rx: broadcast::Receiver<TeardownReason>,
 ) {
-    match cancel_rx.recv().await {
-        Ok(reason) => {
-            outcome.record_reason(reason);
-            tracing::info!(
-                session_id = %session_id,
-                teardown_reason = %reason,
-                "trainer session without watchdog received cancel; process exit will finalize the session"
+    if gamescope_active {
+        if let Some(pid) = child_pid {
+            spawn_gamescope_watchdog(
+                watchdog_app_handle,
+                pid,
+                exe_name,
+                watchdog_outcome,
+                host_pid_capture_path,
+                cancel_rx,
             );
+            return;
         }
-        Err(broadcast::error::RecvError::Closed) => {
-            tracing::debug!(
-                session_id = %session_id,
-                "trainer cancel channel closed before any signal"
-            );
-        }
-        Err(broadcast::error::RecvError::Lagged(_)) => {
-            // A lagged receive means a cancel was queued but missed; record
-            // it as a linked-session exit so the finalizer's teardown_reason
-            // reflects that the parent asked for teardown.
-            outcome.record_reason(TeardownReason::LinkedSessionExit);
-            tracing::debug!(
-                session_id = %session_id,
-                "trainer cancel channel lagged before any signal"
-            );
-        }
+        tracing::warn!(
+            session_id = %session_id,
+            "gamescope-active launch missing child PID; falling back to cancel-drain"
+        );
     }
+
+    // Either gamescope is disabled or the child spawned without a PID (rare —
+    // tokio::process::Child::id returns None only after wait()). Drain the
+    // cancel channel so cascades targeting this session attribute correctly
+    // in `DiagnosticReport.teardown_reason`.
+    tauri::async_runtime::spawn(drain_cancel_into_outcome(
+        session_id,
+        watchdog_outcome,
+        cancel_rx,
+    ));
 }
 
 async fn record_launch_start(

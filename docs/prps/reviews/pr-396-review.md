@@ -42,7 +42,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/crates/crosshook-core/src/launch/session/types.rs:44-61`
 - **Issue**: `TeardownReason` derives `Serialize`/`Deserialize` without `rename_all`. Every peer enum in the diagnostics layer (`FailureMode`, `ValidationSeverity`) uses snake_case. `TeardownReason` will therefore persist into `launch_operations.diagnostic_json` as `"NaturalExit"`, `"LinkedSessionExit"`, etc., inconsistent with the rest of the schema. `as_str()` already returns snake_case strings — the intent was clearly snake_case, but the Serde derive diverges.
 - **Fix**: Add `#[serde(rename_all = "snake_case")]` to the enum. Update the round-trip integration test (`teardown_reason_round_trips_through_diagnostic_report_json`) to expect `"linked_session_exit"` in the JSON substring. The `"receiver_closed_serializes_distinctly_from_linked_session_exit"` test needs its string literal updated too.
-- **Status**: Open
+- **Status**: Fixed — added `#[serde(rename_all = "snake_case")]` on `TeardownReason`; test assertions updated to expect `"linked_session_exit"` and `"receiver_closed"`.
 
 ---
 
@@ -53,7 +53,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/src-tauri/src/commands/launch/execution.rs:168–179`
 - **Issue**: `launch_game` registers a session and obtains `cancel_rx` unconditionally, but only hands it to `spawn_gamescope_watchdog` when `gamescope_active && child_pid.is_some()`. For a non-gamescope game launch (or a launch where `child.id()` returns `None`), `cancel_rx` is dropped at function end. The session remains registered and a future `cancel_session` or linked-child cascade targeting this game sees `send()` succeed (broadcast records the signal even with zero live receivers) but the outcome is never stamped. `diagnostic_json` for that launch then reports `teardown_reason: natural_exit` even if a cancel was explicitly requested.
 - **Fix**: Mirror the trainer path: when `gamescope_active` is false (or `child_pid` is `None`) spawn `drain_cancel_on_trainer_no_watchdog` (or a renamed `drain_cancel_when_watchdog_absent`) so the game's cancel channel has a live receiver that records the reason into `watchdog_outcome` via `record_reason`.
-- **Status**: Open
+- **Status**: Fixed — both launch paths now route cancel receivers through a shared `consume_cancel_channel` helper that falls back to `drain_cancel_into_outcome` (now in `crosshook-core`) whenever no gamescope watchdog is spawned.
 
 ---
 
@@ -64,7 +64,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/src-tauri/src/commands/launch/execution.rs:366–391`
 - **Issue**: When `trainer_gamescope_active` is true but `child.id()` returns `None`, neither the watchdog-spawn branch nor the drain-helper `else` branch runs. `cancel_rx` is dropped. Trainer is registered, possibly linked to a parent game, but its cancel channel has no receiver — a cascade silently no-ops on the outcome. Same class of bug as F002 but on the trainer side.
 - **Fix**: Move the drain-helper spawn out of the `trainer_gamescope_active` `else` branch and into an unconditional fallback when no watchdog is spawned (guard: trainer watchdog was gated, OR `child_pid` missing).
-- **Status**: Open
+- **Status**: Fixed — consolidated into `consume_cancel_channel`; if `gamescope_active && child_pid.is_none()` the helper logs a warning and still spawns the drain task.
 
 ---
 
@@ -75,7 +75,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/src-tauri/src/commands/launch/execution.rs:306–331`
 - **Issue**: `sessions_for_profile` returns session IDs in `HashMap` iteration order (non-deterministic). When more than one game session is active for the same profile (rare — a double-launch — but not prevented), the trainer links to an arbitrary game. PR body's "Risk I'd like extra eyes on" explicitly flagged this.
 - **Fix**: Either enforce "one game session per profile at a time" in `register` (return an error, or document as precondition), or switch the registry's inner map to `indexmap::IndexMap` so `sessions_for_profile` returns insertion-ordered results, and pick the most-recently-registered game as parent.
-- **Status**: Open
+- **Status**: Fixed — added `SessionEntry.registered_at: Instant`; `sessions_for_profile` now sorts most-recent-first; new test `sessions_for_profile_returns_most_recent_first` guards ordering.
 
 ---
 
@@ -86,7 +86,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/src-tauri/src/commands/launch/execution.rs:304–316`
 - **Issue**: Trainer `register` and `sessions_for_profile` + `link_to_parent` acquire the registry mutex three separate times. If a game session's `finalize_launch_session` runs between the trainer's `register` and its `link_to_parent`, the lookup returns a session ID that is gone by the time `link_to_parent` runs → `LinkError::ParentNotFound`, warn-log, and the trainer runs orphaned (no cancel plumbed). Narrow window but real; leaves the trainer requiring manual teardown.
 - **Fix**: Add an atomic `register_and_link_to_parent_of_kind(kind, profile_key, parent_kind)` method to the registry that performs register + candidate lookup + link under one lock. Alternatively, document the warn-log path as the accepted degraded behavior and add a test exercising the race.
-- **Status**: Open
+- **Status**: Fixed — added atomic `register_and_link_to_parent_of_kind`; `launch_trainer` uses it in place of register + sessions_for_profile + link_to_parent. Three new tests cover happy path, no-candidate, and illegal pairings.
 
 ---
 
@@ -108,7 +108,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/crates/crosshook-core/src/launch/session/registry.rs:291–295`
 - **Issue**: `assert_eq!(games, vec![game_id])` and `assert_eq!(trainers, vec![trainer_id])` depend on `HashMap` iteration order. Single-element case passes today but a future test that adds a second matching session will flake without warning.
 - **Fix**: `assert_eq!(result.len(), 1); assert!(result.contains(&id));` for both.
-- **Status**: Open
+- **Status**: Fixed — `sessions_for_profile_filters_by_kind` test now uses `len() + contains` assertions and an inline comment notes the rationale.
 
 ---
 
@@ -119,7 +119,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/crates/crosshook-core/src/launch/watchdog/tasks.rs:71–77`
 - **Issue**: When `GAMESCOPE_STARTUP_POLL_ITERATIONS` expires without observing the game exe inside the gamescope subtree, the watchdog returns silently. `teardown_reason` then falls through to `NaturalExit` in the finalizer — conflating "game exited cleanly" with "game never started".
 - **Fix**: Either accept as-is (watchdog made no intervention, `NaturalExit` is honest) and add a comment on the `return`, or introduce a `WatchdogStandDown` variant that the finalizer maps into `diagnostic_json` distinctly.
-- **Status**: Open (confirm intentional)
+- **Status**: Fixed (confirm intentional) — added an explanatory comment at the standdown `return` documenting why `outcome` is intentionally not marked; chose the honest `NaturalExit` attribution rather than a new variant.
 
 ---
 
@@ -130,7 +130,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/crates/crosshook-core/src/launch/watchdog/tasks.rs:173–179`
 - **Issue**: If the broadcast channel lags (capacity 4; requires ≥ 4 rapid sends), the most-recent signal is discarded and `cancel_reason` returns `LinkedSessionExit`. If the dropped signal was a user-requested teardown, the audit trail misattributes it. Rare in practice.
 - **Fix**: Before defaulting, call `try_recv()` once to drain any queued message and return that reason if present. Or lift the capacity (16) and document the rationale.
-- **Status**: Open (confirm intentional)
+- **Status**: Fixed — added `cancel_reason_after_lag` helper that peeks past the lag via `try_recv`, recovering a queued `UserRequest` (or similar) instead of flattening it to `LinkedSessionExit`. Wired into both `gamescope_watchdog`'s `tokio::select!` arms and the new `drain_cancel_into_outcome` helper. Added unit tests covering the recover / empty / closed branches.
 
 ---
 
@@ -141,7 +141,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/crates/crosshook-core/src/launch/session/registry.rs:40, 48, 61, 89, 106, 129, 144`
 - **Issue**: Every method `.expect`s on `Mutex::lock`. If the lock ever poisons (a thread panics while holding it — requires OOM during HashMap ops in practice), every subsequent registry call propagates a secondary panic.
 - **Fix**: Accept as designed — the registry has no recoverable degraded state. Add a struct-level doc comment that poison is treated as an unrecoverable invariant violation. Alternative: swap the registry to `RwLock` so reader paths (`sessions_for_profile`, `cancel_linked_children` sender collection) don't share lock-poison contagion with writers.
-- **Status**: Open (likely: confirm intentional + add doc)
+- **Status**: Fixed — added a **Poison policy** paragraph on the `LaunchSessionRegistry` doc comment explaining the unrecoverable-invariant-violation semantics. Kept `Mutex` (not `RwLock`) since cross-reader contention is not a measured concern for a single-user desktop app.
 
 ---
 
@@ -152,7 +152,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/src-tauri/src/commands/launch/shared.rs:76–78`
 - **Issue**: `session_id`, `session_kind`, `session_registry` are wrapped in `Option` but every call site in this PR populates them with `Some(...)`. `finalize_launch_session` immediately destructures all three with `let (Some(...), Some(...), Some(...)) = ... else { return; };` — a `None` is a silent no-op. The `Option` wrapping communicates a capability no code exercises.
 - **Fix**: Make them required fields. Or, if kept optional, add an `// INVARIANT:` comment explaining when `None` is legitimate (e.g. pre-#230 code paths that haven't been migrated).
-- **Status**: Open
+- **Status**: Fixed — `session_id`, `session_kind`, `session_registry` are now required fields on `LaunchStreamContext`; finalizer reads them directly without the nested destructure. Struct doc comment explains the invariant.
 
 ---
 
@@ -163,7 +163,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/src-tauri/src/commands/launch/execution.rs:401–432`
 - **Issue**: The helper encodes cancel-channel semantics (mapping `Lagged` to `LinkedSessionExit`, calling `record_reason`) that mirror `cancel_reason()` in `crosshook-core`. Two code paths now interpret broadcast outcomes — one in core, one in the Tauri layer.
 - **Fix**: Move the helper (or its channel-to-reason mapping) into `crosshook-core` alongside `cancel_reason`. The `src-tauri` side spawns a thin wrapper that calls the core function.
-- **Status**: Open
+- **Status**: Fixed — new `crates/crosshook-core/src/launch/session/drain.rs` exposes `drain_cancel_into_outcome(session_id, outcome, cancel_rx)`. Tauri's `execution.rs` imports and spawns the core helper; the private local wrapper is gone.
 
 ---
 
@@ -174,7 +174,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/crates/crosshook-core/src/launch/diagnostics/models.rs:21–25`
 - **Issue**: The field doc says "Populated by the stream finalizer when the gamescope watchdog fires." But the `record_reason` path (`drain_cancel_on_trainer_no_watchdog` for trainer-without-gamescope) also populates the field without a watchdog. A reader inspecting a `diagnostic_json` row for a non-gamescope trainer teardown would be misled.
 - **Fix**: Broaden the comment: _"Populated by the stream finalizer to record why this launch was torn down — set by the gamescope watchdog when it fires, or by the cancel-drain path for trainers without gamescope."_
-- **Status**: Open
+- **Status**: Fixed — `DiagnosticReport.teardown_reason` doc now covers both paths (watchdog + cancel-drain).
 
 ---
 
@@ -185,7 +185,7 @@ All findings use a `Status:` line that a follow-up `/ycc:review-fix` run can fli
 - **File**: `src/crosshook-native/src/types/diagnostics.ts` (or wherever `DiagnosticReport` is declared frontend-side)
 - **Issue**: The Rust side adds `teardown_reason: Option<TeardownReason>`. The TS twin was not updated. Not a runtime breakage — `skip_serializing_if = "Option::is_none"` keeps the field absent from most events. Future TS code reading/filtering on teardown reason gets no type checking.
 - **Fix**: Add `teardown_reason?: string` (or a typed string literal union matching the snake_case variants after F001 is resolved) to the TS interface. Add a corresponding Vitest mock update if any test exercises this report shape.
-- **Status**: Open (coupled with F001 — resolve together)
+- **Status**: Fixed — exported a typed `TeardownReason` union plus `TEARDOWN_REASONS` readonly array; `DiagnosticReport.teardown_reason?: TeardownReason`; `isDiagnosticReport` type guard validates the field when present. TS typecheck + Vitest (36/36) green.
 
 ---
 

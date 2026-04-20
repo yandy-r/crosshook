@@ -247,10 +247,8 @@ async fn finalize_launch_stream(
 
     if context.watchdog_outcome.was_killed() {
         let message = match context.session_kind {
-            Some(SessionKind::Trainer) => {
-                "Trainer exited; gamescope compositor cleaned up.".to_string()
-            }
-            _ => "Game exited; gamescope compositor cleaned up.".to_string(),
+            SessionKind::Trainer => "Trainer exited; gamescope compositor cleaned up.".to_string(),
+            SessionKind::Game => "Game exited; gamescope compositor cleaned up.".to_string(),
         };
         report.exit_info.failure_mode = FailureMode::CleanExit;
         report.summary = message.clone();
@@ -449,15 +447,10 @@ async fn finalize_launch_stream(
 /// loops and tear their own trees down. Then deregister this session so the
 /// registry doesn't leak entries.
 fn finalize_launch_session(context: &LaunchStreamContext) {
-    let (Some(registry), Some(session_id), Some(session_kind)) = (
-        context.session_registry.as_ref(),
-        context.session_id,
-        context.session_kind,
-    ) else {
-        return;
-    };
+    let registry = context.session_registry.as_ref();
+    let session_id = context.session_id;
 
-    if session_kind == SessionKind::Game {
+    if context.session_kind == SessionKind::Game {
         let signalled =
             registry.cancel_linked_children(session_id, TeardownReason::LinkedSessionExit);
         if signalled > 0 {

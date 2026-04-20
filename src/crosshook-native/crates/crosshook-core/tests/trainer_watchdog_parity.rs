@@ -126,8 +126,9 @@ fn teardown_reason_round_trips_through_diagnostic_report_json() {
 
     let json = serde_json::to_string(&report).expect("serialize");
     assert!(
-        json.contains("\"teardown_reason\":\"LinkedSessionExit\""),
-        "teardown reason must be embedded verbatim in diagnostic_json: {json}"
+        json.contains("\"teardown_reason\":\"linked_session_exit\""),
+        "teardown reason must serialize as snake_case to match the surrounding \
+         diagnostics schema: {json}"
     );
 
     let parsed: DiagnosticReport = serde_json::from_str(&json).expect("deserialize");
@@ -249,5 +250,6 @@ fn receiver_closed_serializes_distinctly_from_linked_session_exit() {
     let linked_json = serde_json::to_string(&TeardownReason::LinkedSessionExit).unwrap();
     let closed_json = serde_json::to_string(&TeardownReason::ReceiverClosed).unwrap();
     assert_ne!(linked_json, closed_json);
-    assert_eq!(closed_json, "\"ReceiverClosed\"");
+    assert_eq!(closed_json, "\"receiver_closed\"");
+    assert_eq!(linked_json, "\"linked_session_exit\"");
 }
