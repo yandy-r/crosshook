@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use super::detect::is_flatpak;
+use super::env::{EnvSink, SystemEnv};
 
 /// Redirects `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, and
 /// `XDG_STATE_HOME` to the host's real XDG locations when running inside a
@@ -43,31 +44,6 @@ pub unsafe fn override_xdg_for_flatpak_host_access() {
     }
     let mut sink = SystemEnv;
     apply_xdg_host_override(std::env::var_os("HOME").map(PathBuf::from), &mut sink);
-}
-
-/// Indirection for env-var access so unit tests can observe writes and inject
-/// reads without mutating the real process environment.
-pub(crate) trait EnvSink {
-    /// Write an environment variable.
-    fn set(&mut self, key: &str, value: &OsString);
-    /// Read an environment variable. Returns `None` when the variable is unset.
-    fn get(&self, key: &str) -> Option<OsString>;
-}
-
-struct SystemEnv;
-
-impl EnvSink for SystemEnv {
-    fn set(&mut self, key: &str, value: &OsString) {
-        // SAFETY: called once from `run()` before any threads spawn; the
-        // Tauri Builder is not yet constructed, so there are no concurrent
-        // readers of the environment. Unit tests exercise this through a
-        // mock `EnvSink` and never touch the real env via this code path.
-        unsafe { std::env::set_var(key, value) };
-    }
-
-    fn get(&self, key: &str) -> Option<OsString> {
-        std::env::var_os(key)
-    }
 }
 
 /// Resolve one XDG path: prefer the Flatpak `HOST_XDG_*_HOME` var when the

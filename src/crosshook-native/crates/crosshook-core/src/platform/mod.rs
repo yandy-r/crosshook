@@ -8,6 +8,7 @@
 //! submodules.
 
 mod detect;
+mod env;
 mod gateway;
 mod host_fs;
 mod steam_deck;
@@ -28,6 +29,7 @@ pub use host_fs::{
 pub use steam_deck::is_steam_deck;
 pub use xdg::override_xdg_for_flatpak_host_access;
 
+pub(crate) use env::{EnvSink, SystemEnv};
 pub(crate) use gateway::{
     host_command_with_env_and_directory_inner, is_safe_host_path_lookup_name,
 };
@@ -39,4 +41,4 @@ pub(crate) use steam_deck::read_host_os_release_body;
 pub mod portals;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
