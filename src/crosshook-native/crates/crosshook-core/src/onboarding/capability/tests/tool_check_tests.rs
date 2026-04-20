@@ -2,7 +2,9 @@
 
 use super::super::tool_check::synthesize_umu_run_check;
 use super::test_helpers::*;
-use crate::onboarding::{HostDistroFamily, HostToolCheckResult, ReadinessCheckResult, UmuInstallGuidance};
+use crate::onboarding::{
+    HostDistroFamily, HostToolCheckResult, ReadinessCheckResult, UmuInstallGuidance,
+};
 use crate::profile::health::HealthIssueSeverity;
 
 /// Regression (F007): `synthesize_umu_run_check` must not put the
