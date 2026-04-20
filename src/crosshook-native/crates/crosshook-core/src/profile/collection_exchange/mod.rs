@@ -163,6 +163,39 @@ profiles = []
     }
 
     #[test]
+    fn steam_tie_broken_by_unique_pair() {
+        let dir = tempdir().unwrap();
+        let store = ProfileStore::with_base_path(dir.path().join("profiles"));
+        let metadata = MetadataStore::open_in_memory().unwrap();
+
+        let mut a = sample_profile_named("Alpha", "100");
+        a.trainer.community_trainer_sha256 = "aa".repeat(32);
+        let mut b = sample_profile_named("Bravo", "100");
+        b.trainer.community_trainer_sha256 = "bb".repeat(32);
+        register_profile(&metadata, &store, "pa", &a);
+        register_profile(&metadata, &store, "pb", &b);
+
+        let manifest = CollectionPresetManifest {
+            schema_version: COLLECTION_PRESET_SCHEMA_VERSION.to_string(),
+            name: "Import".to_string(),
+            description: None,
+            defaults: None,
+            profiles: vec![CollectionPresetProfileDescriptor {
+                steam_app_id: "100".to_string(),
+                game_name: "Bravo".to_string(),
+                trainer_community_trainer_sha256: "bb".repeat(32),
+            }],
+        };
+
+        let path = dir.path().join("p.toml");
+        write_preset_toml(&path, &manifest).unwrap();
+        let preview = preview_collection_preset_import(&store, &path).unwrap();
+        assert!(preview.ambiguous.is_empty());
+        assert_eq!(preview.matched.len(), 1);
+        assert_eq!(preview.matched[0].local_profile_name, "pb");
+    }
+
+    #[test]
     fn pair_fallback_match() {
         let dir = tempdir().unwrap();
         let store = ProfileStore::with_base_path(dir.path().join("profiles"));

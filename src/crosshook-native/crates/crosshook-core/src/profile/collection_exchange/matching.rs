@@ -95,6 +95,16 @@ pub(super) fn classify_descriptor(
     d: &CollectionPresetProfileDescriptor,
     index: &LocalMatchIndex,
 ) -> MatchClass {
+    let gn = d.game_name.trim();
+    let sha = d.trainer_community_trainer_sha256.trim();
+    let pair_names = if !gn.is_empty() && !sha.is_empty() {
+        index
+            .pair_to_profiles
+            .get(&(gn.to_string(), sha.to_string()))
+    } else {
+        None
+    };
+
     let steam_key = d.steam_app_id.trim();
     if !steam_key.is_empty() {
         if let Some(names) = index.steam_to_profiles.get(steam_key) {
@@ -106,6 +116,20 @@ pub(super) fn classify_descriptor(
                     };
                 }
                 _ => {
+                    // Multiple local profiles share this steam_app_id. If the
+                    // descriptor's (game_name, trainer sha256) pair uniquely
+                    // identifies one of them, prefer that tighter match over
+                    // reporting ambiguity.
+                    if let Some(pair) = pair_names {
+                        let mut intersection = names.iter().filter(|n| pair.contains(n));
+                        if let Some(unique) = intersection.next() {
+                            if intersection.next().is_none() {
+                                return MatchClass::Matched {
+                                    profile: unique.clone(),
+                                };
+                            }
+                        }
+                    }
                     return MatchClass::Ambiguous {
                         names: names.clone(),
                     };
@@ -114,23 +138,18 @@ pub(super) fn classify_descriptor(
         }
     }
 
-    let gn = d.game_name.trim();
-    let sha = d.trainer_community_trainer_sha256.trim();
-    if !gn.is_empty() && !sha.is_empty() {
-        let key = (gn.to_string(), sha.to_string());
-        if let Some(names) = index.pair_to_profiles.get(&key) {
-            match names.len() {
-                0 => {}
-                1 => {
-                    return MatchClass::Matched {
-                        profile: names[0].clone(),
-                    };
-                }
-                _ => {
-                    return MatchClass::Ambiguous {
-                        names: names.clone(),
-                    };
-                }
+    if let Some(names) = pair_names {
+        match names.len() {
+            0 => {}
+            1 => {
+                return MatchClass::Matched {
+                    profile: names[0].clone(),
+                };
+            }
+            _ => {
+                return MatchClass::Ambiguous {
+                    names: names.clone(),
+                };
             }
         }
     }
