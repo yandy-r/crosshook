@@ -1,126 +1,14 @@
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from 'react';
+import { type MouseEvent as ReactMouseEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { ConfigDiffResult, ConfigRevisionSource, ConfigRevisionSummary } from '../types/profile-history';
-import { formatRelativeTime } from '../utils/format';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+import type { ConfigDiffResult, ConfigRevisionSummary } from '../types/profile-history';
+import { formatExactDate } from './config-history/helpers';
+import { RestoreConfirmation } from './config-history/RestoreConfirmation';
+import { RevisionDetail } from './config-history/RevisionDetail';
+import { RevisionTimeline } from './config-history/RevisionTimeline';
+import type { ConfigHistoryPanelProps } from './config-history/types';
 
-/* ── Focus-trap helpers (mirrors ProfilePreviewModal) ── */
-
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-  '[contenteditable="true"]',
-].join(', ');
-
-function getFocusableElements(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-    (el) => !el.hasAttribute('disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0
-  );
-}
-
-function focusElement(element: HTMLElement | null): boolean {
-  if (!element) return false;
-  element.focus({ preventScroll: true });
-  return document.activeElement === element;
-}
-
-/* ── Source label map ── */
-
-const SOURCE_LABELS: Record<ConfigRevisionSource, string> = {
-  manual_save: 'Manual save',
-  rollback_apply: 'Restore',
-  import: 'Import',
-  launch_optimization_save: 'Optimization save',
-  preset_apply: 'Preset applied',
-  migration: 'Migration',
-};
-
-function formatExactDate(isoString: string): string {
-  try {
-    return new Date(isoString).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return isoString;
-  }
-}
-
-/* ── Diff renderer ── */
-
-function DiffView({ diff }: { diff: ConfigDiffResult }) {
-  if (diff.diff_text.trim() === '') {
-    return (
-      <p className="crosshook-help-text" style={{ marginTop: 8 }}>
-        No differences found.
-      </p>
-    );
-  }
-
-  const lines = diff.diff_text.split('\n');
-
-  return (
-    <div>
-      <div className="crosshook-history-diff-stats">
-        <span className="crosshook-history-stat--add">+{diff.added_lines} added</span>
-        <span className="crosshook-history-stat--remove">-{diff.removed_lines} removed</span>
-        {diff.truncated && (
-          <span className="crosshook-help-text" style={{ marginLeft: 8 }}>
-            (truncated — profile exceeds 2 000 lines)
-          </span>
-        )}
-      </div>
-      <section aria-label="Unified diff">
-        <pre className="crosshook-history-diff-code">
-          {lines.map((line, idx) => {
-            let cls = 'crosshook-history-diff-line';
-            if (line.startsWith('+') && !line.startsWith('+++')) {
-              cls += ' crosshook-history-diff-line--add';
-            } else if (line.startsWith('-') && !line.startsWith('---')) {
-              cls += ' crosshook-history-diff-line--remove';
-            } else if (line.startsWith('@@')) {
-              cls += ' crosshook-history-diff-line--meta';
-            }
-            return (
-              // biome-ignore lint/suspicious/noArrayIndexKey: lines from diff_text.split('\n') have stable order and no unique identity
-              <span key={idx} className={cls}>
-                {line}
-                {'\n'}
-              </span>
-            );
-          })}
-        </pre>
-      </section>
-    </div>
-  );
-}
-
-/* ── ConfigHistoryPanel ── */
-
-export interface ConfigHistoryPanelProps {
-  profileName: string;
-  onClose: () => void;
-  fetchConfigHistory: (profileName: string, limit?: number) => Promise<ConfigRevisionSummary[]>;
-  fetchConfigDiff: (profileName: string, revisionId: number, rightRevisionId?: number) => Promise<ConfigDiffResult>;
-  rollbackConfig: (profileName: string, revisionId: number) => Promise<unknown>;
-  markKnownGood: (profileName: string, revisionId: number) => Promise<void>;
-  /** Called after a successful rollback so the caller can refresh health data. */
-  onAfterRollback?: (profileName: string) => void;
-}
+export type { ConfigHistoryPanelProps };
 
 export function ConfigHistoryPanel({
   profileName,
@@ -134,9 +22,6 @@ export function ConfigHistoryPanel({
   const portalHostRef = useRef<HTMLElement | null>(null);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
-  const bodyStyleRef = useRef('');
-  const hiddenNodesRef = useRef<Array<{ element: HTMLElement; inert: boolean; ariaHidden: string | null }>>([]);
   const titleId = useId();
   const [isMounted, setIsMounted] = useState(false);
 
@@ -179,59 +64,21 @@ export function ConfigHistoryPanel({
     };
   }, []);
 
-  /* ── Focus trap + scroll lock ── */
+  /* ── Focus trap ── */
 
-  useEffect(() => {
-    if (!isMounted) return;
-
-    const { body } = document;
-    const portalHost = portalHostRef.current;
-    if (!portalHost) return;
-
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-
-    bodyStyleRef.current = body.style.overflow;
-    body.style.overflow = 'hidden';
-    body.classList.add('crosshook-modal-open');
-
-    hiddenNodesRef.current = Array.from(body.children)
-      .filter((child): child is HTMLElement => child instanceof HTMLElement && child !== portalHost)
-      .map((element) => {
-        const inertState = (element as HTMLElement & { inert?: boolean }).inert ?? false;
-        const ariaHidden = element.getAttribute('aria-hidden');
-        (element as HTMLElement & { inert?: boolean }).inert = true;
-        element.setAttribute('aria-hidden', 'true');
-        return { element, inert: inertState, ariaHidden };
-      });
-
-    const frame = window.requestAnimationFrame(() => {
-      if (focusElement(headingRef.current)) return;
-      const focusable = surfaceRef.current ? getFocusableElements(surfaceRef.current) : [];
-      if (focusable.length > 0) focusElement(focusable[0]);
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-      body.style.overflow = bodyStyleRef.current;
-      body.classList.remove('crosshook-modal-open');
-
-      for (const { element, inert, ariaHidden } of hiddenNodesRef.current) {
-        (element as HTMLElement & { inert?: boolean }).inert = inert;
-        if (ariaHidden === null) {
-          element.removeAttribute('aria-hidden');
-        } else {
-          element.setAttribute('aria-hidden', ariaHidden);
-        }
+  const { handleKeyDown } = useFocusTrap({
+    open: isMounted,
+    panelRef: surfaceRef,
+    onClose: () => {
+      if (pendingRestore) {
+        setPendingRestore(null);
+        setRestoreError(null);
+        return;
       }
-      hiddenNodesRef.current = [];
-
-      const restoreTarget = previouslyFocusedRef.current;
-      if (restoreTarget?.isConnected) {
-        focusElement(restoreTarget);
-      }
-      previouslyFocusedRef.current = null;
-    };
-  }, [isMounted]);
+      onClose();
+    },
+    initialFocusRef: headingRef,
+  });
 
   /* ── Load revisions on mount ── */
 
@@ -359,48 +206,7 @@ export function ConfigHistoryPanel({
     [profileName, markKnownGood, fetchConfigHistory, selectedRevision]
   );
 
-  /* ── Keyboard handler ── */
-
-  function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      event.preventDefault();
-      if (pendingRestore) {
-        setPendingRestore(null);
-        setRestoreError(null);
-        return;
-      }
-      onClose();
-      return;
-    }
-
-    if (event.key !== 'Tab') return;
-
-    const container = surfaceRef.current;
-    if (!container) return;
-
-    const focusable = getFocusableElements(container);
-    if (focusable.length === 0) {
-      event.preventDefault();
-      return;
-    }
-
-    const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
-    const lastIndex = focusable.length - 1;
-
-    if (event.shiftKey) {
-      if (currentIndex <= 0) {
-        event.preventDefault();
-        focusElement(focusable[lastIndex]);
-      }
-      return;
-    }
-
-    if (currentIndex === -1 || currentIndex === lastIndex) {
-      event.preventDefault();
-      focusElement(focusable[0]);
-    }
-  }
+  /* ── Backdrop click handler ── */
 
   function handleBackdropMouseDown(event: ReactMouseEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget) return;
@@ -468,63 +274,14 @@ export function ConfigHistoryPanel({
         {/* Body — two-column layout */}
         <div className="crosshook-modal__body crosshook-history-body">
           {/* Timeline column */}
-          <div
-            className="crosshook-history-timeline"
-            role="listbox"
-            aria-label="Revision history"
-            aria-orientation="vertical"
-          >
-            {revisionsLoading ? (
-              <div className="crosshook-history-empty">
-                <span className="crosshook-muted">Loading history…</span>
-              </div>
-            ) : revisionsError ? (
-              <div className="crosshook-history-empty">
-                <p className="crosshook-danger" style={{ margin: 0 }}>
-                  Couldn't load configuration history.
-                </p>
-                <p className="crosshook-help-text" style={{ marginTop: 6 }}>
-                  {revisionsError}
-                </p>
-              </div>
-            ) : revisions.length === 0 ? (
-              <div className="crosshook-history-empty">
-                <p style={{ margin: 0, fontWeight: 600 }}>No snapshots yet</p>
-                <p className="crosshook-help-text" style={{ marginTop: 6 }}>
-                  Snapshots are created when you save or when changes are auto-captured.
-                </p>
-              </div>
-            ) : (
-              revisions.map((rev) => (
-                <button
-                  key={rev.id}
-                  type="button"
-                  role="option"
-                  aria-selected={selectedRevision?.id === rev.id}
-                  className={
-                    'crosshook-history-timeline-item' +
-                    (selectedRevision?.id === rev.id ? ' crosshook-history-timeline-item--selected' : '')
-                  }
-                  onClick={() => selectRevision(rev)}
-                >
-                  <div className="crosshook-history-timeline-item__header">
-                    <span className="crosshook-history-badge">{SOURCE_LABELS[rev.source] ?? rev.source}</span>
-                    {rev.is_last_known_working && (
-                      <span className="crosshook-history-badge crosshook-history-badge--known-good">Known good</span>
-                    )}
-                  </div>
-                  <div className="crosshook-history-timeline-item__time" title={formatExactDate(rev.created_at)}>
-                    {formatRelativeTime(rev.created_at)}
-                  </div>
-                  {rev.profile_name_at_write !== profileName && (
-                    <div className="crosshook-history-timeline-item__oldname crosshook-muted">
-                      was: {rev.profile_name_at_write}
-                    </div>
-                  )}
-                </button>
-              ))
-            )}
-          </div>
+          <RevisionTimeline
+            revisions={revisions}
+            selectedRevision={selectedRevision}
+            profileName={profileName}
+            loading={revisionsLoading}
+            error={revisionsError}
+            onSelectRevision={selectRevision}
+          />
 
           {/* Detail column */}
           <div className="crosshook-history-detail">
@@ -553,102 +310,33 @@ export function ConfigHistoryPanel({
               </div>
             ) : pendingRestore ? (
               /* Restore confirmation */
-              <section className="crosshook-history-confirm" aria-label="Restore confirmation">
-                <h3 style={{ margin: '0 0 12px' }}>Restore this configuration snapshot?</h3>
-                <p className="crosshook-help-text" style={{ marginBottom: 16 }}>
-                  You're restoring the snapshot from <strong>{formatExactDate(pendingRestore.created_at)}</strong> (
-                  {SOURCE_LABELS[pendingRestore.source] ?? pendingRestore.source}). Your current config will be saved as
-                  a new snapshot first.
-                </p>
-                {restoreError ? (
-                  <p className="crosshook-danger" role="alert" style={{ marginBottom: 12 }}>
-                    {restoreError}
-                  </p>
-                ) : null}
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="crosshook-button"
-                    disabled={restoring}
-                    onClick={() => void handleConfirmRestore()}
-                  >
-                    {restoring ? 'Restoring…' : 'Restore snapshot'}
-                  </button>
-                  <button
-                    type="button"
-                    className="crosshook-button crosshook-button--secondary"
-                    disabled={restoring}
-                    onClick={() => {
-                      setPendingRestore(null);
-                      setRestoreError(null);
-                    }}
-                  >
-                    Keep current config
-                  </button>
-                </div>
-              </section>
+              <RestoreConfirmation
+                revision={pendingRestore}
+                restoring={restoring}
+                error={restoreError}
+                onConfirm={() => void handleConfirmRestore()}
+                onCancel={() => {
+                  setPendingRestore(null);
+                  setRestoreError(null);
+                }}
+              />
             ) : (
               /* Diff view + actions */
-              <>
-                <div className="crosshook-history-detail-header">
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span className="crosshook-history-badge">
-                      {SOURCE_LABELS[selectedRevision.source] ?? selectedRevision.source}
-                    </span>
-                    {selectedRevision.is_last_known_working && (
-                      <span className="crosshook-history-badge crosshook-history-badge--known-good">Known good</span>
-                    )}
-                  </div>
-                  <div className="crosshook-help-text" style={{ marginTop: 6 }}>
-                    {formatExactDate(selectedRevision.created_at)}
-                    {selectedRevision.source_revision_id !== null && (
-                      <span className="crosshook-muted"> — restored from #{selectedRevision.source_revision_id}</span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="crosshook-history-diff-area">
-                  {diffLoading ? (
-                    <span className="crosshook-muted">Loading diff…</span>
-                  ) : diffError ? (
-                    <p className="crosshook-danger" role="alert">
-                      {diffError}
-                    </p>
-                  ) : diff ? (
-                    <DiffView diff={diff} />
-                  ) : null}
-                </div>
-
-                <div className="crosshook-history-detail-actions">
-                  <button
-                    type="button"
-                    className="crosshook-button"
-                    onClick={() => {
-                      setRestoreSuccess(null);
-                      setRestoreError(null);
-                      setMarkKnownGoodError(null);
-                      setPendingRestore(selectedRevision);
-                    }}
-                  >
-                    Restore snapshot
-                  </button>
-                  {!selectedRevision.is_last_known_working && (
-                    <button
-                      type="button"
-                      className="crosshook-button crosshook-button--secondary"
-                      disabled={markingKnownGoodId === selectedRevision.id}
-                      onClick={() => void handleMarkKnownGood(selectedRevision)}
-                    >
-                      {markingKnownGoodId === selectedRevision.id ? 'Marking…' : 'Mark as known good'}
-                    </button>
-                  )}
-                  {markKnownGoodError ? (
-                    <p className="crosshook-danger" role="alert" style={{ margin: '8px 0 0', width: '100%' }}>
-                      {markKnownGoodError}
-                    </p>
-                  ) : null}
-                </div>
-              </>
+              <RevisionDetail
+                revision={selectedRevision}
+                diff={diff}
+                diffLoading={diffLoading}
+                diffError={diffError}
+                markingKnownGood={markingKnownGoodId === selectedRevision.id}
+                markKnownGoodError={markKnownGoodError}
+                onRestore={() => {
+                  setRestoreSuccess(null);
+                  setRestoreError(null);
+                  setMarkKnownGoodError(null);
+                  setPendingRestore(selectedRevision);
+                }}
+                onMarkKnownGood={() => void handleMarkKnownGood(selectedRevision)}
+              />
             )}
           </div>
         </div>
