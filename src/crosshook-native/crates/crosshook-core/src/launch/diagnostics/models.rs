@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::launch::request::ValidationSeverity;
+use crate::launch::session::TeardownReason;
 
 pub const MAX_LOG_TAIL_BYTES: u64 = 2 * 1024 * 1024;
 pub const MAX_DIAGNOSTIC_ENTRIES: usize = 50;
@@ -16,6 +17,14 @@ pub struct DiagnosticReport {
     pub launch_method: String,
     pub log_tail_path: Option<String>,
     pub analyzed_at: String,
+    /// Populated by the stream finalizer to record why this launch was torn
+    /// down — set by the gamescope watchdog when it fires, or by the
+    /// cancel-drain path for launches that have no gamescope tree to tear
+    /// down (e.g. a non-gamescope trainer cascaded by its parent game).
+    /// Optional for backward-compat with pre-#230
+    /// `launch_operations.diagnostic_json` rows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub teardown_reason: Option<TeardownReason>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

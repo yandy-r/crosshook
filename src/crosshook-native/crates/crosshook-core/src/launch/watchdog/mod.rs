@@ -9,6 +9,7 @@ mod process;
 mod resolver;
 mod tasks;
 
+pub(crate) use tasks::cancel_reason_after_lag;
 pub use tasks::gamescope_watchdog;
 
 pub(super) const GAMESCOPE_STARTUP_POLL_ITERATIONS: u32 = 60;

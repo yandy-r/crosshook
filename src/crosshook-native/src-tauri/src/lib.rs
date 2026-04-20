@@ -355,6 +355,9 @@ pub fn run() {
         .manage(commands::run_executable::RunExecutableProcessState::new())
         .manage(commands::prefix_deps::PrefixDepsInstallState::new())
         .manage(std::sync::Arc::new(commands::protonup::ProtonInstallRegistry::default()))
+        .manage(std::sync::Arc::new(
+            crosshook_core::launch::LaunchSessionRegistry::new(),
+        ))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

@@ -1,10 +1,7 @@
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
-
+use tokio::sync::broadcast;
 use tokio::task;
 
+use crate::launch::session::{TeardownReason, WatchdogOutcome};
 use crate::platform::host_std_command;
 
 use super::{
@@ -22,17 +19,31 @@ use super::{
 /// compositor alive indefinitely. This watchdog polls for the game executable
 /// and, once it disappears, terminates gamescope so the normal
 /// stream-log / finalize cleanup path can proceed.
+///
+/// The `cancel_rx` lets a parent launch (e.g. a game that owns a linked
+/// trainer) short-circuit the poll loop and tear the tree down on demand.
+/// Game launches receive a receiver that is never signalled; trainer launches
+/// receive one wired to the launch-session registry so when the game session
+/// ends the trainer watchdog cancels out of its poll loop immediately.
+///
+/// The `outcome` slot is written when the watchdog fires and is read by the
+/// stream finalizer to stamp the launch's `diagnostic_json` with the reason.
 pub async fn gamescope_watchdog(
     gamescope_pid: u32,
     exe_name: &str,
-    killed_flag: Arc<AtomicBool>,
+    outcome: WatchdogOutcome,
     host_pid_capture_path: Option<std::path::PathBuf>,
+    mut cancel_rx: broadcast::Receiver<TeardownReason>,
 ) {
     let Some(observation_target) =
         resolve_watchdog_target(gamescope_pid, host_pid_capture_path.as_deref(), exe_name).await
     else {
         return;
     };
+
+    // Startup poll: wait for the game process to appear inside the gamescope
+    // subtree. Honor cancel here too — a trainer can be cancelled before its
+    // child exe ever starts.
     let mut game_seen = false;
     for _ in 0..GAMESCOPE_STARTUP_POLL_ITERATIONS {
         if !is_target_pid_alive(observation_target) {
@@ -42,9 +53,31 @@ pub async fn gamescope_watchdog(
             game_seen = true;
             break;
         }
-        tokio::time::sleep(GAMESCOPE_POLL_INTERVAL).await;
+        tokio::select! {
+            _ = tokio::time::sleep(GAMESCOPE_POLL_INTERVAL) => {}
+            reason = cancel_rx.recv() => {
+                let reason = match reason {
+                    Ok(r) => r,
+                    Err(broadcast::error::RecvError::Lagged(_)) => cancel_reason_after_lag(&mut cancel_rx),
+                    Err(broadcast::error::RecvError::Closed) => TeardownReason::ReceiverClosed,
+                };
+                tracing::info!(
+                    exe = %exe_name,
+                    gamescope_pid = observation_target.pid,
+                    teardown_reason = %reason,
+                    "gamescope watchdog: cancel received during startup poll"
+                );
+                shutdown_gamescope_tree(observation_target, &outcome, reason).await;
+                return;
+            }
+        }
     }
     if !game_seen {
+        // Intentional: we never observed the child exe inside the gamescope
+        // subtree within the startup window. No teardown happened, so we do
+        // not mark `outcome` here — the stream finalizer will attribute this
+        // launch as `TeardownReason::NaturalExit`, which is honest: the
+        // watchdog took no action.
         tracing::debug!(
             exe = %exe_name,
             "gamescope watchdog: game process never appeared, standing down"
@@ -52,6 +85,8 @@ pub async fn gamescope_watchdog(
         return;
     }
 
+    // Main poll loop: wait for the game process to exit inside gamescope, or
+    // for a parent-driven cancel signal.
     loop {
         if !is_target_pid_alive(observation_target) {
             return;
@@ -59,7 +94,24 @@ pub async fn gamescope_watchdog(
         if !descendant_process_running_for_target(observation_target, exe_name.to_string()).await {
             break;
         }
-        tokio::time::sleep(GAMESCOPE_POLL_INTERVAL).await;
+        tokio::select! {
+            _ = tokio::time::sleep(GAMESCOPE_POLL_INTERVAL) => {}
+            reason = cancel_rx.recv() => {
+                let reason = match reason {
+                    Ok(r) => r,
+                    Err(broadcast::error::RecvError::Lagged(_)) => cancel_reason_after_lag(&mut cancel_rx),
+                    Err(broadcast::error::RecvError::Closed) => TeardownReason::ReceiverClosed,
+                };
+                tracing::info!(
+                    exe = %exe_name,
+                    gamescope_pid = observation_target.pid,
+                    teardown_reason = %reason,
+                    "gamescope watchdog: cancel received during main poll"
+                );
+                shutdown_gamescope_tree(observation_target, &outcome, reason).await;
+                return;
+            }
+        }
     }
 
     tracing::info!(
@@ -73,30 +125,69 @@ pub async fn gamescope_watchdog(
         return;
     }
 
-    let shutdown_target = observation_target;
-    let descendants = collect_descendant_pids_task(shutdown_target).await;
+    shutdown_gamescope_tree(
+        observation_target,
+        &outcome,
+        TeardownReason::WatchdogNaturalExit,
+    )
+    .await;
+}
 
-    killed_flag.store(true, Ordering::Release);
+/// Kill the gamescope compositor and any lingering descendants for `target`.
+/// Used both by the natural-exit path (game exe disappeared) and by the
+/// cancel-initiated path (parent session broadcast a teardown reason).
+///
+/// Marks `outcome` so the stream finalizer can embed the reason in the
+/// launch's `diagnostic_json`.
+pub(crate) async fn shutdown_gamescope_tree(
+    target: ShutdownTarget,
+    outcome: &WatchdogOutcome,
+    reason: TeardownReason,
+) {
+    let descendants = collect_descendant_pids_task(target).await;
+
+    outcome.mark(reason);
     tracing::info!(
-        gamescope_pid = shutdown_target.pid,
+        gamescope_pid = target.pid,
+        teardown_reason = %reason,
         "gamescope watchdog: sending SIGTERM"
     );
-    signal_pid_task(shutdown_target.pid, None).await;
+    signal_pid_task(target.pid, None).await;
 
     tokio::time::sleep(GAMESCOPE_SIGTERM_WAIT).await;
-    if !is_target_pid_alive(shutdown_target) {
-        kill_remaining_descendants_task(descendants, shutdown_target.host_namespace).await;
+    if !is_target_pid_alive(target) {
+        kill_remaining_descendants_task(descendants, target.host_namespace).await;
         return;
     }
 
     tracing::warn!(
-        gamescope_pid = shutdown_target.pid,
+        gamescope_pid = target.pid,
+        teardown_reason = %reason,
         "gamescope watchdog: sending SIGKILL"
     );
-    signal_pid_task(shutdown_target.pid, Some("-KILL")).await;
+    signal_pid_task(target.pid, Some("-KILL")).await;
 
     tokio::time::sleep(GAMESCOPE_DESCENDANT_CLEANUP_DELAY).await;
-    kill_remaining_descendants_task(descendants, shutdown_target.host_namespace).await;
+    kill_remaining_descendants_task(descendants, target.host_namespace).await;
+}
+
+/// Peek past a lag: after a `Lagged` error, the receiver is re-synced and
+/// the most recent queued message is immediately available. Attempts one
+/// non-blocking `try_recv` and returns the resolved reason. On `Empty` or
+/// a secondary `Lagged`, falls back to `LinkedSessionExit` (the most common
+/// cancel source in practice) as the closest available truth. Used by
+/// cancel-drain helpers and the watchdog poll loop to recover the real
+/// cancel reason after a lag, preserving audit fidelity (e.g. a
+/// `UserRequest` that would otherwise be silently misattributed).
+pub(crate) fn cancel_reason_after_lag(
+    receiver: &mut broadcast::Receiver<TeardownReason>,
+) -> TeardownReason {
+    match receiver.try_recv() {
+        Ok(reason) => reason,
+        Err(broadcast::error::TryRecvError::Empty) => TeardownReason::LinkedSessionExit,
+        Err(broadcast::error::TryRecvError::Closed) => TeardownReason::ReceiverClosed,
+        Err(broadcast::error::TryRecvError::Lagged(_)) => TeardownReason::LinkedSessionExit,
+    }
 }
 
 async fn descendant_process_running_for_target(target: ShutdownTarget, exe_name: String) -> bool {
@@ -201,5 +292,43 @@ fn kill_remaining_descendants(pids: &[u32], host_namespace: bool) {
                 .arg(pid.to_string())
                 .status();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn cancel_reason_after_lag_recovers_queued_signal() {
+        let (tx, mut rx) = broadcast::channel::<TeardownReason>(2);
+        // Queue a UserRequest, then let the channel "lag" by overflowing.
+        tx.send(TeardownReason::UserRequest).unwrap();
+        assert_eq!(
+            cancel_reason_after_lag(&mut rx),
+            TeardownReason::UserRequest,
+            "the most-recent queued message must be recovered, not defaulted"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_reason_after_lag_defaults_when_empty() {
+        let (_tx, mut rx) = broadcast::channel::<TeardownReason>(2);
+        assert_eq!(
+            cancel_reason_after_lag(&mut rx),
+            TeardownReason::LinkedSessionExit,
+            "empty channel falls back to LinkedSessionExit"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_reason_after_lag_maps_closed_to_receiver_closed() {
+        let (tx, mut rx) = broadcast::channel::<TeardownReason>(2);
+        drop(tx);
+        assert_eq!(
+            cancel_reason_after_lag(&mut rx),
+            TeardownReason::ReceiverClosed,
+            "closed channel distinct from LinkedSessionExit"
+        );
     }
 }
