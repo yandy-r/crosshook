@@ -164,8 +164,16 @@ if (( RUN_SHELL )); then
       shellcheck --severity=warning "${shell_files[@]}" || EXIT_CODE=1
     fi
   else
-    echo "=== Shell: shellcheck ==="
-    shellcheck --severity=warning "$ROOT_DIR"/scripts/*.sh "$ROOT_DIR"/scripts/lib/*.sh || EXIT_CODE=1
+    shell_files=()
+    mapfile -t shell_files < <(list_repo_paths "scripts/" ".sh")
+
+    if (( ${#shell_files[@]} == 0 )); then
+      echo "=== Shell ==="
+      echo "No shell scripts found."
+    else
+      echo "=== Shell: shellcheck ==="
+      shellcheck --severity=warning "${shell_files[@]}" || EXIT_CODE=1
+    fi
   fi
 fi
 

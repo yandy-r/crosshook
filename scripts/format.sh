@@ -117,11 +117,19 @@ if (( RUN_DOCS )); then
         --config "$ROOT_DIR/.prettierrc")
     fi
   else
-    echo "=== Markdown/JSON: prettier ==="
-    (cd "$NATIVE_DIR" && npx prettier --write \
-      "$ROOT_DIR/**/*.md" \
-      --ignore-path "$ROOT_DIR/.prettierignore" \
-      --config "$ROOT_DIR/.prettierrc")
+    docs_files=()
+    mapfile -t docs_files < <(list_repo_paths "" ".md")
+
+    if (( ${#docs_files[@]} == 0 )); then
+      echo "=== Markdown/JSON ==="
+      echo "No Markdown files found."
+    else
+      echo "=== Markdown/JSON: prettier ==="
+      (cd "$NATIVE_DIR" && npx prettier --write \
+        "${docs_files[@]}" \
+        --ignore-path "$ROOT_DIR/.prettierignore" \
+        --config "$ROOT_DIR/.prettierrc")
+    fi
   fi
 fi
 
