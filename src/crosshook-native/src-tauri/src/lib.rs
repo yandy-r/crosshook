@@ -9,6 +9,7 @@ pub use background_portal::{
 
 use crosshook_core::app_id_migration::migrate_legacy_tauri_app_id_xdg_directories;
 use crosshook_core::community::CommunityTapStore;
+use crosshook_core::flatpak_migration::MigrationOutcome;
 use crosshook_core::launch::{initialize_catalog, load_catalog};
 use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
@@ -17,26 +18,60 @@ use crosshook_core::onboarding::{
     initialize_capability_map, initialize_readiness_catalog, load_capability_map,
     load_readiness_catalog,
 };
-use crosshook_core::platform::override_xdg_for_flatpak_host_access;
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore};
 pub use paths::resolve_script_path;
+use std::ffi::OsStr;
+use std::sync::{Mutex, OnceLock};
 use tauri::{Emitter, Manager};
 use tokio::time::{sleep, Duration};
 
+static FLATPAK_MIGRATION_OUTCOME: OnceLock<Mutex<Option<MigrationOutcome>>> = OnceLock::new();
+
+fn flatpak_host_xdg_opt_in() -> bool {
+    match std::env::var_os("CROSSHOOK_FLATPAK_HOST_XDG") {
+        Some(value) => value == OsStr::new("1") || value == OsStr::new("true"),
+        None => false,
+    }
+}
+
+#[derive(serde::Serialize)]
+struct FlatpakMigrationCompletePayload {
+    imported_config: bool,
+    imported_subtrees: Vec<String>,
+    skipped_subtrees: Vec<String>,
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Redirect XDG_{CONFIG,DATA,CACHE}_HOME back to the host's defaults when
-    // running inside a Flatpak sandbox. Must run before any `BaseDirs::new()`
-    // call (including the migration below and every store `try_new`), because
-    // `directories` crate reads XDG env vars at construction time.
+    // Flatpak startup gate (Phase 4, ADR-0003): isolation by default, host-share on opt-in.
     //
-    // Phase 1 shares data between AppImage and Flatpak via --filesystem=home.
-    // Phase 4 will replace this with per-app isolation + a first-run
-    // migration. See docs/prps/prds/flatpak-distribution.prd.md §10.2.
-    // SAFETY: this is the top of startup before any worker threads or Tauri
-    // builder state exist; no concurrent env readers/writers are active.
-    unsafe { override_xdg_for_flatpak_host_access() };
+    // This decision MUST run before any `BaseDirs::new()` call (including the
+    // migration that follows and every `*Store::try_new`) because the directories
+    // crate reads XDG env vars at construction time.
+    if crosshook_core::platform::is_flatpak() {
+        if flatpak_host_xdg_opt_in() {
+            tracing::info!(mode = "host-xdg-shared", "flatpak startup mode");
+            eprintln!("CrossHook: flatpak host-XDG shared mode (opt-in)");
+            // SAFETY: single-threaded startup, before Tauri builder; matches Phase 1 contract.
+            unsafe { crosshook_core::platform::override_xdg_for_flatpak_host_access() };
+        } else {
+            tracing::info!(mode = "per-app-isolation", "flatpak startup mode");
+            eprintln!("CrossHook: flatpak per-app isolation mode");
+            match crosshook_core::flatpak_migration::run() {
+                Ok(outcome) => {
+                    let slot = FLATPAK_MIGRATION_OUTCOME.get_or_init(|| Mutex::new(None));
+                    if let Ok(mut guard) = slot.lock() {
+                        *guard = Some(outcome);
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!(error = %err, "flatpak first-run migration failed");
+                    eprintln!("CrossHook: flatpak first-run migration failed: {err}");
+                }
+            }
+        }
+    }
 
     // One-time XDG root migration after Tauri app `identifier` change (legacy -> current).
     migrate_legacy_tauri_app_id_xdg_directories();
@@ -307,6 +342,43 @@ pub fn run() {
                         Err(err) => tracing::warn!(%err, "umu-database startup refresh failed"),
                     }
                 });
+
+                // Flatpak first-run migration completion event (Phase 4, ADR-0003).
+                // Emit `flatpak-migration-complete` when the startup migration imported
+                // at least one item so the frontend can surface a one-time toast to the
+                // user. The outcome was stashed in `FLATPAK_MIGRATION_OUTCOME` before
+                // the Tauri builder ran; we take it here so it fires exactly once.
+                if let Some(slot) = FLATPAK_MIGRATION_OUTCOME.get() {
+                    if let Ok(mut guard) = slot.lock() {
+                        if let Some(outcome) = guard.take() {
+                            let should_emit =
+                                outcome.imported_config || !outcome.imported_subtrees.is_empty();
+                            if should_emit {
+                                let payload = FlatpakMigrationCompletePayload {
+                                    imported_config: outcome.imported_config,
+                                    imported_subtrees: outcome
+                                        .imported_subtrees
+                                        .iter()
+                                        .map(|s| (*s).to_string())
+                                        .collect(),
+                                    skipped_subtrees: outcome
+                                        .skipped_subtrees
+                                        .iter()
+                                        .map(|s| (*s).to_string())
+                                        .collect(),
+                                };
+                                if let Err(error) =
+                                    app.handle().emit("flatpak-migration-complete", &payload)
+                                {
+                                    tracing::warn!(
+                                        %error,
+                                        "failed to emit flatpak-migration-complete"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Flatpak Background portal (ADR-0002 § Background portal
                 // contract). Request once at startup so the sandbox-side
