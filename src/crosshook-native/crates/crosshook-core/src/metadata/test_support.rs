@@ -86,6 +86,7 @@ pub(super) fn clean_exit_report() -> DiagnosticReport {
         launch_method: "native".to_string(),
         log_tail_path: None,
         analyzed_at: "2026-01-01T00:00:00Z".to_string(),
+        teardown_reason: None,
     }
 }
 

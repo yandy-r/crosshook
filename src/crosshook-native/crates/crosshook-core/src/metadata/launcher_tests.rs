@@ -235,6 +235,7 @@ fn test_diagnostic_json_truncated_at_4kb() {
         launch_method: "native".to_string(),
         log_tail_path: None,
         analyzed_at: "2026-01-01T00:00:00Z".to_string(),
+        teardown_reason: None,
     };
 
     let large_json_len = serde_json::to_string(&large_report).unwrap().len();

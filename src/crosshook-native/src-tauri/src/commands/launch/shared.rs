@@ -1,7 +1,8 @@
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use crosshook_core::launch::LaunchValidationIssue;
+use crosshook_core::launch::{
+    LaunchSessionRegistry, LaunchValidationIssue, SessionId, SessionKind, WatchdogOutcome,
+};
 use crosshook_core::metadata::MetadataStore;
 use serde::Serialize;
 
@@ -71,5 +72,8 @@ pub(crate) struct LaunchStreamContext {
     pub(crate) trainer_host_path: Option<String>,
     pub(crate) profile_name: Option<String>,
     pub(crate) steam_client_path: String,
-    pub(crate) watchdog_killed: Arc<AtomicBool>,
+    pub(crate) watchdog_outcome: WatchdogOutcome,
+    pub(crate) session_id: Option<SessionId>,
+    pub(crate) session_kind: Option<SessionKind>,
+    pub(crate) session_registry: Option<Arc<LaunchSessionRegistry>>,
 }

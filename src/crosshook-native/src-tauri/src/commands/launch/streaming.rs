@@ -1,11 +1,11 @@
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
-use std::sync::atomic::Ordering;
 
 use crosshook_core::launch::diagnostics::FailureMode;
 use crosshook_core::launch::{
-    analyze, diagnostics::MAX_LOG_TAIL_BYTES, should_surface_report, ValidationSeverity,
+    analyze, diagnostics::MAX_LOG_TAIL_BYTES, should_surface_report, SessionKind, TeardownReason,
+    ValidationSeverity,
 };
 use crosshook_core::metadata::VersionCorrelationStatus;
 use crosshook_core::steam::discover_steam_root_candidates;
@@ -245,13 +245,21 @@ async fn finalize_launch_stream(
     report.log_tail_path = Some(sanitize_display_path(&log_path.to_string_lossy()));
     let mut report = sanitize_diagnostic_report(report);
 
-    if context.watchdog_killed.load(Ordering::Acquire) {
+    if context.watchdog_outcome.was_killed() {
         report.exit_info.failure_mode = FailureMode::CleanExit;
         report.summary = "Game exited; gamescope compositor cleaned up.".to_string();
         report.exit_info.description = "Game exited; gamescope compositor cleaned up.".to_string();
         report.exit_info.severity = ValidationSeverity::Info;
         report.suggestions.clear();
     }
+
+    // Record why this launch was torn down. If the watchdog fired it has the
+    // authoritative reason; otherwise the process exited on its own and the
+    // launch's session (if present) was tidied up naturally.
+    report.teardown_reason = context
+        .watchdog_outcome
+        .reason()
+        .or(Some(TeardownReason::NaturalExit));
 
     if let Some(ref op_id) = context.operation_id {
         let ms = context.metadata_store.clone();
@@ -426,4 +434,34 @@ async fn finalize_launch_stream(
     ) {
         tracing::warn!(%error, "failed to emit launch-complete event");
     }
+
+    finalize_launch_session(&context);
+}
+
+/// On game-session teardown, broadcast [`TeardownReason::LinkedSessionExit`]
+/// to any linked trainer sessions so their watchdogs cancel out of their poll
+/// loops and tear their own trees down. Then deregister this session so the
+/// registry doesn't leak entries.
+fn finalize_launch_session(context: &LaunchStreamContext) {
+    let (Some(registry), Some(session_id), Some(session_kind)) = (
+        context.session_registry.as_ref(),
+        context.session_id,
+        context.session_kind,
+    ) else {
+        return;
+    };
+
+    if session_kind == SessionKind::Game {
+        let signalled =
+            registry.cancel_linked_children(session_id, TeardownReason::LinkedSessionExit);
+        if signalled > 0 {
+            tracing::info!(
+                game_session_id = %session_id,
+                linked_trainers = signalled,
+                "launch session: cascading LinkedSessionExit to trainer children"
+            );
+        }
+    }
+
+    registry.deregister(session_id);
 }

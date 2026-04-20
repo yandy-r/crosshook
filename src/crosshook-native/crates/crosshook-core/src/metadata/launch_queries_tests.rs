@@ -80,6 +80,7 @@ fn test_query_failure_trends() {
         launch_method: "native".to_string(),
         log_tail_path: None,
         analyzed_at: "2026-01-01T00:00:00Z".to_string(),
+        teardown_reason: None,
     };
 
     for _ in 0..2 {
@@ -138,6 +139,7 @@ fn test_single_profile_usage_queries() {
         launch_method: "native".to_string(),
         log_tail_path: None,
         analyzed_at: "2026-01-01T00:00:00Z".to_string(),
+        teardown_reason: None,
     };
 
     let failed = store

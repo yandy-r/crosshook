@@ -31,6 +31,7 @@ pub fn analyze(exit_status: Option<ExitStatus>, log_tail: &str, method: &str) ->
         launch_method: method.to_string(),
         log_tail_path: None,
         analyzed_at: Utc::now().to_rfc3339(),
+        teardown_reason: None,
     }
 }
 
