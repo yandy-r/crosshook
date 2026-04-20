@@ -241,3 +241,5 @@ When implementing features, classify every new datum before writing code:
 | Ephemeral runtime state                | In-memory only                      | Active launch handle, transient UI loading flags          |
 
 Do **not** cache binary blobs (images, archives) in `external_cache_entries` — payloads over 512 KiB store `NULL payload_json` silently. Use the filesystem with a tracking table for large binaries.
+
+**Flatpak per-app isolation (Phase 4+)**: When running as a Flatpak, CrossHook uses per-app data directories (`~/.var/app/dev.crosshook.CrossHook/{config,data}/`) by default. On first run, host AppImage data is imported one-way (config verbatim; data selectively — metadata DB + community + media + launchers; skip prefixes/artifacts/cache/logs/runtime-helpers). Wine prefixes remain on the host via `crosshook_core::flatpak_migration::host_prefix_root()`. Opt-in shared mode: `CROSSHOOK_FLATPAK_HOST_XDG=1`. See [ADR-0004](docs/architecture/adr-0004-flatpak-per-app-isolation.md).
