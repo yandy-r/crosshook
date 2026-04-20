@@ -1,33 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { CommunityImportPreview } from '../hooks/useCommunityProfiles';
-import { isLaunchValidationIssue, type LaunchPreview, type LaunchRequest, type LaunchValidationIssue } from '../types';
-import type { GameProfile, LaunchMethod } from '../types/profile';
-import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../types/profile';
+import type { LaunchPreview, LaunchValidationIssue } from '../types';
+import type { GameProfile } from '../types/profile';
+import AutoResolveStep from './community-import/AutoResolveStep';
+import ManualAdjustmentStep from './community-import/ManualAdjustmentStep';
+import ProfileDetailsStep from './community-import/ProfileDetailsStep';
+import SummaryBar from './community-import/SummaryBar';
+import type {
+  CommunityImportResolutionSummary,
+  ProfileUpdateHandler,
+  SteamAutoPopulateRequest,
+  SteamAutoPopulateResult,
+} from './community-import/types';
+import {
+  buildLaunchRequest,
+  isStrictLaunchValidationIssue,
+  normalizeProfile,
+  resolveLaunchMethod,
+} from './community-import/utils';
+import ValidationStep from './community-import/ValidationStep';
+import WizardStepper from './community-import/WizardStepper';
 import ProfileReviewModal from './ProfileReviewModal';
 
-type SteamFieldState = 'Idle' | 'Saved' | 'NotFound' | 'Found' | 'Ambiguous';
-
-interface SteamAutoPopulateRequest {
-  game_path: string;
-  steam_client_install_path: string;
-}
-
-interface SteamAutoPopulateResult {
-  app_id_state: SteamFieldState;
-  app_id: string;
-  compatdata_state: SteamFieldState;
-  compatdata_path: string;
-  proton_state: SteamFieldState;
-  proton_path: string;
-  diagnostics: string[];
-  manual_hints: string[];
-}
-
-interface CommunityImportResolutionSummary {
-  autoResolvedCount: number;
-  unresolvedCount: number;
-}
+const STEP_LABELS = ['Profile Details', 'Auto-Resolve', 'Manual Adjustment', 'Validate & Save'] as const;
 
 interface CommunityImportWizardModalProps {
   open: boolean;
@@ -35,133 +31,6 @@ interface CommunityImportWizardModalProps {
   saving: boolean;
   onClose: () => void;
   onSave: (profileName: string, profile: GameProfile, summary: CommunityImportResolutionSummary) => Promise<void>;
-}
-
-const STEP_LABELS = ['Profile Details', 'Auto-Resolve', 'Manual Adjustment', 'Validate & Save'] as const;
-
-function normalizeProfile(profile: GameProfile): GameProfile {
-  return {
-    ...profile,
-    trainer: {
-      ...profile.trainer,
-      loading_mode: profile.trainer?.loading_mode ?? 'source_directory',
-    },
-    steam: {
-      ...profile.steam,
-      launcher: {
-        icon_path: profile.steam?.launcher?.icon_path ?? '',
-        display_name: profile.steam?.launcher?.display_name ?? '',
-      },
-    },
-    runtime: {
-      prefix_path: profile.runtime?.prefix_path ?? '',
-      proton_path: profile.runtime?.proton_path ?? '',
-      working_directory: profile.runtime?.working_directory ?? '',
-    },
-    launch: {
-      ...profile.launch,
-      method: profile.launch?.method ?? 'proton_run',
-      optimizations: {
-        enabled_option_ids: profile.launch?.optimizations?.enabled_option_ids ?? [],
-      },
-      custom_env_vars: { ...(profile.launch?.custom_env_vars ?? {}) },
-    },
-    local_override: profile.local_override ?? {
-      game: { executable_path: '' },
-      trainer: { path: '' },
-      steam: {
-        compatdata_path: '',
-        proton_path: '',
-      },
-      runtime: {
-        prefix_path: '',
-        proton_path: '',
-      },
-    },
-  };
-}
-
-function resolveLaunchMethod(profile: GameProfile): Exclude<LaunchMethod, ''> {
-  if (
-    profile.launch?.method === 'steam_applaunch' ||
-    profile.launch?.method === 'proton_run' ||
-    profile.launch?.method === 'native'
-  ) {
-    return profile.launch.method;
-  }
-
-  if (profile.steam.enabled) {
-    return 'steam_applaunch';
-  }
-
-  if (profile.game.executable_path.trim().toLowerCase().endsWith('.exe')) {
-    return 'proton_run';
-  }
-
-  return 'native';
-}
-
-function buildLaunchRequest(profile: GameProfile, steamClientInstallPath: string): LaunchRequest {
-  const method = resolveLaunchMethod(profile);
-  return {
-    method,
-    game_path: profile.game.executable_path,
-    trainer_path: profile.trainer.path,
-    trainer_host_path: profile.trainer.path,
-    trainer_loading_mode: profile.trainer.loading_mode,
-    steam: {
-      app_id: profile.steam.app_id,
-      compatdata_path: profile.steam.compatdata_path,
-      proton_path: profile.steam.proton_path,
-      steam_client_install_path: steamClientInstallPath,
-    },
-    runtime: {
-      prefix_path: profile.runtime.prefix_path,
-      proton_path: profile.runtime.proton_path,
-      working_directory: profile.runtime.working_directory,
-    },
-    optimizations: {
-      enabled_option_ids: [...profile.launch.optimizations.enabled_option_ids],
-    },
-    launch_game_only: false,
-    launch_trainer_only: false,
-    custom_env_vars: { ...profile.launch.custom_env_vars },
-    network_isolation: profile.launch.network_isolation ?? true,
-    gamescope: profile.launch.gamescope ?? DEFAULT_GAMESCOPE_CONFIG,
-    mangohud: profile.launch.mangohud ?? DEFAULT_MANGOHUD_CONFIG,
-  };
-}
-
-function toStatusClass(state: SteamFieldState): string {
-  switch (state) {
-    case 'Found':
-      return 'found';
-    case 'NotFound':
-      return 'not-found';
-    case 'Ambiguous':
-      return 'ambiguous';
-    case 'Saved':
-      return 'saved';
-    default:
-      return 'idle';
-  }
-}
-
-function isStrictLaunchValidationIssue(value: unknown): value is LaunchValidationIssue {
-  if (!isLaunchValidationIssue(value) || typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false;
-  }
-
-  const allowedKeys = new Set([
-    'message',
-    'help',
-    'severity',
-    'code',
-    'trainer_hash_stored',
-    'trainer_hash_current',
-    'trainer_sha256_community',
-  ]);
-  return Object.keys(value).every((key) => allowedKeys.has(key));
 }
 
 export function CommunityImportWizardModal({ open, draft, saving, onClose, onSave }: CommunityImportWizardModalProps) {
@@ -378,7 +247,7 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
   const canMoveForward = profile !== null && profileName.trim().length > 0;
   const canSave = profile !== null && profileName.trim().length > 0 && fatalCount === 0 && !saving && !validating;
 
-  const applyProfileUpdate = (updater: (current: GameProfile) => GameProfile) => {
+  const applyProfileUpdate: ProfileUpdateHandler = (updater) => {
     setProfile((current) => (current ? updater(current) : current));
     setValidationIssues([]);
     setValidationError(null);
@@ -391,241 +260,42 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
 
     if (step === 0) {
       return (
-        <div className="crosshook-community-import-wizard__stack">
-          <div className="crosshook-community-import-wizard__card">
-            <div className="crosshook-community-import-wizard__label">Source</div>
-            <div className="crosshook-community-import-wizard__mono">{draft.source_path}</div>
-          </div>
-          <div className="crosshook-community-import-wizard__meta-grid">
-            <div className="crosshook-community-import-wizard__card">
-              <div className="crosshook-community-import-wizard__label">Game</div>
-              <div>{draft.manifest.metadata.game_name || profile.game.name || 'Unknown'}</div>
-            </div>
-            <div className="crosshook-community-import-wizard__card">
-              <div className="crosshook-community-import-wizard__label">Trainer Type</div>
-              <div>{profile.trainer.type || 'Unknown'}</div>
-            </div>
-            <div className="crosshook-community-import-wizard__card">
-              <div className="crosshook-community-import-wizard__label">Launch Method</div>
-              <div>{resolveLaunchMethod(profile)}</div>
-            </div>
-            <div className="crosshook-community-import-wizard__card">
-              <div className="crosshook-community-import-wizard__label">Optimizations</div>
-              <div>{profile.launch.optimizations.enabled_option_ids.length}</div>
-            </div>
-          </div>
-          <label className="crosshook-community-import-wizard__field">
-            <span className="crosshook-label">Local Profile Name</span>
-            <input
-              className="crosshook-input"
-              value={profileName}
-              onChange={(event) => setProfileName(event.target.value)}
-              placeholder="community-profile"
-            />
-          </label>
-          {draft.required_prefix_deps.length > 0 ? (
-            <div className="crosshook-prefix-deps-trust" role="alert">
-              <h4 className="crosshook-prefix-deps-trust__title">Required Prefix Dependencies</h4>
-              <p className="crosshook-help-text">
-                This community profile requires the following packages to be installed into your WINE prefix. Only
-                import profiles from sources you trust.
-              </p>
-              <ul className="crosshook-prefix-deps-trust__list">
-                {draft.required_prefix_deps.map((dep) => (
-                  <li key={dep}>
-                    <code>{dep}</code>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
+        <ProfileDetailsStep
+          draft={draft}
+          profile={profile}
+          profileName={profileName}
+          launchMethod={resolveLaunchMethod(profile)}
+          onProfileNameChange={setProfileName}
+        />
       );
     }
 
     if (step === 1) {
       return (
-        <div className="crosshook-community-import-wizard__stack">
-          <div className="crosshook-community-import-wizard__button-row">
-            <button
-              type="button"
-              className="crosshook-button"
-              onClick={() => void runAutoPopulate()}
-              disabled={autoPopulating || profile.game.executable_path.trim().length === 0}
-            >
-              {autoPopulating ? 'Resolving...' : 'Re-run Auto-Resolve'}
-            </button>
-            <span className="crosshook-muted">Auto-resolved fields: {autoResolvedFields.size}</span>
-          </div>
-          {autoPopulateError ? <p className="crosshook-community-browser__error">{autoPopulateError}</p> : null}
-          {autoPopulateResult ? (
-            <div className="crosshook-community-import-wizard__status-grid">
-              <div
-                className={`crosshook-community-import-wizard__status crosshook-community-import-wizard__status--${toStatusClass(autoPopulateResult.app_id_state)}`}
-              >
-                App ID: {autoPopulateResult.app_id_state}
-              </div>
-              <div
-                className={`crosshook-community-import-wizard__status crosshook-community-import-wizard__status--${toStatusClass(autoPopulateResult.compatdata_state)}`}
-              >
-                Compatdata: {autoPopulateResult.compatdata_state}
-              </div>
-              <div
-                className={`crosshook-community-import-wizard__status crosshook-community-import-wizard__status--${toStatusClass(autoPopulateResult.proton_state)}`}
-              >
-                Proton: {autoPopulateResult.proton_state}
-              </div>
-            </div>
-          ) : (
-            <p className="crosshook-muted">Run auto-resolve to detect Steam metadata from the game executable.</p>
-          )}
-          {autoPopulateResult?.manual_hints?.length ? (
-            <div className="crosshook-community-import-wizard__card">
-              <div className="crosshook-community-import-wizard__label">Manual hints</div>
-              {autoPopulateResult.manual_hints.map((hint) => (
-                <div key={hint} className="crosshook-muted">
-                  {hint}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <AutoResolveStep
+          autoPopulating={autoPopulating}
+          autoPopulateError={autoPopulateError}
+          autoPopulateResult={autoPopulateResult}
+          autoResolvedCount={autoResolvedFields.size}
+          canRun={profile.game.executable_path.trim().length > 0}
+          onRunAutoPopulate={() => void runAutoPopulate()}
+        />
       );
     }
 
     if (step === 2) {
-      return (
-        <div className="crosshook-community-import-wizard__stack">
-          <div className="crosshook-community-import-wizard__meta-grid">
-            <label className="crosshook-community-import-wizard__field">
-              <span className="crosshook-label">Game Executable</span>
-              <input
-                className="crosshook-input"
-                value={profile.game.executable_path}
-                onChange={(event) =>
-                  applyProfileUpdate((current) => ({
-                    ...current,
-                    game: { ...current.game, executable_path: event.target.value },
-                  }))
-                }
-              />
-            </label>
-            <label className="crosshook-community-import-wizard__field">
-              <span className="crosshook-label">Custom Cover Art</span>
-              <input
-                className="crosshook-input"
-                value={profile.game.custom_cover_art_path ?? ''}
-                placeholder="/path/to/cover.png (optional; landscape, backdrop crop)"
-                onChange={(event) =>
-                  applyProfileUpdate((current) => ({
-                    ...current,
-                    game: { ...current.game, custom_cover_art_path: event.target.value },
-                  }))
-                }
-              />
-            </label>
-            <label className="crosshook-community-import-wizard__field">
-              <span className="crosshook-label">Trainer Path</span>
-              <input
-                className="crosshook-input"
-                value={profile.trainer.path}
-                onChange={(event) =>
-                  applyProfileUpdate((current) => ({
-                    ...current,
-                    trainer: { ...current.trainer, path: event.target.value },
-                  }))
-                }
-              />
-            </label>
-            <label className="crosshook-community-import-wizard__field">
-              <span className="crosshook-label">Steam App ID</span>
-              <input
-                className="crosshook-input"
-                value={profile.steam.app_id}
-                onChange={(event) =>
-                  applyProfileUpdate((current) => ({
-                    ...current,
-                    steam: { ...current.steam, app_id: event.target.value },
-                  }))
-                }
-              />
-            </label>
-            <label className="crosshook-community-import-wizard__field">
-              <span className="crosshook-label">Compatdata Path</span>
-              <input
-                className="crosshook-input"
-                value={profile.steam.compatdata_path}
-                onChange={(event) =>
-                  applyProfileUpdate((current) => ({
-                    ...current,
-                    steam: { ...current.steam, compatdata_path: event.target.value },
-                  }))
-                }
-              />
-            </label>
-            <label className="crosshook-community-import-wizard__field">
-              <span className="crosshook-label">Steam Proton Path</span>
-              <input
-                className="crosshook-input"
-                value={profile.steam.proton_path}
-                onChange={(event) =>
-                  applyProfileUpdate((current) => ({
-                    ...current,
-                    steam: { ...current.steam, proton_path: event.target.value },
-                  }))
-                }
-              />
-            </label>
-            <label className="crosshook-community-import-wizard__field">
-              <span className="crosshook-label">Runtime Prefix Path</span>
-              <input
-                className="crosshook-input"
-                value={profile.runtime.prefix_path}
-                onChange={(event) =>
-                  applyProfileUpdate((current) => ({
-                    ...current,
-                    runtime: { ...current.runtime, prefix_path: event.target.value },
-                  }))
-                }
-              />
-            </label>
-          </div>
-        </div>
-      );
+      return <ManualAdjustmentStep profile={profile} onProfileChange={applyProfileUpdate} />;
     }
 
     return (
-      <div className="crosshook-community-import-wizard__stack">
-        <div className="crosshook-community-import-wizard__button-row">
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--secondary"
-            onClick={() => void validateDraft()}
-            disabled={validating}
-          >
-            {validating ? 'Validating...' : 'Re-run Validation'}
-          </button>
-          <span className="crosshook-muted">
-            Fatal: {fatalCount} | Warnings: {warningCount}
-          </span>
-        </div>
-        {validationError ? <p className="crosshook-community-browser__error">{validationError}</p> : null}
-        {validationIssues.length > 0 ? (
-          <ul className="crosshook-community-import-wizard__validation-list">
-            {validationIssues.map((issue) => (
-              <li
-                key={`${issue.severity}-${issue.code ?? issue.message}`}
-                className="crosshook-community-import-wizard__validation-item"
-              >
-                <strong>[{issue.severity}]</strong> {issue.message}
-                {issue.help ? <div className="crosshook-muted">{issue.help}</div> : null}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="crosshook-success">No validation issues reported for this draft.</p>
-        )}
-      </div>
+      <ValidationStep
+        fatalCount={fatalCount}
+        warningCount={warningCount}
+        validationIssues={validationIssues}
+        validationError={validationError}
+        validating={validating}
+        onValidate={() => void validateDraft()}
+      />
     );
   };
 
@@ -713,26 +383,13 @@ export function CommunityImportWizardModal({ open, draft, saving, onClose, onSav
       footer={footer}
     >
       <div className="crosshook-community-import-wizard">
-        <div className="crosshook-community-import-wizard__stepper">
-          {STEP_LABELS.map((label, index) => (
-            <div
-              key={label}
-              className={[
-                'crosshook-community-import-wizard__step',
-                index === step ? 'crosshook-community-import-wizard__step--active' : '',
-              ].join(' ')}
-            >
-              <span className="crosshook-community-import-wizard__step-index">{index + 1}</span>
-              <span>{label}</span>
-            </div>
-          ))}
-        </div>
+        <WizardStepper labels={STEP_LABELS} currentStep={step} />
         {renderStepBody()}
-        <div className="crosshook-community-import-wizard__summary">
-          <span>Auto-resolved: {autoResolvedFields.size}</span>
-          <span>Manual edits: {hasManualAdjustments ? 'Yes' : 'No'}</span>
-          <span>Unresolved required fields: {unresolvedCount}</span>
-        </div>
+        <SummaryBar
+          autoResolvedCount={autoResolvedFields.size}
+          hasManualAdjustments={hasManualAdjustments}
+          unresolvedCount={unresolvedCount}
+        />
       </div>
     </ProfileReviewModal>
   );
