@@ -1,15 +1,21 @@
 //! Host capability map and derived capability state.
 //!
-//! Struct definitions, [`CapabilityState`], and [`derive_capabilities`] live here.
+//! This module provides the capability derivation system that evaluates which
+//! gaming features (Gamescope, MangoHud, etc.) are available, degraded, or
+//! unavailable based on host tool readiness.
+//!
+//! Public types ([`Capability`], [`CapabilityState`], [`CapabilityMap`]) and
+//! the main entry point ([`derive_capabilities`]) are re-exported from submodules.
 //! TOML parsing, map loading, and the process-global singleton are in
 //! [`super::capability_loader`].
 
 mod derive;
 mod formatting;
-#[cfg(test)]
-mod tests;
 mod tool_check;
 mod types;
+
+#[cfg(test)]
+mod tests;
 
 pub use types::{Capability, CapabilityDefinition, CapabilityMap, CapabilityState};
 
