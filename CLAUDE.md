@@ -10,7 +10,16 @@ Normative guidelines for AI agents in this repository. For stack overview, direc
 
 ## Worktrees
 
-When working in worktrees, for ceratin scripts to succeed such as `./scripts/lint.sh`, `./scripts/format.sh` the following commands are required.
+**Strong preference**: work in a git worktree for any non-trivial task (multi-step features, refactors, changes touching multiple files). Worktrees keep the main checkout clean for parallel work, let multiple agents run concurrently without stepping on each other, and make it trivial to abandon a failed attempt (`git worktree remove`). Fall back to the main checkout only when the task is a one-liner, must observe the current working tree state, or worktree creation is blocked (detached HEAD, shallow clone, submodule issues).
+
+- **Preferred parent**: `~/.claude-worktrees/` for all agent-managed worktrees, named `crosshook-<branch>/`. Keeps them outside every repo and trivially bulk-clean.
+- **Manual creation**: when invoking `git worktree add` yourself, target `~/.claude-worktrees/crosshook-<branch>/` — never a path inside the current repo.
+- **Harness-created worktrees** (`isolation: "worktree"`, `EnterWorktree`): the only way to relocate these is a `WorktreeCreate` hook in `~/.claude/settings.json`. No environment variable or settings key controls the parent directory directly — the hook receives the intended path and returns a replacement path.
+- **Repo hygiene**: if the harness has already created `<repo>/.claude/worktrees/`, add `.claude/worktrees/` to `.gitignore` before committing.
+
+### Worktree setup prerequisites
+
+Certain repo scripts (`./scripts/lint.sh`, `./scripts/format.sh`) require extra setup when run from a worktree root because `node_modules` isn't shared with the main checkout:
 
 - **In worktree root**: `npm install -D --no-save typescript@{current-project-version} biome`
 - `cd src/crosshook-native && npm ci`
@@ -41,6 +50,7 @@ When working in worktrees, for ceratin scripts to succeed such as `./scripts/lin
 
 ## SHOULD (implementation)
 
+- **Default to worktrees**: For non-trivial work (multi-step features, refactors, changes touching multiple files), start in a git worktree at `~/.claude-worktrees/crosshook-<branch>/` instead of the main checkout. See [Worktrees](#worktrees) above for the full contract, including the setup prerequisites required for `./scripts/lint.sh` and `./scripts/format.sh` to succeed. Fall back to the main checkout only when the task is a one-liner, must observe the current working tree state, or worktree creation is blocked.
 - **Naming**: Intention-revealing names for functions, types, and modules. Public APIs should read like documentation.
 - **No dead code**: Remove unused code, imports, and commented-out blocks. Git preserves history.
 - **Dependency hygiene**: Before adding a new dependency, check whether an existing one does the job. New deps need a justification (maintenance cost, license, security).

@@ -58,8 +58,25 @@ ground-truth facts change. Never duplicate `CLAUDE.md` policy prose here.
 - **Persistence planning**: Every feature plan/research artifact must classify new or changed data as one of: user-editable preferences (TOML settings), operational/history/cache metadata (SQLite metadata DB), or ephemeral runtime state (memory only). Plans must include a short persistence/usability section covering migration/backward compatibility, offline behavior, degraded fallback behavior, and user visibility/editability expectations.
 - **Large features**: Must be split into smaller, manageable phases and tasks, with clear dependencies and a clear order of execution.
 
+## Worktrees
+
+**Strong preference**: work in a git worktree for any non-trivial task (multi-step features, refactors, changes touching multiple files). Worktrees keep the main checkout clean for parallel work, let multiple agents run concurrently without stepping on each other, and make it trivial to abandon a failed attempt (`git worktree remove`). Fall back to the main checkout only when the task is a one-liner, must observe the current working tree state, or worktree creation is blocked (detached HEAD, shallow clone, submodule issues).
+
+- **Preferred parent**: `~/.claude-worktrees/` for all agent-managed worktrees, named `crosshook-<branch>/`. Keeps them outside every repo and trivially bulk-clean.
+- **Manual creation**: when invoking `git worktree add` yourself, target `~/.claude-worktrees/crosshook-<branch>/` — never a path inside the current repo.
+- **Harness-created worktrees** (`isolation: "worktree"`, `EnterWorktree`): the only way to relocate these is a `WorktreeCreate` hook in `~/.claude/settings.json`. No environment variable or settings key controls the parent directory directly — the hook receives the intended path and returns a replacement path.
+- **Repo hygiene**: if the harness has already created `<repo>/.claude/worktrees/`, add `.claude/worktrees/` to `.gitignore` before committing.
+
+### Worktree setup prerequisites
+
+Certain repo scripts (`./scripts/lint.sh`, `./scripts/format.sh`) require extra setup when run from a worktree root because `node_modules` isn't shared with the main checkout:
+
+- **In worktree root**: `npm install -D --no-save typescript@{current-project-version} biome`
+- `cd src/crosshook-native && npm ci`
+
 ## SHOULD (implementation)
 
+- **Default to worktrees**: For non-trivial work (multi-step features, refactors, changes touching multiple files), start in a git worktree at `~/.claude-worktrees/crosshook-<branch>/` instead of the main checkout. See [Worktrees](#worktrees) above for the full contract, including the setup prerequisites required for `./scripts/lint.sh` and `./scripts/format.sh` to succeed. Fall back to the main checkout only when the task is a one-liner, must observe the current working tree state, or worktree creation is blocked.
 - **Rust**: `snake_case`; modules as directories with `mod.rs`; errors via `Result` with `anyhow` or project error types.
 - **React / TypeScript**: `PascalCase` components, `camelCase` hooks/functions; respect strict TS; wrap `invoke()` in hooks for stateful UI; CSS variables in `src/crosshook-native/src/styles/variables.css`; BEM-like `crosshook-*` classes. **Route layout**: reuse the shared contract in `src/crosshook-native/src/styles/layout.css` (`crosshook-page-scroll-shell--fill`, `crosshook-route-stack`, `crosshook-route-stack__body--scroll` / `__body--fill`, `crosshook-route-card-host` / `crosshook-route-card-scroll` when a primary card must fill the body without stretching inner grids, `crosshook-route-footer`) instead of one-off viewport height chains on new pages. **Scroll containers**: WebKitGTK scroll is managed by `useScrollEnhance` (`src/crosshook-native/src/hooks/useScrollEnhance.ts`). Any new `overflow-y: auto` container **must** be added to the `SCROLLABLE` selector in that hook, or the enhanced scroll will target a parent container instead, causing dual-scroll jank. Inner scroll containers should also use `overscroll-behavior: contain` to prevent scroll-chaining to outer containers.
 - **Verification**: After substantive Rust changes, run `cargo test --manifest-path src/crosshook-native/Cargo.toml -p crosshook-core`. There is **no** configured frontend test framework—use dev/build scripts when UI behavior matters.
