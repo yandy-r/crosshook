@@ -378,8 +378,16 @@ pub async fn launch_trainer(
         // Even without gamescope the session still needs its receiver drained
         // so the broadcast channel stays healthy and any incoming cancel is
         // recorded in the launch log. The trainer process will exit on its
-        // own lifecycle; stream finalization handles deregister.
-        tauri::async_runtime::spawn(drain_cancel_on_trainer_no_watchdog(session_id, cancel_rx));
+        // own lifecycle; stream finalization handles deregister. We pass a
+        // clone of the watchdog outcome so a received cancel still attributes
+        // the correct `TeardownReason` into `diagnostic_json` — using
+        // `record_reason` (not `mark`) because no gamescope tree is being
+        // torn down here.
+        tauri::async_runtime::spawn(drain_cancel_on_trainer_no_watchdog(
+            session_id,
+            watchdog_outcome.clone(),
+            cancel_rx,
+        ));
     }
 
     Ok(LaunchResult {
@@ -392,10 +400,12 @@ pub async fn launch_trainer(
 
 async fn drain_cancel_on_trainer_no_watchdog(
     session_id: SessionId,
+    outcome: WatchdogOutcome,
     mut cancel_rx: broadcast::Receiver<TeardownReason>,
 ) {
     match cancel_rx.recv().await {
         Ok(reason) => {
+            outcome.record_reason(reason);
             tracing::info!(
                 session_id = %session_id,
                 teardown_reason = %reason,
@@ -409,6 +419,10 @@ async fn drain_cancel_on_trainer_no_watchdog(
             );
         }
         Err(broadcast::error::RecvError::Lagged(_)) => {
+            // A lagged receive means a cancel was queued but missed; record
+            // it as a linked-session exit so the finalizer's teardown_reason
+            // reflects that the parent asked for teardown.
+            outcome.record_reason(TeardownReason::LinkedSessionExit);
             tracing::debug!(
                 session_id = %session_id,
                 "trainer cancel channel lagged before any signal"

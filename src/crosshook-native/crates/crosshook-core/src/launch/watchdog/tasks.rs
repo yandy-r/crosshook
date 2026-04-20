@@ -159,14 +159,21 @@ pub(crate) async fn shutdown_gamescope_tree(
 }
 
 /// Normalize a broadcast-channel receive result into a [`TeardownReason`].
-/// On `RecvError::Closed` the parent registry is gone (unlikely in practice —
-/// it's managed state for the app lifetime); on `Lagged` we already missed
-/// earlier signals and still need to treat this as an instruction to tear
-/// down. Both fall through as [`TeardownReason::LinkedSessionExit`].
+///
+/// - `Ok(reason)` — an authentic cancel was delivered; pass it through.
+/// - `Err(Closed)` — the registry entry was torn down (sender dropped),
+///   typically because the child process exited first and the stream
+///   finalizer deregistered. Distinct from a parent-driven cascade, so
+///   report it as [`TeardownReason::ReceiverClosed`] to avoid falsely
+///   attributing a `LinkedSessionExit` in diagnostics.
+/// - `Err(Lagged)` — we missed one or more signals but a cancel was queued.
+///   The semantic is still "parent (or user) requested teardown", so treat
+///   it as [`TeardownReason::LinkedSessionExit`] — it's the closest
+///   available truth and the finalizer log records the lag separately.
 fn cancel_reason(recv: Result<TeardownReason, broadcast::error::RecvError>) -> TeardownReason {
     match recv {
         Ok(reason) => reason,
-        Err(broadcast::error::RecvError::Closed) => TeardownReason::LinkedSessionExit,
+        Err(broadcast::error::RecvError::Closed) => TeardownReason::ReceiverClosed,
         Err(broadcast::error::RecvError::Lagged(_)) => TeardownReason::LinkedSessionExit,
     }
 }
@@ -293,10 +300,10 @@ mod tests {
     }
 
     #[test]
-    fn cancel_reason_maps_closed_to_linked_session_exit() {
+    fn cancel_reason_maps_closed_to_receiver_closed() {
         assert_eq!(
             cancel_reason(Err(broadcast::error::RecvError::Closed)),
-            TeardownReason::LinkedSessionExit,
+            TeardownReason::ReceiverClosed,
         );
     }
 

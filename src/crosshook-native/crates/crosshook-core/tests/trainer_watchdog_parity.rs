@@ -219,3 +219,35 @@ fn watchdog_outcome_retains_first_reason() {
     outcome.mark(TeardownReason::LinkedSessionExit);
     assert_eq!(outcome.reason(), Some(TeardownReason::WatchdogNaturalExit));
 }
+
+/// Trainer-without-gamescope drain path: when a parent-cascade cancel
+/// arrives, the drain helper records the reason without flagging a kill
+/// (there was no gamescope tree to tear down). The stream finalizer should
+/// then stamp `teardown_reason` but leave the normal exit summary alone.
+#[test]
+fn record_reason_attributes_cascade_without_claiming_kill() {
+    let outcome = WatchdogOutcome::new();
+    outcome.record_reason(TeardownReason::LinkedSessionExit);
+
+    // Simulate the finalizer's teardown_reason assignment.
+    let teardown_reason = outcome.reason().or(Some(TeardownReason::NaturalExit));
+
+    assert!(
+        !outcome.was_killed(),
+        "record_reason must not set killed so the finalizer skips the \
+         gamescope-cleanup summary override"
+    );
+    assert_eq!(teardown_reason, Some(TeardownReason::LinkedSessionExit));
+}
+
+/// Distinct-variant guard: a Closed broadcast channel maps to
+/// [`TeardownReason::ReceiverClosed`] (not `LinkedSessionExit`) so the
+/// audit trail doesn't falsely attribute a cascade when the registry
+/// entry merely got dropped.
+#[test]
+fn receiver_closed_serializes_distinctly_from_linked_session_exit() {
+    let linked_json = serde_json::to_string(&TeardownReason::LinkedSessionExit).unwrap();
+    let closed_json = serde_json::to_string(&TeardownReason::ReceiverClosed).unwrap();
+    assert_ne!(linked_json, closed_json);
+    assert_eq!(closed_json, "\"ReceiverClosed\"");
+}

@@ -246,9 +246,15 @@ async fn finalize_launch_stream(
     let mut report = sanitize_diagnostic_report(report);
 
     if context.watchdog_outcome.was_killed() {
+        let message = match context.session_kind {
+            Some(SessionKind::Trainer) => {
+                "Trainer exited; gamescope compositor cleaned up.".to_string()
+            }
+            _ => "Game exited; gamescope compositor cleaned up.".to_string(),
+        };
         report.exit_info.failure_mode = FailureMode::CleanExit;
-        report.summary = "Game exited; gamescope compositor cleaned up.".to_string();
-        report.exit_info.description = "Game exited; gamescope compositor cleaned up.".to_string();
+        report.summary = message.clone();
+        report.exit_info.description = message;
         report.exit_info.severity = ValidationSeverity::Info;
         report.suggestions.clear();
     }

@@ -51,6 +51,13 @@ pub enum TeardownReason {
     LinkedSessionExit,
     /// User explicitly requested teardown via UI or CLI.
     UserRequest,
+    /// Cancel channel closed before any signal arrived — the registry entry
+    /// was torn down from underneath the watchdog (typically because the
+    /// child process exited first and the stream finalizer deregistered
+    /// before the watchdog's `recv()` had a chance to return `Ok`). Kept
+    /// distinct from [`LinkedSessionExit`] so the diagnostic audit trail
+    /// does not falsely attribute a teardown to a parent-cascade signal.
+    ReceiverClosed,
 }
 
 impl TeardownReason {
@@ -61,6 +68,7 @@ impl TeardownReason {
             Self::WatchdogNaturalExit => "watchdog_natural_exit",
             Self::LinkedSessionExit => "linked_session_exit",
             Self::UserRequest => "user_request",
+            Self::ReceiverClosed => "receiver_closed",
         }
     }
 }
@@ -152,12 +160,27 @@ impl WatchdogOutcome {
     }
 
     /// Record that the watchdog tore down the gamescope tree. Idempotent —
-    /// repeated calls (e.g. cancel-then-natural races) keep the first reason
-    /// so the finalizer gets a stable view.
+    /// repeated calls keep the first recorded reason (including a reason
+    /// already set by [`record_reason`]) so the finalizer gets a stable
+    /// view. Always flips `killed` to true on the first invocation.
     pub fn mark(&self, reason: TeardownReason) {
         let mut guard = self.inner.lock().expect("watchdog outcome poisoned");
-        if !guard.killed {
-            guard.killed = true;
+        if guard.reason.is_none() {
+            guard.reason = Some(reason);
+        }
+        guard.killed = true;
+    }
+
+    /// Record a teardown reason *without* flagging a kill. Used by launch
+    /// paths that observe a cancel signal but have no gamescope tree to tear
+    /// down (e.g. a trainer without gamescope that receives a parent-cascade
+    /// cancel). Lets the stream finalizer stamp the correct
+    /// [`TeardownReason`] in diagnostics while leaving `was_killed()` false
+    /// so it doesn't rewrite the summary as if a compositor had been cleaned
+    /// up. Keeps the first recorded reason on repeated calls.
+    pub fn record_reason(&self, reason: TeardownReason) {
+        let mut guard = self.inner.lock().expect("watchdog outcome poisoned");
+        if guard.reason.is_none() {
             guard.reason = Some(reason);
         }
     }
@@ -217,5 +240,23 @@ mod outcome_tests {
         a.mark(TeardownReason::UserRequest);
         assert!(b.was_killed());
         assert_eq!(b.reason(), Some(TeardownReason::UserRequest));
+    }
+
+    #[test]
+    fn outcome_record_reason_does_not_flag_killed() {
+        let outcome = WatchdogOutcome::new();
+        outcome.record_reason(TeardownReason::LinkedSessionExit);
+        assert!(!outcome.was_killed(), "record_reason must not set killed");
+        assert_eq!(outcome.reason(), Some(TeardownReason::LinkedSessionExit));
+    }
+
+    #[test]
+    fn outcome_record_reason_keeps_first_then_mark_sets_killed() {
+        let outcome = WatchdogOutcome::new();
+        outcome.record_reason(TeardownReason::LinkedSessionExit);
+        // A later mark() should flip killed=true but keep the first reason.
+        outcome.mark(TeardownReason::WatchdogNaturalExit);
+        assert!(outcome.was_killed());
+        assert_eq!(outcome.reason(), Some(TeardownReason::LinkedSessionExit));
     }
 }

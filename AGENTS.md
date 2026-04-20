@@ -42,7 +42,7 @@ ground-truth facts change. Never duplicate `CLAUDE.md` policy prose here.
 - **Host-tool gateway**: Host-tool execution at the Flatpak boundary **must** route through `src/crosshook-native/crates/crosshook-core/src/platform.rs` (`host_command`, `host_std_command`, `host_command_with_env`, `host_command_exists`, and friends). Direct `Command::new("<host-tool>")` for tools in the denylist (`proton`, `umu-run`, `gamescope`, `mangohud`, `winetricks`, `protontricks`, `gamemoderun`) is rejected by `scripts/check-host-gateway.sh`. See [`docs/architecture/adr-0001-platform-host-gateway.md`](docs/architecture/adr-0001-platform-host-gateway.md) for the full contract, scope boundary (does not apply to in-sandbox subprocess code), and escape hatches.
 - **Proton download manager**: Native Proton version management (AppImage + Flatpak parity, provider catalog, install/uninstall) is handled by the dedicated Proton Manager at the `/proton-manager` route. Catalog data lives in the `proton_release_catalog` SQLite table (v22). Architecture decisions are documented in [`docs/architecture/adr-0003-proton-download-manager.md`](docs/architecture/adr-0003-proton-download-manager.md).
 - **Architecture**: Business logic lives in `crosshook-core`. Keep `crosshook-cli` and `src-tauri` thin (IPC and CLI only).
-- **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path. Parity extends to **lifecycle cleanup** — see the _Launch session registry_ section below for how game/trainer watchdogs coordinate teardown.
+- **Trainer execution parity**: Treat trainer subprocesses by their **actual runtime path**, not just the parent game launch method. Steam profiles still launch trainers through Proton, so Steam trainer launches must stay aligned with `proton_run` semantics for `effective_trainer_gamescope()`, launch optimization env, and `runtime.working_directory`. In Flatpak, if the shell-helper path diverges from the working `proton_run` trainer path, prefer reusing the direct Proton trainer builder and record/analyze the execution as `proton_run` rather than keeping a separate helper-only env reconstruction path. Parity extends to **lifecycle cleanup**: trainer launches register with `LaunchSessionRegistry` (`src/crosshook-native/crates/crosshook-core/src/launch/session/`) and spawn a gamescope watchdog when the same predicate the game path uses is true, so trainer-side gamescope is torn down on trainer exit _and_ on parent-game teardown via the registry's `cancel_linked_children` cascade. Never kill another session's process tree — each session owns its own `ShutdownTarget`.
 - **Tauri IPC**: Expose backend operations as `#[tauri::command]` handlers with **`snake_case` names** matching frontend `invoke()` calls. Use **Serde** on all types that cross the IPC boundary.
 - **Secrets**: **Never** commit `.env`, `.env.encrypted`, or `.env.keys`.
 - **Issues**: Use the YAML form templates under [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). **Do not** create title-only or template-bypass issues. If `gh issue create --template` fails (e.g. `no templates found`), create the issue via GitHub API/tooling with a body that mirrors the form fields, then apply correct labels—**not** a vague one-liner. For feature issues that introduce or change **persisted** data, the issue body must include a **Storage boundary** subsection (classify each datum as TOML settings, SQLite metadata, or runtime-only) and a short **Persistence & usability** subsection (migration/backward compatibility, offline expectations, degraded behavior when persistence is unavailable, and what users can view or edit).
@@ -191,45 +191,6 @@ src/crosshook-native/              # Primary source root
     ├── styles/                    # variables.css (CSS custom properties), theme.css
     └── types/                     # TypeScript interface definitions
 ```
-
----
-
-## Launch session registry
-
-Every active launch — game or trainer — registers with
-`LaunchSessionRegistry` (`crates/crosshook-core/src/launch/session/`) so the
-game and trainer watchdogs can coordinate teardown without reaching into
-each other's process trees.
-
-Shape:
-
-- `SessionKind::{Game, Trainer}` classifies each session.
-- `LaunchSessionRegistry::register(kind, profile_key) -> (SessionId,
-broadcast::Receiver<TeardownReason>)` — the caller hands the receiver to
-  its `gamescope_watchdog` so the watchdog's `tokio::select!` can cancel out
-  of its poll loop on demand.
-- `link_to_parent(trainer_id, game_id)` attaches a trainer session to its
-  parent game session (same profile, trainer → game only). Cross-profile
-  links, trainer→trainer links, and double-links are rejected with
-  `LinkError`.
-- On game session finalize, the stream finalizer calls
-  `cancel_linked_children(game_id, TeardownReason::LinkedSessionExit)` which
-  broadcasts into every linked trainer's cancel channel. Deregister follows.
-- `TeardownReason { NaturalExit, WatchdogNaturalExit, LinkedSessionExit,
-UserRequest }` is written into `DiagnosticReport.teardown_reason` so the
-  `launch_operations.diagnostic_json` row records _why_ a launch was torn
-  down. The field is optional for backward-compat with pre-#230 rows.
-- `WatchdogOutcome` replaces the previous `Arc<AtomicBool>
-watchdog_killed` flag — same "did the watchdog fire" semantic plus the
-  authoritative `TeardownReason`. Exposed on `LaunchStreamContext` so the
-  stream finalizer can stamp the report.
-
-The registry **never** touches PIDs. Each session owns its own
-`ShutdownTarget` inside its watchdog; teardown is always driven through the
-session's owned broadcast channel, never a prefix-wide sweep.
-
-Exported desktop trainers (`export/launcher/content.rs`) are intentionally
-out of scope — they're standalone bash scripts that bypass the registry.
 
 ---
 
