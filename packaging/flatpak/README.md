@@ -69,7 +69,7 @@ Older tracking text referenced GNOME runtime `48`. The source of truth is now ru
 ## Shared mode (advanced users)
 
 By default, the Flatpak build uses **per-app data isolation** (data lives under
-`~/.var/app/dev.crosshook.CrossHook/{config,data}/`). On first launch, CrossHook
+`~/.var/app/dev.crosshook.CrossHook/{config,cache,data}/`). On first launch, CrossHook
 imports existing AppImage data from `~/.config/crosshook/` and
 `~/.local/share/crosshook/` into the sandbox one-way. See
 [ADR-0004](../../docs/architecture/adr-0004-flatpak-per-app-isolation.md) for
