@@ -9,7 +9,7 @@ pub use background_portal::{
 
 use crosshook_core::app_id_migration::migrate_legacy_tauri_app_id_xdg_directories;
 use crosshook_core::community::CommunityTapStore;
-use crosshook_core::flatpak_migration::MigrationOutcome;
+use crosshook_core::flatpak_migration::{is_host_xdg_opt_in, MigrationOutcome};
 use crosshook_core::launch::{initialize_catalog, load_catalog};
 use crosshook_core::logging;
 use crosshook_core::metadata::MetadataStore;
@@ -27,20 +27,6 @@ use tokio::time::{sleep, Duration};
 
 static FLATPAK_MIGRATION_OUTCOME: OnceLock<Mutex<Option<MigrationOutcome>>> = OnceLock::new();
 
-fn flatpak_host_xdg_opt_in() -> bool {
-    // Parity with `flatpak_migration::prefix_root::is_isolation_mode_active`:
-    // accept "1" or any case variant of "true", trimmed. Anything else leaves
-    // isolation (the default) active.
-    match std::env::var_os("CROSSHOOK_FLATPAK_HOST_XDG") {
-        Some(value) => {
-            let s = value.to_string_lossy();
-            let trimmed = s.trim();
-            trimmed == "1" || trimmed.eq_ignore_ascii_case("true")
-        }
-        None => false,
-    }
-}
-
 #[derive(serde::Serialize)]
 struct FlatpakMigrationCompletePayload {
     imported_config: bool,
@@ -56,7 +42,7 @@ pub fn run() {
     // migration that follows and every `*Store::try_new`) because the directories
     // crate reads XDG env vars at construction time.
     if crosshook_core::platform::is_flatpak() {
-        if flatpak_host_xdg_opt_in() {
+        if is_host_xdg_opt_in() {
             tracing::info!(mode = "host-xdg-shared", "flatpak startup mode");
             eprintln!("CrossHook: flatpak host-XDG shared mode (opt-in)");
             // SAFETY: single-threaded startup, before Tauri builder; matches Phase 1 contract.

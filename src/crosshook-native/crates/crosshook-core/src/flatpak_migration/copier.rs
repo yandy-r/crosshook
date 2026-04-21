@@ -199,40 +199,80 @@ pub(crate) fn copy_data_subtrees(
         }
     }
 
-    // --- Files (metadata DB trio: .db first, then wal/shm) ---
-    for file_entry in DATA_INCLUDE_FILES {
-        let src = host_data_root.join(file_entry);
-        let dst = sandbox_data_root.join(file_entry);
-        if !src.exists() {
-            // For metadata.db-wal/shm it is normal for these to be absent.
-            debug!(file = file_entry, "host file absent, nothing to import");
-            continue;
-        }
-        if dst.exists() {
-            debug!(file = file_entry, "sandbox file already present, skipping");
-            continue;
-        }
-        if let Some(parent) = dst.parent() {
-            if let Err(err) = fs::create_dir_all(parent) {
-                warn!(file = file_entry, error = %err, "could not create dst parent");
-                eprintln!("CrossHook: failed to prepare {file_entry}: {err}");
-                errors.push(FlatpakMigrationError::Io {
-                    path: parent.to_path_buf(),
-                    source: err,
-                });
+    // --- Metadata DB trio (atomic: .db + optional .db-wal + optional .db-shm) ---
+    //
+    // SQLite's WAL protocol requires the `.db` file and the companion `.db-wal` /
+    // `.db-shm` files to refer to the same database state. Copying them per-file
+    // with independent idempotency checks can leave the sandbox with a stale
+    // `.db` paired with a fresher `.db-wal`, which SQLite treats as a journal-
+    // replay mismatch. Treat the trio as one unit:
+    //
+    //   * Idempotency: if ANY trio member is already present in the sandbox,
+    //     skip the whole trio (the DB is considered populated).
+    //   * Copy order: `.db` first (guaranteed by `DATA_INCLUDE_FILES` ordering),
+    //     then `.db-wal` and `.db-shm` if the host has them.
+    //   * Rollback on failure: any trio member already copied in this run is
+    //     removed so the next retry starts from a clean sandbox.
+    //
+    // The trio reports as a single `imported` entry (the `.db` path) so the
+    // frontend toast count reflects "one database imported" rather than three
+    // raw files.
+    let trio_dsts: Vec<PathBuf> = DATA_INCLUDE_FILES
+        .iter()
+        .map(|entry| sandbox_data_root.join(entry))
+        .collect();
+    let trio_srcs: Vec<PathBuf> = DATA_INCLUDE_FILES
+        .iter()
+        .map(|entry| host_data_root.join(entry))
+        .collect();
+
+    if trio_dsts.iter().any(|d| d.exists()) {
+        debug!("sandbox metadata db trio already present, skipping atomic copy");
+    } else if !trio_srcs.first().is_some_and(|db| db.exists()) {
+        // No host .db → nothing to import. Any orphan wal/shm on the host is
+        // meaningless without its journal and is deliberately ignored.
+        debug!("host metadata.db absent, nothing to import");
+    } else {
+        let mut copied: Vec<PathBuf> = Vec::new();
+        let mut trio_err: Option<FlatpakMigrationError> = None;
+        for (entry, (src, dst)) in DATA_INCLUDE_FILES
+            .iter()
+            .zip(trio_srcs.iter().zip(trio_dsts.iter()))
+        {
+            if !src.exists() {
+                debug!(file = *entry, "host trio member absent, skipping member");
                 continue;
             }
-        }
-        match fs::copy(&src, &dst) {
-            Ok(_) => imported.push(file_entry),
-            Err(err) => {
-                warn!(file = file_entry, error = %err, "file import failed");
-                eprintln!("CrossHook: failed to copy {file_entry}: {err}");
-                errors.push(FlatpakMigrationError::Io {
-                    path: dst,
-                    source: err,
-                });
+            if let Some(parent) = dst.parent() {
+                if let Err(err) = fs::create_dir_all(parent) {
+                    trio_err = Some(FlatpakMigrationError::Io {
+                        path: parent.to_path_buf(),
+                        source: err,
+                    });
+                    break;
+                }
             }
+            match fs::copy(src, dst) {
+                Ok(_) => copied.push(dst.clone()),
+                Err(err) => {
+                    trio_err = Some(FlatpakMigrationError::Io {
+                        path: dst.clone(),
+                        source: err,
+                    });
+                    break;
+                }
+            }
+        }
+        if let Some(err) = trio_err {
+            for path in &copied {
+                let _ = fs::remove_file(path);
+            }
+            warn!(error = %err, "metadata db trio copy failed, rolled back");
+            eprintln!("CrossHook: metadata db trio copy failed: {err}");
+            errors.push(err);
+        } else if !copied.is_empty() {
+            // Representative entry: the `.db` path. One logical import, not three.
+            imported.push(DATA_INCLUDE_FILES[0]);
         }
     }
 
@@ -318,8 +358,12 @@ mod tests {
         assert!(imported.contains(&"crosshook/community"));
         assert!(imported.contains(&"crosshook/media"));
         assert!(imported.contains(&"crosshook/launchers"));
+        // Atomic trio: reports once via the representative `.db` entry, but
+        // both .db and .db-wal land on disk.
         assert!(imported.contains(&"crosshook/metadata.db"));
-        assert!(imported.contains(&"crosshook/metadata.db-wal"));
+        assert!(!imported.contains(&"crosshook/metadata.db-wal"));
+        assert!(sandbox.join("crosshook/metadata.db").exists());
+        assert!(sandbox.join("crosshook/metadata.db-wal").exists());
         assert!(!sandbox.join("crosshook/prefixes").exists());
         assert!(!sandbox.join("crosshook/artifacts").exists());
         assert!(skipped_existed.contains(&"crosshook/prefixes"));
@@ -351,13 +395,83 @@ mod tests {
         write(&host_root.path().join("crosshook/metadata.db-shm"), b"shm");
         let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
         assert!(errors.is_empty());
+        // Trio reports as one logical entry (the representative `.db`), but all
+        // three files physically land in the sandbox.
+        assert_eq!(
+            imported
+                .iter()
+                .filter(|e| e.starts_with("crosshook/metadata.db"))
+                .count(),
+            1,
+            "trio should report once; got {imported:?}"
+        );
+        assert!(imported.contains(&"crosshook/metadata.db"));
         for name in &[
             "crosshook/metadata.db",
             "crosshook/metadata.db-wal",
             "crosshook/metadata.db-shm",
         ] {
-            assert!(imported.contains(name), "missing {name} in {imported:?}");
             assert!(sandbox_root.path().join(name).exists());
         }
+    }
+
+    #[test]
+    fn copy_data_subtrees_trio_atomic_idempotency_on_partial_sandbox() {
+        // Sandbox already has the `.db` (e.g. from a previous run) but no
+        // wal/shm. The host has a full trio. Atomic idempotency must skip all
+        // three — copying only the host wal/shm on top of a stale sandbox .db
+        // would be a SQLite journal-replay corruption risk.
+        let host_root = tempdir().unwrap();
+        let sandbox_root = tempdir().unwrap();
+        write(&host_root.path().join("crosshook/metadata.db"), b"new-db");
+        write(
+            &host_root.path().join("crosshook/metadata.db-wal"),
+            b"new-wal",
+        );
+        write(
+            &host_root.path().join("crosshook/metadata.db-shm"),
+            b"new-shm",
+        );
+        write(
+            &sandbox_root.path().join("crosshook/metadata.db"),
+            b"old-db",
+        );
+        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        assert!(
+            !imported.contains(&"crosshook/metadata.db"),
+            "partial-sandbox trio must be skipped entirely"
+        );
+        assert!(!sandbox_root
+            .path()
+            .join("crosshook/metadata.db-wal")
+            .exists());
+        assert!(!sandbox_root
+            .path()
+            .join("crosshook/metadata.db-shm")
+            .exists());
+        // The pre-existing sandbox .db is untouched.
+        assert_eq!(
+            fs::read(sandbox_root.path().join("crosshook/metadata.db")).unwrap(),
+            b"old-db",
+        );
+    }
+
+    #[test]
+    fn copy_data_subtrees_trio_absent_on_host_is_noop() {
+        let host_root = tempdir().unwrap();
+        let sandbox_root = tempdir().unwrap();
+        // Orphan wal with no .db on host — must be ignored, not imported.
+        write(
+            &host_root.path().join("crosshook/metadata.db-wal"),
+            b"orphan",
+        );
+        let (imported, _, errors) = copy_data_subtrees(host_root.path(), sandbox_root.path());
+        assert!(errors.is_empty());
+        assert!(!imported.iter().any(|e| e.starts_with("crosshook/metadata")));
+        assert!(!sandbox_root
+            .path()
+            .join("crosshook/metadata.db-wal")
+            .exists());
     }
 }

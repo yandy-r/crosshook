@@ -15,14 +15,26 @@ pub use types::{
     DATA_INCLUDE_SUBTREES, DATA_SKIP_SUBTREES,
 };
 
-#[allow(unused_imports)] // consumed by tasks 4.1 and 4.2
-pub(crate) use prefix_root::{host_prefix_root_with, is_isolation_mode_active};
+use prefix_root::is_isolation_mode_active;
 
 use std::path::{Path, PathBuf};
 
 use tracing::{info, warn};
 
-use crate::platform::is_flatpak;
+use crate::platform::{is_flatpak, SystemEnv};
+
+/// Returns `true` when the user has explicitly opted into Flatpak host-XDG
+/// shared mode (the legacy Phase 1 behavior) via `CROSSHOOK_FLATPAK_HOST_XDG`.
+///
+/// Accepts `"1"` or any case variant of `"true"`, trimmed. Anything else —
+/// including unset, `"0"`, `"false"`, or empty — leaves per-app isolation
+/// (the default) active. Inverse of the crate-internal
+/// [`is_isolation_mode_active`] helper; provided as a public entry point so
+/// thin-IPC callers (e.g. `src-tauri/src/lib.rs`) don't have to re-implement
+/// the parsing.
+pub fn is_host_xdg_opt_in() -> bool {
+    !is_isolation_mode_active(&SystemEnv)
+}
 
 /// Run the Flatpak first-run migration.
 ///
