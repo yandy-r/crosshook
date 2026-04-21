@@ -24,13 +24,10 @@ use super::env::{EnvSink, SystemEnv};
 /// This ensures users with a customised XDG layout (e.g. `XDG_CONFIG_HOME=/data/configs`)
 /// get the correct paths rather than the `$HOME`-derived defaults.
 ///
-/// For Phase 1 this function restores the default XDG paths so the Flatpak
-/// build and the AppImage share the same data on disk. Called from the very
-/// top of `crosshook_native::run()` before any store initializes.
-///
-/// Phase 4 (Flathub submission) will replace this with a proper per-app
-/// isolation model and a first-run migration — see the tracking issue linked
-/// from `docs/prps/prds/flatpak-distribution.prd.md` §10.2.
+/// As of Phase 4 this function runs only under `CROSSHOOK_FLATPAK_HOST_XDG=1`
+/// (opt-in shared mode). The default Flatpak startup path uses per-app
+/// isolation + first-run migration — see ADR-0004 and
+/// `crosshook_core::flatpak_migration::run()`.
 ///
 /// # Safety
 ///

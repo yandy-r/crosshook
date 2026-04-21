@@ -120,6 +120,18 @@ pub fn migrate_one_app_id_root(
                 .unwrap_or_else(|| Path::new("."))
                 .join(&stage_name);
 
+            // Clean up any leftover stage from a prior crashed run.
+            // Use symlink_metadata (lstat) so a top-level symlink at the stage
+            // path does not cause us to silently skip cleanup.
+            if stage.symlink_metadata().is_ok() {
+                if let Err(err) = fs::remove_dir_all(&stage) {
+                    return Err(AppIdMigrationError::Io {
+                        path: stage,
+                        source: err,
+                    });
+                }
+            }
+
             // Step 1: copy to staging area; clean up on failure.
             if let Err(copy_err) = copy_dir_recursive(old_root, &stage) {
                 let _ = fs::remove_dir_all(&stage);

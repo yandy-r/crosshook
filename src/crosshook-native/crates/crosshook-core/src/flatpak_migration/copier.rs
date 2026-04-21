@@ -68,7 +68,9 @@ pub(crate) fn copy_tree_or_rollback(src: &Path, dst: &Path) -> Result<(), Flatpa
     let stage = staging_path(dst);
 
     // Clean up any leftover stage from a prior crashed run.
-    if stage.exists() {
+    // Use symlink_metadata (lstat) so a top-level symlink at the stage path
+    // does not cause us to silently skip cleanup.
+    if stage.symlink_metadata().is_ok() {
         if let Err(err) = fs::remove_dir_all(&stage) {
             return Err(FlatpakMigrationError::Io {
                 path: stage,
@@ -96,25 +98,48 @@ pub(crate) fn copy_tree_or_rollback(src: &Path, dst: &Path) -> Result<(), Flatpa
     }
 
     // If dst exists and is empty, remove it before rename (rename requires dst
-    // not to be present on most filesystems).
-    if dst.exists() {
+    // not to be present on most filesystems). Use symlink_metadata (lstat) so a
+    // symlink at dst is detected and handled rather than silently followed.
+    // Note: if dst was empty when we checked above but has since been populated
+    // by another process, remove_dir will fail with ENOTEMPTY — surface a
+    // clearer error in that case.
+    if dst.symlink_metadata().is_ok() {
         if let Err(err) = fs::remove_dir(dst) {
             let _ = fs::remove_dir_all(&stage);
             return Err(FlatpakMigrationError::Io {
                 path: dst.to_path_buf(),
-                source: err,
+                source: std::io::Error::other(format!(
+                    "dst became non-empty after staging completed (concurrent writer?): {err}"
+                )),
             });
         }
     }
 
     if let Err(err) = fs::rename(&stage, dst) {
-        // Fallback for EXDEV (cross-filesystem rename): copy then remove stage.
+        // Fallback for EXDEV (cross-filesystem rename): copy to a second sibling
+        // stage then rename that into dst so the "never partial dst" invariant
+        // is preserved even if interrupted mid-copy.
         if err.raw_os_error() == Some(libc_exdev()) {
-            if let Err(err2) = copy_dir_recursive(&stage, dst) {
+            let stage2 = {
+                let mut s = dst.as_os_str().to_os_string();
+                s.push(STAGE_SUFFIX);
+                s.push("2");
+                PathBuf::from(s)
+            };
+            if let Err(err2) = copy_dir_recursive(&stage, &stage2) {
                 let _ = fs::remove_dir_all(&stage);
+                let _ = fs::remove_dir_all(&stage2);
+                return Err(FlatpakMigrationError::Io {
+                    path: stage2,
+                    source: err2,
+                });
+            }
+            if let Err(err3) = fs::rename(&stage2, dst) {
+                let _ = fs::remove_dir_all(&stage);
+                let _ = fs::remove_dir_all(&stage2);
                 return Err(FlatpakMigrationError::Io {
                     path: dst.to_path_buf(),
-                    source: err2,
+                    source: err3,
                 });
             }
             let _ = fs::remove_dir_all(&stage);
@@ -187,7 +212,18 @@ pub(crate) fn copy_data_subtrees(
                 );
                 continue;
             }
-            Ok(true) | Err(_) => { /* dst either empty or missing — proceed */ }
+            Ok(true) => { /* dst exists but is empty — proceed */ }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                // dst is absent — proceed
+            }
+            Err(err) => {
+                warn!(subtree = entry, error = %err, "could not read sandbox subtree");
+                errors.push(FlatpakMigrationError::Io {
+                    path: dst.clone(),
+                    source: err,
+                });
+                continue;
+            }
         }
         match copy_tree_or_rollback(&src, &dst) {
             Ok(()) => imported.push(entry),

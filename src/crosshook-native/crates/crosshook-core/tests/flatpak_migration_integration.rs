@@ -194,3 +194,142 @@ fn partial_host_tree_imports_only_present_entries() {
     assert!(!sandbox_data.path().join("crosshook/community").exists());
     assert!(!sandbox_data.path().join("crosshook/metadata.db").exists());
 }
+
+/// F016 regression: when `.db` copies successfully but `.db-wal` copy fails (simulated via a
+/// pre-existing unwritable destination file), the atomic trio rollback removes the already-copied
+/// `.db` so the sandbox is left clean, the migration still completes (`run_for_roots` uses
+/// continue-on-error), and the returned outcome does NOT list `crosshook/metadata.db` as
+/// imported.
+///
+/// This pins the invariant introduced by the F002 resolution: idempotency skips all three if any
+/// dst member exists; copy rolls back any trio members written so far on failure.
+#[cfg(unix)]
+#[test]
+fn wal_trio_partial_failure_rolls_back_and_migration_continues() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let home = TempDir::new().unwrap();
+    let sandbox_config = TempDir::new().unwrap();
+    let sandbox_data = TempDir::new().unwrap();
+
+    // Host: full metadata DB trio + one include subtree so migration has work to do.
+    write(
+        &home.path().join(".local/share/crosshook/metadata.db"),
+        b"SQLite format 3\0",
+    );
+    write(
+        &home.path().join(".local/share/crosshook/metadata.db-wal"),
+        b"wal",
+    );
+    write(
+        &home.path().join(".local/share/crosshook/metadata.db-shm"),
+        b"shm",
+    );
+    write(
+        &home.path().join(".local/share/crosshook/launchers/run.sh"),
+        b"#!/bin/sh\n",
+    );
+
+    // Pre-create the sandbox `.db-wal` destination as an unwritable file so that
+    // `fs::copy(src_wal, dst_wal)` fails with a permission error after `.db` has
+    // already been copied.
+    let dst_wal = sandbox_data.path().join("crosshook/metadata.db-wal");
+    fs::create_dir_all(dst_wal.parent().unwrap()).expect("create sandbox crosshook dir");
+    fs::write(&dst_wal, b"blocker").expect("write blocker file");
+    fs::set_permissions(&dst_wal, fs::Permissions::from_mode(0o000))
+        .expect("make dst-wal unwritable");
+
+    let sandbox_config_inner = sandbox_config.path().join("crosshook");
+
+    // Migration must succeed overall (continue-on-error semantics).
+    let outcome = run_for_roots(home.path(), &sandbox_config_inner, sandbox_data.path())
+        .expect("run_for_roots must return Ok even when trio copy fails");
+
+    // Restore permissions so TempDir can clean up the blocker file.
+    fs::set_permissions(&dst_wal, fs::Permissions::from_mode(0o644))
+        .expect("restore dst-wal permissions for cleanup");
+
+    // The trio must NOT be listed as imported — the failed copy rolled back.
+    assert!(
+        !outcome.imported_subtrees.contains(&"crosshook/metadata.db"),
+        "trio must not be listed as imported after rollback; got {:?}",
+        outcome.imported_subtrees,
+    );
+
+    // The `.db` file must have been rolled back — it must NOT exist in the sandbox.
+    assert!(
+        !sandbox_data.path().join("crosshook/metadata.db").exists(),
+        "rolled-back .db must not persist in sandbox"
+    );
+
+    // The unrelated subtree (launchers) must still have been imported — continue-on-error.
+    assert!(
+        outcome.imported_subtrees.contains(&"crosshook/launchers"),
+        "launchers subtree must still import despite trio failure; got {:?}",
+        outcome.imported_subtrees,
+    );
+}
+
+/// F015 regression: a dangling symlink inside a host include-subtree (plausible for a
+/// partially-deleted community tap) must be faithfully preserved in the sandbox. The migration
+/// should complete without error and the symlink must be present at the destination.
+///
+/// `copy_dir_recursive` uses `symlink_metadata()` to detect symlinks and recreates them verbatim
+/// via `copy_symlink`; a dangling target does not prevent the link from being created.
+#[cfg(unix)]
+#[test]
+fn dangling_symlink_in_include_subtree_is_preserved() {
+    use std::os::unix::fs::symlink;
+
+    let home = TempDir::new().unwrap();
+    let sandbox_config = TempDir::new().unwrap();
+    let sandbox_data = TempDir::new().unwrap();
+
+    // Populate the community subtree with a real file and a dangling symlink that
+    // points to a path that does not exist.
+    let tap_dir = home
+        .path()
+        .join(".local/share/crosshook/community/taps/demo");
+    fs::create_dir_all(&tap_dir).expect("create tap dir");
+    write(&tap_dir.join("README.md"), b"# demo\n");
+    symlink("missing-target.md", tap_dir.join("stale-link.md")).expect("create dangling symlink");
+
+    let sandbox_config_inner = sandbox_config.path().join("crosshook");
+    let outcome = run_migration(home.path(), &sandbox_config_inner, sandbox_data.path());
+
+    // Migration must complete without error.
+    assert!(
+        outcome.imported_subtrees.contains(&"crosshook/community"),
+        "community subtree must be imported; got {:?}",
+        outcome.imported_subtrees,
+    );
+
+    let dst_tap = sandbox_data.path().join("crosshook/community/taps/demo");
+
+    // The real file must be present.
+    assert!(
+        dst_tap.join("README.md").exists(),
+        "README.md must be copied into sandbox"
+    );
+
+    // The dangling symlink must be present as a symlink in the sandbox.
+    let dst_link = dst_tap.join("stale-link.md");
+    assert!(
+        dst_link.symlink_metadata().is_ok(),
+        "dangling symlink must exist in sandbox (as a symlink entry)"
+    );
+    assert!(
+        dst_link.is_symlink(),
+        "sandbox entry for stale-link.md must remain a symlink"
+    );
+    // Confirm the target is still the same dangling path.
+    assert_eq!(
+        fs::read_link(&dst_link).unwrap(),
+        std::path::PathBuf::from("missing-target.md"),
+    );
+    // Confirm it genuinely dangles — following the link must fail.
+    assert!(
+        !dst_link.exists(),
+        "dangling symlink must not resolve to an existing file"
+    );
+}

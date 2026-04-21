@@ -1,8 +1,8 @@
 //! Flatpak first-run migration: import host AppImage data into the sandbox on first launch.
 //!
-//! Decision gate lives in `src-tauri/src/lib.rs` (Task 4.1): when running under Flatpak and
-//! `CROSSHOOK_FLATPAK_HOST_XDG` is unset, `run()` is invoked before any `BaseDirs::new()`
-//! call to populate the sandbox tree from the host AppImage tree (one-way, idempotent).
+//! Decision gate lives in `src-tauri/src/lib.rs`: when running under Flatpak and
+//! `CROSSHOOK_FLATPAK_HOST_XDG` is unset, `run()` is invoked before any store's
+//! `BaseDirs::new()` call to populate the sandbox tree from the host AppImage tree (one-way, idempotent).
 
 mod copier;
 mod detector;
@@ -84,10 +84,12 @@ fn run_impl(
     // host_data_dir returns `<home>/.local/share/crosshook`; copy_data_subtrees expects the
     // parent `.local/share` dir (relative paths like `crosshook/community` are joined onto it).
     let host_data = detector::host_data_dir(host_home);
+    // host_data_dir always returns `<home>/.local/share/crosshook` (4 components),
+    // so `.parent()` is always `Some`; the expect is an invariant assertion.
     let host_data_parent = host_data
         .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| host_data.clone());
+        .expect("host_data_dir always has a parent (.local/share)")
+        .to_path_buf();
 
     let mut outcome = MigrationOutcome::default();
 

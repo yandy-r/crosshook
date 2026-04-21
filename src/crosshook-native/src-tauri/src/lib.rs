@@ -116,7 +116,8 @@ pub fn run() {
     // by disabling WebKitGTK's DMA-BUF renderer. The dev script sets this via the shell
     // environment, but the AppImage needs it set before WebKit initializes.
     if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
-        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        // SAFETY: single-threaded startup, before Tauri builder; no other threads read the env.
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
     }
 
     // The linuxdeploy GTK plugin forces GDK_BACKEND=x11 to work around Wayland
@@ -127,7 +128,8 @@ pub fn run() {
     if std::env::var_os("WAYLAND_DISPLAY").is_some()
         && std::env::var("GDK_BACKEND").ok().as_deref() == Some("x11")
     {
-        std::env::remove_var("GDK_BACKEND");
+        // SAFETY: single-threaded startup, before Tauri builder; no other threads read the env.
+        unsafe { std::env::remove_var("GDK_BACKEND") };
     }
 
     let settings_store = SettingsStore::try_new().unwrap_or_else(|error| {
@@ -345,7 +347,7 @@ pub fn run() {
                 // used for `auto-load-profile`, `onboarding-check`, etc.).
                 let pending_flatpak_payload = FLATPAK_MIGRATION_OUTCOME
                     .get()
-                    .and_then(|slot| slot.lock().ok().and_then(|mut guard| guard.take()))
+                    .and_then(|slot| slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take())
                     .and_then(|outcome| {
                         let should_emit =
                             outcome.imported_config || !outcome.imported_subtrees.is_empty();

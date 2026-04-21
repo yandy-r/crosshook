@@ -5,17 +5,14 @@ use std::path::{Path, PathBuf};
 use crate::flatpak_migration::FlatpakMigrationError;
 use crate::fs_util::dir_is_empty;
 
-#[allow(dead_code)]
 pub(crate) fn host_config_dir(home: &Path) -> PathBuf {
     home.join(".config").join("crosshook")
 }
 
-#[allow(dead_code)]
 pub(crate) fn host_data_dir(home: &Path) -> PathBuf {
     home.join(".local/share").join("crosshook")
 }
 
-#[allow(dead_code)]
 pub(crate) fn needs_first_run(
     sandbox_config_root: &Path,
     host_config_root: &Path,

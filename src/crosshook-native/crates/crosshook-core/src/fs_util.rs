@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::io;
-use std::path::Path;
+use std::path::{Component, Path};
 
 /// Recursively copies a directory tree from `src` to `dst`.
 ///
@@ -29,8 +29,37 @@ pub(crate) fn copy_dir_recursive(src: &Path, dst: &Path) -> io::Result<()> {
 
 /// Copies a symlink from `src` to `dst`, preserving the link target without
 /// dereferencing.
+///
+/// # Safety filter
+///
+/// Symlinks whose target is absolute or whose target path contains any
+/// [`Component::ParentDir`] (`..`) component are rejected with an
+/// [`io::ErrorKind::InvalidInput`] error and a `tracing::warn!`. This
+/// prevents a malicious or accidental symlink in the source tree (e.g.
+/// `/run/host/etc/passwd` or `../../sensitive`) from being reproduced in the
+/// destination and later followed by sandbox I/O.
 fn copy_symlink(link: &Path, dest: &Path) -> io::Result<()> {
     let target = fs::read_link(link)?;
+
+    // Reject absolute targets and targets that contain `..` components.
+    let is_absolute = target.is_absolute();
+    let has_parent_dir = target.components().any(|c| c == Component::ParentDir);
+    if is_absolute || has_parent_dir {
+        tracing::warn!(
+            link = %link.display(),
+            target = %target.display(),
+            "skipping unsafe symlink (absolute or parent-traversing target)"
+        );
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "unsafe symlink at {}: target '{}' is absolute or contains '..'",
+                link.display(),
+                target.display()
+            ),
+        ));
+    }
+
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink(&target, dest)
