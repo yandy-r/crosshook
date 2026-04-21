@@ -130,21 +130,8 @@ Unblocks Flathub submission (#206). Closes #212. Part of #210 (Phase 4 tracker).
 
 ## Next Steps
 
-- [ ] Rebase onto latest `main` to absorb `dd9dd0f` (scripts cleanup) before opening the PR.
-- [ ] Manual Flatpak validation matrix (plan §"Manual Validation") — run on a
-      real Flatpak install against an existing AppImage data tree.
-- [ ] Code review via `/ycc:code-review` or `/review`.
-- [ ] Create PR via `/ycc:prp-pr` referencing `Closes #212`, `Part of #210`,
-      `Unblocks #206`.
-
-## Worktree Summary
-
-| Path                                            | Branch                 | Status |
-| ----------------------------------------------- | ---------------------- | ------ |
-| ~/.claude-worktrees/crosshook-flatpak-isolation | feat/flatpak-isolation | parent |
-
-Cleanup after merge/push:
-
-```bash
-git worktree remove ~/.claude-worktrees/crosshook-flatpak-isolation
-```
+- [ ] Rebase onto latest `main` and run the manual Flatpak validation matrix
+      (plan §"Manual Validation") on a real Flatpak install against an existing
+      AppImage data tree.
+- [ ] Code review.
+- [ ] Open PR referencing `Closes #212`, `Part of #210`, `Unblocks #206`.
