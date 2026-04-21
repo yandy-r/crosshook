@@ -22,6 +22,7 @@ import { ProfileProvider, useProfileContext } from './context/ProfileContext';
 import { ProfileHealthProvider } from './context/ProfileHealthContext';
 import { useAriaLabelHydration, useHighContrastTheme } from './hooks/useAccessibilityEnhancements';
 import { useCollections } from './hooks/useCollections';
+import { useFlatpakMigrationToast } from './hooks/useFlatpakMigrationToast';
 import { useGamepadNav } from './hooks/useGamepadNav';
 import { useScrollEnhance } from './hooks/useScrollEnhance';
 import type { OnboardingCheckPayload } from './types/onboarding';
@@ -157,6 +158,8 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
     [editingCollectionId, renameCollection, updateDescription]
   );
 
+  const { importCount: flatpakImportCount, dismiss: dismissFlatpakToast } = useFlatpakMigrationToast();
+
   const retryCollectionDescription = useCallback(async () => {
     if (collectionDescriptionToast === null) {
       return;
@@ -277,7 +280,7 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
             externalError={editSessionError}
           />
           {collectionDescriptionToast !== null ? (
-            <div className="crosshook-rename-toast" role="status" aria-live="polite">
+            <div className="crosshook-status-toast crosshook-rename-toast" role="status" aria-live="polite">
               <span>Name saved, but the description could not be saved.</span>
               <button
                 type="button"
@@ -291,6 +294,22 @@ function AppShell({ controllerMode }: { controllerMode: boolean }) {
                 className="crosshook-rename-toast-dismiss"
                 aria-label="Dismiss"
                 onClick={() => setCollectionDescriptionToast(null)}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+          {flatpakImportCount !== null ? (
+            <div className="crosshook-status-toast crosshook-toast--flatpak-migration" role="status" aria-live="polite">
+              <span>
+                Imported your existing CrossHook data ({flatpakImportCount} item
+                {flatpakImportCount !== 1 ? 's' : ''}). Your settings and game library are ready.
+              </span>
+              <button
+                type="button"
+                className="crosshook-rename-toast-dismiss"
+                aria-label="Dismiss"
+                onClick={dismissFlatpakToast}
               >
                 ×
               </button>

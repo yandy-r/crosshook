@@ -2,6 +2,8 @@ pub mod app_id_migration;
 pub mod community;
 pub mod discovery;
 pub mod export;
+pub mod flatpak_migration;
+mod fs_util;
 pub mod game_images;
 pub mod install;
 pub mod launch;

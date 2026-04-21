@@ -188,7 +188,7 @@ export function ProfilesOverlays({
       ) : null}
 
       {renameToast && !renameToastDismissed ? (
-        <div className="crosshook-rename-toast" role="status" aria-live="polite">
+        <div className="crosshook-status-toast crosshook-rename-toast" role="status" aria-live="polite">
           <span>Renamed to &lsquo;{renameToast.newName}&rsquo;</span>
           <button type="button" className="crosshook-button crosshook-button--ghost" onClick={onUndoRename}>
             Undo

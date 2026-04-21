@@ -441,16 +441,18 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 **Caveat**: Sharing data means the AppImage and Flatpak must not run concurrently with conflicting writes. Both use a process-local `io_lock` on settings; neither has cross-process file locking. Two concurrent instances can corrupt `settings.toml` (this is not a new risk — two AppImage instances have the same problem). Users running both should pick one as primary.
 
-### 10.3 Phase 4 follow-up — per-app isolation (deferred)
+### 10.3 Phase 4 follow-up — per-app isolation (complete — see `docs/prps/plans/completed/flatpak-isolation.plan.md`)
 
-Phase 4 (Flathub submission) will replace the host-shared model with proper per-app isolation:
+Phase 4 (Flathub submission) replaces the host-shared model with proper per-app isolation:
 
 1. On first Flatpak launch, copy `~/.config/crosshook/` into `$XDG_CONFIG_HOME/crosshook/` (inside the sandbox).
 2. Selectively copy `~/.local/share/crosshook/` into `$XDG_DATA_HOME/crosshook/`, excluding large subtrees (`prefixes/`, `artifacts/`, `cache/`).
 3. Override the wine prefix root so existing host prefixes remain usable without a multi-gigabyte copy.
-4. Keep `override_xdg_for_flatpak_host_access()` as a fallback for users who prefer host-shared state (config flag or env var).
+4. Keep `override_xdg_for_flatpak_host_access()` as a fallback for users who prefer host-shared state (opt-in via `CROSSHOOK_FLATPAK_HOST_XDG=1`).
 
 Flathub is expected to require isolation because it is the standard sandbox contract every other Flathub app honours. Tracked in the Phase 4 sub-issue created alongside the commit that introduces the Phase 1 override (see the issue linked from #210).
+
+See ADR-0004 for the isolation contract.
 
 ---
 

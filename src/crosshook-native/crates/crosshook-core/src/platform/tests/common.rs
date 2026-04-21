@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::env;
 use std::ffi::OsString;
 
-use super::super::xdg::EnvSink;
+use super::super::EnvSink;
 
 /// Test-only env key so we never mutate the real `FLATPAK_ID` variable.
-pub(super) const TEST_ENV_KEY: &str = "CROSSHOOK_TEST_FLATPAK_ID";
+pub(crate) const TEST_ENV_KEY: &str = "CROSSHOOK_TEST_FLATPAK_ID";
 
 /// Mutex that serialises all tests mutating `CROSSHOOK_TEST_FLATPAK_ID`.
 static FLATPAK_ID_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -15,14 +15,14 @@ static FLATPAK_ID_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// Acquires `FLATPAK_ID_LOCK` for its lifetime so concurrent tests do not
 /// race on the environment. Drop order is LIFO, so the lock is released
 /// only after the original value has been restored.
-pub(super) struct ScopedEnv {
+pub(crate) struct ScopedEnv {
     key: &'static str,
     original: Option<OsString>,
     _guard: std::sync::MutexGuard<'static, ()>,
 }
 
 impl ScopedEnv {
-    pub(super) fn set(key: &'static str, value: &str) -> Self {
+    pub(crate) fn set(key: &'static str, value: &str) -> Self {
         let guard = FLATPAK_ID_LOCK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -36,7 +36,7 @@ impl ScopedEnv {
         }
     }
 
-    pub(super) fn unset(key: &'static str) -> Self {
+    pub(crate) fn unset(key: &'static str) -> Self {
         let guard = FLATPAK_ID_LOCK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -68,9 +68,9 @@ impl Drop for ScopedEnv {
 /// Pre-populate `reads` to inject env-var values that `get()` will return,
 /// simulating `HOST_XDG_*_HOME` vars set by the Flatpak runtime.
 #[derive(Default)]
-pub(super) struct FakeEnv {
-    pub(super) writes: Vec<(String, OsString)>,
-    pub(super) reads: HashMap<String, OsString>,
+pub(crate) struct FakeEnv {
+    pub(crate) writes: Vec<(String, OsString)>,
+    pub(crate) reads: HashMap<String, OsString>,
 }
 
 impl EnvSink for FakeEnv {

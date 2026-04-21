@@ -65,3 +65,28 @@ After a successful `./scripts/build-flatpak.sh --strict`, install and run the bu
 ## Runtime Drift Note
 
 Older tracking text referenced GNOME runtime `48`. The source of truth is now runtime `50` in the committed manifest and CI container tag.
+
+## Shared mode (advanced users)
+
+By default, the Flatpak build uses **per-app data isolation** (data lives under
+`~/.var/app/dev.crosshook.CrossHook/{config,cache,data}/`). On first launch, CrossHook
+imports existing AppImage data from `~/.config/crosshook/` and
+`~/.local/share/crosshook/` into the sandbox one-way. See
+[ADR-0004](../../docs/architecture/adr-0004-flatpak-per-app-isolation.md) for
+details.
+
+If you prefer the Flatpak and AppImage to share one data directory (Phase 1
+behavior), opt in persistently:
+
+```bash
+flatpak override --user --env=CROSSHOOK_FLATPAK_HOST_XDG=1 dev.crosshook.CrossHook
+```
+
+This is **not** how Flathub-distributed installs behave by default, and it is
+**not** documented on Flathub. Use at your own risk.
+
+To revert to the default isolated mode:
+
+```bash
+flatpak override --user --unset-env=CROSSHOOK_FLATPAK_HOST_XDG dev.crosshook.CrossHook
+```

@@ -161,6 +161,15 @@ fn provision_prefix(prefix_path: &Path) -> Result<(), InstallGameError> {
 }
 
 fn resolve_prefix_root() -> Result<PathBuf, InstallGameError> {
+    resolve_prefix_root_with(crate::flatpak_migration::host_prefix_root())
+}
+
+pub(crate) fn resolve_prefix_root_with(
+    host_override: Option<PathBuf>,
+) -> Result<PathBuf, InstallGameError> {
+    if let Some(path) = host_override {
+        return Ok(path);
+    }
     let base_dirs = BaseDirs::new().ok_or(InstallGameError::HomeDirectoryUnavailable)?;
     Ok(resolve_default_prefix_path_from_data_local_dir(
         base_dirs.data_local_dir(),
@@ -572,6 +581,25 @@ mod tests {
                 .join("trainer.exe")
                 .to_string_lossy()
                 .into_owned()
+        );
+    }
+
+    #[test]
+    fn resolve_prefix_root_with_host_override_returns_override_path() {
+        let override_path = PathBuf::from("/h/.local/share/crosshook/prefixes");
+        let result =
+            resolve_prefix_root_with(Some(override_path.clone())).expect("resolve with override");
+        assert_eq!(result, override_path);
+    }
+
+    #[test]
+    fn resolve_prefix_root_without_override_falls_through_to_base_dirs() {
+        let result = resolve_prefix_root_with(None).expect("resolve without override");
+        assert!(
+            result.ends_with(DEFAULT_PREFIX_ROOT_SEGMENT),
+            "expected path ending with '{}', got '{}'",
+            DEFAULT_PREFIX_ROOT_SEGMENT,
+            result.display()
         );
     }
 }
