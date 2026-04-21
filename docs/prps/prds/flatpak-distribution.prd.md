@@ -441,7 +441,7 @@ When `unshare --user --net` fails inside the Flatpak sandbox (seccomp blocks it)
 
 **Caveat**: Sharing data means the AppImage and Flatpak must not run concurrently with conflicting writes. Both use a process-local `io_lock` on settings; neither has cross-process file locking. Two concurrent instances can corrupt `settings.toml` (this is not a new risk — two AppImage instances have the same problem). Users running both should pick one as primary.
 
-### 10.3 Phase 4 follow-up — per-app isolation (in-progress — see `docs/prps/plans/flatpak-isolation.plan.md`)
+### 10.3 Phase 4 follow-up — per-app isolation (complete — see `docs/prps/plans/completed/flatpak-isolation.plan.md`)
 
 Phase 4 (Flathub submission) replaces the host-shared model with proper per-app isolation:
 

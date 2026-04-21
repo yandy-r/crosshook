@@ -120,7 +120,7 @@ startup and all stores resolve to host paths. This opt-in is:
 
 ## References
 
-- `docs/prps/plans/flatpak-isolation.plan.md` — implementation plan (tasks 1.1–5.3)
+- `docs/prps/plans/completed/flatpak-isolation.plan.md` — implementation plan (tasks 1.1–5.3)
 - `docs/prps/prds/flatpak-distribution.prd.md` §10.3 — per-app isolation follow-up
 - [ADR-0001 — `platform.rs` host-command gateway](./adr-0001-platform-host-gateway.md)
 - [ADR-0002 — Flatpak portal contracts](./adr-0002-flatpak-portal-contracts.md)
