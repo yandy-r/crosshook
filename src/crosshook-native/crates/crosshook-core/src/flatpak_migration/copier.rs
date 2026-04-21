@@ -22,10 +22,6 @@
 //! One subtree or file failing does **not** abort the others. All errors are
 //! collected in a `Vec<FlatpakMigrationError>` and returned to the caller.
 
-// Public API is consumed by the Task 3.1 orchestrator (flatpak_migration::run).
-// Until that wiring lands, suppress dead_code so clippy -D warnings stays clean.
-#![allow(dead_code)]
-
 use std::fs;
 use std::path::{Path, PathBuf};
 

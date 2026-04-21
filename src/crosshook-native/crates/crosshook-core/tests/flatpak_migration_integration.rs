@@ -46,6 +46,7 @@ fn populate_host_fixture(home: &Path) {
         b"SQLite format 3\0",
     );
     write(&home.join(".local/share/crosshook/metadata.db-wal"), b"wal");
+    write(&home.join(".local/share/crosshook/metadata.db-shm"), b"shm");
 
     // Data: skip subtrees (MUST NOT be copied)
     write(
@@ -106,7 +107,11 @@ fn full_import_includes_expected_items() {
     }
 
     // Metadata trio
-    for entry in &["crosshook/metadata.db", "crosshook/metadata.db-wal"] {
+    for entry in &[
+        "crosshook/metadata.db",
+        "crosshook/metadata.db-wal",
+        "crosshook/metadata.db-shm",
+    ] {
         assert!(
             sandbox_data.path().join(entry).exists(),
             "metadata file missing in sandbox: {entry}"

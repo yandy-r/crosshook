@@ -21,7 +21,6 @@ use crosshook_core::onboarding::{
 use crosshook_core::profile::ProfileStore;
 use crosshook_core::settings::{AppSettingsData, RecentFilesStore, SettingsStore};
 pub use paths::resolve_script_path;
-use std::ffi::OsStr;
 use std::sync::{Mutex, OnceLock};
 use tauri::{Emitter, Manager};
 use tokio::time::{sleep, Duration};
@@ -29,8 +28,15 @@ use tokio::time::{sleep, Duration};
 static FLATPAK_MIGRATION_OUTCOME: OnceLock<Mutex<Option<MigrationOutcome>>> = OnceLock::new();
 
 fn flatpak_host_xdg_opt_in() -> bool {
+    // Parity with `flatpak_migration::prefix_root::is_isolation_mode_active`:
+    // accept "1" or any case variant of "true", trimmed. Anything else leaves
+    // isolation (the default) active.
     match std::env::var_os("CROSSHOOK_FLATPAK_HOST_XDG") {
-        Some(value) => value == OsStr::new("1") || value == OsStr::new("true"),
+        Some(value) => {
+            let s = value.to_string_lossy();
+            let trimmed = s.trim();
+            trimmed == "1" || trimmed.eq_ignore_ascii_case("true")
+        }
         None => false,
     }
 }
@@ -44,7 +50,7 @@ struct FlatpakMigrationCompletePayload {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Flatpak startup gate (Phase 4, ADR-0003): isolation by default, host-share on opt-in.
+    // Flatpak startup gate (Phase 4, ADR-0004): isolation by default, host-share on opt-in.
     //
     // This decision MUST run before any `BaseDirs::new()` call (including the
     // migration that follows and every `*Store::try_new`) because the directories
@@ -343,41 +349,50 @@ pub fn run() {
                     }
                 });
 
-                // Flatpak first-run migration completion event (Phase 4, ADR-0003).
+                // Flatpak first-run migration completion event (Phase 4, ADR-0004).
                 // Emit `flatpak-migration-complete` when the startup migration imported
                 // at least one item so the frontend can surface a one-time toast to the
                 // user. The outcome was stashed in `FLATPAK_MIGRATION_OUTCOME` before
-                // the Tauri builder ran; we take it here so it fires exactly once.
-                if let Some(slot) = FLATPAK_MIGRATION_OUTCOME.get() {
-                    if let Ok(mut guard) = slot.lock() {
-                        if let Some(outcome) = guard.take() {
-                            let should_emit =
-                                outcome.imported_config || !outcome.imported_subtrees.is_empty();
-                            if should_emit {
-                                let payload = FlatpakMigrationCompletePayload {
-                                    imported_config: outcome.imported_config,
-                                    imported_subtrees: outcome
-                                        .imported_subtrees
-                                        .iter()
-                                        .map(|s| (*s).to_string())
-                                        .collect(),
-                                    skipped_subtrees: outcome
-                                        .skipped_subtrees
-                                        .iter()
-                                        .map(|s| (*s).to_string())
-                                        .collect(),
-                                };
-                                if let Err(error) =
-                                    app.handle().emit("flatpak-migration-complete", &payload)
-                                {
-                                    tracing::warn!(
-                                        %error,
-                                        "failed to emit flatpak-migration-complete"
-                                    );
-                                }
-                            }
+                // the Tauri builder ran; take it here synchronously so we only fire
+                // once, then emit from an async task after a short delay so the
+                // frontend listener has time to attach (matches the 350–500ms pattern
+                // used for `auto-load-profile`, `onboarding-check`, etc.).
+                let pending_flatpak_payload = FLATPAK_MIGRATION_OUTCOME
+                    .get()
+                    .and_then(|slot| slot.lock().ok().and_then(|mut guard| guard.take()))
+                    .and_then(|outcome| {
+                        let should_emit =
+                            outcome.imported_config || !outcome.imported_subtrees.is_empty();
+                        if !should_emit {
+                            return None;
                         }
-                    }
+                        Some(FlatpakMigrationCompletePayload {
+                            imported_config: outcome.imported_config,
+                            imported_subtrees: outcome
+                                .imported_subtrees
+                                .iter()
+                                .map(|s| (*s).to_string())
+                                .collect(),
+                            skipped_subtrees: outcome
+                                .skipped_subtrees
+                                .iter()
+                                .map(|s| (*s).to_string())
+                                .collect(),
+                        })
+                    });
+                if let Some(payload) = pending_flatpak_payload {
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        sleep(Duration::from_millis(350)).await;
+                        if let Err(error) =
+                            app_handle.emit("flatpak-migration-complete", &payload)
+                        {
+                            tracing::warn!(
+                                %error,
+                                "failed to emit flatpak-migration-complete"
+                            );
+                        }
+                    });
                 }
 
                 // Flatpak Background portal (ADR-0002 § Background portal
