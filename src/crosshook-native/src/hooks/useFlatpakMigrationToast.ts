@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 
+// sessionStorage: resets on window restart so the toast re-surfaces until the user explicitly dismisses it.
 export const FLATPAK_MIGRATION_TOAST_SESSION_KEY = 'crosshook.flatpak.migration.toastShown';
 const EVENT_NAME = 'flatpak-migration-complete';
 

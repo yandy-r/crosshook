@@ -43,7 +43,7 @@ export function ProfilesHero({
   return (
     <>
       {summary !== null && !healthLoading && summary.broken_count > 0 && !healthBannerDismissed ? (
-        <div className="crosshook-rename-toast" role="status" aria-live="polite">
+        <div className="crosshook-status-toast crosshook-rename-toast" role="status" aria-live="polite">
           <span>
             {summary.broken_count} profile{summary.broken_count !== 1 ? 's' : ''} have issues that may prevent launching
           </span>

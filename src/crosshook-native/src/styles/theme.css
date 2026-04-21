@@ -188,7 +188,7 @@ textarea {
   gap: max(10px, calc(var(--crosshook-grid-gap) - 10px));
 }
 
-.crosshook-page-scroll-shell--profiles > .crosshook-rename-toast {
+.crosshook-page-scroll-shell--profiles > .crosshook-status-toast {
   flex-shrink: 0;
 }
 
@@ -4576,9 +4576,9 @@ textarea {
   cursor: pointer;
 }
 
-/* ── Rename Toast ── */
+/* ── Status Toast (shared base) ── */
 
-.crosshook-rename-toast {
+.crosshook-status-toast {
   position: fixed;
   bottom: 24px;
   left: 50%;
