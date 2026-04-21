@@ -29,9 +29,10 @@ Solid, well-scoped implementation of the Phase 4 Flatpak isolation model: per-ap
   - **Suggested fix**: In the EXDEV branch, copy to a second sibling stage (`<dst>.migrating2`) then rename that into `dst`. Preserves the same "never partial" invariant as the primary path. [correctness, security]
 
 - **[F002]** `src/crosshook-native/crates/crosshook-core/src/flatpak_migration/copier.rs:165` and `src/crosshook-native/src/hooks/useFlatpakMigrationToast.ts:36` — `copy_data_subtrees` returns a single `imported: Vec<&'static str>` that mixes `DATA_INCLUDE_SUBTREES` and `DATA_INCLUDE_FILES` entries. `MigrationOutcome::imported_subtrees` (the field name implies directories only) therefore contains `.db`, `.db-wal`, and `.db-shm` alongside `community`/`media`/`launchers`. The frontend toast computes `importCount = imported_subtrees.length + (imported_config ? 1 : 0)`, so a full migration shows "7 items imported" where a user would reasonably expect 5 (config + 3 subtrees + 1 metadata DB).
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Correctness
   - **Suggested fix**: Either (a) count the WAL trio as one logical item in the toast computation (e.g. emit a separate `imported_metadata_db: bool` and drop the three DB file paths from `imported_subtrees`), or (b) rename the field to `imported_items` and adjust the toast string so the count corresponds to something meaningful to the user.
+  - **Resolution**: `copy_data_subtrees` now treats the SQLite WAL trio atomically: idempotency skips all three if any dst exists, copy rolls back any trio members written so far on failure, and the trio reports as a single representative entry (`crosshook/metadata.db`) in `imported`. Toast count is now honest (config + 3 subtrees + 1 DB = 5).
 
 - **[F003]** `src/crosshook-native/crates/crosshook-core/src/flatpak_migration/detector.rs:8`, `:13`, `:18` — `#[allow(dead_code)]` on `host_config_dir`, `host_data_dir`, `needs_first_run`. All three are actively called from `flatpak_migration/mod.rs:71–83` (via `detector::host_config_dir`, `detector::host_data_dir`, `detector::needs_first_run`). The suppressions are stale and would mask a real future dead-code warning if these items stop being used.
   - **Status**: Open
@@ -39,14 +40,16 @@ Solid, well-scoped implementation of the Phase 4 Flatpak isolation model: per-ap
   - **Suggested fix**: Remove all three `#[allow(dead_code)]` attributes.
 
 - **[F004]** `src/crosshook-native/crates/crosshook-core/src/flatpak_migration/mod.rs:18–19` — Stale `#[allow(unused_imports)] // consumed by tasks 4.1 and 4.2` above `pub(crate) use prefix_root::{host_prefix_root_with, is_isolation_mode_active};`. Tasks 4.1 and 4.2 are complete. The `allow` should be removed; if removing it triggers a warning because the re-export is truly unused outside `prefix_root.rs`, gate the re-export with `#[cfg(test)]` or drop it entirely.
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Maintainability
   - **Suggested fix**: Remove the `#[allow(unused_imports)]` attribute and the inline task-reference comment; if the lint fires, remove or `#[cfg(test)]`-gate the re-export.
+  - **Resolution**: Dropped the stale `#[allow(unused_imports)]` and the `tasks 4.1 and 4.2` comment. `host_prefix_root_with` was genuinely unused outside `prefix_root.rs` (its tests access it via `super`) — removed from the re-export. `is_isolation_mode_active` is now used internally by the new `is_host_xdg_opt_in()` public wrapper (see F005).
 
 - **[F005]** `src/crosshook-native/src-tauri/src/lib.rs:31–42` — `flatpak_host_xdg_opt_in()` duplicates the parsing logic of `crosshook_core::flatpak_migration::prefix_root::is_isolation_mode_active` (the comment now explicitly acknowledges this "Parity with …"). Per CLAUDE.md's thin-Tauri convention, business logic should live in `crosshook-core` and future changes to accepted env-var values will now need to be made in two places.
-  - **Status**: Open
+  - **Status**: Fixed
   - **Category**: Pattern Compliance
   - **Suggested fix**: Expose a `pub fn` wrapper in `crosshook_core::flatpak_migration` (e.g. `pub fn flatpak_host_xdg_opt_in() -> bool { !prefix_root::is_isolation_mode_active(&SystemEnv) }`) and delete the local duplicate in `src-tauri/src/lib.rs`.
+  - **Resolution**: Added `pub fn crosshook_core::flatpak_migration::is_host_xdg_opt_in() -> bool` as an inverse of `is_isolation_mode_active(&SystemEnv)`. Deleted the local `flatpak_host_xdg_opt_in` helper in `src-tauri/src/lib.rs` and the accompanying `OsStr` import; startup gate now calls the crate entry point directly.
 
 - **[F006]** `src/crosshook-native/src-tauri/src/lib.rs:352` — `FLATPAK_MIGRATION_OUTCOME.get().and_then(|slot| slot.lock().ok().and_then(…))` silently discards `PoisonError`, so a poisoned mutex drops the toast event. The migration runs single-threaded before the Tauri builder, so poisoning is theoretically impossible today — but the pattern is inconsistent with the codebase's usual `lock().unwrap_or_else(|e| e.into_inner())` recovery (e.g. in `platform/tests/common.rs`) and will hide a future regression if the migration is ever moved onto a thread.
   - **Status**: Open
