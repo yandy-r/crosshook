@@ -355,11 +355,13 @@
   white-space: nowrap;
 }
 
-/* WCAG AA audit (2026-04-17): on `--crosshook-color-surface` (#12172a),
- * installed `--crosshook-color-capability-available` = 10.20:1 and
- * available `--crosshook-color-accent-strong` = 6.60:1. `variables.css`
- * currently defines only the dark root palette, so re-audit if a light
- * surface override is introduced.
+/* WCAG AA audit (2026-04-17, pre-steel-blue palette): on
+ * `--crosshook-color-surface`, installed `--crosshook-color-capability-available`
+ * = 10.20:1 and available `--crosshook-color-accent-strong` = 6.60:1.
+ * These ratios were measured against the legacy surface and must be re-audited
+ * after the Phase 2 token swap. `variables.css` currently defines only the
+ * dark root palette, so also re-audit if a light surface override is
+ * introduced. See docs/internal-docs/design-tokens.md.
  */
 .crosshook-version-row__status-pill--installed {
   background: var(--crosshook-color-capability-available-bg);

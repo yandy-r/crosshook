@@ -105,7 +105,7 @@ const confirmationCardStyle: CSSProperties = {
   borderRadius: 20,
   border: '1px solid rgba(96, 165, 250, 0.24)',
   background:
-    'radial-gradient(circle at top right, rgba(0, 120, 212, 0.12), transparent 26%), linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(8, 12, 24, 0.98))',
+    'radial-gradient(circle at top right, rgba(74, 125, 181, 0.12), transparent 26%), linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(8, 12, 24, 0.98))',
   boxShadow: '0 24px 60px rgba(0, 0, 0, 0.46)',
 };
 

@@ -14,8 +14,8 @@ body,
 
 html {
   background:
-    radial-gradient(circle at top left, rgba(0, 120, 212, 0.18), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(45, 163, 255, 0.12), transparent 28%), var(--crosshook-color-bg);
+    radial-gradient(circle at top left, rgba(74, 125, 181, 0.18), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(107, 163, 217, 0.12), transparent 28%), var(--crosshook-color-bg);
 }
 
 body {
@@ -76,7 +76,7 @@ textarea {
   padding: var(--crosshook-page-padding);
   color: var(--crosshook-color-text);
   background:
-    radial-gradient(circle at top left, rgba(0, 120, 212, 0.16), transparent 28%),
+    radial-gradient(circle at top left, rgba(74, 125, 181, 0.16), transparent 28%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 18%), var(--crosshook-color-bg);
 }
 
@@ -117,7 +117,7 @@ textarea {
 }
 
 .crosshook-tab--active {
-  border-color: rgba(0, 120, 212, 0.45);
+  border-color: rgba(74, 125, 181, 0.45);
   background: linear-gradient(135deg, var(--crosshook-color-accent) 0%, var(--crosshook-color-accent-strong) 100%);
   color: #fff;
 }
@@ -151,7 +151,7 @@ textarea {
 
 .crosshook-subtab--active,
 .crosshook-subtab[data-state='active'] {
-  border-color: rgba(0, 120, 212, 0.45);
+  border-color: rgba(74, 125, 181, 0.45);
   background: linear-gradient(135deg, var(--crosshook-color-accent) 0%, var(--crosshook-color-accent-strong) 100%);
   color: #fff;
 }
@@ -268,7 +268,7 @@ textarea {
      stacked over the standard panel linear gradient. This is what gives the sidebar
      brand its blue glow — we reproduce it here exactly. */
   background:
-    radial-gradient(ellipse 80% 100% at 95% 50%, rgba(0, 120, 212, 0.08), transparent 60%),
+    radial-gradient(ellipse 80% 100% at 95% 50%, rgba(74, 125, 181, 0.08), transparent 60%),
     linear-gradient(180deg, rgba(18, 23, 42, 0.96), rgba(12, 17, 32, 0.96));
   overflow: hidden;
 }
@@ -945,7 +945,7 @@ textarea {
 .crosshook-button {
   min-height: var(--crosshook-touch-target-min);
   border-radius: var(--crosshook-radius-md);
-  border: 1px solid rgba(0, 120, 212, 0.45);
+  border: 1px solid rgba(74, 125, 181, 0.45);
   background: linear-gradient(135deg, var(--crosshook-color-accent) 0%, var(--crosshook-color-accent-strong) 100%);
   color: #ffffff;
   padding: 0 18px;
@@ -1032,8 +1032,8 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: rgba(0, 120, 212, 0.14);
-  border: 1px solid rgba(0, 120, 212, 0.28);
+  background: rgba(74, 125, 181, 0.14);
+  border: 1px solid rgba(74, 125, 181, 0.28);
   color: var(--crosshook-color-text);
 }
 
@@ -1496,8 +1496,8 @@ textarea {
 .crosshook-community-rating-badge--platinum,
 .crosshook-compatibility-badge--platinum {
   color: #bfdbfe;
-  background: rgba(0, 120, 212, 0.18);
-  border: 1px solid rgba(0, 120, 212, 0.34);
+  background: rgba(74, 125, 181, 0.18);
+  border: 1px solid rgba(74, 125, 181, 0.34);
 }
 
 .crosshook-protondb-panel {
@@ -1514,14 +1514,14 @@ textarea {
   border: 1px solid rgba(120, 160, 255, 0.18);
   background:
     linear-gradient(180deg, rgba(14, 20, 40, 0.96), rgba(9, 14, 28, 0.96)),
-    radial-gradient(circle at top right, rgba(0, 120, 212, 0.12), transparent 30%);
+    radial-gradient(circle at top right, rgba(74, 125, 181, 0.12), transparent 30%);
   box-shadow: var(--crosshook-shadow-strong);
 }
 
 .crosshook-protondb-card--platinum {
-  border-color: rgba(0, 120, 212, 0.28);
+  border-color: rgba(74, 125, 181, 0.28);
   box-shadow:
-    0 0 0 1px rgba(0, 120, 212, 0.12),
+    0 0 0 1px rgba(74, 125, 181, 0.12),
     var(--crosshook-shadow-strong);
 }
 
@@ -1838,8 +1838,8 @@ textarea {
 
 .crosshook-protondb-tier-badge--platinum {
   color: #dbeafe;
-  background: rgba(0, 120, 212, 0.2);
-  border: 1px solid rgba(0, 120, 212, 0.38);
+  background: rgba(74, 125, 181, 0.2);
+  border: 1px solid rgba(74, 125, 181, 0.38);
 }
 
 .crosshook-protondb-tier-badge--gold {
@@ -1890,7 +1890,7 @@ textarea {
 .crosshook-compatibility-viewer__result-card--selected {
   border-color: var(--crosshook-color-accent-strong);
   box-shadow:
-    0 0 0 1px rgba(0, 120, 212, 0.45),
+    0 0 0 1px rgba(74, 125, 181, 0.45),
     var(--crosshook-shadow-strong);
 }
 
@@ -2119,13 +2119,13 @@ textarea {
 
 .crosshook-pinned-strip__chip:hover {
   border-color: var(--crosshook-color-accent);
-  background: rgba(0, 120, 212, 0.1);
+  background: rgba(74, 125, 181, 0.1);
   color: var(--crosshook-color-text);
 }
 
 .crosshook-pinned-strip__chip--active {
   border-color: var(--crosshook-color-accent-strong);
-  background: rgba(0, 120, 212, 0.15);
+  background: rgba(74, 125, 181, 0.15);
   color: var(--crosshook-color-text);
   font-weight: 600;
 }
@@ -2249,7 +2249,7 @@ textarea {
   min-height: 0;
   overflow: visible;
   background:
-    radial-gradient(circle at top right, rgba(45, 163, 255, 0.12), transparent 28%),
+    radial-gradient(circle at top right, rgba(107, 163, 217, 0.12), transparent 28%),
     linear-gradient(180deg, rgba(17, 22, 40, 0.96), rgba(11, 16, 31, 0.96));
 }
 
@@ -2311,13 +2311,13 @@ textarea {
 .crosshook-launch-optimizations__status-chip {
   font-weight: 700;
   color: var(--crosshook-color-text);
-  background: rgba(0, 120, 212, 0.14);
-  border-color: rgba(0, 120, 212, 0.28);
+  background: rgba(74, 125, 181, 0.14);
+  border-color: rgba(74, 125, 181, 0.28);
 }
 
 .crosshook-launch-optimizations__status-chip--idle {
-  background: rgba(0, 120, 212, 0.14);
-  border-color: rgba(0, 120, 212, 0.28);
+  background: rgba(74, 125, 181, 0.14);
+  border-color: rgba(74, 125, 181, 0.28);
 }
 
 .crosshook-launch-optimizations__status-chip--saving {
@@ -2596,8 +2596,8 @@ textarea {
 .crosshook-launch-optimizations__section-tab-meta-badge {
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(0, 120, 212, 0.16);
-  border: 1px solid rgba(0, 120, 212, 0.32);
+  background: rgba(74, 125, 181, 0.16);
+  border: 1px solid rgba(74, 125, 181, 0.32);
   color: var(--crosshook-color-text);
   font-size: 0.62rem;
   font-weight: 700;
@@ -2709,8 +2709,8 @@ textarea {
 }
 
 .crosshook-launch-optimizations__option--enabled {
-  border-color: rgba(0, 120, 212, 0.36);
-  background: linear-gradient(180deg, rgba(0, 120, 212, 0.14), rgba(255, 255, 255, 0.03));
+  border-color: rgba(74, 125, 181, 0.36);
+  background: linear-gradient(180deg, rgba(74, 125, 181, 0.14), rgba(255, 255, 255, 0.03));
 }
 
 .crosshook-launch-optimizations__option--disabled {
@@ -2783,8 +2783,8 @@ textarea {
 }
 
 .crosshook-launch-optimizations__option-pill--recommended {
-  background: rgba(0, 120, 212, 0.12);
-  border-color: rgba(0, 120, 212, 0.22);
+  background: rgba(74, 125, 181, 0.12);
+  border-color: rgba(74, 125, 181, 0.22);
   color: #b9ddff;
 }
 
@@ -2841,7 +2841,7 @@ textarea {
 
 .crosshook-launch-optimizations__info-button:hover {
   background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(0, 120, 212, 0.34);
+  border-color: rgba(74, 125, 181, 0.34);
   transform: translateY(-1px);
 }
 
@@ -2866,7 +2866,7 @@ textarea {
   width: min(340px, calc(100vw - 72px));
   border-radius: 14px;
   background: rgba(7, 12, 24, 0.96);
-  border: 1px solid rgba(0, 120, 212, 0.24);
+  border: 1px solid rgba(74, 125, 181, 0.24);
   box-shadow: var(--crosshook-shadow-soft);
   pointer-events: none;
 }
@@ -3035,8 +3035,8 @@ textarea {
 }
 
 .crosshook-install-stage {
-  border: 1px solid rgba(0, 120, 212, 0.28);
-  background: rgba(0, 120, 212, 0.14);
+  border: 1px solid rgba(74, 125, 181, 0.28);
+  background: rgba(74, 125, 181, 0.14);
   color: var(--crosshook-color-text);
 }
 
@@ -3081,7 +3081,7 @@ textarea {
 }
 
 .crosshook-install-candidate--selected {
-  border-color: rgba(0, 120, 212, 0.45);
+  border-color: rgba(74, 125, 181, 0.45);
   color: var(--crosshook-color-text);
 }
 
@@ -3430,7 +3430,7 @@ textarea {
   padding: 28px;
   border-radius: 20px;
   border: 1px solid rgba(96, 165, 250, 0.24);
-  background: radial-gradient(circle at top right, rgba(0, 120, 212, 0.14), transparent 30%), rgba(10, 15, 24, 0.96);
+  background: radial-gradient(circle at top right, rgba(74, 125, 181, 0.14), transparent 30%), rgba(10, 15, 24, 0.96);
   box-shadow: var(--crosshook-shadow-strong);
   backdrop-filter: blur(18px);
 }
@@ -3613,10 +3613,10 @@ textarea {
 }
 
 .crosshook-console {
-  border: 1px solid rgba(0, 120, 212, 0.2);
+  border: 1px solid rgba(74, 125, 181, 0.2);
   border-radius: var(--crosshook-radius-lg);
   background:
-    radial-gradient(circle at top right, rgba(0, 120, 212, 0.08), transparent 26%),
+    radial-gradient(circle at top right, rgba(74, 125, 181, 0.08), transparent 26%),
     linear-gradient(180deg, rgba(8, 12, 22, 0.98), rgba(4, 8, 16, 0.98));
   box-shadow: var(--crosshook-shadow-soft);
   overflow: hidden;
@@ -3639,7 +3639,7 @@ textarea {
   color: var(--crosshook-color-text);
   font-family: var(--crosshook-font-mono);
   line-height: 1.55;
-  background: radial-gradient(circle at top right, rgba(0, 120, 212, 0.08), transparent 28%), rgba(2, 6, 23, 0.92);
+  background: radial-gradient(circle at top right, rgba(74, 125, 181, 0.08), transparent 28%), rgba(2, 6, 23, 0.92);
 }
 
 .crosshook-console__line {
@@ -3698,7 +3698,7 @@ textarea {
 .crosshook-modal__backdrop {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at top, rgba(0, 120, 212, 0.14), transparent 32%), rgba(3, 8, 20, 0.78);
+  background: radial-gradient(circle at top, rgba(74, 125, 181, 0.14), transparent 32%), rgba(3, 8, 20, 0.78);
   backdrop-filter: blur(12px);
   cursor: pointer;
 }
@@ -3716,7 +3716,7 @@ textarea {
   border-radius: 24px;
   border: 1px solid rgba(96, 165, 250, 0.24);
   background:
-    radial-gradient(circle at top right, rgba(0, 120, 212, 0.12), transparent 26%),
+    radial-gradient(circle at top right, rgba(74, 125, 181, 0.12), transparent 26%),
     linear-gradient(180deg, rgba(12, 18, 34, 0.98), rgba(8, 12, 24, 0.98));
   box-shadow: 0 28px 72px rgba(0, 0, 0, 0.52);
 }
@@ -3842,7 +3842,7 @@ textarea {
   min-height: 0;
   overflow-y: auto;
   padding: 22px 24px 24px;
-  background: radial-gradient(circle at top left, rgba(0, 120, 212, 0.08), transparent 28%), rgba(4, 8, 16, 0.18);
+  background: radial-gradient(circle at top left, rgba(74, 125, 181, 0.08), transparent 28%), rgba(4, 8, 16, 0.18);
   scrollbar-gutter: stable both-edges;
 }
 
@@ -4544,7 +4544,7 @@ textarea {
 }
 
 .crosshook-profile-editor-delete-dialog {
-  background: #1a1a2e;
+  background: var(--crosshook-color-bg);
   border-radius: 12px;
   padding: 24px;
   max-width: 480px;
@@ -4587,7 +4587,7 @@ textarea {
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  background: #1a1a2e;
+  background: var(--crosshook-color-bg);
   border: 1px solid var(--crosshook-color-border-strong);
   border-radius: var(--crosshook-radius-md);
   color: var(--crosshook-color-text);
@@ -5077,7 +5077,7 @@ textarea {
 }
 
 .crosshook-history-timeline-item--selected {
-  background: rgba(0, 120, 212, 0.12);
+  background: rgba(74, 125, 181, 0.12);
   border-left-color: var(--crosshook-color-accent);
 }
 
@@ -5103,7 +5103,7 @@ textarea {
   border-radius: 4px;
   font-size: 0.72rem;
   font-weight: 700;
-  background: rgba(0, 120, 212, 0.15);
+  background: rgba(74, 125, 181, 0.15);
   color: var(--crosshook-color-accent-strong);
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -5710,7 +5710,7 @@ textarea {
 .crosshook-discovery-badge--community {
   color: var(--crosshook-color-accent-strong);
   background: var(--crosshook-color-accent-soft);
-  border: 1px solid rgba(0, 120, 212, 0.3);
+  border: 1px solid rgba(74, 125, 181, 0.3);
 }
 
 .crosshook-discovery-badge--external {

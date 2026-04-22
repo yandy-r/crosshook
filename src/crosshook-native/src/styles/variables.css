@@ -1,10 +1,17 @@
 :root {
   color-scheme: dark;
 
-  --crosshook-color-bg: #1a1a2e;
-  --crosshook-color-bg-elevated: #20243d;
-  --crosshook-color-surface: #12172a;
+  --crosshook-color-bg: #181a24;
+  --crosshook-color-bg-elevated: #1f2233;
+  --crosshook-color-surface: #141620;
   --crosshook-color-surface-strong: #0c1120;
+  /* Steel-blue shell surfaces (Unified Desktop Redesign Phase 2) */
+  --crosshook-color-sidebar: #10121c;
+  --crosshook-color-titlebar: #0c0e16;
+  --crosshook-color-surface-1: #1a1d28;
+  --crosshook-color-surface-2: #22263a;
+  --crosshook-color-surface-3: #2a2f48;
+  --crosshook-color-scrim: rgba(8, 10, 18, 0.78);
   --crosshook-color-border: rgba(224, 224, 224, 0.12);
   --crosshook-color-border-strong: rgba(224, 224, 224, 0.22);
   /* Subtle dashed dividers / empty states (reusable muted border) */
@@ -12,13 +19,18 @@
   --crosshook-color-text: #e0e0e0;
   --crosshook-color-text-muted: rgba(224, 224, 224, 0.76);
   --crosshook-color-text-subtle: rgba(224, 224, 224, 0.56);
-  --crosshook-color-accent: #0078d4;
-  --crosshook-color-accent-strong: #2da3ff;
-  --crosshook-color-accent-soft: rgba(0, 120, 212, 0.18);
+  --crosshook-color-accent: #4a7db5;
+  --crosshook-color-accent-strong: #6ba3d9;
+  --crosshook-color-accent-soft: rgba(74, 125, 181, 0.16);
+  --crosshook-color-accent-glow: rgba(107, 163, 217, 0.22);
   --crosshook-focus-ring-inner: rgba(255, 255, 255, 0.06);
   --crosshook-color-success: #28c76f;
   --crosshook-color-warning: #f5c542;
   --crosshook-color-danger: #ff758f;
+  /* Desaturated status siblings for the calm-desktop palette; call sites migrate phase-by-phase */
+  --crosshook-color-success-muted: #5fb880;
+  --crosshook-color-warning-muted: #d4a94a;
+  --crosshook-color-danger-muted: #d77a8a;
   --crosshook-color-capability-available: #4ade80;
   --crosshook-color-capability-available-bg: rgba(74, 222, 128, 0.12);
   --crosshook-color-capability-available-border: rgba(74, 222, 128, 0.28);
@@ -135,9 +147,9 @@
   --crosshook-transition-fast: 140ms;
   --crosshook-transition-standard: 220ms;
 
-  --crosshook-protondb-accent-border: rgba(0, 120, 212, 0.5);
-  --crosshook-protondb-accent-bg-08: rgba(0, 120, 212, 0.08);
-  --crosshook-protondb-accent-bg-14: rgba(0, 120, 212, 0.14);
+  --crosshook-protondb-accent-border: rgba(74, 125, 181, 0.5);
+  --crosshook-protondb-accent-bg-08: rgba(74, 125, 181, 0.08);
+  --crosshook-protondb-accent-bg-14: rgba(74, 125, 181, 0.14);
   --crosshook-protondb-panel-gap: 16px;
   --crosshook-profile-actions-toolbar-margin-top: 18px;
   --crosshook-protondb-panel-margin-top: 18px;

@@ -81,7 +81,7 @@
 }
 
 .crosshook-themed-select__item[data-highlighted] {
-  background: rgba(0, 120, 212, 0.22);
+  background: rgba(74, 125, 181, 0.22);
   color: var(--crosshook-color-text);
 }
 

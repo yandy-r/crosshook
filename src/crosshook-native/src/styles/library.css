@@ -135,7 +135,7 @@
 .crosshook-library-card--selected {
   outline: 3px solid var(--crosshook-color-accent-strong);
   outline-offset: 2px;
-  box-shadow: 0 0 12px rgba(45, 163, 255, 0.45);
+  box-shadow: 0 0 12px rgba(107, 163, 217, 0.45);
 }
 
 .crosshook-library-card__image {
@@ -356,7 +356,7 @@
 .crosshook-library-list-row--selected {
   outline: 3px solid var(--crosshook-color-accent-strong);
   outline-offset: 2px;
-  box-shadow: 0 0 12px rgba(45, 163, 255, 0.45);
+  box-shadow: 0 0 12px rgba(107, 163, 217, 0.45);
 }
 
 /* Hitbox covers the entire row except for action buttons */
