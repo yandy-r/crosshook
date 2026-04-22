@@ -86,9 +86,9 @@ if (( SELFTEST )); then
   printf '.fake { color: #0078d4; background: rgba(0, 120, 212, 0.18); }\n' >"$TMPFILE"
   PATTERN="$(build_pattern)"
   if if_rg; then
-    rg -qe "$PATTERN" "$TMPFILE" 2>/dev/null && { echo "selftest passed: synthetic legacy literal was detected."; exit 0; }
+    rg -qie "$PATTERN" "$TMPFILE" 2>/dev/null && { echo "selftest passed: synthetic legacy literal was detected."; exit 0; }
   else
-    grep -qE "$PATTERN" "$TMPFILE" 2>/dev/null && { echo "selftest passed: synthetic legacy literal was detected."; exit 0; }
+    grep -qiE "$PATTERN" "$TMPFILE" 2>/dev/null && { echo "selftest passed: synthetic legacy literal was detected."; exit 0; }
   fi
   echo "selftest FAILED: scanner did not detect the synthetic legacy literal." >&2
   exit 1
@@ -112,7 +112,7 @@ VIOLATION_COUNT=0
 
 scan_output() {
   if if_rg; then
-    rg -n --no-heading --pcre2 \
+    rg -n -i --no-heading \
       --glob '*.css' --glob '*.ts' --glob '*.tsx' --glob '*.js' --glob '*.jsx' \
       --glob '*.mjs' --glob '*.cjs' --glob '*.module.css' \
       -e "$PATTERN" \
@@ -121,7 +121,7 @@ scan_output() {
     find "${EXISTING_DIRS[@]}" \
       \( -name '*.css' -o -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \
          -o -name '*.mjs' -o -name '*.cjs' \) \
-      -exec grep -En "$PATTERN" {} /dev/null \; 2>/dev/null || true
+      -exec grep -Ein "$PATTERN" {} /dev/null \; 2>/dev/null || true
   fi
 }
 
