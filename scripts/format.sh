@@ -83,8 +83,12 @@ fi
 if (( RUN_TS )); then
   if (( SCOPED )); then
     ts_files=()
+    # biome.json scopes formatting to src/**/*.{ts,tsx}; listing other
+    # extensions here makes the invocation error out when only those are
+    # staged (biome: "no files were processed"). Keep this list aligned
+    # with biome's `files.includes` glob in src/crosshook-native/biome.json.
     mapfile -t ts_files < <(list_scoped_repo_paths "$SCOPE" "src/crosshook-native/src/" \
-      ".ts" ".tsx" ".js" ".jsx" ".mjs" ".cjs" ".mts" ".cts" ".json" ".jsonc" ".css")
+      ".ts" ".tsx")
 
     if (( ${#ts_files[@]} == 0 )); then
       echo "=== TypeScript/React ==="
