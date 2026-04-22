@@ -361,7 +361,7 @@
  * These ratios were measured against the legacy surface and must be re-audited
  * after the Phase 2 token swap. `variables.css` currently defines only the
  * dark root palette, so also re-audit if a light surface override is
- * introduced. See docs/internal/design-tokens.md.
+ * introduced. See docs/internal-docs/design-tokens.md.
  */
 .crosshook-version-row__status-pill--installed {
   background: var(--crosshook-color-capability-available-bg);

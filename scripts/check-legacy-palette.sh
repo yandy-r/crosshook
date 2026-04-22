@@ -20,7 +20,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Legacy literals that must not appear anywhere inside the scan roots.
-# Keep the list in sync with docs/internal/design-tokens.md and the PRD.
+# Keep the list in sync with docs/internal-docs/design-tokens.md and the PRD.
 LEGACY_PATTERNS=(
   '#0078d4'
   '#2da3ff'
@@ -41,7 +41,7 @@ Usage: ./scripts/check-legacy-palette.sh [OPTIONS]
 
 Flags legacy Microsoft-blue / old-background color literals under
 src/crosshook-native/src/. Enforces the Phase 2 steel-blue token migration
-(see docs/internal/design-tokens.md).
+(see docs/internal-docs/design-tokens.md).
 
 Options:
   -h, --help    Print this help and exit 0.
@@ -133,7 +133,7 @@ while IFS= read -r match; do
   rest="${match#*:}"
   line="${rest%%:*}"
   body="${rest#*:}"
-  echo "${file}:${line}: legacy palette literal found: ${body# } — reference a --crosshook-color-* token instead (see docs/internal/design-tokens.md)."
+  echo "${file}:${line}: legacy palette literal found: ${body# } — reference a --crosshook-color-* token instead (see docs/internal-docs/design-tokens.md)."
   (( VIOLATION_COUNT++ )) || true
   EXIT_CODE=1
 done < <(scan_output)
