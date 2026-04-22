@@ -128,6 +128,14 @@ export function useBreakpoint(shellRef?: RefObject<HTMLElement | null>): UseBrea
       }
     }
 
+    const onWindowResize = (): void => {
+      schedule();
+    };
+    window.addEventListener('resize', onWindowResize);
+    cleanups.push(() => {
+      window.removeEventListener('resize', onWindowResize);
+    });
+
     return () => {
       for (const c of cleanups) {
         c();

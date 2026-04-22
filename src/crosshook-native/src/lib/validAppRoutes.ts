@@ -15,5 +15,6 @@ const VALID_APP_ROUTES: Record<AppRoute, true> = {
 };
 
 export function isAppRoute(value: string): value is AppRoute {
-  return value in VALID_APP_ROUTES;
+  // biome-ignore lint: Object.hasOwn needs ES2022 lib; keep own-property check for route keys only
+  return Object.prototype.hasOwnProperty.call(VALID_APP_ROUTES, value);
 }

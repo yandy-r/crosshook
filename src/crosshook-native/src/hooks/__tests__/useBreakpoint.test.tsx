@@ -88,23 +88,26 @@ describe('useBreakpoint', () => {
 
   it('returns static desk when matchMedia is missing', () => {
     const realMm = window.matchMedia;
-    Object.defineProperty(window, 'matchMedia', {
-      value: undefined,
-      configurable: true,
-      writable: true,
-    });
-    const { result } = renderHook(() => useBreakpoint());
-    const desk: UseBreakpointResult = {
-      size: 'desk',
-      width: 1440,
-      height: 900,
-      isDeck: false,
-      isNarrow: false,
-      isDesk: true,
-      isUw: false,
-    };
-    expect(result.current).toEqual(desk);
-    Object.defineProperty(window, 'matchMedia', { value: realMm, configurable: true, writable: true });
+    try {
+      Object.defineProperty(window, 'matchMedia', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      const { result } = renderHook(() => useBreakpoint());
+      const desk: UseBreakpointResult = {
+        size: 'desk',
+        width: 1440,
+        height: 900,
+        isDeck: false,
+        isNarrow: false,
+        isDesk: true,
+        isUw: false,
+      };
+      expect(result.current).toEqual(desk);
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { value: realMm, configurable: true, writable: true });
+    }
   });
 
   it('removes matchMedia listeners on unmount', () => {

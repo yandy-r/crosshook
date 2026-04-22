@@ -100,9 +100,10 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
     setEditingCollectionId(id);
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset errors when edit session opens/closes
   useEffect(() => {
     setEditSessionError(null);
-  }, []);
+  }, [editingCollectionId]);
 
   const handleSubmitEditCollection = useCallback(
     async (name: string, description: string | null): Promise<boolean> => {
