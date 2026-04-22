@@ -42,14 +42,14 @@ We believe a **responsive three-pane shell with in-shell mode transitions and a 
 | No scroll jank (nested scroll)        | Every new overflow-y container registered in `useScrollEnhance` SCROLLABLE        | grep audit + manual scroll test on WebKitGTK                           |
 | Route regression rate                 | 0 broken routes in `ROUTE_ORDER` smoke sweep                                      | `npm run test:smoke` (plus newly added `host-tools`, `proton-manager`) |
 
-## Open Questions
+## Resolved Decisions
 
-- [ ] **Inspector content per-route** — do non-Library routes get an inspector rail, or is the rail Library-only? If per-route: each route owns its `<aside>` slot. If Library-only: simpler shell, but wastes the space on uw for Profiles/Install. **Recommendation: per-route, opt-in via `routeMetadata.ts`**; route declares `inspectorComponent` or `null`.
-- [ ] **Console drawer default** — today it opens on first log line. Does that survive the redesign, or does the drawer become an explicit toggle (`⌃\`` like Steam)? Both work; the palette makes discoverability trivial either way.
-- [ ] **Hero-detail tabs backfill** — the design shows `Overview · Profiles · Launch options · Trainer · History · Compatibility · Media`. `Media` doesn't exist today. Do we stub it, hide it, or drop the tab? **Recommendation: omit `Media` for v1; keep Compatibility opt-in behind `showCompatibility`.**
-- [ ] **Scope of `ProfilesPage` rework** — the editor is the densest surface (318 lines + `ProfileFormSections.tsx` at 582). Does it keep its current sub-tab structure inside the new panel language, or get a full redesign? **Recommendation: re-skin only — preserve the sub-tab structure; wrap sections in the new `panel`/`kv-row`/`pill` idioms.**
-- [ ] **Gamepad focus on the palette** — palette needs DPad navigation; today zones are `sidebar|content`. Do we add a third `overlay` zone as a focus-trap, or route palette focus via the existing `useFocusTrap`? **Recommendation: treat palette as a focus-trap modal for v1 (no gamepad zone change); file a follow-up ticket for n-zone gamepad nav.**
-- [ ] **Sidebar group ordering** — the design shows `Game · Collections · Setup · Dashboards · Community`; today's `Sidebar.tsx:51-80` is `Game · Setup · Dashboards · Community` with Collections injected dynamically between 0 and 1+. Do we formalize Collections as a first-class section, or keep the runtime injection? **Recommendation: formalize — merge CollectionsSidebar output as a declared section in `SIDEBAR_SECTIONS`.**
+- [x] **Inspector content per-route** — non-Library routes get an opt-in inspector rail via `routeMetadata.ts` (`inspectorComponent` or `null`). Resolved in GitHub via `#434`.
+- [x] **Console drawer default** — the redesign uses an explicit toggle only; it does not auto-open on first log line. Resolved in GitHub via `#435`.
+- [x] **Hero-detail tabs backfill** — omit `Media` for v1 and keep the follow-up tracked in GitHub via `#433`. `Compatibility` remains opt-in behind `showCompatibility`. Resolved in GitHub via `#436`.
+- [x] **Scope of `ProfilesPage` rework** — Phase 11 is a full redesign, not a chrome-only re-skin. File splits still happen first, but the editor information architecture may change as needed to match the new shell. Resolved in GitHub via `#437`.
+- [x] **Gamepad focus on the palette** — v1 uses focus-trap modal behavior via `useFocusTrap`; the broader n-zone gamepad-nav follow-up stays tracked in GitHub via `#432`. Resolved in GitHub via `#438`.
+- [x] **Sidebar group ordering** — formalize `Collections` as a first-class section by merging `CollectionsSidebar` output into declared `SIDEBAR_SECTIONS`. Resolved in GitHub via `#439`.
 
 ---
 
@@ -146,9 +146,9 @@ The single source of truth is a `useBreakpoint()` hook that returns `'uw' | 'des
 - **Inspector rail** — new `src/components/layout/Inspector.tsx`, width `360 (uw) / 320 (desk) / 280 (narrow) / 0 (deck)`. Per-route inspector content declared in `routeMetadata.ts` as `inspectorComponent?: ComponentType<{ selection?: … }>`. Library supplies a Game inspector; other routes ship `null` for v1 and fill in over the routes-rework phase.
 - **Hero Detail mode** — new `src/components/library/GameDetail.tsx` (hero + tabs + panels). Mode toggle lives in `LibraryPage`'s state (`mode: 'library' | 'detail'`, `selected: gameId`). When `mode === 'detail'`, `LibraryPage` renders `GameDetail` in the main slot; the shell sidebar + inspector stay mounted. Deprecates `GameDetailsModal.tsx` (removed in its phase). Tabs: `Overview · Profiles · Launch options · Trainer · History · Compatibility`. `Media` tab skipped for v1.
 - **⌘K palette** — `src/components/palette/CommandPalette.tsx` (new) + `src/hooks/useCommandPalette.ts` + `src/lib/commands.ts` (static command list: launch game, edit profile, open proton manager, open host tools, settings, nav). Trigger: `Cmd/Ctrl+K` registered in `AppShell`. Focus-trap via existing `useFocusTrap`. Backdrop uses existing `useScrollEnhance` contract (new `.crosshook-palette__list` registered). No fuzzy/ranking for v1 — substring match over command title.
-- **Console drawer → status bar** — `ConsoleDrawer.tsx` gains a `mode: 'drawer' | 'status'` prop driven by `useBreakpoint`. On `deck|narrow` it renders as a 32px status bar showing readiness chips + tip "⌘K commands". On wider, keeps the current Panel behavior.
+- **Console drawer → status bar** — `ConsoleDrawer.tsx` gains a `mode: 'drawer' | 'status'` prop driven by `useBreakpoint`. On `deck|narrow` it renders as a 32px status bar showing readiness chips + tip "⌘K commands". On wider, the drawer remains available behind an explicit toggle and does not auto-open on first log line.
 - **Context rail** — `src/components/layout/ContextRail.tsx` (new). Only mounted when `useBreakpoint() === 'uw'` AND mode is Library. Contents match the design: host-readiness pills (wraps `useHostReadiness`), pinned profiles (reads from existing profiles store), 7-day launch-activity bar chart (reads `metadata.db` via existing launch-history IPC), most-played list. All data sources exist; this phase is composition, not new data.
-- **Routes rework** — each route keeps its page file but rewraps content in the new panel/pill/kv-row/field-readonly idioms. Profiles editor keeps its sub-tab structure; only the chrome changes. Any page currently >500 lines is split _before_ the rework (e.g. `LaunchPage.tsx` 591, `OnboardingWizard.tsx` 606, `ProfileFormSections.tsx` 582, `CommunityBrowser.tsx` 561, `ProtonDbLookupCard.tsx` 519, `LaunchSubTabs.tsx` 508) — split first, redesign second.
+- **Routes rework** — each route keeps its functional scope but adopts the new panel/pill/kv-row/field-readonly idioms. Profiles gets a full redesign in Phase 11 rather than a chrome-only pass; Launch is redesigned alongside it with behavior parity preserved. Any page currently >500 lines is split _before_ the rework (e.g. `LaunchPage.tsx` 591, `OnboardingWizard.tsx` 606, `ProfileFormSections.tsx` 582, `CommunityBrowser.tsx` 561, `ProtonDbLookupCard.tsx` 519, `LaunchSubTabs.tsx` 508) — split first, redesign second.
 - **Scroll containers** — append to `src/hooks/useScrollEnhance.ts` SCROLLABLE selector: `.crosshook-sidebar__nav--scroll, .crosshook-inspector__body, .crosshook-context-rail__body, .crosshook-palette__list, .crosshook-hero-detail__body`.
 - **Gamepad** — palette registers as a focus-trap modal (reuses `useFocusTrap`); don't extend zones for v1. File a follow-up issue for n-zone gamepad-nav as a post-v1 item.
 - **Testing** — Vitest for shell/inspector/palette/hero-detail unit + interaction tests; Playwright smoke expanded to cover all 4 breakpoints and include `host-tools` and `proton-manager` (both currently skipped per `tests/smoke.spec.ts:33-45`).
@@ -214,7 +214,7 @@ Per CLAUDE.md, classify each datum introduced by this feature:
 | 8   | Console drawer → status bar swap                                              | `ConsoleDrawer` gains `mode` prop driven by breakpoint; deck/narrow renders 32px status bar                                                       | pending | with 5–7  | 1       | -        |
 | 9   | Route rework — Dashboards (Health, Host Tools, Proton Manager, Compatibility) | Re-skin dashboards in the new panel/pill/kv-row idioms; closest fit to the design — smallest delta                                                | pending | with 10   | 2, 3    | -        |
 | 10  | Route rework — Install + Settings + Community + Discover                      | Re-skin non-editor routes; Community/Discover thin, Install wizard heavier                                                                        | pending | with 9    | 2, 3    | -        |
-| 11  | Route rework — Profiles + Launch (editor routes)                              | Split `ProfileFormSections` (582 → <500), `LaunchPage` (591 → <500), `LaunchSubTabs` (508 → <500) first, then re-skin                             | pending | -         | 2, 3    | -        |
+| 11  | Route rework — Profiles + Launch (editor routes)                              | Split `ProfileFormSections` (582 → <500), `LaunchPage` (591 → <500), `LaunchSubTabs` (508 → <500) first, then redesign                            | pending | -         | 2, 3    | -        |
 | 12  | Responsive-sweep tests + smoke-spec expansion                                 | Playwright screenshots at 1280/1920/2560/3440; add `host-tools` and `proton-manager` to `ROUTE_ORDER`; palette smoke; mode-toggle smoke           | pending | -         | 4–11    | -        |
 | 13  | Polish + accessibility + docs                                                 | Focus-ring audit, reduced-motion passes, `docs/internal/design-tokens.md`, changelog-worthy release notes, Steam Deck manual-QA pass              | pending | -         | 4–12    | -        |
 
@@ -265,8 +265,8 @@ Per CLAUDE.md, classify each datum introduced by this feature:
 **Phase 8: Console drawer → status bar swap**
 
 - **Goal**: Deck users get a compact status bar; wider displays keep the existing drawer.
-- **Scope**: `ConsoleDrawer.tsx` accepts a `mode: 'drawer' | 'status'` prop driven by `useBreakpoint`. Status mode renders a 32px bar with readiness chips + `⌘K commands` tip. Drawer mode unchanged from today.
-- **Success signal**: At 1280×800 the bottom of the shell is a single 32px bar, never expanding past it. At 1920×1080 the drawer is present with existing behavior.
+- **Scope**: `ConsoleDrawer.tsx` accepts a `mode: 'drawer' | 'status'` prop driven by `useBreakpoint`. Status mode renders a 32px bar with readiness chips + `⌘K commands` tip. Drawer mode stays available on wider displays, but opening it becomes an explicit user action instead of an auto-open-on-first-log behavior.
+- **Success signal**: At 1280×800 the bottom of the shell is a single 32px bar, never expanding past it. At 1920×1080 the drawer is present, but only opens via explicit user action.
 
 **Phase 9: Route rework — Dashboards**
 
@@ -282,9 +282,9 @@ Per CLAUDE.md, classify each datum introduced by this feature:
 
 **Phase 11: Route rework — Profiles + Launch (editor routes)**
 
-- **Goal**: The two densest routes absorbed into the new language without regressing function.
-- **Scope**: Split `ProfileFormSections` (582 → <500), `LaunchPage` (591 → <500), `LaunchSubTabs` (508 → <500) _first_. Then re-skin: panel-wrap each logical section, use `kv-row`/`field-readonly` for read-only values, convert command preview to the mono/panel style shown in the design's detail mode.
-- **Success signal**: Each file <500 lines. Smoke test green. Profile edit end-to-end works.
+- **Goal**: The two densest routes are fully redesigned into the new shell language without regressing behavior.
+- **Scope**: Split `ProfileFormSections` (582 → <500), `LaunchPage` (591 → <500), `LaunchSubTabs` (508 → <500) _first_. Then fully redesign the Profiles editor and Launch surfaces: restructure sections and navigation as needed, panel-wrap logical groups, use `kv-row`/`field-readonly` for read-only values, and convert command preview to the mono/panel style shown in the design's detail mode. Behavior parity remains mandatory even where layout or information architecture changes.
+- **Success signal**: Each split file stays under the soft cap. Smoke test green. Profile edit and launch configuration flows both work end-to-end after the redesign.
 
 **Phase 12: Responsive-sweep tests + smoke-spec expansion**
 
@@ -321,7 +321,8 @@ Per CLAUDE.md, classify each datum introduced by this feature:
 | Gamepad-nav for palette      | Focus-trap modal (reuse `useFocusTrap`)                             | Add a third `overlay` focus zone             | Scope discipline — n-zone refactor is a follow-up PRD.                                                  |
 | Sidebar sections             | Formalize `Collections` as declared section                         | Keep runtime injection                       | Code/design parity; simpler mental model.                                                               |
 | Media tab on Hero Detail     | Omit for v1                                                         | Stub with "coming soon" / hide conditionally | No data source; matches the design's pragmatism; avoids dead UI.                                        |
-| Profiles editor rework depth | Re-skin only; preserve sub-tab structure                            | Full redesign of the editor                  | Editor is the densest surface; a full redesign is a separate PRD.                                       |
+| Console drawer default       | Explicit toggle only                                                | Auto-open on first log                       | Prevents surprise expansion and aligns the redesigned shell with intentional bottom-chrome behavior.    |
+| Profiles editor rework depth | Full redesign of the editor                                         | Re-skin only; preserve sub-tab structure     | Chosen explicitly so Phase 11 can fix the densest surface rather than only repainting it.               |
 
 ---
 
