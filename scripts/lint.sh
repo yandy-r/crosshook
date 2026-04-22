@@ -9,23 +9,25 @@ source "$ROOT_DIR/scripts/lib/modified-files.sh"
 usage() {
   cat <<'EOF'
 Usage: ./scripts/lint.sh [--fix] [--staged] [--unstaged] [--modified]
-                         [--rust] [--ts] [--shell] [--host-gateway] [--all]
+                         [--rust] [--ts] [--shell] [--host-gateway]
+                         [--legacy-palette] [--all]
 
 Run linters across the full stack.
 
-  --fix           Apply auto-fixes where possible
-  --staged        Limit file-based linting to staged files (git diff --cached)
-  --unstaged      Limit file-based linting to unstaged + untracked files
-  --modified      Shorthand for --staged --unstaged (staged ∪ unstaged ∪ untracked)
-                  Scope flags are additive; combining --staged --unstaged equals --modified.
-                  None of these narrow --host-gateway: that check always scans the full tree,
-                  because a bypass introduced in an unmodified file would otherwise escape
-                  detection on a focused run.
-  --rust          Rust only (clippy + rustfmt check)
-  --ts            TypeScript only (biome + tsc)
-  --shell         Shell scripts only (shellcheck)
-  --host-gateway  Host-command gateway check only (ADR-0001; always full-tree scan)
-  --all           All checks (default)
+  --fix              Apply auto-fixes where possible
+  --staged           Limit file-based linting to staged files (git diff --cached)
+  --unstaged         Limit file-based linting to unstaged + untracked files
+  --modified         Shorthand for --staged --unstaged (staged ∪ unstaged ∪ untracked)
+                     Scope flags are additive; combining --staged --unstaged equals --modified.
+                     None of these narrow --host-gateway or --legacy-palette: those checks
+                     always scan the full tree, because a violation introduced in an unmodified
+                     file would otherwise escape detection on a focused run.
+  --rust             Rust only (clippy + rustfmt check)
+  --ts               TypeScript only (biome + tsc)
+  --shell            Shell scripts only (shellcheck)
+  --host-gateway     Host-command gateway check only (ADR-0001; always full-tree scan)
+  --legacy-palette   Legacy palette check only (Phase 2 token migration; always full-tree scan)
+  --all              All checks (default)
 EOF
 }
 
@@ -36,6 +38,7 @@ RUN_RUST=0
 RUN_TS=0
 RUN_SHELL=0
 RUN_HOST_GATEWAY=0
+RUN_LEGACY_PALETTE=0
 EXIT_CODE=0
 
 while [[ $# -gt 0 ]]; do
@@ -48,7 +51,8 @@ while [[ $# -gt 0 ]]; do
     --ts) RUN_TS=1; shift ;;
     --shell) RUN_SHELL=1; shift ;;
     --host-gateway) RUN_HOST_GATEWAY=1; shift ;;
-    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; shift ;;
+    --legacy-palette) RUN_LEGACY_PALETTE=1; shift ;;
+    --all) RUN_RUST=1; RUN_TS=1; RUN_SHELL=1; RUN_HOST_GATEWAY=1; RUN_LEGACY_PALETTE=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown arg: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -66,11 +70,12 @@ fi
 SCOPED=$(( SCOPE_STAGED || SCOPE_UNSTAGED ))
 
 # Default to all if nothing specified
-if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY )); then
+if (( !RUN_RUST && !RUN_TS && !RUN_SHELL && !RUN_HOST_GATEWAY && !RUN_LEGACY_PALETTE )); then
   RUN_RUST=1
   RUN_TS=1
   RUN_SHELL=1
   RUN_HOST_GATEWAY=1
+  RUN_LEGACY_PALETTE=1
 fi
 
 if (( RUN_RUST )); then
@@ -183,6 +188,14 @@ if (( RUN_HOST_GATEWAY )); then
     echo "note: scope flags do not narrow host-gateway; running full-tree scan."
   fi
   "$ROOT_DIR/scripts/check-host-gateway.sh" || EXIT_CODE=1
+fi
+
+if (( RUN_LEGACY_PALETTE )); then
+  echo "=== Legacy-palette ==="
+  if (( SCOPED )); then
+    echo "note: scope flags do not narrow legacy-palette; running full-tree scan."
+  fi
+  "$ROOT_DIR/scripts/check-legacy-palette.sh" || EXIT_CODE=1
 fi
 
 exit "$EXIT_CODE"
