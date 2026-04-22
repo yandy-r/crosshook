@@ -27,8 +27,8 @@ LEGACY_PATTERNS=(
   '#1a1a2e'
   '#20243d'
   '#12172a'
-  'rgba\(\s*0\s*,\s*120\s*,\s*212'
-  'rgba\(\s*45\s*,\s*163\s*,\s*255'
+  'rgba\([[:space:]]*0[[:space:]]*,[[:space:]]*120[[:space:]]*,[[:space:]]*212'
+  'rgba\([[:space:]]*45[[:space:]]*,[[:space:]]*163[[:space:]]*,[[:space:]]*255'
 )
 
 SCAN_DIRS=(
