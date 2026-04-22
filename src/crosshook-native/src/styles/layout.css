@@ -1,5 +1,5 @@
 .crosshook-app-layout {
-  width: min(100%, var(--crosshook-content-width));
+  width: 100%;
   min-width: 0;
   height: calc(100dvh - (var(--crosshook-page-padding) * 2));
   max-height: calc(100dvh - (var(--crosshook-page-padding) * 2));
@@ -47,7 +47,7 @@
   display: flex;
   flex-direction: column;
   padding-bottom: var(--crosshook-content-console-gap);
-  width: min(100%, var(--crosshook-content-width));
+  width: 100%;
   margin: 0 auto;
 }
 
