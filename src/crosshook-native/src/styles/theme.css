@@ -81,7 +81,7 @@ textarea {
 }
 
 .crosshook-shell {
-  width: min(100%, var(--crosshook-content-width));
+  width: 100%;
   margin: 0 auto;
   display: grid;
   gap: var(--crosshook-grid-gap);

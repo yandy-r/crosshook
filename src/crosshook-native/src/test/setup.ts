@@ -18,6 +18,7 @@ type MatchMediaResult = {
 declare global {
   interface Window {
     IntersectionObserver: typeof MockIntersectionObserver;
+    ResizeObserver: typeof MockResizeObserver;
   }
 }
 
@@ -81,6 +82,77 @@ class MockIntersectionObserver implements IntersectionObserver {
   }
 }
 
+class MockResizeObserver implements ResizeObserver {
+  static instances: MockResizeObserver[] = [];
+
+  private readonly callback: ResizeObserverCallback;
+  private readonly observedTargets = new Set<Element>();
+
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    MockResizeObserver.instances.push(this);
+  }
+
+  disconnect(): void {
+    this.observedTargets.clear();
+  }
+
+  observe(target: Element): void {
+    this.observedTargets.add(target);
+  }
+
+  unobserve(target: Element): void {
+    this.observedTargets.delete(target);
+  }
+
+  trigger(target: Element, width: number, height: number): void {
+    if (!this.observedTargets.has(target)) {
+      return;
+    }
+    const contentRect = new DOMRectReadOnly(0, 0, width, height);
+    const block = { inlineSize: width, blockSize: height };
+    this.callback(
+      [
+        {
+          target,
+          contentRect,
+          contentBoxSize: [block],
+          borderBoxSize: [block],
+          devicePixelContentBoxSize: [block],
+        } as unknown as ResizeObserverEntry,
+      ],
+      this
+    );
+  }
+
+  static reset(): void {
+    MockResizeObserver.instances = [];
+  }
+}
+
+function createChangeEvent(query: string): MediaQueryListEvent {
+  if (typeof MediaQueryListEvent !== 'undefined') {
+    return new MediaQueryListEvent('change', { media: query, matches: true });
+  }
+  return { type: 'change', media: query, matches: true, bubbles: false } as MediaQueryListEvent;
+}
+
+/**
+ * Invokes all listeners registered for `query` (via the test `matchMedia` mock).
+ * Use after changing `innerWidth` / `innerHeight` so `useBreakpoint`’s
+ * `schedule()` reads the new dimensions.
+ */
+export function fireMatchMediaChangeListeners(query: string): void {
+  const set = matchMediaListeners.get(query);
+  if (set === undefined) {
+    return;
+  }
+  const event = createChangeEvent(query);
+  for (const fn of set) {
+    fn(event);
+  }
+}
+
 if (!globalThis.crypto) {
   Object.defineProperty(globalThis, 'crypto', {
     value: webcrypto,
@@ -122,6 +194,12 @@ Object.defineProperty(window, 'IntersectionObserver', {
   value: MockIntersectionObserver,
 });
 
+Object.defineProperty(window, 'ResizeObserver', {
+  writable: true,
+  configurable: true,
+  value: MockResizeObserver,
+});
+
 Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
   configurable: true,
   value: vi.fn(),
@@ -156,6 +234,7 @@ afterEach(() => {
   cleanup();
   resetMockHandlers();
   MockIntersectionObserver.reset();
+  MockResizeObserver.reset();
   matchMediaListeners.clear();
   for (const handle of animationFrameHandles.values()) {
     window.clearTimeout(handle);
@@ -171,3 +250,15 @@ export function triggerIntersection(target: Element, isIntersecting = true): voi
     observer.trigger(target, isIntersecting);
   }
 }
+
+export function triggerResize(target: Element, width: number, height: number): void {
+  for (const observer of MockResizeObserver.instances) {
+    observer.trigger(target, width, height);
+  }
+}
+
+export function resetMockResizeObserver(): void {
+  MockResizeObserver.reset();
+}
+
+export { MockResizeObserver };
