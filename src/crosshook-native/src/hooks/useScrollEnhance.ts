@@ -6,7 +6,7 @@ const WHEEL_MULTIPLIER = 2;
 const SMOOTH_FACTOR = 0.18;
 const ARROW_SCROLL_PX = 80;
 export const SCROLL_ENHANCE_SELECTORS =
-  '.crosshook-route-card-scroll, .crosshook-page-scroll-body, .crosshook-subtab-content__inner--scroll, .crosshook-console-drawer__body, .crosshook-modal__body, .crosshook-palette__list, .crosshook-prefix-deps__log-output, .crosshook-discovery-results, .crosshook-collections-sidebar__list, .crosshook-collection-assign-menu__list, .crosshook-route-stack__body--scroll, .crosshook-sidebar__nav--scroll, .crosshook-inspector__body, .crosshook-hero-detail__body, .crosshook-context-rail__body';
+  '.crosshook-route-card-scroll, .crosshook-page-scroll-body, .crosshook-subtab-content__inner--scroll, .crosshook-console-drawer__body, .crosshook-modal__body, .crosshook-palette__list, .crosshook-prefix-deps__log-output, .crosshook-discovery-results, .crosshook-collections-sidebar__list, .crosshook-collection-assign-menu__list, .crosshook-route-stack__body--scroll, .crosshook-sidebar__nav--scroll, .crosshook-inspector__body, .crosshook-hero-detail__body, .crosshook-context-rail__body, .crosshook-install-page-tabs__panel-inner';
 
 const SCROLLABLE = SCROLL_ENHANCE_SELECTORS;
 const RESET_SCROLL_MOMENTUM_EVENT = 'crosshook:reset-scroll-momentum';
