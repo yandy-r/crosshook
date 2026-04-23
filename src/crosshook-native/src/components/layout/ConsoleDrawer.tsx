@@ -20,8 +20,9 @@ function formatLineCount(count: number): string {
 }
 
 function resolveCountTone(readyCount: number, totalCount: number): 'success' | 'warning' | 'danger' | 'muted' {
+  // Match CapabilitySummaryStrip: zero total means nothing to wait on (treated as available/success).
   if (totalCount === 0) {
-    return 'muted';
+    return 'success';
   }
   if (readyCount >= totalCount) {
     return 'success';
@@ -38,17 +39,7 @@ function countAvailableCapabilities(capabilities: Capability[]): number {
 
 export type ConsoleMode = 'drawer' | 'status';
 
-interface ConsoleDrawerProps {
-  panelRef: RefObject<PanelImperativeHandle | null>;
-  mode?: ConsoleMode;
-  /** When true (default), the drawer starts collapsed until the user expands it. */
-  defaultCollapsed?: boolean;
-}
-
-export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = true }: ConsoleDrawerProps) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
-  const [lineCount, setLineCount] = useState(0);
-  const bodyId = useId();
+function ConsoleStatusBar({ lineCount }: { lineCount: number }) {
   const { snapshot, capabilities, isStale, isRefreshing, error } = useHostReadinessContext();
 
   const readinessSummary = useMemo(() => {
@@ -66,6 +57,56 @@ export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = tr
       optionalTone: resolveCountTone(optionalAvailable, optionalTotal),
     };
   }, [capabilities, snapshot?.tool_checks]);
+
+  return (
+    <section
+      aria-label="Runtime console status"
+      className="crosshook-console-drawer crosshook-console-drawer--status"
+      data-testid="console-status-bar"
+    >
+      <div className="crosshook-console-drawer__status-inner">
+        <span className="crosshook-console-drawer__status-label">Runtime console</span>
+        <div className="crosshook-console-drawer__status-chips" role="status" aria-live="polite">
+          <span className="crosshook-status-chip crosshook-status-chip--muted">{formatLineCount(lineCount)}</span>
+          {error ? (
+            <span className="crosshook-status-chip crosshook-status-chip--warning">Host tools unavailable</span>
+          ) : snapshot === null && isRefreshing ? (
+            <span className="crosshook-status-chip crosshook-status-chip--muted">Checking host tools</span>
+          ) : (
+            <>
+              <span className={`crosshook-status-chip crosshook-status-chip--${readinessSummary.requiredTone}`}>
+                {readinessSummary.requiredTotal > 0
+                  ? `${readinessSummary.requiredReady}/${readinessSummary.requiredTotal} required`
+                  : 'Required tools ready'}
+              </span>
+              <span className={`crosshook-status-chip crosshook-status-chip--${readinessSummary.optionalTone}`}>
+                {readinessSummary.optionalTotal > 0
+                  ? `${readinessSummary.optionalAvailable}/${readinessSummary.optionalTotal} capabilities`
+                  : 'No capabilities'}
+              </span>
+              {isStale ? (
+                <span className="crosshook-status-chip crosshook-status-chip--warning">Stale data</span>
+              ) : null}
+            </>
+          )}
+        </div>
+        <span className="crosshook-console-drawer__status-tip">⌘K commands</span>
+      </div>
+    </section>
+  );
+}
+
+interface ConsoleDrawerProps {
+  panelRef: RefObject<PanelImperativeHandle | null>;
+  mode?: ConsoleMode;
+  /** When true (default), the drawer starts collapsed until the user expands it. */
+  defaultCollapsed?: boolean;
+}
+
+export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = true }: ConsoleDrawerProps) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [lineCount, setLineCount] = useState(0);
+  const bodyId = useId();
 
   useEffect(() => {
     if (mode === 'drawer') {
@@ -115,42 +156,7 @@ export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = tr
   }, []);
 
   if (mode === 'status') {
-    return (
-      <section
-        aria-label="Runtime console status"
-        className="crosshook-console-drawer crosshook-console-drawer--status"
-        data-testid="console-status-bar"
-      >
-        <div className="crosshook-console-drawer__status-inner">
-          <span className="crosshook-console-drawer__status-label">Runtime console</span>
-          <div className="crosshook-console-drawer__status-chips" role="status" aria-live="polite">
-            <span className="crosshook-status-chip crosshook-status-chip--muted">{formatLineCount(lineCount)}</span>
-            {error ? (
-              <span className="crosshook-status-chip crosshook-status-chip--warning">Host tools unavailable</span>
-            ) : snapshot === null && isRefreshing ? (
-              <span className="crosshook-status-chip crosshook-status-chip--muted">Checking host tools</span>
-            ) : (
-              <>
-                <span className={`crosshook-status-chip crosshook-status-chip--${readinessSummary.requiredTone}`}>
-                  {readinessSummary.requiredTotal > 0
-                    ? `${readinessSummary.requiredReady}/${readinessSummary.requiredTotal} required`
-                    : 'Required tools ready'}
-                </span>
-                <span className={`crosshook-status-chip crosshook-status-chip--${readinessSummary.optionalTone}`}>
-                  {readinessSummary.optionalTotal > 0
-                    ? `${readinessSummary.optionalAvailable}/${readinessSummary.optionalTotal} capabilities`
-                    : 'No capabilities'}
-                </span>
-                {isStale ? (
-                  <span className="crosshook-status-chip crosshook-status-chip--warning">Stale data</span>
-                ) : null}
-              </>
-            )}
-          </div>
-          <span className="crosshook-console-drawer__status-tip">⌘K commands</span>
-        </div>
-      </section>
-    );
+    return <ConsoleStatusBar lineCount={lineCount} />;
   }
 
   return (

@@ -51,7 +51,9 @@ export function LoggingAndUiSection({ settings, onPersistSettings }: LoggingAndU
         <span>
           <span className="crosshook-label">Start with console drawer expanded</span>
           <p className="crosshook-muted crosshook-settings-note">
-            Applies on desktop and ultrawide layouts only. Narrow and deck layouts use the compact status bar.
+            Applies on desktop and ultrawide layouts when the shell is tall enough. Narrow, deck, or short-height shells
+            (window height ≤ 720px) use the compact status bar instead—AppShell switches to status mode below that
+            threshold.
           </p>
         </span>
       </label>
