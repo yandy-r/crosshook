@@ -173,6 +173,11 @@
   --crosshook-skeleton-duration: 1.8s;
   --crosshook-skeleton-color-from: var(--crosshook-color-surface);
   --crosshook-skeleton-color-to: var(--crosshook-color-bg-elevated);
+
+  /* Command palette (⌘K overlay): shared dark-surface rgba tokens (borders, subtle fills, header gradient) */
+  --crosshook-palette-border-on-dark: rgba(255, 255, 255, 0.08);
+  --crosshook-palette-bg-dark-98: rgba(13, 19, 34, 0.98);
+  --crosshook-palette-bg-dark-90: rgba(13, 19, 34, 0.9);
 }
 
 :root[data-crosshook-theme='high-contrast'] {

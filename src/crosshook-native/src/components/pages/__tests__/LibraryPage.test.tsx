@@ -1,5 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Inspector } from '@/components/layout/Inspector';
 import { CollectionsProvider } from '@/context/CollectionsContext';
@@ -11,12 +12,16 @@ import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { renderWithMocks } from '@/test/render';
 import { LibraryPage } from '../LibraryPage';
 
-function LibraryPageWithInspector() {
+interface LibraryPageHarnessProps {
+  onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette'];
+}
+
+function LibraryPageWithInspector({ onOpenCommandPalette }: LibraryPageHarnessProps = {}) {
   const { inspectorSelection, libraryInspectorHandlers } = useInspectorSelection();
   return (
     <div style={{ display: 'flex' }}>
       <div style={{ flex: '1 1 50%', minWidth: 0 }}>
-        <LibraryPage />
+        <LibraryPage onOpenCommandPalette={onOpenCommandPalette} />
       </div>
       <div style={{ flex: '0 0 320px' }}>
         <Inspector
@@ -32,7 +37,10 @@ function LibraryPageWithInspector() {
   );
 }
 
-function renderLibraryHarness(options: Parameters<typeof renderWithMocks>[1] = {}) {
+function renderLibraryHarness(
+  options: Parameters<typeof renderWithMocks>[1] = {},
+  onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette']
+) {
   return renderWithMocks(
     <ProfileProvider>
       <PreferencesProvider>
@@ -40,7 +48,7 @@ function renderLibraryHarness(options: Parameters<typeof renderWithMocks>[1] = {
           <HostReadinessProvider>
             <CollectionsProvider>
               <InspectorSelectionProvider>
-                <LibraryPageWithInspector />
+                <LibraryPageWithInspector onOpenCommandPalette={onOpenCommandPalette} />
               </InspectorSelectionProvider>
             </CollectionsProvider>
           </HostReadinessProvider>
@@ -119,13 +127,13 @@ describe('LibraryPage', () => {
     expect(screen.getByRole('button', { name: 'Name' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('fires the command palette placeholder on ⌘K trigger', async () => {
+  it('delegates the command-palette trigger to callback', async () => {
     const user = userEvent.setup();
-    const debug = vi.mocked(console.debug);
-    renderLibraryHarness();
+    const onOpenCommandPalette = vi.fn();
+    renderLibraryHarness({}, onOpenCommandPalette);
 
     await user.click(screen.getByRole('button', { name: 'Open command palette' }));
-    expect(debug).toHaveBeenCalled();
+    expect(onOpenCommandPalette).toHaveBeenCalledTimes(1);
   });
 
   it('enters hero detail from the details control and returns on Back without losing inspector selection', async () => {

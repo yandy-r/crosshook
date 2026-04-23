@@ -172,3 +172,43 @@ test.describe('launch pipeline smoke', () => {
     expect(capture.errors).toEqual([]);
   });
 });
+
+test.describe('command palette smoke', () => {
+  test('opens with shortcut, executes a route command, and keeps capture clean', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+
+    await page.keyboard.press('Control+KeyK');
+    const search = page.getByRole('searchbox', { name: 'Search commands' });
+    await expect(search).toBeVisible();
+
+    await search.fill('settings');
+    await search.press('Enter');
+
+    await expect(page.getByRole('tab', { name: 'Settings', exact: true })).toHaveAttribute('aria-current', 'page');
+
+    expect(capture.errors, `Command-palette execution errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+
+  test('opens and closes from toolbar trigger', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+    await page.getByRole('button', { name: 'Open command palette' }).click();
+
+    const search = page.getByRole('searchbox', { name: 'Search commands' });
+    await expect(search).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(search).not.toBeVisible();
+
+    expect(capture.errors, `Command-palette toolbar errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+});
