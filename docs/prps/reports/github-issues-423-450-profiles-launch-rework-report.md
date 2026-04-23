@@ -18,32 +18,33 @@ unified `DashboardPanelSection` / pill / kv-row visual language.
 
 ### Batch 1 — File decomposition (parallel)
 
-| Task | Description | Outcome |
-|------|-------------|---------|
-| 1.1 | Split `LaunchSubTabs.tsx` 508→242 lines | New `launch-subtabs/*` submodule with 6 tab-content components, `useAutoSaveChip`, `useTabVisibility`, `types.ts` |
-| 1.2 | Extract `useProtonDbApply` hook + split `ProfileFormSections.tsx` 582→211 lines | New `profile-form/*` submodule (6 components + `helpers.ts`); shared hook at `hooks/profile/useProtonDbApply.ts` |
-| 1.3 | Split `LaunchPage.tsx` 591→257 lines | New `pages/launch/*` submodule: `useLaunchPageState`, `useLaunchDepGate`, `LaunchDepGateModal`, `LaunchProfileSelector`, `useLaunchEnvironmentAutosave` |
-| 1.4 | Add `editor-routes.css` + register in `main.tsx` | Defines `.crosshook-editor-field-readonly` and `.crosshook-editor-mono-panel` using `--crosshook-*` tokens only |
+| Task | Description                                                                     | Outcome                                                                                                                                                 |
+| ---- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.1  | Split `LaunchSubTabs.tsx` 508→242 lines                                         | New `launch-subtabs/*` submodule with 6 tab-content components, `useAutoSaveChip`, `useTabVisibility`, `types.ts`                                       |
+| 1.2  | Extract `useProtonDbApply` hook + split `ProfileFormSections.tsx` 582→211 lines | New `profile-form/*` submodule (6 components + `helpers.ts`); shared hook at `hooks/profile/useProtonDbApply.ts`                                        |
+| 1.3  | Split `LaunchPage.tsx` 591→257 lines                                            | New `pages/launch/*` submodule: `useLaunchPageState`, `useLaunchDepGate`, `LaunchDepGateModal`, `LaunchProfileSelector`, `useLaunchEnvironmentAutosave` |
+| 1.4  | Add `editor-routes.css` + register in `main.tsx`                                | Defines `.crosshook-editor-field-readonly` and `.crosshook-editor-mono-panel` using `--crosshook-*` tokens only                                         |
 
 ### Batch 2 — Visual redesign (parallel)
 
-| Task | Description | Outcome |
-|------|-------------|---------|
-| 2.1 | Redesign Profiles route in unified panel/pill/kv-row language | All 5 profile-sections wrapped in `DashboardPanelSection`; `crosshook-dashboard-kv-row` / `crosshook-dashboard-pill-row` idioms applied |
-| 2.2 | Redesign Launch route in unified panel/pill/kv-row language | `LaunchPage` migrated to `useProtonDbApply`; all `*TabContent` components wrapped in `DashboardPanelSection`; command preview in `LaunchPanel` with `crosshook-editor-mono-panel`; autosave chip moved to active tab header actions |
+| Task | Description                                                   | Outcome                                                                                                                                                                                                                             |
+| ---- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2.1  | Redesign Profiles route in unified panel/pill/kv-row language | All 5 profile-sections wrapped in `DashboardPanelSection`; `crosshook-dashboard-kv-row` / `crosshook-dashboard-pill-row` idioms applied                                                                                             |
+| 2.2  | Redesign Launch route in unified panel/pill/kv-row language   | `LaunchPage` migrated to `useProtonDbApply`; all `*TabContent` components wrapped in `DashboardPanelSection`; command preview in `LaunchPanel` with `crosshook-editor-mono-panel`; autosave chip moved to active tab header actions |
 
 ### Batch 3 — Test coverage (parallel)
 
-| Task | Description | Outcome |
-|------|-------------|---------|
-| 3.1 | RTL coverage for Profiles + Launch + LaunchSubTabs | 19 tests across 3 new files; all passing |
-| 3.2 | Extend smoke tests | Added Profiles/Launch to `DASHBOARD_ROUTE_HEADINGS`; new `test.describe` with H1, panel-section, and 6-node pipeline assertions |
+| Task | Description                                        | Outcome                                                                                                                         |
+| ---- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 3.1  | RTL coverage for Profiles + Launch + LaunchSubTabs | 19 tests across 3 new files; all passing                                                                                        |
+| 3.2  | Extend smoke tests                                 | Added Profiles/Launch to `DASHBOARD_ROUTE_HEADINGS`; new `test.describe` with H1, panel-section, and 6-node pipeline assertions |
 
 ---
 
 ## Files Created
 
 ### New submodule components
+
 - `src/components/profile-form/FormFieldRow.tsx`
 - `src/components/profile-form/OptionalSection.tsx`
 - `src/components/profile-form/ProtonPathField.tsx`
@@ -69,6 +70,7 @@ unified `DashboardPanelSection` / pill / kv-row visual language.
 - `src/styles/editor-routes.css`
 
 ### New test files
+
 - `src/components/pages/__tests__/ProfilesRoute.test.tsx` (5 tests)
 - `src/components/pages/__tests__/LaunchRoute.test.tsx` (6 tests)
 - `src/components/__tests__/LaunchSubTabs.test.tsx` (8 tests)
@@ -93,14 +95,14 @@ unified `DashboardPanelSection` / pill / kv-row visual language.
 
 ## Validation Results
 
-| Level | Result |
-|-------|--------|
-| TypeScript (`tsc --noEmit`) | ✓ Clean |
-| Unit tests (`npm test`) | ✓ 145/145 |
-| Biome lint | ✓ 0 errors (3 pre-existing warnings) |
-| Shell/host-gateway | ✓ Pass |
-| Legacy-palette | ✓ Pass |
-| Smoke tests | ✓ Added; `toBeAttached()` for forceMount panels |
+| Level                       | Result                                          |
+| --------------------------- | ----------------------------------------------- |
+| TypeScript (`tsc --noEmit`) | ✓ Clean                                         |
+| Unit tests (`npm test`)     | ✓ 145/145                                       |
+| Biome lint                  | ✓ 0 errors (3 pre-existing warnings)            |
+| Shell/host-gateway          | ✓ Pass                                          |
+| Legacy-palette              | ✓ Pass                                          |
+| Smoke tests                 | ✓ Added; `toBeAttached()` for forceMount panels |
 
 ---
 
