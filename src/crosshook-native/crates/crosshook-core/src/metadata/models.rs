@@ -310,6 +310,20 @@ pub struct FailureTrendRow {
     pub failure_modes: Option<String>,
 }
 
+/// Subset of `launch_operations` fields for recent-launch UI (no `diagnostic_json`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LaunchHistoryEntry {
+    pub operation_id: String,
+    pub launch_method: String,
+    pub status: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub exit_code: Option<i32>,
+    pub signal: Option<i32>,
+    pub severity: Option<String>,
+    pub failure_mode: Option<String>,
+}
+
 /// Maximum number of version snapshot rows retained per profile.
 /// Older rows beyond this limit are pruned after each insert.
 pub const MAX_VERSION_SNAPSHOTS_PER_PROFILE: usize = 20;

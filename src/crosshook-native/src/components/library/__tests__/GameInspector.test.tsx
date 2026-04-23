@@ -1,22 +1,33 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { makeLibraryCardData } from '@/test/fixtures';
 import { renderWithMocks } from '@/test/render';
+import type { LaunchHistoryEntry } from '@/types/library';
 import GameInspector from '../GameInspector';
 
-function mount(ui: ReactElement) {
+vi.mock('@/lib/ipc', async () => {
+  const { mockCallCommand: cmd } = await import('@/test/render');
+  return { callCommand: cmd };
+});
+
+function mount(ui: ReactElement, options?: Parameters<typeof renderWithMocks>[1]) {
   return renderWithMocks(
     <ProfileProvider>
       <ProfileHealthProvider>{ui}</ProfileHealthProvider>
-    </ProfileProvider>
+    </ProfileProvider>,
+    options
   );
 }
 
 describe('GameInspector', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('shows empty state when selection is missing', () => {
     mount(<GameInspector />);
     expect(screen.getByText('Select a game to see details')).toBeInTheDocument();
@@ -51,5 +62,44 @@ describe('GameInspector', () => {
     const selection = makeLibraryCardData({ name: 'HealthGame' });
     mount(<GameInspector selection={selection} />);
     expect(screen.getByRole('heading', { name: 'Health' })).toBeInTheDocument();
+  });
+
+  it('renders recent launches from list_launch_history_for_profile', async () => {
+    const rows: LaunchHistoryEntry[] = [
+      {
+        operation_id: 'op-test-1',
+        launch_method: 'native',
+        status: 'succeeded',
+        started_at: '2026-02-01T10:00:00.000Z',
+        finished_at: '2026-02-01T10:00:10.000Z',
+        exit_code: 0,
+        signal: null,
+        severity: 'info',
+        failure_mode: 'clean_exit',
+      },
+    ];
+    const selection = makeLibraryCardData({ name: 'LaunchGame' });
+    mount(<GameInspector selection={selection} />, {
+      handlerOverrides: {
+        list_launch_history_for_profile: async () => rows,
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Succeeded')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/native/)).toBeInTheDocument();
+  });
+
+  it('shows empty copy when launch history is empty', async () => {
+    const selection = makeLibraryCardData({ name: 'NoHistory' });
+    mount(<GameInspector selection={selection} />, {
+      handlerOverrides: {
+        list_launch_history_for_profile: async () => [],
+      },
+    });
+    await waitFor(() => {
+      expect(screen.getByText('No recent launches recorded for this profile.')).toBeInTheDocument();
+    });
   });
 });

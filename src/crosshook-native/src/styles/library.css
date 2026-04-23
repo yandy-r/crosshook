@@ -708,3 +708,48 @@
   text-transform: capitalize;
   color: var(--crosshook-color-text-muted);
 }
+
+.crosshook-game-inspector__launch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-game-inspector__launch-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface-raised, transparent);
+}
+
+.crosshook-game-inspector__launch-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.crosshook-game-inspector__launch-time {
+  color: var(--crosshook-color-text);
+  font-weight: 600;
+}
+
+.crosshook-game-inspector__launch-status {
+  font-size: 0.72rem;
+  text-transform: capitalize;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-game-inspector__launch-meta {
+  font-size: 0.7rem;
+  color: var(--crosshook-color-text-muted);
+  word-break: break-word;
+}

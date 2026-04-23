@@ -165,3 +165,61 @@ fn test_single_profile_usage_queries() {
         .unwrap();
     assert_eq!(total_launches, 2);
 }
+
+#[test]
+fn test_query_launch_history_for_profile() {
+    let store = MetadataStore::open_in_memory().unwrap();
+    let report = clean_exit_report();
+
+    for _ in 0..3 {
+        let op = store
+            .record_launch_started(Some("history-alpha"), "proton_run", None)
+            .unwrap();
+        store
+            .record_launch_finished(&op, Some(0), None, &report)
+            .unwrap();
+    }
+
+    let _other = store
+        .record_launch_started(Some("history-beta"), "native", None)
+        .unwrap();
+    let other = store
+        .record_launch_started(Some("history-beta"), "native", None)
+        .unwrap();
+    store
+        .record_launch_finished(&other, Some(0), None, &report)
+        .unwrap();
+
+    let in_flight = store
+        .record_launch_started(Some("history-alpha"), "native", None)
+        .unwrap();
+
+    let alpha = store
+        .query_launch_history_for_profile("history-alpha", 20)
+        .unwrap();
+    assert_eq!(alpha.len(), 4, "3 finished + 1 in progress");
+    assert!(alpha
+        .iter()
+        .any(|e| e.operation_id == in_flight && e.status == "started"));
+    assert_eq!(
+        store
+            .query_launch_history_for_profile("history-alpha", 2)
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let beta = store
+        .query_launch_history_for_profile("history-beta", 10)
+        .unwrap();
+    assert_eq!(beta.len(), 2);
+    assert!(
+        !alpha.iter().any(|e| e.operation_id == other),
+        "alpha history must not include beta launches"
+    );
+
+    assert!(store
+        .query_launch_history_for_profile("", 10)
+        .unwrap()
+        .is_empty());
+}
