@@ -1,1 +1,90 @@
-/* install-routes.css — Phase 10 per-route chrome (populated by Task 2.x). */
+/* install-routes.css — Phase 10 per-route chrome for the Install route. */
+
+/* ─── Page-level scroll shell ─────────────────────────────────────────────── */
+
+.crosshook-page-scroll-shell--install {
+  padding-top: var(--crosshook-page-padding);
+  box-sizing: border-box;
+}
+
+@media (max-height: 820px) {
+  .crosshook-page-scroll-shell--install {
+    padding-top: max(10px, var(--crosshook-page-padding));
+  }
+}
+
+/* ─── Outer panel section (DashboardPanelSection wrapper) ─────────────────── */
+
+.crosshook-page-scroll-shell--install .crosshook-install-page-tabs {
+  padding: var(--crosshook-card-padding);
+  gap: var(--crosshook-grid-gap);
+}
+
+.crosshook-page-scroll-shell--install .crosshook-install-page-tabs__root {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+/* ─── Install shell (InstallGamePanel root) ────────────────────────────────── */
+
+.crosshook-page-scroll-shell--install .crosshook-install-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.crosshook-page-scroll-shell--install .crosshook-install-shell__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Flow tabs chrome ────────────────────────────────────────────────────── */
+
+.crosshook-page-scroll-shell--install .crosshook-install-flow-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
+}
+
+.crosshook-page-scroll-shell--install .crosshook-install-flow-tabs > .crosshook-subtab-row {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--crosshook-color-border);
+  padding-bottom: 2px;
+  margin-bottom: var(--crosshook-grid-gap);
+}
+
+/* ─── Per-flow-section panel sections ─────────────────────────────────────── */
+
+.crosshook-page-scroll-shell--install .crosshook-install-flow-section {
+  background: transparent;
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-md);
+  padding: var(--crosshook-panel-padding);
+  gap: var(--crosshook-grid-gap);
+}
+
+.crosshook-page-scroll-shell--install .crosshook-install-flow-section .crosshook-dashboard-panel-section__content {
+  gap: var(--crosshook-grid-gap);
+}
+
+/* ─── Install shell footer / actions bar ──────────────────────────────────── */
+
+.crosshook-page-scroll-shell--install .crosshook-install-shell__footer {
+  flex-shrink: 0;
+  border-top-color: var(--crosshook-color-border);
+}
+
+.crosshook-page-scroll-shell--install .crosshook-install-shell__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: var(--crosshook-panel-padding) var(--crosshook-card-padding);
+}
