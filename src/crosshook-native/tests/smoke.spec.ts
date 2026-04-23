@@ -238,16 +238,32 @@ test.describe('console chrome smoke', () => {
     await expect(drawer).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
-    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
-    await libraryTab.click();
-    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
-    await page.getByRole('button', { name: 'Launch Test Game Alpha' }).click();
-
     const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
+    await launchTab.click();
     await expect(launchTab).toHaveAttribute('aria-current', 'page');
-    await page.getByRole('button', { name: 'Launch Game' }).click();
 
-    await expect(page.getByText(/^[0-9]+ lines?$/)).toBeVisible();
+    const profileSelect = page.locator('#launch-profile-selector');
+    await expect(profileSelect).toBeVisible();
+    await profileSelect.click();
+    await page.getByRole('option', { name: 'Test Game Alpha', exact: true }).click();
+    await expect(profileSelect).toContainText('Test Game Alpha');
+
+    const profilesTab = page.getByRole('tab', { name: 'Profiles', exact: true });
+    await profilesTab.click();
+    await expect(profilesTab).toHaveAttribute('aria-current', 'page');
+
+    const gamePathField = page.getByLabel('Game Path', { exact: true });
+    await expect(gamePathField).toBeVisible();
+    await gamePathField.fill('/home/devuser/Games/TestGameAlpha/game.exe');
+
+    await launchTab.click();
+    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+
+    const launchGameButton = page.getByRole('button', { name: /^launch game$/i });
+    await expect(launchGameButton).toBeEnabled();
+    await launchGameButton.click();
+
+    await expect(page.getByText(/^[1-9][0-9]* lines?$/)).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
     expect(capture.errors, `Desktop console chrome errors:\n${capture.errors.join('\n')}`).toEqual([]);
