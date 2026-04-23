@@ -15,6 +15,7 @@ import {
   SettingsIcon,
 } from '../icons/SidebarIcons';
 import { ROUTE_NAV_LABEL } from './routeMetadata';
+import { isSidebarCollapsedVariant, type SidebarVariant, sidebarWidthForVariant } from './sidebarVariants';
 
 export type AppRoute =
   | 'library'
@@ -35,6 +36,7 @@ export interface SidebarProps {
   controllerMode: boolean;
   lastProfile: string;
   onOpenCollection: (id: string) => void;
+  variant: SidebarVariant;
 }
 
 interface SidebarSectionItem {
@@ -43,14 +45,26 @@ interface SidebarSectionItem {
   icon: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
-interface SidebarSection {
+interface SidebarRouteSection {
+  key: string;
   label: string;
+  type: 'routes';
   items: SidebarSectionItem[];
 }
 
+interface SidebarCollectionsSection {
+  key: 'collections';
+  label: 'Collections';
+  type: 'collections';
+}
+
+type SidebarSection = SidebarRouteSection | SidebarCollectionsSection;
+
 const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
+    key: 'game',
     label: 'Game',
+    type: 'routes',
     items: [
       { route: 'library', label: ROUTE_NAV_LABEL.library, icon: LibraryIcon },
       { route: 'profiles', label: ROUTE_NAV_LABEL.profiles, icon: ProfilesIcon },
@@ -58,11 +72,20 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     ],
   },
   {
+    key: 'collections',
+    label: 'Collections',
+    type: 'collections',
+  },
+  {
+    key: 'setup',
     label: 'Setup',
+    type: 'routes',
     items: [{ route: 'install', label: ROUTE_NAV_LABEL.install, icon: InstallIcon }],
   },
   {
+    key: 'dashboards',
     label: 'Dashboards',
+    type: 'routes',
     items: [
       { route: 'health', label: ROUTE_NAV_LABEL.health, icon: HealthIcon },
       { route: 'host-tools', label: ROUTE_NAV_LABEL['host-tools'], icon: HostToolsIcon },
@@ -70,7 +93,9 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     ],
   },
   {
+    key: 'community',
     label: 'Community',
+    type: 'routes',
     items: [
       { route: 'community', label: ROUTE_NAV_LABEL.community, icon: BrowseIcon },
       { route: 'discover', label: ROUTE_NAV_LABEL.discover, icon: DiscoverIcon },
@@ -113,12 +138,63 @@ function StatusRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function Sidebar({ activeRoute, onNavigate, controllerMode, lastProfile, onOpenCollection }: SidebarProps) {
+function SidebarSectionBlock({
+  section,
+  activeRoute,
+  onNavigate,
+  onOpenCollection,
+}: {
+  section: SidebarSection;
+  activeRoute: AppRoute;
+  onNavigate: (route: AppRoute) => void;
+  onOpenCollection: (id: string) => void;
+}) {
+  return (
+    <div className="crosshook-sidebar__section" key={section.key}>
+      <h2 className="crosshook-sidebar__section-label">{section.label}</h2>
+      {section.type === 'routes' ? (
+        <div className="crosshook-sidebar__section-items">
+          {section.items.map((item) => (
+            <SidebarTrigger
+              key={item.route}
+              activeRoute={activeRoute}
+              onNavigate={onNavigate}
+              route={item.route}
+              label={item.label}
+              icon={item.icon}
+            />
+          ))}
+        </div>
+      ) : (
+        <CollectionsSidebar onOpenCollection={onOpenCollection} />
+      )}
+    </div>
+  );
+}
+
+export function Sidebar({
+  activeRoute,
+  onNavigate,
+  controllerMode,
+  lastProfile,
+  onOpenCollection,
+  variant,
+}: SidebarProps) {
   const controllerLabel = controllerMode ? 'On' : 'Off';
   const profileLabel = lastProfile.trim() || 'No profile selected';
+  const collapsed = isSidebarCollapsedVariant(variant);
+  const width = sidebarWidthForVariant(variant);
 
   return (
-    <aside className="crosshook-sidebar" data-crosshook-focus-zone="sidebar" aria-label="CrossHook navigation">
+    <aside
+      className="crosshook-sidebar"
+      style={{ width: `${width}px` }}
+      data-collapsed={collapsed ? 'true' : 'false'}
+      data-crosshook-focus-zone="sidebar"
+      data-sidebar-variant={variant}
+      data-sidebar-width={width}
+      aria-label="CrossHook navigation"
+    >
       <div className="crosshook-sidebar__brand">
         <div className="crosshook-sidebar__brand-content">
           <p className="crosshook-sidebar__brand-title">CrossHook</p>
@@ -152,42 +228,14 @@ export function Sidebar({ activeRoute, onNavigate, controllerMode, lastProfile, 
       </div>
 
       <Tabs.List className="crosshook-sidebar__nav" aria-label="CrossHook sections">
-        {SIDEBAR_SECTIONS[0] ? (
-          <div className="crosshook-sidebar__section" key={SIDEBAR_SECTIONS[0].label}>
-            <div className="crosshook-sidebar__section-label">{SIDEBAR_SECTIONS[0].label}</div>
-            <div className="crosshook-sidebar__section-items">
-              {SIDEBAR_SECTIONS[0].items.map((item) => (
-                <SidebarTrigger
-                  key={item.route}
-                  activeRoute={activeRoute}
-                  onNavigate={onNavigate}
-                  route={item.route}
-                  label={item.label}
-                  icon={item.icon}
-                />
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        <CollectionsSidebar onOpenCollection={onOpenCollection} />
-
-        {SIDEBAR_SECTIONS.slice(1).map((section) => (
-          <div className="crosshook-sidebar__section" key={section.label}>
-            <div className="crosshook-sidebar__section-label">{section.label}</div>
-            <div className="crosshook-sidebar__section-items">
-              {section.items.map((item) => (
-                <SidebarTrigger
-                  key={item.route}
-                  activeRoute={activeRoute}
-                  onNavigate={onNavigate}
-                  route={item.route}
-                  label={item.label}
-                  icon={item.icon}
-                />
-              ))}
-            </div>
-          </div>
+        {SIDEBAR_SECTIONS.map((section) => (
+          <SidebarSectionBlock
+            key={section.key}
+            section={section}
+            activeRoute={activeRoute}
+            onNavigate={onNavigate}
+            onOpenCollection={onOpenCollection}
+          />
         ))}
 
         <div className="crosshook-sidebar__footer">

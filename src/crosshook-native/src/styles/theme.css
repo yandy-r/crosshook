@@ -5880,6 +5880,16 @@ textarea {
   border-radius: var(--crosshook-radius-sm);
 }
 
+.crosshook-collections-sidebar__item-avatar {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: rgba(74, 125, 181, 0.16);
+  color: var(--crosshook-color-accent-strong);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
 .crosshook-collections-sidebar__item:hover {
   background: rgba(255, 255, 255, 0.04);
 }
