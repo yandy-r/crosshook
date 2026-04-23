@@ -3,95 +3,20 @@ import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
-import type { BundledOptimizationPreset, GameProfile, LaunchAutoSaveStatus, LaunchMethod } from '../types';
-import type { LaunchOptimizationId } from '../types/launch-optimizations';
-import { LAUNCH_OPTIMIZATION_APPLICABLE_METHODS } from '../types/launch-optimizations';
-import type { GamescopeConfig, MangoHudConfig } from '../types/profile';
-import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup, ProtonDbSuggestionSet } from '../types/protondb';
-import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
-import type { PendingProtonDbOverwrite } from '../utils/protondb';
-import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
-import GamescopeConfigPanel from './GamescopeConfigPanel';
-import type { LaunchOptimizationsPanelStatus } from './LaunchOptimizationsPanel';
-import LaunchOptimizationsPanel from './LaunchOptimizationsPanel';
-import MangoHudConfigPanel from './MangoHudConfigPanel';
-import { OfflineReadinessPanel } from './OfflineReadinessPanel';
-import { OfflineStatusBadge } from './OfflineStatusBadge';
-import ProtonDbLookupCard from './ProtonDbLookupCard';
-import ProtonDbOverwriteConfirmation from './ProtonDbOverwriteConfirmation';
 import { GameMetadataBar } from './profile-sections/GameMetadataBar';
-import SteamLaunchOptionsPanel from './SteamLaunchOptionsPanel';
+import { EnvironmentTabContent } from './launch-subtabs/EnvironmentTabContent';
+import { GamescopeTabContent } from './launch-subtabs/GamescopeTabContent';
+import { MangoHudTabContent } from './launch-subtabs/MangoHudTabContent';
+import { OfflineTabContent } from './launch-subtabs/OfflineTabContent';
+import { OptimizationsTabContent } from './launch-subtabs/OptimizationsTabContent';
+import { SteamOptionsTabContent } from './launch-subtabs/SteamOptionsTabContent';
+import { TAB_LABELS } from './launch-subtabs/types';
+import { useAutoSaveChip } from './launch-subtabs/useAutoSaveChip';
+import { useTabVisibility } from './launch-subtabs/useTabVisibility';
 
-export type LaunchSubTabId = 'offline' | 'environment' | 'gamescope' | 'mangohud' | 'optimizations' | 'steam-options';
+export type { LaunchSubTabId, LaunchSubTabsProps } from './launch-subtabs/types';
 
-const TAB_LABELS: Record<LaunchSubTabId, string> = {
-  offline: 'Offline',
-  environment: 'Environment',
-  gamescope: 'Gamescope',
-  mangohud: 'MangoHud',
-  optimizations: 'Optimizations',
-  'steam-options': 'Steam Options',
-};
-
-export interface LaunchSubTabsProps {
-  /** Active launch method (proton_run, steam_applaunch, native, etc.). */
-  launchMethod: LaunchMethod;
-  /** Steam App ID from the active profile, used to load cover art and game metadata. */
-  steamAppId: string | undefined;
-  /** Custom cover art path from the profile, overrides Steam art when set. */
-  customCoverArtPath?: string;
-
-  // Gamescope panel
-  gamescopeConfig: GamescopeConfig;
-  onGamescopeChange: (config: GamescopeConfig) => void;
-  isInsideGamescopeSession: boolean;
-
-  // MangoHud panel
-  mangoHudConfig: MangoHudConfig;
-  onMangoHudChange: (config: MangoHudConfig) => void;
-  showMangoHudOverlayEnabled: boolean;
-
-  // Launch Optimizations panel
-  enabledOptionIds: readonly LaunchOptimizationId[];
-  onToggleOption: (optionId: LaunchOptimizationId, nextEnabled: boolean) => void;
-  launchOptimizationsStatus?: LaunchOptimizationsPanelStatus;
-  optimizationPresetNames?: readonly string[];
-  activeOptimizationPreset?: string;
-  onSelectOptimizationPreset?: (presetName: string) => void;
-  bundledOptimizationPresets?: readonly BundledOptimizationPreset[];
-  onApplyBundledPreset?: (presetId: string) => void;
-  optimizationPresetActionBusy?: boolean;
-  onSaveManualPreset?: (presetName: string) => Promise<void>;
-  catalog: OptimizationCatalogPayload | null;
-
-  // Steam Launch Options panel
-  customEnvVars?: Readonly<Record<string, string>>;
-
-  // Environment tab — custom env vars + optional ProtonDB suggestions
-  profileName: string;
-  onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
-  onEnvironmentBlurAutoSave?: (
-    trigger: 'key' | 'value',
-    row: Readonly<{ key: string; value: string }>,
-    nextEnvVars: Readonly<Record<string, string>>
-  ) => void;
-  showProtonDbLookup: boolean;
-  trainerVersion?: string | null;
-  onApplyProtonDbEnvVars: (group: ProtonDbRecommendationGroup) => void;
-  applyingProtonDbGroupId: string | null;
-  protonDbStatusMessage: string | null;
-  pendingProtonDbOverwrite: PendingProtonDbOverwrite | null;
-  onConfirmProtonDbOverwrite: (overwriteKeys: readonly string[]) => void;
-  onCancelProtonDbOverwrite: () => void;
-  onUpdateProtonDbResolution: (key: string, resolution: 'keep_current' | 'use_suggestion') => void;
-  suggestionSet?: ProtonDbSuggestionSet | null;
-  onAcceptSuggestion?: (request: AcceptSuggestionRequest) => Promise<void>;
-  onDismissSuggestion?: (suggestionKey: string) => void;
-
-  // Auto-save status indicators
-  gamescopeAutoSaveStatus?: LaunchAutoSaveStatus;
-  mangoHudAutoSaveStatus?: LaunchAutoSaveStatus;
-}
+import type { LaunchSubTabsProps } from './launch-subtabs/types';
 
 export function LaunchSubTabs({
   launchMethod,
@@ -133,64 +58,17 @@ export function LaunchSubTabs({
   gamescopeAutoSaveStatus,
   mangoHudAutoSaveStatus,
 }: LaunchSubTabsProps) {
-  const isNative = launchMethod === 'native';
+  const { tabs, showsGamescopeTab, showsMangoHudTab, showsOptimizationsTab, showsSteamOptionsTab } =
+    useTabVisibility(launchMethod);
 
-  const launchMethodSupportsOptimizations =
-    !isNative &&
-    LAUNCH_OPTIMIZATION_APPLICABLE_METHODS.includes(
-      launchMethod as (typeof LAUNCH_OPTIMIZATION_APPLICABLE_METHODS)[number]
-    );
-
-  const showsGamescopeTab = launchMethod === 'proton_run' || launchMethod === 'steam_applaunch';
-  const showsMangoHudTab = launchMethodSupportsOptimizations;
-  const showsOptimizationsTab = launchMethodSupportsOptimizations;
-  const showsSteamOptionsTab = launchMethod === 'steam_applaunch';
-
-  const tabs: LaunchSubTabId[] = isNative
-    ? ['environment', 'offline']
-    : [
-        ...(showsOptimizationsTab ? ['optimizations' as const] : []),
-        'environment',
-        ...(showsMangoHudTab ? ['mangohud' as const] : []),
-        ...(showsGamescopeTab ? ['gamescope' as const] : []),
-        ...(showsSteamOptionsTab ? ['steam-options' as const] : []),
-        'offline',
-      ];
-
-  const [activeTab, setActiveTab] = useState<LaunchSubTabId>(tabs[0] ?? 'environment');
+  const [activeTab, setActiveTab] = useState(tabs[0] ?? 'environment');
   const autoSwitchedRef = useRef(false);
 
-  // Unified auto-save status chip — show the highest-priority non-idle status across all tabs.
-  const TONE_PRIORITY: Record<string, number> = { idle: 0, success: 1, warning: 2, saving: 3, error: 4 };
-  const allStatuses: LaunchAutoSaveStatus[] = [
-    launchOptimizationsStatus ?? { tone: 'idle', label: '' },
-    gamescopeAutoSaveStatus ?? { tone: 'idle', label: '' },
-    mangoHudAutoSaveStatus ?? { tone: 'idle', label: '' },
-  ];
-  const combinedAutoSaveStatus = allStatuses.reduce<LaunchAutoSaveStatus>(
-    (best, s) => ((TONE_PRIORITY[s.tone] ?? 0) > (TONE_PRIORITY[best.tone] ?? 0) ? s : best),
-    { tone: 'idle', label: '' }
-  );
-  // Fade chip out 3s after success
-  const [chipVisible, setChipVisible] = useState(false);
-  const chipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (chipTimerRef.current !== null) {
-      clearTimeout(chipTimerRef.current);
-      chipTimerRef.current = null;
-    }
-    if (combinedAutoSaveStatus.tone !== 'idle') {
-      setChipVisible(true);
-      if (combinedAutoSaveStatus.tone === 'success') {
-        chipTimerRef.current = setTimeout(() => setChipVisible(false), 3000);
-      }
-    } else {
-      setChipVisible(false);
-    }
-    return () => {
-      if (chipTimerRef.current !== null) clearTimeout(chipTimerRef.current);
-    };
-  }, [combinedAutoSaveStatus.tone]);
+  const { combinedAutoSaveStatus, chipVisible } = useAutoSaveChip({
+    launchOptimizationsStatus,
+    gamescopeAutoSaveStatus,
+    mangoHudAutoSaveStatus,
+  });
 
   useEffect(() => {
     if (tabs.length > 0 && !tabs.includes(activeTab)) {
@@ -199,19 +77,10 @@ export function LaunchSubTabs({
     }
   }, [activeTab, tabs.length, tabs[0]]);
 
-  const {
-    offlineReadiness,
-    offlineReadinessError,
-    offlineReadinessLoading,
-    offlineWarning,
-    launchPathWarnings,
-    trainerHashUpdateBusy,
-    updateStoredTrainerHash,
-    dismissTrainerHashCommunityWarning,
-  } = useLaunchStateContext();
-
+  const { offlineWarning, launchPathWarnings, offlineReadinessError } = useLaunchStateContext();
   const hasOfflineConcern = Boolean(offlineReadinessError) || offlineWarning || launchPathWarnings.length > 0;
 
+  // OFFLINE_AUTO_SWITCH_PATTERN — must stay in parent (needs setActiveTab)
   useEffect(() => {
     if (hasOfflineConcern && !autoSwitchedRef.current) {
       autoSwitchedRef.current = true;
@@ -248,7 +117,7 @@ export function LaunchSubTabs({
           // When the user manually changes the tab after an auto-switch, don't
           // re-switch back automatically on the next render cycle.
           autoSwitchedRef.current = true;
-          setActiveTab(val as LaunchSubTabId);
+          setActiveTab(val as typeof activeTab);
         }}
         style={gameColorStyle}
       >
@@ -296,209 +165,74 @@ export function LaunchSubTabs({
             <GameMetadataBar steamAppId={steamAppId} />
           </div>
 
-          {/* Offline tab */}
-          <Tabs.Content
-            value="offline"
-            forceMount
-            className="crosshook-subtab-content"
-            style={{ display: activeTab === 'offline' ? undefined : 'none' }}
-          >
-            <div className="crosshook-subtab-content__inner">
-              <div
-                className="crosshook-launch-panel__offline"
-                style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}
-              >
-                <OfflineStatusBadge report={offlineReadiness} loading={offlineReadinessLoading && !offlineReadiness} />
-                {!offlineReadinessLoading && offlineReadiness ? (
-                  <span className="crosshook-muted" style={{ fontSize: '0.85rem' }}>
-                    {offlineReadiness.readiness_state.replace(/_/g, ' ')}
-                  </span>
-                ) : null}
-              </div>
-              <OfflineReadinessPanel
-                report={offlineReadiness}
-                error={offlineReadinessError}
-                loading={offlineReadinessLoading}
-              />
-              {launchPathWarnings.length > 0 ? (
-                <ul className="crosshook-launch-panel__feedback-list" aria-label="Launch path warnings">
-                  {launchPathWarnings.map((issue, index) => (
-                    <li
-                      // biome-ignore lint/suspicious/noArrayIndexKey: tiebreaker when severity+code/message may collide
-                      key={`${issue.severity}-${issue.code ?? issue.message}-${index}`}
-                      className="crosshook-launch-panel__feedback-item"
-                    >
-                      <div className="crosshook-launch-panel__feedback-header">
-                        <span className="crosshook-launch-panel__feedback-badge" data-severity={issue.severity}>
-                          {issue.severity}
-                        </span>
-                        <p className="crosshook-launch-panel__feedback-title">{issue.message}</p>
-                      </div>
-                      <p className="crosshook-launch-panel__feedback-help">{issue.help}</p>
-                      {issue.code === 'trainer_hash_mismatch' ? (
-                        <div
-                          className="crosshook-launch-panel__feedback-actions"
-                          style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}
-                        >
-                          <button
-                            type="button"
-                            className="crosshook-button crosshook-button--secondary"
-                            disabled={trainerHashUpdateBusy}
-                            onClick={() => void updateStoredTrainerHash()}
-                          >
-                            {trainerHashUpdateBusy ? 'Updating…' : 'Update stored hash'}
-                          </button>
-                        </div>
-                      ) : null}
-                      {issue.code === 'trainer_hash_community_mismatch' ? (
-                        <div
-                          className="crosshook-launch-panel__feedback-actions"
-                          style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}
-                        >
-                          <button
-                            type="button"
-                            className="crosshook-button crosshook-button--secondary"
-                            onClick={dismissTrainerHashCommunityWarning}
-                          >
-                            Dismiss
-                          </button>
-                        </div>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </Tabs.Content>
+          <OfflineTabContent activeTab={activeTab} />
 
-          {/* Gamescope tab — proton_run only */}
           {showsGamescopeTab ? (
-            <Tabs.Content
-              value="gamescope"
-              forceMount
-              className="crosshook-subtab-content"
-              style={{ display: activeTab === 'gamescope' ? undefined : 'none' }}
-            >
-              <div className="crosshook-subtab-content__inner">
-                <GamescopeConfigPanel
-                  config={gamescopeConfig}
-                  onChange={onGamescopeChange}
-                  isInsideGamescopeSession={isInsideGamescopeSession}
-                />
-              </div>
-            </Tabs.Content>
+            <GamescopeTabContent
+              activeTab={activeTab}
+              gamescopeConfig={gamescopeConfig}
+              onGamescopeChange={onGamescopeChange}
+              isInsideGamescopeSession={isInsideGamescopeSession}
+            />
           ) : null}
 
-          {/* MangoHud tab — proton_run or steam_applaunch */}
           {showsMangoHudTab ? (
-            <Tabs.Content
-              value="mangohud"
-              forceMount
-              className="crosshook-subtab-content"
-              style={{ display: activeTab === 'mangohud' ? undefined : 'none' }}
-            >
-              <div className="crosshook-subtab-content__inner">
-                <MangoHudConfigPanel
-                  config={mangoHudConfig}
-                  onChange={onMangoHudChange}
-                  showMangoHudOverlayEnabled={showMangoHudOverlayEnabled}
-                  launchMethod={launchMethod}
-                />
-              </div>
-            </Tabs.Content>
+            <MangoHudTabContent
+              activeTab={activeTab}
+              mangoHudConfig={mangoHudConfig}
+              onMangoHudChange={onMangoHudChange}
+              showMangoHudOverlayEnabled={showMangoHudOverlayEnabled}
+              launchMethod={launchMethod}
+            />
           ) : null}
 
-          {/* Optimizations tab — proton_run or steam_applaunch */}
           {showsOptimizationsTab ? (
-            <Tabs.Content
-              value="optimizations"
-              forceMount
-              className="crosshook-subtab-content"
-              style={{ display: activeTab === 'optimizations' ? undefined : 'none' }}
-            >
-              <div className="crosshook-subtab-content__inner">
-                <LaunchOptimizationsPanel
-                  method={launchMethod}
-                  enabledOptionIds={enabledOptionIds}
-                  onToggleOption={onToggleOption}
-                  optimizationPresetNames={optimizationPresetNames}
-                  activeOptimizationPreset={activeOptimizationPreset}
-                  onSelectOptimizationPreset={onSelectOptimizationPreset}
-                  bundledOptimizationPresets={bundledOptimizationPresets}
-                  onApplyBundledPreset={onApplyBundledPreset}
-                  optimizationPresetActionBusy={optimizationPresetActionBusy}
-                  onSaveManualPreset={onSaveManualPreset}
-                  catalog={catalog}
-                />
-              </div>
-            </Tabs.Content>
+            <OptimizationsTabContent
+              activeTab={activeTab}
+              launchMethod={launchMethod}
+              enabledOptionIds={enabledOptionIds}
+              onToggleOption={onToggleOption}
+              launchOptimizationsStatus={launchOptimizationsStatus}
+              optimizationPresetNames={optimizationPresetNames}
+              activeOptimizationPreset={activeOptimizationPreset}
+              onSelectOptimizationPreset={onSelectOptimizationPreset}
+              bundledOptimizationPresets={bundledOptimizationPresets}
+              onApplyBundledPreset={onApplyBundledPreset}
+              optimizationPresetActionBusy={optimizationPresetActionBusy}
+              onSaveManualPreset={onSaveManualPreset}
+              catalog={catalog}
+            />
           ) : null}
 
-          {/* Steam Options tab — steam_applaunch only */}
           {showsSteamOptionsTab ? (
-            <Tabs.Content
-              value="steam-options"
-              forceMount
-              className="crosshook-subtab-content"
-              style={{ display: activeTab === 'steam-options' ? undefined : 'none' }}
-            >
-              <div className="crosshook-subtab-content__inner">
-                <SteamLaunchOptionsPanel
-                  enabledOptionIds={enabledOptionIds}
-                  customEnvVars={customEnvVars}
-                  gamescopeConfig={gamescopeConfig}
-                />
-              </div>
-            </Tabs.Content>
+            <SteamOptionsTabContent
+              activeTab={activeTab}
+              enabledOptionIds={enabledOptionIds}
+              customEnvVars={customEnvVars}
+              gamescopeConfig={gamescopeConfig}
+            />
           ) : null}
 
-          {/* Environment tab — custom env vars + ProtonDB lookup */}
-          <Tabs.Content
-            value="environment"
-            forceMount
-            className="crosshook-subtab-content"
-            style={{ display: activeTab === 'environment' ? undefined : 'none' }}
-          >
-            <div className="crosshook-subtab-content__inner">
-              <CustomEnvironmentVariablesSection
-                profileName={profileName}
-                customEnvVars={customEnvVars ?? {}}
-                onUpdateProfile={onUpdateProfile}
-                idPrefix="launch-subtabs"
-                onAutoSaveBlur={onEnvironmentBlurAutoSave}
-              />
-
-              {showProtonDbLookup && steamAppId ? (
-                <div className="crosshook-protondb-panel">
-                  <ProtonDbLookupCard
-                    appId={steamAppId}
-                    trainerVersion={trainerVersion ?? null}
-                    versionContext={null}
-                    onApplyEnvVars={onApplyProtonDbEnvVars}
-                    applyingGroupId={applyingProtonDbGroupId}
-                    suggestionSet={suggestionSet}
-                    onAcceptSuggestion={onAcceptSuggestion}
-                    onDismissSuggestion={onDismissSuggestion}
-                  />
-
-                  {protonDbStatusMessage ? (
-                    <p className="crosshook-help-text" role="status">
-                      {protonDbStatusMessage}
-                    </p>
-                  ) : null}
-
-                  {pendingProtonDbOverwrite ? (
-                    <ProtonDbOverwriteConfirmation
-                      pendingProtonDbOverwrite={pendingProtonDbOverwrite}
-                      onUpdateProtonDbResolution={onUpdateProtonDbResolution}
-                      onCancelProtonDbOverwrite={onCancelProtonDbOverwrite}
-                      onConfirmProtonDbOverwrite={onConfirmProtonDbOverwrite}
-                    />
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </Tabs.Content>
+          <EnvironmentTabContent
+            activeTab={activeTab}
+            profileName={profileName}
+            customEnvVars={customEnvVars}
+            onUpdateProfile={onUpdateProfile}
+            onEnvironmentBlurAutoSave={onEnvironmentBlurAutoSave}
+            showProtonDbLookup={showProtonDbLookup}
+            steamAppId={steamAppId}
+            trainerVersion={trainerVersion}
+            onApplyProtonDbEnvVars={onApplyProtonDbEnvVars}
+            applyingProtonDbGroupId={applyingProtonDbGroupId}
+            protonDbStatusMessage={protonDbStatusMessage}
+            pendingProtonDbOverwrite={pendingProtonDbOverwrite}
+            onConfirmProtonDbOverwrite={onConfirmProtonDbOverwrite}
+            onCancelProtonDbOverwrite={onCancelProtonDbOverwrite}
+            onUpdateProtonDbResolution={onUpdateProtonDbResolution}
+            suggestionSet={suggestionSet}
+            onAcceptSuggestion={onAcceptSuggestion}
+            onDismissSuggestion={onDismissSuggestion}
+          />
         </div>
       </Tabs.Root>
     </div>
