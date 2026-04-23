@@ -238,8 +238,12 @@ test.describe('console chrome smoke', () => {
     await expect(drawer).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+    await page.getByRole('button', { name: 'Launch Test Game Alpha' }).click();
+
     const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
-    await launchTab.click();
     await expect(launchTab).toHaveAttribute('aria-current', 'page');
     await page.getByRole('button', { name: 'Launch Game' }).click();
 
