@@ -12,6 +12,93 @@
   /* Keep the standard column gap; no shell-specific overrides today. */
 }
 
+.crosshook-host-tool-dashboard {
+  display: grid;
+  gap: var(--crosshook-grid-gap);
+  min-height: 0;
+}
+
+.crosshook-host-tool-dashboard-panel {
+  display: grid;
+  gap: 20px;
+  padding: clamp(20px, 2vw, 28px);
+  border: 1px solid color-mix(in srgb, var(--crosshook-color-border) 78%, rgba(255, 255, 255, 0.08));
+  border-radius: var(--crosshook-radius-lg);
+  background:
+    radial-gradient(circle at top right, rgba(96, 165, 250, 0.08), transparent 40%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+    var(--crosshook-color-bg-elevated);
+  box-shadow: var(--crosshook-shadow-soft);
+}
+
+.crosshook-host-tool-dashboard-panel--hero {
+  background:
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 40%),
+    radial-gradient(circle at top left, rgba(34, 197, 94, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    var(--crosshook-color-bg-elevated);
+}
+
+.crosshook-host-tool-dashboard-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.crosshook-host-tool-dashboard-panel__title-group {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.crosshook-host-tool-dashboard-panel__title-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.crosshook-host-tool-dashboard-panel__eyebrow {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.crosshook-host-tool-dashboard-panel__title {
+  margin: 0;
+  color: var(--crosshook-color-text);
+  font-size: clamp(1.2rem, 1rem + 0.65vw, 1.75rem);
+  line-height: 1.15;
+}
+
+.crosshook-host-tool-dashboard-panel__description {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--crosshook-color-text-muted);
+  line-height: 1.6;
+}
+
+.crosshook-host-tool-dashboard-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.crosshook-host-tool-dashboard-panel__body {
+  display: grid;
+  gap: 18px;
+  min-height: 0;
+}
+
+.crosshook-host-tool-dashboard-panel__body--hero {
+  gap: 20px;
+}
+
 .crosshook-host-tool-dashboard-error {
   display: flex;
   align-items: center;
@@ -222,6 +309,9 @@
   display: grid;
   gap: 14px;
   padding: 16px 20px;
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-md);
+  background: color-mix(in srgb, var(--crosshook-color-bg-elevated) 92%, rgba(255, 255, 255, 0.04));
 }
 
 .crosshook-host-tool-dashboard-toolbar__status {
@@ -315,12 +405,6 @@
  * status chips, banners, meta lists, empty states.
  * ========================================================================== */
 
-.crosshook-host-tool-dashboard {
-  display: grid;
-  gap: var(--crosshook-grid-gap);
-  min-height: 0;
-}
-
 .crosshook-host-tool-dashboard__filters {
   display: flex;
   flex-wrap: wrap;
@@ -354,6 +438,15 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0)),
     var(--crosshook-color-bg-elevated);
   box-shadow: var(--crosshook-shadow-soft);
+}
+
+.crosshook-host-tool-dashboard__empty-state {
+  display: grid;
+  gap: 10px;
+  padding: clamp(18px, 1.6vw, 24px);
+  border: 1px dashed color-mix(in srgb, var(--crosshook-color-border-strong) 72%, rgba(255, 255, 255, 0.08));
+  border-radius: var(--crosshook-radius-md);
+  background: color-mix(in srgb, var(--crosshook-color-bg-elevated) 90%, rgba(255, 255, 255, 0.03));
 }
 
 .crosshook-host-tool-dashboard__card-shell--muted {
@@ -516,6 +609,21 @@
   border-color: var(--crosshook-color-capability-unavailable-border);
   background: var(--crosshook-color-capability-unavailable-bg);
   color: var(--crosshook-color-capability-unavailable);
+}
+
+@media (max-width: 720px) {
+  .crosshook-host-tool-dashboard-panel {
+    padding: 18px;
+  }
+
+  .crosshook-host-tool-dashboard-panel__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .crosshook-host-tool-dashboard-panel__actions {
+    justify-content: flex-start;
+  }
 }
 
 .crosshook-host-tool-dashboard__empty-state {

@@ -1919,6 +1919,13 @@ textarea {
   gap: 12px;
 }
 
+.crosshook-protonup-catalog__provider-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--crosshook-protonup-catalog-provider-toggle-gap);
+  margin-top: var(--crosshook-protonup-catalog-provider-toggle-margin-top);
+}
+
 .crosshook-protonup-catalog__list {
   display: grid;
   gap: 0;

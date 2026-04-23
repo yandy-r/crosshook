@@ -80,6 +80,22 @@
   --crosshook-color-danger-bg: rgba(248, 113, 113, 0.08);
   /* List / section dividers (subtle slate) */
   --crosshook-divider-color: rgba(148, 163, 184, 0.2);
+  /* Dashboard route pills + KV rows (dashboard-routes.css) */
+  --crosshook-dashboard-pill-bg: rgba(59, 130, 246, 0.08);
+  --crosshook-dashboard-pill-border: var(--crosshook-divider-color);
+  --crosshook-dashboard-kv-row-border: rgba(148, 163, 184, 0.14);
+  /* Proton manager stacked panels: linear-gradient(180deg, top, bottom), then --crosshook-color-bg-elevated */
+  --crosshook-gradient-proton-panel-top-08: rgba(59, 130, 246, 0.08);
+  --crosshook-gradient-proton-panel-top-06: rgba(59, 130, 246, 0.06);
+  --crosshook-gradient-proton-panel-bottom-014: rgba(15, 23, 42, 0.14);
+  --crosshook-gradient-proton-panel-bottom-012: rgba(15, 23, 42, 0.12);
+  --crosshook-gradient-proton-panel-bottom-010: rgba(15, 23, 42, 0.1);
+  /* Proton Manager stacked panels: shared border + header elevation */
+  --crosshook-proton-manager-panel-border: rgba(148, 163, 184, 0.16);
+  --crosshook-proton-manager-header-shadow: 0 18px 36px rgba(2, 6, 23, 0.16);
+  /* ProtonUp catalog (Compatibility): control group layout */
+  --crosshook-protonup-catalog-provider-toggle-gap: var(--crosshook-custom-env-row-gap);
+  --crosshook-protonup-catalog-provider-toggle-margin-top: 6px;
 
   --crosshook-offline-ready: #4caf50;
   --crosshook-offline-partial: #ff9800;
@@ -201,6 +217,17 @@
   --crosshook-color-warning: #facc15;
   --crosshook-color-danger: #fb7185;
   --crosshook-divider-color: rgba(248, 250, 252, 0.36);
+  /* Dashboard / Proton surfaces: avoid inheriting default blue-tint tokens */
+  --crosshook-dashboard-pill-bg: rgba(250, 204, 21, 0.14);
+  --crosshook-dashboard-pill-border: var(--crosshook-divider-color);
+  --crosshook-dashboard-kv-row-border: rgba(248, 250, 252, 0.22);
+  --crosshook-gradient-proton-panel-top-08: rgba(250, 204, 21, 0.1);
+  --crosshook-gradient-proton-panel-top-06: rgba(250, 204, 21, 0.08);
+  --crosshook-gradient-proton-panel-bottom-014: rgba(0, 0, 0, 0.35);
+  --crosshook-gradient-proton-panel-bottom-012: rgba(0, 0, 0, 0.28);
+  --crosshook-gradient-proton-panel-bottom-010: rgba(0, 0, 0, 0.22);
+  --crosshook-proton-manager-panel-border: rgba(248, 250, 252, 0.45);
+  --crosshook-proton-manager-header-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
   --crosshook-color-not-configured-bg: rgba(255, 255, 255, 0.12);
   --crosshook-color-not-configured-text: rgba(248, 250, 252, 0.9);
   --crosshook-color-not-configured-label: rgba(248, 250, 252, 0.86);

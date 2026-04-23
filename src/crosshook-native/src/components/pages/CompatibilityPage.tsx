@@ -1,15 +1,12 @@
 import * as Tabs from '@radix-ui/react-tabs';
-import { useCallback, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useCommunityProfiles } from '../../hooks/useCommunityProfiles';
-import { useProtonInstalls } from '../../hooks/useProtonInstalls';
-import { useProtonUp } from '../../hooks/useProtonUp';
-import type { ProtonUpAvailableVersion, ProtonUpInstallResult, ProtonUpProvider } from '../../types/protonup';
 import CompatibilityViewer, { type CompatibilityDatabaseEntry } from '../CompatibilityViewer';
+import { DEFAULT_COMPAT_TOOLS_DIR, ProtonVersionsPanel } from '../compatibility/ProtonVersionsPanel';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { RouteBanner } from '../layout/RouteBanner';
-import { CollapsibleSection } from '../ui/CollapsibleSection';
 
 const DEFAULT_PROFILES_DIRECTORY = '~/.config/crosshook/profiles';
-const DEFAULT_COMPAT_TOOLS_DIR = '~/.local/share/Steam/compatibilitytools.d';
 
 type CompatTabId = 'trainer' | 'proton';
 
@@ -31,195 +28,6 @@ function toCompatibilityEntries(
   }));
 }
 
-function formatAssetSize(bytes: number): string {
-  return `${(bytes / 1_048_576).toFixed(0)} MB`;
-}
-
-function normalizeForComparison(value: string): string {
-  return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
-}
-
-function ProtonVersionsPanel() {
-  const [catalogProvider, setCatalogProvider] = useState<ProtonUpProvider>('ge-proton');
-  const protonUp = useProtonUp({ autoFetchCatalog: true, catalogProvider });
-  const { installs, reload: reloadInstalls } = useProtonInstalls();
-  const [installResult, setInstallResult] = useState<ProtonUpInstallResult | null>(null);
-  const [installingVersion, setInstallingVersion] = useState<string | null>(null);
-
-  const installedNames = useMemo(() => new Set(installs.map((i) => normalizeForComparison(i.name))), [installs]);
-
-  const handleInstall = useCallback(
-    async (version: ProtonUpAvailableVersion) => {
-      setInstallResult(null);
-      setInstallingVersion(version.version);
-      const result = await protonUp.installVersion({
-        provider: version.provider,
-        version: version.version,
-        target_root: DEFAULT_COMPAT_TOOLS_DIR,
-      });
-      setInstallResult(result);
-      setInstallingVersion(null);
-      if (result.success) {
-        protonUp.refreshCatalog();
-        reloadInstalls();
-      }
-    },
-    [protonUp, reloadInstalls]
-  );
-
-  const dismissResult = useCallback(() => setInstallResult(null), []);
-
-  return (
-    <div className="crosshook-subtab-content__inner">
-      <CollapsibleSection
-        title="Proton Runtimes"
-        className="crosshook-panel"
-        meta={
-          <span>
-            {protonUp.catalogLoading
-              ? 'Loading...'
-              : `${protonUp.versions.length} version${protonUp.versions.length !== 1 ? 's' : ''}`}
-          </span>
-        }
-      >
-        <div className="crosshook-protonup-catalog">
-          {/* biome-ignore lint/a11y/useSemanticElements: legend does not associate with plain buttons; fieldset is non-idiomatic here */}
-          <div
-            role="group"
-            aria-labelledby="proton-catalog-source-heading"
-            className="crosshook-field crosshook-fieldset-reset--mb-12"
-          >
-            <div id="proton-catalog-source-heading" className="crosshook-label">
-              Catalog source
-            </div>
-            <div
-              className="crosshook-protonup-catalog__provider-toggle"
-              style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}
-            >
-              <button
-                type="button"
-                className={`crosshook-button crosshook-button--small${
-                  catalogProvider === 'ge-proton' ? ' crosshook-button--primary' : ' crosshook-button--ghost'
-                }`}
-                onClick={() => setCatalogProvider('ge-proton')}
-                aria-pressed={catalogProvider === 'ge-proton'}
-              >
-                GE-Proton
-              </button>
-              <button
-                type="button"
-                className={`crosshook-button crosshook-button--small${
-                  catalogProvider === 'proton-cachyos' ? ' crosshook-button--primary' : ' crosshook-button--ghost'
-                }`}
-                onClick={() => setCatalogProvider('proton-cachyos')}
-                aria-pressed={catalogProvider === 'proton-cachyos'}
-              >
-                Proton-CachyOS
-              </button>
-            </div>
-          </div>
-
-          {/* Cache status */}
-          {protonUp.cacheMeta ? (
-            <p className="crosshook-help-text">
-              {protonUp.cacheMeta.offline
-                ? 'Offline \u2014 showing cached versions.'
-                : protonUp.cacheMeta.stale
-                  ? 'Showing stale cached versions. Refresh to update.'
-                  : protonUp.cacheMeta.fetched_at
-                    ? `Last updated: ${new Date(protonUp.cacheMeta.fetched_at).toLocaleString()}`
-                    : null}
-            </p>
-          ) : null}
-
-          {/* Error state */}
-          {protonUp.catalogError ? (
-            <p className="crosshook-danger" role="alert">
-              Failed to load versions: {protonUp.catalogError}
-            </p>
-          ) : null}
-
-          {/* Install result feedback */}
-          {installResult ? (
-            <div
-              className={`crosshook-protonup-catalog__result ${installResult.success ? '' : 'crosshook-protonup-catalog__result--error'}`}
-              role="status"
-            >
-              <p className={installResult.success ? 'crosshook-help-text' : 'crosshook-danger'}>
-                {installResult.success
-                  ? `Installed ${installResult.installed_path ?? 'successfully'}.`
-                  : `Install failed: ${installResult.error_message ?? installResult.error_kind ?? 'unknown error'}`}
-              </p>
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--small crosshook-button--ghost"
-                onClick={dismissResult}
-              >
-                Dismiss
-              </button>
-            </div>
-          ) : null}
-
-          {/* Version list */}
-          {protonUp.versions.length > 0 ? (
-            <ul className="crosshook-protonup-catalog__list">
-              {protonUp.versions.map((version) => {
-                const isInstallingThis = installingVersion === version.version;
-                const isInstalled = installedNames.has(normalizeForComparison(version.version));
-
-                return (
-                  <li key={`${version.provider}:${version.version}`} className="crosshook-protonup-catalog__item">
-                    <div className="crosshook-protonup-catalog__item-info">
-                      <span className="crosshook-protonup-catalog__item-name">{version.version}</span>
-                      {version.asset_size ? (
-                        <span className="crosshook-muted crosshook-protonup-catalog__item-size">
-                          {formatAssetSize(version.asset_size)}
-                        </span>
-                      ) : null}
-                    </div>
-                    {isInstalled ? (
-                      <span className="crosshook-muted crosshook-protonup-catalog__installed-label">Installed</span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="crosshook-button crosshook-button--small crosshook-button--primary"
-                        onClick={() => void handleInstall(version)}
-                        disabled={protonUp.installing}
-                      >
-                        {isInstallingThis ? 'Installing\u2026' : 'Install'}
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          ) : !protonUp.catalogLoading && !protonUp.catalogError ? (
-            protonUp.cacheMeta?.offline ? (
-              <p className="crosshook-help-text">
-                Version catalog is unavailable offline. Connect to the internet and refresh.
-              </p>
-            ) : (
-              <p className="crosshook-help-text">No versions available.</p>
-            )
-          ) : null}
-
-          {/* Refresh action */}
-          <div className="crosshook-protonup-catalog__actions">
-            <button
-              type="button"
-              className="crosshook-button crosshook-button--small crosshook-button--ghost"
-              onClick={protonUp.refreshCatalog}
-              disabled={protonUp.catalogLoading}
-            >
-              {protonUp.catalogLoading ? 'Refreshing\u2026' : 'Refresh catalog'}
-            </button>
-          </div>
-        </div>
-      </CollapsibleSection>
-    </div>
-  );
-}
-
 export function CompatibilityPage() {
   const [activeTab, setActiveTab] = useState<CompatTabId>('trainer');
 
@@ -228,6 +36,15 @@ export function CompatibilityPage() {
   });
   const compatibilityEntries = toCompatibilityEntries(communityState.index.entries);
 
+  const trainerStatus =
+    communityState.loading || communityState.syncing
+      ? 'Syncing trainer reports'
+      : communityState.error
+        ? 'Trainer data has inline errors'
+        : compatibilityEntries.length > 0
+          ? `${compatibilityEntries.length} trainer report${compatibilityEntries.length === 1 ? '' : 's'} indexed`
+          : 'No trainer reports indexed yet';
+
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--compatibility">
       <div className="crosshook-route-stack crosshook-compatibility-page">
@@ -235,50 +52,74 @@ export function CompatibilityPage() {
           <RouteBanner route="compatibility" />
           <div className="crosshook-route-card-host">
             <div className="crosshook-route-card-scroll">
-              <div className="crosshook-panel crosshook-subtabs-shell crosshook-compatibility-subtabs">
+              <div className="crosshook-dashboard-route-body">
+                <DashboardPanelSection
+                  eyebrow="Compatibility hub"
+                  title="Keep trainer reports and Proton runtimes in the same workflow"
+                  description="Browse community compatibility data and manage installable Proton releases from one dashboard surface without resetting tab-local state."
+                  actions={<div className="crosshook-status-chip">Active: {TAB_LABELS[activeTab]}</div>}
+                >
+                  <div className="crosshook-dashboard-pill-row">
+                    <span className="crosshook-dashboard-pill">{trainerStatus}</span>
+                    <span className="crosshook-dashboard-pill">Profiles: {DEFAULT_PROFILES_DIRECTORY}</span>
+                    <span className="crosshook-dashboard-pill">Compat tools: {DEFAULT_COMPAT_TOOLS_DIR}</span>
+                  </div>
+                </DashboardPanelSection>
+
                 <Tabs.Root
                   className="crosshook-subtabs-root"
                   value={activeTab}
-                  onValueChange={(val) => setActiveTab(val as CompatTabId)}
+                  onValueChange={(value) => setActiveTab(value as CompatTabId)}
                 >
-                  <Tabs.List className="crosshook-subtab-row" aria-label="Compatibility sections">
-                    {(Object.keys(TAB_LABELS) as CompatTabId[]).map((tab) => (
-                      <Tabs.Trigger
-                        key={tab}
-                        value={tab}
-                        className={`crosshook-subtab${activeTab === tab ? ' crosshook-subtab--active' : ''}`}
-                      >
-                        {TAB_LABELS[tab]}
-                      </Tabs.Trigger>
-                    ))}
-                  </Tabs.List>
-
-                  {/* Trainer tab */}
-                  <Tabs.Content
-                    value="trainer"
-                    forceMount
-                    className="crosshook-subtab-content"
-                    style={{ display: activeTab === 'trainer' ? undefined : 'none' }}
+                  <DashboardPanelSection
+                    className="crosshook-subtabs-shell crosshook-compatibility-subtabs"
+                    eyebrow="Workspace"
+                    title="Trainer reports and Proton releases"
+                    description="Switch between compatibility intelligence and runtime catalog management while keeping both panels mounted."
+                    actions={
+                      <Tabs.List className="crosshook-subtab-row" aria-label="Compatibility sections">
+                        {(Object.keys(TAB_LABELS) as CompatTabId[]).map((tab) => (
+                          <Tabs.Trigger
+                            key={tab}
+                            value={tab}
+                            className={`crosshook-subtab${activeTab === tab ? ' crosshook-subtab--active' : ''}`}
+                          >
+                            {TAB_LABELS[tab]}
+                          </Tabs.Trigger>
+                        ))}
+                      </Tabs.List>
+                    }
+                    bodyClassName="crosshook-dashboard-route-section-stack"
                   >
-                    <div className="crosshook-subtab-content__inner">
-                      <CompatibilityViewer
-                        entries={compatibilityEntries}
-                        loading={communityState.loading || communityState.syncing}
-                        error={communityState.error}
-                        emptyMessage="No indexed community compatibility entries are available yet."
-                      />
-                    </div>
-                  </Tabs.Content>
+                    <Tabs.Content
+                      value="trainer"
+                      forceMount
+                      className="crosshook-subtab-content"
+                      style={{ display: activeTab === 'trainer' ? undefined : 'none' }}
+                    >
+                      <div className="crosshook-subtab-content__inner">
+                        <CompatibilityViewer
+                          entries={compatibilityEntries}
+                          title="Trainer compatibility database"
+                          description="Filter community trainer reports by game, trainer, and platform while keeping loading, error, and empty states inline."
+                          loading={communityState.loading || communityState.syncing}
+                          error={communityState.error}
+                          emptyMessage="No indexed community compatibility entries are available yet."
+                        />
+                      </div>
+                    </Tabs.Content>
 
-                  {/* Proton tab */}
-                  <Tabs.Content
-                    value="proton"
-                    forceMount
-                    className="crosshook-subtab-content"
-                    style={{ display: activeTab === 'proton' ? undefined : 'none' }}
-                  >
-                    <ProtonVersionsPanel />
-                  </Tabs.Content>
+                    <Tabs.Content
+                      value="proton"
+                      forceMount
+                      className="crosshook-subtab-content"
+                      style={{ display: activeTab === 'proton' ? undefined : 'none' }}
+                    >
+                      <div className="crosshook-subtab-content__inner">
+                        <ProtonVersionsPanel />
+                      </div>
+                    </Tabs.Content>
+                  </DashboardPanelSection>
                 </Tabs.Root>
               </div>
             </div>

@@ -6,6 +6,7 @@ import './styles/theme.css';
 import './styles/utilities.css';
 import './styles/focus.css';
 import './styles/layout.css';
+import './styles/dashboard-routes.css';
 import './styles/sidebar.css';
 import './styles/console-drawer.css';
 import './styles/themed-select.css';
