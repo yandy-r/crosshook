@@ -2,6 +2,7 @@ import { useId, useState } from 'react';
 import { useTrainerTypeCatalog } from '../../hooks/useTrainerTypeCatalog';
 import type { GameProfile, LaunchMethod } from '../../types';
 import { chooseFile } from '../../utils/dialog';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { OfflineTrainerInfoModal, type TrainerInfoModalKey } from '../OfflineTrainerInfoModal';
 import { FieldRow, OptionalSection, TrainerVersionSetField } from '../ProfileFormSections';
 import { InfoTooltip } from '../ui/InfoTooltip';
@@ -58,14 +59,13 @@ export function TrainerSection({
   const trainerCollapsed = reviewMode && profile.trainer.path.trim().length === 0;
 
   return (
-    <div className="crosshook-install-section">
+    <DashboardPanelSection titleAs="h3" eyebrow="Profile" title="Trainer">
       <OfflineTrainerInfoModal
         open={trainerInfoModal !== null}
         modalKey={trainerInfoModal}
         onClose={() => setTrainerInfoModal(null)}
       />
 
-      <div className="crosshook-install-section-title">Trainer</div>
       <OptionalSection summary="Trainer details" collapsed={trainerCollapsed}>
         <div className="crosshook-install-grid">
           <FieldRow
@@ -215,7 +215,7 @@ export function TrainerSection({
           ) : null}
         </div>
       </OptionalSection>
-    </div>
+    </DashboardPanelSection>
   );
 }
 

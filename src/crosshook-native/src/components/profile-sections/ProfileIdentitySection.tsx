@@ -1,6 +1,7 @@
 import { type ChangeEvent, useId } from 'react';
 
 import type { GameProfile } from '../../types';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 
 export interface ProfileIdentitySectionProps {
   profileName: string;
@@ -30,8 +31,18 @@ export function ProfileIdentitySection({
   const gameNameId = useId();
 
   return (
-    <>
-      <div className="crosshook-install-section-title">Profile Identity</div>
+    <DashboardPanelSection
+      titleAs="h3"
+      eyebrow="Profile"
+      title="Identity"
+      actions={
+        profileExists ? (
+          <span className="crosshook-editor-field-readonly" title="Profile name is locked">
+            {profileName}
+          </span>
+        ) : null
+      }
+    >
       <div
         style={{
           display: 'grid',
@@ -79,7 +90,7 @@ export function ProfileIdentitySection({
           />
         </div>
       </div>
-    </>
+    </DashboardPanelSection>
   );
 }
 
