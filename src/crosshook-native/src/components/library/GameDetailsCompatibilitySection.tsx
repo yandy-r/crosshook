@@ -34,23 +34,26 @@ export function GameDetailsCompatibilitySection({ steamAppId }: GameDetailsCompa
       </h3>
       {statusMessage}
       {hasAppId && proton.snapshot && (proton.state === 'ready' || proton.state === 'stale') ? (
-        <div className="crosshook-hero-detail__proton-summary">
-          <p className="crosshook-hero-detail__text">
-            <span className="crosshook-hero-detail__label">Tier: </span>
-            {String(proton.snapshot.tier)}
-          </p>
-          {proton.snapshot.confidence ? (
-            <p className="crosshook-hero-detail__text">
-              <span className="crosshook-hero-detail__label">Confidence: </span>
-              {proton.snapshot.confidence}
+        <div className="crosshook-hero-detail__subsection crosshook-hero-detail__proton-summary">
+          <h4 className="crosshook-hero-detail__subsection-title">Snapshot summary</h4>
+          <div className="crosshook-hero-detail__kv-list">
+            <p className="crosshook-hero-detail__kv-item">
+              <span className="crosshook-hero-detail__kv-key">Tier</span>
+              <span className="crosshook-hero-detail__kv-value">{String(proton.snapshot.tier)}</span>
             </p>
-          ) : null}
-          {proton.snapshot.total_reports != null ? (
-            <p className="crosshook-hero-detail__text">
-              <span className="crosshook-hero-detail__label">Reports: </span>
-              {proton.snapshot.total_reports}
-            </p>
-          ) : null}
+            {proton.snapshot.confidence ? (
+              <p className="crosshook-hero-detail__kv-item">
+                <span className="crosshook-hero-detail__kv-key">Confidence</span>
+                <span className="crosshook-hero-detail__kv-value">{proton.snapshot.confidence}</span>
+              </p>
+            ) : null}
+            {proton.snapshot.total_reports != null ? (
+              <p className="crosshook-hero-detail__kv-item">
+                <span className="crosshook-hero-detail__kv-key">Reports</span>
+                <span className="crosshook-hero-detail__kv-value">{proton.snapshot.total_reports}</span>
+              </p>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </section>

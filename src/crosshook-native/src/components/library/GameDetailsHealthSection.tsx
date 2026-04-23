@@ -42,17 +42,22 @@ export function GameDetailsHealthSection({
         ) : null}
         {healthReport ? (
           <div className="crosshook-hero-detail__health-block">
-            <p className="crosshook-hero-detail__text">
-              <span className="crosshook-hero-detail__label">Status: </span>
-              {healthReport.status}
-            </p>
-            <p className="crosshook-hero-detail__text">
-              <span className="crosshook-hero-detail__label">Launch method: </span>
-              {healthReport.launch_method}
-            </p>
-            <p className="crosshook-hero-detail__text crosshook-hero-detail__text--small">
-              Checked {healthReport.checked_at}
-            </p>
+            <div className="crosshook-hero-detail__kv-list">
+              <p className="crosshook-hero-detail__kv-item">
+                <span className="crosshook-hero-detail__kv-key">Status</span>
+                <span className="crosshook-hero-detail__kv-value">{healthReport.status}</span>
+              </p>
+              <p className="crosshook-hero-detail__kv-item">
+                <span className="crosshook-hero-detail__kv-key">Launch method</span>
+                <span className="crosshook-hero-detail__kv-value">{healthReport.launch_method}</span>
+              </p>
+              <p className="crosshook-hero-detail__kv-item">
+                <span className="crosshook-hero-detail__kv-key">Checked</span>
+                <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__text--small">
+                  {healthReport.checked_at}
+                </span>
+              </p>
+            </div>
             {healthReport.issues.length > 0 ? (
               <ul className="crosshook-hero-detail__issue-list">
                 {healthReport.issues.slice(0, 5).map((issue) => (
@@ -74,10 +79,20 @@ export function GameDetailsHealthSection({
         ) : null}
         {offlineReport ? (
           <div className="crosshook-hero-detail__health-block">
-            <p className="crosshook-hero-detail__text">
-              <span className="crosshook-hero-detail__label">Readiness: </span>
-              {readinessLabel(offlineReport.score, offlineReport.readiness_state)}
-            </p>
+            <div className="crosshook-hero-detail__kv-list">
+              <p className="crosshook-hero-detail__kv-item">
+                <span className="crosshook-hero-detail__kv-key">Readiness</span>
+                <span className="crosshook-hero-detail__kv-value">
+                  {readinessLabel(offlineReport.score, offlineReport.readiness_state)}
+                </span>
+              </p>
+              <p className="crosshook-hero-detail__kv-item">
+                <span className="crosshook-hero-detail__kv-key">Checked</span>
+                <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__text--small">
+                  {offlineReport.checked_at}
+                </span>
+              </p>
+            </div>
             {offlineReport.blocking_reasons.length > 0 ? (
               <ul className="crosshook-hero-detail__issue-list">
                 {offlineReport.blocking_reasons.map((reason) => (
@@ -87,9 +102,6 @@ export function GameDetailsHealthSection({
                 ))}
               </ul>
             ) : null}
-            <p className="crosshook-hero-detail__text crosshook-hero-detail__text--small">
-              Checked {offlineReport.checked_at}
-            </p>
           </div>
         ) : null}
       </div>

@@ -56,23 +56,42 @@ export function GameDetailsMetadataSection({ steamAppId, meta }: GameDetailsMeta
       {hasAppId && meta.isStale ? (
         <p className="crosshook-hero-detail__stale">Showing cached metadata; values may be stale.</p>
       ) : null}
-      {hasAppId && metaState === 'ready' && steamName ? (
-        <p className="crosshook-hero-detail__text">
-          <span className="crosshook-hero-detail__label">Steam title: </span>
-          {steamName}
-        </p>
-      ) : null}
-      {hasAppId && metaState === 'ready' && genres.length > 0 ? (
-        <ul aria-label="Genres" className="crosshook-hero-detail__genre-row">
-          {genres.map((genre) => (
-            <li key={genre.id} className="crosshook-hero-detail__genre-chip">
-              {genre.description}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {hasAppId && metaState === 'ready' && shortDesc ? (
-        <p className="crosshook-hero-detail__text crosshook-hero-detail__text--desc">{shortDesc}</p>
+      {hasAppId && metaState === 'ready' ? (
+        <>
+          <div className="crosshook-hero-detail__subsection">
+            <h4 className="crosshook-hero-detail__subsection-title">Summary</h4>
+            <div className="crosshook-hero-detail__kv-list">
+              <p className="crosshook-hero-detail__kv-item">
+                <span className="crosshook-hero-detail__kv-key">Steam App ID</span>
+                <span className="crosshook-hero-detail__kv-value crosshook-hero-detail__mono">{trimmedId}</span>
+              </p>
+              {steamName ? (
+                <p className="crosshook-hero-detail__kv-item">
+                  <span className="crosshook-hero-detail__kv-key">Steam title</span>
+                  <span className="crosshook-hero-detail__kv-value">{steamName}</span>
+                </p>
+              ) : null}
+            </div>
+          </div>
+          {genres.length > 0 ? (
+            <div className="crosshook-hero-detail__subsection">
+              <h4 className="crosshook-hero-detail__subsection-title">Genres</h4>
+              <ul aria-label="Genres" className="crosshook-hero-detail__genre-row">
+                {genres.map((genre) => (
+                  <li key={genre.id} className="crosshook-hero-detail__genre-chip">
+                    {genre.description}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {shortDesc ? (
+            <div className="crosshook-hero-detail__subsection">
+              <h4 className="crosshook-hero-detail__subsection-title">Description</h4>
+              <p className="crosshook-hero-detail__text crosshook-hero-detail__text--desc">{shortDesc}</p>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </section>
   );

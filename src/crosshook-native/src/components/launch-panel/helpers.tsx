@@ -1,12 +1,6 @@
 import type { ReactNode } from 'react';
-import type {
-  EnvVarSource,
-  LaunchPreview,
-  LaunchRequest,
-  LaunchValidationSeverity,
-  PatternMatch,
-  PreviewEnvVar,
-} from '../../types';
+import type { LaunchPreview, LaunchRequest, LaunchValidationSeverity, PatternMatch, PreviewEnvVar } from '../../types';
+import { groupPreviewEnvBySource, launchMethodLabel } from '../../utils/launchPreviewPresentation';
 
 export function severityIcon(severity: LaunchValidationSeverity): string {
   switch (severity) {
@@ -24,46 +18,12 @@ export function sortPatternMatchesBySeverity(matches: PatternMatch[]): PatternMa
   return [...matches].sort((a, b) => order[a.severity] - order[b.severity]);
 }
 
-export function sourceLabel(source: EnvVarSource): string {
-  switch (source) {
-    case 'proton_runtime':
-      return 'Proton Runtime';
-    case 'launch_optimization':
-      return 'Launch Optimization';
-    case 'host':
-      return 'Host';
-    case 'steam_proton':
-      return 'Steam Proton';
-    case 'profile_custom':
-      return 'Profile custom';
-  }
+export function methodLabel(method: string): string {
+  return launchMethodLabel(method);
 }
 
 export function groupEnvBySource(vars: PreviewEnvVar[]): [string, PreviewEnvVar[]][] {
-  const groups = new Map<string, PreviewEnvVar[]>();
-  for (const v of vars) {
-    const label = sourceLabel(v.source);
-    const list = groups.get(label);
-    if (list) {
-      list.push(v);
-    } else {
-      groups.set(label, [v]);
-    }
-  }
-  return Array.from(groups.entries());
-}
-
-export function methodLabel(method: string): string {
-  switch (method) {
-    case 'steam_applaunch':
-      return 'Steam Launch';
-    case 'proton_run':
-      return 'Proton Launch';
-    case 'native':
-      return 'Native Launch';
-    default:
-      return method;
-  }
+  return groupPreviewEnvBySource(vars);
 }
 
 export function isStale(generatedAt: string): boolean {
