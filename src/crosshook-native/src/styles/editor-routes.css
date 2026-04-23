@@ -31,3 +31,36 @@
   white-space: pre;
   word-break: normal;
 }
+
+/* Collapsible optional section — wraps low-priority fields in a <details> when collapsed. */
+.crosshook-optional-section {
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-sm);
+  padding: 8px 12px;
+}
+
+.crosshook-optional-section__summary {
+  cursor: pointer;
+  color: var(--crosshook-color-text-subtle);
+  font-size: 0.88rem;
+  font-weight: 500;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crosshook-optional-section__summary::-webkit-details-marker {
+  display: none;
+}
+
+.crosshook-optional-section__summary::before {
+  content: '▶';
+  font-size: 0.65em;
+  transition: transform 0.15s ease;
+}
+
+.crosshook-optional-section[open] > .crosshook-optional-section__summary::before {
+  transform: rotate(90deg);
+}

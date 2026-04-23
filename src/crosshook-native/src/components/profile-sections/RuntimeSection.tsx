@@ -7,6 +7,7 @@ import { validateSteamAppId } from '../../utils/art';
 import { chooseDirectory, chooseFile } from '../../utils/dialog';
 import { deriveSteamClientInstallPath } from '../../utils/steam';
 import AutoPopulate from '../AutoPopulate';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import type { ProtonInstallOption } from '../ProfileFormSections';
 import { FieldRow, LauncherMetadataFields, OptionalSection, ProtonPathField } from '../ProfileFormSections';
 import { InfoTooltip } from '../ui/InfoTooltip';
@@ -71,9 +72,7 @@ export function RuntimeSection({
         : 'Native Runtime';
 
   return (
-    <div className="crosshook-install-section">
-      <div className="crosshook-install-section-title">{runtimeTitle}</div>
-
+    <DashboardPanelSection titleAs="h3" eyebrow="Profile" title={runtimeTitle}>
       {launchMethod === 'steam_applaunch' ? (
         <>
           <div className="crosshook-install-grid">
@@ -346,7 +345,7 @@ export function RuntimeSection({
           </div>
         </OptionalSection>
       ) : null}
-    </div>
+    </DashboardPanelSection>
   );
 }
 
