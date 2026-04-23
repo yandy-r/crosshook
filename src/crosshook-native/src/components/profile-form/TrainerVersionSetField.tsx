@@ -13,6 +13,9 @@ export function TrainerVersionSetField({
   const { setting, error, success, setVersion, clearSuccess } = useSetTrainerVersion(profileName, onVersionSet);
 
   const handleSet = async () => {
+    if (setting || pendingVersion.trim().length === 0) {
+      return;
+    }
     const saved = await setVersion(pendingVersion);
     if (saved) {
       setPendingVersion('');

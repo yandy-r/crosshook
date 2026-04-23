@@ -1,5 +1,6 @@
 import { TooltipProvider } from '@radix-ui/react-tooltip';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CollectionsProvider } from '@/context/CollectionsContext';
@@ -183,6 +184,7 @@ describe('ProfilesRoute', () => {
       () => {
         const nameInput = screen.getByPlaceholderText('Enter or choose a profile name') as HTMLInputElement;
         expect(nameInput.value).toBe(PROFILE_NAME);
+        expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
       },
       { timeout: 3000 }
     );
@@ -222,15 +224,55 @@ describe('ProfilesRoute', () => {
   });
 
   it('(d) ProtonDB section renders without errors when protondb commands are seeded', async () => {
-    const { container } = renderProfilesRoute({
+    let profileListResolveFn: (() => void) | null = null;
+    const profileListCalled = new Promise<void>((resolve) => {
+      profileListResolveFn = resolve;
+    });
+    const user = userEvent.setup();
+
+    renderProfilesRoute({
       handlerOverrides: {
         ...baseOverrides,
+        profile_list: async () => {
+          profileListResolveFn?.();
+          return [];
+        },
+        profile_load: async () =>
+          makeProfileDraft({
+            game: { name: 'ProtonDB Game', executable_path: '/mock/game.exe' },
+            steam: {
+              enabled: true,
+              app_id: '1245620',
+              compatdata_path: '/mock/compatdata/1245620',
+              proton_path: '/mock/proton',
+              launcher: {
+                icon_path: '',
+                display_name: 'Steam',
+              },
+            },
+            launch: {
+              method: 'proton_run',
+              optimizations: { enabled_option_ids: [] },
+              custom_env_vars: {},
+            },
+          }),
         protondb_fetch_recommendations: async () => null,
       },
     });
 
     await waitFor(() => {
-      expect(container.querySelector('.crosshook-page-scroll-shell--profiles')).toBeInTheDocument();
+      expect(document.querySelector('.crosshook-page-scroll-shell--profiles')).toBeInTheDocument();
+    });
+    await profileListCalled;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    emitMockEvent('auto-load-profile', 'ProtonDB Game');
+    await waitFor(() => {
+      const nameInput = screen.getByPlaceholderText('Enter or choose a profile name') as HTMLInputElement;
+      expect(nameInput.value).toBe('ProtonDB Game');
+    });
+    await user.click(screen.getByRole('tab', { name: 'Runtime' }));
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Runtime' })).toHaveAttribute('data-state', 'active');
     });
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();

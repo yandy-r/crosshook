@@ -1,16 +1,17 @@
 import { TooltipProvider } from '@radix-ui/react-tooltip';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LaunchSubTabsProps } from '@/components/LaunchSubTabs';
 import { LaunchSubTabs } from '@/components/LaunchSubTabs';
 import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
-import { LaunchStateProvider } from '@/context/LaunchStateContext';
+import { LaunchStateProvider, useLaunchStateContext } from '@/context/LaunchStateContext';
 import { PreferencesProvider } from '@/context/PreferencesContext';
-import { ProfileProvider } from '@/context/ProfileContext';
+import { ProfileProvider, useProfileContext } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
+import { makeProfileDraft } from '@/test/fixtures';
 import { renderWithMocks } from '@/test/render';
 import type { LaunchAutoSaveStatus, LaunchMethod } from '@/types';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '@/types/profile';
@@ -58,7 +59,10 @@ const baseHandlerOverrides = {
   check_offline_readiness: async () => ({
     profile_name: 'test-profile',
     score: 100,
-    issues: [],
+    readiness_state: 'ready',
+    trainer_type: 'dll',
+    checks: [],
+    blocking_reasons: [],
     checked_at: '2026-04-23T12:00:00.000Z',
   }),
   check_game_running: async () => false,
@@ -102,9 +106,52 @@ function SubTabsTestProviders({ children }: { children: ReactNode }) {
   );
 }
 
-function renderSubTabs(props: LaunchSubTabsProps, options: Parameters<typeof renderWithMocks>[1] = {}) {
+function LaunchSubTabsSeed({ launchWarningsTrigger = 0 }: { launchWarningsTrigger?: number }) {
+  const { selectProfile, updateProfile } = useProfileContext();
+  const { launchGame } = useLaunchStateContext();
+  const handledTriggerRef = useRef(0);
+  const seededRef = useRef(false);
+
+  useEffect(() => {
+    if (seededRef.current) {
+      return;
+    }
+    seededRef.current = true;
+    updateProfile(() =>
+      makeProfileDraft({
+        game: { name: 'test-profile', executable_path: '/mock/game.exe' },
+        trainer: {
+          path: '/mock/trainer.exe',
+          type: 'dll',
+          loading_mode: 'source_directory',
+        },
+        runtime: { prefix_path: '/mock/pfx', proton_path: '/mock/proton', working_directory: '' },
+      })
+    );
+    void selectProfile('test-profile');
+  }, [selectProfile, updateProfile]);
+
+  useEffect(() => {
+    if (launchWarningsTrigger === 0 || handledTriggerRef.current === launchWarningsTrigger) {
+      return;
+    }
+    handledTriggerRef.current = launchWarningsTrigger;
+    void launchGame();
+  }, [launchGame, launchWarningsTrigger]);
+
+  return null;
+}
+
+function renderSubTabs(
+  props: LaunchSubTabsProps,
+  options: Parameters<typeof renderWithMocks>[1] = {},
+  seed: {
+    launchWarningsTrigger?: number;
+  } = {}
+) {
   return renderWithMocks(
     <SubTabsTestProviders>
+      <LaunchSubTabsSeed {...seed} />
       <LaunchSubTabs {...props} />
     </SubTabsTestProviders>,
     options
@@ -245,31 +292,20 @@ describe('LaunchSubTabs', () => {
     // Switch to Gamescope tab
     await user.click(screen.getByRole('tab', { name: 'Gamescope' }));
 
-    // All panels that use forceMount are kept in the DOM (hidden ones have hidden attribute)
-    // The tab panels should all be present regardless of active tab
     const allPanels = screen.getAllByRole('tabpanel', { hidden: true });
-    // proton_run has: optimizations, environment, mangohud, gamescope, offline = 5 panels
-    expect(allPanels.length).toBeGreaterThanOrEqual(3);
+    expect(allPanels).toHaveLength(5);
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it('(d) offline auto-switch fires when launchPathWarnings.length > 0 on first render with warnings', async () => {
-    // The offline auto-switch is driven by LaunchStateContext's launchPathWarnings.
-    // When there are path warnings, the component should auto-switch to 'offline' tab.
-    // We test that it renders in the correct initial tab based on context state.
-
-    // Default: no warnings → active tab = first tab for proton_run = 'optimizations'
+  it('(d) defaults to the first visible tab when no offline concern exists', async () => {
     renderSubTabs(makeSubTabsProps({ launchMethod: 'proton_run' }), {
       handlerOverrides: baseHandlerOverrides,
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: 'Optimizations' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Optimizations' })).toHaveAttribute('data-state', 'active');
     });
-
-    // The first tab for proton_run should be selected
-    expect(screen.getByRole('tab', { name: 'Optimizations' })).toHaveAttribute('data-state', 'active');
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
@@ -277,9 +313,17 @@ describe('LaunchSubTabs', () => {
   it('(d) autoSwitchedRef guard: auto-switch does not fire again after manual tab change', async () => {
     const user = userEvent.setup();
 
-    // Render with no offline concerns so no auto-switch occurs
-    renderSubTabs(makeSubTabsProps({ launchMethod: 'proton_run' }), {
-      handlerOverrides: baseHandlerOverrides,
+    const warning = { message: 'warn', help: 'fix it', severity: 'warning' as const };
+    const view = renderSubTabs(makeSubTabsProps({ launchMethod: 'proton_run' }), {
+      handlerOverrides: {
+        ...baseHandlerOverrides,
+        launch_game: async () => ({
+          ok: true,
+          profile_name: 'test-profile',
+          helper_log_path: null,
+          warnings: [warning],
+        }),
+      },
     });
 
     await waitFor(() => {
@@ -293,9 +337,16 @@ describe('LaunchSubTabs', () => {
       expect(screen.getByRole('tab', { name: 'Environment' })).toHaveAttribute('data-state', 'active');
     });
 
-    // After manual switch, autoSwitchedRef.current = true, so a subsequent
-    // offline concern would not auto-switch back. Verify we remain on Environment.
-    expect(screen.getByRole('tab', { name: 'Environment' })).toHaveAttribute('data-state', 'active');
+    view.rerender(
+      <SubTabsTestProviders>
+        <LaunchSubTabsSeed launchWarningsTrigger={1} />
+        <LaunchSubTabs {...makeSubTabsProps({ launchMethod: 'proton_run' })} />
+      </SubTabsTestProviders>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Environment' })).toHaveAttribute('data-state', 'active');
+    });
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });

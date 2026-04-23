@@ -47,9 +47,12 @@ export function useAutoSaveChip({
       setChipVisible(false);
     }
     return () => {
-      if (chipTimerRef.current !== null) clearTimeout(chipTimerRef.current);
+      if (chipTimerRef.current !== null) {
+        clearTimeout(chipTimerRef.current);
+        chipTimerRef.current = null;
+      }
     };
-  }, [combinedAutoSaveStatus.tone]);
+  }, [combinedAutoSaveStatus.tone, combinedAutoSaveStatus.label]);
 
   return { combinedAutoSaveStatus, chipVisible };
 }

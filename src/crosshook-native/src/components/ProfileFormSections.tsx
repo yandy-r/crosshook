@@ -84,7 +84,6 @@ export function ProfileFormSections(props: ProfileFormSectionsProps) {
     updateOverwriteResolution,
     clearOverwrite,
   } = useProtonDbApply({
-    profileName,
     profile,
     catalog,
     onUpdateProfile,

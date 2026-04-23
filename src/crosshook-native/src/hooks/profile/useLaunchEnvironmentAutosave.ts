@@ -17,6 +17,10 @@ export interface LaunchEnvironmentAutosave {
   ) => void;
 }
 
+function envVarSignature(envVars: Readonly<Record<string, string>>): string {
+  return JSON.stringify(Object.entries(envVars).sort(([left], [right]) => left.localeCompare(right)));
+}
+
 export function useLaunchEnvironmentAutosave({
   hasSavedSelectedProfile,
   profile,
@@ -59,17 +63,25 @@ export function useLaunchEnvironmentAutosave({
         return;
       }
       latestNextEnvVarsRef.current = { ...nextEnvVars };
+      const scheduledProfileName = latestProfileNameRef.current;
+      const scheduledEnvVars = { ...latestNextEnvVarsRef.current };
+      const scheduledEnvSignature = envVarSignature(scheduledEnvVars);
       if (environmentAutosaveTimerRef.current !== null) {
         clearTimeout(environmentAutosaveTimerRef.current);
       }
       environmentAutosaveTimerRef.current = setTimeout(() => {
+        if (latestProfileNameRef.current !== scheduledProfileName) {
+          return;
+        }
         const latestProfile = latestProfileRef.current;
-        const latestProfileName = latestProfileNameRef.current;
-        void persistProfileDraftRef.current(latestProfileName, {
+        if (envVarSignature(latestProfile.launch.custom_env_vars) === scheduledEnvSignature) {
+          return;
+        }
+        void persistProfileDraftRef.current(scheduledProfileName, {
           ...latestProfile,
           launch: {
             ...latestProfile.launch,
-            custom_env_vars: { ...latestNextEnvVarsRef.current },
+            custom_env_vars: scheduledEnvVars,
           },
         });
       }, 400);

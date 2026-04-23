@@ -20,6 +20,7 @@ export function ProtonPathField(props: {
   }, {});
   const selectId = useId();
   const inputId = useId();
+  const inputLabelId = `${inputId}-label`;
   const selectedInstallPath = props.installs.find((install) => install.path.trim() === props.value.trim())?.path ?? '';
 
   return (
@@ -44,6 +45,9 @@ export function ProtonPathField(props: {
         />
 
         <div className="crosshook-install-field-control">
+          <label id={inputLabelId} className="crosshook-visually-hidden" htmlFor={inputId}>
+            {`${props.label} path`}
+          </label>
           <input
             id={inputId}
             className="crosshook-input"
@@ -51,6 +55,7 @@ export function ProtonPathField(props: {
             value={props.value}
             onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange(event.target.value)}
             placeholder={props.placeholder}
+            aria-labelledby={inputLabelId}
           />
           <button
             type="button"

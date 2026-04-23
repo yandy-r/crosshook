@@ -11,6 +11,9 @@ export function FieldRow(props: {
   onBrowse?: () => Promise<void>;
 }) {
   const inputId = useId();
+  const helperId = props.helperText ? `${inputId}-helper` : undefined;
+  const errorId = props.error ? `${inputId}-error` : undefined;
+  const describedBy = [helperId, errorId].filter(Boolean).join(' ') || undefined;
 
   return (
     <div className="crosshook-field">
@@ -24,6 +27,8 @@ export function FieldRow(props: {
           style={{ flex: 1, minWidth: 0 }}
           value={props.value}
           placeholder={props.placeholder}
+          aria-invalid={Boolean(props.error)}
+          aria-describedby={describedBy}
           onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange(event.target.value)}
         />
         {props.onBrowse ? (
@@ -36,8 +41,16 @@ export function FieldRow(props: {
           </button>
         ) : null}
       </div>
-      {props.helperText ? <p className="crosshook-help-text">{props.helperText}</p> : null}
-      {props.error ? <p className="crosshook-danger">{props.error}</p> : null}
+      {props.helperText ? (
+        <p id={helperId} className="crosshook-help-text">
+          {props.helperText}
+        </p>
+      ) : null}
+      {props.error ? (
+        <p id={errorId} className="crosshook-danger">
+          {props.error}
+        </p>
+      ) : null}
     </div>
   );
 }

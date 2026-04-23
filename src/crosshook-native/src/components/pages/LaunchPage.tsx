@@ -58,7 +58,6 @@ export function LaunchPage() {
   );
 
   const protonDb = useProtonDbApply({
-    profileName: profileState.profileName,
     profile,
     catalog: profileState.catalog,
     onUpdateProfile: profileState.updateProfile,

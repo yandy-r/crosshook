@@ -91,6 +91,7 @@ test.describe('browser dev mode smoke', () => {
 
       const dashboardHeading = DASHBOARD_ROUTE_HEADINGS[route];
       if (dashboardHeading) {
+        const activeTabPanel = page.locator('[role="tabpanel"]:not([hidden])');
         // Scope to the DashboardPanelSection title to avoid collision with
         // RouteBanner headings that share the same text on some routes (e.g.
         // install has "Install & Run" in both the banner h1 and the panel h2).
@@ -98,11 +99,9 @@ test.describe('browser dev mode smoke', () => {
           page.locator('.crosshook-dashboard-panel-section__title', { hasText: dashboardHeading }).first()
         ).toBeVisible();
         await expect(
-          page
-            .locator(
-              '.crosshook-dashboard-route-body, .crosshook-host-tool-dashboard, .crosshook-install-page-tabs, .crosshook-settings-panel, .crosshook-community-browser, .crosshook-discovery-panel'
-            )
-            .first()
+          activeTabPanel.locator(
+            '.crosshook-dashboard-route-body, .crosshook-host-tool-dashboard, .crosshook-install-page-tabs, .crosshook-settings-panel, .crosshook-community-browser, .crosshook-discovery-panel, .crosshook-profiles-page__body, .crosshook-launch-page__grid'
+          )
         ).toBeVisible();
       }
 

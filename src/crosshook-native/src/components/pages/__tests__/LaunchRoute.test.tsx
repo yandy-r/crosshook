@@ -1,12 +1,13 @@
 import { TooltipProvider } from '@radix-ui/react-tooltip';
-import { screen, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { type ReactNode, useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
 import { LaunchStateProvider } from '@/context/LaunchStateContext';
 import { PreferencesProvider } from '@/context/PreferencesContext';
-import { ProfileProvider } from '@/context/ProfileContext';
+import { ProfileProvider, useProfileContext } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { emitMockEvent } from '@/lib/events';
 import { makeProfileDraft } from '@/test/fixtures';
@@ -43,7 +44,10 @@ const baseHandlerOverrides = {
   check_offline_readiness: async () => ({
     profile_name: DEMO_PROFILE_NAME,
     score: 100,
-    issues: [],
+    readiness_state: 'ready',
+    trainer_type: 'dll',
+    checks: [],
+    blocking_reasons: [],
     checked_at: '2026-04-23T12:00:00.000Z',
   }),
   check_game_running: async () => false,
@@ -97,10 +101,43 @@ function LaunchRouteProviders({ children }: { children: ReactNode }) {
   );
 }
 
-function renderLaunchRoute(options: Parameters<typeof renderWithMocks>[1] = {}) {
+function LaunchRouteSeed({
+  initialCollectionId,
+  initialSelectedProfile,
+}: {
+  initialCollectionId?: string;
+  initialSelectedProfile?: string;
+}) {
+  const { selectProfile, setActiveCollectionId } = useProfileContext();
+
+  useEffect(() => {
+    if (initialCollectionId !== undefined) {
+      setActiveCollectionId(initialCollectionId);
+    }
+  }, [initialCollectionId, setActiveCollectionId]);
+
+  useEffect(() => {
+    if (!initialSelectedProfile) {
+      return;
+    }
+    void selectProfile(initialSelectedProfile, {
+      collectionId: initialCollectionId,
+    });
+  }, [initialCollectionId, initialSelectedProfile, selectProfile]);
+
+  return <LaunchPage />;
+}
+
+function renderLaunchRoute(
+  options: Parameters<typeof renderWithMocks>[1] = {},
+  seed: {
+    initialCollectionId?: string;
+    initialSelectedProfile?: string;
+  } = {}
+) {
   return renderWithMocks(
     <LaunchRouteProviders>
-      <LaunchPage />
+      <LaunchRouteSeed {...seed} />
     </LaunchRouteProviders>,
     options
   );
@@ -150,36 +187,42 @@ describe('LaunchRoute', () => {
   });
 
   it('(a) collection chip reflects useCollectionMembers result — shows collection name when active', async () => {
-    renderLaunchRoute({
-      handlerOverrides: {
-        ...baseHandlerOverrides,
-        collection_list: async () => [
-          {
-            collection_id: 'col-1',
-            name: 'Action Games',
-            description: null,
-            profile_count: 1,
-            created_at: '2026-04-23T12:00:00.000Z',
-            updated_at: '2026-04-23T12:00:00.000Z',
-          },
-        ],
-        collection_list_profiles: async () => [DEMO_PROFILE_NAME],
+    renderLaunchRoute(
+      {
+        handlerOverrides: {
+          ...baseHandlerOverrides,
+          collection_list: async () => [
+            {
+              collection_id: 'col-1',
+              name: 'Action Games',
+              description: null,
+              profile_count: 1,
+              created_at: '2026-04-23T12:00:00.000Z',
+              updated_at: '2026-04-23T12:00:00.000Z',
+            },
+          ],
+          collection_list_profiles: async () => [DEMO_PROFILE_NAME],
+        },
       },
-    });
+      {
+        initialCollectionId: 'col-1',
+      }
+    );
 
-    // The profile selector area renders; page mounts without errors
     await waitFor(() => {
       expect(document.querySelector('.crosshook-page-scroll-shell--launch')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Action Games')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Clear collection filter' })).toBeInTheDocument();
     });
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it('(b) env-var autosave: hasSavedSelectedProfile gate blocks profile_save when profile not in list', async () => {
-    // hasSavedSelectedProfile = profileName === selectedProfile && profiles.includes(profileName)
-    // With profile_list returning only DEMO_PROFILE_NAME but profile_load returning null,
-    // selectedProfile never gets set, so the autosave gate blocks profile_save.
     const profileSaveSpy = vi.fn().mockResolvedValue(null);
+    const user = userEvent.setup();
 
     renderLaunchRoute({
       handlerOverrides: {
@@ -192,8 +235,19 @@ describe('LaunchRoute', () => {
       expect(document.querySelector('.crosshook-page-scroll-shell--launch')).toBeInTheDocument();
     });
 
-    // No profile has been loaded (profile_load is not called without selection),
-    // so hasSavedSelectedProfile = false and autosave is gated.
+    await user.click(screen.getByRole('tab', { name: 'Environment' }));
+    await user.click(screen.getByRole('button', { name: 'Add variable' }));
+    const keyInput = screen.getByLabelText('Key');
+    const valueInput = screen.getByLabelText('Value');
+    await user.type(keyInput, 'DXVK_HUD');
+    await user.type(valueInput, '1');
+    fireEvent.blur(valueInput);
+
+    await waitFor(() => {
+      expect((keyInput as HTMLInputElement).value).toBe('DXVK_HUD');
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+
     expect(profileSaveSpy).not.toHaveBeenCalled();
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
@@ -201,6 +255,7 @@ describe('LaunchRoute', () => {
 
   it('(c) hasSavedSelectedProfile gate blocks autosave when no profile selected', async () => {
     const profileSaveSpy = vi.fn().mockResolvedValue(null);
+    const user = userEvent.setup();
 
     renderLaunchRoute({
       handlerOverrides: {
@@ -215,47 +270,70 @@ describe('LaunchRoute', () => {
       expect(document.querySelector('.crosshook-page-scroll-shell--launch')).toBeInTheDocument();
     });
 
-    // No profile loaded → hasSavedSelectedProfile = false → autosave gated
+    await user.click(screen.getByRole('tab', { name: 'Environment' }));
+    await user.click(screen.getByRole('button', { name: 'Add variable' }));
+    const keyInput = screen.getByLabelText('Key');
+    const valueInput = screen.getByLabelText('Value');
+    await user.type(keyInput, 'WINEDEBUG');
+    await user.type(valueInput, '-all');
+    fireEvent.blur(valueInput);
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+
     expect(profileSaveSpy).not.toHaveBeenCalled();
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it('(d) handleBeforeLaunch silent-catches getDependencyStatus rejection and allows launch', async () => {
-    // When getDependencyStatus throws, handleBeforeLaunch returns true (allow launch)
-    // and does NOT bubble the error. We verify no unhandled error surfaces.
-    renderLaunchRoute({
-      handlerOverrides: {
-        ...baseHandlerOverrides,
-        get_dependency_status: async () => {
-          throw new Error('network error');
-        },
-        profile_load: async () =>
-          makeProfileDraft({
-            game: { name: DEMO_PROFILE_NAME, executable_path: '/mock/game.exe' },
-            // Set required_protontricks to trigger the dep gate check path
-            trainer: {
-              path: '/mock/trainer.exe',
-              type: 'dll',
-              loading_mode: 'source_directory',
-              required_protontricks: ['vcrun2019'],
-            },
-            runtime: { prefix_path: '/mock/pfx', proton_path: '', working_directory: '' },
-          }),
-        launch_game: async () => ({
-          ok: true,
-          profile_name: DEMO_PROFILE_NAME,
-          helper_log_path: null,
-        }),
-        validate_launch: async () => null,
-      },
+    const getDependencyStatusSpy = vi.fn(async () => {
+      throw new Error('network error');
     });
+    const launchGameSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      profile_name: DEMO_PROFILE_NAME,
+      helper_log_path: null,
+    });
+    const user = userEvent.setup();
+
+    renderLaunchRoute(
+      {
+        handlerOverrides: {
+          ...baseHandlerOverrides,
+          get_dependency_status: getDependencyStatusSpy,
+          profile_load: async () =>
+            makeProfileDraft({
+              game: { name: DEMO_PROFILE_NAME, executable_path: '/mock/game.exe' },
+              // Set required_protontricks to trigger the dep gate check path
+              trainer: {
+                path: '/mock/trainer.exe',
+                type: 'dll',
+                loading_mode: 'source_directory',
+                required_protontricks: ['vcrun2019'],
+              },
+              runtime: { prefix_path: '/mock/pfx', proton_path: '', working_directory: '' },
+            }),
+          launch_game: launchGameSpy,
+          validate_launch: async () => null,
+        },
+      },
+      {
+        initialSelectedProfile: DEMO_PROFILE_NAME,
+      }
+    );
 
     await waitFor(() => {
       expect(document.querySelector('.crosshook-page-scroll-shell--launch')).toBeInTheDocument();
     });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Launch Game' })).toBeEnabled();
+    });
 
-    // Page renders without errors — getDependencyStatus error was silent-caught
+    await user.click(screen.getByRole('button', { name: 'Launch Game' }));
+    await waitFor(() => {
+      expect(getDependencyStatusSpy).toHaveBeenCalled();
+      expect(launchGameSpy).toHaveBeenCalled();
+    });
+
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 

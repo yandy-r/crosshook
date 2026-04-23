@@ -93,7 +93,7 @@ export function useLaunchPageState() {
 
   const showNetworkIsolationBadge = useCallback(
     (profileName: string) => {
-      if (!launchPlatform || launchPlatform.unshareNetAvailable || !profileName.trim()) {
+      if (!launchPlatform || !launchPlatform.unshareNetAvailable || !profileName.trim()) {
         return false;
       }
       return profileNetworkIsolation[profileName] === true;

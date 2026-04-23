@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
-export function OptionalSection(props: { summary: string; children: ReactNode; collapsed: boolean }) {
-  if (!props.collapsed) {
+export function OptionalSection(props: { summary: string; children: ReactNode; collapsible: boolean }) {
+  if (!props.collapsible) {
     return <>{props.children}</>;
   }
 

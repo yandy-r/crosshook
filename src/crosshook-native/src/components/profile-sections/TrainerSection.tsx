@@ -66,7 +66,7 @@ export function TrainerSection({
         onClose={() => setTrainerInfoModal(null)}
       />
 
-      <OptionalSection summary="Trainer details" collapsed={trainerCollapsed}>
+      <OptionalSection summary="Trainer details" collapsible={trainerCollapsed}>
         <div className="crosshook-install-grid">
           <FieldRow
             label="Trainer Path"

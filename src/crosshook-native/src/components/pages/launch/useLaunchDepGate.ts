@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import { useLaunchStateContext } from '../../../context/LaunchStateContext';
 import { useLaunchPrefixDependencyGate } from '../../../hooks/useLaunchPrefixDependencyGate';
@@ -33,40 +33,51 @@ export function useLaunchDepGate({
   const [depGatePackages, setDepGatePackages] = useState<string[] | null>(null);
   const [depGatePendingAction, setDepGatePendingAction] = useState<'game' | 'trainer' | null>(null);
   const [depGateInstalling, setDepGateInstalling] = useState(false);
+  const pendingActionRef = useRef<'game' | 'trainer' | null>(depGatePendingAction);
+  const unlistenPrefixDepRef = useRef<(() => void) | null>(null);
 
-  // Listen for prefix-dep-complete events while installing
   useEffect(() => {
-    if (!depGateInstalling) return;
+    pendingActionRef.current = depGatePendingAction;
+  }, [depGatePendingAction]);
 
-    const prefixPath = profile.runtime?.prefix_path ?? profile.steam?.compatdata_path ?? '';
+  const clearPrefixDepListener = useCallback(() => {
+    unlistenPrefixDepRef.current?.();
+    unlistenPrefixDepRef.current = null;
+  }, []);
 
-    const unlistenPromise = subscribeEvent<{
-      profile_name: string;
-      prefix_path: string;
-      succeeded: boolean;
-    }>('prefix-dep-complete', (event) => {
-      if (event.payload.profile_name !== selectedName || event.payload.prefix_path !== prefixPath) return;
+  const installPrefixDependencyWithListener = useCallback(
+    async (profileName: string, prefixPath: string, packages: string[]) => {
+      clearPrefixDepListener();
+      const unlisten = await subscribeEvent<{
+        profile_name: string;
+        prefix_path: string;
+        succeeded: boolean;
+      }>('prefix-dep-complete', (event) => {
+        if (event.payload.profile_name !== profileName || event.payload.prefix_path !== prefixPath) {
+          return;
+        }
 
-      setDepGateInstalling(false);
-      if (event.payload.succeeded) {
-        const action = depGatePendingAction;
+        clearPrefixDepListener();
+        setDepGateInstalling(false);
         setDepGatePackages(null);
+        const action = pendingActionRef.current;
         setDepGatePendingAction(null);
+        if (!event.payload.succeeded) {
+          return;
+        }
         if (action === 'game') {
           launchGame();
         } else if (action === 'trainer') {
           launchTrainer();
         }
-      } else {
-        setDepGatePackages(null);
-        setDepGatePendingAction(null);
-      }
-    });
+      });
+      unlistenPrefixDepRef.current = unlisten;
+      await installPrefixDependency(profileName, prefixPath, packages);
+    },
+    [clearPrefixDepListener, installPrefixDependency, launchGame, launchTrainer]
+  );
 
-    return () => {
-      void unlistenPromise.then((fn) => fn());
-    };
-  }, [depGateInstalling, selectedName, profile, depGatePendingAction, launchGame, launchTrainer]);
+  useEffect(() => clearPrefixDepListener, [clearPrefixDepListener]);
 
   const handleBeforeLaunch = useCallback(
     async (action: 'game' | 'trainer'): Promise<boolean> => {
@@ -94,8 +105,9 @@ export function useLaunchDepGate({
           setDepGatePendingAction(action);
           setDepGateInstalling(true);
           try {
-            await installPrefixDependency(selectedName, prefixPath, missing);
+            await installPrefixDependencyWithListener(selectedName, prefixPath, missing);
           } catch {
+            clearPrefixDepListener();
             setDepGateInstalling(false);
             setDepGatePackages(null);
             setDepGatePendingAction(null);
@@ -112,7 +124,14 @@ export function useLaunchDepGate({
         return true;
       }
     },
-    [profile, selectedName, autoInstallPrefixDeps, getDependencyStatus, installPrefixDependency]
+    [
+      profile,
+      selectedName,
+      autoInstallPrefixDeps,
+      clearPrefixDepListener,
+      getDependencyStatus,
+      installPrefixDependencyWithListener,
+    ]
   );
 
   return {
@@ -124,6 +143,6 @@ export function useLaunchDepGate({
     setDepGatePendingAction,
     setDepGateInstalling,
     handleBeforeLaunch,
-    installPrefixDependency,
+    installPrefixDependency: installPrefixDependencyWithListener,
   };
 }

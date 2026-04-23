@@ -55,12 +55,15 @@ export function LaunchProfileSelector({
         pinnedValues={pinnedSet}
         onTogglePin={onTogglePin}
         ariaLabelledby="launch-active-profile-label"
-        options={filteredProfiles.map((name) => ({
-          value: name,
-          label: name,
-          badge: showNetworkIsolationBadge(name) ? NETWORK_ISOLATION_BADGE : undefined,
-          badgeTitle: showNetworkIsolationBadge(name) ? NETWORK_ISOLATION_BADGE_TITLE : undefined,
-        }))}
+        options={filteredProfiles.map((name) => {
+          const hasNetBadge = showNetworkIsolationBadge(name);
+          return {
+            value: name,
+            label: name,
+            badge: hasNetBadge ? NETWORK_ISOLATION_BADGE : undefined,
+            badgeTitle: hasNetBadge ? NETWORK_ISOLATION_BADGE_TITLE : undefined,
+          };
+        })}
       />
     </div>
   );

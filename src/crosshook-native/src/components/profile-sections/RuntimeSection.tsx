@@ -218,7 +218,7 @@ export function RuntimeSection({
               <LauncherMetadataFields profile={profile} onUpdateProfile={onUpdateProfile} />
             ) : null}
 
-            <OptionalSection summary="Working directory override" collapsed={workingDirectoryCollapsed}>
+            <OptionalSection summary="Working directory override" collapsible={workingDirectoryCollapsed}>
               <FieldRow
                 label="Working Directory"
                 value={profile.runtime.working_directory}
@@ -318,7 +318,7 @@ export function RuntimeSection({
       ) : null}
 
       {launchMethod === 'native' ? (
-        <OptionalSection summary="Working directory override" collapsed={workingDirectoryCollapsed}>
+        <OptionalSection summary="Working directory override" collapsible={workingDirectoryCollapsed}>
           <div className="crosshook-install-grid" style={{ marginTop: 16 }}>
             <FieldRow
               label="Working Directory"

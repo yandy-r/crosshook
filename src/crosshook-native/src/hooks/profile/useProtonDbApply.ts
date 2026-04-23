@@ -9,7 +9,6 @@ import {
 } from '../../utils/protondb';
 
 export interface UseProtonDbApplyInput {
-  profileName: string;
   profile: GameProfile;
   catalog: OptimizationCatalogPayload | null | undefined;
   onUpdateProfile: (updater: (current: GameProfile) => GameProfile) => void;
