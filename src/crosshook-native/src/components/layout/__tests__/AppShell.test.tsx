@@ -195,4 +195,69 @@ describe('AppShell (integration)', () => {
       rectSpy.mockRestore();
     }
   });
+
+  it('opens the command palette with Ctrl+K and focuses the search input', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await user.keyboard('{Control>}k{/Control}');
+      const search = await screen.findByRole('searchbox', { name: 'Search commands' });
+      expect(search).toHaveFocus();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('executes a palette command to navigate routes', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await user.keyboard('{Control>}k{/Control}');
+      const search = await screen.findByRole('searchbox', { name: 'Search commands' });
+      await user.click(search);
+      await user.clear(search);
+      await user.type(search, 'settings');
+      await user.keyboard('{Enter}');
+
+      await waitFor(() => {
+        expect(screen.getByRole('tab', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('restores focus to the invoking palette button after Escape close', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      const trigger = screen.getByRole('button', { name: 'Open command palette' });
+      await user.click(trigger);
+
+      const search = await screen.findByRole('searchbox', { name: 'Search commands' });
+      expect(search).toHaveFocus();
+
+      await user.keyboard('{Escape}');
+      await waitFor(() => {
+        expect(screen.queryByRole('searchbox', { name: 'Search commands' })).not.toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(trigger).toHaveFocus();
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
 });

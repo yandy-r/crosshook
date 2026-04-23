@@ -11,6 +11,7 @@ import ControllerPrompts from '@/components/layout/ControllerPrompts';
 import { Inspector } from '@/components/layout/Inspector';
 import Sidebar, { type AppRoute } from '@/components/layout/Sidebar';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
+import { CommandPalette } from '@/components/palette/CommandPalette';
 import { useInspectorSelection } from '@/context/InspectorSelectionContext';
 import { LaunchStateProvider } from '@/context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from '@/context/PreferencesContext';
@@ -18,7 +19,14 @@ import { useProfileContext } from '@/context/ProfileContext';
 import { useHighContrastTheme } from '@/hooks/useAccessibilityEnhancements';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useCollections } from '@/hooks/useCollections';
+import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { useFlatpakMigrationToast } from '@/hooks/useFlatpakMigrationToast';
+import {
+  type CommandPaletteCommand,
+  createProfileCommands,
+  isCommandPaletteCommandEnabled,
+  ROUTE_COMMANDS,
+} from '@/lib/commands';
 import { subscribeEvent } from '@/lib/events';
 import { isAppRoute } from '@/lib/validAppRoutes';
 import type { OnboardingCheckPayload } from '@/types/onboarding';
@@ -52,8 +60,10 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
     useProfileContext();
   const [route, setRoute] = useState<AppRoute>('library');
   const lastProfile = profileName.trim() || selectedProfile;
+  const activeProfileName = selectedProfile.trim();
   const shellRef = useRef<HTMLDivElement>(null);
   const consolePanelRef = useRef<PanelImperativeHandle>(null);
+  const paletteRestoreTargetRef = useRef<HTMLElement | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const breakpoint = useBreakpoint(shellRef);
   const sidebarVariant = sidebarVariantFromBreakpoint(breakpoint.size, breakpoint.height);
@@ -169,6 +179,122 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
     setShowOnboarding(false);
   }, []);
 
+  const commands = useMemo<readonly CommandPaletteCommand[]>(() => {
+    return [...ROUTE_COMMANDS, ...createProfileCommands(activeProfileName)];
+  }, [activeProfileName]);
+
+  const handleExecuteCommand = useCallback(
+    async (command: CommandPaletteCommand) => {
+      if (!isCommandPaletteCommandEnabled(command)) {
+        return;
+      }
+
+      switch (command.action) {
+        case 'route':
+          setRoute(command.route);
+          return;
+        case 'launch_profile':
+          await selectProfile(command.profileName);
+          setRoute('launch');
+          return;
+        case 'edit_profile':
+          await selectProfile(command.profileName);
+          setRoute('profiles');
+          return;
+        default: {
+          const _exhaustive: never = command;
+          return _exhaustive;
+        }
+      }
+    },
+    [selectProfile, setRoute]
+  );
+
+  const {
+    open: paletteOpen,
+    query: paletteQuery,
+    filteredCommands,
+    activeId: paletteActiveId,
+    openPalette: openPaletteFromHook,
+    closePalette,
+    setQuery: setPaletteQuery,
+    moveActive,
+  } = useCommandPalette({
+    commands,
+    onExecuteCommand: async (command) => {
+      await handleExecuteCommand(command);
+    },
+  });
+
+  const handleExecutePaletteCommand = useCallback(
+    async (command: CommandPaletteCommand) => {
+      await handleExecuteCommand(command);
+      closePalette();
+    },
+    [closePalette, handleExecuteCommand]
+  );
+
+  const openPalette = useCallback(
+    (restoreFocusTo?: HTMLElement | null) => {
+      if (restoreFocusTo instanceof HTMLElement && restoreFocusTo.isConnected) {
+        paletteRestoreTargetRef.current = restoreFocusTo;
+      } else if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+        paletteRestoreTargetRef.current = document.activeElement;
+      } else {
+        paletteRestoreTargetRef.current = null;
+      }
+
+      openPaletteFromHook();
+    },
+    [openPaletteFromHook]
+  );
+
+  const handleClosePalette = useCallback(() => {
+    const restoreTarget = paletteRestoreTargetRef.current;
+    paletteRestoreTargetRef.current = null;
+    closePalette();
+
+    if (restoreTarget instanceof HTMLElement) {
+      queueMicrotask(() => {
+        if (restoreTarget.isConnected) {
+          restoreTarget.focus();
+        }
+      });
+    }
+  }, [closePalette]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const handleDocumentKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat) {
+        return;
+      }
+
+      if (event.key.toLowerCase() !== 'k') {
+        return;
+      }
+
+      if ((!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey) {
+        return;
+      }
+
+      event.preventDefault();
+      if (paletteOpen) {
+        return;
+      }
+
+      openPalette();
+    };
+
+    document.addEventListener('keydown', handleDocumentKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleDocumentKeyDown);
+    };
+  }, [openPalette, paletteOpen]);
+
   return (
     <Tooltip.Provider delayDuration={200}>
       <PreferencesProvider activeProfileName={lastProfile}>
@@ -211,7 +337,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                     resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
                   >
                     <Panel className="crosshook-shell-panel" defaultSize="80%" minSize="28%">
-                      <ContentArea route={route} onNavigate={setRoute} />
+                      <ContentArea route={route} onNavigate={setRoute} onOpenCommandPalette={openPalette} />
                     </Panel>
                     <Separator className="crosshook-resize-handle crosshook-resize-handle--horizontal" />
                     <Panel
@@ -256,6 +382,16 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
               onOpenHostToolDashboard={handleOpenOnboardingHostToolDashboard}
             />
           )}
+          <CommandPalette
+            open={paletteOpen}
+            query={paletteQuery}
+            commands={filteredCommands}
+            activeId={paletteActiveId}
+            onClose={handleClosePalette}
+            onQueryChange={setPaletteQuery}
+            onMoveActive={moveActive}
+            onExecuteCommand={handleExecutePaletteCommand}
+          />
           <CollectionViewModal
             open={collectionModalOpen}
             collectionId={openCollectionId}

@@ -21,7 +21,7 @@ interface LibraryToolbarProps {
   onSortChange: (key: LibrarySortKey) => void;
   filter: LibraryFilterKey;
   onFilterChange: (key: LibraryFilterKey) => void;
-  onOpenCommandPalette?: () => void;
+  onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
 }
 
 export function LibraryToolbar({
@@ -119,7 +119,7 @@ export function LibraryToolbar({
           type="button"
           className="crosshook-library-toolbar__palette-trigger"
           aria-label="Open command palette"
-          onClick={() => onOpenCommandPalette()}
+          onClick={(event) => onOpenCommandPalette?.(event.currentTarget)}
         >
           ⌘K
         </button>

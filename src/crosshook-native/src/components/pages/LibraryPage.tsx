@@ -32,9 +32,10 @@ function loadViewMode(): LibraryViewMode {
 
 interface LibraryPageProps {
   onNavigate?: (route: AppRoute) => void;
+  onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
 }
 
-export function LibraryPage({ onNavigate }: LibraryPageProps) {
+export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPageProps) {
   const { profiles, favoriteProfiles, selectProfile, toggleFavorite, refreshProfiles, activeCollectionId } =
     useProfileContext();
   const {
@@ -265,9 +266,12 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     return () => setLibraryInspectorHandlers(undefined);
   }, [handleLaunch, handleEdit, handleToggleFavorite, setLibraryInspectorHandlers]);
 
-  const handleOpenCommandPalette = useCallback(() => {
-    console.debug('Command palette (Phase 6)');
-  }, []);
+  const handleOpenCommandPalette = useCallback(
+    (restoreFocusTo?: HTMLElement | null) => {
+      onOpenCommandPalette?.(restoreFocusTo);
+    },
+    [onOpenCommandPalette]
+  );
 
   const detailSummary =
     detailName == null ? null : (summaries.find((s) => s.name === detailName) ?? detailSummarySnapshot);

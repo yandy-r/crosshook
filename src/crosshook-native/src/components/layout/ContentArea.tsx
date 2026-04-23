@@ -16,9 +16,10 @@ import type { AppRoute } from './Sidebar';
 export interface ContentAreaProps {
   route: AppRoute;
   onNavigate?: (route: AppRoute) => void;
+  onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
 }
 
-export function ContentArea({ route, onNavigate }: ContentAreaProps) {
+export function ContentArea({ route, onNavigate, onOpenCommandPalette }: ContentAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -57,7 +58,7 @@ export function ContentArea({ route, onNavigate }: ContentAreaProps) {
       case 'proton-manager':
         return <ProtonManagerPage />;
       case 'library':
-        return <LibraryPage onNavigate={onNavigate} />;
+        return <LibraryPage onNavigate={onNavigate} onOpenCommandPalette={onOpenCommandPalette} />;
       default: {
         const _exhaustive: never = route;
         return _exhaustive;
