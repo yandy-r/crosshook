@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useProtonManager } from '../../hooks/useProtonManager';
 import { classifyInstallProvider, normalizeInstallToTag } from '../../lib/protonup/classifyInstall';
 import type { ProtonUpAvailableVersion, ProtonUpInstallRequest } from '../../types/protonup';
+import { AvailableVersionsSection } from './AvailableVersionsSection';
+import { InstalledVersionsSection } from './InstalledVersionsSection';
 import { InstallProgressBar } from './InstallProgressBar';
 import { InstallRootBadge } from './InstallRootBadge';
 import { ProviderPicker } from './ProviderPicker';
-import { VersionRow } from './VersionRow';
 
 interface ProtonManagerPanelProps {
   steamClientInstallPath?: string;
@@ -430,74 +431,30 @@ export function ProtonManagerPanel({ steamClientInstallPath }: ProtonManagerPane
         </div>
       ) : null}
 
-      <ul className="crosshook-proton-manager__list" aria-label="Proton versions">
-        {displayedInstalls.length > 0 ? (
-          <>
-            <li className="crosshook-proton-manager__section-label" aria-hidden="true">
-              Installed
-            </li>
-            {displayedInstalls.map(({ install, classified, catalogMatch }) => {
-              const rowProvider = classified ?? 'unknown';
-              return (
-                <li key={install.path}>
-                  <VersionRow
-                    version={install.name}
-                    provider={rowProvider}
-                    installed={true}
-                    installing={false}
-                    canInstall={false}
-                    onInstall={() => undefined}
-                    onUninstall={() => void handleUninstall(install.path, install.name)}
-                    publishedAt={catalogMatch?.published_at ?? null}
-                    assetSize={catalogMatch?.asset_size ?? null}
-                  />
-                </li>
-              );
-            })}
-          </>
-        ) : null}
+      <InstalledVersionsSection
+        installs={displayedInstalls.map(({ install, classified, catalogMatch }) => ({
+          install,
+          rowProvider: classified ?? 'unknown',
+          publishedAt: catalogMatch?.published_at ?? null,
+          assetSize: catalogMatch?.asset_size ?? null,
+        }))}
+        onUninstall={(toolPath, versionLabel) => {
+          void handleUninstall(toolPath, versionLabel);
+        }}
+      />
 
-        {manager.catalog.catalogLoading ? (
-          <li>
-            <p className="crosshook-proton-manager__empty crosshook-muted">Loading catalog…</p>
-          </li>
-        ) : availableVersions.length > 0 ? (
-          <>
-            <li className="crosshook-proton-manager__section-label" aria-hidden="true">
-              Available
-            </li>
-            {availableVersions.map((v) => {
-              const providerDescriptor = providersById.get(v.provider);
-              const providerSupportsInstall = providerDescriptor?.supports_install ?? false;
-              const rowCanInstall = Boolean(effectiveRoot?.writable) && providerSupportsInstall;
-              const key = `${v.provider}:${v.version}`;
-              return (
-                <li key={key}>
-                  <VersionRow
-                    version={v.version}
-                    provider={v.provider}
-                    installed={false}
-                    installing={installingKeys.has(key)}
-                    canInstall={rowCanInstall}
-                    onInstall={() => void handleInstall(v)}
-                    onUninstall={() => undefined}
-                    publishedAt={v.published_at ?? null}
-                    assetSize={v.asset_size ?? null}
-                  />
-                </li>
-              );
-            })}
-          </>
-        ) : !manager.catalog.catalogLoading && availableVersions.length === 0 && displayedInstalls.length === 0 ? (
-          <li>
-            <p className="crosshook-proton-manager__empty crosshook-muted">
-              {manager.selectedProviderId === null
-                ? 'No Proton versions found.'
-                : 'No versions found for this provider.'}
-            </p>
-          </li>
-        ) : null}
-      </ul>
+      <AvailableVersionsSection
+        versions={availableVersions}
+        providersById={providersById}
+        installingKeys={installingKeys}
+        selectedProviderId={manager.selectedProviderId}
+        catalogLoading={manager.catalog.catalogLoading}
+        canInstallToSelectedRoot={Boolean(effectiveRoot?.writable)}
+        hasInstalledVersions={displayedInstalls.length > 0}
+        onInstall={(version) => {
+          void handleInstall(version);
+        }}
+      />
     </div>
   );
 }

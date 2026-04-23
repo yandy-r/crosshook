@@ -5,7 +5,7 @@ import { ROUTE_NAV_LABEL } from '../src/components/layout/routeMetadata';
 import { attachConsoleCapture, type ConsoleCapture } from './helpers';
 
 /**
- * Smoke test the 9 application routes in browser dev mode.
+ * Smoke test the application routes in browser dev mode.
  *
  * Routing model: CrossHook does NOT use URL-based routing. The sidebar is a
  * Radix `Tabs.Root` whose `value` is held in React state inside `AppShell`.
@@ -35,12 +35,21 @@ const ROUTE_ORDER: readonly AppRoute[] = [
   'profiles',
   'launch',
   'install',
+  'health',
+  'host-tools',
+  'proton-manager',
   'community',
   'discover',
   'compatibility',
   'settings',
-  'health',
 ];
+
+const DASHBOARD_ROUTE_HEADINGS: Partial<Record<AppRoute, string>> = {
+  health: 'Monitor profile readiness across launch, version, and offline checks',
+  'host-tools': 'Check runtime coverage before you launch',
+  'proton-manager': 'Manage installed Proton builds with clearer route context',
+  compatibility: 'Keep trainer reports and Proton runtimes in the same workflow',
+};
 
 // Labels from ROUTE_NAV_LABEL (routeMetadata.ts) — same source as Sidebar triggers.
 const ROUTES: readonly RouteDef[] = ROUTE_ORDER.map((route) => ({
@@ -75,6 +84,12 @@ test.describe('browser dev mode smoke', () => {
       await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {
         /* expected: no network in mock mode */
       });
+
+      const dashboardHeading = DASHBOARD_ROUTE_HEADINGS[route];
+      if (dashboardHeading) {
+        await expect(page.getByRole('heading', { name: dashboardHeading, exact: true })).toBeVisible();
+        await expect(page.locator('.crosshook-dashboard-route-body, .crosshook-host-tool-dashboard').first()).toBeVisible();
+      }
 
       await page.screenshot({
         path: `test-results/smoke-${route}.png`,

@@ -139,12 +139,21 @@ export function CompatibilityViewer({
   }, [deferredGameFilter, deferredPlatformFilter, deferredTrainerFilter, entries]);
 
   return (
-    <section className="crosshook-card crosshook-compatibility-viewer" aria-label="Trainer compatibility viewer">
-      <header className="crosshook-compatibility-viewer__header">
-        <h2 className="crosshook-heading-title crosshook-heading-title--card">{title}</h2>
-        <p className="crosshook-heading-copy">{description}</p>
-        <div className="crosshook-status-chip crosshook-compatibility-viewer__count">
-          {filteredEntries.length} of {entries.length} entries
+    <section className="crosshook-compatibility-viewer crosshook-dashboard-route-section-stack" aria-label={title}>
+      <header className="crosshook-dashboard-panel-section__header crosshook-compatibility-viewer__header">
+        <div className="crosshook-dashboard-panel-section__heading-group">
+          <p className="crosshook-dashboard-panel-section__eyebrow crosshook-heading-eyebrow">Trainer database</p>
+          <div className="crosshook-dashboard-panel-section__title-group">
+            <h3 className="crosshook-heading-title crosshook-heading-title--card crosshook-dashboard-panel-section__title">
+              {title}
+            </h3>
+            <p className="crosshook-dashboard-panel-section__summary crosshook-heading-copy">{description}</p>
+          </div>
+        </div>
+        <div className="crosshook-dashboard-panel-section__actions">
+          <div className="crosshook-status-chip crosshook-compatibility-viewer__count">
+            {filteredEntries.length} of {entries.length} entries
+          </div>
         </div>
       </header>
 
