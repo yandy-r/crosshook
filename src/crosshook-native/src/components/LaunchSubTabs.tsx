@@ -3,7 +3,6 @@ import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { useLaunchStateContext } from '../context/LaunchStateContext';
 import { useGameCoverArt } from '../hooks/useGameCoverArt';
 import { useImageDominantColor } from '../hooks/useImageDominantColor';
-import { GameMetadataBar } from './profile-sections/GameMetadataBar';
 import { EnvironmentTabContent } from './launch-subtabs/EnvironmentTabContent';
 import { GamescopeTabContent } from './launch-subtabs/GamescopeTabContent';
 import { MangoHudTabContent } from './launch-subtabs/MangoHudTabContent';
@@ -13,6 +12,7 @@ import { SteamOptionsTabContent } from './launch-subtabs/SteamOptionsTabContent'
 import { TAB_LABELS } from './launch-subtabs/types';
 import { useAutoSaveChip } from './launch-subtabs/useAutoSaveChip';
 import { useTabVisibility } from './launch-subtabs/useTabVisibility';
+import { GameMetadataBar } from './profile-sections/GameMetadataBar';
 
 export type { LaunchSubTabId, LaunchSubTabsProps } from './launch-subtabs/types';
 
@@ -64,6 +64,8 @@ export function LaunchSubTabs({
   const [activeTab, setActiveTab] = useState(tabs[0] ?? 'environment');
   const autoSwitchedRef = useRef(false);
 
+  // Single instance — AUTOSAVE_CHIP_MERGE_PATTERN; chip repositioned into active
+  // panel header actions slot, never cloned per tab.
   const { combinedAutoSaveStatus, chipVisible } = useAutoSaveChip({
     launchOptimizationsStatus,
     gamescopeAutoSaveStatus,
@@ -108,6 +110,19 @@ export function LaunchSubTabs({
 
   const showCoverArt = Boolean(coverArtUrl) || coverArtLoading;
 
+  // Render the autosave chip only when visible and non-idle.
+  // Passed as `chipSlot` to the active tab's DashboardPanelSection actions.
+  const autoSaveChipSlot =
+    chipVisible && combinedAutoSaveStatus.tone !== 'idle' ? (
+      <span
+        className={`crosshook-launch-autosave-chip crosshook-launch-autosave-chip--${combinedAutoSaveStatus.tone}`}
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {combinedAutoSaveStatus.label}
+      </span>
+    ) : null;
+
   return (
     <div className="crosshook-panel crosshook-launch-subtabs crosshook-subtabs-shell">
       <Tabs.Root
@@ -150,22 +165,13 @@ export function LaunchSubTabs({
                 {TAB_LABELS[tab]}
               </Tabs.Trigger>
             ))}
-            {chipVisible && combinedAutoSaveStatus.tone !== 'idle' ? (
-              <span
-                className={`crosshook-launch-autosave-chip crosshook-launch-autosave-chip--${combinedAutoSaveStatus.tone}`}
-                aria-live="polite"
-                aria-atomic="true"
-              >
-                {combinedAutoSaveStatus.label}
-              </span>
-            ) : null}
           </Tabs.List>
 
           <div className="crosshook-subtabs-metadata">
             <GameMetadataBar steamAppId={steamAppId} />
           </div>
 
-          <OfflineTabContent activeTab={activeTab} />
+          <OfflineTabContent activeTab={activeTab} chipSlot={activeTab === 'offline' ? autoSaveChipSlot : null} />
 
           {showsGamescopeTab ? (
             <GamescopeTabContent
@@ -173,6 +179,7 @@ export function LaunchSubTabs({
               gamescopeConfig={gamescopeConfig}
               onGamescopeChange={onGamescopeChange}
               isInsideGamescopeSession={isInsideGamescopeSession}
+              chipSlot={activeTab === 'gamescope' ? autoSaveChipSlot : null}
             />
           ) : null}
 
@@ -183,6 +190,7 @@ export function LaunchSubTabs({
               onMangoHudChange={onMangoHudChange}
               showMangoHudOverlayEnabled={showMangoHudOverlayEnabled}
               launchMethod={launchMethod}
+              chipSlot={activeTab === 'mangohud' ? autoSaveChipSlot : null}
             />
           ) : null}
 
@@ -192,7 +200,6 @@ export function LaunchSubTabs({
               launchMethod={launchMethod}
               enabledOptionIds={enabledOptionIds}
               onToggleOption={onToggleOption}
-              launchOptimizationsStatus={launchOptimizationsStatus}
               optimizationPresetNames={optimizationPresetNames}
               activeOptimizationPreset={activeOptimizationPreset}
               onSelectOptimizationPreset={onSelectOptimizationPreset}
@@ -201,6 +208,7 @@ export function LaunchSubTabs({
               optimizationPresetActionBusy={optimizationPresetActionBusy}
               onSaveManualPreset={onSaveManualPreset}
               catalog={catalog}
+              chipSlot={activeTab === 'optimizations' ? autoSaveChipSlot : null}
             />
           ) : null}
 
@@ -210,6 +218,7 @@ export function LaunchSubTabs({
               enabledOptionIds={enabledOptionIds}
               customEnvVars={customEnvVars}
               gamescopeConfig={gamescopeConfig}
+              chipSlot={activeTab === 'steam-options' ? autoSaveChipSlot : null}
             />
           ) : null}
 
@@ -232,6 +241,7 @@ export function LaunchSubTabs({
             suggestionSet={suggestionSet}
             onAcceptSuggestion={onAcceptSuggestion}
             onDismissSuggestion={onDismissSuggestion}
+            chipSlot={activeTab === 'environment' ? autoSaveChipSlot : null}
           />
         </div>
       </Tabs.Root>

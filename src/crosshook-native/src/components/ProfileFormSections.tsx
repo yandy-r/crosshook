@@ -1,6 +1,6 @@
 import { useId } from 'react';
-import { useProtonDbSuggestions } from '../hooks/useProtonDbSuggestions';
 import { useProtonDbApply } from '../hooks/profile/useProtonDbApply';
+import { useProtonDbSuggestions } from '../hooks/useProtonDbSuggestions';
 import type { GameProfile, LaunchMethod } from '../types';
 import type { AcceptSuggestionRequest } from '../types/protondb';
 import type { VersionCorrelationStatus } from '../types/version';
@@ -9,29 +9,25 @@ import type { OptimizationCatalogPayload } from '../utils/optimization-catalog';
 import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
 import ProtonDbLookupCard from './ProtonDbLookupCard';
 import ProtonDbOverwriteConfirmation from './ProtonDbOverwriteConfirmation';
+import { FieldRow } from './profile-form/FormFieldRow';
+import { LauncherMetadataFields } from './profile-form/LauncherMetadataFields';
+import { OptionalSection } from './profile-form/OptionalSection';
+import { type ProfileFormSectionsProfileSelector, ProfileSelectorField } from './profile-form/ProfileSelectorField';
+import { ProtonPathField } from './profile-form/ProtonPathField';
+import { TrainerVersionSetField } from './profile-form/TrainerVersionSetField';
 import { GameSection } from './profile-sections/GameSection';
 import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
 import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
 import { RuntimeSection } from './profile-sections/RuntimeSection';
 import { TrainerSection } from './profile-sections/TrainerSection';
-import { FieldRow } from './profile-form/FormFieldRow';
-import { OptionalSection } from './profile-form/OptionalSection';
-import { ProtonPathField } from './profile-form/ProtonPathField';
-import { LauncherMetadataFields } from './profile-form/LauncherMetadataFields';
-import {
-  ProfileSelectorField,
-  type ProfileFormSectionsProfileSelector,
-} from './profile-form/ProfileSelectorField';
-import { TrainerVersionSetField } from './profile-form/TrainerVersionSetField';
 
-export type { ProfileFormSectionsProfileSelector };
-
-export type { PendingProtonDbOverwrite } from '../utils/protondb';
 export type { ProtonInstallOption } from '../types/proton';
 export { formatProtonInstallLabel } from '../utils/proton';
+export type { PendingProtonDbOverwrite } from '../utils/protondb';
 export { deriveSteamClientInstallPath } from '../utils/steam';
 export { parentDirectory, updateGameExecutablePath } from './profile-form/helpers';
-export { FieldRow, OptionalSection, ProtonPathField, LauncherMetadataFields, TrainerVersionSetField };
+export type { ProfileFormSectionsProfileSelector };
+export { FieldRow, LauncherMetadataFields, OptionalSection, ProtonPathField, TrainerVersionSetField };
 
 type ProfileFormSectionsBaseProps = {
   profileName: string;

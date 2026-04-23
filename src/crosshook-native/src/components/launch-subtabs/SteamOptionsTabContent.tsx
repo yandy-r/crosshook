@@ -1,6 +1,8 @@
 import * as Tabs from '@radix-ui/react-tabs';
+import type { ReactNode } from 'react';
 import type { LaunchOptimizationId } from '../../types/launch-optimizations';
 import type { GamescopeConfig } from '../../types/profile';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import SteamLaunchOptionsPanel from '../SteamLaunchOptionsPanel';
 import type { LaunchSubTabId } from './types';
 
@@ -9,6 +11,8 @@ interface SteamOptionsTabContentProps {
   enabledOptionIds: readonly LaunchOptimizationId[];
   customEnvVars?: Readonly<Record<string, string>>;
   gamescopeConfig: GamescopeConfig;
+  /** Autosave chip — rendered in panel header actions when this tab is active. */
+  chipSlot?: ReactNode;
 }
 
 export function SteamOptionsTabContent({
@@ -16,6 +20,7 @@ export function SteamOptionsTabContent({
   enabledOptionIds,
   customEnvVars,
   gamescopeConfig,
+  chipSlot,
 }: SteamOptionsTabContentProps) {
   return (
     <Tabs.Content
@@ -25,11 +30,13 @@ export function SteamOptionsTabContent({
       style={{ display: activeTab === 'steam-options' ? undefined : 'none' }}
     >
       <div className="crosshook-subtab-content__inner">
-        <SteamLaunchOptionsPanel
-          enabledOptionIds={enabledOptionIds}
-          customEnvVars={customEnvVars}
-          gamescopeConfig={gamescopeConfig}
-        />
+        <DashboardPanelSection eyebrow="Steam Options" title="Steam Launch Options" titleAs="h3" actions={chipSlot}>
+          <SteamLaunchOptionsPanel
+            enabledOptionIds={enabledOptionIds}
+            customEnvVars={customEnvVars}
+            gamescopeConfig={gamescopeConfig}
+          />
+        </DashboardPanelSection>
       </div>
     </Tabs.Content>
   );

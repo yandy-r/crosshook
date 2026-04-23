@@ -1,8 +1,10 @@
 import * as Tabs from '@radix-ui/react-tabs';
+import type { ReactNode } from 'react';
 import type { GameProfile } from '../../types/profile';
 import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup, ProtonDbSuggestionSet } from '../../types/protondb';
 import type { PendingProtonDbOverwrite } from '../../utils/protondb';
 import { CustomEnvironmentVariablesSection } from '../CustomEnvironmentVariablesSection';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import ProtonDbLookupCard from '../ProtonDbLookupCard';
 import ProtonDbOverwriteConfirmation from '../ProtonDbOverwriteConfirmation';
 import type { LaunchSubTabId } from './types';
@@ -30,6 +32,8 @@ interface EnvironmentTabContentProps {
   suggestionSet?: ProtonDbSuggestionSet | null;
   onAcceptSuggestion?: (request: AcceptSuggestionRequest) => Promise<void>;
   onDismissSuggestion?: (suggestionKey: string) => void;
+  /** Autosave chip — rendered in panel header actions when this tab is active. */
+  chipSlot?: ReactNode;
 }
 
 export function EnvironmentTabContent({
@@ -51,6 +55,7 @@ export function EnvironmentTabContent({
   suggestionSet,
   onAcceptSuggestion,
   onDismissSuggestion,
+  chipSlot,
 }: EnvironmentTabContentProps) {
   return (
     <Tabs.Content
@@ -60,43 +65,50 @@ export function EnvironmentTabContent({
       style={{ display: activeTab === 'environment' ? undefined : 'none' }}
     >
       <div className="crosshook-subtab-content__inner">
-        <CustomEnvironmentVariablesSection
-          profileName={profileName}
-          customEnvVars={customEnvVars ?? {}}
-          onUpdateProfile={onUpdateProfile}
-          idPrefix="launch-subtabs"
-          onAutoSaveBlur={onEnvironmentBlurAutoSave}
-        />
+        <DashboardPanelSection
+          eyebrow="Environment"
+          title="Custom Environment Variables"
+          titleAs="h3"
+          actions={chipSlot}
+        >
+          <CustomEnvironmentVariablesSection
+            profileName={profileName}
+            customEnvVars={customEnvVars ?? {}}
+            onUpdateProfile={onUpdateProfile}
+            idPrefix="launch-subtabs"
+            onAutoSaveBlur={onEnvironmentBlurAutoSave}
+          />
 
-        {showProtonDbLookup && steamAppId ? (
-          <div className="crosshook-protondb-panel">
-            <ProtonDbLookupCard
-              appId={steamAppId}
-              trainerVersion={trainerVersion ?? null}
-              versionContext={null}
-              onApplyEnvVars={onApplyProtonDbEnvVars}
-              applyingGroupId={applyingProtonDbGroupId}
-              suggestionSet={suggestionSet}
-              onAcceptSuggestion={onAcceptSuggestion}
-              onDismissSuggestion={onDismissSuggestion}
-            />
-
-            {protonDbStatusMessage ? (
-              <p className="crosshook-help-text" role="status">
-                {protonDbStatusMessage}
-              </p>
-            ) : null}
-
-            {pendingProtonDbOverwrite ? (
-              <ProtonDbOverwriteConfirmation
-                pendingProtonDbOverwrite={pendingProtonDbOverwrite}
-                onUpdateProtonDbResolution={onUpdateProtonDbResolution}
-                onCancelProtonDbOverwrite={onCancelProtonDbOverwrite}
-                onConfirmProtonDbOverwrite={onConfirmProtonDbOverwrite}
+          {showProtonDbLookup && steamAppId ? (
+            <div className="crosshook-protondb-panel">
+              <ProtonDbLookupCard
+                appId={steamAppId}
+                trainerVersion={trainerVersion ?? null}
+                versionContext={null}
+                onApplyEnvVars={onApplyProtonDbEnvVars}
+                applyingGroupId={applyingProtonDbGroupId}
+                suggestionSet={suggestionSet}
+                onAcceptSuggestion={onAcceptSuggestion}
+                onDismissSuggestion={onDismissSuggestion}
               />
-            ) : null}
-          </div>
-        ) : null}
+
+              {protonDbStatusMessage ? (
+                <p className="crosshook-help-text" role="status">
+                  {protonDbStatusMessage}
+                </p>
+              ) : null}
+
+              {pendingProtonDbOverwrite ? (
+                <ProtonDbOverwriteConfirmation
+                  pendingProtonDbOverwrite={pendingProtonDbOverwrite}
+                  onUpdateProtonDbResolution={onUpdateProtonDbResolution}
+                  onCancelProtonDbOverwrite={onCancelProtonDbOverwrite}
+                  onConfirmProtonDbOverwrite={onConfirmProtonDbOverwrite}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </DashboardPanelSection>
       </div>
     </Tabs.Content>
   );

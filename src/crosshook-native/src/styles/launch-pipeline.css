@@ -53,13 +53,15 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: var(--crosshook-radius-sm);
+  border-radius: 999px;
+  border: 1px solid var(--crosshook-dashboard-pill-border);
   font-size: 0.85rem;
   line-height: 1;
   flex-shrink: 0;
   transition:
     background var(--crosshook-transition-fast),
-    color var(--crosshook-transition-fast);
+    color var(--crosshook-transition-fast),
+    border-color var(--crosshook-transition-fast);
 }
 
 .crosshook-launch-pipeline__node-label {
@@ -101,7 +103,7 @@
 .crosshook-launch-pipeline__node-trigger:focus-visible {
   outline: 2px solid var(--crosshook-color-accent-strong);
   outline-offset: 2px;
-  border-radius: var(--crosshook-radius-sm);
+  border-radius: 999px;
 }
 
 /* Status: configured */

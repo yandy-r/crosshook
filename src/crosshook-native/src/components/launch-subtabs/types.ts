@@ -1,9 +1,9 @@
+import type { BundledOptimizationPreset, LaunchAutoSaveStatus, LaunchMethod } from '../../types';
+import type { LaunchOptimizationId } from '../../types/launch-optimizations';
 import type { GameProfile, GamescopeConfig, MangoHudConfig } from '../../types/profile';
 import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup, ProtonDbSuggestionSet } from '../../types/protondb';
 import type { OptimizationCatalogPayload } from '../../utils/optimization-catalog';
 import type { PendingProtonDbOverwrite } from '../../utils/protondb';
-import type { BundledOptimizationPreset, LaunchAutoSaveStatus, LaunchMethod } from '../../types';
-import type { LaunchOptimizationId } from '../../types/launch-optimizations';
 import type { LaunchOptimizationsPanelStatus } from '../LaunchOptimizationsPanel';
 
 export type LaunchSubTabId = 'offline' | 'environment' | 'gamescope' | 'mangohud' | 'optimizations' | 'steam-options';

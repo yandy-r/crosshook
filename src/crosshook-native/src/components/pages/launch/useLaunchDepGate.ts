@@ -22,7 +22,11 @@ export interface DepGateState {
   installPrefixDependency: ReturnType<typeof useLaunchPrefixDependencyGate>['installPrefixDependency'];
 }
 
-export function useLaunchDepGate({ profile, selectedName, autoInstallPrefixDeps }: UseLaunchDepGateOptions): DepGateState {
+export function useLaunchDepGate({
+  profile,
+  selectedName,
+  autoInstallPrefixDeps,
+}: UseLaunchDepGateOptions): DepGateState {
   const { launchGame, launchTrainer } = useLaunchStateContext();
   const { getDependencyStatus, installPrefixDependency, isGamescopeRunning } = useLaunchPrefixDependencyGate();
 

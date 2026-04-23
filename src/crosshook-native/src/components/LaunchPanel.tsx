@@ -14,6 +14,7 @@ import { LaunchPanelFeedback } from './launch-panel/LaunchPanelFeedback';
 import { LaunchPanelVersionStatus } from './launch-panel/LaunchPanelVersionStatus';
 import { PreviewModal } from './launch-panel/PreviewModal';
 import type { LaunchPanelProps } from './launch-panel/types';
+import { DashboardPanelSection } from './layout/DashboardPanelSection';
 import '../styles/preview.css';
 
 export type { LaunchPanelProps } from './launch-panel/types';
@@ -122,6 +123,8 @@ export function LaunchPanel({
     }
   }
 
+  const effectiveCommand = preview?.effective_command ?? null;
+
   return (
     <div className="crosshook-route-stack crosshook-launch-panel-stack">
       {/* ── Launch controls (route identity lives in RouteBanner on LaunchPage) ── */}
@@ -183,6 +186,18 @@ export function LaunchPanel({
           ) : null}
         </section>
       </div>
+
+      {/* ── Command preview (shown after a Preview request returns a command) ── */}
+      {effectiveCommand ? (
+        <DashboardPanelSection
+          eyebrow="Launch Preview"
+          title="Command"
+          titleAs="h3"
+          className="crosshook-launch-panel__command-preview"
+        >
+          <pre className="crosshook-editor-mono-panel">{effectiveCommand}</pre>
+        </DashboardPanelSection>
+      ) : null}
 
       {/* ── Tabs card (passed from parent) ── */}
       {tabsSlot}
