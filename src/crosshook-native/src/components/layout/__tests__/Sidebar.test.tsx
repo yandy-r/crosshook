@@ -34,7 +34,7 @@ describe('Sidebar', () => {
 
     expect(sectionLabels).toEqual(['Game', 'Collections', 'Setup', 'Dashboards', 'Community']);
     expect(screen.getByLabelText('CrossHook navigation')).toHaveAttribute('data-sidebar-variant', 'full');
-    expect(screen.getByLabelText('CrossHook navigation')).toHaveAttribute('data-sidebar-width', '240');
+    expect(screen.getByLabelText('CrossHook navigation')).toHaveAttribute('data-sidebar-width', '264');
     expect(screen.getByLabelText('CrossHook navigation')).toHaveAttribute('data-collapsed', 'false');
   });
 

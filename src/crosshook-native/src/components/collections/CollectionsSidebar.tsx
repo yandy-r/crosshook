@@ -13,10 +13,20 @@ export interface CollectionsSidebarProps {
   onOpenCollection: (id: string) => void;
 }
 
+const MAX_COLLECTION_NAME_CHARS = 24;
+
 function collectionInitial(name: string): string {
   const trimmed = name.trim();
   if (trimmed === '') return '?';
   return trimmed.charAt(0).toUpperCase();
+}
+
+function formatCollectionLabel(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length <= MAX_COLLECTION_NAME_CHARS) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, MAX_COLLECTION_NAME_CHARS - 1).trimEnd()}...`;
 }
 
 export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps) {
@@ -124,6 +134,7 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
                 className="crosshook-sidebar__item crosshook-collections-sidebar__item"
                 onClick={() => handleClickCollection(c.collection_id)}
                 title={c.name}
+                aria-label={c.name}
               >
                 <span
                   className="crosshook-sidebar__item-icon crosshook-collections-sidebar__item-avatar"
@@ -131,7 +142,9 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
                 >
                   {collectionInitial(c.name)}
                 </span>
-                <span className="crosshook-sidebar__item-label crosshook-collections-sidebar__item-name">{c.name}</span>
+                <span className="crosshook-sidebar__item-label crosshook-collections-sidebar__item-name">
+                  {formatCollectionLabel(c.name)}
+                </span>
                 <span className="crosshook-collections-sidebar__item-count">
                   {c.profile_count}
                   <span className="crosshook-visually-hidden"> {c.profile_count === 1 ? 'profile' : 'profiles'}</span>

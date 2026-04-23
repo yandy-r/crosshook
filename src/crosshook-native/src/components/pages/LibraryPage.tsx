@@ -8,6 +8,7 @@ import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
 import {
+  type LibraryCardData,
   type LibraryFilterKey,
   type LibrarySortKey,
   type LibraryViewMode,
@@ -17,11 +18,10 @@ import { CollectionAssignMenu } from '../collections/CollectionAssignMenu';
 import { CollectionEditModal } from '../collections/CollectionEditModal';
 import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
-import { GameDetailsModal } from '../library/GameDetailsModal';
+import { GameDetail } from '../library/GameDetail';
 import { LibraryGrid } from '../library/LibraryGrid';
 import { LibraryList } from '../library/LibraryList';
 import { LibraryToolbar } from '../library/LibraryToolbar';
-import { useGameDetailsModalState } from '../library/useGameDetailsModalState';
 
 const VIEW_MODE_KEY = 'crosshook.library.viewMode';
 
@@ -47,7 +47,9 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
   const { setInspectorSelection, setLibraryInspectorHandlers } = useInspectorSelection();
   const offlineReadiness = useOfflineReadiness();
-  const gameDetailsModal = useGameDetailsModalState();
+  const [pageMode, setPageMode] = useState<'library' | 'detail'>('library');
+  const [detailName, setDetailName] = useState<string | null>(null);
+  const [detailSummarySnapshot, setDetailSummarySnapshot] = useState<LibraryCardData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<LibraryViewMode>(loadViewMode);
   const [sortBy, setSortBy] = useState<LibrarySortKey>('recent');
@@ -152,17 +154,26 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
   );
 
   // Favorite handler: optimistic update
-  const handleOpenGameDetails = useCallback(
+  const handleOpenGameDetail = useCallback(
     async (name: string) => {
       const card = summaries.find((s) => s.name === name);
       if (!card) {
         return;
       }
-      gameDetailsModal.openForCard(card);
+      setDetailSummarySnapshot(card);
+      setDetailName(name);
+      setInspectorPickName(name);
+      setPageMode('detail');
       await selectProfile(name);
     },
-    [gameDetailsModal, selectProfile, summaries]
+    [selectProfile, summaries]
   );
+
+  const handleBackFromDetail = useCallback(() => {
+    setPageMode('library');
+    setDetailName(null);
+    setDetailSummarySnapshot(null);
+  }, []);
 
   const handleCardContextMenu = useCallback(
     (position: { x: number; y: number }, profileName: string, restoreFocusTo: HTMLElement) => {
@@ -258,10 +269,8 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     console.debug('Command palette (Phase 6)');
   }, []);
 
-  const activeGameDetailsSummary =
-    gameDetailsModal.summary == null
-      ? null
-      : (summaries.find((summary) => summary.name === gameDetailsModal.summary?.name) ?? gameDetailsModal.summary);
+  const detailSummary =
+    detailName == null ? null : (summaries.find((s) => s.name === detailName) ?? detailSummarySnapshot);
 
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--library">
@@ -270,65 +279,76 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
           <RouteBanner route="library" />
           <div className="crosshook-route-card-host">
             <div className="crosshook-route-card-scroll">
-              <div className="crosshook-card crosshook-library-page__content">
-                <div className="crosshook-library-page__toolbar-bar">
-                  <LibraryToolbar
-                    searchQuery={searchQuery}
-                    onSearchChange={setSearchQuery}
-                    viewMode={viewMode}
-                    onViewModeChange={handleViewModeChange}
-                    sortBy={sortBy}
-                    onSortChange={setSortBy}
-                    filter={filterKey}
-                    onFilterChange={setFilterKey}
-                    onOpenCommandPalette={handleOpenCommandPalette}
-                  />
-                </div>
-                {viewMode === 'grid' ? (
-                  <LibraryGrid
-                    profiles={displayedProfiles}
-                    selectedName={inspectorPickName ?? undefined}
-                    onSelect={handleCardSelect}
-                    onOpenDetails={handleOpenGameDetails}
+              <div
+                className={
+                  pageMode === 'detail'
+                    ? 'crosshook-card crosshook-library-page__content crosshook-library-page__content--detail'
+                    : 'crosshook-card crosshook-library-page__content'
+                }
+              >
+                {pageMode === 'library' ? (
+                  <>
+                    <div className="crosshook-library-page__toolbar-bar">
+                      <LibraryToolbar
+                        searchQuery={searchQuery}
+                        onSearchChange={setSearchQuery}
+                        viewMode={viewMode}
+                        onViewModeChange={handleViewModeChange}
+                        sortBy={sortBy}
+                        onSortChange={setSortBy}
+                        filter={filterKey}
+                        onFilterChange={setFilterKey}
+                        onOpenCommandPalette={handleOpenCommandPalette}
+                      />
+                    </div>
+                    {viewMode === 'grid' ? (
+                      <LibraryGrid
+                        profiles={displayedProfiles}
+                        selectedName={inspectorPickName ?? undefined}
+                        onSelect={handleCardSelect}
+                        onOpenDetails={handleOpenGameDetail}
+                        onLaunch={handleLaunch}
+                        onEdit={handleEdit}
+                        onToggleFavorite={handleToggleFavorite}
+                        launchingName={launchingName}
+                        onNavigate={onNavigate}
+                        onContextMenu={handleCardContextMenu}
+                      />
+                    ) : (
+                      <LibraryList
+                        profiles={displayedProfiles}
+                        selectedName={inspectorPickName ?? undefined}
+                        onSelect={handleCardSelect}
+                        onOpenDetails={handleOpenGameDetail}
+                        onLaunch={handleLaunch}
+                        onEdit={handleEdit}
+                        onToggleFavorite={handleToggleFavorite}
+                        launchingName={launchingName}
+                        onNavigate={onNavigate}
+                        onContextMenu={handleCardContextMenu}
+                      />
+                    )}
+                  </>
+                ) : detailSummary ? (
+                  <GameDetail
+                    key={detailSummary.name}
+                    summary={detailSummary}
+                    onBack={handleBackFromDetail}
+                    healthByName={healthByName}
+                    healthLoading={healthLoading}
+                    offlineReportFor={offlineReadiness.reportForProfile}
+                    offlineError={offlineReadiness.error}
                     onLaunch={handleLaunch}
                     onEdit={handleEdit}
                     onToggleFavorite={handleToggleFavorite}
                     launchingName={launchingName}
-                    onNavigate={onNavigate}
-                    onContextMenu={handleCardContextMenu}
                   />
-                ) : (
-                  <LibraryList
-                    profiles={displayedProfiles}
-                    selectedName={inspectorPickName ?? undefined}
-                    onSelect={handleCardSelect}
-                    onOpenDetails={handleOpenGameDetails}
-                    onLaunch={handleLaunch}
-                    onEdit={handleEdit}
-                    onToggleFavorite={handleToggleFavorite}
-                    launchingName={launchingName}
-                    onNavigate={onNavigate}
-                    onContextMenu={handleCardContextMenu}
-                  />
-                )}
+                ) : null}
               </div>
             </div>
           </div>
         </div>
       </div>
-      <GameDetailsModal
-        open={gameDetailsModal.open}
-        summary={activeGameDetailsSummary}
-        onClose={gameDetailsModal.close}
-        healthByName={healthByName}
-        healthLoading={healthLoading}
-        offlineReportFor={offlineReadiness.reportForProfile}
-        offlineError={offlineReadiness.error}
-        onLaunch={handleLaunch}
-        onEdit={handleEdit}
-        onToggleFavorite={handleToggleFavorite}
-        launchingName={launchingName}
-      />
       <CollectionAssignMenu
         open={assignMenuState.open}
         profileName={assignMenuState.profileName}

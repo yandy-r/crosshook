@@ -36,43 +36,41 @@ export function GameDetailsMetadataSection({ steamAppId, meta }: GameDetailsMeta
 
   return (
     <section
-      className="crosshook-game-details-modal__section crosshook-game-details-modal__section--card"
-      aria-labelledby="crosshook-game-details-metadata-heading"
+      className="crosshook-hero-detail__section crosshook-hero-detail__section--card"
+      aria-labelledby="crosshook-hero-detail-metadata-heading"
     >
-      <h3 id="crosshook-game-details-metadata-heading" className="crosshook-game-details-modal__section-title">
+      <h3 id="crosshook-hero-detail-metadata-heading" className="crosshook-hero-detail__section-title">
         Store metadata
       </h3>
       {!hasAppId ? (
-        <p className="crosshook-game-details-modal__muted">
-          No Steam App ID on this profile. Metadata lookup is unavailable.
-        </p>
+        <p className="crosshook-hero-detail__muted">No Steam App ID on this profile. Metadata lookup is unavailable.</p>
       ) : null}
       {hasAppId && metaState === 'loading' ? (
-        <p className="crosshook-game-details-modal__muted">Loading Steam metadata…</p>
+        <p className="crosshook-hero-detail__muted">Loading Steam metadata…</p>
       ) : null}
       {hasAppId && metaState === 'unavailable' && !meta.loading ? (
-        <p className="crosshook-game-details-modal__muted">Steam metadata is unavailable (offline or not cached).</p>
+        <p className="crosshook-hero-detail__muted">Steam metadata is unavailable (offline or not cached).</p>
       ) : null}
       {hasAppId && meta.isStale ? (
-        <p className="crosshook-game-details-modal__stale">Showing cached metadata; values may be stale.</p>
+        <p className="crosshook-hero-detail__stale">Showing cached metadata; values may be stale.</p>
       ) : null}
       {hasAppId && metaState === 'ready' && steamName ? (
-        <p className="crosshook-game-details-modal__text">
-          <span className="crosshook-game-details-modal__label">Steam title: </span>
+        <p className="crosshook-hero-detail__text">
+          <span className="crosshook-hero-detail__label">Steam title: </span>
           {steamName}
         </p>
       ) : null}
       {hasAppId && metaState === 'ready' && genres.length > 0 ? (
-        <ul aria-label="Genres" className="crosshook-game-details-modal__genre-row">
+        <ul aria-label="Genres" className="crosshook-hero-detail__genre-row">
           {genres.map((genre) => (
-            <li key={genre.id} className="crosshook-game-details-modal__genre-chip">
+            <li key={genre.id} className="crosshook-hero-detail__genre-chip">
               {genre.description}
             </li>
           ))}
         </ul>
       ) : null}
       {hasAppId && metaState === 'ready' && shortDesc ? (
-        <p className="crosshook-game-details-modal__text crosshook-game-details-modal__text--desc">{shortDesc}</p>
+        <p className="crosshook-hero-detail__text crosshook-hero-detail__text--desc">{shortDesc}</p>
       ) : null}
     </section>
   );

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { callCommand } from '@/lib/ipc';
 import type { LaunchPreview, LaunchRequest } from '../types';
 
@@ -10,7 +10,7 @@ export function usePreviewState() {
   const [previewTarget, setPreviewTarget] = useState<'game' | 'trainer' | null>(null);
   const previewRequestSeq = useRef(0);
 
-  async function requestPreview(request: LaunchRequest) {
+  const requestPreview = useCallback(async (request: LaunchRequest) => {
     const seq = ++previewRequestSeq.current;
     setLoading(true);
     setPreview(null);
@@ -31,14 +31,14 @@ export function usePreviewState() {
         setLoading(false);
       }
     }
-  }
+  }, []);
 
-  function clearPreview() {
+  const clearPreview = useCallback(() => {
     setLoading(false);
     setPreview(null);
     setError(null);
     setPreviewTarget(null);
-  }
+  }, []);
 
   return { loading, preview, error, requestPreview, clearPreview, previewTarget };
 }

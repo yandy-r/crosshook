@@ -83,6 +83,10 @@ export function LibraryListRow({
     handleOpenDetailsClick();
   }
 
+  function handleHitboxDoubleClick() {
+    onOpenDetails(profile.name);
+  }
+
   return (
     <li
       ref={rowRef}
@@ -112,6 +116,19 @@ export function LibraryListRow({
                 if (el) {
                   onContextMenu({ x, y }, profile.name, el);
                 }
+                return;
+              }
+              if (
+                e.key === 'Enter' &&
+                !e.shiftKey &&
+                !e.ctrlKey &&
+                !e.altKey &&
+                !e.metaKey &&
+                !e.repeat &&
+                e.target === e.currentTarget
+              ) {
+                e.preventDefault();
+                onOpenDetails(profile.name);
               }
             }
           : undefined
@@ -122,6 +139,11 @@ export function LibraryListRow({
         className="crosshook-library-list-row__details-hitbox"
         aria-label={onSelect ? `Select ${displayName}` : `View details for ${displayName}`}
         onClick={handleHitboxClick}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleHitboxDoubleClick();
+        }}
       />
 
       {/* Thumbnail */}

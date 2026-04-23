@@ -89,6 +89,20 @@ describe('LibraryCard', () => {
     expect(onToggleFavorite).toHaveBeenCalledWith('Synthetic Quest', true);
   });
 
+  it('opens details on double-clicking the hitbox when onSelect is set', async () => {
+    const user = userEvent.setup();
+    const onOpenDetails = vi.fn();
+    const onSelect = vi.fn();
+
+    renderWithMocks(<LibraryCard {...defaultProps} onOpenDetails={onOpenDetails} onSelect={onSelect} />);
+
+    const hitbox = screen.getByRole('button', { name: 'Select Synthetic Quest' });
+    await user.dblClick(hitbox);
+
+    expect(onSelect).toHaveBeenCalled();
+    expect(onOpenDetails).toHaveBeenCalledWith('Synthetic Quest');
+  });
+
   it('invokes launch, favorite, and edit callbacks from footer actions', async () => {
     const user = userEvent.setup();
     const onLaunch = vi.fn();

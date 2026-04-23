@@ -5,6 +5,7 @@ import { Inspector } from '@/components/layout/Inspector';
 import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
 import { InspectorSelectionProvider, useInspectorSelection } from '@/context/InspectorSelectionContext';
+import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { renderWithMocks } from '@/test/render';
@@ -31,19 +32,22 @@ function LibraryPageWithInspector() {
   );
 }
 
-function renderLibraryHarness() {
+function renderLibraryHarness(options: Parameters<typeof renderWithMocks>[1] = {}) {
   return renderWithMocks(
     <ProfileProvider>
-      <ProfileHealthProvider>
-        <HostReadinessProvider>
-          <CollectionsProvider>
-            <InspectorSelectionProvider>
-              <LibraryPageWithInspector />
-            </InspectorSelectionProvider>
-          </CollectionsProvider>
-        </HostReadinessProvider>
-      </ProfileHealthProvider>
-    </ProfileProvider>
+      <PreferencesProvider>
+        <ProfileHealthProvider>
+          <HostReadinessProvider>
+            <CollectionsProvider>
+              <InspectorSelectionProvider>
+                <LibraryPageWithInspector />
+              </InspectorSelectionProvider>
+            </CollectionsProvider>
+          </HostReadinessProvider>
+        </ProfileHealthProvider>
+      </PreferencesProvider>
+    </ProfileProvider>,
+    options
   );
 }
 
@@ -122,5 +126,62 @@ describe('LibraryPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open command palette' }));
     expect(debug).toHaveBeenCalled();
+  });
+
+  it('enters hero detail from the details control and returns on Back without losing inspector selection', async () => {
+    const user = userEvent.setup();
+    renderLibraryHarness();
+
+    const selectButtons = await screen.findAllByRole('button', { name: /^Select /i });
+    await user.click(selectButtons[0]!);
+    await waitFor(() => {
+      expect(screen.getByTestId('inspector')).toHaveTextContent('Test Game Alpha');
+    });
+
+    await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('game-detail')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('game-detail')).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: 'Open command palette' })).toBeInTheDocument();
+    expect(screen.getByTestId('inspector')).toHaveTextContent('Test Game Alpha');
+  });
+
+  it('preserves library search when returning from hero detail', async () => {
+    const user = userEvent.setup();
+    renderLibraryHarness();
+
+    const search = await screen.findByRole('searchbox', { name: /Search games/i });
+    await user.type(search, 'alpha');
+
+    await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('game-detail')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await waitFor(() => {
+      expect(screen.queryByTestId('game-detail')).not.toBeInTheDocument();
+    });
+    expect(search).toHaveValue('alpha');
+  });
+
+  it('opens hero detail from list view via the details icon', async () => {
+    const user = userEvent.setup();
+    renderLibraryHarness();
+
+    await user.click(await screen.findByRole('button', { name: 'List view' }));
+    await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('game-detail')).toBeInTheDocument();
+    });
   });
 });

@@ -11,43 +11,41 @@ export function GameDetailsCompatibilitySection({ steamAppId }: GameDetailsCompa
   let statusMessage: JSX.Element | null = null;
 
   if (!hasAppId) {
-    statusMessage = <p className="crosshook-game-details-modal__muted">ProtonDB data needs a numeric Steam App ID.</p>;
+    statusMessage = <p className="crosshook-hero-detail__muted">ProtonDB data needs a numeric Steam App ID.</p>;
   } else if (proton.loading || proton.state === 'loading') {
-    statusMessage = <p className="crosshook-game-details-modal__muted">Loading ProtonDB summary…</p>;
+    statusMessage = <p className="crosshook-hero-detail__muted">Loading ProtonDB summary…</p>;
   } else if (proton.isUnavailable) {
     statusMessage = (
-      <p className="crosshook-game-details-modal__muted">ProtonDB data is unavailable (offline or not cached).</p>
+      <p className="crosshook-hero-detail__muted">ProtonDB data is unavailable (offline or not cached).</p>
     );
   } else if (proton.isStale) {
-    statusMessage = (
-      <p className="crosshook-game-details-modal__stale">Showing cached ProtonDB data; it may be stale.</p>
-    );
+    statusMessage = <p className="crosshook-hero-detail__stale">Showing cached ProtonDB data; it may be stale.</p>;
   }
 
   return (
     <section
-      className="crosshook-game-details-modal__section crosshook-game-details-modal__section--card"
-      aria-labelledby="crosshook-game-details-proton-heading"
+      className="crosshook-hero-detail__section crosshook-hero-detail__section--card"
+      aria-labelledby="crosshook-hero-detail-proton-heading"
     >
-      <h3 id="crosshook-game-details-proton-heading" className="crosshook-game-details-modal__section-title">
+      <h3 id="crosshook-hero-detail-proton-heading" className="crosshook-hero-detail__section-title">
         ProtonDB compatibility
       </h3>
       {statusMessage}
       {hasAppId && proton.snapshot && (proton.state === 'ready' || proton.state === 'stale') ? (
-        <div className="crosshook-game-details-modal__proton-summary">
-          <p className="crosshook-game-details-modal__text">
-            <span className="crosshook-game-details-modal__label">Tier: </span>
+        <div className="crosshook-hero-detail__proton-summary">
+          <p className="crosshook-hero-detail__text">
+            <span className="crosshook-hero-detail__label">Tier: </span>
             {String(proton.snapshot.tier)}
           </p>
           {proton.snapshot.confidence ? (
-            <p className="crosshook-game-details-modal__text">
-              <span className="crosshook-game-details-modal__label">Confidence: </span>
+            <p className="crosshook-hero-detail__text">
+              <span className="crosshook-hero-detail__label">Confidence: </span>
               {proton.snapshot.confidence}
             </p>
           ) : null}
           {proton.snapshot.total_reports != null ? (
-            <p className="crosshook-game-details-modal__text">
-              <span className="crosshook-game-details-modal__label">Reports: </span>
+            <p className="crosshook-hero-detail__text">
+              <span className="crosshook-hero-detail__label">Reports: </span>
               {proton.snapshot.total_reports}
             </p>
           ) : null}

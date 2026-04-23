@@ -18,8 +18,8 @@ describe('sidebarVariants', () => {
   it('exposes the canonical width contract for each variant', () => {
     expect(sidebarWidthForVariant('rail')).toBe(56);
     expect(sidebarWidthForVariant('mid')).toBe(68);
-    expect(sidebarWidthForVariant('full')).toBe(240);
-    expect(SIDEBAR_VARIANT_WIDTHS).toEqual({ rail: 56, mid: 68, full: 240 });
+    expect(sidebarWidthForVariant('full')).toBe(264);
+    expect(SIDEBAR_VARIANT_WIDTHS).toEqual({ rail: 56, mid: 68, full: 264 });
   });
 
   it('treats non-full variants as collapsed', () => {
