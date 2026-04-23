@@ -1,1 +1,38 @@
 /* onboarding-wizard.css — Phase 10 per-route chrome (populated by Task 2.x). */
+
+/* ── Surface ──────────────────────────────────────────────────────────────── */
+
+.crosshook-onboarding-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 660px;
+  width: 100%;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.crosshook-onboarding-wizard .crosshook-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+
+.crosshook-onboarding-wizard .crosshook-modal__header .crosshook-heading-eyebrow {
+  margin: 0 0 4px;
+}
+
+.crosshook-onboarding-wizard .crosshook-modal__header .crosshook-heading-title--card {
+  margin: 0;
+}
+
+/* ── Stage body shared spacing ────────────────────────────────────────────── */
+
+.crosshook-onboarding-wizard__body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 8px;
+}
