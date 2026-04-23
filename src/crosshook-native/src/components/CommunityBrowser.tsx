@@ -13,6 +13,7 @@ import CommunityImportWizardModal from './CommunityImportWizardModal';
 import { CommunityProfilesSection } from './community/CommunityProfilesSection';
 import { CommunityTapManagementSection } from './community/CommunityTapManagementSection';
 import { ratingOrder } from './community/CompatibilityBadge';
+import { tapSubscriptionStableKey } from './community/tapSubscriptionKey';
 
 export interface CommunityBrowserProps {
   profilesDirectoryPath?: string;
@@ -43,11 +44,6 @@ function matchesQuery(entry: CommunityProfileIndexEntry, query: string): boolean
     .toLowerCase();
 
   return haystack.includes(normalized);
-}
-
-/** Stable React key / row id for a tap subscription (same repo URL can appear on multiple branches or pins). */
-function tapSubscriptionStableKey(sub: CommunityTapSubscription): string {
-  return `${sub.url}::${sub.branch ?? ''}::${sub.pinned_commit ?? ''}`;
 }
 
 function sortProfiles(entries: CommunityProfileIndexEntry[]): CommunityProfileIndexEntry[] {

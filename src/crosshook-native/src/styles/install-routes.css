@@ -85,6 +85,6 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--crosshook-grid-gap);
   padding: var(--crosshook-panel-padding) var(--crosshook-card-padding);
 }

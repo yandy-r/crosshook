@@ -35,15 +35,23 @@ export function TapChip({ tap, onRemove, onPin, onUnpin, headCommit, busy }: Tap
             Unpin
           </button>
         ) : (
-          <button
-            type="button"
-            className="crosshook-button crosshook-button--secondary"
-            onClick={() => onPin(tap)}
-            disabled={busy || !headCommit}
-            title={headCommit ? 'Pin this tap to the currently synced commit' : 'Sync taps first to capture a commit'}
-          >
-            Pin to Current Version
-          </button>
+          <>
+            <button
+              type="button"
+              className="crosshook-button crosshook-button--secondary"
+              onClick={() => onPin(tap)}
+              disabled={busy || !headCommit}
+              title={headCommit ? 'Pin this tap to the currently synced commit' : undefined}
+              aria-describedby={!headCommit ? `tap-pin-hint-${btoa(tap.url)}` : undefined}
+            >
+              Pin to Current Version
+            </button>
+            {!headCommit && (
+              <span id={`tap-pin-hint-${btoa(tap.url)}`} className="crosshook-muted" style={{ fontSize: '0.85em' }}>
+                Sync taps first to capture a commit
+              </span>
+            )}
+          </>
         )}
         <button
           type="button"

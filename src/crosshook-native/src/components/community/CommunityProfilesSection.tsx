@@ -77,7 +77,16 @@ export function CommunityProfilesSection({
         </button>
       </div>
 
-      {notice ? <p className="crosshook-success crosshook-community-browser__helper">{notice}</p> : null}
+      {notice ? (
+        <p
+          className="crosshook-success crosshook-community-browser__helper"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {notice}
+        </p>
+      ) : null}
       {error ? (
         <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
           {error}

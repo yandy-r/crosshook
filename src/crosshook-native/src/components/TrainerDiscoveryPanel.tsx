@@ -313,6 +313,11 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
             summary="Local and online trainer results for your query."
             titleAs="h2"
           >
+            {!loading && query.trim() && error ? (
+              <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
+                {error}
+              </div>
+            ) : null}
             <div
               className="crosshook-discovery-panel__results-meta"
               role="status"
@@ -320,11 +325,6 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
               aria-atomic="true"
             >
               {loading && <span className="crosshook-muted">Searching…</span>}
-              {!loading && query.trim() && error && (
-                <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
-                  {error}
-                </div>
-              )}
               {!loading && !error && query.trim() && totalCount > 0 && (
                 <span className="crosshook-muted">{`${totalCount} result${totalCount !== 1 ? 's' : ''}`}</span>
               )}

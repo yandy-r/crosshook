@@ -143,6 +143,12 @@ describe('InstallGamePanel', () => {
     expect(screen.getByRole('tab', { name: 'Trainer' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Media' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Installer & Review' })).toBeInTheDocument();
+
+    expect(screen.getByRole('heading', { name: 'Identity & Game', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Runtime', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Trainer', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Media', hidden: true })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Installer & Review', hidden: true })).toBeInTheDocument();
   });
 
   it('keeps non-active tab content in DOM via forceMount after switching tabs', async () => {

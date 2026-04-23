@@ -59,9 +59,9 @@ Root cause is a `Maximum update depth exceeded` render loop in `LibraryPage.tsx`
 
 ## Files Changed
 
-31 files total — 14 CREATED, 14 UPDATED, 3 other. Aggregate: +1968 / −655 lines.
+31 files total — 20 CREATED, 11 UPDATED. Aggregate: +1970 / −653 lines.
 
-### CREATED (14)
+### CREATED (20)
 
 | File                                                                              | Lines | Purpose                                                                |
 | --------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------- |
@@ -86,7 +86,7 @@ Root cause is a `Maximum update depth exceeded` render loop in `LibraryPage.tsx`
 | `src/crosshook-native/src/components/__tests__/TrainerDiscoveryPanel.test.tsx`    | 134   | 6 tests                                                                |
 | `src/crosshook-native/src/components/pages/__tests__/CommunityPage.test.tsx`      | 60    | 3 tests (Task 2.3)                                                     |
 
-### UPDATED (14 substantive, 3 small)
+### UPDATED (11)
 
 | File                                                                   | Action  | +Ins / −Del | Notes                                                  |
 | ---------------------------------------------------------------------- | ------- | ----------- | ------------------------------------------------------ |

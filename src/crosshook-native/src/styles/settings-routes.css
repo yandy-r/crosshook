@@ -9,7 +9,7 @@
 
 @media (max-height: 820px) {
   .crosshook-page-scroll-shell--settings {
-    padding-top: max(10px, var(--crosshook-page-padding));
+    padding-top: min(10px, var(--crosshook-page-padding));
   }
 }
 

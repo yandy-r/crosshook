@@ -1,6 +1,7 @@
 import type { CommunityTapSubscription } from '../../hooks/useCommunityProfiles';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { TapChip } from './TapChip';
+import { tapSubscriptionStableKey } from './tapSubscriptionKey';
 
 export interface CommunityTapManagementSectionProps {
   taps: CommunityTapSubscription[];
@@ -17,11 +18,6 @@ export interface CommunityTapManagementSectionProps {
   onPinTap: (tap: CommunityTapSubscription) => void;
   onUnpinTap: (tap: CommunityTapSubscription) => void;
   getTapHeadCommit: (tap: CommunityTapSubscription) => string | undefined;
-}
-
-/** Stable React key / row id for a tap subscription (same repo URL can appear on multiple branches or pins). */
-function tapSubscriptionStableKey(sub: CommunityTapSubscription): string {
-  return `${sub.url}::${sub.branch ?? ''}::${sub.pinned_commit ?? ''}`;
 }
 
 export function CommunityTapManagementSection({

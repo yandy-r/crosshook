@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_APP_SETTINGS } from '@/types/settings';
 import { TrainerDiscoveryPanel } from '../TrainerDiscoveryPanel';
@@ -118,17 +119,38 @@ describe('TrainerDiscoveryPanel', () => {
     expect(screen.getByRole('heading', { name: 'Matching trainers' })).toBeInTheDocument();
   });
 
-  // Error banner appears for import errors (injected via state simulation)
-  it('shows an alert banner when an import error is present', async () => {
+  it('shows an alert banner when importCommunityProfile rejects', async () => {
     usePreferencesContextMock.mockReturnValue(buildPreferencesState({ discovery_enabled: true }));
+    useTrainerDiscoveryMock.mockReturnValue({
+      data: {
+        results: [
+          {
+            id: 1,
+            gameName: 'Test Game',
+            sourceName: 'Community',
+            sourceUrl: 'https://example.com',
+            relativePath: 'test-game',
+            tapUrl: 'https://tap.example.com',
+            tapLocalPath: '/tmp/tap',
+            relevanceScore: 1.0,
+          },
+        ],
+        totalCount: 1,
+      },
+      loading: false,
+      error: null,
+      refresh: vi.fn().mockResolvedValue(undefined),
+    });
+    useImportCommunityProfileMock.mockReturnValue({
+      importCommunityProfile: vi.fn().mockRejectedValue(new Error('Import failed')),
+    });
 
-    // Simulate an import error by making importCommunityProfile throw.
-    // The component stores the error in local state and renders role="alert".
-    // We inject the error state by overriding the hook so it throws on call —
-    // but since the error only appears after user interaction, we verify the
-    // panel renders clean (no alert) in the enabled state on mount.
     render(<TrainerDiscoveryPanel />);
 
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Import Profile' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+    });
   });
 });
