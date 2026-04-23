@@ -34,6 +34,7 @@ export function usePreviewState() {
   }, []);
 
   const clearPreview = useCallback(() => {
+    previewRequestSeq.current += 1;
     setLoading(false);
     setPreview(null);
     setError(null);

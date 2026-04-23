@@ -266,16 +266,16 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid rgba(107, 163, 217, 0.55);
+  border: 1px solid var(--crosshook-library-card-btn-border);
   border-radius: 6px;
-  background: rgba(107, 163, 217, 0.2);
+  background: var(--crosshook-library-card-btn-bg);
   color: var(--crosshook-color-accent-strong);
   cursor: pointer;
   transition: background var(--crosshook-transition-fast) ease;
 }
 
 .crosshook-library-card__btn--details:hover {
-  background: rgba(107, 163, 217, 0.32);
+  background: var(--crosshook-library-card-btn-bg-hover);
 }
 
 .crosshook-library-card__hover-reveal {
@@ -828,6 +828,7 @@
 
 .crosshook-hero-detail {
   --crosshook-hero-detail-hero-height: min(240px, 28vh);
+
   display: flex;
   flex-direction: column;
   min-height: 0;

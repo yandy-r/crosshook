@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { useProfileContext } from '@/context/ProfileContext';
 import type { GameDetailsProfileLoadState } from '@/hooks/useGameDetailsProfile';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
@@ -55,6 +56,7 @@ function launchStatusLabel(status: string): string {
 }
 
 function ProfilesPanel({ profileName }: { profileName: string }) {
+  const activeProfileHeadingId = useId();
   const { profileName: activeName, profile } = useProfileContext();
   const isActive = activeName === profileName;
 
@@ -62,9 +64,9 @@ function ProfilesPanel({ profileName }: { profileName: string }) {
     <div className="crosshook-hero-detail__panel-grid">
       <section
         className="crosshook-hero-detail__section crosshook-hero-detail__section--card"
-        aria-labelledby="crosshook-hero-detail-active-profile"
+        aria-labelledby={activeProfileHeadingId}
       >
-        <h3 id="crosshook-hero-detail-active-profile" className="crosshook-hero-detail__section-title">
+        <h3 id={activeProfileHeadingId} className="crosshook-hero-detail__section-title">
           Active profile
         </h3>
         {!isActive ? (

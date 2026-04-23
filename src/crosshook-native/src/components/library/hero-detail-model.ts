@@ -29,7 +29,7 @@ export function resolveGameDetailsHero(args: {
   metaLoading: boolean;
 }): { url: string | null; showSkeleton: boolean } {
   const custom = args.customBgPath?.trim();
-  if (custom) {
+  if (custom && (args.bg.loading || args.bg.url)) {
     return { url: args.bg.url, showSkeleton: args.bg.loading };
   }
   if (args.bg.loading) {

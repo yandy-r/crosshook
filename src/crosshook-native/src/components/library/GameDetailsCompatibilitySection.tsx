@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { useProtonDbLookup } from '../../hooks/useProtonDbLookup';
 
 export interface GameDetailsCompatibilitySectionProps {
@@ -5,6 +6,7 @@ export interface GameDetailsCompatibilitySectionProps {
 }
 
 export function GameDetailsCompatibilitySection({ steamAppId }: GameDetailsCompatibilitySectionProps) {
+  const protonHeadingId = useId();
   const trimmed = steamAppId.trim();
   const hasAppId = /^\d+$/.test(trimmed);
   const proton = useProtonDbLookup(hasAppId ? trimmed : '');
@@ -25,9 +27,9 @@ export function GameDetailsCompatibilitySection({ steamAppId }: GameDetailsCompa
   return (
     <section
       className="crosshook-hero-detail__section crosshook-hero-detail__section--card"
-      aria-labelledby="crosshook-hero-detail-proton-heading"
+      aria-labelledby={protonHeadingId}
     >
-      <h3 id="crosshook-hero-detail-proton-heading" className="crosshook-hero-detail__section-title">
+      <h3 id={protonHeadingId} className="crosshook-hero-detail__section-title">
         ProtonDB compatibility
       </h3>
       {statusMessage}

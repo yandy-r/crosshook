@@ -158,8 +158,8 @@ describe('LibraryPage', () => {
     const user = userEvent.setup();
     renderLibraryHarness();
 
-    const search = await screen.findByRole('searchbox', { name: /Search games/i });
-    await user.type(search, 'alpha');
+    const searchInput = await screen.findByRole('searchbox', { name: /Search games/i });
+    await user.type(searchInput, 'alpha');
 
     await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
     await waitFor(() => {
@@ -170,7 +170,8 @@ describe('LibraryPage', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('game-detail')).not.toBeInTheDocument();
     });
-    expect(search).toHaveValue('alpha');
+    const searchAfterBack = screen.getByRole('searchbox', { name: /Search games/i });
+    expect(searchAfterBack).toHaveValue('alpha');
   });
 
   it('opens hero detail from list view via the details icon', async () => {

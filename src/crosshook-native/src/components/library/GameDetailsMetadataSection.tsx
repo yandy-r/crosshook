@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { UseGameMetadataResult } from '../../hooks/useGameMetadata';
 import type { GameDetailsSectionState } from '../../types/game-details-modal';
 import type { SteamGenre } from '../../types/game-metadata';
@@ -26,6 +27,7 @@ function sectionStateFromMetadata(
 }
 
 export function GameDetailsMetadataSection({ steamAppId, meta }: GameDetailsMetadataSectionProps) {
+  const metadataHeadingId = useId();
   const trimmedId = steamAppId.trim();
   const hasAppId = /^\d+$/.test(trimmedId);
 
@@ -37,9 +39,9 @@ export function GameDetailsMetadataSection({ steamAppId, meta }: GameDetailsMeta
   return (
     <section
       className="crosshook-hero-detail__section crosshook-hero-detail__section--card"
-      aria-labelledby="crosshook-hero-detail-metadata-heading"
+      aria-labelledby={metadataHeadingId}
     >
-      <h3 id="crosshook-hero-detail-metadata-heading" className="crosshook-hero-detail__section-title">
+      <h3 id={metadataHeadingId} className="crosshook-hero-detail__section-title">
         Store metadata
       </h3>
       {!hasAppId ? (

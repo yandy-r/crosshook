@@ -2,6 +2,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 import type { LibraryCardData } from '../../types/library';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
+import { useLibraryHitboxClicks } from './useLibraryHitboxClicks';
 
 interface LibraryCardProps {
   profile: LibraryCardData;
@@ -80,17 +81,11 @@ export function LibraryCard({
     onOpenDetails(profile.name);
   }
 
-  function handleHitboxClick() {
-    if (onSelect) {
-      onSelect(profile.name);
-      return;
-    }
-    handleOpenDetailsClick();
-  }
-
-  function handleHitboxDoubleClick() {
-    onOpenDetails(profile.name);
-  }
+  const { handleHitboxClick, handleHitboxDoubleClick } = useLibraryHitboxClicks({
+    profileName: profile.name,
+    onOpenDetails,
+    onSelect,
+  });
 
   return (
     <li
@@ -144,11 +139,7 @@ export function LibraryCard({
         className="crosshook-library-card__details-hitbox"
         aria-label={onSelect ? `Select ${displayName}` : `View details for ${displayName}`}
         onClick={handleHitboxClick}
-        onDoubleClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          handleHitboxDoubleClick();
-        }}
+        onDoubleClick={handleHitboxDoubleClick}
       />
       {/* Cover image / skeleton / fallback */}
       {loading ? (

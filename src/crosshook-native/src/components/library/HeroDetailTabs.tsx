@@ -30,7 +30,6 @@ export function HeroDetailTabs({ activeTab, onActiveTabChange, panelProps }: Her
         <Tabs.Content
           key={tab.id}
           value={tab.id}
-          forceMount
           className="crosshook-subtab-content crosshook-hero-detail__tab-content"
           style={{ display: activeTab === tab.id ? undefined : 'none' }}
         >

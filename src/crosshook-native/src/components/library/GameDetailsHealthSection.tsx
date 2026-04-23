@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import type { OfflineReadinessReport } from '../../types';
 import type { EnrichedProfileHealthReport } from '../../types/health';
 
@@ -20,12 +21,13 @@ export function GameDetailsHealthSection({
   offlineReport,
   offlineError,
 }: GameDetailsHealthSectionProps) {
+  const healthHeadingId = useId();
   return (
     <section
       className="crosshook-hero-detail__section crosshook-hero-detail__section--card"
-      aria-labelledby="crosshook-hero-detail-health-heading"
+      aria-labelledby={healthHeadingId}
     >
-      <h3 id="crosshook-hero-detail-health-heading" className="crosshook-hero-detail__section-title">
+      <h3 id={healthHeadingId} className="crosshook-hero-detail__section-title">
         Health and offline readiness
       </h3>
       <div className="crosshook-hero-detail__subsection">
