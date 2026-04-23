@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { isBrowserDevUi, isTauri } from '../runtime';
 
-// Typed helper to avoid 'any' casts
-interface MockWindow {
-  __TAURI_INTERNALS__?: Record<string, unknown>;
-}
-
 describe('runtime.ts', () => {
   const originalWindow = global.window;
 

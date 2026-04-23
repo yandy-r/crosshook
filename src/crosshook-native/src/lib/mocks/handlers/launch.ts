@@ -1,5 +1,6 @@
 import type { DiagnosticReport } from '../../../types/diagnostics';
 import type { LaunchPreview, LaunchRequest, LaunchResult, LaunchValidationIssue } from '../../../types/launch';
+import type { LaunchHistoryEntry } from '../../../types/library';
 import { getActiveFixture } from '../../fixture';
 import { emitMockEvent } from '../eventBus';
 import { getStore } from '../store';
@@ -139,6 +140,32 @@ export function registerLaunch(map: Map<string, Handler>): void {
     isFlatpak: false,
     unshareNetAvailable: true,
   }));
+
+  map.set('list_launch_history_for_profile', async (args): Promise<LaunchHistoryEntry[]> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'error') throw forcedError('list_launch_history_for_profile');
+    if (fixture === 'loading') return neverResolving<LaunchHistoryEntry[]>();
+    if (fixture === 'empty') return [];
+    const { profileName } = args as { profileName?: string; limit?: number };
+    const trimmed = profileName?.trim() ?? '';
+    if (trimmed.length === 0) {
+      throw new Error('[dev-mock] list_launch_history_for_profile: profileName is required');
+    }
+    const suffix = trimmed.replace(/\s+/g, '-');
+    return [
+      {
+        operation_id: `mock-launch-op-${suffix}`,
+        launch_method: 'proton_run',
+        status: 'succeeded',
+        started_at: '2026-01-15T12:00:00.000Z',
+        finished_at: '2026-01-15T12:00:20.000Z',
+        exit_code: 0,
+        signal: null,
+        severity: 'info',
+        failure_mode: 'clean_exit',
+      },
+    ];
+  });
 
   // -------------------------------------------------------------------------
   // launch_game — returns LaunchResult immediately then emits event sequence

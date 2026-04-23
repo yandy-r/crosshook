@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/AppShell';
 import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
+import { InspectorSelectionProvider } from '@/context/InspectorSelectionContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { renderWithMocks } from '@/test/render';
@@ -13,7 +14,9 @@ function AppShellInAppProviders() {
       <ProfileHealthProvider>
         <HostReadinessProvider>
           <CollectionsProvider>
-            <AppShell controllerMode={false} />
+            <InspectorSelectionProvider>
+              <AppShell controllerMode={false} />
+            </InspectorSelectionProvider>
           </CollectionsProvider>
         </HostReadinessProvider>
       </ProfileHealthProvider>
@@ -131,5 +134,37 @@ describe('AppShell (integration)', () => {
     );
     expect(sectionLabels).toEqual(['Game', 'Collections', 'Setup', 'Dashboards', 'Community']);
     rectSpy.mockRestore();
+  });
+
+  it('exposes sidebar and inspector test ids at desk width', async () => {
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+        expect(screen.getByTestId('inspector')).toBeInTheDocument();
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('hides the inspector rail at deck width', async () => {
+    setInnerWidth(1024);
+    setInnerHeight(800);
+    const rectSpy = mockAppShellRect(1024, 800);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+        expect(screen.queryByTestId('inspector')).not.toBeInTheDocument();
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
   });
 });

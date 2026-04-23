@@ -86,6 +86,40 @@ test.describe('browser dev mode smoke', () => {
   }
 });
 
+test.describe('library inspector', () => {
+  test('inspector shows after selecting a card at desktop width', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+
+    const devChip = page.getByRole('status', { name: /Browser dev mode active/i });
+    await expect(devChip).toBeVisible();
+
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+
+    await page.getByRole('button', { name: /^Select /i }).first().click();
+    await expect(page.getByTestId('inspector')).toBeVisible();
+    await expect(page.getByTestId('inspector')).not.toContainText('Select a game to see details');
+
+    expect(capture.errors).toEqual([]);
+  });
+
+  test('inspector rail is absent at deck width', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await page.goto('/?fixture=populated');
+
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+
+    await page.getByRole('button', { name: /^Select /i }).first().click();
+    await expect(page.locator('[data-testid="inspector"]')).toHaveCount(0);
+    expect(capture.errors).toEqual([]);
+  });
+});
+
 test.describe('launch pipeline smoke', () => {
   test('pipeline renders on launch page', async ({ page }) => {
     const capture = attachConsoleCapture(page);

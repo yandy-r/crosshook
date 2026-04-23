@@ -64,6 +64,31 @@ describe('LibraryCard', () => {
     expect(onContextMenu.mock.calls[1]?.[1]).toBe('Synthetic Quest');
   });
 
+  it('renders hover-reveal layer and favorite heart with expected aria state', () => {
+    const { rerender } = renderWithMocks(
+      <LibraryCard {...defaultProps} profile={makeLibraryCardData({ isFavorite: false })} />
+    );
+
+    expect(document.querySelector('.crosshook-library-card__hover-reveal')).toBeInTheDocument();
+    const heart = screen.getByRole('button', { name: 'Toggle favorite: Synthetic Quest' });
+    expect(heart).toHaveAttribute('aria-pressed', 'false');
+
+    rerender(<LibraryCard {...defaultProps} profile={makeLibraryCardData({ isFavorite: true })} />);
+    expect(screen.getByRole('button', { name: 'Toggle favorite: Synthetic Quest' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+  });
+
+  it('heart click invokes onToggleFavorite', async () => {
+    const user = userEvent.setup();
+    const onToggleFavorite = vi.fn();
+    const profile = makeLibraryCardData({ isFavorite: true });
+    renderWithMocks(<LibraryCard {...defaultProps} onToggleFavorite={onToggleFavorite} profile={profile} />);
+    await user.click(screen.getByRole('button', { name: 'Toggle favorite: Synthetic Quest' }));
+    expect(onToggleFavorite).toHaveBeenCalledWith('Synthetic Quest', true);
+  });
+
   it('invokes launch, favorite, and edit callbacks from footer actions', async () => {
     const user = userEvent.setup();
     const onLaunch = vi.fn();

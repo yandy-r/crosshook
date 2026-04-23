@@ -6,6 +6,7 @@ import type { LibraryOpenDetailsHandler } from './library-card-interactions';
 interface LibraryListRowProps {
   profile: LibraryCardData;
   isSelected?: boolean;
+  onSelect?: (name: string) => void;
   onOpenDetails: LibraryOpenDetailsHandler;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;
@@ -27,6 +28,7 @@ function getInitials(gameName: string, name: string): string {
 export function LibraryListRow({
   profile,
   isSelected,
+  onSelect,
   onOpenDetails,
   onLaunch,
   onEdit,
@@ -73,6 +75,14 @@ export function LibraryListRow({
     onOpenDetails(profile.name);
   }
 
+  function handleHitboxClick() {
+    if (onSelect) {
+      onSelect(profile.name);
+      return;
+    }
+    handleOpenDetailsClick();
+  }
+
   return (
     <li
       ref={rowRef}
@@ -110,8 +120,8 @@ export function LibraryListRow({
       <button
         type="button"
         className="crosshook-library-list-row__details-hitbox"
-        aria-label={`View details for ${displayName}`}
-        onClick={handleOpenDetailsClick}
+        aria-label={onSelect ? `Select ${displayName}` : `View details for ${displayName}`}
+        onClick={handleHitboxClick}
       />
 
       {/* Thumbnail */}
@@ -150,6 +160,22 @@ export function LibraryListRow({
 
       {/* Actions */}
       <div className="crosshook-library-list-row__actions">
+        {onSelect ? (
+          <button
+            type="button"
+            className="crosshook-library-list-row__btn--icon"
+            aria-label={`View details for ${displayName}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenDetailsClick();
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.25" />
+              <path d="M8 6.5v3M8 4.2h.01" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+            </svg>
+          </button>
+        ) : null}
         <button
           type="button"
           className="crosshook-library-list-row__btn--launch"

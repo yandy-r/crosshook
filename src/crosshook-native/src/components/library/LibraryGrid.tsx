@@ -6,6 +6,7 @@ import type { LibraryOpenDetailsHandler } from './library-card-interactions';
 interface LibraryGridProps {
   profiles: LibraryCardData[];
   selectedName?: string;
+  onSelect?: (name: string) => void;
   onOpenDetails: LibraryOpenDetailsHandler;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;
@@ -18,6 +19,7 @@ interface LibraryGridProps {
 export function LibraryGrid({
   profiles,
   selectedName,
+  onSelect,
   onOpenDetails,
   onLaunch,
   onEdit,
@@ -45,6 +47,7 @@ export function LibraryGrid({
           key={profile.name}
           profile={profile}
           isSelected={selectedName === profile.name}
+          onSelect={onSelect}
           onOpenDetails={onOpenDetails}
           onLaunch={onLaunch}
           onEdit={onEdit}

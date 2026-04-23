@@ -14,6 +14,10 @@
   --crosshook-color-scrim: rgba(8, 10, 18, 0.78);
   --crosshook-color-border: rgba(224, 224, 224, 0.12);
   --crosshook-color-border-strong: rgba(224, 224, 224, 0.22);
+  /* Library card floating controls (details / favorite): frosted border + deep overlay */
+  --crosshook-library-card-control-border: rgba(255, 255, 255, 0.22);
+  --crosshook-library-card-control-surface: rgba(10, 14, 28, 0.55);
+  --crosshook-library-card-control-surface-hover: rgba(10, 14, 28, 0.72);
   /* Subtle dashed dividers / empty states (reusable muted border) */
   --crosshook-color-border-muted: rgba(255, 255, 255, 0.1);
   --crosshook-color-text: #e0e0e0;

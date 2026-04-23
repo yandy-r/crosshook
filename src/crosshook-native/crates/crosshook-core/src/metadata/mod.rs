@@ -122,9 +122,9 @@ pub use health_store::HealthSnapshotRow;
 pub use models::{
     BundledOptimizationPresetRow, CacheEntryStatus, CollectionRow, CommunityProfileRow,
     CommunityTapRow, ConfigRevisionRow, ConfigRevisionSource, DriftState, FailureTrendRow,
-    LaunchOutcome, MetadataStoreError, PrefixDependencyStateRow, PrefixStorageCleanupAuditRow,
-    PrefixStorageSnapshotRow, ProfileLaunchPresetOrigin, SyncReport, SyncSource,
-    VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
+    LaunchHistoryEntry, LaunchOutcome, MetadataStoreError, PrefixDependencyStateRow,
+    PrefixStorageCleanupAuditRow, PrefixStorageSnapshotRow, ProfileLaunchPresetOrigin, SyncReport,
+    SyncSource, VersionCorrelationStatus, VersionSnapshotRow, MAX_CACHE_PAYLOAD_BYTES,
     MAX_CONFIG_REVISIONS_PER_PROFILE, MAX_DIAGNOSTIC_JSON_BYTES, MAX_HISTORY_LIST_LIMIT,
     MAX_SNAPSHOT_TOML_BYTES, MAX_VERSION_SNAPSHOTS_PER_PROFILE,
 };

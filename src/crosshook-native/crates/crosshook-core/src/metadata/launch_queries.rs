@@ -4,9 +4,10 @@
 
 use rusqlite::{params_from_iter, Connection, OptionalExtension};
 
+use super::profile_sync::lookup_profile_id;
 use super::util::in_clause_placeholders;
 use super::{FailureTrendRow, MetadataStore, MetadataStoreError};
-use crate::metadata::models::DriftState;
+use crate::metadata::models::{DriftState, LaunchHistoryEntry};
 
 pub(super) fn query_most_launched(
     conn: &Connection,
@@ -347,6 +348,106 @@ pub(super) fn query_failure_trends(
     Ok(result)
 }
 
+pub(super) fn query_launch_history_for_profile(
+    conn: &Connection,
+    profile_name: &str,
+    limit: usize,
+) -> Result<Vec<LaunchHistoryEntry>, MetadataStoreError> {
+    if profile_name.is_empty() || limit == 0 {
+        return Ok(Vec::new());
+    }
+
+    let cap = i64::try_from(limit).unwrap_or(i64::MAX);
+    let profile_id = lookup_profile_id(conn, profile_name)?;
+
+    let mut result = Vec::new();
+
+    if let Some(pid) = profile_id {
+        let mut stmt = conn
+            .prepare(
+                "SELECT operation_id, launch_method, status, started_at, finished_at, \
+                        exit_code, signal, severity, failure_mode \
+                 FROM launch_operations \
+                 WHERE profile_id = ?1 \
+                    OR (profile_id IS NULL AND profile_name = ?2) \
+                 ORDER BY started_at DESC \
+                 LIMIT ?3",
+            )
+            .map_err(|source| MetadataStoreError::Database {
+                action: "prepare query_launch_history_for_profile statement",
+                source,
+            })?;
+
+        let rows = stmt
+            .query_map(rusqlite::params![pid, profile_name, cap], |row| {
+                Ok(LaunchHistoryEntry {
+                    operation_id: row.get(0)?,
+                    launch_method: row.get(1)?,
+                    status: row.get(2)?,
+                    started_at: row.get(3)?,
+                    finished_at: row.get(4)?,
+                    exit_code: row.get(5)?,
+                    signal: row.get(6)?,
+                    severity: row.get(7)?,
+                    failure_mode: row.get(8)?,
+                })
+            })
+            .map_err(|source| MetadataStoreError::Database {
+                action: "execute query_launch_history_for_profile",
+                source,
+            })?;
+
+        for row in rows {
+            result.push(row.map_err(|source| MetadataStoreError::Database {
+                action: "read a query_launch_history_for_profile row",
+                source,
+            })?);
+        }
+    } else {
+        let mut stmt = conn
+            .prepare(
+                "SELECT operation_id, launch_method, status, started_at, finished_at, \
+                        exit_code, signal, severity, failure_mode \
+                 FROM launch_operations \
+                 WHERE profile_name = ?1 \
+                 ORDER BY started_at DESC \
+                 LIMIT ?2",
+            )
+            .map_err(|source| MetadataStoreError::Database {
+                action: "prepare query_launch_history_for_profile statement",
+                source,
+            })?;
+
+        let rows = stmt
+            .query_map(rusqlite::params![profile_name, cap], |row| {
+                Ok(LaunchHistoryEntry {
+                    operation_id: row.get(0)?,
+                    launch_method: row.get(1)?,
+                    status: row.get(2)?,
+                    started_at: row.get(3)?,
+                    finished_at: row.get(4)?,
+                    exit_code: row.get(5)?,
+                    signal: row.get(6)?,
+                    severity: row.get(7)?,
+                    failure_mode: row.get(8)?,
+                })
+            })
+            .map_err(|source| MetadataStoreError::Database {
+                action: "execute query_launch_history_for_profile",
+                source,
+            })?;
+
+        for row in rows {
+            result.push(row.map_err(|source| MetadataStoreError::Database {
+                action: "read a query_launch_history_for_profile row",
+                source,
+            })?);
+        }
+    }
+
+    Ok(result)
+}
+
 impl MetadataStore {
     pub fn query_most_launched(
         &self,
@@ -459,6 +560,20 @@ impl MetadataStore {
     ) -> Result<Vec<FailureTrendRow>, MetadataStoreError> {
         self.with_conn("query failure trends", |conn| {
             query_failure_trends(conn, days)
+        })
+    }
+
+    /// Recent launch rows for a profile, newest first (by `started_at`). Omits `diagnostic_json`.
+    pub fn query_launch_history_for_profile(
+        &self,
+        profile_name: &str,
+        limit: usize,
+    ) -> Result<Vec<LaunchHistoryEntry>, MetadataStoreError> {
+        if profile_name.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.with_conn("query launch history for profile", |conn| {
+            query_launch_history_for_profile(conn, profile_name, limit)
         })
     }
 }

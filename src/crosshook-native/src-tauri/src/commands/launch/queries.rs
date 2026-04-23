@@ -5,7 +5,13 @@ use crosshook_core::launch::{
     build_steam_launch_options_command as build_steam_launch_options_command_core, validate,
     LaunchPlatformCapabilities, LaunchPreview, LaunchRequest, LaunchValidationIssue,
 };
+use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore, MAX_HISTORY_LIST_LIMIT};
 use crosshook_core::profile::GamescopeConfig;
+use tauri::State;
+
+fn map_error(e: impl ToString) -> String {
+    e.to_string()
+}
 
 #[tauri::command]
 pub fn validate_launch(request: LaunchRequest) -> Result<(), LaunchValidationIssue> {
@@ -54,4 +60,24 @@ pub fn check_game_running(exe_name: String) -> bool {
         return false;
     }
     crosshook_core::launch::is_process_running(name)
+}
+
+/// Recent launch rows for a profile (newest first), from `launch_operations` — no `diagnostic_json`.
+#[tauri::command]
+pub fn list_launch_history_for_profile(
+    profile_name: String,
+    limit: Option<u32>,
+    metadata_store: State<'_, MetadataStore>,
+) -> Result<Vec<LaunchHistoryEntry>, String> {
+    let profile_name = profile_name.trim();
+    if profile_name.is_empty() {
+        return Err("profile_name is required".to_string());
+    }
+    if !metadata_store.is_available() {
+        return Ok(Vec::new());
+    }
+    let cap = limit.unwrap_or(20).min(MAX_HISTORY_LIST_LIMIT as u32) as usize;
+    metadata_store
+        .query_launch_history_for_profile(profile_name, cap)
+        .map_err(map_error)
 }

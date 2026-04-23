@@ -1,9 +1,20 @@
 #![cfg(test)]
 
-use super::test_support::clean_exit_report;
-use super::MetadataStore;
+use super::test_support::{clean_exit_report, sample_profile};
+use super::{LaunchHistoryEntry, MetadataStore, SyncSource};
 use crate::launch::diagnostics::models::{DiagnosticReport, ExitCodeInfo, FailureMode};
 use crate::launch::request::ValidationSeverity;
+
+fn assert_launch_history_newest_first(entries: &[LaunchHistoryEntry]) {
+    for w in entries.windows(2) {
+        assert!(
+            w[0].started_at >= w[1].started_at,
+            "expected non-increasing started_at (newest first), got {:?} then {:?}",
+            w[0].started_at,
+            w[1].started_at
+        );
+    }
+}
 
 #[test]
 fn test_query_most_launched() {
@@ -164,4 +175,100 @@ fn test_single_profile_usage_queries() {
         .query_total_launches_for_profile("target-profile")
         .unwrap();
     assert_eq!(total_launches, 2);
+}
+
+#[test]
+fn test_query_launch_history_for_profile() {
+    let store = MetadataStore::open_in_memory().unwrap();
+    let report = clean_exit_report();
+
+    for _ in 0..3 {
+        let op = store
+            .record_launch_started(Some("history-alpha"), "proton_run", None)
+            .unwrap();
+        store
+            .record_launch_finished(&op, Some(0), None, &report)
+            .unwrap();
+    }
+
+    let _other = store
+        .record_launch_started(Some("history-beta"), "native", None)
+        .unwrap();
+    let other = store
+        .record_launch_started(Some("history-beta"), "native", None)
+        .unwrap();
+    store
+        .record_launch_finished(&other, Some(0), None, &report)
+        .unwrap();
+
+    let in_flight = store
+        .record_launch_started(Some("history-alpha"), "native", None)
+        .unwrap();
+
+    let alpha = store
+        .query_launch_history_for_profile("history-alpha", 20)
+        .unwrap();
+    assert_eq!(alpha.len(), 4, "3 finished + 1 in progress");
+    assert_launch_history_newest_first(&alpha);
+    assert!(alpha
+        .iter()
+        .any(|e| e.operation_id == in_flight && e.status == "started"));
+
+    let alpha_limited = store
+        .query_launch_history_for_profile("history-alpha", 2)
+        .unwrap();
+    assert_eq!(alpha_limited.len(), 2);
+    assert_launch_history_newest_first(&alpha_limited);
+
+    let beta = store
+        .query_launch_history_for_profile("history-beta", 10)
+        .unwrap();
+    assert_eq!(beta.len(), 2);
+    assert_launch_history_newest_first(&beta);
+    assert!(
+        !alpha.iter().any(|e| e.operation_id == other),
+        "alpha history must not include beta launches"
+    );
+
+    assert!(store
+        .query_launch_history_for_profile("", 10)
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn test_query_launch_history_survives_profile_rename() {
+    let store = MetadataStore::open_in_memory().unwrap();
+    let profile = sample_profile();
+    let old_path = std::path::Path::new("/profiles/rename-launch-old.toml");
+    let new_path = std::path::Path::new("/profiles/rename-launch-new.toml");
+
+    store
+        .observe_profile_write(
+            "rename-launch-old",
+            &profile,
+            old_path,
+            SyncSource::AppWrite,
+            None,
+        )
+        .unwrap();
+
+    let report = clean_exit_report();
+    let op = store
+        .record_launch_started(Some("rename-launch-old"), "native", None)
+        .unwrap();
+    store
+        .record_launch_finished(&op, Some(0), None, &report)
+        .unwrap();
+
+    store
+        .observe_profile_rename("rename-launch-old", "rename-launch-new", old_path, new_path)
+        .unwrap();
+
+    let history = store
+        .query_launch_history_for_profile("rename-launch-new", 10)
+        .unwrap();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].operation_id, op);
+    assert_eq!(history[0].status, "succeeded");
 }

@@ -279,3 +279,36 @@
     max-height: calc(100dvh - var(--crosshook-page-padding));
   }
 }
+
+/* Inspector rail (Phase 4 unified desktop) */
+.crosshook-inspector {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface-strong);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.02);
+}
+
+.crosshook-inspector--collapsed {
+  /* Reserved for future user-pinnable / collapsed inspector width */
+}
+
+.crosshook-inspector__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 14px 20px;
+}
+
+.crosshook-inspector__error,
+.crosshook-inspector__empty-route {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}

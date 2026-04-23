@@ -6,6 +6,8 @@ import type { LibraryOpenDetailsHandler } from './library-card-interactions';
 interface LibraryListProps {
   profiles: LibraryCardData[];
   selectedName?: string;
+  /** When set, primary row hit selects for the inspector (details use the info control). */
+  onSelect?: (name: string) => void;
   onOpenDetails: LibraryOpenDetailsHandler;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;
@@ -18,6 +20,7 @@ interface LibraryListProps {
 export function LibraryList({
   profiles,
   selectedName,
+  onSelect,
   onOpenDetails,
   onLaunch,
   onEdit,
@@ -45,6 +48,7 @@ export function LibraryList({
           key={profile.name}
           profile={profile}
           isSelected={selectedName === profile.name}
+          onSelect={onSelect}
           onOpenDetails={onOpenDetails}
           onLaunch={onLaunch}
           onEdit={onEdit}

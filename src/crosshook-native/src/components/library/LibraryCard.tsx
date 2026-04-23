@@ -7,6 +7,12 @@ interface LibraryCardProps {
   profile: LibraryCardData;
   isSelected?: boolean;
   onOpenDetails: LibraryOpenDetailsHandler;
+  /**
+   * When set, a single click on the card hit area (`handleHitboxClick`) calls `onSelect` to choose the
+   * game for the inspector. Opening full details is not from double-click; use the separate
+   * “open details” control (`crosshook-library-card__open-details`) when this prop is provided.
+   */
+  onSelect?: (name: string) => void;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
@@ -28,6 +34,7 @@ export function LibraryCard({
   profile,
   isSelected,
   onOpenDetails,
+  onSelect,
   onLaunch,
   onEdit,
   onToggleFavorite,
@@ -73,6 +80,14 @@ export function LibraryCard({
     onOpenDetails(profile.name);
   }
 
+  function handleHitboxClick() {
+    if (onSelect) {
+      onSelect(profile.name);
+      return;
+    }
+    handleOpenDetailsClick();
+  }
+
   return (
     <li
       ref={cardRef}
@@ -110,9 +125,25 @@ export function LibraryCard({
       <button
         type="button"
         className="crosshook-library-card__details-hitbox"
-        aria-label={`View details for ${displayName}`}
-        onClick={handleOpenDetailsClick}
+        aria-label={onSelect ? `Select ${displayName}` : `View details for ${displayName}`}
+        onClick={handleHitboxClick}
       />
+      {onSelect ? (
+        <button
+          type="button"
+          className="crosshook-library-card__open-details"
+          aria-label={`View details for ${displayName}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenDetailsClick();
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.25" />
+            <path d="M8 6.5v3M8 4.2h.01" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+          </svg>
+        </button>
+      ) : null}
       {/* Cover image / skeleton / fallback */}
       {loading ? (
         <div className="crosshook-library-card__image crosshook-skeleton" />
@@ -131,14 +162,22 @@ export function LibraryCard({
       {/* Gradient scrim */}
       <div className="crosshook-library-card__scrim" />
 
-      {/* Favorite badge (persistent when favorited) */}
-      {profile.isFavorite && (
-        <div className="crosshook-library-card__favorite-badge" role="img" aria-label="Favorited">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
-          </svg>
-        </div>
-      )}
+      <div className="crosshook-library-card__hover-reveal" aria-hidden="true" />
+
+      <button
+        type="button"
+        className="crosshook-library-card__favorite-heart"
+        aria-pressed={profile.isFavorite}
+        aria-label={`Toggle favorite: ${displayName}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(profile.name, profile.isFavorite);
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
+        </svg>
+      </button>
 
       {/* Footer with title and actions */}
       <div className="crosshook-library-card__footer">
