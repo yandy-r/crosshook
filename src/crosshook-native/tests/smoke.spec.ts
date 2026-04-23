@@ -49,6 +49,10 @@ const DASHBOARD_ROUTE_HEADINGS: Partial<Record<AppRoute, string>> = {
   'host-tools': 'Check runtime coverage before you launch',
   'proton-manager': 'Manage installed Proton builds',
   compatibility: 'Keep trainer reports and Proton runtimes in the same workflow',
+  install: 'Install & Run',
+  settings: 'App preferences and storage',
+  community: 'Community Profiles',
+  discover: 'Trainer Discovery',
 };
 
 // Labels from ROUTE_NAV_LABEL (routeMetadata.ts) — same source as Sidebar triggers.
@@ -87,8 +91,19 @@ test.describe('browser dev mode smoke', () => {
 
       const dashboardHeading = DASHBOARD_ROUTE_HEADINGS[route];
       if (dashboardHeading) {
-        await expect(page.getByRole('heading', { name: dashboardHeading, exact: true })).toBeVisible();
-        await expect(page.locator('.crosshook-dashboard-route-body, .crosshook-host-tool-dashboard').first()).toBeVisible();
+        // Scope to the DashboardPanelSection title to avoid collision with
+        // RouteBanner headings that share the same text on some routes (e.g.
+        // install has "Install & Run" in both the banner h1 and the panel h2).
+        await expect(
+          page.locator('.crosshook-dashboard-panel-section__title', { hasText: dashboardHeading }).first()
+        ).toBeVisible();
+        await expect(
+          page
+            .locator(
+              '.crosshook-dashboard-route-body, .crosshook-host-tool-dashboard, .crosshook-install-page-tabs, .crosshook-settings-panel, .crosshook-community-browser, .crosshook-discovery-panel'
+            )
+            .first()
+        ).toBeVisible();
       }
 
       await page.screenshot({
