@@ -155,8 +155,8 @@ describe('dashboard routes', () => {
       })
     ).toBeInTheDocument();
     expect(await screen.findByText('No explicit path provided; runtime detection applies.')).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { level: 2, name: 'Installed' })).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { level: 2, name: 'Available' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 3, name: 'Installed' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 3, name: 'Available' })).toBeInTheDocument();
     expect(container.querySelector('.crosshook-page-scroll-shell--proton-manager')).toBeInTheDocument();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
