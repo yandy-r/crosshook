@@ -1,6 +1,7 @@
 import { useId } from 'react';
 
 import type { GameProfile } from '../../types';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
 
 export interface RunnerMethodSectionProps {
@@ -24,9 +25,19 @@ export function RunnerMethodSection({ profile, onUpdateProfile, hideNative }: Ru
     ...(hideNative ? [] : [{ value: 'native' as const, label: 'Native Linux launch' }]),
   ];
 
+  const currentLabel = options.find((o) => o.value === profile.launch.method)?.label ?? profile.launch.method;
+
   return (
-    <>
-      <div className="crosshook-install-section-title">Runner Method</div>
+    <DashboardPanelSection
+      titleAs="h3"
+      eyebrow="Profile"
+      title="Runner Method"
+      actions={
+        <div className="crosshook-dashboard-pill-row">
+          <span className="crosshook-dashboard-pill">{currentLabel}</span>
+        </div>
+      }
+    >
       <div className="crosshook-field">
         <label className="crosshook-label" htmlFor={`${sectionId}-launch-method`}>
           Runner Method
@@ -50,7 +61,7 @@ export function RunnerMethodSection({ profile, onUpdateProfile, hideNative }: Ru
           Choose the runner explicitly so CrossHook saves the correct launch method and only shows the relevant fields.
         </p>
       </div>
-    </>
+    </DashboardPanelSection>
   );
 }
 

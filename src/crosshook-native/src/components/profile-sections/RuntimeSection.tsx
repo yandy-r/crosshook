@@ -7,6 +7,7 @@ import { validateSteamAppId } from '../../utils/art';
 import { chooseDirectory, chooseFile } from '../../utils/dialog';
 import { deriveSteamClientInstallPath } from '../../utils/steam';
 import AutoPopulate from '../AutoPopulate';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import type { ProtonInstallOption } from '../ProfileFormSections';
 import { FieldRow, LauncherMetadataFields, OptionalSection, ProtonPathField } from '../ProfileFormSections';
 import { InfoTooltip } from '../ui/InfoTooltip';
@@ -71,9 +72,7 @@ export function RuntimeSection({
         : 'Native Runtime';
 
   return (
-    <div className="crosshook-install-section">
-      <div className="crosshook-install-section-title">{runtimeTitle}</div>
-
+    <DashboardPanelSection titleAs="h3" eyebrow="Profile" title={runtimeTitle}>
       {launchMethod === 'steam_applaunch' ? (
         <>
           <div className="crosshook-install-grid">
@@ -219,7 +218,7 @@ export function RuntimeSection({
               <LauncherMetadataFields profile={profile} onUpdateProfile={onUpdateProfile} />
             ) : null}
 
-            <OptionalSection summary="Working directory override" collapsed={workingDirectoryCollapsed}>
+            <OptionalSection summary="Working directory override" collapsible={workingDirectoryCollapsed}>
               <FieldRow
                 label="Working Directory"
                 value={profile.runtime.working_directory}
@@ -319,7 +318,7 @@ export function RuntimeSection({
       ) : null}
 
       {launchMethod === 'native' ? (
-        <OptionalSection summary="Working directory override" collapsed={workingDirectoryCollapsed}>
+        <OptionalSection summary="Working directory override" collapsible={workingDirectoryCollapsed}>
           <div className="crosshook-install-grid" style={{ marginTop: 16 }}>
             <FieldRow
               label="Working Directory"
@@ -346,7 +345,7 @@ export function RuntimeSection({
           </div>
         </OptionalSection>
       ) : null}
-    </div>
+    </DashboardPanelSection>
   );
 }
 

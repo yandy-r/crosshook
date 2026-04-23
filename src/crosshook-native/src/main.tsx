@@ -7,6 +7,7 @@ import './styles/utilities.css';
 import './styles/focus.css';
 import './styles/layout.css';
 import './styles/dashboard-routes.css';
+import './styles/editor-routes.css';
 import './styles/install-routes.css';
 import './styles/settings-routes.css';
 import './styles/community-routes.css';

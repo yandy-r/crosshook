@@ -91,6 +91,7 @@ test.describe('browser dev mode smoke', () => {
 
       const dashboardHeading = DASHBOARD_ROUTE_HEADINGS[route];
       if (dashboardHeading) {
+        const activeTabPanel = page.locator('[role="tabpanel"]:not([hidden])');
         // Scope to the DashboardPanelSection title to avoid collision with
         // RouteBanner headings that share the same text on some routes (e.g.
         // install has "Install & Run" in both the banner h1 and the panel h2).
@@ -98,11 +99,9 @@ test.describe('browser dev mode smoke', () => {
           page.locator('.crosshook-dashboard-panel-section__title', { hasText: dashboardHeading }).first()
         ).toBeVisible();
         await expect(
-          page
-            .locator(
-              '.crosshook-dashboard-route-body, .crosshook-host-tool-dashboard, .crosshook-install-page-tabs, .crosshook-settings-panel, .crosshook-community-browser, .crosshook-discovery-panel'
-            )
-            .first()
+          activeTabPanel.locator(
+            '.crosshook-dashboard-route-body, .crosshook-host-tool-dashboard, .crosshook-install-page-tabs, .crosshook-settings-panel, .crosshook-community-browser, .crosshook-discovery-panel, .crosshook-profiles-page__body, .crosshook-launch-page__grid'
+          )
         ).toBeVisible();
       }
 
@@ -200,6 +199,54 @@ test.describe('launch pipeline smoke', () => {
     await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
 
     expect(capture.errors).toEqual([]);
+  });
+});
+
+test.describe('profiles + launch panel landing smoke', () => {
+  const PANEL_LANDING_ROUTES = [
+    { route: 'profiles', navLabel: 'Profiles', bannerTitle: 'Profiles' },
+    { route: 'launch', navLabel: 'Launch', bannerTitle: 'Launch' },
+  ] as const;
+
+  for (const { route, navLabel, bannerTitle } of PANEL_LANDING_ROUTES) {
+    test(`panel sections render on ${route} page`, async ({ page }) => {
+      const capture = attachConsoleCapture(page);
+
+      await page.goto('/?fixture=populated');
+
+      const trigger = page.getByRole('tab', { name: navLabel, exact: true });
+      await expect(trigger).toBeVisible();
+      await trigger.click();
+      await expect(trigger).toHaveAttribute('aria-current', 'page');
+
+      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {
+        /* expected: no network in mock mode */
+      });
+
+      // RouteBanner H1 must be visible on the Phase-11 editor routes.
+      await expect(page.getByRole('heading', { level: 1, name: bannerTitle })).toBeVisible();
+
+      // At least one DashboardPanelSection must be present (attached to DOM) in the route body.
+      // NOTE: subtab contents use `display: none` on inactive panels so visibility is gated by
+      // the active tab — assert attachment to avoid flaky hidden-tab failures.
+      await expect(page.locator('section.crosshook-dashboard-panel-section').first()).toBeAttached();
+
+      expect(capture.errors, `Panel-landing errors on route "${navLabel}":\n${capture.errors.join('\n')}`).toEqual([]);
+    });
+  }
+
+  test('launch pipeline node count is stable on panel-landing', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.goto('/?fixture=populated');
+    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
+    await launchTab.click();
+    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+
+    await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
+    await expect(page.locator('section.crosshook-dashboard-panel-section').first()).toBeAttached();
+
+    expect(capture.errors, `Launch panel-landing pipeline errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 });
 

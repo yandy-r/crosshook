@@ -187,7 +187,7 @@ export function ProfileSubTabs({
           className="crosshook-subtab-content"
           style={{ display: activeTab === 'setup' ? undefined : 'none' }}
         >
-          <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+          <div className="crosshook-subtab-content__inner crosshook-dashboard-route-section-stack">
             <ProfileIdentitySection
               profileName={profileName}
               profile={profile}
@@ -208,7 +208,7 @@ export function ProfileSubTabs({
           className="crosshook-subtab-content"
           style={{ display: activeTab === 'runtime' ? undefined : 'none' }}
         >
-          <div className="crosshook-subtab-content__inner">
+          <div className="crosshook-subtab-content__inner crosshook-dashboard-route-section-stack">
             <RuntimeSection
               profile={profile}
               onUpdateProfile={onUpdateProfile}
@@ -239,7 +239,7 @@ export function ProfileSubTabs({
             className="crosshook-subtab-content"
             style={{ display: activeTab === 'trainer' ? undefined : 'none' }}
           >
-            <div className="crosshook-subtab-content__inner">
+            <div className="crosshook-subtab-content__inner crosshook-dashboard-route-section-stack">
               <TrainerSection
                 profile={profile}
                 onUpdateProfile={onUpdateProfile}

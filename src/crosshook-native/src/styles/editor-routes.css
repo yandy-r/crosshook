@@ -1,0 +1,66 @@
+/* Readonly pill — displayed inline next to editable fields to indicate a value
+   cannot be changed in the current context (e.g. inherited or locked fields). */
+.crosshook-editor-field-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--crosshook-dashboard-kv-row-border);
+  border-radius: 999px;
+  background: var(--crosshook-dashboard-pill-bg);
+  color: var(--crosshook-color-text-subtle);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Monospace panel — used for command previews and launch string displays. */
+.crosshook-editor-mono-panel {
+  display: block;
+  padding: 12px 16px;
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-sm);
+  background: var(--crosshook-color-surface-strong);
+  color: var(--crosshook-color-text-muted);
+  font-family: var(--crosshook-font-mono);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  white-space: pre;
+  word-break: normal;
+}
+
+/* Collapsible optional section — wraps low-priority fields in a <details> when collapsed. */
+.crosshook-optional-section {
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-sm);
+  padding: 8px 12px;
+}
+
+.crosshook-optional-section__summary {
+  cursor: pointer;
+  color: var(--crosshook-color-text-subtle);
+  font-size: 0.88rem;
+  font-weight: 500;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crosshook-optional-section__summary::-webkit-details-marker {
+  display: none;
+}
+
+.crosshook-optional-section__summary::before {
+  content: '▶';
+  font-size: 0.65em;
+  transition: transform 0.15s ease;
+}
+
+.crosshook-optional-section[open] > .crosshook-optional-section__summary::before {
+  transform: rotate(90deg);
+}
