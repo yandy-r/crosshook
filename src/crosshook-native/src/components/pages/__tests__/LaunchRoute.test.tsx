@@ -9,8 +9,8 @@ import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { emitMockEvent } from '@/lib/events';
-import { renderWithMocks } from '@/test/render';
 import { makeProfileDraft } from '@/test/fixtures';
+import { renderWithMocks } from '@/test/render';
 import { LaunchPage } from '../LaunchPage';
 
 vi.mock('@/lib/ipc', async () => {
@@ -284,9 +284,7 @@ describe('LaunchRoute', () => {
               launcher: { icon_path: '', display_name: '' },
             },
           }),
-        get_dependency_status: async () => [
-          { package_name: 'vcrun2019', state: 'missing', error: null },
-        ],
+        get_dependency_status: async () => [{ package_name: 'vcrun2019', state: 'missing', error: null }],
         install_prefix_dependency: async () => null,
       },
     });

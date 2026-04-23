@@ -3,6 +3,8 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LaunchSubTabsProps } from '@/components/LaunchSubTabs';
+import { LaunchSubTabs } from '@/components/LaunchSubTabs';
 import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
 import { LaunchStateProvider } from '@/context/LaunchStateContext';
@@ -10,10 +12,8 @@ import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { renderWithMocks } from '@/test/render';
-import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '@/types/profile';
 import type { LaunchAutoSaveStatus, LaunchMethod } from '@/types';
-import type { LaunchSubTabsProps } from '@/components/LaunchSubTabs';
-import { LaunchSubTabs } from '@/components/LaunchSubTabs';
+import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '@/types/profile';
 
 vi.mock('@/lib/ipc', async () => {
   const { mockCallCommand } = await import('@/test/render');

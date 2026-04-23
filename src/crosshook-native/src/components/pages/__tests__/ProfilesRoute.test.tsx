@@ -1,6 +1,5 @@
 import { TooltipProvider } from '@radix-ui/react-tooltip';
 import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CollectionsProvider } from '@/context/CollectionsContext';
@@ -9,8 +8,8 @@ import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { emitMockEvent } from '@/lib/events';
-import { renderWithMocks } from '@/test/render';
 import { makeProfileDraft } from '@/test/fixtures';
+import { renderWithMocks } from '@/test/render';
 import { ProfilesPage } from '../ProfilesPage';
 
 vi.mock('@/lib/ipc', async () => {
