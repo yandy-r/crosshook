@@ -1,6 +1,7 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { contextRailLayoutForShell } from '@/components/layout/contextRailVariants';
 import { fireMatchMediaChangeListeners, MockResizeObserver, triggerResize } from '@/test/setup';
 import { sizeFromWidth, type UseBreakpointResult, useBreakpoint } from '../useBreakpoint';
 
@@ -198,5 +199,27 @@ describe('useBreakpoint', () => {
       expect(screen.getByTestId('bp-size').textContent).toBe('uw');
       expect(screen.getByTestId('bp-uw').textContent).toBe('true');
     });
+  });
+
+  it('keeps the uw bucket at 2200px while context rail visibility uses a stricter width gate', () => {
+    expect(sizeFromWidth(2560)).toBe('uw');
+    expect(
+      contextRailLayoutForShell({
+        route: 'library',
+        libraryMode: 'library',
+        breakpointSize: 'uw',
+        viewportWidth: 2560,
+        viewportHeight: 1440,
+      }).visible
+    ).toBe(false);
+    expect(
+      contextRailLayoutForShell({
+        route: 'library',
+        libraryMode: 'library',
+        breakpointSize: 'uw',
+        viewportWidth: 3440,
+        viewportHeight: 1440,
+      }).visible
+    ).toBe(true);
   });
 });

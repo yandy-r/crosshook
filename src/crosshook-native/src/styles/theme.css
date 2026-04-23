@@ -2187,6 +2187,99 @@ textarea {
   color: var(--crosshook-color-info);
 }
 
+/* ---------- Library context rail (ultrawide fourth pane) ------------------ */
+
+.crosshook-context-rail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border-left: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface-1);
+}
+
+.crosshook-context-rail__header {
+  flex-shrink: 0;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--crosshook-color-border);
+}
+
+.crosshook-context-rail__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-context-rail__subtitle {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: var(--crosshook-color-text-subtle);
+}
+
+.crosshook-context-rail__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.crosshook-context-rail__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.crosshook-context-rail__section .crosshook-host-tool-dashboard-cards {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.crosshook-context-rail__section .crosshook-host-tool-dashboard-card {
+  padding: 12px 14px;
+}
+
+.crosshook-context-rail__section .crosshook-host-tool-dashboard-card__count {
+  font-size: 1.45rem;
+}
+
+.crosshook-context-rail__chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 72px;
+  padding-top: 4px;
+}
+
+.crosshook-context-rail__chart-cell {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 100%;
+}
+
+.crosshook-context-rail__chart-bar {
+  width: 100%;
+  min-height: 2px;
+  margin-top: auto;
+  border-radius: var(--crosshook-radius-sm);
+  background: linear-gradient(180deg, var(--crosshook-color-accent), var(--crosshook-color-accent-strong));
+  opacity: 0.85;
+}
+
+.crosshook-context-rail__chart-label {
+  font-size: 0.65rem;
+  color: var(--crosshook-color-text-subtle);
+  line-height: 1;
+}
+
 .crosshook-runner-coverage-info {
   color: var(--crosshook-color-info);
   font-size: 0.95em;

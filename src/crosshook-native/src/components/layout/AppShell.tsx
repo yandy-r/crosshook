@@ -30,6 +30,8 @@ import {
 import { subscribeEvent } from '@/lib/events';
 import { isAppRoute } from '@/lib/validAppRoutes';
 import type { OnboardingCheckPayload } from '@/types/onboarding';
+import { ContextRail } from './ContextRail';
+import { contextRailLayoutForShell } from './contextRailVariants';
 import { inspectorWidthForBreakpoint } from './inspectorVariants';
 import { ROUTE_METADATA } from './routeMetadata';
 import { sidebarVariantFromBreakpoint, sidebarWidthForVariant } from './sidebarVariants';
@@ -71,7 +73,29 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const inspectorWidthBase = inspectorWidthForBreakpoint(breakpoint.size);
   const routeHasInspector = ROUTE_METADATA[route].inspectorComponent != null;
   const inspectorWidth = routeHasInspector ? inspectorWidthBase : 0;
-  const { inspectorSelection, libraryInspectorHandlers } = useInspectorSelection();
+  const { inspectorSelection, libraryInspectorHandlers, libraryShellMode, setLibraryShellMode } =
+    useInspectorSelection();
+
+  const setLibraryShellModeRef = useRef(setLibraryShellMode);
+  setLibraryShellModeRef.current = setLibraryShellMode;
+
+  useEffect(() => {
+    if (route !== 'library') {
+      setLibraryShellModeRef.current((m) => (m === 'library' ? m : 'library'));
+    }
+  }, [route]);
+
+  const contextRailLayout = useMemo(
+    () =>
+      contextRailLayoutForShell({
+        route,
+        libraryMode: libraryShellMode,
+        breakpointSize: breakpoint.size,
+        viewportWidth: breakpoint.width,
+        viewportHeight: breakpoint.height,
+      }),
+    [route, libraryShellMode, breakpoint.size, breakpoint.width, breakpoint.height]
+  );
 
   const {
     open: collectionModalOpen,
@@ -207,7 +231,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
         }
       }
     },
-    [selectProfile, setRoute]
+    [selectProfile]
   );
 
   const {
@@ -365,6 +389,16 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                       onEditProfile={libraryInspectorHandlers?.onEditProfile}
                       onToggleFavorite={libraryInspectorHandlers?.onToggleFavorite}
                     />
+                  </Panel>
+                ) : null}
+                {contextRailLayout.visible && contextRailLayout.width > 0 ? (
+                  <Panel
+                    className="crosshook-shell-panel"
+                    defaultSize={contextRailLayout.width}
+                    minSize={contextRailLayout.width}
+                    maxSize={contextRailLayout.width}
+                  >
+                    <ContextRail />
                   </Panel>
                 ) : null}
               </Group>

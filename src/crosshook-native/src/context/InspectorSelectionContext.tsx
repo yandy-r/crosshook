@@ -3,6 +3,7 @@ import {
   type Dispatch,
   type ReactNode,
   type SetStateAction,
+  useCallback,
   useContext,
   useMemo,
   useState,
@@ -12,11 +13,15 @@ import type { InspectorBodyProps, SelectedGame } from '@/components/layout/route
 
 export type LibraryInspectorHandlers = Pick<InspectorBodyProps, 'onLaunch' | 'onEditProfile' | 'onToggleFavorite'>;
 
+export type LibraryShellMode = 'library' | 'detail';
+
 export type InspectorSelectionContextValue = {
   inspectorSelection: SelectedGame | undefined;
   setInspectorSelection: Dispatch<SetStateAction<SelectedGame | undefined>>;
   libraryInspectorHandlers: LibraryInspectorHandlers | undefined;
   setLibraryInspectorHandlers: (handlers: LibraryInspectorHandlers | undefined) => void;
+  libraryShellMode: LibraryShellMode;
+  setLibraryShellMode: Dispatch<SetStateAction<LibraryShellMode>>;
 };
 
 const InspectorSelectionContext = createContext<InspectorSelectionContextValue | null>(null);
@@ -24,6 +29,14 @@ const InspectorSelectionContext = createContext<InspectorSelectionContextValue |
 export function InspectorSelectionProvider({ children }: { children: ReactNode }) {
   const [inspectorSelection, setInspectorSelection] = useState<SelectedGame | undefined>();
   const [libraryInspectorHandlers, setLibraryInspectorHandlers] = useState<LibraryInspectorHandlers | undefined>();
+  const [libraryShellMode, setLibraryShellModeState] = useState<LibraryShellMode>('library');
+
+  const setLibraryShellMode = useCallback<Dispatch<SetStateAction<LibraryShellMode>>>((update) => {
+    setLibraryShellModeState((prev) => {
+      const next = typeof update === 'function' ? update(prev) : update;
+      return prev === next ? prev : next;
+    });
+  }, []);
 
   const value = useMemo<InspectorSelectionContextValue>(
     () => ({
@@ -31,8 +44,10 @@ export function InspectorSelectionProvider({ children }: { children: ReactNode }
       setInspectorSelection,
       libraryInspectorHandlers,
       setLibraryInspectorHandlers,
+      libraryShellMode,
+      setLibraryShellMode,
     }),
-    [inspectorSelection, libraryInspectorHandlers]
+    [inspectorSelection, libraryInspectorHandlers, libraryShellMode, setLibraryShellMode]
   );
 
   return <InspectorSelectionContext.Provider value={value}>{children}</InspectorSelectionContext.Provider>;
