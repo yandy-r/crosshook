@@ -1,5 +1,5 @@
-import { LAUNCH_OPTIMIZATION_APPLICABLE_METHODS } from '../../types/launch-optimizations';
 import type { LaunchMethod } from '../../types';
+import { LAUNCH_OPTIMIZATION_APPLICABLE_METHODS } from '../../types/launch-optimizations';
 import type { LaunchSubTabId } from './types';
 
 interface UseTabVisibilityResult {

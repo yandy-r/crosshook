@@ -19,7 +19,6 @@ interface LaunchProfileSelectorProps {
 
 export function LaunchProfileSelector({
   activeCollection,
-  activeCollectionId,
   filteredProfiles,
   pinnedSet,
   selectedProfile,
@@ -29,10 +28,10 @@ export function LaunchProfileSelector({
   onTogglePin,
 }: LaunchProfileSelectorProps) {
   return (
-    <>
+    <div className="crosshook-dashboard-pill-row crosshook-launch-profile-selector">
       {activeCollection !== null && (
-        <div className="crosshook-launch-collection-filter">
-          Filtering by: <strong>{activeCollection.name}</strong>
+        <span className="crosshook-dashboard-pill">
+          {activeCollection.name}
           <button
             type="button"
             className="crosshook-button crosshook-button--ghost crosshook-button--small"
@@ -41,7 +40,7 @@ export function LaunchProfileSelector({
           >
             ×
           </button>
-        </div>
+        </span>
       )}
       <ThemedSelect
         id="launch-profile-selector"
@@ -63,6 +62,6 @@ export function LaunchProfileSelector({
           badgeTitle: showNetworkIsolationBadge(name) ? NETWORK_ISOLATION_BADGE_TITLE : undefined,
         }))}
       />
-    </>
+    </div>
   );
 }

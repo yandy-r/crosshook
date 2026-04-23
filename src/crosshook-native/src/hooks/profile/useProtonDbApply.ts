@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../../types/protondb';
 import type { GameProfile } from '../../types/profile';
+import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../../types/protondb';
 import type { OptimizationCatalogPayload } from '../../utils/optimization-catalog';
 import {
   applyProtonDbGroupToProfile,

@@ -6,8 +6,8 @@ import { useCollectionMembers } from '../../../hooks/useCollectionMembers';
 import { useCollections } from '../../../hooks/useCollections';
 import { useLaunchPlatformStatus } from '../../../hooks/useLaunchPlatformStatus';
 import type { ProfileSummary } from '../../../types/library';
-import { buildProfileLaunchRequest } from '../../../utils/launch';
 import { resolveArtAppId } from '../../../utils/art';
+import { buildProfileLaunchRequest } from '../../../utils/launch';
 
 export function useLaunchPageState() {
   const profileState = useProfileContext();

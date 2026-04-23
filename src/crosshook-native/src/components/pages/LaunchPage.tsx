@@ -1,15 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
-import { useProtonDbSuggestions } from '../../hooks/useProtonDbSuggestions';
 import { useLaunchEnvironmentAutosave } from '../../hooks/profile/useLaunchEnvironmentAutosave';
-import type { AcceptSuggestionRequest, ProtonDbRecommendationGroup } from '../../types/protondb';
+import { useProtonDbApply } from '../../hooks/profile/useProtonDbApply';
+import { useProtonDbSuggestions } from '../../hooks/useProtonDbSuggestions';
 import { DEFAULT_GAMESCOPE_CONFIG, DEFAULT_MANGOHUD_CONFIG } from '../../types/profile';
-import { resolveArtAppId } from '../../utils/art';
-import {
-  applyProtonDbGroupToProfile,
-  mergeProtonDbEnvVarGroup,
-  type PendingProtonDbOverwrite,
-} from '../../utils/protondb';
 import LaunchPanel from '../LaunchPanel';
 import { LaunchSubTabs } from '../LaunchSubTabs';
 import { RouteBanner } from '../layout/RouteBanner';
@@ -22,6 +16,7 @@ export function LaunchPage() {
   const {
     activeCollection,
     activeCollectionId,
+    effectiveSteamClientInstallPath,
     filteredProfiles,
     hasSavedSelectedProfile,
     handleTogglePin,
@@ -48,16 +43,12 @@ export function LaunchPage() {
   const showProtonDbLookup =
     profileState.launchMethod === 'steam_applaunch' || profileState.launchMethod === 'proton_run';
 
-  const [pendingProtonDbOverwrite, setPendingProtonDbOverwrite] = useState<PendingProtonDbOverwrite | null>(null);
-  const [applyingProtonDbGroupId, setApplyingProtonDbGroupId] = useState<string | null>(null);
-  const [protonDbStatusMessage, setProtonDbStatusMessage] = useState<string | null>(null);
   const suggestions = useProtonDbSuggestions(resolvedSteamAppId, profileState.selectedProfile);
 
   const handleAcceptSuggestion = useCallback(
-    async (request: AcceptSuggestionRequest): Promise<void> => {
+    async (request: Parameters<typeof suggestions.acceptSuggestion>[0]): Promise<void> => {
       const result = await suggestions.acceptSuggestion(request);
       if (result.appliedKeys.length > 0 || result.toggledOptionIds.length > 0) {
-        // LaunchPage: reload reflects active collection context if any.
         void profileState.selectProfile(selectedName, {
           collectionId: activeCollectionId ?? undefined,
         });
@@ -65,6 +56,14 @@ export function LaunchPage() {
     },
     [suggestions.acceptSuggestion, profileState.selectProfile, selectedName, activeCollectionId]
   );
+
+  const protonDb = useProtonDbApply({
+    profileName: profileState.profileName,
+    profile,
+    catalog: profileState.catalog,
+    onUpdateProfile: profileState.updateProfile,
+    onAcceptSuggestion: handleAcceptSuggestion,
+  });
 
   const depGate = useLaunchDepGate({
     profile,
@@ -79,80 +78,6 @@ export function LaunchPage() {
     persistProfileDraft: profileState.persistProfileDraft,
   });
 
-  useEffect(() => {
-    setPendingProtonDbOverwrite(null);
-    setApplyingProtonDbGroupId(null);
-    setProtonDbStatusMessage(null);
-  }, []);
-
-  const applyProtonDbGroup = useCallback(
-    (group: ProtonDbRecommendationGroup, overwriteKeys: readonly string[]) => {
-      const result = { appliedKeys: [] as string[], unchangedKeys: [] as string[], toggledOptionIds: [] as string[] };
-      profileState.updateProfile((current) => {
-        const applyResult = applyProtonDbGroupToProfile(current, group, overwriteKeys, profileState.catalog);
-        result.appliedKeys = applyResult.appliedKeys;
-        result.unchangedKeys = applyResult.unchangedKeys;
-        result.toggledOptionIds = applyResult.toggledOptionIds;
-        return applyResult.nextProfile;
-      });
-      setApplyingProtonDbGroupId(null);
-      setPendingProtonDbOverwrite(null);
-
-      const appliedCount = result.appliedKeys.length;
-      const unchangedCount = result.unchangedKeys.length;
-      const toggledCount = result.toggledOptionIds.length;
-      if (appliedCount > 0 || toggledCount > 0) {
-        const parts: string[] = [];
-        if (toggledCount > 0) parts.push(`${toggledCount} optimization${toggledCount === 1 ? '' : 's'}`);
-        if (appliedCount - toggledCount > 0) {
-          const envCount = appliedCount - toggledCount;
-          parts.push(`${envCount} env var${envCount === 1 ? '' : 's'}`);
-        }
-        setProtonDbStatusMessage(
-          `Applied ${parts.join(' and ')}${
-            unchangedCount > 0
-              ? ` and left ${unchangedCount} existing match${unchangedCount === 1 ? '' : 'es'} unchanged`
-              : ''
-          }.`
-        );
-        return;
-      }
-
-      if (unchangedCount > 0) {
-        setProtonDbStatusMessage('All suggested ProtonDB environment variables already match the current profile.');
-        return;
-      }
-
-      setProtonDbStatusMessage('No ProtonDB environment-variable changes were applied.');
-    },
-    [profileState.updateProfile, profileState.catalog]
-  );
-
-  const handleApplyProtonDbEnvVars = useCallback(
-    (group: ProtonDbRecommendationGroup) => {
-      const envVars = group.env_vars ?? [];
-      if (envVars.length === 0) {
-        return;
-      }
-
-      setApplyingProtonDbGroupId(group.group_id?.trim() || group.title?.trim() || null);
-      const merge = mergeProtonDbEnvVarGroup(profile.launch.custom_env_vars, group);
-      if (merge.conflicts.length === 0) {
-        applyProtonDbGroup(group, []);
-        return;
-      }
-
-      setApplyingProtonDbGroupId(null);
-      setPendingProtonDbOverwrite({
-        group,
-        conflicts: merge.conflicts,
-        resolutions: Object.fromEntries(merge.conflicts.map((conflict) => [conflict.key, 'keep_current' as const])),
-      });
-      setProtonDbStatusMessage(null);
-    },
-    [applyProtonDbGroup, profile.launch.custom_env_vars]
-  );
-
   return (
     <div className="crosshook-page-scroll-shell crosshook-page-scroll-shell--fill crosshook-page-scroll-shell--launch">
       <div className="crosshook-route-stack crosshook-launch-page__grid">
@@ -162,6 +87,35 @@ export function LaunchPage() {
           method={profileState.launchMethod}
           request={launchRequest}
           profile={profile}
+          infoSlot={
+            <dl className="crosshook-dashboard-kv-list">
+              <div className="crosshook-dashboard-kv-row">
+                <dt className="crosshook-dashboard-kv-row__label">Selected profile</dt>
+                <dd className="crosshook-dashboard-kv-row__value">
+                  {selectedName.trim() !== '' ? selectedName : <span className="crosshook-muted">None selected</span>}
+                </dd>
+              </div>
+              {effectiveSteamClientInstallPath ? (
+                <div className="crosshook-dashboard-kv-row">
+                  <dt className="crosshook-dashboard-kv-row__label">Steam path</dt>
+                  <dd
+                    className="crosshook-dashboard-kv-row__value"
+                    style={{ fontFamily: 'var(--crosshook-font-mono)', fontSize: '0.85rem' }}
+                  >
+                    {effectiveSteamClientInstallPath}
+                  </dd>
+                </div>
+              ) : null}
+              <div className="crosshook-dashboard-kv-row">
+                <dt className="crosshook-dashboard-kv-row__label">umu preference</dt>
+                <dd className="crosshook-dashboard-kv-row__value">
+                  <span className="crosshook-editor-field-readonly">
+                    {profile.runtime?.umu_preference ?? settings.umu_preference}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+          }
           profileSelectSlot={
             <LaunchProfileSelector
               activeCollection={activeCollection}
@@ -223,23 +177,28 @@ export function LaunchPage() {
               onEnvironmentBlurAutoSave={handleEnvironmentBlurAutoSave}
               showProtonDbLookup={showProtonDbLookup}
               trainerVersion={selectedTrainerVersion}
-              onApplyProtonDbEnvVars={handleApplyProtonDbEnvVars}
-              applyingProtonDbGroupId={applyingProtonDbGroupId}
-              protonDbStatusMessage={protonDbStatusMessage}
-              pendingProtonDbOverwrite={pendingProtonDbOverwrite}
+              onApplyProtonDbEnvVars={protonDb.applyEnvVars}
+              applyingProtonDbGroupId={protonDb.applyingGroupId}
+              protonDbStatusMessage={protonDb.statusMessage}
+              pendingProtonDbOverwrite={protonDb.pendingOverwrite}
               onConfirmProtonDbOverwrite={(overwriteKeys) => {
-                if (pendingProtonDbOverwrite) {
-                  applyProtonDbGroup(pendingProtonDbOverwrite.group, overwriteKeys);
+                if (protonDb.pendingOverwrite) {
+                  protonDb.applyGroup(protonDb.pendingOverwrite.group, overwriteKeys);
                 }
               }}
-              onCancelProtonDbOverwrite={() => setPendingProtonDbOverwrite(null)}
+              onCancelProtonDbOverwrite={protonDb.clearOverwrite}
               onUpdateProtonDbResolution={(key, resolution) =>
-                setPendingProtonDbOverwrite((current) =>
-                  current == null ? current : { ...current, resolutions: { ...current.resolutions, [key]: resolution } }
+                protonDb.updateOverwriteResolution(
+                  protonDb.pendingOverwrite == null
+                    ? null
+                    : {
+                        ...protonDb.pendingOverwrite,
+                        resolutions: { ...protonDb.pendingOverwrite.resolutions, [key]: resolution },
+                      }
                 )
               }
               suggestionSet={suggestions.suggestionSet}
-              onAcceptSuggestion={handleAcceptSuggestion}
+              onAcceptSuggestion={protonDb.acceptSuggestion}
               onDismissSuggestion={suggestions.dismissSuggestion}
               gamescopeAutoSaveStatus={profileState.gamescopeAutoSaveStatus}
               mangoHudAutoSaveStatus={profileState.mangoHudAutoSaveStatus}

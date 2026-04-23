@@ -1,6 +1,6 @@
 import { useLaunchStateContext } from '../../../context/LaunchStateContext';
-import type { DepGateState } from './useLaunchDepGate';
 import type { GameProfile } from '../../../types/profile';
+import type { DepGateState } from './useLaunchDepGate';
 
 interface LaunchDepGateModalProps {
   depGate: DepGateState;
@@ -17,11 +17,11 @@ export function LaunchDepGateModal({ depGate, profile, selectedName }: LaunchDep
 
   return (
     <div className="crosshook-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="dep-gate-title">
-      <div className="crosshook-modal crosshook-prefix-deps__confirm">
+      <div className="crosshook-modal crosshook-prefix-deps__confirm crosshook-panel">
         <h3 id="dep-gate-title">Missing Prefix Dependencies</h3>
         <p>
-          This profile requires WINE prefix dependencies that are not installed. You can install them now or skip
-          and launch anyway.
+          This profile requires WINE prefix dependencies that are not installed. You can install them now or skip and
+          launch anyway.
         </p>
         <ul>
           {depGate.depGatePackages.map((pkg) => (
