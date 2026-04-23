@@ -212,3 +212,40 @@ test.describe('command palette smoke', () => {
     expect(capture.errors, `Command-palette toolbar errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 });
+
+test.describe('console chrome smoke', () => {
+  test('renders the compact status bar at narrow width', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/?fixture=populated');
+
+    await expect(page.getByTestId('console-status-bar')).toBeVisible();
+    await expect(page.getByTestId('console-drawer')).toHaveCount(0);
+    await expect(page.getByText('⌘K commands')).toBeVisible();
+
+    expect(capture.errors, `Narrow console chrome errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+
+  test('keeps the drawer collapsed on desktop after log output arrives', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+
+    const drawer = page.getByTestId('console-drawer');
+    const toggle = page.getByRole('button', { name: 'Runtime console' });
+    await expect(drawer).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
+    await launchTab.click();
+    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+    await page.getByRole('button', { name: 'Launch Game' }).click();
+
+    await expect(page.getByText(/^[0-9]+ lines?$/)).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    expect(capture.errors, `Desktop console chrome errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+});

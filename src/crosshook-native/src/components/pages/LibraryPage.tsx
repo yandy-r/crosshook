@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInspectorSelection } from '@/context/InspectorSelectionContext';
 import { useCollections } from '@/hooks/useCollections';
 import { useProfileContext } from '../../context/ProfileContext';
@@ -71,6 +71,15 @@ export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPagePro
   const [createCollectionFromMenuOpen, setCreateCollectionFromMenuOpen] = useState(false);
   const [createCollectionSessionError, setCreateCollectionSessionError] = useState<string | null>(null);
   const { createCollection } = useCollections();
+  const activeCollectionIdRef = useRef(activeCollectionId);
+  const activeCollectionMemberNamesRef = useRef(activeCollectionMemberNames);
+  const activeCollectionMembersFetchedForRef = useRef(activeCollectionMembersFetchedFor);
+  const activeCollectionMembersLoadingRef = useRef(activeCollectionMembersLoading);
+
+  activeCollectionIdRef.current = activeCollectionId;
+  activeCollectionMemberNamesRef.current = activeCollectionMemberNames;
+  activeCollectionMembersFetchedForRef.current = activeCollectionMembersFetchedFor;
+  activeCollectionMembersLoadingRef.current = activeCollectionMembersLoading;
 
   // Refresh profile list from context on mount
   useEffect(() => {
@@ -123,26 +132,20 @@ export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPagePro
     async (name: string) => {
       setLaunchingName(name);
       try {
+        const currentCollectionId = activeCollectionIdRef.current;
         const membersReady =
-          activeCollectionId !== null &&
-          !activeCollectionMembersLoading &&
-          activeCollectionMembersFetchedFor === activeCollectionId;
-        const profileIsInActiveCollection = membersReady && activeCollectionMemberNames.includes(name);
-        const collectionIdForLoad = profileIsInActiveCollection ? (activeCollectionId ?? undefined) : undefined;
+          currentCollectionId !== null &&
+          !activeCollectionMembersLoadingRef.current &&
+          activeCollectionMembersFetchedForRef.current === currentCollectionId;
+        const profileIsInActiveCollection = membersReady && activeCollectionMemberNamesRef.current.includes(name);
+        const collectionIdForLoad = profileIsInActiveCollection ? (currentCollectionId ?? undefined) : undefined;
         await selectProfile(name, { collectionId: collectionIdForLoad });
         onNavigate?.('launch');
       } finally {
         setLaunchingName(undefined);
       }
     },
-    [
-      selectProfile,
-      onNavigate,
-      activeCollectionId,
-      activeCollectionMemberNames,
-      activeCollectionMembersFetchedFor,
-      activeCollectionMembersLoading,
-    ]
+    [selectProfile, onNavigate]
   );
 
   // Edit handler: select profile then navigate to profiles page

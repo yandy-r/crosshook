@@ -51,7 +51,7 @@ export function LoggingAndUiSection({ settings, onPersistSettings }: LoggingAndU
         <span>
           <span className="crosshook-label">Start with console drawer expanded</span>
           <p className="crosshook-muted crosshook-settings-note">
-            When off, the drawer starts collapsed until launch logs arrive.
+            Applies on desktop and ultrawide layouts only. Narrow and deck layouts use the compact status bar.
           </p>
         </span>
       </label>

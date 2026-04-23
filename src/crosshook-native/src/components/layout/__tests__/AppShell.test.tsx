@@ -7,6 +7,7 @@ import { HostReadinessProvider } from '@/context/HostReadinessContext';
 import { InspectorSelectionProvider } from '@/context/InspectorSelectionContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
+import { emitMockEvent } from '@/lib/events';
 import { renderWithMocks } from '@/test/render';
 
 function AppShellInAppProviders() {
@@ -164,6 +165,62 @@ describe('AppShell (integration)', () => {
         expect(screen.getByTestId('sidebar')).toBeInTheDocument();
         expect(screen.queryByTestId('inspector')).not.toBeInTheDocument();
       });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('renders the compact status bar instead of the drawer on narrow shells', async () => {
+    setInnerWidth(1280);
+    setInnerHeight(800);
+    const rectSpy = mockAppShellRect(1280, 800);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('console-status-bar')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('console-drawer')).not.toBeInTheDocument();
+      expect(screen.getByText('⌘K commands')).toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('renders the compact status bar on short desktop-height shells', async () => {
+    setInnerWidth(1920);
+    setInnerHeight(600);
+    const rectSpy = mockAppShellRect(1920, 600);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('console-status-bar')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('console-drawer')).not.toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('keeps the drawer on desktop shells and does not auto-open on log events', async () => {
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      const toggle = await screen.findByRole('button', { name: /runtime console/i });
+      expect(screen.getByTestId('console-drawer')).toBeInTheDocument();
+      expect(screen.queryByTestId('console-status-bar')).not.toBeInTheDocument();
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+      emitMockEvent('launch-log', 'one line');
+
+      await waitFor(() => {
+        expect(screen.getByText('1 line')).toBeInTheDocument();
+      });
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
     } finally {
       rectSpy.mockRestore();
     }
