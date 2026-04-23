@@ -1,0 +1,99 @@
+/* Profile collections */
+
+.crosshook-collections-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 320px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.crosshook-collections-sidebar__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  color: var(--crosshook-color-text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--crosshook-radius-sm);
+}
+
+.crosshook-collections-sidebar__item-avatar {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: rgba(74, 125, 181, 0.16);
+  color: var(--crosshook-color-accent-strong);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.crosshook-collections-sidebar__item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.crosshook-collections-sidebar__item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crosshook-collections-sidebar__item-count {
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--crosshook-color-text-muted);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.crosshook-collections-sidebar__cta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  color: var(--crosshook-color-accent);
+  cursor: pointer;
+  border-radius: var(--crosshook-radius-sm);
+  margin-top: 4px;
+}
+
+.crosshook-collections-sidebar__cta:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.crosshook-collections-sidebar__error {
+  color: var(--crosshook-color-danger);
+  font-size: 0.75rem;
+  padding: 4px 12px;
+}
+
+.crosshook-collections-sidebar__empty-copy {
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Profile collections sidebar focus rings */
+
+.crosshook-collections-sidebar__item:focus-visible,
+.crosshook-collections-sidebar__cta:focus-visible {
+  outline: 0;
+  box-shadow:
+    0 0 0 2px var(--crosshook-focus-ring-inner),
+    0 0 0 4px var(--crosshook-color-accent-soft);
+}

@@ -11,6 +11,8 @@ import './styles/console-drawer.css';
 import './styles/themed-select.css';
 import './styles/collapsible-section.css';
 import './styles/library.css';
+import './styles/hero-detail.css';
+import './styles/collections-sidebar.css';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

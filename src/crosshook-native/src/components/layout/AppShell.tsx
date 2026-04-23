@@ -185,6 +185,8 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
               <Group
                 className="crosshook-shell-group"
                 orientation="horizontal"
+                disabled
+                disableCursor
                 resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
               >
                 <Panel

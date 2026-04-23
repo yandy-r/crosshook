@@ -2,6 +2,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 import type { LibraryCardData } from '../../types/library';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
+import { useLibraryHitboxClicks } from './useLibraryHitboxClicks';
 
 interface LibraryCardProps {
   profile: LibraryCardData;
@@ -80,13 +81,11 @@ export function LibraryCard({
     onOpenDetails(profile.name);
   }
 
-  function handleHitboxClick() {
-    if (onSelect) {
-      onSelect(profile.name);
-      return;
-    }
-    handleOpenDetailsClick();
-  }
+  const { handleHitboxClick, handleHitboxDoubleClick } = useLibraryHitboxClicks({
+    profileName: profile.name,
+    onOpenDetails,
+    onSelect,
+  });
 
   return (
     <li
@@ -117,6 +116,19 @@ export function LibraryCard({
                 if (el) {
                   onContextMenu({ x, y }, profile.name, el);
                 }
+                return;
+              }
+              if (
+                e.key === 'Enter' &&
+                !e.shiftKey &&
+                !e.ctrlKey &&
+                !e.altKey &&
+                !e.metaKey &&
+                !e.repeat &&
+                e.target === e.currentTarget
+              ) {
+                e.preventDefault();
+                onOpenDetails(profile.name);
               }
             }
           : undefined
@@ -127,23 +139,8 @@ export function LibraryCard({
         className="crosshook-library-card__details-hitbox"
         aria-label={onSelect ? `Select ${displayName}` : `View details for ${displayName}`}
         onClick={handleHitboxClick}
+        onDoubleClick={handleHitboxDoubleClick}
       />
-      {onSelect ? (
-        <button
-          type="button"
-          className="crosshook-library-card__open-details"
-          aria-label={`View details for ${displayName}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpenDetailsClick();
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.25" />
-            <path d="M8 6.5v3M8 4.2h.01" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
-          </svg>
-        </button>
-      ) : null}
       {/* Cover image / skeleton / fallback */}
       {loading ? (
         <div className="crosshook-library-card__image crosshook-skeleton" />
@@ -174,7 +171,15 @@ export function LibraryCard({
           onToggleFavorite(profile.name, profile.isFavorite);
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 20 20"
+          fill={profile.isFavorite ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
           <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
         </svg>
       </button>
@@ -183,6 +188,22 @@ export function LibraryCard({
       <div className="crosshook-library-card__footer">
         {showTitle && <span className="crosshook-library-card__title">{displayName}</span>}
         <div className="crosshook-library-card__actions">
+          {onSelect ? (
+            <button
+              type="button"
+              className="crosshook-library-card__btn--details"
+              aria-label={`View details for ${displayName}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenDetailsClick();
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.25" />
+                <path d="M8 6.5v3M8 4.2h.01" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+              </svg>
+            </button>
+          ) : null}
           <button
             type="button"
             className="crosshook-library-card__btn--launch"

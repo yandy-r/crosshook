@@ -18,6 +18,9 @@
   --crosshook-library-card-control-border: rgba(255, 255, 255, 0.22);
   --crosshook-library-card-control-surface: rgba(10, 14, 28, 0.55);
   --crosshook-library-card-control-surface-hover: rgba(10, 14, 28, 0.72);
+  --crosshook-library-card-btn-border: rgba(107, 163, 217, 0.55);
+  --crosshook-library-card-btn-bg: rgba(107, 163, 217, 0.2);
+  --crosshook-library-card-btn-bg-hover: rgba(107, 163, 217, 0.32);
   /* Subtle dashed dividers / empty states (reusable muted border) */
   --crosshook-color-border-muted: rgba(255, 255, 255, 0.1);
   --crosshook-color-text: #e0e0e0;

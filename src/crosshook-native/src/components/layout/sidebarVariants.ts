@@ -5,7 +5,7 @@ export type SidebarVariant = 'rail' | 'mid' | 'full';
 export const SIDEBAR_VARIANT_WIDTHS = {
   rail: 56,
   mid: 68,
-  full: 240,
+  full: 264,
 } as const satisfies Record<SidebarVariant, number>;
 
 export function sidebarVariantFromBreakpoint(size: BreakpointSize, height = 900): SidebarVariant {

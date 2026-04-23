@@ -6,6 +6,13 @@
    and boundary so it matches the other route panels (Settings, Discover, …).
    See theme.css panel-children rule for the min-height: 100% behavior. */
 
+.crosshook-library-page__content--detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .crosshook-library-page__toolbar-bar {
   padding: 10px 14px;
   margin-bottom: 16px;
@@ -30,17 +37,18 @@
 .crosshook-library-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .crosshook-library-toolbar__search {
   flex: 1;
-  min-width: 200px;
-  padding: 8px 14px;
-  border-radius: var(--crosshook-radius-sm);
+  min-width: 240px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
   border: 1px solid var(--crosshook-color-border);
-  background: var(--crosshook-color-surface);
+  background: var(--crosshook-color-surface-strong);
   color: var(--crosshook-color-text);
   font-family: var(--crosshook-font-body);
   font-size: 0.875rem;
@@ -58,10 +66,7 @@
 
 .crosshook-library-toolbar__view-toggle {
   display: flex;
-  gap: 2px;
-  border-radius: var(--crosshook-radius-sm);
-  border: 1px solid var(--crosshook-color-border);
-  overflow: hidden;
+  gap: 6px;
 }
 
 .crosshook-library-toolbar__view-btn {
@@ -70,8 +75,9 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border: none;
-  background: transparent;
+  border: 1px solid var(--crosshook-color-border);
+  border-radius: 10px;
+  background: var(--crosshook-color-surface-strong);
   color: var(--crosshook-color-text-muted);
   cursor: pointer;
   transition:
@@ -80,11 +86,13 @@
 }
 
 .crosshook-library-toolbar__view-btn:hover {
-  background: var(--crosshook-color-accent-soft);
+  background: var(--crosshook-color-surface);
+  color: var(--crosshook-color-text);
 }
 
 .crosshook-library-toolbar__view-btn[aria-pressed='true'] {
-  background: var(--crosshook-color-accent);
+  border-color: var(--crosshook-color-accent);
+  background: var(--crosshook-color-accent-soft);
   color: var(--crosshook-color-text);
 }
 
@@ -141,37 +149,6 @@
 /* Hitbox is the usual focus target when the card root is not tabbable; outline the card via :focus-within above. */
 .crosshook-library-card__details-hitbox:focus-visible {
   outline: none;
-}
-
-/* When the main hitbox selects for the inspector, a separate control opens details (keyboard / touch). */
-.crosshook-library-card__open-details {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--crosshook-library-card-control-border);
-  border-radius: 999px;
-  background: var(--crosshook-library-card-control-surface);
-  color: var(--crosshook-color-text);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 160ms ease, background var(--crosshook-transition-fast) ease;
-}
-
-.crosshook-library-card:hover .crosshook-library-card__open-details,
-.crosshook-library-card:focus-within .crosshook-library-card__open-details {
-  opacity: 1;
-}
-
-.crosshook-library-card__open-details:hover {
-  background: var(--crosshook-library-card-control-surface-hover);
 }
 
 .crosshook-library-card--selected {
@@ -283,6 +260,24 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
+.crosshook-library-card__btn--details {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--crosshook-library-card-btn-border);
+  border-radius: 6px;
+  background: var(--crosshook-library-card-btn-bg);
+  color: var(--crosshook-color-accent-strong);
+  cursor: pointer;
+  transition: background var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-card__btn--details:hover {
+  background: var(--crosshook-library-card-btn-bg-hover);
+}
+
 .crosshook-library-card__hover-reveal {
   position: absolute;
   inset: 0;
@@ -320,12 +315,16 @@
   border: 1px solid var(--crosshook-library-card-control-border);
   border-radius: 999px;
   background: var(--crosshook-library-card-control-surface);
-  color: var(--crosshook-color-danger);
+  color: var(--crosshook-color-text-muted);
   cursor: pointer;
   opacity: 0;
   transition:
     opacity 160ms ease,
     background var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-card__favorite-heart[aria-pressed='true'] {
+  color: var(--crosshook-color-danger);
 }
 
 .crosshook-library-card:hover .crosshook-library-card__favorite-heart,
@@ -620,12 +619,13 @@
 }
 
 .crosshook-library-toolbar__chip {
-  padding: 4px 10px;
-  border-radius: 999px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
   border: 1px solid var(--crosshook-color-border);
-  background: var(--crosshook-color-surface);
+  background: var(--crosshook-color-surface-strong);
   color: var(--crosshook-color-text-muted);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
   transition:
@@ -642,17 +642,23 @@
 
 .crosshook-library-toolbar__palette-trigger {
   margin-left: auto;
-  padding: 6px 10px;
-  border-radius: var(--crosshook-radius-sm);
-  border: 1px dashed var(--crosshook-color-border);
-  background: transparent;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface-strong);
   color: var(--crosshook-color-text-muted);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background var(--crosshook-transition-fast) ease,
+    color var(--crosshook-transition-fast) ease,
+    border-color var(--crosshook-transition-fast) ease;
 }
 
 .crosshook-library-toolbar__palette-trigger:hover {
+  background: var(--crosshook-color-surface);
   color: var(--crosshook-color-text);
   border-color: var(--crosshook-color-accent);
 }

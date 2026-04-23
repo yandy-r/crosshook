@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/AppShell';
 import { CollectionsProvider } from '@/context/CollectionsContext';
@@ -125,7 +126,7 @@ describe('AppShell (integration)', () => {
     await waitFor(() => {
       const nav = screen.getByLabelText('CrossHook navigation');
       expect(nav).toHaveAttribute('data-sidebar-variant', 'full');
-      expect(nav).toHaveAttribute('data-sidebar-width', '240');
+      expect(nav).toHaveAttribute('data-sidebar-width', '264');
       expect(nav).toHaveAttribute('data-collapsed', 'false');
     });
 
@@ -163,6 +164,33 @@ describe('AppShell (integration)', () => {
         expect(screen.getByTestId('sidebar')).toBeInTheDocument();
         expect(screen.queryByTestId('inspector')).not.toBeInTheDocument();
       });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('keeps sidebar and inspector mounted when hero detail is open at desktop width', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+      });
+
+      const libraryTab = screen.getByRole('tab', { name: /^Library$/ });
+      await user.click(libraryTab);
+
+      await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('game-detail')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+      expect(screen.getByTestId('inspector')).toBeInTheDocument();
     } finally {
       rectSpy.mockRestore();
     }
