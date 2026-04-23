@@ -27,6 +27,7 @@
   --crosshook-color-text-muted: rgba(224, 224, 224, 0.76);
   --crosshook-color-text-subtle: rgba(224, 224, 224, 0.56);
   --crosshook-color-accent: #4a7db5;
+  --crosshook-color-accent-rgb: 74, 125, 181;
   --crosshook-color-accent-strong: #6ba3d9;
   --crosshook-color-accent-soft: rgba(74, 125, 181, 0.16);
   --crosshook-color-accent-glow: rgba(107, 163, 217, 0.22);

@@ -86,8 +86,16 @@ export function InstallReviewSummary({ installation, validation }: InstallReview
       </div>
 
       <div className="crosshook-install-review">
-        {error ? <p className="crosshook-danger">{error}</p> : null}
-        {generalError ? <p className="crosshook-danger">{generalError}</p> : null}
+        {error ? (
+          <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
+            {error}
+          </div>
+        ) : null}
+        {generalError ? (
+          <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
+            {generalError}
+          </div>
+        ) : null}
         <p className="crosshook-help-text">{hintText}</p>
 
         <InstallField

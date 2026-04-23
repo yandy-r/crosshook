@@ -1,0 +1,38 @@
+/* community-routes.css — Phase 10 per-route chrome (populated by Task 2.x). */
+
+/* ---------------------------------------------------------------------------
+ * Community scroll shell
+ * -------------------------------------------------------------------------*/
+
+.crosshook-page-scroll-shell--community {
+  background:
+    radial-gradient(ellipse 70% 50% at 10% 0%, rgba(74, 125, 181, 0.1), transparent 45%),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(107, 163, 217, 0.07), transparent 40%),
+    var(--crosshook-color-bg, #181a24);
+}
+
+/* ---------------------------------------------------------------------------
+ * Tap chip — steel-blue treatment
+ * -------------------------------------------------------------------------*/
+
+.crosshook-page-scroll-shell--community .crosshook-community-tap {
+  background: var(--crosshook-color-surface-1, #1a1d28);
+  border-color: rgba(107, 163, 217, 0.22);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.crosshook-page-scroll-shell--community .crosshook-community-tap:hover {
+  border-color: rgba(107, 163, 217, 0.42);
+  box-shadow: 0 0 0 3px var(--crosshook-color-accent-glow, rgba(107, 163, 217, 0.22));
+}
+
+/* ---------------------------------------------------------------------------
+ * Cache-fallback banner — steel-blue tint override
+ * -------------------------------------------------------------------------*/
+
+.crosshook-page-scroll-shell--community .crosshook-community-browser__cache-banner {
+  --crosshook-community-cache-border: rgba(107, 163, 217, 0.32);
+  --crosshook-community-cache-bg: rgba(74, 125, 181, 0.1);
+}

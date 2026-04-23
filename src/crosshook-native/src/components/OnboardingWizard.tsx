@@ -8,17 +8,12 @@ import type { ResolvedLaunchMethod } from '../types';
 import type { OnboardingWizardStage } from '../types/onboarding';
 import { resolveLaunchMethod } from '../utils/launch';
 import { bundledOptimizationTomlKey } from '../utils/launchOptimizationPresets';
-import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesSection';
-import { HostToolDashboardHandoff } from './host-readiness/HostToolDashboardHandoff';
-import { ControllerPrompts } from './layout/ControllerPrompts';
-import { GameSection } from './profile-sections/GameSection';
-import { MediaSection } from './profile-sections/MediaSection';
-import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
-import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
-import { RuntimeSection } from './profile-sections/RuntimeSection';
-import { TrainerSection } from './profile-sections/TrainerSection';
-import { WizardPresetPicker } from './wizard/WizardPresetPicker';
-import { WizardReviewSummary } from './wizard/WizardReviewSummary';
+import { OnboardingIdentityStageBody } from './onboarding/OnboardingIdentityStageBody';
+import { OnboardingMediaStageBody } from './onboarding/OnboardingMediaStageBody';
+import { OnboardingReviewStageBody } from './onboarding/OnboardingReviewStageBody';
+import { OnboardingRuntimeStageBody } from './onboarding/OnboardingRuntimeStageBody';
+import { OnboardingTrainerStageBody } from './onboarding/OnboardingTrainerStageBody';
+import { OnboardingWizardFooter } from './onboarding/OnboardingWizardFooter';
 import { evaluateWizardRequiredFields } from './wizard/wizardValidation';
 
 export interface OnboardingWizardProps {
@@ -60,11 +55,7 @@ const STAGE_TITLES: Record<OnboardingWizardStage, string> = {
   completed: 'Setup Complete',
 };
 
-/**
- * Resolves the visible step number shown in the header eyebrow given the
- * current stage and launch method. The trainer stage is skipped for native
- * profiles; Media / Review slide up by one position as a result.
- */
+/** Returns the 1-based step number shown in the eyebrow (native skips trainer, shifting later stages). */
 function getVisibleStepNumber(stage: OnboardingWizardStage, launchMethod: ResolvedLaunchMethod): number {
   const skipsTrainer = launchMethod === 'native';
   switch (stage) {
@@ -162,8 +153,7 @@ export function OnboardingWizard({
     steamClientInstallPath: effectiveSteamClientInstallPath,
   });
 
-  // Portal host — created unconditionally on mount, NOT gated on `open`
-  // (following ProfileReviewModal.tsx pattern exactly)
+  // Portal host — created unconditionally on mount, not gated on `open`
   useEffect(() => {
     if (typeof document === 'undefined') return;
 
@@ -237,14 +227,7 @@ export function OnboardingWizard({
     [profileName, profile, launchMethod]
   );
 
-  // In create mode, the draft profile has not been persisted yet, so the
-  // backend preset IPCs (applyBundledOptimizationPreset /
-  // switchLaunchOptimizationPreset) refuse to run because
-  // hasExistingSavedProfile === false. We instead mutate the draft profile
-  // in-memory and let persistProfileDraft persist the optimizations, the
-  // [launch.presets.<key>] entry, and the active_preset in one transaction.
-  // Edit mode keeps the IPC-based path so config-revision capture and preset
-  // metadata origin tracking continue to run server-side.
+  // Create: mutate draft in-memory (IPC rejects unsaved profiles). Edit: IPC path for server-side revision tracking.
   const applyBundledPresetToDraft = useCallback(
     async (presetId: string): Promise<void> => {
       const preset = bundledOptimizationPresets.find((candidate) => candidate.preset_id === presetId);
@@ -390,11 +373,15 @@ export function OnboardingWizard({
         data-crosshook-focus-root="modal"
         onKeyDown={handleKeyDown}
       >
-        {/* Header */}
         <header className="crosshook-modal__header">
           <div className="crosshook-modal__heading-block">
-            <div className="crosshook-heading-eyebrow">{eyebrow}</div>
-            <h2 ref={headingRef} id={titleId} className="crosshook-modal__title" tabIndex={-1}>
+            <p className="crosshook-heading-eyebrow">{eyebrow}</p>
+            <h2
+              ref={headingRef}
+              id={titleId}
+              className="crosshook-heading-title crosshook-heading-title--card"
+              tabIndex={-1}
+            >
               {title}
             </h2>
           </div>
@@ -413,97 +400,69 @@ export function OnboardingWizard({
           )}
         </header>
 
-        {/* Step content */}
         <div className="crosshook-modal__body crosshook-onboarding-wizard__body">
           {profileError && (
-            <p className="crosshook-danger" role="alert" style={{ marginBottom: 12 }}>
+            <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
               {profileError}
-            </p>
+            </div>
           )}
 
           {isIdentityGame && (
-            <section aria-label="Identity & Game" className="crosshook-onboarding-wizard__step-grid">
-              <ProfileIdentitySection
-                profileName={profileName}
-                profile={profile}
-                onProfileNameChange={setProfileName}
-                onUpdateProfile={updateProfile}
-                profileExists={mode === 'edit'}
-              />
-              <GameSection profile={profile} onUpdateProfile={updateProfile} launchMethod={launchMethod} />
-              <RunnerMethodSection profile={profile} onUpdateProfile={updateProfile} />
-            </section>
+            <OnboardingIdentityStageBody
+              profile={profile}
+              profileName={profileName}
+              launchMethod={launchMethod}
+              profileExists={mode === 'edit'}
+              onProfileNameChange={setProfileName}
+              onUpdateProfile={updateProfile}
+            />
           )}
 
           {isRuntime && (
-            <section aria-label="Runtime" className="crosshook-onboarding-wizard__step-grid">
-              <RuntimeSection
-                profile={profile}
-                onUpdateProfile={updateProfile}
-                launchMethod={launchMethod}
-                protonInstalls={protonInstalls}
-                protonInstallsError={protonInstallsError}
-              />
-              {onOpenHostToolDashboard ? (
-                <HostToolDashboardHandoff
-                  onOpen={handleOpenHostToolDashboard}
-                  description="Need the full host tool details while setting up runtime paths? Open the Host Tools page without finishing onboarding."
-                />
-              ) : null}
-            </section>
+            <OnboardingRuntimeStageBody
+              profile={profile}
+              launchMethod={launchMethod}
+              protonInstalls={protonInstalls}
+              protonInstallsError={protonInstallsError}
+              onUpdateProfile={updateProfile}
+              onOpenHostToolDashboard={onOpenHostToolDashboard ? handleOpenHostToolDashboard : undefined}
+            />
           )}
 
           {isTrainer && (
-            <section aria-label="Trainer" className="crosshook-onboarding-wizard__step-grid">
-              <TrainerSection
-                profile={profile}
-                onUpdateProfile={updateProfile}
-                launchMethod={launchMethod}
-                profileName={profileName}
-                profileExists={mode === 'edit'}
-              />
-            </section>
+            <OnboardingTrainerStageBody
+              profile={profile}
+              profileName={profileName}
+              launchMethod={launchMethod}
+              profileExists={mode === 'edit'}
+              onUpdateProfile={updateProfile}
+            />
           )}
 
           {isMedia && (
-            <section aria-label="Media" className="crosshook-onboarding-wizard__step-grid">
-              <MediaSection profile={profile} onUpdateProfile={updateProfile} launchMethod={launchMethod} />
-            </section>
+            <OnboardingMediaStageBody profile={profile} launchMethod={launchMethod} onUpdateProfile={updateProfile} />
           )}
 
           {isReview && (
-            <section aria-label="Review & Save" className="crosshook-onboarding-wizard__step-grid">
-              <WizardPresetPicker
-                bundledPresets={bundledOptimizationPresets}
-                savedPresetNames={Object.keys(profile.launch.presets ?? {})}
-                activePresetKey={profile.launch.active_preset ?? ''}
-                busy={mode === 'edit' ? optimizationPresetActionBusy : false}
-                onApplyBundled={onApplyBundledPreset}
-                onSelectSaved={onSelectSavedPreset}
-              />
-              <CustomEnvironmentVariablesSection
-                profileName={profileName}
-                customEnvVars={profile.launch.custom_env_vars}
-                onUpdateProfile={updateProfile}
-                idPrefix="onboarding-wizard"
-              />
-              <WizardReviewSummary
-                validation={validation}
-                readinessResult={readinessResult}
-                checkError={checkError}
-                umuInstallGuidance={umuInstallGuidance}
-                onDismissUmuInstallNag={() => void dismissUmuInstallNag()}
-                steamDeckCaveats={steamDeckCaveats}
-                onDismissSteamDeckCaveats={() => void dismissSteamDeckCaveats()}
-                onDismissReadinessNag={(toolId) => void dismissReadinessNag(toolId)}
-              />
-              {onOpenHostToolDashboard ? (
-                <HostToolDashboardHandoff
-                  onOpen={handleOpenHostToolDashboard}
-                  description="Want the full host readiness dashboard before saving? Open the Host Tools page and return to onboarding later."
-                />
-              ) : null}
-            </section>
+            <OnboardingReviewStageBody
+              profile={profile}
+              profileName={profileName}
+              mode={mode}
+              validation={validation}
+              bundledOptimizationPresets={bundledOptimizationPresets}
+              optimizationPresetActionBusy={optimizationPresetActionBusy}
+              readinessResult={readinessResult}
+              checkError={checkError}
+              umuInstallGuidance={umuInstallGuidance}
+              steamDeckCaveats={steamDeckCaveats}
+              onUpdateProfile={updateProfile}
+              onApplyBundledPreset={onApplyBundledPreset}
+              onSelectSavedPreset={onSelectSavedPreset}
+              onDismissUmuInstallNag={() => void dismissUmuInstallNag()}
+              onDismissSteamDeckCaveats={() => void dismissSteamDeckCaveats()}
+              onDismissReadinessNag={(toolId) => void dismissReadinessNag(toolId)}
+              onOpenHostToolDashboard={onOpenHostToolDashboard ? handleOpenHostToolDashboard : undefined}
+            />
           )}
 
           {isCompleted && (
@@ -515,92 +474,27 @@ export function OnboardingWizard({
           )}
         </div>
 
-        {/* Footer navigation */}
-        <footer className="crosshook-modal__footer crosshook-onboarding-wizard__footer">
-          <div className="crosshook-onboarding-wizard__nav">
-            {/* Left: Back button (hidden on first step and completed) */}
-            {!isIdentityGame && !isCompleted && (
-              <button
-                type="button"
-                className="crosshook-button crosshook-button--secondary"
-                style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                onClick={handleBack}
-              >
-                Back
-              </button>
-            )}
-
-            <div className="crosshook-onboarding-wizard__nav-primary">
-              {/* Run Checks — always available except on completed */}
-              {!isCompleted && (
-                <div className="crosshook-onboarding-wizard__checks-action">
-                  <button
-                    type="button"
-                    className="crosshook-button crosshook-button--secondary"
-                    style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                    disabled={isRunningChecks}
-                    onClick={() => void runChecks()}
-                  >
-                    {isRunningChecks ? 'Running Checks...' : 'Run Checks'}
-                  </button>
-                  {!isRunningChecks && lastCheckedAt ? (
-                    <span className="crosshook-help-text" aria-live="polite" style={{ marginLeft: 8 }}>
-                      Last checked at {lastCheckedAt}
-                    </span>
-                  ) : null}
-                </div>
-              )}
-
-              {/* Next — steps 1–4 */}
-              {(isIdentityGame || isRuntime || isTrainer || isMedia) && (
-                <button
-                  type="button"
-                  className="crosshook-button"
-                  style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                  onClick={handleNext}
-                >
-                  {confirmLabel}
-                </button>
-              )}
-
-              {/* Save Profile — review step only */}
-              {isReview && (
-                <button
-                  type="button"
-                  className="crosshook-button"
-                  style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                  disabled={saving || !validation.isReady}
-                  aria-describedby={saveDescribedBy}
-                  onClick={() => void handleComplete()}
-                >
-                  {confirmLabel}
-                </button>
-              )}
-
-              {/* Done — completed state */}
-              {isCompleted && (
-                <button
-                  type="button"
-                  className="crosshook-button"
-                  style={{ minHeight: 'var(--crosshook-touch-target-min)' }}
-                  onClick={onComplete}
-                >
-                  {confirmLabel}
-                </button>
-              )}
-            </div>
-          </div>
-
-          <ControllerPrompts
-            confirmLabel={confirmLabel}
-            backLabel={isIdentityGame ? 'Skip Setup' : 'Back'}
-            showBumpers={false}
-          />
-        </footer>
+        <OnboardingWizardFooter
+          confirmLabel={confirmLabel}
+          isIdentityGame={isIdentityGame}
+          isRuntime={isRuntime}
+          isTrainer={isTrainer}
+          isMedia={isMedia}
+          isReview={isReview}
+          isCompleted={isCompleted}
+          isRunningChecks={isRunningChecks}
+          isSaving={saving}
+          isSaveReady={validation.isReady}
+          lastCheckedAt={lastCheckedAt}
+          saveDescribedBy={saveDescribedBy}
+          onBack={handleBack}
+          onNext={handleNext}
+          onComplete={isCompleted ? onComplete : () => void handleComplete()}
+          onRunChecks={() => void runChecks()}
+        />
       </div>
     </div>,
     portalHostRef.current
   );
 }
-
 export default OnboardingWizard;
