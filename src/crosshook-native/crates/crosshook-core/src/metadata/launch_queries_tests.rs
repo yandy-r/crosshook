@@ -1,9 +1,20 @@
 #![cfg(test)]
 
 use super::test_support::{clean_exit_report, sample_profile};
-use super::{MetadataStore, SyncSource};
+use super::{LaunchHistoryEntry, MetadataStore, SyncSource};
 use crate::launch::diagnostics::models::{DiagnosticReport, ExitCodeInfo, FailureMode};
 use crate::launch::request::ValidationSeverity;
+
+fn assert_launch_history_newest_first(entries: &[LaunchHistoryEntry]) {
+    for w in entries.windows(2) {
+        assert!(
+            w[0].started_at >= w[1].started_at,
+            "expected non-increasing started_at (newest first), got {:?} then {:?}",
+            w[0].started_at,
+            w[1].started_at
+        );
+    }
+}
 
 #[test]
 fn test_query_most_launched() {
@@ -198,21 +209,22 @@ fn test_query_launch_history_for_profile() {
         .query_launch_history_for_profile("history-alpha", 20)
         .unwrap();
     assert_eq!(alpha.len(), 4, "3 finished + 1 in progress");
+    assert_launch_history_newest_first(&alpha);
     assert!(alpha
         .iter()
         .any(|e| e.operation_id == in_flight && e.status == "started"));
-    assert_eq!(
-        store
-            .query_launch_history_for_profile("history-alpha", 2)
-            .unwrap()
-            .len(),
-        2
-    );
+
+    let alpha_limited = store
+        .query_launch_history_for_profile("history-alpha", 2)
+        .unwrap();
+    assert_eq!(alpha_limited.len(), 2);
+    assert_launch_history_newest_first(&alpha_limited);
 
     let beta = store
         .query_launch_history_for_profile("history-beta", 10)
         .unwrap();
     assert_eq!(beta.len(), 2);
+    assert_launch_history_newest_first(&beta);
     assert!(
         !alpha.iter().any(|e| e.operation_id == other),
         "alpha history must not include beta launches"

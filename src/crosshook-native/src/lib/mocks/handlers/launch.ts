@@ -147,7 +147,11 @@ export function registerLaunch(map: Map<string, Handler>): void {
     if (fixture === 'loading') return neverResolving<LaunchHistoryEntry[]>();
     if (fixture === 'empty') return [];
     const { profileName } = args as { profileName?: string; limit?: number };
-    const suffix = (profileName ?? 'profile').replace(/\s+/g, '-');
+    const trimmed = profileName?.trim() ?? '';
+    if (trimmed.length === 0) {
+      throw new Error('[dev-mock] list_launch_history_for_profile: profileName is required');
+    }
+    const suffix = trimmed.replace(/\s+/g, '-');
     return [
       {
         operation_id: `mock-launch-op-${suffix}`,

@@ -161,8 +161,8 @@ describe('AppShell (integration)', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+        expect(screen.queryByTestId('inspector')).not.toBeInTheDocument();
       });
-      expect(screen.queryByTestId('inspector')).not.toBeInTheDocument();
     } finally {
       rectSpy.mockRestore();
     }

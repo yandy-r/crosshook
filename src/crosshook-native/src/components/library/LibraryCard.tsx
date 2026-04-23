@@ -7,7 +7,11 @@ interface LibraryCardProps {
   profile: LibraryCardData;
   isSelected?: boolean;
   onOpenDetails: LibraryOpenDetailsHandler;
-  /** When set, single-click selects for the inspector; double-click still opens details. */
+  /**
+   * When set, a single click on the card hit area (`handleHitboxClick`) calls `onSelect` to choose the
+   * game for the inspector. Opening full details is not from double-click; use the separate
+   * “open details” control (`crosshook-library-card__open-details`) when this prop is provided.
+   */
   onSelect?: (name: string) => void;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;

@@ -156,9 +156,9 @@
   height: 32px;
   margin: 0;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid var(--crosshook-library-card-control-border);
   border-radius: 999px;
-  background: rgba(10, 14, 28, 0.55);
+  background: var(--crosshook-library-card-control-surface);
   color: var(--crosshook-color-text);
   cursor: pointer;
   opacity: 0;
@@ -171,7 +171,7 @@
 }
 
 .crosshook-library-card__open-details:hover {
-  background: rgba(10, 14, 28, 0.72);
+  background: var(--crosshook-library-card-control-surface-hover);
 }
 
 .crosshook-library-card--selected {
@@ -317,9 +317,9 @@
   height: 32px;
   margin: 0;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border: 1px solid var(--crosshook-library-card-control-border);
   border-radius: 999px;
-  background: rgba(10, 14, 28, 0.55);
+  background: var(--crosshook-library-card-control-surface);
   color: var(--crosshook-color-danger);
   cursor: pointer;
   opacity: 0;
@@ -335,7 +335,7 @@
 }
 
 .crosshook-library-card__favorite-heart:hover {
-  background: rgba(10, 14, 28, 0.72);
+  background: var(--crosshook-library-card-control-surface-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -815,5 +815,5 @@
 .crosshook-game-inspector__launch-meta {
   font-size: 0.7rem;
   color: var(--crosshook-color-text-muted);
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
