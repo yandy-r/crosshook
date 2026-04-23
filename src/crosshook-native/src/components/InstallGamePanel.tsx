@@ -11,6 +11,7 @@ import { CustomEnvironmentVariablesSection } from './CustomEnvironmentVariablesS
 import { InstallReviewSummary } from './install/InstallReviewSummary';
 import { prefixStateLabel } from './install/installLabels';
 import { evaluateInstallRequiredFields } from './install/installValidation';
+import { DashboardPanelSection } from './layout/DashboardPanelSection';
 import { MediaSection } from './profile-sections/MediaSection';
 import { ProfileIdentitySection } from './profile-sections/ProfileIdentitySection';
 import { RunnerMethodSection } from './profile-sections/RunnerMethodSection';
@@ -250,14 +251,6 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
   return (
     <section className="crosshook-install-shell" aria-labelledby="install-game-heading">
       <div className="crosshook-install-shell__content">
-        <div className="crosshook-install-intro">
-          <div className="crosshook-heading-eyebrow">Install Game</div>
-          <p className="crosshook-heading-copy">
-            This guided flow runs the installer through Proton, surfaces a reviewable profile with full art, runtime,
-            and preset support, and only persists the profile when you confirm Save.
-          </p>
-        </div>
-
         <Tabs.Root
           className="crosshook-install-flow-tabs"
           value={activeInstallTab}
@@ -280,7 +273,13 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
             activeTab={activeInstallTab}
             tabLabel={INSTALL_FLOW_TAB_LABELS.identity}
           >
-            <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+            <DashboardPanelSection
+              eyebrow="Step 1"
+              title="Identity & Game"
+              summary="Name the profile and set the game executable path."
+              titleAs="h3"
+              className="crosshook-install-flow-section"
+            >
               <ProfileIdentitySection
                 profileName={profileName}
                 profile={draftProfile}
@@ -288,7 +287,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
                 onUpdateProfile={updateDraftProfile}
               />
               <RunnerMethodSection profile={draftProfile} onUpdateProfile={updateDraftProfile} hideNative />
-            </div>
+            </DashboardPanelSection>
           </InstallFlowTabContent>
 
           <InstallFlowTabContent
@@ -296,7 +295,13 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
             activeTab={activeInstallTab}
             tabLabel={INSTALL_FLOW_TAB_LABELS.runtime}
           >
-            <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+            <DashboardPanelSection
+              eyebrow="Step 2"
+              title="Runtime"
+              summary="Choose the Proton version and Wine prefix for this install."
+              titleAs="h3"
+              className="crosshook-install-flow-section"
+            >
               <RuntimeSection
                 profile={draftProfile}
                 onUpdateProfile={updateDraftProfile}
@@ -309,7 +314,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
                 {defaultPrefixPath.trim().length > 0 ? ` Suggested default prefix: ${defaultPrefixPath}` : null}
                 {defaultPrefixPathError ? ` ${defaultPrefixPathError}` : null}
               </p>
-            </div>
+            </DashboardPanelSection>
           </InstallFlowTabContent>
 
           {launchMethod !== 'native' ? (
@@ -318,7 +323,13 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
               activeTab={activeInstallTab}
               tabLabel={INSTALL_FLOW_TAB_LABELS.trainer}
             >
-              <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+              <DashboardPanelSection
+                eyebrow="Step 3"
+                title="Trainer"
+                summary="Optionally attach a trainer executable to launch alongside the game."
+                titleAs="h3"
+                className="crosshook-install-flow-section"
+              >
                 <TrainerSection
                   profile={draftProfile}
                   onUpdateProfile={updateDraftProfile}
@@ -326,14 +337,20 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
                   profileName={profileName}
                   profileExists={false}
                 />
-              </div>
+              </DashboardPanelSection>
             </InstallFlowTabContent>
           ) : null}
 
           <InstallFlowTabContent value="media" activeTab={activeInstallTab} tabLabel={INSTALL_FLOW_TAB_LABELS.media}>
-            <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+            <DashboardPanelSection
+              eyebrow="Step 4"
+              title="Media"
+              summary="Set cover art and background images for the library card."
+              titleAs="h3"
+              className="crosshook-install-flow-section"
+            >
               <MediaSection profile={draftProfile} onUpdateProfile={updateDraftProfile} launchMethod={launchMethod} />
-            </div>
+            </DashboardPanelSection>
           </InstallFlowTabContent>
 
           <InstallFlowTabContent
@@ -341,7 +358,13 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
             activeTab={activeInstallTab}
             tabLabel={INSTALL_FLOW_TAB_LABELS.installer_review}
           >
-            <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--wide-gap">
+            <DashboardPanelSection
+              eyebrow="Step 5"
+              title="Installer & Review"
+              summary="Pick the installer media, apply launch presets, and run the install."
+              titleAs="h3"
+              className="crosshook-install-flow-section"
+            >
               <div className="crosshook-install-section">
                 <div className="crosshook-install-section-title">Installer Media</div>
                 <InstallField
@@ -392,7 +415,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
                 }}
                 validation={installValidation}
               />
-            </div>
+            </DashboardPanelSection>
           </InstallFlowTabContent>
         </Tabs.Root>
       </div>
