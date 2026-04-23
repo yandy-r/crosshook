@@ -1,3 +1,4 @@
+import { DashboardPanelSection } from './layout/DashboardPanelSection';
 import { DiagnosticExportSection } from './settings/DiagnosticExportSection';
 import { LoggingAndUiSection } from './settings/LoggingAndUiSection';
 import { ManageLaunchersSection } from './settings/ManageLaunchersSection';
@@ -29,26 +30,25 @@ export function SettingsPanel({
   const recentFilesLimit = settings.recent_files_limit;
 
   return (
-    <section className="crosshook-card crosshook-settings-panel" aria-label="Settings">
-      <header className="crosshook-settings-header">
-        <h2 className="crosshook-heading-title crosshook-heading-title--card">App preferences and storage</h2>
-        <p className="crosshook-heading-copy">
-          Keep startup behavior, profile storage, and recent file history in one place. The backend stores these values,
-          and this panel reflects the current state for editing and review.
-        </p>
-      </header>
-
-      <div className="crosshook-settings-summary">
-        <span className="crosshook-status-chip">
-          <strong>Last profile:</strong>
-          <span>{settings.last_used_profile.trim().length > 0 ? settings.last_used_profile : 'none'}</span>
-        </span>
-        <span className="crosshook-status-chip">
-          <strong>Recent limit:</strong>
-          <span>{recentFilesLimit}</span>
-        </span>
-      </div>
-
+    <DashboardPanelSection
+      eyebrow="App"
+      title="App preferences and storage"
+      summary="Keep startup behavior, profile storage, and recent file history in one place. The backend stores these values, and this panel reflects the current state for editing and review."
+      headingAfter={
+        <div className="crosshook-settings-summary">
+          <span className="crosshook-status-chip">
+            <strong>Last profile:</strong>
+            <span>{settings.last_used_profile.trim().length > 0 ? settings.last_used_profile : 'none'}</span>
+          </span>
+          <span className="crosshook-status-chip">
+            <strong>Recent limit:</strong>
+            <span>{recentFilesLimit}</span>
+          </span>
+        </div>
+      }
+      className="crosshook-settings-panel"
+      aria-label="Settings"
+    >
       <div className="crosshook-settings-grid">
         <div className="crosshook-settings-column">
           <StartupSection settings={settings} onAutoLoadLastProfileChange={onAutoLoadLastProfileChange} />
@@ -86,7 +86,7 @@ export function SettingsPanel({
 
         <RecentFilesColumn recentFiles={recentFiles} recentFilesLimit={recentFilesLimit} />
       </div>
-    </section>
+    </DashboardPanelSection>
   );
 }
 

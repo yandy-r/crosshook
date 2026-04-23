@@ -1,1 +1,85 @@
-/* settings-routes.css — Phase 10 per-route chrome (populated by Task 2.x). */
+/* settings-routes.css — Phase 10 per-route chrome for the Settings route. */
+
+/* ─── Page-scroll shell ────────────────────────────────────────────────── */
+
+.crosshook-page-scroll-shell--settings {
+  padding-top: var(--crosshook-page-padding);
+  box-sizing: border-box;
+}
+
+@media (max-height: 820px) {
+  .crosshook-page-scroll-shell--settings {
+    padding-top: max(10px, var(--crosshook-page-padding));
+  }
+}
+
+/* ─── Settings panel — dashboard panel chrome alignment ─────────────────── */
+
+/*
+ * The settings panel renders as a DashboardPanelSection wrapped card inside
+ * .crosshook-route-card-scroll. Override the inner-section gap so it aligns
+ * with the dashboard section-stack rhythm (--crosshook-grid-gap).
+ */
+.crosshook-page-scroll-shell--settings .crosshook-settings-panel {
+  gap: var(--crosshook-grid-gap);
+}
+
+/* ─── Settings grid ──────────────────────────────────────────────────────── */
+
+/*
+ * Force align-content: start so grid tracks size to content when the panel
+ * stretches to fill .crosshook-route-card-scroll min-height: 100%.
+ */
+.crosshook-page-scroll-shell--settings .crosshook-settings-grid {
+  align-content: start;
+}
+
+/* ─── Settings column — section-stack spacing ────────────────────────────── */
+
+/*
+ * Align the stacked CollapsibleSection items with the dashboard panel section
+ * content gap (16 px, matching .crosshook-dashboard-panel-section__content).
+ */
+.crosshook-page-scroll-shell--settings .crosshook-settings-column {
+  gap: 16px;
+}
+
+/* ─── Settings field row — label/input alignment ─────────────────────────── */
+
+/*
+ * Tighten the label-to-input gap to match the dashboard form-row idiom.
+ */
+.crosshook-page-scroll-shell--settings .crosshook-settings-field-row {
+  gap: 8px;
+}
+
+/* ─── Section-header typography — dashboard eyebrow/title alignment ──────── */
+
+/*
+ * CollapsibleSection titles inside the settings panel share font-size and
+ * weight with dashboard sub-section headings. The CollapsibleSection already
+ * renders a <button> with .crosshook-collapsible-section__trigger; scope the
+ * heading typography to align without touching the section component itself.
+ */
+.crosshook-page-scroll-shell--settings
+  .crosshook-settings-panel
+  .crosshook-panel.crosshook-settings-section
+  .crosshook-collapsible-section__trigger {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ─── Status chips in the panel heading-after slot ───────────────────────── */
+
+/*
+ * The settings-summary chip row lands in the DashboardPanelSection
+ * __heading-group via headingAfter. Align it as a flex row that wraps
+ * and matches the dashboard pill-row rhythm.
+ */
+.crosshook-page-scroll-shell--settings .crosshook-settings-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
