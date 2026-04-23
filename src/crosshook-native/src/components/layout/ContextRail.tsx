@@ -8,7 +8,8 @@ import { useProfileContext } from '@/context/ProfileContext';
 import { useLaunchHistoryForProfile } from '@/hooks/useLaunchHistoryForProfile';
 import type { LaunchHistoryEntry } from '@/types/library';
 
-const LAUNCH_HISTORY_LIMIT = 48;
+/** Enough rows for 7-day chart + list even with heavy daily launch counts (newest-first IPC). */
+const LAUNCH_HISTORY_LIMIT = 140;
 
 function formatLaunchTime(iso: string): string {
   const d = new Date(iso);
@@ -33,19 +34,24 @@ function launchStatusLabel(status: string): string {
   }
 }
 
-/** Buckets [oldest … newest] for the last 7 calendar days from `Date.now()`. */
+/** Buckets [oldest … newest] for the last 7 local calendar days (today = index 6). */
 export function bucketLaunchesLast7Days(rows: LaunchHistoryEntry[] | null, nowMs: number = Date.now()): number[] {
   const out = [0, 0, 0, 0, 0, 0, 0];
   if (!rows?.length) {
     return out;
   }
+  const startOfTodayMs = new Date(nowMs);
+  startOfTodayMs.setHours(0, 0, 0, 0);
+  const startToday = startOfTodayMs.getTime();
   const msPerDay = 86_400_000;
   for (const row of rows) {
     const t = Date.parse(row.started_at);
     if (Number.isNaN(t)) {
       continue;
     }
-    const daysAgo = Math.floor((nowMs - t) / msPerDay);
+    const rowStartMs = new Date(t);
+    rowStartMs.setHours(0, 0, 0, 0);
+    const daysAgo = Math.floor((startToday - rowStartMs.getTime()) / msPerDay);
     if (daysAgo < 0 || daysAgo > 6) {
       continue;
     }
@@ -149,7 +155,7 @@ export function ContextRail() {
                     className="crosshook-context-rail__chart-bar"
                     style={{ height: `${Math.round((n / maxBucket) * 100)}%` }}
                   />
-                  <span className="crosshook-context-rail__chart-label">{i + 1}</span>
+                  <span className="crosshook-context-rail__chart-label">{i === 6 ? 'Today' : `${6 - i}d`}</span>
                 </div>
               ))}
             </div>
@@ -158,7 +164,7 @@ export function ContextRail() {
 
         <section className="crosshook-context-rail__section" aria-labelledby="crosshook-context-rail-most-title">
           <h3 id="crosshook-context-rail-most-title" className="crosshook-game-inspector__eyebrow">
-            Most-played sessions
+            Recent successful sessions
           </h3>
           {!focusProfileName ? (
             <p className="crosshook-game-inspector__muted" role="status">
