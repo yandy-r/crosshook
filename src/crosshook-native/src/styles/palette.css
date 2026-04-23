@@ -5,7 +5,7 @@
 .crosshook-palette__surface.crosshook-modal__surface,
 .crosshook-palette .crosshook-modal__surface {
   width: min(760px, calc(100vw - var(--crosshook-modal-offset)));
-  height: auto;
+  height: min(720px, calc(100dvh - var(--crosshook-modal-offset)));
   min-height: 0;
   max-height: min(720px, calc(100dvh - var(--crosshook-modal-offset)));
   grid-template-rows: auto minmax(0, 1fr);
@@ -16,8 +16,18 @@
   gap: 14px;
   min-width: 0;
   padding: 20px 24px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(180deg, rgba(13, 19, 34, 0.98), rgba(13, 19, 34, 0.9));
+  border-bottom: 1px solid var(--crosshook-palette-border-on-dark);
+  background: linear-gradient(
+    180deg,
+    var(--crosshook-palette-bg-dark-98),
+    var(--crosshook-palette-bg-dark-90)
+  );
+}
+
+.crosshook-palette__body {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
 }
 
 .crosshook-palette__header-copy {
@@ -66,6 +76,7 @@
 
 .crosshook-palette__list {
   min-height: 0;
+  height: 100%;
   margin: 0;
   padding: 10px 12px 16px;
   list-style: none;
@@ -106,7 +117,7 @@
 .crosshook-palette__row:hover {
   transform: translateY(-1px);
   border-color: rgba(74, 125, 181, 0.22);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--crosshook-palette-border-on-dark);
   color: var(--crosshook-color-text);
   box-shadow:
     0 2px 6px rgba(0, 0, 0, 0.22),
@@ -134,7 +145,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: currentColor;
+  color: currentcolor;
 }
 
 .crosshook-palette__row-copy {
@@ -169,7 +180,7 @@
   min-height: 30px;
   padding: 0 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--crosshook-palette-border-on-dark);
   background: rgba(255, 255, 255, 0.04);
   color: var(--crosshook-color-text-subtle);
   font-family: var(--crosshook-font-mono);

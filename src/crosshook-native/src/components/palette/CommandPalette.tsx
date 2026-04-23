@@ -19,22 +19,9 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 import {
   type CommandPaletteCommand,
   type CommandPaletteCommandId,
+  type CommandPaletteIconId,
   isCommandPaletteCommandEnabled,
 } from '@/lib/commands';
-
-type CommandPaletteIconId =
-  | 'browse'
-  | 'compatibility'
-  | 'discover'
-  | 'health'
-  | 'host_tools'
-  | 'info'
-  | 'install'
-  | 'launch'
-  | 'library'
-  | 'profiles'
-  | 'proton_manager'
-  | 'settings';
 
 export type CommandPaletteItem = CommandPaletteCommand & {
   hint?: string;
@@ -227,7 +214,7 @@ export function CommandPalette({
 
       handleFocusTrapKeyDown(event);
     },
-    [activeCommand, handleExecute, handleFocusTrapKeyDown, onMoveActive]
+    [activeCommand, firstEnabledCommand, handleExecute, handleFocusTrapKeyDown, onMoveActive]
   );
 
   if (!open || !isMounted || !portalHostRef.current) {
@@ -288,7 +275,7 @@ export function CommandPalette({
             onChange={(event) => onQueryChange(event.target.value)}
           />
         </header>
-        <div className="crosshook-modal__body">
+        <div className="crosshook-modal__body crosshook-palette__body">
           {commands.length === 0 ? (
             <div className="crosshook-palette__empty" role="status" aria-live="polite">
               <strong>No commands found</strong>
@@ -315,7 +302,7 @@ export function CommandPalette({
                       className={`crosshook-palette__row${active ? ' crosshook-palette__row--active' : ''}`}
                       data-crosshook-command-id={command.id}
                       data-state={active ? 'active' : undefined}
-                      aria-selected={active}
+                      aria-current={active ? 'true' : undefined}
                       disabled={!enabled}
                       tabIndex={-1}
                       onClick={() => handleExecute(command)}

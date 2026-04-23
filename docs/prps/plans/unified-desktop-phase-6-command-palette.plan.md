@@ -21,6 +21,21 @@ Today the only palette affordance is the optional `LibraryToolbar` button, and `
 - **GitHub Issues**: #445 tracking, #418 deliverable
 - **Persistence Classification**: runtime-only palette state (`open`, `query`, `activeIndex`, filtered command ids); no new TOML settings; no new SQLite tables or migrations.
 
+## Persistence and Usability
+
+1. **Classification by storage boundary**
+   - **User-editable preferences (TOML / settings UI)**: Phase 6 does not add palette-specific keys. Existing app preferences continue to use the normal TOML / settings path; nothing in the palette is persisted there.
+   - **Operational / history / cache (SQLite metadata DB)**: No new palette tables, command history, or recency. The v1 catalog is static in code; filtered results are derived in memory, not read from or written to SQLite.
+   - **Ephemeral runtime state (memory only)**: Palette visibility and interaction state—`open`, the search `query`, selection (exposed in the hook as `activeId` / `activeIndex` relative to the filtered list), and the **filtered command ids** (derived from the static catalog and query)—live only in React state and are cleared on close (`reset`).
+
+2. **Migration and backward compatibility**: There is no on-disk or schema-bound palette data to migrate across app versions. Upgrades do not need to transform palette fields; if an older build lacks the feature, it simply has no palette. Future persistence (e.g. recent commands) would be a follow-up with an explicit storage contract.
+
+3. **Offline behavior**: The palette UI and static catalog are fully client-side. Execution uses existing in-app route/profile flows. Network is not required to open, search, or run commands, except where an underlying feature already needs connectivity (the palette does not add a new online gate).
+
+4. **Degraded fallback (metadata / settings unavailable)**: The palette does not read TOML or SQLite directly. If the shell cannot supply profile-based commands (e.g. no active profile) or the app is in a degraded state, entries are disabled or omitted per existing catalog rules; the overlay should still open and list route commands. No separate “palette DB” failure mode.
+
+5. **User visibility and editability**: Users cannot edit the command list or add shortcuts in Phase 6. While the dialog is open, they can only change the search `query` and move selection; closing discards that ephemeral state. There is no palette screen under Settings for v1.
+
 ## Batches
 
 Tasks grouped by dependency for parallel execution. Tasks within the same batch run concurrently; batches run in order.

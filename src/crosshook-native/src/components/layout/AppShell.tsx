@@ -221,9 +221,6 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
     moveActive,
   } = useCommandPalette({
     commands,
-    onExecuteCommand: async (command) => {
-      await handleExecuteCommand(command);
-    },
   });
 
   const handleExecutePaletteCommand = useCallback(

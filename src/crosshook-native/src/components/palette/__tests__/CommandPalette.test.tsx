@@ -147,12 +147,12 @@ describe('CommandPalette', () => {
     await user.click(search);
     await user.keyboard('{ArrowUp}');
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Go to Settings/i })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('button', { name: /Go to Settings/i })).toHaveAttribute('aria-current', 'true');
     });
 
     await user.keyboard('{ArrowDown}');
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Go to Library/i })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('button', { name: /Go to Library/i })).toHaveAttribute('aria-current', 'true');
     });
   });
 

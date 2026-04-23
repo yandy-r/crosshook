@@ -1,5 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Inspector } from '@/components/layout/Inspector';
 import { CollectionsProvider } from '@/context/CollectionsContext';
@@ -12,7 +13,7 @@ import { renderWithMocks } from '@/test/render';
 import { LibraryPage } from '../LibraryPage';
 
 interface LibraryPageHarnessProps {
-  onOpenCommandPalette?: () => void;
+  onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette'];
 }
 
 function LibraryPageWithInspector({ onOpenCommandPalette }: LibraryPageHarnessProps = {}) {
@@ -36,7 +37,10 @@ function LibraryPageWithInspector({ onOpenCommandPalette }: LibraryPageHarnessPr
   );
 }
 
-function renderLibraryHarness(options: Parameters<typeof renderWithMocks>[1] = {}, onOpenCommandPalette?: () => void) {
+function renderLibraryHarness(
+  options: Parameters<typeof renderWithMocks>[1] = {},
+  onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette']
+) {
   return renderWithMocks(
     <ProfileProvider>
       <PreferencesProvider>

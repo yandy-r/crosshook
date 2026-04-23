@@ -8,7 +8,8 @@ import {
 
 export interface UseCommandPaletteOptions {
   commands: readonly CommandPaletteCommand[];
-  onExecuteCommand: (command: CommandPaletteCommand) => void | Promise<void>;
+  /** Used by {@link UseCommandPaletteReturn.executeActive} only. Omit if execution is handled via {@link CommandPalette} `onExecuteCommand`. */
+  onExecuteCommand?: (command: CommandPaletteCommand) => void | Promise<void>;
   initialOpen?: boolean;
   initialQuery?: string;
 }
@@ -118,13 +119,15 @@ export function useCommandPalette({
   );
 
   const executeActive = useCallback(async (): Promise<boolean> => {
+    if (onExecuteCommand == null) {
+      return false;
+    }
+
     if (activeId === null) {
       return false;
     }
 
-    const activeCommand = filteredCommands.find(
-      (command) => command.id === activeId && isCommandPaletteCommandEnabled(command)
-    );
+    const activeCommand = enabledCommands.find((command) => command.id === activeId);
     if (!activeCommand) {
       return false;
     }
@@ -132,7 +135,7 @@ export function useCommandPalette({
     await onExecuteCommand(activeCommand);
     closePalette();
     return true;
-  }, [activeId, closePalette, filteredCommands, onExecuteCommand]);
+  }, [activeId, closePalette, enabledCommands, onExecuteCommand]);
 
   return {
     open,

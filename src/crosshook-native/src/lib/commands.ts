@@ -8,6 +8,7 @@ export type CommandPaletteIconId =
   | 'discover'
   | 'health'
   | 'host_tools'
+  | 'info'
   | 'install'
   | 'launch'
   | 'library'
@@ -39,6 +40,7 @@ interface ProfileCommand extends CommandPaletteCommandBase {
 
 export type CommandPaletteCommand = RouteCommand | ProfileCommand;
 
+/** TODO: reserved for future command-grouping in the palette (e.g. section headers); not yet used by the UI. */
 export interface CommandPaletteCommandSection {
   readonly route: readonly CommandPaletteCommand[];
 }
