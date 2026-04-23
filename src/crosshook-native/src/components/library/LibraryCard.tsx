@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 import type { LibraryCardData } from '../../types/library';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
@@ -76,12 +76,9 @@ export function LibraryCard({
     onOpenDetails(profile.name);
   }
 
-  function handleHitboxClick(e: MouseEvent<HTMLButtonElement>) {
+  function handleHitboxClick() {
     if (onSelect) {
       onSelect(profile.name);
-      if (e.detail >= 2) {
-        handleOpenDetailsClick();
-      }
       return;
     }
     handleOpenDetailsClick();
@@ -127,6 +124,22 @@ export function LibraryCard({
         aria-label={onSelect ? `Select ${displayName}` : `View details for ${displayName}`}
         onClick={handleHitboxClick}
       />
+      {onSelect ? (
+        <button
+          type="button"
+          className="crosshook-library-card__open-details"
+          aria-label={`View details for ${displayName}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenDetailsClick();
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.25" />
+            <path d="M8 6.5v3M8 4.2h.01" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+          </svg>
+        </button>
+      ) : null}
       {/* Cover image / skeleton / fallback */}
       {loading ? (
         <div className="crosshook-library-card__image crosshook-skeleton" />

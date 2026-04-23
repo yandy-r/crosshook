@@ -51,7 +51,7 @@ export function Inspector({ route, selection, width, onLaunch, onEditProfile, on
             No inspector content for this route
           </p>
         ) : (
-          <InspectorErrorBoundary>
+          <InspectorErrorBoundary key={`${route}-${selection?.name ?? 'none'}`}>
             <InspectorComponent
               selection={selection}
               onLaunch={onLaunch}

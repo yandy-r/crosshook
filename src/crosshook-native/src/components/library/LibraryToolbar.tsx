@@ -104,14 +104,16 @@ export function LibraryToolbar({
           </svg>
         </button>
       </div>
-      <button
-        type="button"
-        className="crosshook-library-toolbar__palette-trigger"
-        aria-label="Open command palette"
-        onClick={() => onOpenCommandPalette?.()}
-      >
-        ⌘K
-      </button>
+      {onOpenCommandPalette ? (
+        <button
+          type="button"
+          className="crosshook-library-toolbar__palette-trigger"
+          aria-label="Open command palette"
+          onClick={() => onOpenCommandPalette()}
+        >
+          ⌘K
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -14,6 +14,17 @@
   border: 1px solid var(--crosshook-color-border);
 }
 
+.crosshook-library-page__filter-placeholder {
+  margin: 0;
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--crosshook-color-text-muted);
+  border: 1px dashed var(--crosshook-color-border);
+  border-radius: var(--crosshook-radius-md);
+}
+
 /* ── Toolbar ───────────────────────────────────────────────────────────── */
 
 .crosshook-library-toolbar {
@@ -130,6 +141,37 @@
 /* Hitbox is the usual focus target when the card root is not tabbable; outline the card via :focus-within above. */
 .crosshook-library-card__details-hitbox:focus-visible {
   outline: none;
+}
+
+/* When the main hitbox selects for the inspector, a separate control opens details (keyboard / touch). */
+.crosshook-library-card__open-details {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(10, 14, 28, 0.55);
+  color: var(--crosshook-color-text);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 160ms ease, background var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-card:hover .crosshook-library-card__open-details,
+.crosshook-library-card:focus-within .crosshook-library-card__open-details {
+  opacity: 1;
+}
+
+.crosshook-library-card__open-details:hover {
+  background: rgba(10, 14, 28, 0.72);
 }
 
 .crosshook-library-card--selected {
@@ -694,7 +736,7 @@
 
 .crosshook-game-inspector__profile-line {
   margin: 0;
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .crosshook-game-inspector__health-row {
@@ -707,6 +749,28 @@
   font-size: 0.75rem;
   text-transform: capitalize;
   color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-game-inspector__feedback-help {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-game-inspector__feedback-list {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crosshook-game-inspector__feedback-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .crosshook-game-inspector__launch-list {
