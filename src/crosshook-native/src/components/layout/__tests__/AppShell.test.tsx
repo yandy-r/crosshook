@@ -260,4 +260,83 @@ describe('AppShell (integration)', () => {
       rectSpy.mockRestore();
     }
   });
+
+  it('shows the library context rail only at the ultrawide product width gate', async () => {
+    setInnerWidth(3440);
+    setInnerHeight(1440);
+    const rectSpy = mockAppShellRect(3440, 1440);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('context-rail')).toBeInTheDocument();
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('hides the library context rail at 2560px width even though breakpoint is still uw', async () => {
+    setInnerWidth(2560);
+    setInnerHeight(1440);
+    const rectSpy = mockAppShellRect(2560, 1440);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('context-rail')).not.toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('hides the context rail outside the library route at ultrawide width', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(3440);
+    setInnerHeight(1440);
+    const rectSpy = mockAppShellRect(3440, 1440);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('context-rail')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('tab', { name: /^Settings$/ }));
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('context-rail')).not.toBeInTheDocument();
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it('hides the context rail in library detail mode at ultrawide width', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(3440);
+    setInnerHeight(1440);
+    const rectSpy = mockAppShellRect(3440, 1440);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('context-rail')).toBeInTheDocument();
+      });
+
+      const libraryTab = screen.getByRole('tab', { name: /^Library$/ });
+      await user.click(libraryTab);
+
+      await user.click(screen.getByRole('button', { name: 'View details for Test Game Alpha' }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('game-detail')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('context-rail')).not.toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
 });

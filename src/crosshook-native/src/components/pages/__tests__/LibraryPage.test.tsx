@@ -17,7 +17,7 @@ interface LibraryPageHarnessProps {
 }
 
 function LibraryPageWithInspector({ onOpenCommandPalette }: LibraryPageHarnessProps = {}) {
-  const { inspectorSelection, libraryInspectorHandlers } = useInspectorSelection();
+  const { inspectorSelection, libraryInspectorHandlers, libraryShellMode } = useInspectorSelection();
   return (
     <div style={{ display: 'flex' }}>
       <div style={{ flex: '1 1 50%', minWidth: 0 }}>
@@ -33,6 +33,7 @@ function LibraryPageWithInspector({ onOpenCommandPalette }: LibraryPageHarnessPr
           onToggleFavorite={libraryInspectorHandlers?.onToggleFavorite}
         />
       </div>
+      <span data-testid="library-shell-mode">{libraryShellMode}</span>
     </div>
   );
 }
@@ -136,12 +137,28 @@ describe('LibraryPage', () => {
     expect(onOpenCommandPalette).toHaveBeenCalledTimes(1);
   });
 
+  it('publishes library shell mode for shell consumers', async () => {
+    const user = userEvent.setup();
+    renderLibraryHarness();
+
+    expect(screen.getByTestId('library-shell-mode')).toHaveTextContent('library');
+
+    await user.click(await screen.findByRole('button', { name: 'View details for Test Game Alpha' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('library-shell-mode')).toHaveTextContent('detail');
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('library-shell-mode')).toHaveTextContent('library');
+    });
+  });
+
   it('enters hero detail from the details control and returns on Back without losing inspector selection', async () => {
     const user = userEvent.setup();
     renderLibraryHarness();
 
-    const selectButtons = await screen.findAllByRole('button', { name: /^Select /i });
-    await user.click(selectButtons[0]!);
+    await user.click(await screen.findByRole('button', { name: 'Select Test Game Alpha' }));
     await waitFor(() => {
       expect(screen.getByTestId('inspector')).toHaveTextContent('Test Game Alpha');
     });

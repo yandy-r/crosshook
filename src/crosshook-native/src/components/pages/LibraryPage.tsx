@@ -46,7 +46,7 @@ export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPagePro
 
   const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
-  const { setInspectorSelection, setLibraryInspectorHandlers } = useInspectorSelection();
+  const { setInspectorSelection, setLibraryInspectorHandlers, setLibraryShellMode } = useInspectorSelection();
   const offlineReadiness = useOfflineReadiness();
   const [pageMode, setPageMode] = useState<'library' | 'detail'>('library');
   const [detailName, setDetailName] = useState<string | null>(null);
@@ -165,16 +165,18 @@ export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPagePro
       setDetailName(name);
       setInspectorPickName(name);
       setPageMode('detail');
+      setLibraryShellMode('detail');
       await selectProfile(name);
     },
-    [selectProfile, summaries]
+    [selectProfile, summaries, setLibraryShellMode]
   );
 
   const handleBackFromDetail = useCallback(() => {
     setPageMode('library');
+    setLibraryShellMode('library');
     setDetailName(null);
     setDetailSummarySnapshot(null);
-  }, []);
+  }, [setLibraryShellMode]);
 
   const handleCardContextMenu = useCallback(
     (position: { x: number; y: number }, profileName: string, restoreFocusTo: HTMLElement) => {
