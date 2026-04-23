@@ -8,6 +8,7 @@ import type { InstallProfileReviewPayload } from '../../types/install';
 import type { ProfileReviewSession } from '../../types/profile-review';
 import { profilesEqual } from '../../utils/profile-compare';
 import InstallGamePanel from '../InstallGamePanel';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { RouteBanner } from '../layout/RouteBanner';
 import type { AppRoute } from '../layout/Sidebar';
 import ProfileFormSections from '../ProfileFormSections';
@@ -326,9 +327,11 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
       <div className="crosshook-route-stack crosshook-install-page">
         <div className="crosshook-route-stack__body--fill crosshook-install-page__body">
           <RouteBanner route="install" />
-          <div
-            className="crosshook-panel crosshook-install-page-tabs"
-            style={{ padding: 'var(--crosshook-card-padding)' }}
+          <DashboardPanelSection
+            eyebrow="Setup"
+            title="Install & Run"
+            summary="Run a Windows installer through Proton, update an existing game prefix, or launch a standalone executable."
+            className="crosshook-install-page-tabs"
           >
             <Tabs.Root
               className="crosshook-install-page-tabs__root"
@@ -383,7 +386,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
                 </div>
               </Tabs.Content>
             </Tabs.Root>
-          </div>
+          </DashboardPanelSection>
         </div>
       </div>
 
