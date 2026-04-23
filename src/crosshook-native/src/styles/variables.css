@@ -120,8 +120,6 @@
   );
   --crosshook-page-header-gap: 10px;
   --crosshook-page-header-margin-bottom: 24px;
-  --crosshook-sidebar-width: 200px;
-  --crosshook-sidebar-width-collapsed: 56px;
   --crosshook-console-drawer-height: 280px;
   --crosshook-console-drawer-handle-height: 44px;
   /* Breathing room between route scroll content and the horizontal resize / collapsed console strip */

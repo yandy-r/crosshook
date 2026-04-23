@@ -14,11 +14,13 @@ import { LaunchStateProvider } from '@/context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
 import { useHighContrastTheme } from '@/hooks/useAccessibilityEnhancements';
+import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useCollections } from '@/hooks/useCollections';
 import { useFlatpakMigrationToast } from '@/hooks/useFlatpakMigrationToast';
 import { subscribeEvent } from '@/lib/events';
 import { isAppRoute } from '@/lib/validAppRoutes';
 import type { OnboardingCheckPayload } from '@/types/onboarding';
+import { sidebarVariantFromBreakpoint, sidebarWidthForVariant } from './sidebarVariants';
 
 function ConsoleDock({ panelRef }: { panelRef: RefObject<PanelImperativeHandle | null> }) {
   const { settings } = usePreferencesContext();
@@ -46,8 +48,12 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
     useProfileContext();
   const [route, setRoute] = useState<AppRoute>('library');
   const lastProfile = profileName.trim() || selectedProfile;
+  const shellRef = useRef<HTMLDivElement>(null);
   const consolePanelRef = useRef<PanelImperativeHandle>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const breakpoint = useBreakpoint(shellRef);
+  const sidebarVariant = sidebarVariantFromBreakpoint(breakpoint.size, breakpoint.height);
+  const sidebarWidth = sidebarWidthForVariant(sidebarVariant);
 
   const {
     open: collectionModalOpen,
@@ -167,22 +173,27 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
               if (isAppRoute(value)) setRoute(value);
             }}
           >
-            <div className="crosshook-app-layout">
+            <div className="crosshook-app-layout" ref={shellRef}>
               <Group
                 className="crosshook-shell-group"
                 orientation="horizontal"
                 resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
               >
-                <Panel className="crosshook-shell-panel" defaultSize="20%" minSize="14%" maxSize="40%">
+                <Panel
+                  className="crosshook-shell-panel"
+                  defaultSize={sidebarWidth}
+                  minSize={sidebarWidth}
+                  maxSize={sidebarWidth}
+                >
                   <Sidebar
                     activeRoute={route}
                     onNavigate={setRoute}
                     controllerMode={controllerMode}
                     lastProfile={lastProfile}
                     onOpenCollection={handleOpenCollection}
+                    variant={sidebarVariant}
                   />
                 </Panel>
-                <Separator className="crosshook-resize-handle crosshook-resize-handle--vertical" />
                 <Panel className="crosshook-shell-panel" minSize="28%">
                   <Group
                     className="crosshook-shell-group"

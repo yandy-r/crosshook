@@ -13,6 +13,12 @@ export interface CollectionsSidebarProps {
   onOpenCollection: (id: string) => void;
 }
 
+function collectionInitial(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed === '') return '?';
+  return trimmed.charAt(0).toUpperCase();
+}
+
 export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps) {
   const { collections, createCollection, error, prepareCollectionImportPreview, applyImportedCollection } =
     useCollections();
@@ -109,64 +115,71 @@ export function CollectionsSidebar({ onOpenCollection }: CollectionsSidebarProps
 
   return (
     <>
-      <nav className="crosshook-sidebar__section crosshook-collections-sidebar" aria-label="Collections">
-        <h2 className="crosshook-sidebar__section-label">Collections</h2>
-        {collections.length > 0 ? (
-          <ul className="crosshook-sidebar__section-items crosshook-collections-sidebar__list">
-            {collections.map((c) => (
-              <li key={c.collection_id}>
-                <button
-                  type="button"
-                  className="crosshook-sidebar__item crosshook-collections-sidebar__item"
-                  onClick={() => handleClickCollection(c.collection_id)}
-                  title={c.name}
+      {collections.length > 0 ? (
+        <ul className="crosshook-sidebar__section-items crosshook-collections-sidebar__list">
+          {collections.map((c) => (
+            <li key={c.collection_id}>
+              <button
+                type="button"
+                className="crosshook-sidebar__item crosshook-collections-sidebar__item"
+                onClick={() => handleClickCollection(c.collection_id)}
+                title={c.name}
+              >
+                <span
+                  className="crosshook-sidebar__item-icon crosshook-collections-sidebar__item-avatar"
+                  aria-hidden="true"
                 >
-                  <span className="crosshook-collections-sidebar__item-name">{c.name}</span>
-                  <span className="crosshook-collections-sidebar__item-count">
-                    {c.profile_count}
-                    <span className="crosshook-visually-hidden"> {c.profile_count === 1 ? 'profile' : 'profiles'}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="crosshook-collections-sidebar__empty-copy">
-            No collections yet. Create one or import a preset to group your profiles.
-          </p>
-        )}
+                  {collectionInitial(c.name)}
+                </span>
+                <span className="crosshook-sidebar__item-label crosshook-collections-sidebar__item-name">{c.name}</span>
+                <span className="crosshook-collections-sidebar__item-count">
+                  {c.profile_count}
+                  <span className="crosshook-visually-hidden"> {c.profile_count === 1 ? 'profile' : 'profiles'}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="crosshook-collections-sidebar__empty-copy">
+          No collections yet. Create one or import a preset to group your profiles.
+        </p>
+      )}
 
-        <button
-          type="button"
-          className="crosshook-sidebar__item crosshook-collections-sidebar__cta"
-          onClick={() => {
-            setCreateSessionError(null);
-            setCreateOpen(true);
-          }}
-        >
-          <span className="crosshook-sidebar__item-icon" aria-hidden="true">
-            +
-          </span>
-          <span className="crosshook-sidebar__item-label">New Collection</span>
-        </button>
+      <button
+        type="button"
+        className="crosshook-sidebar__item crosshook-collections-sidebar__cta"
+        aria-label="New Collection"
+        onClick={() => {
+          setCreateSessionError(null);
+          setCreateOpen(true);
+        }}
+        title="New Collection"
+      >
+        <span className="crosshook-sidebar__item-icon" aria-hidden="true">
+          +
+        </span>
+        <span className="crosshook-sidebar__item-label">New Collection</span>
+      </button>
 
-        <button
-          type="button"
-          className="crosshook-sidebar__item crosshook-collections-sidebar__cta"
-          onClick={() => void handleImportPreset()}
-        >
-          <span className="crosshook-sidebar__item-icon" aria-hidden="true">
-            &gt;
-          </span>
-          <span className="crosshook-sidebar__item-label">Import Preset</span>
-        </button>
+      <button
+        type="button"
+        className="crosshook-sidebar__item crosshook-collections-sidebar__cta"
+        aria-label="Import Preset"
+        onClick={() => void handleImportPreset()}
+        title="Import Preset"
+      >
+        <span className="crosshook-sidebar__item-icon" aria-hidden="true">
+          &gt;
+        </span>
+        <span className="crosshook-sidebar__item-label">Import Preset</span>
+      </button>
 
-        {(createSessionError ?? importSessionError ?? error) !== null && (
-          <p className="crosshook-collections-sidebar__error" role="alert">
-            {createSessionError ?? importSessionError ?? error}
-          </p>
-        )}
-      </nav>
+      {(createSessionError ?? importSessionError ?? error) !== null && (
+        <p className="crosshook-collections-sidebar__error" role="alert">
+          {createSessionError ?? importSessionError ?? error}
+        </p>
+      )}
 
       <CollectionEditModal
         open={createOpen}
