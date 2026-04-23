@@ -151,7 +151,7 @@ describe('dashboard routes', () => {
     expect(
       await screen.findByRole('heading', {
         level: 2,
-        name: 'Manage installed Proton builds with clearer route context',
+        name: 'Manage installed Proton builds',
       })
     ).toBeInTheDocument();
     expect(await screen.findByText('No explicit path provided; runtime detection applies.')).toBeInTheDocument();

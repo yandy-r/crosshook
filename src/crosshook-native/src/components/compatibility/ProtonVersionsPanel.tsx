@@ -28,16 +28,25 @@ export function ProtonVersionsPanel() {
     async (version: ProtonUpAvailableVersion) => {
       setInstallResult(null);
       setInstallingVersion(version.version);
-      const result = await protonUp.installVersion({
-        provider: version.provider,
-        version: version.version,
-        target_root: DEFAULT_COMPAT_TOOLS_DIR,
-      });
-      setInstallResult(result);
-      setInstallingVersion(null);
-      if (result.success) {
-        protonUp.refreshCatalog();
-        reloadInstalls();
+      try {
+        const result = await protonUp.installVersion({
+          provider: version.provider,
+          version: version.version,
+          target_root: DEFAULT_COMPAT_TOOLS_DIR,
+        });
+        setInstallResult(result);
+        if (result.success) {
+          protonUp.refreshCatalog();
+          reloadInstalls();
+        }
+      } catch (error) {
+        setInstallResult({
+          success: false,
+          error_kind: 'unknown',
+          error_message: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setInstallingVersion(null);
       }
     },
     [protonUp, reloadInstalls]
@@ -76,10 +85,7 @@ export function ProtonVersionsPanel() {
             <div id="proton-catalog-source-heading" className="crosshook-label">
               Catalog source
             </div>
-            <div
-              className="crosshook-protonup-catalog__provider-toggle"
-              style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}
-            >
+            <div className="crosshook-protonup-catalog__provider-toggle">
               <button
                 type="button"
                 className={`crosshook-button crosshook-button--small${
@@ -124,7 +130,7 @@ export function ProtonVersionsPanel() {
           {installResult ? (
             <div
               className={`crosshook-protonup-catalog__result ${installResult.success ? '' : 'crosshook-protonup-catalog__result--error'}`}
-              role="status"
+              role={installResult.success ? 'status' : 'alert'}
             >
               <p className={installResult.success ? 'crosshook-help-text' : 'crosshook-danger'}>
                 {installResult.success

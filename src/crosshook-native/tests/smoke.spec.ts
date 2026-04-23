@@ -47,7 +47,7 @@ const ROUTE_ORDER: readonly AppRoute[] = [
 const DASHBOARD_ROUTE_HEADINGS: Partial<Record<AppRoute, string>> = {
   health: 'Monitor profile readiness across launch, version, and offline checks',
   'host-tools': 'Check runtime coverage before you launch',
-  'proton-manager': 'Manage installed Proton builds with clearer route context',
+  'proton-manager': 'Manage installed Proton builds',
   compatibility: 'Keep trainer reports and Proton runtimes in the same workflow',
 };
 

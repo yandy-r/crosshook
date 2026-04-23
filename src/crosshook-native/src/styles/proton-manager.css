@@ -13,40 +13,31 @@
   min-width: 0;
 }
 
-.crosshook-proton-manager-page__hero-body,
 .crosshook-proton-manager-page__manager-body {
   min-width: 0;
 }
 
-.crosshook-proton-manager-page__hero-grid {
-  display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  align-items: start;
+.crosshook-proton-manager-page__hero-panel .crosshook-dashboard-panel-section__actions {
+  align-items: stretch;
 }
 
-.crosshook-proton-manager-page__hero-copy {
-  display: grid;
-  gap: 16px;
-  min-width: 0;
+.crosshook-proton-manager-page__hero-kv-row--source {
+  align-items: center;
 }
 
-.crosshook-proton-manager-page__hero-lede {
+/* Pill wraps the value so path source isn’t a lone chip outside the hero metrics box. */
+.crosshook-proton-manager-page__hero-kv .crosshook-proton-manager-page__hero-kv-pill {
+  display: inline-flex;
+  align-items: center;
   margin: 0;
-  max-width: 68ch;
-  color: var(--crosshook-color-text-muted);
-  line-height: 1.6;
-}
-
-.crosshook-proton-manager-page__pill-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 .crosshook-proton-manager-page__hero-kv {
-  padding: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  width: clamp(20rem, 34vw, 34rem);
+  max-width: 100%;
+  padding: 14px;
+  border: 1px solid var(--crosshook-proton-manager-panel-border);
   border-radius: var(--crosshook-radius-md);
   background:
     linear-gradient(
@@ -63,7 +54,6 @@
   font-size: 0.82rem;
   line-height: 1.5;
   overflow-wrap: break-word;
-  word-wrap: break-word;
 }
 
 .crosshook-proton-manager {
@@ -78,7 +68,7 @@
   display: grid;
   gap: 16px;
   padding: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border: 1px solid var(--crosshook-proton-manager-panel-border);
   border-radius: var(--crosshook-radius-md);
   background:
     linear-gradient(
@@ -87,7 +77,7 @@
       var(--crosshook-gradient-proton-panel-bottom-012)
     ),
     var(--crosshook-color-bg-elevated);
-  box-shadow: 0 18px 36px rgba(2, 6, 23, 0.16);
+  box-shadow: var(--crosshook-proton-manager-header-shadow);
 }
 
 .crosshook-proton-manager__roots {
@@ -191,7 +181,7 @@
   display: grid;
   gap: 14px;
   padding: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border: 1px solid var(--crosshook-proton-manager-panel-border);
   border-radius: var(--crosshook-radius-md);
   background:
     linear-gradient(
@@ -552,8 +542,12 @@
 }
 
 @media (max-width: 900px) {
-  .crosshook-proton-manager-page__hero-grid {
-    grid-template-columns: 1fr;
+  .crosshook-proton-manager-page__hero-kv {
+    width: 100%;
+  }
+
+  .crosshook-proton-manager-page__hero-kv-row--source {
+    align-items: flex-start;
   }
 }
 

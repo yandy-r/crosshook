@@ -13,6 +13,8 @@ export interface DashboardPanelSectionProps
   summary?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
+  /** Renders in the left column after the title/summary, still top-aligned with actions (e.g. status pills). */
+  headingAfter?: ReactNode;
   children?: ReactNode;
   titleAs?: DashboardPanelSectionHeadingTag;
   titleClassName?: string;
@@ -30,6 +32,7 @@ export function DashboardPanelSection({
   summary,
   description,
   actions,
+  headingAfter,
   children,
   className,
   titleAs = 'h2',
@@ -75,6 +78,7 @@ export function DashboardPanelSection({
               <p className="crosshook-dashboard-panel-section__summary crosshook-heading-copy">{resolvedSummary}</p>
             ) : null}
           </div>
+          {headingAfter}
         </div>
         {actions ? <div className="crosshook-dashboard-panel-section__actions">{actions}</div> : null}
       </div>
