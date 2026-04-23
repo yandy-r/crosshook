@@ -375,8 +375,13 @@ export function OnboardingWizard({
       >
         <header className="crosshook-modal__header">
           <div className="crosshook-modal__heading-block">
-            <div className="crosshook-heading-eyebrow">{eyebrow}</div>
-            <h2 ref={headingRef} id={titleId} className="crosshook-modal__title" tabIndex={-1}>
+            <p className="crosshook-heading-eyebrow">{eyebrow}</p>
+            <h2
+              ref={headingRef}
+              id={titleId}
+              className="crosshook-heading-title crosshook-heading-title--card"
+              tabIndex={-1}
+            >
               {title}
             </h2>
           </div>
@@ -397,9 +402,9 @@ export function OnboardingWizard({
 
         <div className="crosshook-modal__body crosshook-onboarding-wizard__body">
           {profileError && (
-            <p className="crosshook-danger" role="alert" style={{ marginBottom: 12 }}>
+            <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
               {profileError}
-            </p>
+            </div>
           )}
 
           {isIdentityGame && (
