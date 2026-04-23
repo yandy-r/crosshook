@@ -5,7 +5,7 @@ import { Group, Panel, type PanelImperativeHandle, Separator } from 'react-resiz
 import { CollectionEditModal } from '@/components/collections/CollectionEditModal';
 import { CollectionViewModal } from '@/components/collections/CollectionViewModal';
 import { useCollectionViewModalState } from '@/components/collections/useCollectionViewModalState';
-import ConsoleDrawer from '@/components/layout/ConsoleDrawer';
+import ConsoleDrawer, { type ConsoleMode } from '@/components/layout/ConsoleDrawer';
 import ContentArea from '@/components/layout/ContentArea';
 import ControllerPrompts from '@/components/layout/ControllerPrompts';
 import { Inspector } from '@/components/layout/Inspector';
@@ -36,19 +36,24 @@ import { inspectorWidthForBreakpoint } from './inspectorVariants';
 import { ROUTE_METADATA } from './routeMetadata';
 import { sidebarVariantFromBreakpoint, sidebarWidthForVariant } from './sidebarVariants';
 
-function ConsoleDock({ panelRef }: { panelRef: RefObject<PanelImperativeHandle | null> }) {
+const COMPACT_CONSOLE_MAX_HEIGHT = 720;
+
+function ConsoleDock({ panelRef, mode }: { panelRef: RefObject<PanelImperativeHandle | null>; mode: ConsoleMode }) {
   const { settings } = usePreferencesContext();
   const defaultCollapsed = settings.console_drawer_collapsed_default;
 
   useEffect(() => {
+    if (mode !== 'drawer') {
+      return;
+    }
     if (defaultCollapsed) {
       panelRef.current?.collapse();
     } else {
       panelRef.current?.expand();
     }
-  }, [defaultCollapsed, panelRef]);
+  }, [defaultCollapsed, mode, panelRef]);
 
-  return <ConsoleDrawer panelRef={panelRef} defaultCollapsed={defaultCollapsed} />;
+  return <ConsoleDrawer panelRef={panelRef} mode={mode} defaultCollapsed={defaultCollapsed} />;
 }
 
 function AccessibilityThemeSync() {
@@ -68,6 +73,8 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const paletteRestoreTargetRef = useRef<HTMLElement | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const breakpoint = useBreakpoint(shellRef);
+  const consoleMode: ConsoleMode =
+    breakpoint.isDeck || breakpoint.isNarrow || breakpoint.height <= COMPACT_CONSOLE_MAX_HEIGHT ? 'status' : 'drawer';
   const sidebarVariant = sidebarVariantFromBreakpoint(breakpoint.size, breakpoint.height);
   const sidebarWidth = sidebarWidthForVariant(sidebarVariant);
   const inspectorWidthBase = inspectorWidthForBreakpoint(breakpoint.size);
@@ -352,27 +359,38 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                   />
                 </Panel>
                 <Panel className="crosshook-shell-panel" minSize="28%">
-                  <Group
-                    className="crosshook-shell-group"
-                    orientation="vertical"
-                    resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
-                  >
-                    <Panel className="crosshook-shell-panel" defaultSize="80%" minSize="28%">
-                      <ContentArea route={route} onNavigate={setRoute} onOpenCommandPalette={openPalette} />
-                    </Panel>
-                    <Separator className="crosshook-resize-handle crosshook-resize-handle--horizontal" />
-                    <Panel
-                      className="crosshook-shell-panel"
-                      panelRef={consolePanelRef}
-                      collapsible
-                      collapsedSize="40px"
-                      defaultSize="60%"
-                      minSize="25%"
-                      maxSize="75%"
+                  {consoleMode === 'drawer' ? (
+                    <Group
+                      className="crosshook-shell-group"
+                      orientation="vertical"
+                      resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
                     >
-                      <ConsoleDock panelRef={consolePanelRef} />
-                    </Panel>
-                  </Group>
+                      <Panel className="crosshook-shell-panel" defaultSize="80%" minSize="28%">
+                        <ContentArea route={route} onNavigate={setRoute} onOpenCommandPalette={openPalette} />
+                      </Panel>
+                      <Separator className="crosshook-resize-handle crosshook-resize-handle--horizontal" />
+                      <Panel
+                        className="crosshook-shell-panel"
+                        panelRef={consolePanelRef}
+                        collapsible
+                        collapsedSize="40px"
+                        defaultSize="60%"
+                        minSize="25%"
+                        maxSize="75%"
+                      >
+                        <ConsoleDock panelRef={consolePanelRef} mode={consoleMode} />
+                      </Panel>
+                    </Group>
+                  ) : (
+                    <div className="crosshook-shell-stack">
+                      <div className="crosshook-shell-stack__content">
+                        <ContentArea route={route} onNavigate={setRoute} onOpenCommandPalette={openPalette} />
+                      </div>
+                      <div className="crosshook-shell-stack__footer">
+                        <ConsoleDock panelRef={consolePanelRef} mode={consoleMode} />
+                      </div>
+                    </div>
+                  )}
                 </Panel>
                 {inspectorWidth > 0 ? (
                   <Panel

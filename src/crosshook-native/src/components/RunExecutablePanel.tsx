@@ -241,7 +241,7 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
           >
             <h4 id="run-executable-confirm-title">Run {fileNameFromPath(request.executable_path)} through Proton?</h4>
             <p id="run-executable-confirm-body">
-              This will spawn the executable inside {prefixHint} and stream its output to the console drawer.
+              This will spawn the executable inside {prefixHint} and stream its output to the runtime console.
             </p>
             <div className="crosshook-modal-actions">
               <button

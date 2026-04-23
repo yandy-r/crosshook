@@ -212,3 +212,60 @@ test.describe('command palette smoke', () => {
     expect(capture.errors, `Command-palette toolbar errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 });
+
+test.describe('console chrome smoke', () => {
+  test('renders the compact status bar at narrow width', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/?fixture=populated');
+
+    await expect(page.getByTestId('console-status-bar')).toBeVisible();
+    await expect(page.getByTestId('console-drawer')).toHaveCount(0);
+    await expect(page.getByText('⌘K commands')).toBeVisible();
+
+    expect(capture.errors, `Narrow console chrome errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+
+  test('keeps the drawer collapsed on desktop after log output arrives', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+
+    const drawer = page.getByTestId('console-drawer');
+    const toggle = page.getByRole('button', { name: 'Runtime console' });
+    await expect(drawer).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
+    await launchTab.click();
+    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+
+    const profileSelect = page.locator('#launch-profile-selector');
+    await expect(profileSelect).toBeVisible();
+    await profileSelect.click();
+    await page.getByRole('option', { name: 'Test Game Alpha', exact: true }).click();
+    await expect(profileSelect).toContainText('Test Game Alpha');
+
+    const profilesTab = page.getByRole('tab', { name: 'Profiles', exact: true });
+    await profilesTab.click();
+    await expect(profilesTab).toHaveAttribute('aria-current', 'page');
+
+    const gamePathField = page.getByLabel('Game Path', { exact: true });
+    await expect(gamePathField).toBeVisible();
+    await gamePathField.fill('/home/devuser/Games/TestGameAlpha/game.exe');
+
+    await launchTab.click();
+    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+
+    const launchGameButton = page.getByRole('button', { name: /^launch game$/i });
+    await expect(launchGameButton).toBeEnabled();
+    await launchGameButton.click();
+
+    await expect(page.getByText(/^[1-9][0-9]* lines?$/)).toBeVisible();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    expect(capture.errors, `Desktop console chrome errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+});

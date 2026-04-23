@@ -28,8 +28,21 @@ const InspectorSelectionContext = createContext<InspectorSelectionContextValue |
 
 export function InspectorSelectionProvider({ children }: { children: ReactNode }) {
   const [inspectorSelection, setInspectorSelection] = useState<SelectedGame | undefined>();
-  const [libraryInspectorHandlers, setLibraryInspectorHandlers] = useState<LibraryInspectorHandlers | undefined>();
+  const [libraryInspectorHandlers, setLibraryInspectorHandlersState] = useState<LibraryInspectorHandlers | undefined>();
   const [libraryShellMode, setLibraryShellModeState] = useState<LibraryShellMode>('library');
+
+  const setLibraryInspectorHandlers = useCallback((handlers: LibraryInspectorHandlers | undefined) => {
+    setLibraryInspectorHandlersState((prev) => {
+      if (
+        prev?.onLaunch === handlers?.onLaunch &&
+        prev?.onEditProfile === handlers?.onEditProfile &&
+        prev?.onToggleFavorite === handlers?.onToggleFavorite
+      ) {
+        return prev;
+      }
+      return handlers;
+    });
+  }, []);
 
   const setLibraryShellMode = useCallback<Dispatch<SetStateAction<LibraryShellMode>>>((update) => {
     setLibraryShellModeState((prev) => {
@@ -47,7 +60,7 @@ export function InspectorSelectionProvider({ children }: { children: ReactNode }
       libraryShellMode,
       setLibraryShellMode,
     }),
-    [inspectorSelection, libraryInspectorHandlers, libraryShellMode, setLibraryShellMode]
+    [inspectorSelection, libraryInspectorHandlers, libraryShellMode, setLibraryInspectorHandlers, setLibraryShellMode]
   );
 
   return <InspectorSelectionContext.Provider value={value}>{children}</InspectorSelectionContext.Provider>;

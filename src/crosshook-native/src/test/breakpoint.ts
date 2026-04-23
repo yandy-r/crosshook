@@ -1,7 +1,7 @@
 import type { BreakpointSize, UseBreakpointResult } from '@/hooks/useBreakpoint';
 
-/** Deterministic shell widths for unit tests (match typical viewports per bucket). */
-export const BREAKPOINT_PX = { uw: 2560, desk: 1920, narrow: 1440, deck: 1280 } as const;
+/** Deterministic shell widths for unit tests (match the actual breakpoint buckets). */
+export const BREAKPOINT_PX = { uw: 2560, desk: 1920, narrow: 1280, deck: 1024 } as const;
 
 function flagsFor(size: BreakpointSize): Pick<UseBreakpointResult, 'isDeck' | 'isNarrow' | 'isDesk' | 'isUw'> {
   return {

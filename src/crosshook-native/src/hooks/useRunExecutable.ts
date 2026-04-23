@@ -260,11 +260,11 @@ export function useRunExecutable(): UseRunExecutableResult {
   const hintText = (() => {
     switch (stage) {
       case 'running':
-        return 'Check the console drawer for live output.';
+        return 'Check the runtime console for live output.';
       case 'complete':
         return 'The executable finished. Review the log for details.';
       case 'failed':
-        return 'Check the console drawer log for details.';
+        return 'Check the runtime console log for details.';
       default:
         return '';
     }

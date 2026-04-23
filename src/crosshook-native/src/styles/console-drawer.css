@@ -9,6 +9,61 @@
   overflow: hidden;
 }
 
+.crosshook-console-drawer--status {
+  height: 32px;
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--crosshook-color-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 55%),
+    linear-gradient(90deg, rgba(74, 125, 181, 0.08), transparent 22%),
+    var(--crosshook-color-surface);
+}
+
+.crosshook-console-drawer__status-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.crosshook-console-drawer__status-label,
+.crosshook-console-drawer__status-tip {
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.crosshook-console-drawer__status-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+
+.crosshook-console-drawer__status-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.crosshook-console-drawer__status-chips .crosshook-status-chip {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  font-size: 0.7rem;
+}
+
+.crosshook-console-drawer__status-tip {
+  margin-left: auto;
+}
+
 .crosshook-console-drawer--collapsed {
   grid-template-rows: auto 0fr;
 }
@@ -35,4 +90,16 @@
 .crosshook-console-drawer--collapsed .crosshook-console-drawer__body {
   overflow: hidden;
   pointer-events: none;
+}
+
+@media (max-width: 1240px) {
+  .crosshook-console-drawer__status-label {
+    display: none;
+  }
+}
+
+@media (max-width: 920px) {
+  .crosshook-console-drawer__status-tip {
+    display: none;
+  }
 }
