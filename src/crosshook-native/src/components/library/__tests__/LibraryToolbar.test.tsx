@@ -49,7 +49,7 @@ describe('LibraryToolbar', () => {
 
   it('tab order reaches search, chips, view toggle, then palette trigger', async () => {
     const user = userEvent.setup();
-    render(<LibraryToolbar {...base} />);
+    render(<LibraryToolbar {...base} onOpenCommandPalette={vi.fn()} />);
 
     await user.tab();
     expect(screen.getByRole('searchbox', { name: 'Search games' })).toHaveFocus();
@@ -78,5 +78,10 @@ describe('LibraryToolbar', () => {
 
     await user.tab();
     expect(screen.getByRole('button', { name: 'Open command palette' })).toHaveFocus();
+  });
+
+  it('omits the command palette control when no handler is provided', () => {
+    render(<LibraryToolbar {...base} />);
+    expect(screen.queryByRole('button', { name: 'Open command palette' })).not.toBeInTheDocument();
   });
 });

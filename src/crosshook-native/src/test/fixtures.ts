@@ -74,6 +74,9 @@ export function makeLibraryCardData(overrides: Partial<LibraryCardData> = {}): L
   };
 }
 
+/** Fixed timestamp for stable snapshots and deterministic health fixtures. */
+export const FIXTURE_CHECKED_AT = '2020-01-01T00:00:00.000Z';
+
 /**
  * Factory for `ProfileHealthReport` used in inspector / health UI tests.
  * Commonly overridden fields: `status`, `issues`.
@@ -84,7 +87,7 @@ export function makeProfileHealthReport(overrides: Partial<ProfileHealthReport> 
     status: 'healthy',
     launch_method: 'steam',
     issues: [],
-    checked_at: new Date().toISOString(),
+    checked_at: FIXTURE_CHECKED_AT,
     ...overrides,
   };
 }

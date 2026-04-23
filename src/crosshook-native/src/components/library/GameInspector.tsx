@@ -138,7 +138,7 @@ function HealthSection({ selection }: { selection: SelectedGame }) {
         <h2 id="crosshook-game-inspector-health-title" className="crosshook-game-inspector__eyebrow">
           Health
         </h2>
-        <p className="crosshook-launch-panel__feedback-help" role="status">
+        <p className="crosshook-game-inspector__feedback-help" role="status">
           {error}
         </p>
       </section>
@@ -151,7 +151,7 @@ function HealthSection({ selection }: { selection: SelectedGame }) {
         <h2 id="crosshook-game-inspector-health-title" className="crosshook-game-inspector__eyebrow">
           Health
         </h2>
-        <p className="crosshook-launch-panel__feedback-help" role="status">
+        <p className="crosshook-game-inspector__feedback-help" role="status">
           Loading health…
         </p>
       </section>
@@ -181,10 +181,13 @@ function HealthSection({ selection }: { selection: SelectedGame }) {
         <span className="crosshook-game-inspector__health-status">{report.status}</span>
       </div>
       {report.issues.length > 0 ? (
-        <ul className="crosshook-launch-panel__feedback-list" aria-label="Health issues">
+        <ul className="crosshook-game-inspector__feedback-list" aria-label="Health issues">
           {report.issues.map((issue) => (
-            <li key={`${issue.field}-${issue.path}-${issue.message}`} className="crosshook-launch-panel__feedback-item">
-              <p className="crosshook-launch-panel__feedback-help">{issue.message}</p>
+            <li
+              key={`${issue.field}-${issue.path}-${issue.message}`}
+              className="crosshook-game-inspector__feedback-item"
+            >
+              <p className="crosshook-game-inspector__feedback-help">{issue.message}</p>
             </li>
           ))}
         </ul>
@@ -228,7 +231,7 @@ function RecentLaunchesSection({ selection }: { selection: SelectedGame }) {
         Recent launches
       </h2>
       {error ? (
-        <p className="crosshook-launch-panel__feedback-help" role="status">
+        <p className="crosshook-game-inspector__feedback-help" role="status">
           {error}
         </p>
       ) : null}

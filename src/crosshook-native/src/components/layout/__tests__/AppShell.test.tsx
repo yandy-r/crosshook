@@ -140,27 +140,31 @@ describe('AppShell (integration)', () => {
     setInnerWidth(1920);
     setInnerHeight(1080);
     const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
 
-    renderWithMocks(<AppShellInAppProviders />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('sidebar')).toBeInTheDocument();
-      expect(screen.getByTestId('inspector')).toBeInTheDocument();
-    });
-    rectSpy.mockRestore();
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+        expect(screen.getByTestId('inspector')).toBeInTheDocument();
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
   });
 
   it('hides the inspector rail at deck width', async () => {
     setInnerWidth(1024);
     setInnerHeight(800);
     const rectSpy = mockAppShellRect(1024, 800);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
 
-    renderWithMocks(<AppShellInAppProviders />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('sidebar')).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId('inspector')).not.toBeInTheDocument();
-    rectSpy.mockRestore();
+      await waitFor(() => {
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('inspector')).not.toBeInTheDocument();
+    } finally {
+      rectSpy.mockRestore();
+    }
   });
 });

@@ -114,6 +114,7 @@ test.describe('library inspector', () => {
     const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
     await libraryTab.click();
 
+    await page.getByRole('button', { name: /^Select /i }).first().click();
     await expect(page.locator('[data-testid="inspector"]')).toHaveCount(0);
     expect(capture.errors).toEqual([]);
   });

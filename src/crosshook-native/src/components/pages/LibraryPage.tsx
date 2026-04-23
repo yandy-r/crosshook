@@ -93,9 +93,6 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
       case 'installed':
         list = list.filter((p) => Boolean(p.steamAppId && p.steamAppId !== '0'));
         break;
-      case 'recentlyLaunched':
-        list = [];
-        break;
       default:
         break;
     }
@@ -296,7 +293,12 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
                     onOpenCommandPalette={handleOpenCommandPalette}
                   />
                 </div>
-                {viewMode === 'grid' ? (
+                {filterKey === 'recentlyLaunched' ? (
+                  <p className="crosshook-library-page__filter-placeholder" role="status">
+                    The &ldquo;Recently Launched&rdquo; library filter is not available yet. Select a game and use the
+                    inspector&rsquo;s <strong>Recent launches</strong> section to see launch history.
+                  </p>
+                ) : viewMode === 'grid' ? (
                   <LibraryGrid
                     profiles={displayedProfiles}
                     selectedName={inspectorPickName ?? undefined}
