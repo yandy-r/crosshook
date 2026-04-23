@@ -206,8 +206,7 @@ function RecentLaunchesSection({ selection }: { selection: SelectedGame }) {
         <p className="crosshook-game-inspector__feedback-help" role="status">
           {error}
         </p>
-      ) : null}
-      {error ? null : rows === null ? (
+      ) : rows === null ? (
         <p className="crosshook-game-inspector__muted" role="status">
           Loading recent launches…
         </p>

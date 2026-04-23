@@ -45,8 +45,14 @@ export function LibraryToolbar({
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
       />
-      <fieldset className="crosshook-library-toolbar__chip-group">
-        <legend className="crosshook-visually-hidden">Sort games</legend>
+      <div
+        role="group"
+        aria-labelledby="crosshook-library-toolbar-sort-label"
+        className="crosshook-library-toolbar__chip-group"
+      >
+        <span id="crosshook-library-toolbar-sort-label" className="crosshook-visually-hidden">
+          Sort games
+        </span>
         {SORT_OPTIONS.map((opt) => (
           <button
             key={opt.key}
@@ -58,9 +64,15 @@ export function LibraryToolbar({
             {opt.label}
           </button>
         ))}
-      </fieldset>
-      <fieldset className="crosshook-library-toolbar__chip-group">
-        <legend className="crosshook-visually-hidden">Filter games</legend>
+      </div>
+      <div
+        role="group"
+        aria-labelledby="crosshook-library-toolbar-filter-label"
+        className="crosshook-library-toolbar__chip-group"
+      >
+        <span id="crosshook-library-toolbar-filter-label" className="crosshook-visually-hidden">
+          Filter games
+        </span>
         {FILTER_OPTIONS.map((opt) => (
           <button
             key={opt.key}
@@ -72,7 +84,7 @@ export function LibraryToolbar({
             {opt.label}
           </button>
         ))}
-      </fieldset>
+      </div>
       <div className="crosshook-library-toolbar__view-toggle">
         <button
           type="button"
