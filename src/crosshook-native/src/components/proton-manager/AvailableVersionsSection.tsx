@@ -33,7 +33,7 @@ export function AvailableVersionsSection({
 
   return (
     <section aria-label="Available Proton versions">
-      <h2 className="crosshook-proton-manager__section-label">Available</h2>
+      <h3 className="crosshook-proton-manager__section-label">Available</h3>
       <ul className="crosshook-proton-manager__list">
         {catalogLoading ? (
           <li>

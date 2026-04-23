@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useProtonInstalls } from '../../hooks/useProtonInstalls';
 import { useProtonUp } from '../../hooks/useProtonUp';
 import type { ProtonUpAvailableVersion, ProtonUpInstallResult, ProtonUpProvider } from '../../types/protonup';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 
 export const DEFAULT_COMPAT_TOOLS_DIR = '~/.local/share/Steam/compatibilitytools.d';
@@ -45,25 +46,14 @@ export function ProtonVersionsPanel() {
   const dismissResult = useCallback(() => setInstallResult(null), []);
 
   return (
-    <section className="crosshook-dashboard-route-section-stack" aria-label="Proton runtime catalog">
-      <div className="crosshook-dashboard-panel-section__header">
-        <div className="crosshook-dashboard-panel-section__heading-group">
-          <p className="crosshook-dashboard-panel-section__eyebrow crosshook-heading-eyebrow">Proton runtime catalog</p>
-          <div className="crosshook-dashboard-panel-section__title-group">
-            <h3 className="crosshook-heading-title crosshook-heading-title--card crosshook-dashboard-panel-section__title">
-              Install compatibility tools without leaving Compatibility
-            </h3>
-            <p className="crosshook-dashboard-panel-section__summary crosshook-heading-copy">
-              Browse provider catalogs, keep tab-local install state mounted, and install releases into Steam&apos;s
-              default compatibility tools directory.
-            </p>
-          </div>
-        </div>
-        <div className="crosshook-dashboard-panel-section__actions">
-          <div className="crosshook-status-chip">{installs.length} installed</div>
-        </div>
-      </div>
-
+    <DashboardPanelSection
+      aria-label="Proton runtime catalog"
+      eyebrow="Proton runtime catalog"
+      title="Install compatibility tools without leaving Compatibility"
+      summary="Browse provider catalogs, keep tab-local install state mounted, and install releases into Steam's default compatibility tools directory."
+      titleAs="h3"
+      actions={<div className="crosshook-status-chip">{installs.length} installed</div>}
+    >
       <div className="crosshook-dashboard-pill-row">
         <span className="crosshook-dashboard-pill">Target: {DEFAULT_COMPAT_TOOLS_DIR}</span>
         <span className="crosshook-dashboard-pill">
@@ -217,7 +207,7 @@ export function ProtonVersionsPanel() {
           )
         ) : null}
       </CollapsibleSection>
-    </section>
+    </DashboardPanelSection>
   );
 }
 

@@ -146,7 +146,7 @@ export function HostToolsPage() {
               eyebrow="Host readiness"
               title="Check runtime coverage before you launch"
               description="CrossHook inspects required tools and optional capabilities on the host so you can spot missing launch dependencies early."
-              className="crosshook-host-tool-dashboard-panel--hero"
+              className="crosshook-host-tool-dashboard-panel crosshook-host-tool-dashboard-panel--hero"
               bodyClassName="crosshook-host-tool-dashboard-panel__body--hero"
             >
               <HostDelegationBanner />
@@ -155,6 +155,7 @@ export function HostToolsPage() {
 
             {shouldShowCapabilitiesSection ? (
               <DashboardPanelSection
+                className="crosshook-host-tool-dashboard-panel"
                 eyebrow="Capability coverage"
                 title="Optional integrations"
                 description="These capability probes summarize what extra launch and tooling features are currently available on the host."
@@ -164,6 +165,7 @@ export function HostToolsPage() {
             ) : null}
 
             <DashboardPanelSection
+              className="crosshook-host-tool-dashboard-panel"
               eyebrow="Tool inventory"
               title="Required and optional host tools"
               description="Refresh detection, filter the current snapshot, and inspect individual tools without changing the underlying readiness flow."

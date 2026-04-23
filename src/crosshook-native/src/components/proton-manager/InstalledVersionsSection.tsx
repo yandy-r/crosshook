@@ -20,7 +20,7 @@ export function InstalledVersionsSection({ installs, onUninstall }: InstalledVer
 
   return (
     <section aria-label="Installed Proton versions">
-      <h2 className="crosshook-proton-manager__section-label">Installed</h2>
+      <h3 className="crosshook-proton-manager__section-label">Installed</h3>
       <ul className="crosshook-proton-manager__list">
         {installs.map(({ install, rowProvider, publishedAt, assetSize }) => (
           <li key={install.path}>

@@ -80,6 +80,16 @@
   --crosshook-color-danger-bg: rgba(248, 113, 113, 0.08);
   /* List / section dividers (subtle slate) */
   --crosshook-divider-color: rgba(148, 163, 184, 0.2);
+  /* Dashboard route pills + KV rows (dashboard-routes.css) */
+  --crosshook-dashboard-pill-bg: rgba(59, 130, 246, 0.08);
+  --crosshook-dashboard-pill-border: var(--crosshook-divider-color);
+  --crosshook-dashboard-kv-row-border: rgba(148, 163, 184, 0.14);
+  /* Proton manager stacked panels: linear-gradient(180deg, top, bottom), then --crosshook-color-bg-elevated */
+  --crosshook-gradient-proton-panel-top-08: rgba(59, 130, 246, 0.08);
+  --crosshook-gradient-proton-panel-top-06: rgba(59, 130, 246, 0.06);
+  --crosshook-gradient-proton-panel-bottom-014: rgba(15, 23, 42, 0.14);
+  --crosshook-gradient-proton-panel-bottom-012: rgba(15, 23, 42, 0.12);
+  --crosshook-gradient-proton-panel-bottom-010: rgba(15, 23, 42, 0.1);
 
   --crosshook-offline-ready: #4caf50;
   --crosshook-offline-partial: #ff9800;
