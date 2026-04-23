@@ -1,5 +1,5 @@
 import type { CommunityTapSubscription } from '../../hooks/useCommunityProfiles';
-import { CollapsibleSection } from '../ui/CollapsibleSection';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { TapChip } from './TapChip';
 
 export interface CommunityTapManagementSectionProps {
@@ -41,13 +41,13 @@ export function CommunityTapManagementSection({
   getTapHeadCommit,
 }: CommunityTapManagementSectionProps) {
   return (
-    <CollapsibleSection title="Tap Management" className="crosshook-panel crosshook-community-browser__panel">
-      <div className="crosshook-community-browser__footer">
-        <div className="crosshook-community-browser__section-copy">
-          <p className="crosshook-muted crosshook-community-browser__helper">
-            Taps are persisted in CrossHook settings and synced through the backend community commands.
-          </p>
-        </div>
+    <DashboardPanelSection
+      eyebrow="Tap Sources"
+      title="Tap Management"
+      summary="Taps are persisted in CrossHook settings and synced through the backend community commands."
+      titleAs="h2"
+      className="crosshook-community-browser__panel"
+      actions={
         <div className="crosshook-community-browser__button-row">
           <button
             type="button"
@@ -66,8 +66,8 @@ export function CommunityTapManagementSection({
             {syncing ? 'Syncing...' : 'Sync Taps'}
           </button>
         </div>
-      </div>
-
+      }
+    >
       <div className="crosshook-community-browser__toolbar">
         <div className="crosshook-community-browser__field">
           <label className="crosshook-label" htmlFor="tap-url">
@@ -122,7 +122,7 @@ export function CommunityTapManagementSection({
           Add a tap URL to populate the community browser.
         </p>
       )}
-    </CollapsibleSection>
+    </DashboardPanelSection>
   );
 }
 

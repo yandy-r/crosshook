@@ -1,6 +1,6 @@
 import type { CommunityCompatibilityRating, CommunityProfileIndexEntry } from '../../hooks/useCommunityProfiles';
 import { deriveCommunityImportProfileName } from '../../hooks/useCommunityProfiles';
-import { CollapsibleSection } from '../ui/CollapsibleSection';
+import { DashboardPanelSection } from '../layout/DashboardPanelSection';
 import { ThemedSelect } from '../ui/ThemedSelect';
 import { CompatibilityBadge, ratingLabel, ratingOrder } from './CompatibilityBadge';
 
@@ -38,14 +38,12 @@ export function CommunityProfilesSection({
   onImportEntry,
 }: CommunityProfilesSectionProps) {
   return (
-    <CollapsibleSection
+    <DashboardPanelSection
+      eyebrow="Profile Index"
       title="Community Profiles"
-      className="crosshook-panel crosshook-community-browser__panel"
-      meta={
-        <span>
-          {visibleEntries.length} of {totalEntries} profiles
-        </span>
-      }
+      summary={`${visibleEntries.length} of ${totalEntries} profiles`}
+      titleAs="h2"
+      className="crosshook-community-browser__panel"
     >
       <div className="crosshook-community-browser__toolbar">
         <div className="crosshook-community-browser__field">
@@ -80,7 +78,11 @@ export function CommunityProfilesSection({
       </div>
 
       {notice ? <p className="crosshook-success crosshook-community-browser__helper">{notice}</p> : null}
-      {error ? <p className="crosshook-community-browser__error">{error}</p> : null}
+      {error ? (
+        <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
+          {error}
+        </div>
+      ) : null}
       {diagnostics.length > 0 ? (
         <div className="crosshook-community-browser__diagnostics">
           {diagnostics.map((diagnostic) => (
@@ -172,7 +174,7 @@ export function CommunityProfilesSection({
           })}
         </div>
       )}
-    </CollapsibleSection>
+    </DashboardPanelSection>
   );
 }
 
