@@ -18,6 +18,19 @@ export interface LibraryCardData extends ProfileSummary {
   isFavorite: boolean;
 }
 
+/** Value equality for every field rendered by the library inspector / cards. */
+export function libraryCardDataEqual(a: LibraryCardData, b: LibraryCardData): boolean {
+  return (
+    a.name === b.name &&
+    a.gameName === b.gameName &&
+    a.steamAppId === b.steamAppId &&
+    a.isFavorite === b.isFavorite &&
+    a.networkIsolation === b.networkIsolation &&
+    (a.customCoverArtPath ?? '') === (b.customCoverArtPath ?? '') &&
+    (a.customPortraitArtPath ?? '') === (b.customPortraitArtPath ?? '')
+  );
+}
+
 /** Subset of `launch_operations` from `list_launch_history_for_profile` (no `diagnostic_json`). */
 export interface LaunchHistoryEntry {
   operation_id: string;

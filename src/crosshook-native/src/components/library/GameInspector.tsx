@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
 import { HealthBadge } from '@/components/HealthBadge';
 import type { InspectorBodyProps, SelectedGame } from '@/components/layout/routeMetadata';
 import { useProfileContext } from '@/context/ProfileContext';
 import { useProfileHealthContext } from '@/context/ProfileHealthContext';
-import { callCommand } from '@/lib/ipc';
-import type { LaunchHistoryEntry } from '@/types/library';
+import { useLaunchHistoryForProfile } from '@/hooks/useLaunchHistoryForProfile';
 
 export type GameInspectorProps = InspectorBodyProps;
 
@@ -197,33 +195,7 @@ function HealthSection({ selection }: { selection: SelectedGame }) {
 }
 
 function RecentLaunchesSection({ selection }: { selection: SelectedGame }) {
-  const [rows, setRows] = useState<LaunchHistoryEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      setRows(null);
-      setError(null);
-      try {
-        const next = await callCommand<LaunchHistoryEntry[]>('list_launch_history_for_profile', {
-          profileName: selection.name,
-          limit: LAUNCH_HISTORY_DEFAULT_LIMIT,
-        });
-        if (active) {
-          setRows(next);
-        }
-      } catch (e) {
-        if (active) {
-          setError(e instanceof Error ? e.message : String(e));
-          setRows([]);
-        }
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [selection.name]);
+  const { rows, error } = useLaunchHistoryForProfile(selection.name, LAUNCH_HISTORY_DEFAULT_LIMIT);
 
   return (
     <section className="crosshook-game-inspector__section" aria-labelledby="crosshook-game-inspector-launches-title">

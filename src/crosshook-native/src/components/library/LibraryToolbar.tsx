@@ -1,17 +1,15 @@
 import type { LibraryFilterKey, LibrarySortKey, LibraryViewMode } from '../../types/library';
 
+/** Sort/filter keys exposed in the toolbar (others stay in the type union for persisted state). */
 const SORT_OPTIONS: readonly { key: LibrarySortKey; label: string }[] = [
   { key: 'recent', label: 'Recent' },
   { key: 'name', label: 'Name' },
-  { key: 'lastPlayed', label: 'Last Played' },
-  { key: 'playtime', label: 'Playtime' },
 ] as const;
 
 const FILTER_OPTIONS: readonly { key: LibraryFilterKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'favorites', label: 'Favorites' },
   { key: 'installed', label: 'Installed' },
-  { key: 'recentlyLaunched', label: 'Recently Launched' },
 ] as const;
 
 interface LibraryToolbarProps {

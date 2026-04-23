@@ -90,6 +90,19 @@ describe('LibraryPage', () => {
     });
   });
 
+  it('updates inspector when a list row is selected', async () => {
+    const user = userEvent.setup();
+    renderLibraryHarness();
+
+    await user.click(await screen.findByRole('button', { name: 'List view' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Select Test Game Alpha' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('inspector')).toHaveTextContent('Test Game Alpha');
+    });
+  });
+
   it('activates the Name sort chip when clicked', async () => {
     const user = userEvent.setup();
     renderLibraryHarness();

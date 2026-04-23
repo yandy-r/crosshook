@@ -23,6 +23,7 @@ import { subscribeEvent } from '@/lib/events';
 import { isAppRoute } from '@/lib/validAppRoutes';
 import type { OnboardingCheckPayload } from '@/types/onboarding';
 import { inspectorWidthForBreakpoint } from './inspectorVariants';
+import { ROUTE_METADATA } from './routeMetadata';
 import { sidebarVariantFromBreakpoint, sidebarWidthForVariant } from './sidebarVariants';
 
 function ConsoleDock({ panelRef }: { panelRef: RefObject<PanelImperativeHandle | null> }) {
@@ -57,7 +58,9 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const breakpoint = useBreakpoint(shellRef);
   const sidebarVariant = sidebarVariantFromBreakpoint(breakpoint.size, breakpoint.height);
   const sidebarWidth = sidebarWidthForVariant(sidebarVariant);
-  const inspectorWidth = inspectorWidthForBreakpoint(breakpoint.size);
+  const inspectorWidthBase = inspectorWidthForBreakpoint(breakpoint.size);
+  const routeHasInspector = ROUTE_METADATA[route].inspectorComponent != null;
+  const inspectorWidth = routeHasInspector ? inspectorWidthBase : 0;
   const { inspectorSelection, libraryInspectorHandlers } = useInspectorSelection();
 
   const {

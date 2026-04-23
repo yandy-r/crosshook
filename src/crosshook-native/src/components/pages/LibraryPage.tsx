@@ -7,7 +7,12 @@ import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
-import type { LibraryFilterKey, LibrarySortKey, LibraryViewMode } from '../../types/library';
+import {
+  type LibraryFilterKey,
+  type LibrarySortKey,
+  type LibraryViewMode,
+  libraryCardDataEqual,
+} from '../../types/library';
 import { CollectionAssignMenu } from '../collections/CollectionAssignMenu';
 import { CollectionEditModal } from '../collections/CollectionEditModal';
 import { RouteBanner } from '../layout/RouteBanner';
@@ -30,15 +35,8 @@ interface LibraryPageProps {
 }
 
 export function LibraryPage({ onNavigate }: LibraryPageProps) {
-  const {
-    profiles,
-    favoriteProfiles,
-    selectedProfile,
-    selectProfile,
-    toggleFavorite,
-    refreshProfiles,
-    activeCollectionId,
-  } = useProfileContext();
+  const { profiles, favoriteProfiles, selectProfile, toggleFavorite, refreshProfiles, activeCollectionId } =
+    useProfileContext();
   const {
     memberNames: activeCollectionMemberNames,
     membersForCollectionId: activeCollectionMembersFetchedFor,
@@ -234,14 +232,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
       if (prev === next) {
         return prev;
       }
-      if (
-        prev &&
-        next &&
-        prev.name === next.name &&
-        prev.isFavorite === next.isFavorite &&
-        prev.gameName === next.gameName &&
-        prev.steamAppId === next.steamAppId
-      ) {
+      if (prev && next && libraryCardDataEqual(prev, next)) {
         return prev;
       }
       return next;
@@ -293,12 +284,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
                     onOpenCommandPalette={handleOpenCommandPalette}
                   />
                 </div>
-                {filterKey === 'recentlyLaunched' ? (
-                  <p className="crosshook-library-page__filter-placeholder" role="status">
-                    The &ldquo;Recently Launched&rdquo; library filter is not available yet. Select a game and use the
-                    inspector&rsquo;s <strong>Recent launches</strong> section to see launch history.
-                  </p>
-                ) : viewMode === 'grid' ? (
+                {viewMode === 'grid' ? (
                   <LibraryGrid
                     profiles={displayedProfiles}
                     selectedName={inspectorPickName ?? undefined}
@@ -314,7 +300,8 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
                 ) : (
                   <LibraryList
                     profiles={displayedProfiles}
-                    selectedName={selectedProfile}
+                    selectedName={inspectorPickName ?? undefined}
+                    onSelect={handleCardSelect}
                     onOpenDetails={handleOpenGameDetails}
                     onLaunch={handleLaunch}
                     onEdit={handleEdit}

@@ -57,18 +57,16 @@ describe('LibraryToolbar', () => {
     await user.tab();
     expect(screen.getByRole('button', { name: 'Recent' })).toHaveFocus();
 
-    for (let i = 0; i < 3; i += 1) {
-      await user.tab();
-    }
-    expect(screen.getByRole('button', { name: 'Playtime' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Name' })).toHaveFocus();
 
     await user.tab();
     expect(screen.getByRole('button', { name: 'All' })).toHaveFocus();
 
-    for (let i = 0; i < 3; i += 1) {
+    for (let i = 0; i < 2; i += 1) {
       await user.tab();
     }
-    expect(screen.getByRole('button', { name: 'Recently Launched' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Installed' })).toHaveFocus();
 
     await user.tab();
     expect(screen.getByRole('button', { name: 'Grid view' })).toHaveFocus();

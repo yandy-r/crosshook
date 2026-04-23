@@ -1,7 +1,7 @@
 #![cfg(test)]
 
-use super::test_support::clean_exit_report;
-use super::MetadataStore;
+use super::test_support::{clean_exit_report, sample_profile};
+use super::{MetadataStore, SyncSource};
 use crate::launch::diagnostics::models::{DiagnosticReport, ExitCodeInfo, FailureMode};
 use crate::launch::request::ValidationSeverity;
 
@@ -222,4 +222,41 @@ fn test_query_launch_history_for_profile() {
         .query_launch_history_for_profile("", 10)
         .unwrap()
         .is_empty());
+}
+
+#[test]
+fn test_query_launch_history_survives_profile_rename() {
+    let store = MetadataStore::open_in_memory().unwrap();
+    let profile = sample_profile();
+    let old_path = std::path::Path::new("/profiles/rename-launch-old.toml");
+    let new_path = std::path::Path::new("/profiles/rename-launch-new.toml");
+
+    store
+        .observe_profile_write(
+            "rename-launch-old",
+            &profile,
+            old_path,
+            SyncSource::AppWrite,
+            None,
+        )
+        .unwrap();
+
+    let report = clean_exit_report();
+    let op = store
+        .record_launch_started(Some("rename-launch-old"), "native", None)
+        .unwrap();
+    store
+        .record_launch_finished(&op, Some(0), None, &report)
+        .unwrap();
+
+    store
+        .observe_profile_rename("rename-launch-old", "rename-launch-new", old_path, new_path)
+        .unwrap();
+
+    let history = store
+        .query_launch_history_for_profile("rename-launch-new", 10)
+        .unwrap();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0].operation_id, op);
+    assert_eq!(history[0].status, "succeeded");
 }
