@@ -1,4 +1,6 @@
 import type { ComponentType, SVGProps } from 'react';
+import GameInspector from '@/components/library/GameInspector';
+import type { LibraryCardData } from '@/types/library';
 import {
   CommunityArt,
   CompatibilityArt,
@@ -14,6 +16,18 @@ import {
 } from './PageBanner';
 import type { AppRoute } from './Sidebar';
 
+/** Selection payload for route-level inspector bodies (library uses `LibraryCardData`). */
+export type SelectedGame = LibraryCardData;
+
+/** Props passed into optional per-route inspector bodies (library wires actions from `LibraryPage`). */
+export type InspectorBodyProps = {
+  selection?: SelectedGame;
+  onLaunch?: (name: string) => void;
+  onEditProfile?: (name: string) => void;
+  /** `current` is the profile's `isFavorite` before the toggle (matches `LibraryPage`). */
+  onToggleFavorite?: (name: string, current: boolean) => void;
+};
+
 export interface RouteMetadataEntry {
   /** Label shown in the sidebar and status row — must stay in sync with navigation. */
   navLabel: string;
@@ -22,6 +36,8 @@ export interface RouteMetadataEntry {
   bannerTitle: string;
   bannerSummary: string;
   Art: ComponentType<SVGProps<SVGSVGElement>>;
+  /** Optional right-rail inspector body for this route. */
+  inspectorComponent?: ComponentType<InspectorBodyProps>;
 }
 
 export const ROUTE_METADATA: Record<AppRoute, RouteMetadataEntry> = {
@@ -31,6 +47,7 @@ export const ROUTE_METADATA: Record<AppRoute, RouteMetadataEntry> = {
     bannerTitle: 'Library',
     bannerSummary: 'Browse your saved profiles, favorites, and launch shortcuts in one place.',
     Art: LibraryArt,
+    inspectorComponent: GameInspector,
   },
   profiles: {
     navLabel: 'Profiles',

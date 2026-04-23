@@ -1,3 +1,4 @@
+import type { ProfileHealthReport } from '@/types/health';
 import type { LibraryCardData } from '@/types/library';
 import type { Capability, HostToolCheckResult, HostToolInstallCommand, ReadinessCheckResult } from '@/types/onboarding';
 import { createDefaultProfile, type GameProfile } from '@/types/profile';
@@ -69,6 +70,21 @@ export function makeLibraryCardData(overrides: Partial<LibraryCardData> = {}): L
     customPortraitArtPath: '',
     networkIsolation: false,
     isFavorite: false,
+    ...overrides,
+  };
+}
+
+/**
+ * Factory for `ProfileHealthReport` used in inspector / health UI tests.
+ * Commonly overridden fields: `status`, `issues`.
+ */
+export function makeProfileHealthReport(overrides: Partial<ProfileHealthReport> = {}): ProfileHealthReport {
+  return {
+    name: 'Synthetic Quest',
+    status: 'healthy',
+    launch_method: 'steam',
+    issues: [],
+    checked_at: new Date().toISOString(),
     ...overrides,
   };
 }

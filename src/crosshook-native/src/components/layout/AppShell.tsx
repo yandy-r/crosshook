@@ -8,8 +8,10 @@ import { useCollectionViewModalState } from '@/components/collections/useCollect
 import ConsoleDrawer from '@/components/layout/ConsoleDrawer';
 import ContentArea from '@/components/layout/ContentArea';
 import ControllerPrompts from '@/components/layout/ControllerPrompts';
+import { Inspector } from '@/components/layout/Inspector';
 import Sidebar, { type AppRoute } from '@/components/layout/Sidebar';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
+import { useInspectorSelection } from '@/context/InspectorSelectionContext';
 import { LaunchStateProvider } from '@/context/LaunchStateContext';
 import { PreferencesProvider, usePreferencesContext } from '@/context/PreferencesContext';
 import { useProfileContext } from '@/context/ProfileContext';
@@ -20,6 +22,7 @@ import { useFlatpakMigrationToast } from '@/hooks/useFlatpakMigrationToast';
 import { subscribeEvent } from '@/lib/events';
 import { isAppRoute } from '@/lib/validAppRoutes';
 import type { OnboardingCheckPayload } from '@/types/onboarding';
+import { inspectorWidthForBreakpoint } from './inspectorVariants';
 import { sidebarVariantFromBreakpoint, sidebarWidthForVariant } from './sidebarVariants';
 
 function ConsoleDock({ panelRef }: { panelRef: RefObject<PanelImperativeHandle | null> }) {
@@ -54,6 +57,8 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const breakpoint = useBreakpoint(shellRef);
   const sidebarVariant = sidebarVariantFromBreakpoint(breakpoint.size, breakpoint.height);
   const sidebarWidth = sidebarWidthForVariant(sidebarVariant);
+  const inspectorWidth = inspectorWidthForBreakpoint(breakpoint.size);
+  const { inspectorSelection, libraryInspectorHandlers } = useInspectorSelection();
 
   const {
     open: collectionModalOpen,
@@ -217,6 +222,23 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                     </Panel>
                   </Group>
                 </Panel>
+                {inspectorWidth > 0 ? (
+                  <Panel
+                    className="crosshook-shell-panel"
+                    defaultSize={inspectorWidth}
+                    minSize={inspectorWidth}
+                    maxSize={inspectorWidth}
+                  >
+                    <Inspector
+                      route={route}
+                      width={inspectorWidth}
+                      selection={inspectorSelection}
+                      onLaunch={libraryInspectorHandlers?.onLaunch}
+                      onEditProfile={libraryInspectorHandlers?.onEditProfile}
+                      onToggleFavorite={libraryInspectorHandlers?.onToggleFavorite}
+                    />
+                  </Panel>
+                ) : null}
               </Group>
             </div>
             {controllerMode ? <ControllerPrompts /> : null}

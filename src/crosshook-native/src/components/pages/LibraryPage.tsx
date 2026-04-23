@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useInspectorSelection } from '@/context/InspectorSelectionContext';
 import { useCollections } from '@/hooks/useCollections';
 import { useProfileContext } from '../../context/ProfileContext';
 import { useProfileHealthContext } from '../../context/ProfileHealthContext';
@@ -6,7 +7,7 @@ import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
-import type { LibraryViewMode } from '../../types/library';
+import type { LibraryFilterKey, LibrarySortKey, LibraryViewMode } from '../../types/library';
 import { CollectionAssignMenu } from '../collections/CollectionAssignMenu';
 import { CollectionEditModal } from '../collections/CollectionEditModal';
 import { RouteBanner } from '../layout/RouteBanner';
@@ -46,10 +47,14 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
 
   const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
+  const { setInspectorSelection, setLibraryInspectorHandlers } = useInspectorSelection();
   const offlineReadiness = useOfflineReadiness();
   const gameDetailsModal = useGameDetailsModalState();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<LibraryViewMode>(loadViewMode);
+  const [sortBy, setSortBy] = useState<LibrarySortKey>('recent');
+  const [filterKey, setFilterKey] = useState<LibraryFilterKey>('all');
+  const [inspectorPickName, setInspectorPickName] = useState<string | null>(null);
   const [launchingName, setLaunchingName] = useState<string | undefined>();
   // `restoreFocusTo` is co-located with the open/close state so that all
   // fields update atomically in a single setState call. The element's
@@ -77,8 +82,32 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     localStorage.setItem(VIEW_MODE_KEY, mode);
   }, []);
 
-  // Filter by search
-  const filtered = useLibraryProfiles(summaries, searchQuery);
+  const searched = useLibraryProfiles(summaries, searchQuery);
+
+  const displayedProfiles = useMemo(() => {
+    let list = [...searched];
+    switch (filterKey) {
+      case 'favorites':
+        list = list.filter((p) => p.isFavorite);
+        break;
+      case 'installed':
+        list = list.filter((p) => Boolean(p.steamAppId && p.steamAppId !== '0'));
+        break;
+      case 'recentlyLaunched':
+        list = [];
+        break;
+      default:
+        break;
+    }
+    if (sortBy === 'name') {
+      list.sort((a, b) => (a.gameName || a.name).localeCompare(b.gameName || b.name));
+    }
+    return list;
+  }, [searched, filterKey, sortBy]);
+
+  const handleCardSelect = useCallback((name: string) => {
+    setInspectorPickName(name);
+  }, []);
 
   // Launch handler: select profile then navigate to launch page.
   //
@@ -198,6 +227,49 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
     [setSummaries, toggleFavorite]
   );
 
+  useEffect(() => {
+    if (inspectorPickName == null) {
+      setInspectorSelection(undefined);
+      return;
+    }
+    const next = summaries.find((s) => s.name === inspectorPickName);
+    setInspectorSelection((prev) => {
+      if (prev === next) {
+        return prev;
+      }
+      if (
+        prev &&
+        next &&
+        prev.name === next.name &&
+        prev.isFavorite === next.isFavorite &&
+        prev.gameName === next.gameName &&
+        prev.steamAppId === next.steamAppId
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [inspectorPickName, summaries, setInspectorSelection]);
+
+  useEffect(() => {
+    return () => {
+      setInspectorSelection(undefined);
+    };
+  }, [setInspectorSelection]);
+
+  useEffect(() => {
+    setLibraryInspectorHandlers({
+      onLaunch: handleLaunch,
+      onEditProfile: handleEdit,
+      onToggleFavorite: handleToggleFavorite,
+    });
+    return () => setLibraryInspectorHandlers(undefined);
+  }, [handleLaunch, handleEdit, handleToggleFavorite, setLibraryInspectorHandlers]);
+
+  const handleOpenCommandPalette = useCallback(() => {
+    console.debug('Command palette (Phase 6)');
+  }, []);
+
   const activeGameDetailsSummary =
     gameDetailsModal.summary == null
       ? null
@@ -217,12 +289,18 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
                     onSearchChange={setSearchQuery}
                     viewMode={viewMode}
                     onViewModeChange={handleViewModeChange}
+                    sortBy={sortBy}
+                    onSortChange={setSortBy}
+                    filter={filterKey}
+                    onFilterChange={setFilterKey}
+                    onOpenCommandPalette={handleOpenCommandPalette}
                   />
                 </div>
                 {viewMode === 'grid' ? (
                   <LibraryGrid
-                    profiles={filtered}
-                    selectedName={selectedProfile}
+                    profiles={displayedProfiles}
+                    selectedName={inspectorPickName ?? undefined}
+                    onSelect={handleCardSelect}
                     onOpenDetails={handleOpenGameDetails}
                     onLaunch={handleLaunch}
                     onEdit={handleEdit}
@@ -233,7 +311,7 @@ export function LibraryPage({ onNavigate }: LibraryPageProps) {
                   />
                 ) : (
                   <LibraryList
-                    profiles={filtered}
+                    profiles={displayedProfiles}
                     selectedName={selectedProfile}
                     onOpenDetails={handleOpenGameDetails}
                     onLaunch={handleLaunch}

@@ -1,5 +1,9 @@
 export type LibraryViewMode = 'grid' | 'list';
 
+export type LibrarySortKey = 'recent' | 'name' | 'lastPlayed' | 'playtime';
+
+export type LibraryFilterKey = 'all' | 'favorites' | 'installed' | 'recentlyLaunched';
+
 export interface ProfileSummary {
   name: string;
   gameName: string;

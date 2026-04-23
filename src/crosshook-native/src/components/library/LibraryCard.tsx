@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from 'react';
 import { useGameCoverArt } from '../../hooks/useGameCoverArt';
 import type { LibraryCardData } from '../../types/library';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
@@ -7,6 +7,8 @@ interface LibraryCardProps {
   profile: LibraryCardData;
   isSelected?: boolean;
   onOpenDetails: LibraryOpenDetailsHandler;
+  /** When set, single-click selects for the inspector; double-click still opens details. */
+  onSelect?: (name: string) => void;
   onLaunch: (name: string) => void;
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
@@ -28,6 +30,7 @@ export function LibraryCard({
   profile,
   isSelected,
   onOpenDetails,
+  onSelect,
   onLaunch,
   onEdit,
   onToggleFavorite,
@@ -73,6 +76,17 @@ export function LibraryCard({
     onOpenDetails(profile.name);
   }
 
+  function handleHitboxClick(e: MouseEvent<HTMLButtonElement>) {
+    if (onSelect) {
+      onSelect(profile.name);
+      if (e.detail >= 2) {
+        handleOpenDetailsClick();
+      }
+      return;
+    }
+    handleOpenDetailsClick();
+  }
+
   return (
     <li
       ref={cardRef}
@@ -110,8 +124,8 @@ export function LibraryCard({
       <button
         type="button"
         className="crosshook-library-card__details-hitbox"
-        aria-label={`View details for ${displayName}`}
-        onClick={handleOpenDetailsClick}
+        aria-label={onSelect ? `Select ${displayName}` : `View details for ${displayName}`}
+        onClick={handleHitboxClick}
       />
       {/* Cover image / skeleton / fallback */}
       {loading ? (
@@ -131,14 +145,22 @@ export function LibraryCard({
       {/* Gradient scrim */}
       <div className="crosshook-library-card__scrim" />
 
-      {/* Favorite badge (persistent when favorited) */}
-      {profile.isFavorite && (
-        <div className="crosshook-library-card__favorite-badge" role="img" aria-label="Favorited">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
-          </svg>
-        </div>
-      )}
+      <div className="crosshook-library-card__hover-reveal" aria-hidden="true" />
+
+      <button
+        type="button"
+        className="crosshook-library-card__favorite-heart"
+        aria-pressed={profile.isFavorite}
+        aria-label={`Toggle favorite: ${displayName}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(profile.name, profile.isFavorite);
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
+        </svg>
+      </button>
 
       {/* Footer with title and actions */}
       <div className="crosshook-library-card__footer">

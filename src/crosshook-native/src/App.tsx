@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { CollectionsProvider } from '@/context/CollectionsContext';
 import { HostReadinessProvider } from '@/context/HostReadinessContext';
+import { InspectorSelectionProvider } from '@/context/InspectorSelectionContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { useAriaLabelHydration } from '@/hooks/useAccessibilityEnhancements';
@@ -37,7 +38,9 @@ export function App() {
         <ProfileHealthProvider>
           <HostReadinessProvider>
             <CollectionsProvider>
-              <AppShell controllerMode={gamepadNav.controllerMode} />
+              <InspectorSelectionProvider>
+                <AppShell controllerMode={gamepadNav.controllerMode} />
+              </InspectorSelectionProvider>
             </CollectionsProvider>
           </HostReadinessProvider>
         </ProfileHealthProvider>

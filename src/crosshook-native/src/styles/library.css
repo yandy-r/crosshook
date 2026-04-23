@@ -241,19 +241,65 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-.crosshook-library-card__favorite-badge {
+.crosshook-library-card__hover-reveal {
+  position: absolute;
+  inset: 0;
+  bottom: var(--crosshook-library-card-footer-height);
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.14), transparent 55%);
+  transition: opacity 160ms ease;
+}
+
+.crosshook-library-card:hover .crosshook-library-card__hover-reveal,
+.crosshook-library-card:focus-within .crosshook-library-card__hover-reveal {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-library-card__hover-reveal {
+    transition: none;
+  }
+}
+
+.crosshook-library-card__favorite-heart {
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 3;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(10, 14, 28, 0.55);
   color: var(--crosshook-color-danger);
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
-  pointer-events: none;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 160ms ease,
+    background var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-card:hover .crosshook-library-card__favorite-heart,
+.crosshook-library-card:focus-within .crosshook-library-card__favorite-heart,
+.crosshook-library-card__favorite-heart[aria-pressed='true'] {
+  opacity: 1;
+}
+
+.crosshook-library-card__favorite-heart:hover {
+  background: rgba(10, 14, 28, 0.72);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-library-card__favorite-heart {
+    transition: none;
+  }
 }
 
 .crosshook-library-card__fallback {
@@ -516,4 +562,149 @@
 
 .crosshook-library-list-row__btn--icon[aria-pressed='true'] {
   color: var(--crosshook-color-danger);
+}
+
+/* ── Toolbar chips + palette trigger (Phase 4) ─────────────────────────── */
+
+.crosshook-library-toolbar__chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.crosshook-library-toolbar__chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--crosshook-color-border);
+  background: var(--crosshook-color-surface);
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--crosshook-transition-fast) ease,
+    color var(--crosshook-transition-fast) ease,
+    border-color var(--crosshook-transition-fast) ease;
+}
+
+.crosshook-library-toolbar__chip[aria-pressed='true'] {
+  border-color: var(--crosshook-color-accent);
+  color: var(--crosshook-color-text);
+  background: var(--crosshook-color-accent-soft);
+}
+
+.crosshook-library-toolbar__palette-trigger {
+  margin-left: auto;
+  padding: 6px 10px;
+  border-radius: var(--crosshook-radius-sm);
+  border: 1px dashed var(--crosshook-color-border);
+  background: transparent;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.crosshook-library-toolbar__palette-trigger:hover {
+  color: var(--crosshook-color-text);
+  border-color: var(--crosshook-color-accent);
+}
+
+/* ── Game inspector (library rail body) ───────────────────────────────── */
+
+.crosshook-game-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.crosshook-game-inspector__empty {
+  margin: 0;
+  color: var(--crosshook-color-text-muted);
+  font-size: 0.85rem;
+}
+
+.crosshook-game-inspector__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crosshook-game-inspector__eyebrow {
+  margin: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--crosshook-color-accent-strong);
+}
+
+.crosshook-game-inspector__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-game-inspector__subtitle {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-game-inspector__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.crosshook-game-inspector__pill {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--crosshook-color-border);
+  font-size: 0.72rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-game-inspector__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.crosshook-game-inspector__muted {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--crosshook-color-text-muted);
+}
+
+.crosshook-game-inspector__profile-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--crosshook-color-text);
+}
+
+.crosshook-game-inspector__profile-line {
+  margin: 0;
+  word-break: break-word;
+}
+
+.crosshook-game-inspector__health-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.crosshook-game-inspector__health-status {
+  font-size: 0.75rem;
+  text-transform: capitalize;
+  color: var(--crosshook-color-text-muted);
 }

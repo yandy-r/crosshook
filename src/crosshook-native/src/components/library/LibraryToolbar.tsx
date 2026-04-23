@@ -1,13 +1,42 @@
-import type { LibraryViewMode } from '../../types/library';
+import type { LibraryFilterKey, LibrarySortKey, LibraryViewMode } from '../../types/library';
+
+const SORT_OPTIONS: readonly { key: LibrarySortKey; label: string }[] = [
+  { key: 'recent', label: 'Recent' },
+  { key: 'name', label: 'Name' },
+  { key: 'lastPlayed', label: 'Last Played' },
+  { key: 'playtime', label: 'Playtime' },
+] as const;
+
+const FILTER_OPTIONS: readonly { key: LibraryFilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'favorites', label: 'Favorites' },
+  { key: 'installed', label: 'Installed' },
+  { key: 'recentlyLaunched', label: 'Recently Launched' },
+] as const;
 
 interface LibraryToolbarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   viewMode: LibraryViewMode;
   onViewModeChange: (mode: LibraryViewMode) => void;
+  sortBy: LibrarySortKey;
+  onSortChange: (key: LibrarySortKey) => void;
+  filter: LibraryFilterKey;
+  onFilterChange: (key: LibraryFilterKey) => void;
+  onOpenCommandPalette?: () => void;
 }
 
-export function LibraryToolbar({ searchQuery, onSearchChange, viewMode, onViewModeChange }: LibraryToolbarProps) {
+export function LibraryToolbar({
+  searchQuery,
+  onSearchChange,
+  viewMode,
+  onViewModeChange,
+  sortBy,
+  onSortChange,
+  filter,
+  onFilterChange,
+  onOpenCommandPalette,
+}: LibraryToolbarProps) {
   return (
     <div className="crosshook-library-toolbar">
       <input
@@ -18,6 +47,34 @@ export function LibraryToolbar({ searchQuery, onSearchChange, viewMode, onViewMo
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
       />
+      <fieldset className="crosshook-library-toolbar__chip-group">
+        <legend className="crosshook-visually-hidden">Sort games</legend>
+        {SORT_OPTIONS.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            className="crosshook-library-toolbar__chip"
+            aria-pressed={sortBy === opt.key}
+            onClick={() => onSortChange(opt.key)}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </fieldset>
+      <fieldset className="crosshook-library-toolbar__chip-group">
+        <legend className="crosshook-visually-hidden">Filter games</legend>
+        {FILTER_OPTIONS.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            className="crosshook-library-toolbar__chip"
+            aria-pressed={filter === opt.key}
+            onClick={() => onFilterChange(opt.key)}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </fieldset>
       <div className="crosshook-library-toolbar__view-toggle">
         <button
           type="button"
@@ -47,6 +104,14 @@ export function LibraryToolbar({ searchQuery, onSearchChange, viewMode, onViewMo
           </svg>
         </button>
       </div>
+      <button
+        type="button"
+        className="crosshook-library-toolbar__palette-trigger"
+        aria-label="Open command palette"
+        onClick={() => onOpenCommandPalette?.()}
+      >
+        ⌘K
+      </button>
     </div>
   );
 }

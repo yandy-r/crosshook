@@ -13,7 +13,9 @@ function applyAriaLabel(button: HTMLElement): void {
 }
 
 function labelInteractiveElements(root: ParentNode): void {
-  root.querySelectorAll<HTMLElement>('button, [role="button"]').forEach((button) => applyAriaLabel(button));
+  for (const button of root.querySelectorAll<HTMLElement>('button, [role="button"]')) {
+    applyAriaLabel(button);
+  }
 }
 
 export function useAriaLabelHydration(): void {
@@ -23,11 +25,11 @@ export function useAriaLabelHydration(): void {
 
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
-        mutation.addedNodes.forEach((node) => {
+        for (const node of mutation.addedNodes) {
           if (node instanceof HTMLElement) {
             labelInteractiveElements(node);
           }
-        });
+        }
       }
     });
 

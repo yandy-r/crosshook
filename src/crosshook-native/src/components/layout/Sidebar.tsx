@@ -188,6 +188,7 @@ export function Sidebar({
   return (
     <aside
       className="crosshook-sidebar"
+      data-testid="sidebar"
       style={{ width: `${width}px` }}
       data-collapsed={collapsed ? 'true' : 'false'}
       data-crosshook-focus-zone="sidebar"
@@ -227,7 +228,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <Tabs.List className="crosshook-sidebar__nav" aria-label="CrossHook sections">
+      <Tabs.List className="crosshook-sidebar__nav crosshook-sidebar__nav--scroll" aria-label="CrossHook sections">
         {SIDEBAR_SECTIONS.map((section) => (
           <SidebarSectionBlock
             key={section.key}
