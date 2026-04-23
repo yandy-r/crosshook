@@ -6,6 +6,7 @@ import { useImportCommunityProfile } from '../hooks/useImportCommunityProfile';
 import { useTrainerDiscovery } from '../hooks/useTrainerDiscovery';
 import type { TrainerSearchResult } from '../types/discovery';
 import { ExternalResultsSection } from './ExternalResultsSection';
+import { DashboardPanelSection } from './layout/DashboardPanelSection';
 
 export interface TrainerDiscoveryPanelProps {
   initialQuery?: string;
@@ -241,96 +242,134 @@ export function TrainerDiscoveryPanel({ initialQuery = '' }: TrainerDiscoveryPan
   );
 
   return (
-    <section className="crosshook-card crosshook-discovery-panel" aria-label="Trainer Discovery">
-      {!settings.discovery_enabled && !pendingConsent && (
-        <div className="crosshook-discovery-panel__gate">
-          <p className="crosshook-muted">
-            Trainer Discovery is disabled. Enable it to search community trainer sources.
-          </p>
-          <button type="button" className="crosshook-button" onClick={handleEnableClick}>
-            Enable Trainer Discovery
-          </button>
-        </div>
-      )}
+    <div className="crosshook-discovery-panel">
+      <DashboardPanelSection
+        eyebrow="Community"
+        title="Trainer Discovery"
+        summary="Browse community trainer sources. CrossHook does not host, distribute, or endorse any trainers or third-party content."
+        titleAs="h2"
+      >
+        {!settings.discovery_enabled && !pendingConsent && (
+          <div className="crosshook-discovery-panel__gate">
+            <p className="crosshook-muted">
+              Trainer Discovery is disabled. Enable it to search community trainer sources.
+            </p>
+            <button type="button" className="crosshook-button" onClick={handleEnableClick}>
+              Enable Trainer Discovery
+            </button>
+          </div>
+        )}
 
-      {showConsent && <ConsentDialog onAccept={handleConsentAccept} onCancel={handleConsentCancel} />}
+        {showConsent && <ConsentDialog onAccept={handleConsentAccept} onCancel={handleConsentCancel} />}
+      </DashboardPanelSection>
 
       {settings.discovery_enabled && (
         <>
-          <div className="crosshook-discovery-panel__search-row">
-            <div className="crosshook-discovery-search crosshook-discovery-panel__search-field">
-              <input
-                id="discovery-search"
-                className="crosshook-input"
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search games or trainers..."
-                aria-label="Search games or trainers"
-              />
-              {query.length > 0 && (
-                <button
-                  type="button"
-                  className="crosshook-discovery-search__clear"
-                  aria-label="Clear search"
-                  onClick={handleClearQuery}
-                >
-                  ×
-                </button>
-              )}
+          <DashboardPanelSection
+            eyebrow="Search"
+            title="Find trainers"
+            summary="Search by game name or trainer title across configured community sources."
+            titleAs="h2"
+          >
+            <div className="crosshook-discovery-panel__search-row">
+              <div className="crosshook-discovery-search crosshook-discovery-panel__search-field">
+                <input
+                  id="discovery-search"
+                  className="crosshook-input"
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search games or trainers..."
+                  aria-label="Search games or trainers"
+                />
+                {query.length > 0 && (
+                  <button
+                    type="button"
+                    className="crosshook-discovery-search__clear"
+                    aria-label="Clear search"
+                    onClick={handleClearQuery}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
 
-          {importNotice && <p className="crosshook-success crosshook-discovery-panel__notice">{importNotice}</p>}
-          {importError && <p className="crosshook-discovery-panel__error">{importError}</p>}
-
-          <div className="crosshook-discovery-panel__results-meta" role="status" aria-live="polite" aria-atomic="true">
-            {loading && <span className="crosshook-muted">Searching…</span>}
-            {!loading && query.trim() && error && <span className="crosshook-discovery-panel__error">{error}</span>}
-            {!loading && !error && query.trim() && totalCount > 0 && (
-              <span className="crosshook-muted">{`${totalCount} result${totalCount !== 1 ? 's' : ''}`}</span>
-            )}
-            {!loading && !error && query.trim() && totalCount === 0 && (
-              <div className="crosshook-discovery-panel__empty">
-                <p className="crosshook-muted">No local trainers found for &ldquo;{query.trim()}&rdquo;</p>
-                <p className="crosshook-muted crosshook-discovery-panel__empty-hint">
-                  Check the online results below, or add community taps with <code>trainer-sources.json</code> manifests
-                  for local discovery.
-                </p>
+            {importNotice && (
+              <div className="crosshook-warning-banner crosshook-warning-banner--section" role="status">
+                {importNotice}
               </div>
             )}
-            {!query.trim() && !loading && (
-              <span className="crosshook-muted">Enter a search query above to discover trainers.</span>
+            {importError && (
+              <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
+                {importError}
+              </div>
             )}
-          </div>
+          </DashboardPanelSection>
 
-          {!loading && !error && results.length > 0 && (
-            <ul className="crosshook-discovery-results crosshook-list-reset">
-              {results.map((result) => (
-                <li key={result.id}>
-                  <TrainerResultCard
-                    result={result}
-                    onImport={(r) => {
-                      void handleImport(r);
-                    }}
-                    importing={importingId === result.id}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
+          <DashboardPanelSection
+            eyebrow="Results"
+            title="Matching trainers"
+            summary="Local and online trainer results for your query."
+            titleAs="h2"
+          >
+            <div
+              className="crosshook-discovery-panel__results-meta"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {loading && <span className="crosshook-muted">Searching…</span>}
+              {!loading && query.trim() && error && (
+                <div className="crosshook-error-banner crosshook-error-banner--section" role="alert">
+                  {error}
+                </div>
+              )}
+              {!loading && !error && query.trim() && totalCount > 0 && (
+                <span className="crosshook-muted">{`${totalCount} result${totalCount !== 1 ? 's' : ''}`}</span>
+              )}
+              {!loading && !error && query.trim() && totalCount === 0 && (
+                <div className="crosshook-discovery-panel__empty">
+                  <p className="crosshook-muted">No local trainers found for &ldquo;{query.trim()}&rdquo;</p>
+                  <p className="crosshook-muted crosshook-discovery-panel__empty-hint">
+                    Check the online results below, or add community taps with <code>trainer-sources.json</code>{' '}
+                    manifests for local discovery.
+                  </p>
+                </div>
+              )}
+              {!query.trim() && !loading && (
+                <span className="crosshook-muted">Enter a search query above to discover trainers.</span>
+              )}
+            </div>
 
-          <ExternalResultsSection
-            data={externalSearch.data}
-            loading={externalSearch.loading}
-            error={externalSearch.error}
-            onRetry={() => {
-              void externalSearch.search(true);
-            }}
-          />
+            {!loading && !error && results.length > 0 && (
+              <ul className="crosshook-discovery-results crosshook-list-reset">
+                {results.map((result) => (
+                  <li key={result.id}>
+                    <TrainerResultCard
+                      result={result}
+                      onImport={(r) => {
+                        void handleImport(r);
+                      }}
+                      importing={importingId === result.id}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <ExternalResultsSection
+              data={externalSearch.data}
+              loading={externalSearch.loading}
+              error={externalSearch.error}
+              onRetry={() => {
+                void externalSearch.search(true);
+              }}
+            />
+          </DashboardPanelSection>
         </>
       )}
-    </section>
+    </div>
   );
 }
 
