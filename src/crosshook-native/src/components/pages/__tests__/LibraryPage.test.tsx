@@ -10,18 +10,25 @@ import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { renderWithMocks } from '@/test/render';
+import type { LibraryFilterIntent } from '@/types/navigation';
 import { LibraryPage } from '../LibraryPage';
 
+vi.mock('@/lib/ipc', async () => {
+  const { mockCallCommand } = await import('@/test/render');
+  return { callCommand: mockCallCommand };
+});
+
 interface LibraryPageHarnessProps {
+  libraryFilterIntent?: LibraryFilterIntent | null;
   onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette'];
 }
 
-function LibraryPageWithInspector({ onOpenCommandPalette }: LibraryPageHarnessProps = {}) {
+function LibraryPageWithInspector({ libraryFilterIntent, onOpenCommandPalette }: LibraryPageHarnessProps = {}) {
   const { inspectorSelection, libraryInspectorHandlers, libraryShellMode } = useInspectorSelection();
   return (
     <div style={{ display: 'flex' }}>
       <div style={{ flex: '1 1 50%', minWidth: 0 }}>
-        <LibraryPage onOpenCommandPalette={onOpenCommandPalette} />
+        <LibraryPage libraryFilterIntent={libraryFilterIntent} onOpenCommandPalette={onOpenCommandPalette} />
       </div>
       <div style={{ flex: '0 0 320px' }}>
         <Inspector
@@ -40,7 +47,8 @@ function LibraryPageWithInspector({ onOpenCommandPalette }: LibraryPageHarnessPr
 
 function renderLibraryHarness(
   options: Parameters<typeof renderWithMocks>[1] = {},
-  onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette']
+  onOpenCommandPalette?: ComponentProps<typeof LibraryPage>['onOpenCommandPalette'],
+  libraryFilterIntent?: LibraryFilterIntent | null
 ) {
   return renderWithMocks(
     <ProfileProvider>
@@ -49,7 +57,10 @@ function renderLibraryHarness(
           <HostReadinessProvider>
             <CollectionsProvider>
               <InspectorSelectionProvider>
-                <LibraryPageWithInspector onOpenCommandPalette={onOpenCommandPalette} />
+                <LibraryPageWithInspector
+                  libraryFilterIntent={libraryFilterIntent}
+                  onOpenCommandPalette={onOpenCommandPalette}
+                />
               </InspectorSelectionProvider>
             </CollectionsProvider>
           </HostReadinessProvider>
@@ -209,5 +220,31 @@ describe('LibraryPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('game-detail')).toBeInTheDocument();
     });
+  });
+
+  it('applies incoming favorite filter intent to the toolbar', async () => {
+    renderLibraryHarness({}, undefined, { filterKey: 'favorites', token: 1 });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Favorites' })).toHaveAttribute('aria-pressed', 'true');
+    });
+  });
+
+  it('filters to running profiles from the runtime read hook', async () => {
+    renderLibraryHarness(
+      {
+        handlerOverrides: {
+          list_running_profiles: async () => ['Test Game Alpha'],
+        },
+      },
+      undefined,
+      { filterKey: 'currentlyRunning', token: 1 }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Running' })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByRole('button', { name: 'Select Test Game Alpha' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Select Dev Game Beta' })).not.toBeInTheDocument();
   });
 });

@@ -57,7 +57,9 @@ test.describe('collections smoke', () => {
 
   test('open and close CollectionViewModal', async ({ page }) => {
     // Click an existing collection in the sidebar.
-    const collectionItem = page.locator('.crosshook-collections-sidebar__item').first();
+    const collectionItem = page
+      .locator('.crosshook-collections-sidebar__list .crosshook-collections-sidebar__item')
+      .first();
     // Wait for the sidebar to render at least one collection.
     await expect(collectionItem).toBeVisible({ timeout: 5_000 });
     await collectionItem.click();

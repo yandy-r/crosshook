@@ -467,6 +467,7 @@ pub fn run() {
             commands::launch::check_gamescope_session,
             commands::launch::launch_platform_status,
             commands::launch::check_game_running,
+            commands::launch::list_running_profiles,
             commands::launch::list_launch_history_for_profile,
             commands::profile::profile_delete,
             commands::profile::profile_duplicate,

@@ -1,4 +1,5 @@
 import type { LibraryCardData } from '../../types/library';
+import type { AppNavigateOptions } from '../../types/navigation';
 import type { AppRoute } from '../layout/Sidebar';
 import { LibraryCard } from './LibraryCard';
 import type { LibraryOpenDetailsHandler } from './library-card-interactions';
@@ -12,7 +13,7 @@ interface LibraryGridProps {
   onEdit: (name: string) => void;
   onToggleFavorite: (name: string, current: boolean) => void;
   launchingName?: string;
-  onNavigate?: (route: AppRoute) => void;
+  onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
   onContextMenu?: (position: { x: number; y: number }, profileName: string, restoreFocusTo: HTMLElement) => void;
 }
 

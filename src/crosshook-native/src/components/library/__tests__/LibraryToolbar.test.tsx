@@ -27,6 +27,9 @@ describe('LibraryToolbar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Favorites' }));
     expect(onFilterChange).toHaveBeenCalledWith('favorites');
+
+    await user.click(screen.getByRole('button', { name: 'Running' }));
+    expect(onFilterChange).toHaveBeenCalledWith('currentlyRunning');
   });
 
   it('reflects aria-pressed for active sort and filter chips', () => {
@@ -35,6 +38,12 @@ describe('LibraryToolbar', () => {
     expect(screen.getByRole('button', { name: 'Name' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Recent' })).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByRole('button', { name: 'Favorites' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('reflects aria-pressed for the running filter chip', () => {
+    render(<LibraryToolbar {...base} filter="currentlyRunning" />);
+
+    expect(screen.getByRole('button', { name: 'Running' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('invokes onOpenCommandPalette from the palette trigger', async () => {
@@ -67,6 +76,9 @@ describe('LibraryToolbar', () => {
       await user.tab();
     }
     expect(screen.getByRole('button', { name: 'Installed' })).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Running' })).toHaveFocus();
 
     await user.tab();
     expect(screen.getByRole('button', { name: 'Grid view' })).toHaveFocus();

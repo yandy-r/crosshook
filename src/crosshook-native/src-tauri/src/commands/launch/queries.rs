@@ -1,9 +1,10 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use crosshook_core::launch::{
     build_launch_preview,
     build_steam_launch_options_command as build_steam_launch_options_command_core, validate,
-    LaunchPlatformCapabilities, LaunchPreview, LaunchRequest, LaunchValidationIssue,
+    LaunchPlatformCapabilities, LaunchPreview, LaunchRequest, LaunchSessionRegistry,
+    LaunchValidationIssue, SessionKind,
 };
 use crosshook_core::metadata::{LaunchHistoryEntry, MetadataStore, MAX_HISTORY_LIST_LIMIT};
 use crosshook_core::profile::GamescopeConfig;
@@ -60,6 +61,13 @@ pub fn check_game_running(exe_name: String) -> bool {
         return false;
     }
     crosshook_core::launch::is_process_running(name)
+}
+
+#[tauri::command]
+pub fn list_running_profiles(
+    session_registry: State<'_, Arc<LaunchSessionRegistry>>,
+) -> Vec<String> {
+    session_registry.active_profile_keys(Some(SessionKind::Game))
 }
 
 /// Recent launch rows for a profile (newest first), from `launch_operations` — no `diagnostic_json`.

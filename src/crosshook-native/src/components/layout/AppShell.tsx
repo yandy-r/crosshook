@@ -29,6 +29,7 @@ import {
 } from '@/lib/commands';
 import { subscribeEvent } from '@/lib/events';
 import { isAppRoute } from '@/lib/validAppRoutes';
+import type { AppNavigateOptions, LibraryFilterIntent } from '@/types/navigation';
 import type { OnboardingCheckPayload } from '@/types/onboarding';
 import { ContextRail } from './ContextRail';
 import { contextRailLayoutForShell } from './contextRailVariants';
@@ -66,6 +67,8 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const { profileName, selectedProfile, selectProfile, activeCollectionId, setActiveCollectionId } =
     useProfileContext();
   const [route, setRoute] = useState<AppRoute>('library');
+  const [libraryFilterIntent, setLibraryFilterIntent] = useState<LibraryFilterIntent | null>(null);
+  const libraryFilterIntentTokenRef = useRef(0);
   const lastProfile = profileName.trim() || selectedProfile;
   const activeProfileName = selectedProfile.trim();
   const shellRef = useRef<HTMLDivElement>(null);
@@ -85,6 +88,19 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
 
   const setLibraryShellModeRef = useRef(setLibraryShellMode);
   setLibraryShellModeRef.current = setLibraryShellMode;
+
+  const handleNavigate = useCallback((nextRoute: AppRoute, options?: AppNavigateOptions) => {
+    if (options?.libraryFilter) {
+      libraryFilterIntentTokenRef.current += 1;
+      setLibraryFilterIntent({
+        filterKey: options.libraryFilter,
+        token: libraryFilterIntentTokenRef.current,
+      });
+    } else {
+      setLibraryFilterIntent(null);
+    }
+    setRoute(nextRoute);
+  }, []);
 
   useEffect(() => {
     if (route !== 'library') {
@@ -138,17 +154,17 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
       // collection context so `profile_load` applies the collection's launch
       // defaults via `effective_profile_with` (Phase 3 merge layer).
       await selectProfile(name, { collectionId: activeCollectionId ?? undefined });
-      setRoute('launch');
+      handleNavigate('launch');
     },
-    [selectProfile, activeCollectionId]
+    [selectProfile, activeCollectionId, handleNavigate]
   );
 
   const handleEditFromCollection = useCallback(
     async (name: string) => {
       await selectProfile(name);
-      setRoute('profiles');
+      handleNavigate('profiles');
     },
-    [selectProfile]
+    [selectProfile, handleNavigate]
   );
 
   const handleRequestEditMetadata = useCallback((id: string) => {
@@ -206,9 +222,9 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   }, []);
 
   const handleOpenOnboardingHostToolDashboard = useCallback(() => {
-    setRoute('host-tools');
+    handleNavigate('host-tools');
     setShowOnboarding(false);
-  }, []);
+  }, [handleNavigate]);
 
   const commands = useMemo<readonly CommandPaletteCommand[]>(() => {
     return [...ROUTE_COMMANDS, ...createProfileCommands(activeProfileName)];
@@ -222,15 +238,15 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
 
       switch (command.action) {
         case 'route':
-          setRoute(command.route);
+          handleNavigate(command.route);
           return;
         case 'launch_profile':
           await selectProfile(command.profileName);
-          setRoute('launch');
+          handleNavigate('launch');
           return;
         case 'edit_profile':
           await selectProfile(command.profileName);
-          setRoute('profiles');
+          handleNavigate('profiles');
           return;
         default: {
           const _exhaustive: never = command;
@@ -238,7 +254,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
         }
       }
     },
-    [selectProfile]
+    [selectProfile, handleNavigate]
   );
 
   const {
@@ -332,7 +348,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
             orientation="vertical"
             value={route}
             onValueChange={(value) => {
-              if (isAppRoute(value)) setRoute(value);
+              if (isAppRoute(value)) handleNavigate(value);
             }}
           >
             <div className="crosshook-app-layout" ref={shellRef}>
@@ -351,7 +367,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                 >
                   <Sidebar
                     activeRoute={route}
-                    onNavigate={setRoute}
+                    onNavigate={handleNavigate}
                     controllerMode={controllerMode}
                     lastProfile={lastProfile}
                     onOpenCollection={handleOpenCollection}
@@ -366,7 +382,12 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                       resizeTargetMinimumSize={{ coarse: 36, fine: 12 }}
                     >
                       <Panel className="crosshook-shell-panel" defaultSize="80%" minSize="28%">
-                        <ContentArea route={route} onNavigate={setRoute} onOpenCommandPalette={openPalette} />
+                        <ContentArea
+                          route={route}
+                          onNavigate={handleNavigate}
+                          libraryFilterIntent={libraryFilterIntent}
+                          onOpenCommandPalette={openPalette}
+                        />
                       </Panel>
                       <Separator className="crosshook-resize-handle crosshook-resize-handle--horizontal" />
                       <Panel
@@ -384,7 +405,12 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                   ) : (
                     <div className="crosshook-shell-stack">
                       <div className="crosshook-shell-stack__content">
-                        <ContentArea route={route} onNavigate={setRoute} onOpenCommandPalette={openPalette} />
+                        <ContentArea
+                          route={route}
+                          onNavigate={handleNavigate}
+                          libraryFilterIntent={libraryFilterIntent}
+                          onOpenCommandPalette={openPalette}
+                        />
                       </div>
                       <div className="crosshook-shell-stack__footer">
                         <ConsoleDock panelRef={consolePanelRef} mode={consoleMode} />
@@ -457,7 +483,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
               // `activeCollectionId` is already set by the open-collection flow,
               // so the Profiles page filter is preserved across the navigation.
               closeCollectionModal();
-              setRoute('profiles');
+              handleNavigate('profiles');
             }}
           />
           <CollectionEditModal

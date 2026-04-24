@@ -41,6 +41,14 @@ export function LaunchIcon(props: IconProps) {
   );
 }
 
+export function PlayIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props} aria-hidden="true">
+      <path d="M6 3.5v13l10-6.5z" />
+    </svg>
+  );
+}
+
 export function InstallIcon(props: IconProps) {
   return (
     <svg {...defaults} {...props} aria-hidden="true">
@@ -102,6 +110,14 @@ export function HealthIcon(props: IconProps) {
     <svg {...defaults} {...props} aria-hidden="true">
       <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
       <path d="M2.5 10h3l2-4 2.5 7 2-3h5" />
+    </svg>
+  );
+}
+
+export function HeartIcon(props: IconProps) {
+  return (
+    <svg {...defaults} {...props} aria-hidden="true">
+      <path d="M10 17.5S2 13 2 7.5A4 4 0 0 1 10 5.1 4 4 0 0 1 18 7.5C18 13 10 17.5 10 17.5z" />
     </svg>
   );
 }

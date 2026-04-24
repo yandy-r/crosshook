@@ -7,6 +7,7 @@ import { useCollectionMembers } from '../../hooks/useCollectionMembers';
 import { useLibraryProfiles } from '../../hooks/useLibraryProfiles';
 import { useLibrarySummaries } from '../../hooks/useLibrarySummaries';
 import { useOfflineReadiness } from '../../hooks/useOfflineReadiness';
+import { useRunningProfiles } from '../../hooks/useRunningProfiles';
 import {
   type LibraryCardData,
   type LibraryFilterKey,
@@ -14,6 +15,7 @@ import {
   type LibraryViewMode,
   libraryCardDataEqual,
 } from '../../types/library';
+import type { AppNavigateOptions, LibraryFilterIntent } from '../../types/navigation';
 import { CollectionAssignMenu } from '../collections/CollectionAssignMenu';
 import { CollectionEditModal } from '../collections/CollectionEditModal';
 import { RouteBanner } from '../layout/RouteBanner';
@@ -31,11 +33,12 @@ function loadViewMode(): LibraryViewMode {
 }
 
 interface LibraryPageProps {
-  onNavigate?: (route: AppRoute) => void;
+  onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
+  libraryFilterIntent?: LibraryFilterIntent | null;
   onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
 }
 
-export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPageProps) {
+export function LibraryPage({ onNavigate, libraryFilterIntent, onOpenCommandPalette }: LibraryPageProps) {
   const { profiles, favoriteProfiles, selectProfile, toggleFavorite, refreshProfiles, activeCollectionId } =
     useProfileContext();
   const {
@@ -47,6 +50,7 @@ export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPagePro
   const { summaries, setSummaries } = useLibrarySummaries(profiles, favoriteProfiles, activeCollectionId);
   const { healthByName, loading: healthLoading } = useProfileHealthContext();
   const { setInspectorSelection, setLibraryInspectorHandlers, setLibraryShellMode } = useInspectorSelection();
+  const runningProfiles = useRunningProfiles();
   const offlineReadiness = useOfflineReadiness();
   const [pageMode, setPageMode] = useState<'library' | 'detail'>('library');
   const [detailName, setDetailName] = useState<string | null>(null);
@@ -86,6 +90,15 @@ export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPagePro
     void refreshProfiles();
   }, [refreshProfiles]);
 
+  useEffect(() => {
+    if (!libraryFilterIntent) {
+      return;
+    }
+    setPageMode('library');
+    setLibraryShellMode('library');
+    setFilterKey(libraryFilterIntent.filterKey);
+  }, [libraryFilterIntent, setLibraryShellMode]);
+
   // Persist view mode
   const handleViewModeChange = useCallback((mode: LibraryViewMode) => {
     setViewMode(mode);
@@ -103,6 +116,9 @@ export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPagePro
       case 'installed':
         list = list.filter((p) => Boolean(p.steamAppId && p.steamAppId !== '0'));
         break;
+      case 'currentlyRunning':
+        list = list.filter((p) => runningProfiles.has(p.name));
+        break;
       default:
         break;
     }
@@ -110,7 +126,7 @@ export function LibraryPage({ onNavigate, onOpenCommandPalette }: LibraryPagePro
       list.sort((a, b) => (a.gameName || a.name).localeCompare(b.gameName || b.name));
     }
     return list;
-  }, [searched, filterKey, sortBy]);
+  }, [searched, filterKey, sortBy, runningProfiles]);
 
   const handleCardSelect = useCallback((name: string) => {
     setInspectorPickName(name);

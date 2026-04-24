@@ -13,6 +13,7 @@ import type { Handler } from './types';
 let lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
 let lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
 const runningGames: Set<string> = new Set();
+const runningProfiles: Set<string> = new Set();
 const pendingLaunchTimers = new Set<number>();
 
 // ---------------------------------------------------------------------------
@@ -404,6 +405,18 @@ export function registerLaunch(map: Map<string, Handler>): void {
   });
 
   // -------------------------------------------------------------------------
+  // list_running_profiles — returns profile names marked running in dev tests
+  // -------------------------------------------------------------------------
+  map.set('list_running_profiles', async (): Promise<string[]> => {
+    const fixture = getActiveFixture();
+    if (fixture === 'empty') return [];
+    if (fixture === 'loading') return neverResolving<string[]>();
+    // `error` is allowed to resolve here — this is a polled status read and
+    // throwing on every poll would flood the console without meaningful UX.
+    return [...runningProfiles].sort();
+  });
+
+  // -------------------------------------------------------------------------
   // check_gamescope_session — always false in browser dev mode
   // -------------------------------------------------------------------------
   map.set('check_gamescope_session', async (): Promise<boolean> => {
@@ -454,6 +467,16 @@ export function registerLaunch(map: Map<string, Handler>): void {
     return null;
   });
 
+  map.set('_mock_set_profile_running', async (args): Promise<null> => {
+    const { profileName, running } = args as { profileName: string; running: boolean };
+    if (running) {
+      runningProfiles.add(profileName.trim());
+    } else {
+      runningProfiles.delete(profileName.trim());
+    }
+    return null;
+  });
+
   map.set('_mock_get_last_launch_log_path', async (): Promise<string> => {
     return lastLaunchHelperLogPath;
   });
@@ -467,6 +490,7 @@ export function resetLaunchMockState(): void {
   lastLaunchHelperLogPath = '/mock/logs/game-launch-9999001.log';
   lastTrainerHelperLogPath = '/mock/logs/trainer-launch-9999001.log';
   runningGames.clear();
+  runningProfiles.clear();
   for (const timerId of pendingLaunchTimers) {
     window.clearTimeout(timerId);
   }
