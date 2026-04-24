@@ -1,6 +1,7 @@
 import { type ChangeEvent, useId } from 'react';
 
-import { type SelectOption, ThemedSelect } from '../ui/ThemedSelect';
+import type { SelectOption } from '../ui/ThemedSelect';
+import { ThemedSelectField } from '../ui/ThemedSelectField';
 
 export type HostToolCategoryFilter = 'all' | 'runtime' | 'performance' | 'overlay' | 'compatibility' | 'prefix_tools';
 
@@ -73,10 +74,6 @@ export function HostToolFilterBar({
   onSearchQueryChange,
   disabled = false,
 }: HostToolFilterBarProps) {
-  const categoryFieldId = useId();
-  const categoryLabelId = useId();
-  const availabilityFieldId = useId();
-  const availabilityLabelId = useId();
   const searchFieldId = useId();
   const hasActiveFilters = categoryFilter !== 'all' || availabilityFilter !== 'all' || searchQuery.trim().length > 0;
 
@@ -94,12 +91,8 @@ export function HostToolFilterBar({
     <section className="crosshook-host-tool-dashboard__filters" aria-label="Host tool dashboard filters">
       <div className="crosshook-host-tool-dashboard__filters-group" style={{ flex: '1 1 720px' }}>
         <div className="crosshook-field" style={{ flex: '1 1 220px', minWidth: 200 }}>
-          <label id={categoryLabelId} className="crosshook-label" htmlFor={categoryFieldId}>
-            Category
-          </label>
-          <ThemedSelect
-            id={categoryFieldId}
-            ariaLabelledby={categoryLabelId}
+          <ThemedSelectField
+            label="Category"
             value={categoryFilter}
             options={[...HOST_TOOL_CATEGORY_FILTER_OPTIONS]}
             disabled={disabled}
@@ -108,12 +101,8 @@ export function HostToolFilterBar({
         </div>
 
         <div className="crosshook-field" style={{ flex: '1 1 220px', minWidth: 200 }}>
-          <label id={availabilityLabelId} className="crosshook-label" htmlFor={availabilityFieldId}>
-            Availability
-          </label>
-          <ThemedSelect
-            id={availabilityFieldId}
-            ariaLabelledby={availabilityLabelId}
+          <ThemedSelectField
+            label="Availability"
             value={availabilityFilter}
             options={[...HOST_TOOL_AVAILABILITY_FILTER_OPTIONS]}
             disabled={disabled}

@@ -1,8 +1,6 @@
-import { useId } from 'react';
-
 import type { GameProfile } from '../../types';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
-import { ThemedSelect } from '../ui/ThemedSelect';
+import { ThemedSelectField } from '../ui/ThemedSelectField';
 
 export interface RunnerMethodSectionProps {
   profile: GameProfile;
@@ -17,8 +15,6 @@ export interface RunnerMethodSectionProps {
  * Proton Run, or Native launch method.
  */
 export function RunnerMethodSection({ profile, onUpdateProfile, hideNative }: RunnerMethodSectionProps) {
-  const sectionId = useId();
-
   const options = [
     { value: 'steam_applaunch', label: 'Steam app launch' },
     { value: 'proton_run', label: 'Proton runtime launch' },
@@ -39,16 +35,8 @@ export function RunnerMethodSection({ profile, onUpdateProfile, hideNative }: Ru
       }
     >
       <div className="crosshook-field">
-        <label
-          id={`${sectionId}-launch-method-label`}
-          className="crosshook-label"
-          htmlFor={`${sectionId}-launch-method`}
-        >
-          Runner Method
-        </label>
-        <ThemedSelect
-          id={`${sectionId}-launch-method`}
-          ariaLabelledby={`${sectionId}-launch-method-label`}
+        <ThemedSelectField
+          label="Runner Method"
           value={profile.launch.method}
           onValueChange={(val) =>
             onUpdateProfile((current) => ({

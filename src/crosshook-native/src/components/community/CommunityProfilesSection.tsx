@@ -1,7 +1,7 @@
 import type { CommunityCompatibilityRating, CommunityProfileIndexEntry } from '../../hooks/useCommunityProfiles';
 import { deriveCommunityImportProfileName } from '../../hooks/useCommunityProfiles';
 import { DashboardPanelSection } from '../layout/DashboardPanelSection';
-import { ThemedSelect } from '../ui/ThemedSelect';
+import { ThemedSelectField } from '../ui/ThemedSelectField';
 import { CompatibilityBadge, ratingLabel, ratingOrder } from './CompatibilityBadge';
 
 export interface CommunityProfilesSectionProps {
@@ -59,12 +59,8 @@ export function CommunityProfilesSection({
           />
         </div>
         <div className="crosshook-community-browser__field">
-          <label id="compatibility-filter-label" className="crosshook-label" htmlFor="compatibility-filter">
-            Compatibility
-          </label>
-          <ThemedSelect
-            id="compatibility-filter"
-            ariaLabelledby="compatibility-filter-label"
+          <ThemedSelectField
+            label="Compatibility"
             value={ratingFilter}
             onValueChange={(val) => onRatingFilterChange(val as 'all' | CommunityCompatibilityRating)}
             options={[
