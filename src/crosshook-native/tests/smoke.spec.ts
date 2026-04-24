@@ -447,26 +447,28 @@ test.describe('reduced-motion smoke', () => {
       page.locator('.crosshook-library-card__hover-reveal').first(),
       'library hover-reveal element must be present to validate reduced-motion transition'
     ).toBeAttached();
-    const transitionDuration = await page.evaluate(() => {
+    const hoverRevealSeconds = await page.evaluate(() => {
       const el = document.querySelector('.crosshook-library-card__hover-reveal');
       if (!el) {
         throw new Error('hover-reveal element missing after attach check');
       }
-      return window.getComputedStyle(el).transitionDuration;
+      return Number.parseFloat(window.getComputedStyle(el).transitionDuration);
     });
-    expect(transitionDuration, 'hover-reveal transition must be 0s under reduced-motion').toBe('0s');
+    // Project's global reduced-motion rule (theme.css) collapses to 0.01ms so
+    // `transitionend` still fires — anything under 1ms is "effectively zero".
+    expect(hoverRevealSeconds, 'hover-reveal transition must be near-zero under reduced-motion').toBeLessThan(0.001);
     await expect(
       page.locator('.crosshook-library-card').first(),
       'library card root must be present to validate reduced-motion transition'
     ).toBeAttached();
-    const cardTransitionDuration = await page.evaluate(() => {
+    const cardSeconds = await page.evaluate(() => {
       const el = document.querySelector('.crosshook-library-card');
       if (!el) {
         throw new Error('library card element missing after attach check');
       }
-      return window.getComputedStyle(el).transitionDuration;
+      return Number.parseFloat(window.getComputedStyle(el).transitionDuration);
     });
-    expect(cardTransitionDuration, 'card root transition must be 0s under reduced-motion').toBe('0s');
+    expect(cardSeconds, 'card root transition must be near-zero under reduced-motion').toBeLessThan(0.001);
     expect(capture.errors, `Reduced-motion library errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 
@@ -481,14 +483,15 @@ test.describe('reduced-motion smoke', () => {
       page.locator('.crosshook-palette__row').first(),
       'palette row must be present to validate reduced-motion transition'
     ).toBeAttached();
-    const rowTransition = await page.evaluate(() => {
+    const paletteRowSeconds = await page.evaluate(() => {
       const el = document.querySelector('.crosshook-palette__row');
       if (!el) {
         throw new Error('palette row element missing after attach check');
       }
-      return window.getComputedStyle(el).transitionDuration;
+      return Number.parseFloat(window.getComputedStyle(el).transitionDuration);
     });
-    expect(rowTransition, 'palette row transition must be 0s under reduced-motion').toBe('0s');
+    // See the library-card test for the 0.01ms global-rule rationale.
+    expect(paletteRowSeconds, 'palette row transition must be near-zero under reduced-motion').toBeLessThan(0.001);
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
     expect(capture.errors, `Reduced-motion palette errors:\n${capture.errors.join('\n')}`).toEqual([]);
