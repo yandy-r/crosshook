@@ -130,6 +130,12 @@ export function GameDetail({
       previewLoading,
       preview,
       previewError,
+      // TODO(phase-4): wire via useProfileContext().updateProfile wrapper
+      updateProfile: undefined,
+      // TODO(phase-4): wire via useProfileSummaries()
+      profileList: undefined,
+      // TODO(phase-7): wire via setActiveTab from L42 useState
+      onSetActiveTab: undefined,
     }),
     [
       summary,
