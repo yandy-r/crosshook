@@ -39,11 +39,16 @@ export function RunnerMethodSection({ profile, onUpdateProfile, hideNative }: Ru
       }
     >
       <div className="crosshook-field">
-        <label className="crosshook-label" htmlFor={`${sectionId}-launch-method`}>
+        <label
+          id={`${sectionId}-launch-method-label`}
+          className="crosshook-label"
+          htmlFor={`${sectionId}-launch-method`}
+        >
           Runner Method
         </label>
         <ThemedSelect
           id={`${sectionId}-launch-method`}
+          ariaLabelledby={`${sectionId}-launch-method-label`}
           value={profile.launch.method}
           onValueChange={(val) =>
             onUpdateProfile((current) => ({
