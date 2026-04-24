@@ -130,11 +130,11 @@ export function GameDetail({
       previewLoading,
       preview,
       previewError,
-      // TODO(phase-4): wire via useProfileContext().updateProfile wrapper
+      // TODO(phase-4): replace `undefined` with the real expression and add it to this useMemo dependency array.
       updateProfile: undefined,
-      // TODO(phase-4): wire via useProfileSummaries()
+      // TODO(phase-4): replace `undefined` with the real expression and add it to this useMemo dependency array.
       profileList: undefined,
-      // TODO(phase-7): wire via setActiveTab from L42 useState
+      // TODO(phase-7): replace `undefined` with the real expression and add it to this useMemo dependency array.
       onSetActiveTab: undefined,
     }),
     [

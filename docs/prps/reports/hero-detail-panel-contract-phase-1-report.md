@@ -2,7 +2,7 @@
 
 ## Summary
 
-Extended `HeroDetailPanelsProps` with three new optional fields (`updateProfile`, `profileList`, `onSetActiveTab`) and threaded them through `GameDetail` + `HeroDetailTabs`, without touching any panel body. Added `data-testid="hero-detail-profiles-tab"` and `data-testid="hero-detail-launch-tab"` to the Radix `<Tabs.Content>` roots. Added a centralized testid map (`HERO_DETAIL_TAB_TESTIDS`) and `heroDetailTabTestId` helper in `hero-detail-model.ts`. Extended test factories in `HeroDetailPanels.test.tsx` and `components.a11y.test.tsx`, added a no-op-default render smoke, two testid-presence assertions, and a panelProps-forwarding smoke in `GameDetail.test.tsx`. No user-visible change; all new fields remain optional.
+Extended `HeroDetailPanelsProps` with three new optional fields (`updateProfile`, `profileList`, `onSetActiveTab`) and threaded them through `GameDetail` + `HeroDetailTabs`, without touching any panel body. Added `data-testid="hero-detail-profiles-tab"` and `data-testid="hero-detail-launch-tab"` to the Radix `<Tabs.Content>` roots. Added a centralized testid map (`HERO_DETAIL_TAB_TESTIDS`) and `heroDetailTabTestId` helper in `hero-detail-model.ts`. Extended test factories in `HeroDetailPanels.test.tsx` and `components.a11y.test.tsx`, added a no-op-default render smoke, two test-id presence assertions, and a panelProps-forwarding smoke in `GameDetail.test.tsx`. No user-visible change; all new fields remain optional.
 
 ## Assessment vs Reality
 
@@ -52,7 +52,7 @@ Total: 7 files changed, +160 insertions, -14 deletions (from `git diff --stat ma
 
 1. **`ProfileProvider` wrapper required in Task 3.1 tests** — `ProfilesPanel` calls `useProfileContext()` which throws without a provider. The no-op-default test and the `profiles`-tab testid-presence test both wrap the render in `ProfileProvider`. The plan didn't flag this dependency, but wrapping is the correct approach since the component genuinely requires the context.
 
-2. **Testid-presence tests placed in `components.a11y.test.tsx`** (plan's "Option 1"). Each testid assertion is in its own `it(...)` block because Radix `<Tabs.Content>` unmounts inactive tabs — can't assert both testids from a single render without `forceMount` (which the plan forbade).
+2. **test-id presence tests placed in `components.a11y.test.tsx`** (plan's "Option 1"). Each testid assertion is in its own `it(...)` block because Radix `<Tabs.Content>` unmounts inactive tabs — can't assert both testids from a single render without `forceMount` (which the plan forbade).
 
 3. **`GameInspector.test.tsx` not modified** — typecheck passed without changes, so per the plan's "only if type-checker flags it" rule, no speculative edits were made.
 
@@ -66,11 +66,11 @@ Total: 7 files changed, +160 insertions, -14 deletions (from `git diff --stat ma
 
 ## Tests Written
 
-| Test File                                                    | New Tests | Coverage                                                              |
-| ------------------------------------------------------------ | --------- | --------------------------------------------------------------------- |
-| `src/components/library/__tests__/HeroDetailPanels.test.tsx` | 1         | `describe('no-op defaults')` → omitted-`updateProfile` render smoke   |
-| `src/__tests__/a11y/components.a11y.test.tsx`                | 2         | `hero-detail-profiles-tab` + `hero-detail-launch-tab` testid presence |
-| `src/components/library/__tests__/GameDetail.test.tsx`       | 1         | `panelProps` placeholder forwarding smoke via `game-detail` testid    |
+| Test File                                                                         | New Tests | Coverage                                                              |
+| --------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------- |
+| `src/crosshook-native/src/components/library/__tests__/HeroDetailPanels.test.tsx` | 1         | `describe('no-op defaults')` → omitted-`updateProfile` render smoke   |
+| `src/crosshook-native/src/__tests__/a11y/components.a11y.test.tsx`                | 2         | `hero-detail-profiles-tab` + `hero-detail-launch-tab` testid presence |
+| `src/crosshook-native/src/components/library/__tests__/GameDetail.test.tsx`       | 1         | `panelProps` placeholder forwarding smoke via `game-detail` testid    |
 
 Total new tests: 4 (all green).
 

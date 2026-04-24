@@ -17,7 +17,7 @@ export const HERO_DETAIL_TABS: readonly { id: HeroDetailTabId; label: string }[]
  * Stable `data-testid` values for Hero Detail tabs (Phase 1 scope: profiles, launch-options).
  * Note: tab id `launch-options` maps to the shortened testid `hero-detail-launch-tab` (not `hero-detail-launch-options-tab`).
  */
-export const HERO_DETAIL_TAB_TESTIDS: Partial<Record<HeroDetailTabId, string>> = {
+export const HERO_DETAIL_TAB_TESTIDS: Readonly<Partial<Record<HeroDetailTabId, string>>> = {
   profiles: 'hero-detail-profiles-tab',
   // tab id `launch-options` → shortened testid `hero-detail-launch-tab`
   'launch-options': 'hero-detail-launch-tab',

@@ -262,9 +262,6 @@ describe('no-op defaults', () => {
           previewLoading={false}
           preview={null}
           previewError={null}
-          updateProfile={undefined}
-          profileList={undefined}
-          onSetActiveTab={undefined}
         />
       </ProfileProvider>
     );
