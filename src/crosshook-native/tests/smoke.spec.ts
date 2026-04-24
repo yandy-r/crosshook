@@ -1,8 +1,9 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 import type { AppRoute } from '../src/components/layout/Sidebar';
 import { ROUTE_NAV_LABEL } from '../src/components/layout/routeMetadata';
 import { attachConsoleCapture, type ConsoleCapture } from './helpers';
+import { navigateViaCommandPalette, seedMockProfileRunning, waitForCrosshookDevIpc } from './navigation-helpers';
 
 /**
  * Smoke test the application routes in browser dev mode.
@@ -58,16 +59,6 @@ const ROUTES: readonly RouteDef[] = ROUTE_ORDER.map((route) => ({
   route,
   navLabel: ROUTE_NAV_LABEL[route],
 }));
-
-async function navigateViaCommandPalette(page: Page, route: AppRoute): Promise<void> {
-  const commandTitle = `Go to ${ROUTE_NAV_LABEL[route]}`;
-  await page.keyboard.press('Control+KeyK');
-  const search = page.getByRole('searchbox', { name: 'Search commands' });
-  await expect(search).toBeVisible();
-  await search.fill(commandTitle);
-  await expect(page.getByRole('button', { name: commandTitle, exact: true })).toBeVisible();
-  await search.press('Enter');
-}
 
 test.describe('browser dev mode smoke', () => {
   for (const { route, navLabel } of ROUTES) {
@@ -199,19 +190,31 @@ test.describe('library sidebar quick filters', () => {
     const capture = attachConsoleCapture(page);
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/?fixture=populated');
+    await waitForCrosshookDevIpc(page);
+    await seedMockProfileRunning(page, 'Test Game Alpha', true);
 
-    const favorites = page.getByRole('tab', { name: 'Favorites', exact: true });
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await expect(libraryTab).toBeVisible();
+    await libraryTab.click();
+
+    const sidebar = page.getByTestId('sidebar');
+    const favorites = sidebar.getByRole('button', { name: 'Favorites', exact: true });
     await expect(favorites).toBeVisible();
     await favorites.click();
-    await expect(page.getByRole('button', { name: 'Favorites', exact: true })).toHaveAttribute(
+    await expect(sidebar.getByRole('button', { name: 'Favorites', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true'
     );
 
-    const currentlyPlaying = page.getByRole('tab', { name: 'Currently Playing', exact: true });
+    const currentlyPlaying = sidebar.getByRole('button', { name: 'Currently Playing', exact: true });
     await expect(currentlyPlaying).toBeVisible();
     await currentlyPlaying.click();
     await expect(page.getByRole('button', { name: 'Running', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+    await expect(page.getByText('Test Game Alpha', { exact: true })).toBeVisible();
+    await expect(page.getByText('Dev Game Beta', { exact: true })).toHaveCount(0);
+
+    await seedMockProfileRunning(page, 'Test Game Alpha', false);
 
     expect(capture.errors, `Library quick-filter errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
@@ -222,7 +225,7 @@ test.describe('launch pipeline smoke', () => {
     const capture = attachConsoleCapture(page);
 
     await page.goto('/?fixture=populated');
-    await navigateViaCommandPalette(page, 'launch');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
 
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
     await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
@@ -242,7 +245,7 @@ test.describe('profiles + launch panel landing smoke', () => {
       const capture = attachConsoleCapture(page);
 
       await page.goto('/?fixture=populated');
-      await navigateViaCommandPalette(page, route);
+      await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL[route]}`);
 
       await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {
         /* expected: no network in mock mode */
@@ -264,7 +267,7 @@ test.describe('profiles + launch panel landing smoke', () => {
     const capture = attachConsoleCapture(page);
 
     await page.goto('/?fixture=populated');
-    await navigateViaCommandPalette(page, 'launch');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
 
     await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
     await expect(page.locator('section.crosshook-dashboard-panel-section').first()).toBeAttached();
@@ -338,7 +341,7 @@ test.describe('console chrome smoke', () => {
     await expect(drawer).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
-    await navigateViaCommandPalette(page, 'launch');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
 
     const profileSelect = page.locator('#launch-profile-selector');
     await expect(profileSelect).toBeVisible();
@@ -346,13 +349,13 @@ test.describe('console chrome smoke', () => {
     await page.getByRole('option', { name: 'Test Game Alpha', exact: true }).click();
     await expect(profileSelect).toContainText('Test Game Alpha');
 
-    await navigateViaCommandPalette(page, 'profiles');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.profiles}`);
 
     const gamePathField = page.getByLabel('Game Path', { exact: true });
     await expect(gamePathField).toBeVisible();
     await gamePathField.fill('/home/devuser/Games/TestGameAlpha/game.exe');
 
-    await navigateViaCommandPalette(page, 'launch');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
 
     const launchGameButton = page.getByRole('button', { name: /^launch game$/i });
     await expect(launchGameButton).toBeEnabled();

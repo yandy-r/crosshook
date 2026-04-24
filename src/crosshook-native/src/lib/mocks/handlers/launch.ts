@@ -109,7 +109,8 @@ function scheduleLaunchLogSequence(
   logLines: string[],
   helperLogPath: string,
   delayBetweenMs: number,
-  afterLogsDelayMs: number
+  afterLogsDelayMs: number,
+  profileName: string | undefined
 ): void {
   logLines.forEach((line, index) => {
     scheduleLaunchTimeout(
@@ -128,6 +129,10 @@ function scheduleLaunchLogSequence(
 
   const completeDelay = diagnosticDelay + 200;
   scheduleLaunchTimeout(() => {
+    const trimmed = profileName?.trim();
+    if (trimmed) {
+      runningProfiles.delete(trimmed);
+    }
     emitMockEvent('launch-complete', { code: 0, signal: null });
   }, completeDelay);
 }
@@ -191,7 +196,7 @@ export function registerLaunch(map: Map<string, Handler>): void {
       '[mock] Game window detected. Launch sequence complete.',
     ];
 
-    scheduleLaunchLogSequence(gameLogLines, helperLogPath, 150, 300);
+    scheduleLaunchLogSequence(gameLogLines, helperLogPath, 150, 300, request.profile_name);
 
     return makeLaunchResult('Game launch started.', logSuffix);
   });
@@ -217,7 +222,7 @@ export function registerLaunch(map: Map<string, Handler>): void {
       '[mock] Trainer attached successfully. Cheat engine active.',
     ];
 
-    scheduleLaunchLogSequence(trainerLogLines, helperLogPath, 200, 250);
+    scheduleLaunchLogSequence(trainerLogLines, helperLogPath, 200, 250, request.profile_name);
 
     return makeLaunchResult('Trainer launch started.', logSuffix);
   });

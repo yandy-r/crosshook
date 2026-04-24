@@ -39,6 +39,8 @@ export interface SidebarProps {
   lastProfile: string;
   onOpenCollection: (id: string) => void;
   variant: SidebarVariant;
+  /** Current library toolbar filter; drives `aria-pressed` on Favorites / Currently Playing. */
+  activeLibraryFilter: LibraryFilterKey;
   libraryFilterBadges?: Partial<Record<LibraryFilterKey, string | number>>;
 }
 
@@ -74,7 +76,7 @@ interface SidebarCollectionsSection {
 type SidebarSection = SidebarRouteSection | SidebarCollectionsSection;
 type SidebarRouteTriggerProps = Omit<SidebarRouteItem, 'type'> & Pick<SidebarProps, 'activeRoute' | 'onNavigate'>;
 type SidebarLibraryFilterTriggerProps = Omit<SidebarLibraryFilterItem, 'type' | 'badge'> &
-  Pick<SidebarProps, 'onNavigate'> & {
+  Pick<SidebarProps, 'onNavigate' | 'activeRoute' | 'activeLibraryFilter'> & {
     badge: string | number | undefined;
   };
 
@@ -143,15 +145,20 @@ function SidebarTrigger({ activeRoute, onNavigate, route, label, icon: Icon }: S
 
 function SidebarLibraryFilterTrigger({
   onNavigate,
+  activeRoute,
+  activeLibraryFilter,
   filterKey,
   label,
   icon: Icon,
   badge,
 }: SidebarLibraryFilterTriggerProps) {
+  const isPressed = activeRoute === 'library' && activeLibraryFilter === filterKey;
+
   return (
-    <Tabs.Trigger
+    <button
+      type="button"
       className="crosshook-sidebar__item crosshook-collections-sidebar__item"
-      value={`library-filter-${filterKey}`}
+      aria-pressed={isPressed}
       onClick={() => onNavigate('library', { libraryFilter: filterKey })}
       title={label}
     >
@@ -160,7 +167,7 @@ function SidebarLibraryFilterTrigger({
       </span>
       <span className="crosshook-sidebar__item-label crosshook-collections-sidebar__item-name">{label}</span>
       {badge !== undefined ? <span className="crosshook-collections-sidebar__item-count">{badge}</span> : null}
-    </Tabs.Trigger>
+    </button>
   );
 }
 
@@ -176,12 +183,14 @@ function StatusRow({ label, value }: { label: string; value: string }) {
 function SidebarSectionBlock({
   section,
   activeRoute,
+  activeLibraryFilter,
   onNavigate,
   onOpenCollection,
   libraryFilterBadges,
 }: {
   section: SidebarSection;
   activeRoute: AppRoute;
+  activeLibraryFilter: LibraryFilterKey;
   onNavigate: (route: AppRoute, options?: AppNavigateOptions) => void;
   onOpenCollection: (id: string) => void;
   libraryFilterBadges: Partial<Record<LibraryFilterKey, string | number>> | undefined;
@@ -209,6 +218,8 @@ function SidebarSectionBlock({
               <SidebarLibraryFilterTrigger
                 key={item.filterKey}
                 onNavigate={onNavigate}
+                activeRoute={activeRoute}
+                activeLibraryFilter={activeLibraryFilter}
                 filterKey={item.filterKey}
                 label={item.label}
                 icon={item.icon}
@@ -230,6 +241,7 @@ export function Sidebar({
   lastProfile,
   onOpenCollection,
   variant,
+  activeLibraryFilter,
   libraryFilterBadges,
 }: SidebarProps) {
   const controllerLabel = controllerMode ? 'On' : 'Off';
@@ -286,6 +298,7 @@ export function Sidebar({
             key={section.key}
             section={section}
             activeRoute={activeRoute}
+            activeLibraryFilter={activeLibraryFilter}
             onNavigate={onNavigate}
             onOpenCollection={onOpenCollection}
             libraryFilterBadges={libraryFilterBadges}

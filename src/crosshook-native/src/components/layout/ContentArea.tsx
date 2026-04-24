@@ -1,5 +1,6 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useLayoutEffect, useRef } from 'react';
+import type { LibraryFilterKey } from '@/types/library';
 import type { AppNavigateOptions, LibraryFilterIntent } from '@/types/navigation';
 import CommunityPage from '../pages/CommunityPage';
 import CompatibilityPage from '../pages/CompatibilityPage';
@@ -18,10 +19,17 @@ export interface ContentAreaProps {
   route: AppRoute;
   onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
   libraryFilterIntent?: LibraryFilterIntent | null;
+  onLibraryFilterChange?: (key: LibraryFilterKey) => void;
   onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
 }
 
-export function ContentArea({ route, onNavigate, libraryFilterIntent, onOpenCommandPalette }: ContentAreaProps) {
+export function ContentArea({
+  route,
+  onNavigate,
+  libraryFilterIntent,
+  onLibraryFilterChange,
+  onOpenCommandPalette,
+}: ContentAreaProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -64,6 +72,7 @@ export function ContentArea({ route, onNavigate, libraryFilterIntent, onOpenComm
           <LibraryPage
             onNavigate={onNavigate}
             libraryFilterIntent={libraryFilterIntent}
+            onLibraryFilterChange={onLibraryFilterChange}
             onOpenCommandPalette={onOpenCommandPalette}
           />
         );

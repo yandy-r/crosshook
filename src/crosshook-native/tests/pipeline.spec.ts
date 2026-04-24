@@ -1,15 +1,6 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { attachConsoleCapture, type ConsoleCapture } from './helpers';
-
-async function navigateViaCommandPalette(page: Page, commandTitle: 'Go to Launch' | 'Go to Profiles'): Promise<void> {
-  await page.keyboard.press('Control+KeyK');
-  const search = page.getByRole('searchbox', { name: 'Search commands' });
-  await expect(search).toBeVisible();
-  await search.fill(commandTitle);
-  await expect(page.getByRole('button', { name: commandTitle, exact: true })).toBeVisible();
-  await search.press('Enter');
-  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
-}
+import { navigateViaCommandPalette } from './navigation-helpers';
 
 test.describe('launch pipeline visualization', () => {
   let capture: ConsoleCapture;

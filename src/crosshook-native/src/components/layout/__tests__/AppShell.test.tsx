@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/AppShell';
@@ -146,20 +146,23 @@ describe('AppShell (integration)', () => {
     try {
       renderWithMocks(<AppShellInAppProviders />);
 
-      await user.click(await screen.findByRole('tab', { name: 'Favorites' }));
+      const sidebar = await screen.findByTestId('sidebar');
+      const sidebarNav = within(sidebar);
+
+      await user.click(await sidebarNav.findByRole('button', { name: 'Favorites' }));
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Favorites' })).toHaveAttribute('aria-pressed', 'true');
+        expect(sidebarNav.getByRole('button', { name: 'Favorites' })).toHaveAttribute('aria-pressed', 'true');
       });
 
       await user.click(screen.getByRole('button', { name: 'All' }));
       expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
 
-      await user.click(screen.getByRole('tab', { name: 'Favorites' }));
+      await user.click(sidebarNav.getByRole('button', { name: 'Favorites' }));
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: 'Favorites' })).toHaveAttribute('aria-pressed', 'true');
+        expect(sidebarNav.getByRole('button', { name: 'Favorites' })).toHaveAttribute('aria-pressed', 'true');
       });
 
-      await user.click(screen.getByRole('tab', { name: 'Currently Playing' }));
+      await user.click(sidebarNav.getByRole('button', { name: 'Currently Playing' }));
       await waitFor(() => {
         expect(screen.getByRole('button', { name: 'Running' })).toHaveAttribute('aria-pressed', 'true');
       });

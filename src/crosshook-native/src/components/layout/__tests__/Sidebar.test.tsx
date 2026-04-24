@@ -20,6 +20,7 @@ function renderSidebar(
           lastProfile="Deck Test Profile"
           onOpenCollection={vi.fn()}
           variant={variant}
+          activeLibraryFilter="all"
           libraryFilterBadges={libraryFilterBadges}
         />
       </Tabs.Root>
@@ -51,8 +52,8 @@ describe('Sidebar', () => {
 
     await screen.findByRole('button', { name: /Action \/ Adventure/i });
 
-    const favorites = screen.getByRole('tab', { name: /Favorites/i });
-    const currentlyPlaying = screen.getByRole('tab', { name: /Currently Playing/i });
+    const favorites = screen.getByRole('button', { name: /Favorites/i });
+    const currentlyPlaying = screen.getByRole('button', { name: /Currently Playing/i });
 
     expect(favorites).toBeInTheDocument();
     expect(currentlyPlaying).toBeInTheDocument();

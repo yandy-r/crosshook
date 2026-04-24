@@ -10,3 +10,12 @@ interface ImportMeta {
 }
 
 declare const __WEB_DEV_MODE__: boolean;
+
+/** Browser dev + Playwright: optional hook for E2E to invoke mock IPC. Stripped in production. */
+interface CrosshookDev {
+  callCommand: (name: string, args?: import('@tauri-apps/api/core').InvokeArgs) => Promise<unknown>;
+}
+
+interface Window {
+  __CROSSHOOK_DEV__?: CrosshookDev;
+}

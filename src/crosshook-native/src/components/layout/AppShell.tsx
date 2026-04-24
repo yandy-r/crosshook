@@ -21,6 +21,7 @@ import { useBreakpoint } from '@/hooks/useBreakpoint';
 import { useCollections } from '@/hooks/useCollections';
 import { useCommandPalette } from '@/hooks/useCommandPalette';
 import { useFlatpakMigrationToast } from '@/hooks/useFlatpakMigrationToast';
+import { useRunningProfiles } from '@/hooks/useRunningProfiles';
 import {
   type CommandPaletteCommand,
   createProfileCommands,
@@ -29,6 +30,7 @@ import {
 } from '@/lib/commands';
 import { subscribeEvent } from '@/lib/events';
 import { isAppRoute } from '@/lib/validAppRoutes';
+import type { LibraryFilterKey } from '@/types/library';
 import type { AppNavigateOptions, LibraryFilterIntent } from '@/types/navigation';
 import type { OnboardingCheckPayload } from '@/types/onboarding';
 import { ContextRail } from './ContextRail';
@@ -68,9 +70,15 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
     useProfileContext();
   const [route, setRoute] = useState<AppRoute>('library');
   const [libraryFilterIntent, setLibraryFilterIntent] = useState<LibraryFilterIntent | null>(null);
+  const [activeLibraryFilter, setActiveLibraryFilter] = useState<LibraryFilterKey>('all');
   const libraryFilterIntentTokenRef = useRef(0);
   const lastProfile = profileName.trim() || selectedProfile;
   const activeProfileName = selectedProfile.trim();
+  const runningProfiles = useRunningProfiles();
+  const libraryFilterBadges = useMemo(() => {
+    const n = runningProfiles.size;
+    return n > 0 ? { currentlyRunning: n } : undefined;
+  }, [runningProfiles]);
   const shellRef = useRef<HTMLDivElement>(null);
   const consolePanelRef = useRef<PanelImperativeHandle>(null);
   const paletteRestoreTargetRef = useRef<HTMLElement | null>(null);
@@ -89,8 +97,13 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
   const setLibraryShellModeRef = useRef(setLibraryShellMode);
   setLibraryShellModeRef.current = setLibraryShellMode;
 
+  const handleLibraryFilterChange = useCallback((key: LibraryFilterKey) => {
+    setActiveLibraryFilter(key);
+  }, []);
+
   const handleNavigate = useCallback((nextRoute: AppRoute, options?: AppNavigateOptions) => {
     if (options?.libraryFilter) {
+      setActiveLibraryFilter(options.libraryFilter);
       libraryFilterIntentTokenRef.current += 1;
       setLibraryFilterIntent({
         filterKey: options.libraryFilter,
@@ -372,6 +385,8 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                     lastProfile={lastProfile}
                     onOpenCollection={handleOpenCollection}
                     variant={sidebarVariant}
+                    activeLibraryFilter={activeLibraryFilter}
+                    libraryFilterBadges={libraryFilterBadges}
                   />
                 </Panel>
                 <Panel className="crosshook-shell-panel" minSize="28%">
@@ -386,6 +401,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                           route={route}
                           onNavigate={handleNavigate}
                           libraryFilterIntent={libraryFilterIntent}
+                          onLibraryFilterChange={handleLibraryFilterChange}
                           onOpenCommandPalette={openPalette}
                         />
                       </Panel>
@@ -409,6 +425,7 @@ export function AppShell({ controllerMode }: { controllerMode: boolean }) {
                           route={route}
                           onNavigate={handleNavigate}
                           libraryFilterIntent={libraryFilterIntent}
+                          onLibraryFilterChange={handleLibraryFilterChange}
                           onOpenCommandPalette={openPalette}
                         />
                       </div>

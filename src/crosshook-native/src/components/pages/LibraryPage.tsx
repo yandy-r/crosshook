@@ -35,10 +35,16 @@ function loadViewMode(): LibraryViewMode {
 interface LibraryPageProps {
   onNavigate?: (route: AppRoute, options?: AppNavigateOptions) => void;
   libraryFilterIntent?: LibraryFilterIntent | null;
+  onLibraryFilterChange?: (key: LibraryFilterKey) => void;
   onOpenCommandPalette?: (restoreFocusTo?: HTMLElement | null) => void;
 }
 
-export function LibraryPage({ onNavigate, libraryFilterIntent, onOpenCommandPalette }: LibraryPageProps) {
+export function LibraryPage({
+  onNavigate,
+  libraryFilterIntent,
+  onLibraryFilterChange,
+  onOpenCommandPalette,
+}: LibraryPageProps) {
   const { profiles, favoriteProfiles, selectProfile, toggleFavorite, refreshProfiles, activeCollectionId } =
     useProfileContext();
   const {
@@ -98,6 +104,10 @@ export function LibraryPage({ onNavigate, libraryFilterIntent, onOpenCommandPale
     setLibraryShellMode('library');
     setFilterKey(libraryFilterIntent.filterKey);
   }, [libraryFilterIntent, setLibraryShellMode]);
+
+  useEffect(() => {
+    onLibraryFilterChange?.(filterKey);
+  }, [filterKey, onLibraryFilterChange]);
 
   // Persist view mode
   const handleViewModeChange = useCallback((mode: LibraryViewMode) => {
