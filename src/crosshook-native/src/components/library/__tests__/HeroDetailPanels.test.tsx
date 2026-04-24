@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { describe, expect, it } from 'vitest';
+import { ProfileProvider } from '@/context/ProfileContext';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
 import { makeLibraryCardData } from '@/test/fixtures';
 import type { LaunchPreview, LaunchRequest } from '@/types/launch';
@@ -158,6 +159,9 @@ function renderHeroDetailPanels(overrides: Partial<HeroDetailPanelsProps> = {}) 
     previewLoading: false,
     preview: makePreview(),
     previewError: null,
+    updateProfile: undefined,
+    profileList: undefined,
+    onSetActiveTab: undefined,
     ...overrides,
   };
 
@@ -235,5 +239,37 @@ describe('HeroDetailPanels', () => {
     expect(
       screen.getByText('Launch preview is unavailable until the game executable is set on this profile.')
     ).toBeInTheDocument();
+  });
+});
+
+describe('no-op defaults', () => {
+  it('renders read-only panels when updateProfile is omitted', () => {
+    render(
+      <ProfileProvider>
+        <HeroDetailPanels
+          mode="profiles"
+          summary={makeLibraryCardData()}
+          steamAppId="9999001"
+          meta={metaStub}
+          profile={null}
+          loadState="idle"
+          profileError={null}
+          healthReport={undefined}
+          healthLoading={false}
+          offlineReport={undefined}
+          offlineError={null}
+          launchRequest={null}
+          previewLoading={false}
+          preview={null}
+          previewError={null}
+          updateProfile={undefined}
+          profileList={undefined}
+          onSetActiveTab={undefined}
+        />
+      </ProfileProvider>
+    );
+
+    expect(screen.getByRole('heading', { name: 'Active profile' })).toBeInTheDocument();
+    expect(screen.getByText('No active profile loaded in the editor for this game.')).toBeInTheDocument();
   });
 });
