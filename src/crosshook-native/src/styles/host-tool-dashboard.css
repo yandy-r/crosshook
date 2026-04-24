@@ -793,3 +793,15 @@
   display: grid;
   gap: 8px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-host-tool-dashboard-skeleton,
+  .crosshook-host-tool-dashboard-skeleton--count,
+  .crosshook-host-tool-dashboard-skeleton--label,
+  .crosshook-host-tool-dashboard-skeleton--state,
+  .crosshook-host-tool-dashboard-skeleton--meta,
+  .crosshook-host-tool-dashboard-tile--skeleton {
+    animation: none;
+    opacity: 0.6;
+  }
+}

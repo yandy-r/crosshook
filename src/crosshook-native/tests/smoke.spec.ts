@@ -49,7 +49,7 @@ const DASHBOARD_ROUTE_HEADINGS: Partial<Record<AppRoute, string>> = {
   'host-tools': 'Check runtime coverage before you launch',
   'proton-manager': 'Manage installed Proton builds',
   compatibility: 'Keep trainer reports and Proton runtimes in the same workflow',
-  install: 'Install & Run',
+  install: 'Installation options',
   settings: 'App preferences and storage',
   community: 'Community Profiles',
   discover: 'Trainer Discovery',
@@ -93,8 +93,8 @@ test.describe('browser dev mode smoke', () => {
       if (dashboardHeading) {
         const activeTabPanel = page.locator('[role="tabpanel"]:not([hidden])');
         // Scope to the DashboardPanelSection title to avoid collision with
-        // RouteBanner headings that share the same text on some routes (e.g.
-        // install has "Install & Run" in both the banner h1 and the panel h2).
+        // RouteBanner headings that may share text on other routes (e.g.
+        // several dashboards duplicate their banner h1 as the panel h2).
         await expect(
           page.locator('.crosshook-dashboard-panel-section__title', { hasText: dashboardHeading }).first()
         ).toBeVisible();
@@ -429,4 +429,71 @@ test.describe('responsive breakpoint sweep', () => {
       }
     });
   }
+});
+
+test.describe('reduced-motion smoke', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+  });
+
+  test('library renders without console errors under prefers-reduced-motion', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+    await expect(
+      page.locator('.crosshook-library-card__hover-reveal').first(),
+      'library hover-reveal element must be present to validate reduced-motion transition'
+    ).toBeAttached();
+    const hoverRevealSeconds = await page.evaluate(() => {
+      const el = document.querySelector('.crosshook-library-card__hover-reveal');
+      if (!el) {
+        throw new Error('hover-reveal element missing after attach check');
+      }
+      return Number.parseFloat(window.getComputedStyle(el).transitionDuration);
+    });
+    // Project's global reduced-motion rule (theme.css) collapses to 0.01ms so
+    // `transitionend` still fires — anything under 1ms is "effectively zero".
+    expect(hoverRevealSeconds, 'hover-reveal transition must be near-zero under reduced-motion').toBeLessThan(0.001);
+    await expect(
+      page.locator('.crosshook-library-card').first(),
+      'library card root must be present to validate reduced-motion transition'
+    ).toBeAttached();
+    const cardSeconds = await page.evaluate(() => {
+      const el = document.querySelector('.crosshook-library-card');
+      if (!el) {
+        throw new Error('library card element missing after attach check');
+      }
+      return Number.parseFloat(window.getComputedStyle(el).transitionDuration);
+    });
+    expect(cardSeconds, 'card root transition must be near-zero under reduced-motion').toBeLessThan(0.001);
+    expect(capture.errors, `Reduced-motion library errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+
+  test('command palette opens without animation under prefers-reduced-motion', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+    await page.keyboard.press('Control+k');
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible({ timeout: 3000 });
+    await expect(
+      page.locator('.crosshook-palette__row').first(),
+      'palette row must be present to validate reduced-motion transition'
+    ).toBeAttached();
+    const paletteRowSeconds = await page.evaluate(() => {
+      const el = document.querySelector('.crosshook-palette__row');
+      if (!el) {
+        throw new Error('palette row element missing after attach check');
+      }
+      return Number.parseFloat(window.getComputedStyle(el).transitionDuration);
+    });
+    // See the library-card test for the 0.01ms global-rule rationale.
+    expect(paletteRowSeconds, 'palette row transition must be near-zero under reduced-motion').toBeLessThan(0.001);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    expect(capture.errors, `Reduced-motion palette errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
 });

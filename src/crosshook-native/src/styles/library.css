@@ -56,8 +56,10 @@
   transition: border-color var(--crosshook-transition-fast) ease;
 }
 
-.crosshook-library-toolbar__search:focus {
+.crosshook-library-toolbar__search:focus-visible {
+  outline: none;
   border-color: var(--crosshook-color-accent);
+  box-shadow: 0 0 0 3px var(--crosshook-color-accent-soft);
 }
 
 .crosshook-library-toolbar__search::placeholder {
@@ -295,6 +297,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .crosshook-library-card {
+    transition: none;
+  }
+
+  .crosshook-library-card:hover {
+    transform: none;
+  }
+
   .crosshook-library-card__hover-reveal {
     transition: none;
   }
@@ -605,6 +615,12 @@
   color: var(--crosshook-color-danger);
 }
 
+.crosshook-library-list-row__btn--launch:focus-visible,
+.crosshook-library-list-row__btn--icon:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--crosshook-color-accent-soft);
+}
+
 /* ── Toolbar chips + palette trigger (Phase 4) ─────────────────────────── */
 
 .crosshook-library-toolbar__chip-group {
@@ -661,6 +677,13 @@
   background: var(--crosshook-color-surface);
   color: var(--crosshook-color-text);
   border-color: var(--crosshook-color-accent);
+}
+
+.crosshook-library-toolbar__chip:focus-visible,
+.crosshook-library-toolbar__view-btn:focus-visible,
+.crosshook-library-toolbar__palette-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--crosshook-color-accent-soft);
 }
 
 /* ── Game inspector (library rail body) ───────────────────────────────── */
@@ -822,4 +845,13 @@
   font-size: 0.7rem;
   color: var(--crosshook-color-text-muted);
   overflow-wrap: break-word;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-library-list-row {
+    transition: none;
+  }
+  .crosshook-library-list-row:hover {
+    transform: none;
+  }
 }

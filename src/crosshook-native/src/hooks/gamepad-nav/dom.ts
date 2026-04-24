@@ -66,7 +66,10 @@ export function getFocusZoneForElement(root: HTMLElement | null, element: HTMLEl
   const explicitZoneRoot = element.closest<HTMLElement>(`[${FOCUS_ZONE_ATTRIBUTE}]`);
   const explicitZone = explicitZoneRoot?.getAttribute(FOCUS_ZONE_ATTRIBUTE);
 
-  if ((explicitZone === 'sidebar' || explicitZone === 'content') && root.contains(explicitZoneRoot)) {
+  if (
+    (explicitZone === 'sidebar' || explicitZone === 'content' || explicitZone === 'inspector') &&
+    root.contains(explicitZoneRoot)
+  ) {
     return explicitZone;
   }
 

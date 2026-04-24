@@ -329,7 +329,7 @@ export function InstallPage({ onNavigate }: InstallPageProps) {
           <RouteBanner route="install" />
           <DashboardPanelSection
             eyebrow="Setup"
-            title="Install & Run"
+            title="Installation options"
             summary="Run a Windows installer through Proton, update an existing game prefix, or launch a standalone executable."
             className="crosshook-install-page-tabs"
           >

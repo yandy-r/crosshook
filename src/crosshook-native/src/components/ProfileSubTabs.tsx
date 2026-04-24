@@ -161,6 +161,7 @@ export function ProfileSubTabs({
       </div>
 
       <div className="crosshook-subtabs-foreground">
+        <h2 className="crosshook-visually-hidden">Profile sections</h2>
         <Tabs.List
           className={`crosshook-subtab-row${dominantColor ? ' crosshook-subtab-row--themed' : ''}`}
           aria-label="Profile sections"

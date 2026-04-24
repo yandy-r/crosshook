@@ -1,7 +1,7 @@
 import { useUmuDatabaseRefresh } from '../../hooks/useUmuDatabaseRefresh';
 import type { AppSettingsData, UmuPreference } from '../../types';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
-import { ThemedSelect } from '../ui/ThemedSelect';
+import { ThemedSelectField } from '../ui/ThemedSelectField';
 import { formatTimestamp } from './format';
 
 interface RunnerSectionProps {
@@ -24,12 +24,8 @@ export function RunnerSection({ settings, onPersistSettings }: RunnerSectionProp
         Global runner applied to every launch. Individual profiles can override this in their Runtime section.
       </p>
       <div className="crosshook-settings-field-row">
-        <label className="crosshook-label" htmlFor="umu-preference" id="umu-preference-label">
-          Runner (global default)
-        </label>
-        <ThemedSelect
-          id="umu-preference"
-          ariaLabelledby="umu-preference-label"
+        <ThemedSelectField
+          label="Runner (global default)"
           value={settings.umu_preference}
           onValueChange={(value) => void onPersistSettings({ umu_preference: value as UmuPreference })}
           options={[

@@ -152,6 +152,7 @@ export function LaunchSubTabs({
         </div>
 
         <div className="crosshook-subtabs-foreground">
+          <h2 className="crosshook-visually-hidden">Launch configuration</h2>
           <Tabs.List
             className={`crosshook-subtab-row${dominantColor ? ' crosshook-subtab-row--themed' : ''}`}
             aria-label="Launch configuration sections"

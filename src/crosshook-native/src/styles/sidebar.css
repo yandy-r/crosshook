@@ -337,3 +337,13 @@
     gap: 2px;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-sidebar {
+    transition: none;
+  }
+  .crosshook-sidebar__item {
+    transition: none;
+    transform: none;
+  }
+}

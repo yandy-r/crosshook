@@ -63,6 +63,7 @@ export function ProfilesHero({
         <section className="crosshook-launch-panel crosshook-route-hero-launch-panel">
           <div className="crosshook-launch-panel__profile-row">
             <label
+              id="profile-selector-top-label"
               className="crosshook-label"
               htmlFor="profile-selector-top"
               style={{ margin: 0, whiteSpace: 'nowrap' }}
@@ -85,6 +86,7 @@ export function ProfilesHero({
               )}
               <ThemedSelect
                 id="profile-selector-top"
+                ariaLabelledby="profile-selector-top-label"
                 value={selectedProfile}
                 onValueChange={onSelectProfile}
                 placeholder="Create New"

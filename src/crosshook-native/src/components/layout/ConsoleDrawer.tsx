@@ -169,6 +169,7 @@ export function ConsoleDrawer({ panelRef, mode = 'drawer', defaultCollapsed = tr
         type="button"
         aria-controls={bodyId}
         aria-expanded={!collapsed}
+        aria-label={collapsed ? 'Expand runtime console' : 'Collapse runtime console'}
         className="crosshook-console-drawer__toggle"
         onClick={toggle}
       >

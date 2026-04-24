@@ -258,7 +258,7 @@ export function InstallGamePanel({ onOpenProfileReview, onRequestInstallAction }
   const stepNumber = Object.fromEntries(visibleSteps.map((key, idx) => [key, idx + 1]));
 
   return (
-    <section className="crosshook-install-shell" aria-labelledby="install-game-heading">
+    <section className="crosshook-install-shell" aria-label="Install game flow">
       <div className="crosshook-install-shell__content">
         <Tabs.Root
           className="crosshook-install-flow-tabs"
