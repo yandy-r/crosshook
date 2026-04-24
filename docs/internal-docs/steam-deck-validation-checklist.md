@@ -80,7 +80,7 @@ Target: Steam Deck native (1280×800, WebKitGTK, gamepad + touchscreen). This se
 
 ### Command palette at deck
 
-- [ ] Ctrl+K or ⌘K opens the palette overlay
+- [ ] Steam button + X (virtual keyboard) + `Ctrl+K`, or the in-app command-palette trigger via touchscreen, opens the palette overlay — verify with gamepad/touchscreen input alone (no external keyboard)
 - [ ] D-Pad Up/Down navigates command items
 - [ ] A button executes the selected command
 - [ ] B button closes the palette; focus returns to prior element

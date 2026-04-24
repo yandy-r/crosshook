@@ -67,9 +67,9 @@ Closed the Phase 13 quality-gate for the unified-desktop redesign. Delivered:
 
 1. **Worktree path**: Plan specifies `~/.claude-worktrees/crosshook-feat/unified-desktop-phase-13` (with `/` separator); implementation uses `~/.claude-worktrees/crosshook-unified-desktop-phase-13` (flat slug). The skill's `merge-children.sh` requires the flat `<repo>-<slug>` format. Branch name `feat/unified-desktop-phase-13` matches the plan exactly; only the directory path differs.
 2. **Steam Deck checklist filename**: Plan says `steam-deck-checklist.md`; existing file at `docs/internal-docs/steam-deck-validation-checklist.md` was extended rather than creating a duplicate.
-3. **Task 3.1 → Task 2.1 absorption**: Task 2.1's implementor proactively fixed residual axe violations as they surfaced during test authoring. This was the intent of Task 3.1 (fix-after-discovery). Net result: zero axe violations across all 18 test cases.
+3. **Task 3.1 → Task 2.1 absorption**: Task 2.1's implementer proactively fixed residual axe violations as they surfaced during test authoring. This was the intent of Task 3.1 (fix-after-discovery). Net result: zero axe violations across all 18 test cases.
 4. **`@types/jest-axe` added**: Plan listed only `jest-axe`. TypeScript types required `@types/jest-axe@^3.5.9` for clean typecheck.
-5. **host-tool-dashboard reduced-motion selector**: Plan suggested `[class*='...'][class*='skeleton']` pattern; implementor found 6 concrete class names at `host-tool-dashboard.css:362-393` and used those directly — stricter and no collateral effect.
+5. **host-tool-dashboard reduced-motion selector**: Plan suggested `[class*='...'][class*='skeleton']` pattern; implementer found 6 concrete class names at `host-tool-dashboard.css:362-393` and used those directly — stricter and no collateral effect.
 
 ## Issues Encountered
 
