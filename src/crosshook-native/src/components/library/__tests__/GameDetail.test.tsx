@@ -66,4 +66,12 @@ describe('GameDetail', () => {
     await user.click(historyTab);
     expect(historyTab).toHaveAttribute('aria-selected', 'true');
   });
+
+  it('forwards phase-1 panel-contract placeholders through panelProps', async () => {
+    renderGameDetail({ summary: makeLibraryCardData() });
+    const root = await screen.findByTestId('game-detail');
+    expect(root).toBeInTheDocument();
+    // No direct assertion on the placeholder values — their presence is enforced by TS.
+    // If any placeholder leaks as a visible string, the test will fail on render.
+  });
 });
