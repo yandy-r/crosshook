@@ -59,11 +59,12 @@ export function CommunityProfilesSection({
           />
         </div>
         <div className="crosshook-community-browser__field">
-          <label className="crosshook-label" htmlFor="compatibility-filter">
+          <label id="compatibility-filter-label" className="crosshook-label" htmlFor="compatibility-filter">
             Compatibility
           </label>
           <ThemedSelect
             id="compatibility-filter"
+            ariaLabelledby="compatibility-filter-label"
             value={ratingFilter}
             onValueChange={(val) => onRatingFilterChange(val as 'all' | CommunityCompatibilityRating)}
             options={[

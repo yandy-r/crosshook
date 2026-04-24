@@ -106,7 +106,7 @@ export function UpdateGamePanel({ protonInstalls, protonInstallsError }: UpdateG
   return (
     <section
       className="crosshook-install-shell"
-      aria-labelledby="update-game-heading"
+      aria-label="Update game flow"
       data-crosshook-focus-zone
       style={gameColorStyle}
     >

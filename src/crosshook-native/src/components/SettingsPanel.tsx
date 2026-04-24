@@ -38,7 +38,7 @@ export function SettingsPanel({
         <div className="crosshook-settings-summary">
           <span className="crosshook-status-chip">
             <strong>Last profile:</strong>
-            <span>{settings.last_used_profile.trim().length > 0 ? settings.last_used_profile : 'none'}</span>
+            <span>{(settings.last_used_profile ?? '').trim().length > 0 ? settings.last_used_profile : 'none'}</span>
           </span>
           <span className="crosshook-status-chip">
             <strong>Recent limit:</strong>
@@ -47,7 +47,6 @@ export function SettingsPanel({
         </div>
       }
       className="crosshook-settings-panel"
-      aria-label="Settings"
     >
       <div className="crosshook-settings-grid">
         <div className="crosshook-settings-column">

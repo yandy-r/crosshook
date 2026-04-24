@@ -91,7 +91,7 @@ export function RunExecutablePanel({ protonInstalls, protonInstallsError }: RunE
   }
 
   return (
-    <section className="crosshook-install-shell" aria-labelledby="run-executable-heading" data-crosshook-focus-zone>
+    <section className="crosshook-install-shell" aria-label="Run executable flow" data-crosshook-focus-zone>
       <div className="crosshook-install-shell__content">
         <div className="crosshook-install-intro">
           <div className="crosshook-heading-eyebrow">Run EXE/MSI</div>

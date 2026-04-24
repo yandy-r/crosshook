@@ -17,7 +17,7 @@ export function ProfilesSection({
   onClearRecentFiles,
   onBrowseProfilesDirectory,
 }: ProfilesSectionProps) {
-  const profilesDirectoryMessage = settings.profiles_directory.trim()
+  const profilesDirectoryMessage = (settings.profiles_directory ?? '').trim()
     ? 'Custom path is saved in settings.toml. Restart CrossHook to use it as the active profile store.'
     : 'Leave empty to use the default directory under your CrossHook config folder.';
 
