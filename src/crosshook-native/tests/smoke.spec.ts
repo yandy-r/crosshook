@@ -455,6 +455,18 @@ test.describe('reduced-motion smoke', () => {
       return window.getComputedStyle(el).transitionDuration;
     });
     expect(transitionDuration, 'hover-reveal transition must be 0s under reduced-motion').toBe('0s');
+    await expect(
+      page.locator('.crosshook-library-card').first(),
+      'library card root must be present to validate reduced-motion transition'
+    ).toBeAttached();
+    const cardTransitionDuration = await page.evaluate(() => {
+      const el = document.querySelector('.crosshook-library-card');
+      if (!el) {
+        throw new Error('library card element missing after attach check');
+      }
+      return window.getComputedStyle(el).transitionDuration;
+    });
+    expect(cardTransitionDuration, 'card root transition must be 0s under reduced-motion').toBe('0s');
     expect(capture.errors, `Reduced-motion library errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 

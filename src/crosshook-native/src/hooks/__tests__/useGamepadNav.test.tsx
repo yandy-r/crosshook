@@ -92,6 +92,50 @@ describe('useGamepadNav', () => {
     expect(editButton).toHaveFocus();
   });
 
+  it('moves focus to content zone when back() is called from inspector zone', async () => {
+    function InspectorHarness({ onBack }: HarnessProps) {
+      const nav = useGamepadNav({ enabled: true, onBack });
+      latestState = nav;
+
+      return (
+        <div
+          ref={(node) => {
+            nav.rootRef.current = node;
+          }}
+          data-testid="nav-root"
+        >
+          <nav data-crosshook-focus-zone="sidebar">
+            <button type="button">Library</button>
+          </nav>
+          <main data-crosshook-focus-zone="content">
+            <button type="button">Launch</button>
+          </main>
+          <aside data-crosshook-focus-zone="inspector">
+            <button type="button">Inspector Action</button>
+          </aside>
+        </div>
+      );
+    }
+
+    const onBack = vi.fn();
+    render(<InspectorHarness onBack={onBack} />);
+
+    const inspectorButton = screen.getByRole('button', { name: 'Inspector Action' });
+    const contentRegion = screen.getByRole('main');
+
+    inspectorButton.focus();
+    expect(inspectorButton).toHaveFocus();
+
+    act(() => {
+      latestState?.back();
+    });
+
+    await waitFor(() => {
+      expect(contentRegion.contains(document.activeElement)).toBe(true);
+    });
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
   it('focuses the content zone when the active sidebar route changes', async () => {
     render(<GamepadNavHarness enabled />);
 
