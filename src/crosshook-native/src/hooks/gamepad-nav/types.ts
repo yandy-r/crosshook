@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react';
 
-export type FocusZone = 'sidebar' | 'content';
+export type FocusZone = 'sidebar' | 'content' | 'inspector';
 
 export interface GamepadNavOptions {
   enabled?: boolean;
