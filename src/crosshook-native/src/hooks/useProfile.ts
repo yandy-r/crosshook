@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { subscribeEvent } from '@/lib/events';
 import type {
   BundledOptimizationPreset,
@@ -9,7 +9,18 @@ import type {
   LaunchAutoSaveStatus,
 } from '../types';
 import type { LaunchOptimizationId } from '../types/launch-optimizations';
-import { buildConflictMatrix, buildOptionsById, type OptimizationCatalogPayload } from '../utils/optimization-catalog';
+import {
+  buildConflictMatrix,
+  buildOptionsById,
+  type OptimizationCatalogPayload,
+  type OptimizationEntry,
+} from '../utils/optimization-catalog';
+
+// Stable empty fallbacks prevent new object references on each render when catalog is null,
+// which would otherwise cascade into useProfileCrud / useProfileLaunchAutosave dependency loops.
+const EMPTY_OPTIONS_BY_ID: Record<string, OptimizationEntry> = {};
+const EMPTY_CONFLICT_MATRIX: Record<string, readonly string[]> = {};
+
 import type { LaunchOptimizationsStatus as LaunchOptimizationsStatusType } from './profile/launchOptimizationStatus';
 import {
   type PendingDelete as PendingDeleteType,
@@ -127,18 +138,30 @@ export type LaunchOptimizationsStatus = LaunchOptimizationsStatusType;
 export function useProfile(options: UseProfileOptions = {}): UseProfileResult {
   const { catalog, loading: catalogLoading } = useLaunchOptimizationCatalog();
   const catalogLoaded = catalog !== null;
-  const optionsById = useMemo(() => (catalog ? buildOptionsById(catalog.entries) : {}), [catalog]);
-  const conflictMatrix = useMemo(() => (catalog ? buildConflictMatrix(catalog.entries) : {}), [catalog]);
+  const optionsById = useMemo(() => (catalog ? buildOptionsById(catalog.entries) : EMPTY_OPTIONS_BY_ID), [catalog]);
+  const conflictMatrix = useMemo(
+    () => (catalog ? buildConflictMatrix(catalog.entries) : EMPTY_CONFLICT_MATRIX),
+    [catalog]
+  );
 
   const setLastSavedProfileSnapshotRef = useRef<(profile: GameProfile) => void>(() => {});
   const clearAutosaveTimersRef = useRef<() => void>(() => {});
+
+  // Stable wrappers that call through refs. useCallback with [] ensures these never
+  // change identity across renders — inline arrows would cause loadProfile to recreate
+  // on every render cycle, leading to an infinite setState loop via InspectorSelectionContext.
+  const setLastSavedProfileSnapshot = useCallback(
+    (nextProfile: GameProfile) => setLastSavedProfileSnapshotRef.current(nextProfile),
+    []
+  );
+  const clearAutosaveTimers = useCallback(() => clearAutosaveTimersRef.current(), []);
 
   const crud = useProfileCrud({
     optionsById,
     catalogLoaded,
     autoSelectFirstProfile: options.autoSelectFirstProfile ?? true,
-    setLastSavedProfileSnapshot: (nextProfile) => setLastSavedProfileSnapshotRef.current(nextProfile),
-    clearAutosaveTimers: () => clearAutosaveTimersRef.current(),
+    setLastSavedProfileSnapshot,
+    clearAutosaveTimers,
   });
 
   const launchAutosave = useProfileLaunchAutosave({

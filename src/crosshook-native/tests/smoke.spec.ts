@@ -345,4 +345,88 @@ test.describe('console chrome smoke', () => {
 
     expect(capture.errors, `Desktop console chrome errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
+
+  test('renders the compact status bar at deck width (1024×800)', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await page.goto('/?fixture=populated');
+    await expect(page.getByTestId('console-status-bar')).toBeVisible();
+    await expect(page.getByTestId('console-drawer')).toHaveCount(0);
+    await expect(page.getByText('⌘K commands')).toBeVisible();
+    expect(capture.errors, `Deck console chrome errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+});
+
+test.describe('context rail smoke', () => {
+  test('visible on library route at ultrawide (3440×1440)', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 3440, height: 1440 });
+    await page.goto('/?fixture=populated');
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('context-rail')).toBeVisible();
+    expect(capture.errors, `Context rail UW errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+
+  test('absent on library route below CONTEXT_RAIL_MIN_VIEWPORT_WIDTH (2560×1440)', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 2560, height: 1440 });
+    await page.goto('/?fixture=populated');
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('[data-testid="context-rail"]')).toHaveCount(0);
+    expect(capture.errors, `Context rail sub-UW errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+});
+
+const SWEEP_VIEWPORTS = [
+  { width: 1280, height: 800 }, // narrow
+  { width: 1920, height: 1080 }, // desk
+  { width: 2560, height: 1440 }, // uw (context rail hidden: 2560 < 3400)
+  { width: 3440, height: 1440 }, // uw (context rail visible on library: 3440 >= 3400)
+] as const;
+
+test.describe('responsive breakpoint sweep', () => {
+  for (const { width, height } of SWEEP_VIEWPORTS) {
+    test.describe(`${width}x${height}`, () => {
+      for (const { route, navLabel } of ROUTES) {
+        test(`route: ${route}`, async ({ page }) => {
+          const capture = attachConsoleCapture(page);
+          await page.setViewportSize({ width, height });
+          await page.goto('/?fixture=populated');
+
+          const devChip = page.getByRole('status', { name: /Browser dev mode active/i });
+          await expect(devChip).toBeVisible();
+
+          const trigger = page.getByRole('tab', { name: navLabel, exact: true });
+          await expect(trigger).toBeVisible();
+          await trigger.click();
+          await expect(trigger).toHaveAttribute('aria-current', 'page');
+
+          await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {
+            /* expected: no network in mock mode */
+          });
+
+          const dashboardHeading = DASHBOARD_ROUTE_HEADINGS[route];
+          if (dashboardHeading) {
+            await expect(
+              page.locator('.crosshook-dashboard-panel-section__title', { hasText: dashboardHeading }).first()
+            ).toBeVisible();
+          }
+
+          await page.screenshot({
+            path: `test-results/smoke-${route}-${width}x${height}.png`,
+            fullPage: true,
+          });
+
+          expect(
+            capture.errors,
+            `[${width}x${height}] Uncaught errors on route "${route}":\n${capture.errors.join('\n')}`
+          ).toEqual([]);
+        });
+      }
+    });
+  }
 });
