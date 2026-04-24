@@ -230,3 +230,10 @@
     justify-self: start;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-palette__row {
+    transition: none;
+    transform: none;
+  }
+}

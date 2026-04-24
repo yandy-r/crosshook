@@ -180,3 +180,9 @@
   margin: 4px 8px;
   background: var(--crosshook-color-border);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-themed-select__content {
+    animation: none;
+  }
+}
