@@ -58,3 +58,55 @@ This validates that the Phase 3 merge layer correctly applies collection-level `
 ## Pass/fail criteria
 
 All 10 checks in the validation checklist must pass. Any failure blocks Phase 5 completion. Failures should be filed as issues with the `platform:steam-deck` and `area:ui` labels, referencing the specific check number and observed behavior.
+
+## Phase 13 — Unified Desktop Polish & A11y (2026-04)
+
+Target: Steam Deck native (1280×800, WebKitGTK, gamepad + touchscreen). This section supplements the Phase 5 checklist above with Phase 13–specific a11y, motion, and focus-ring verifications. Run on hardware before closing issue #425.
+
+### Shell layout at 1280×800
+
+- [ ] Sidebar renders as 56px icon rail; no text labels visible
+- [ ] Inspector panel absent (0px width) — no phantom column
+- [ ] Console shows 32px compact status bar, not the full drawer
+- [ ] Status bar shows readiness chips + "⌘K commands" tip text
+- [ ] No horizontal overflow or scrollbar on any route
+
+### Library at deck viewport
+
+- [ ] Library grid renders cards at correct widths; no wrapping issues
+- [ ] Touching a card shows action buttons
+- [ ] Selecting a card (double-tap or Enter) enters hero detail; sidebar rail remains
+- [ ] Back button / B button returns to library grid
+
+### Command palette at deck
+
+- [ ] Ctrl+K or ⌘K opens the palette overlay
+- [ ] D-Pad Up/Down navigates command items
+- [ ] A button executes the selected command
+- [ ] B button closes the palette; focus returns to prior element
+
+### Gamepad zone navigation
+
+- [ ] D-Pad Left moves focus to sidebar; D-Pad Right to content
+- [ ] D-Pad Up/Down moves within active zone
+- [ ] A button activates focused element; B moves focus out/back
+- [ ] Controller-mode focus rings visible on all focused elements
+
+### Focus rings (keyboard navigation mode)
+
+- [ ] Library toolbar chips show focus ring on Tab focus
+- [ ] Library toolbar search shows focus ring on Tab focus
+- [ ] Library list row buttons show focus rings individually
+- [ ] Themed-select items show ring on keyboard navigation
+- [ ] Console toggle button shows focus ring
+
+### Reduced motion (OS setting: Reduce Motion = On)
+
+- [ ] Library card hover-reveal does not animate
+- [ ] Sidebar collapse is instant (no width transition)
+- [ ] Palette rows do not slide-in
+- [ ] No animation flash on any surface
+
+### Blocking issues (sign-off gate — must be zero)
+
+- [ ] NONE
