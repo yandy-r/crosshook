@@ -6,7 +6,7 @@ import { useLaunchHistoryForProfile } from '@/hooks/useLaunchHistoryForProfile';
 import type { OfflineReadinessReport } from '@/types';
 import type { EnrichedProfileHealthReport } from '@/types/health';
 import type { LaunchPreview, LaunchRequest, PreviewEnvVar } from '@/types/launch';
-import type { LibraryCardData } from '@/types/library';
+import type { LibraryCardData, ProfileSummary } from '@/types/library';
 import type { GameProfile } from '@/types/profile';
 import { groupPreviewEnvBySource, launchMethodLabel } from '@/utils/launchPreviewPresentation';
 import { GameDetailsCompatibilitySection } from './GameDetailsCompatibilitySection';
@@ -31,6 +31,12 @@ export interface HeroDetailPanelsProps {
   previewLoading: boolean;
   preview: LaunchPreview | null;
   previewError: string | null;
+  /** Phase 1 channel: intentionally async-draft shape, differs from `useProfile.ts#updateProfile` (sync updater). Consumed by Phase 4/5. */
+  updateProfile?: (draft: GameProfile) => Promise<void>;
+  /** Phase 1 channel: left-list cards source for Phase 4 Profiles tab. */
+  profileList?: ProfileSummary[];
+  /** Phase 1 channel: panel-body → shell request, distinct from `HeroDetailTabs#onActiveTabChange`. Consumed by Phase 7 Overview deep-links. */
+  onSetActiveTab?: (tab: HeroDetailTabId) => void;
 }
 
 function formatLaunchTime(iso: string): string {
@@ -412,6 +418,9 @@ export function HeroDetailPanels({
   previewLoading,
   preview,
   previewError,
+  updateProfile,
+  profileList,
+  onSetActiveTab,
 }: HeroDetailPanelsProps) {
   switch (mode) {
     case 'overview':
