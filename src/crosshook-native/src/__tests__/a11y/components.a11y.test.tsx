@@ -1,4 +1,5 @@
 import { TooltipProvider } from '@radix-ui/react-tooltip';
+import { screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ContextRail } from '@/components/layout/ContextRail';
@@ -192,11 +193,78 @@ describe('HeroDetailTabs accessibility', () => {
           previewLoading: false,
           preview: null,
           previewError: null,
+          updateProfile: undefined,
+          profileList: undefined,
+          onSetActiveTab: undefined,
         }}
       />
     );
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+
+  it('renders profiles tab content with correct data-testid', () => {
+    const summary = makeLibraryCardData();
+    renderWithMocks(
+      <ProfileProvider>
+        <HeroDetailTabs
+          activeTab="profiles"
+          onActiveTabChange={noop}
+          panelProps={{
+            summary,
+            steamAppId: summary.steamAppId ?? '',
+            meta: META_STUB,
+            profile: null,
+            loadState: 'idle',
+            profileError: null,
+            healthReport: undefined,
+            healthLoading: false,
+            offlineReport: undefined,
+            offlineError: null,
+            launchRequest: null,
+            previewLoading: false,
+            preview: null,
+            previewError: null,
+            updateProfile: undefined,
+            profileList: undefined,
+            onSetActiveTab: undefined,
+          }}
+        />
+      </ProfileProvider>
+    );
+    expect(screen.getByTestId('hero-detail-profiles-tab')).toBeInTheDocument();
+  });
+
+  it('renders launch-options tab content with correct data-testid', () => {
+    const summary = makeLibraryCardData();
+    renderWithMocks(
+      <ProfileProvider>
+        <HeroDetailTabs
+          activeTab="launch-options"
+          onActiveTabChange={noop}
+          panelProps={{
+            summary,
+            steamAppId: summary.steamAppId ?? '',
+            meta: META_STUB,
+            profile: null,
+            loadState: 'idle',
+            profileError: null,
+            healthReport: undefined,
+            healthLoading: false,
+            offlineReport: undefined,
+            offlineError: null,
+            launchRequest: null,
+            previewLoading: false,
+            preview: null,
+            previewError: null,
+            updateProfile: undefined,
+            profileList: undefined,
+            onSetActiveTab: undefined,
+          }}
+        />
+      </ProfileProvider>
+    );
+    expect(screen.getByTestId('hero-detail-launch-tab')).toBeInTheDocument();
   });
 });
 
