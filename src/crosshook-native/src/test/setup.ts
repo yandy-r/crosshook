@@ -262,3 +262,13 @@ export function resetMockResizeObserver(): void {
 }
 
 export { MockResizeObserver };
+
+import { configureAxe, toHaveNoViolations } from 'jest-axe';
+import { expect } from 'vitest';
+
+expect.extend(toHaveNoViolations);
+
+// Color contrast requires real CSS rendering; not meaningful in happy-dom.
+configureAxe({
+  rules: { 'color-contrast': { enabled: false } },
+});
