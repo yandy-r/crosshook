@@ -91,6 +91,9 @@ jobs:
       - name: Host-gateway guardrail
         run: ./scripts/check-host-gateway.sh
 
+      - name: Check legacy palette
+        run: ./scripts/check-legacy-palette.sh
+
       - name: Mock coverage contract gate
         run: ./scripts/check-mock-coverage.sh
 
