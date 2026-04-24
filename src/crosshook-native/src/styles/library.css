@@ -838,3 +838,12 @@
   color: var(--crosshook-color-text-muted);
   overflow-wrap: break-word;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .crosshook-library-list-row {
+    transition: none;
+  }
+  .crosshook-library-list-row:hover {
+    transform: none;
+  }
+}
