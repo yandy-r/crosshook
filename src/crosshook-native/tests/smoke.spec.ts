@@ -430,3 +430,45 @@ test.describe('responsive breakpoint sweep', () => {
     });
   }
 });
+
+test.describe('reduced-motion smoke', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+  });
+
+  test('library renders without console errors under prefers-reduced-motion', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await libraryTab.click();
+    await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+    const transitionDuration = await page.evaluate(() => {
+      const el = document.querySelector('.crosshook-library-card__hover-reveal');
+      return el ? window.getComputedStyle(el).transitionDuration : null;
+    });
+    if (transitionDuration !== null) {
+      expect(transitionDuration, 'hover-reveal transition must be 0s under reduced-motion').toBe('0s');
+    }
+    expect(capture.errors, `Reduced-motion library errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+
+  test('command palette opens without animation under prefers-reduced-motion', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+    await page.keyboard.press('Control+k');
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible({ timeout: 3000 });
+    const rowTransition = await page.evaluate(() => {
+      const el = document.querySelector('.crosshook-palette__row');
+      return el ? window.getComputedStyle(el).transitionDuration : null;
+    });
+    if (rowTransition !== null) {
+      expect(rowTransition, 'palette row transition must be 0s under reduced-motion').toBe('0s');
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    expect(capture.errors, `Reduced-motion palette errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+});
