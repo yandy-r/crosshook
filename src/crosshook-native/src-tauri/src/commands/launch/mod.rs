@@ -21,12 +21,14 @@ mod warnings;
 pub use execution::{launch_game, launch_trainer};
 pub use queries::{
     build_steam_launch_options_command, check_game_running, check_gamescope_session,
-    launch_platform_status, list_launch_history_for_profile, preview_launch, validate_launch,
+    launch_platform_status, list_launch_history_for_profile, list_running_profiles, preview_launch,
+    validate_launch,
 };
 
 pub use execution::{__cmd__launch_game, __cmd__launch_trainer};
 pub use queries::{
     __cmd__build_steam_launch_options_command, __cmd__check_game_running,
     __cmd__check_gamescope_session, __cmd__launch_platform_status,
-    __cmd__list_launch_history_for_profile, __cmd__preview_launch, __cmd__validate_launch,
+    __cmd__list_launch_history_for_profile, __cmd__list_running_profiles, __cmd__preview_launch,
+    __cmd__validate_launch,
 };

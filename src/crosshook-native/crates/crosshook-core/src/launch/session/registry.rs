@@ -106,6 +106,23 @@ impl LaunchSessionRegistry {
         matches.into_iter().map(|entry| entry.id).collect()
     }
 
+    /// List active profile keys, optionally filtered by session kind.
+    /// Results are sorted and de-duplicated for deterministic read-only UI
+    /// consumers.
+    pub fn active_profile_keys(&self, kind_filter: Option<SessionKind>) -> Vec<String> {
+        let mut profile_keys: Vec<String> = {
+            let guard = self.inner.lock().expect("launch session registry poisoned");
+            guard
+                .values()
+                .filter(|entry| kind_filter.is_none_or(|kind| entry.kind == kind))
+                .map(|entry| entry.profile_key.clone())
+                .collect()
+        };
+        profile_keys.sort();
+        profile_keys.dedup();
+        profile_keys
+    }
+
     /// Atomically register a new session and, if a compatible parent exists
     /// for the same profile with the given kind, link to it — all under a
     /// single lock acquisition. Closes the register → lookup → link race
@@ -386,6 +403,36 @@ mod tests {
             "most-recently-registered game should be first"
         );
         assert_eq!(games[1], first_game_id);
+    }
+
+    #[test]
+    fn active_profile_keys_returns_sorted_deduped_profiles() {
+        let registry = LaunchSessionRegistry::new();
+        let (_b_game, _b_game_rx) = registry.register(SessionKind::Game, "profile-b");
+        let (_a_game, _a_game_rx) = registry.register(SessionKind::Game, "profile-a");
+        let (_a_trainer, _a_trainer_rx) = registry.register(SessionKind::Trainer, "profile-a");
+        let (_b_trainer, _b_trainer_rx) = registry.register(SessionKind::Trainer, "profile-b");
+
+        assert_eq!(
+            registry.active_profile_keys(None),
+            vec!["profile-a".to_string(), "profile-b".to_string()]
+        );
+    }
+
+    #[test]
+    fn active_profile_keys_filters_to_games() {
+        let registry = LaunchSessionRegistry::new();
+        let (_trainer_only, _trainer_only_rx) =
+            registry.register(SessionKind::Trainer, "trainer-only");
+        let (_b_game, _b_game_rx) = registry.register(SessionKind::Game, "profile-b");
+        let (_a_trainer, _a_trainer_rx) = registry.register(SessionKind::Trainer, "profile-a");
+        let (_a_game, _a_game_rx) = registry.register(SessionKind::Game, "profile-a");
+        let (_a_second_game, _a_second_game_rx) = registry.register(SessionKind::Game, "profile-a");
+
+        assert_eq!(
+            registry.active_profile_keys(Some(SessionKind::Game)),
+            vec!["profile-a".to_string(), "profile-b".to_string()]
+        );
     }
 
     #[tokio::test]

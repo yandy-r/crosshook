@@ -1,16 +1,18 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import type { ComponentType, SVGProps } from 'react';
+import type { LibraryFilterKey } from '@/types/library';
+import type { AppNavigateOptions } from '@/types/navigation';
 import { CollectionsSidebar } from '../collections/CollectionsSidebar';
 import {
   BrowseIcon,
   CompatibilityIcon,
   DiscoverIcon,
   HealthIcon,
+  HeartIcon,
   HostToolsIcon,
   InstallIcon,
-  LaunchIcon,
   LibraryIcon,
-  ProfilesIcon,
+  PlayIcon,
   ProtonManagerIcon,
   SettingsIcon,
 } from '../icons/SidebarIcons';
@@ -32,64 +34,82 @@ export type AppRoute =
 
 export interface SidebarProps {
   activeRoute: AppRoute;
-  onNavigate: (route: AppRoute) => void;
+  onNavigate: (route: AppRoute, options?: AppNavigateOptions) => void;
   controllerMode: boolean;
   lastProfile: string;
   onOpenCollection: (id: string) => void;
   variant: SidebarVariant;
+  /** Current library toolbar filter; drives `aria-pressed` on Favorites / Currently Playing. */
+  activeLibraryFilter: LibraryFilterKey;
+  libraryFilterBadges?: Partial<Record<LibraryFilterKey, string | number>>;
 }
 
-interface SidebarSectionItem {
+interface SidebarRouteItem {
+  type: 'route';
   route: AppRoute;
   label: string;
   icon: ComponentType<SVGProps<SVGSVGElement>>;
+}
+
+interface SidebarLibraryFilterItem {
+  type: 'library-filter';
+  filterKey: LibraryFilterKey;
+  label: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  badge?: string | number;
 }
 
 interface SidebarRouteSection {
   key: string;
   label: string;
   type: 'routes';
-  items: SidebarSectionItem[];
+  items: SidebarRouteItem[];
 }
 
 interface SidebarCollectionsSection {
   key: 'collections';
   label: 'Collections';
   type: 'collections';
+  items: SidebarLibraryFilterItem[];
 }
 
 type SidebarSection = SidebarRouteSection | SidebarCollectionsSection;
+type SidebarRouteTriggerProps = Omit<SidebarRouteItem, 'type'> & Pick<SidebarProps, 'activeRoute' | 'onNavigate'>;
+type SidebarLibraryFilterTriggerProps = Omit<SidebarLibraryFilterItem, 'type' | 'badge'> &
+  Pick<SidebarProps, 'onNavigate' | 'activeRoute' | 'activeLibraryFilter'> & {
+    badge: string | number | undefined;
+  };
 
 const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     key: 'game',
     label: 'Game',
     type: 'routes',
-    items: [
-      { route: 'library', label: ROUTE_NAV_LABEL.library, icon: LibraryIcon },
-      { route: 'profiles', label: ROUTE_NAV_LABEL.profiles, icon: ProfilesIcon },
-      { route: 'launch', label: ROUTE_NAV_LABEL.launch, icon: LaunchIcon },
-    ],
+    items: [{ type: 'route', route: 'library', label: ROUTE_NAV_LABEL.library, icon: LibraryIcon }],
   },
   {
     key: 'collections',
     label: 'Collections',
     type: 'collections',
+    items: [
+      { type: 'library-filter', filterKey: 'favorites', label: 'Favorites', icon: HeartIcon },
+      { type: 'library-filter', filterKey: 'currentlyRunning', label: 'Currently Playing', icon: PlayIcon },
+    ],
   },
   {
     key: 'setup',
     label: 'Setup',
     type: 'routes',
-    items: [{ route: 'install', label: ROUTE_NAV_LABEL.install, icon: InstallIcon }],
+    items: [{ type: 'route', route: 'install', label: ROUTE_NAV_LABEL.install, icon: InstallIcon }],
   },
   {
     key: 'dashboards',
     label: 'Dashboards',
     type: 'routes',
     items: [
-      { route: 'health', label: ROUTE_NAV_LABEL.health, icon: HealthIcon },
-      { route: 'host-tools', label: ROUTE_NAV_LABEL['host-tools'], icon: HostToolsIcon },
-      { route: 'proton-manager', label: ROUTE_NAV_LABEL['proton-manager'], icon: ProtonManagerIcon },
+      { type: 'route', route: 'health', label: ROUTE_NAV_LABEL.health, icon: HealthIcon },
+      { type: 'route', route: 'host-tools', label: ROUTE_NAV_LABEL['host-tools'], icon: HostToolsIcon },
+      { type: 'route', route: 'proton-manager', label: ROUTE_NAV_LABEL['proton-manager'], icon: ProtonManagerIcon },
     ],
   },
   {
@@ -97,20 +117,14 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     label: 'Community',
     type: 'routes',
     items: [
-      { route: 'community', label: ROUTE_NAV_LABEL.community, icon: BrowseIcon },
-      { route: 'discover', label: ROUTE_NAV_LABEL.discover, icon: DiscoverIcon },
-      { route: 'compatibility', label: ROUTE_NAV_LABEL.compatibility, icon: CompatibilityIcon },
+      { type: 'route', route: 'community', label: ROUTE_NAV_LABEL.community, icon: BrowseIcon },
+      { type: 'route', route: 'discover', label: ROUTE_NAV_LABEL.discover, icon: DiscoverIcon },
+      { type: 'route', route: 'compatibility', label: ROUTE_NAV_LABEL.compatibility, icon: CompatibilityIcon },
     ],
   },
 ];
 
-function SidebarTrigger({
-  activeRoute,
-  onNavigate,
-  route,
-  label,
-  icon: Icon,
-}: SidebarSectionItem & Pick<SidebarProps, 'activeRoute' | 'onNavigate'>) {
+function SidebarTrigger({ activeRoute, onNavigate, route, label, icon: Icon }: SidebarRouteTriggerProps) {
   const isCurrent = activeRoute === route;
 
   return (
@@ -129,6 +143,34 @@ function SidebarTrigger({
   );
 }
 
+function SidebarLibraryFilterTrigger({
+  onNavigate,
+  activeRoute,
+  activeLibraryFilter,
+  filterKey,
+  label,
+  icon: Icon,
+  badge,
+}: SidebarLibraryFilterTriggerProps) {
+  const isPressed = activeRoute === 'library' && activeLibraryFilter === filterKey;
+
+  return (
+    <button
+      type="button"
+      className="crosshook-sidebar__item crosshook-collections-sidebar__item"
+      aria-pressed={isPressed}
+      onClick={() => onNavigate('library', { libraryFilter: filterKey })}
+      title={label}
+    >
+      <span className="crosshook-sidebar__item-icon" aria-hidden="true">
+        <Icon />
+      </span>
+      <span className="crosshook-sidebar__item-label crosshook-collections-sidebar__item-name">{label}</span>
+      {badge !== undefined ? <span className="crosshook-collections-sidebar__item-count">{badge}</span> : null}
+    </button>
+  );
+}
+
 function StatusRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="crosshook-sidebar__status">
@@ -141,13 +183,17 @@ function StatusRow({ label, value }: { label: string; value: string }) {
 function SidebarSectionBlock({
   section,
   activeRoute,
+  activeLibraryFilter,
   onNavigate,
   onOpenCollection,
+  libraryFilterBadges,
 }: {
   section: SidebarSection;
   activeRoute: AppRoute;
-  onNavigate: (route: AppRoute) => void;
+  activeLibraryFilter: LibraryFilterKey;
+  onNavigate: (route: AppRoute, options?: AppNavigateOptions) => void;
   onOpenCollection: (id: string) => void;
+  libraryFilterBadges: Partial<Record<LibraryFilterKey, string | number>> | undefined;
 }) {
   return (
     <div className="crosshook-sidebar__section" key={section.key}>
@@ -166,7 +212,23 @@ function SidebarSectionBlock({
           ))}
         </div>
       ) : (
-        <CollectionsSidebar onOpenCollection={onOpenCollection} />
+        <>
+          <div className="crosshook-sidebar__section-items">
+            {section.items.map((item) => (
+              <SidebarLibraryFilterTrigger
+                key={item.filterKey}
+                onNavigate={onNavigate}
+                activeRoute={activeRoute}
+                activeLibraryFilter={activeLibraryFilter}
+                filterKey={item.filterKey}
+                label={item.label}
+                icon={item.icon}
+                badge={libraryFilterBadges?.[item.filterKey] ?? item.badge}
+              />
+            ))}
+          </div>
+          <CollectionsSidebar onOpenCollection={onOpenCollection} />
+        </>
       )}
     </div>
   );
@@ -179,6 +241,8 @@ export function Sidebar({
   lastProfile,
   onOpenCollection,
   variant,
+  activeLibraryFilter,
+  libraryFilterBadges,
 }: SidebarProps) {
   const controllerLabel = controllerMode ? 'On' : 'Off';
   const profileLabel = lastProfile.trim() || 'No profile selected';
@@ -234,8 +298,10 @@ export function Sidebar({
             key={section.key}
             section={section}
             activeRoute={activeRoute}
+            activeLibraryFilter={activeLibraryFilter}
             onNavigate={onNavigate}
             onOpenCollection={onOpenCollection}
+            libraryFilterBadges={libraryFilterBadges}
           />
         ))}
 

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { attachConsoleCapture, type ConsoleCapture } from './helpers';
+import { navigateViaCommandPalette } from './navigation-helpers';
 
 test.describe('launch pipeline visualization', () => {
   let capture: ConsoleCapture;
@@ -7,11 +8,7 @@ test.describe('launch pipeline visualization', () => {
   test.beforeEach(async ({ page }) => {
     capture = attachConsoleCapture(page);
     await page.goto('/?fixture=populated');
-    // Navigate to Launch page
-    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
-    await expect(launchTab).toBeVisible();
-    await launchTab.click();
-    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+    await navigateViaCommandPalette(page, 'Go to Launch');
   });
 
   test('renders correct number of pipeline nodes for proton_run method', async ({ page }) => {
@@ -76,19 +73,13 @@ test.describe('launch pipeline visualization', () => {
 
     // Seeded mock profiles intentionally start without an executable path, so
     // update the draft through the real profile form before previewing.
-    const profilesTab = page.getByRole('tab', { name: 'Profiles', exact: true });
-    await expect(profilesTab).toBeVisible();
-    await profilesTab.click();
-    await expect(profilesTab).toHaveAttribute('aria-current', 'page');
+    await navigateViaCommandPalette(page, 'Go to Profiles');
 
     const gamePathField = page.getByLabel('Game Path', { exact: true });
     await expect(gamePathField).toBeVisible();
     await gamePathField.fill('/home/devuser/Games/TestGameAlpha/game.exe');
 
-    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
-    await expect(launchTab).toBeVisible();
-    await launchTab.click();
-    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+    await navigateViaCommandPalette(page, 'Go to Launch');
 
     // Launch the game to drive the pipeline into the two-step waiting state.
     // That overlay adds a detail-bearing trainer node without opening the
@@ -125,10 +116,7 @@ test.describe('launch pipeline visualization', () => {
     // derivePipelineNodes only promotes `fatal` to `error` — trainer stays `configured`.
     capture = attachConsoleCapture(page);
     await page.goto('/?fixture=populated&gamePath=__MOCK_VALIDATION_WARNING__');
-    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
-    await expect(launchTab).toBeVisible();
-    await launchTab.click();
-    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+    await navigateViaCommandPalette(page, 'Go to Launch');
 
     const pipeline = page.locator('.crosshook-launch-pipeline');
     await expect(pipeline).toBeVisible();

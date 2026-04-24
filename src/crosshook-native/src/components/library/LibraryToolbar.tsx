@@ -10,6 +10,7 @@ const FILTER_OPTIONS: readonly { key: LibraryFilterKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'favorites', label: 'Favorites' },
   { key: 'installed', label: 'Installed' },
+  { key: 'currentlyRunning', label: 'Running' },
 ] as const;
 
 interface LibraryToolbarProps {
@@ -45,14 +46,8 @@ export function LibraryToolbar({
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
       />
-      <div
-        role="group"
-        aria-labelledby="crosshook-library-toolbar-sort-label"
-        className="crosshook-library-toolbar__chip-group"
-      >
-        <span id="crosshook-library-toolbar-sort-label" className="crosshook-visually-hidden">
-          Sort games
-        </span>
+      <fieldset className="crosshook-library-toolbar__chip-group">
+        <legend className="crosshook-visually-hidden">Sort games</legend>
         {SORT_OPTIONS.map((opt) => (
           <button
             key={opt.key}
@@ -64,15 +59,9 @@ export function LibraryToolbar({
             {opt.label}
           </button>
         ))}
-      </div>
-      <div
-        role="group"
-        aria-labelledby="crosshook-library-toolbar-filter-label"
-        className="crosshook-library-toolbar__chip-group"
-      >
-        <span id="crosshook-library-toolbar-filter-label" className="crosshook-visually-hidden">
-          Filter games
-        </span>
+      </fieldset>
+      <fieldset className="crosshook-library-toolbar__chip-group">
+        <legend className="crosshook-visually-hidden">Filter games</legend>
         {FILTER_OPTIONS.map((opt) => (
           <button
             key={opt.key}
@@ -84,7 +73,7 @@ export function LibraryToolbar({
             {opt.label}
           </button>
         ))}
-      </div>
+      </fieldset>
       <div className="crosshook-library-toolbar__view-toggle">
         <button
           type="button"

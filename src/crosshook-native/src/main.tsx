@@ -22,6 +22,12 @@ import './styles/palette.css';
 import './styles/hero-detail.css';
 import './styles/collections-sidebar.css';
 
+if (import.meta.env.DEV) {
+  void import('./lib/ipc').then(({ callCommand }) => {
+    window.__CROSSHOOK_DEV__ = { callCommand };
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <App />

@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import type { AppRoute } from '../src/components/layout/Sidebar';
 import { ROUTE_NAV_LABEL } from '../src/components/layout/routeMetadata';
 import { attachConsoleCapture, type ConsoleCapture } from './helpers';
+import { navigateViaCommandPalette, seedMockProfileRunning, waitForCrosshookDevIpc } from './navigation-helpers';
 
 /**
  * Smoke test the application routes in browser dev mode.
@@ -32,8 +33,6 @@ interface RouteDef {
 /** Order matches sidebar primary nav (see Sidebar.tsx). */
 const ROUTE_ORDER: readonly AppRoute[] = [
   'library',
-  'profiles',
-  'launch',
   'install',
   'health',
   'host-tools',
@@ -186,14 +185,47 @@ test.describe('library inspector', () => {
   });
 });
 
+test.describe('library sidebar quick filters', () => {
+  test('Favorites and Currently Playing activate matching library chips', async ({ page }) => {
+    const capture = attachConsoleCapture(page);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/?fixture=populated');
+    await waitForCrosshookDevIpc(page);
+    await seedMockProfileRunning(page, 'Test Game Alpha', true);
+
+    const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+    await expect(libraryTab).toBeVisible();
+    await libraryTab.click();
+
+    const sidebar = page.getByTestId('sidebar');
+    const favorites = sidebar.getByRole('button', { name: 'Favorites', exact: true });
+    await expect(favorites).toBeVisible();
+    await favorites.click();
+    await expect(sidebar.getByRole('button', { name: 'Favorites', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+
+    const currentlyPlaying = sidebar.getByRole('button', { name: 'Currently Playing', exact: true });
+    await expect(currentlyPlaying).toBeVisible();
+    await currentlyPlaying.click();
+    await expect(page.getByRole('button', { name: 'Running', exact: true })).toHaveAttribute('aria-pressed', 'true');
+
+    await expect(page.getByText('Test Game Alpha', { exact: true })).toBeVisible();
+    await expect(page.getByText('Dev Game Beta', { exact: true })).toHaveCount(0);
+
+    await seedMockProfileRunning(page, 'Test Game Alpha', false);
+
+    expect(capture.errors, `Library quick-filter errors:\n${capture.errors.join('\n')}`).toEqual([]);
+  });
+});
+
 test.describe('launch pipeline smoke', () => {
   test('pipeline renders on launch page', async ({ page }) => {
     const capture = attachConsoleCapture(page);
 
     await page.goto('/?fixture=populated');
-    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
-    await launchTab.click();
-    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
 
     await expect(page.locator('.crosshook-launch-pipeline')).toBeVisible();
     await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
@@ -213,11 +245,7 @@ test.describe('profiles + launch panel landing smoke', () => {
       const capture = attachConsoleCapture(page);
 
       await page.goto('/?fixture=populated');
-
-      const trigger = page.getByRole('tab', { name: navLabel, exact: true });
-      await expect(trigger).toBeVisible();
-      await trigger.click();
-      await expect(trigger).toHaveAttribute('aria-current', 'page');
+      await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL[route]}`);
 
       await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {
         /* expected: no network in mock mode */
@@ -239,9 +267,7 @@ test.describe('profiles + launch panel landing smoke', () => {
     const capture = attachConsoleCapture(page);
 
     await page.goto('/?fixture=populated');
-    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
-    await launchTab.click();
-    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
 
     await expect(page.locator('.crosshook-launch-pipeline__node')).toHaveCount(6);
     await expect(page.locator('section.crosshook-dashboard-panel-section').first()).toBeAttached();
@@ -315,9 +341,7 @@ test.describe('console chrome smoke', () => {
     await expect(drawer).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
-    const launchTab = page.getByRole('tab', { name: 'Launch', exact: true });
-    await launchTab.click();
-    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
 
     const profileSelect = page.locator('#launch-profile-selector');
     await expect(profileSelect).toBeVisible();
@@ -325,16 +349,13 @@ test.describe('console chrome smoke', () => {
     await page.getByRole('option', { name: 'Test Game Alpha', exact: true }).click();
     await expect(profileSelect).toContainText('Test Game Alpha');
 
-    const profilesTab = page.getByRole('tab', { name: 'Profiles', exact: true });
-    await profilesTab.click();
-    await expect(profilesTab).toHaveAttribute('aria-current', 'page');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.profiles}`);
 
     const gamePathField = page.getByLabel('Game Path', { exact: true });
     await expect(gamePathField).toBeVisible();
     await gamePathField.fill('/home/devuser/Games/TestGameAlpha/game.exe');
 
-    await launchTab.click();
-    await expect(launchTab).toHaveAttribute('aria-current', 'page');
+    await navigateViaCommandPalette(page, `Go to ${ROUTE_NAV_LABEL.launch}`);
 
     const launchGameButton = page.getByRole('button', { name: /^launch game$/i });
     await expect(launchGameButton).toBeEnabled();
@@ -492,7 +513,7 @@ test.describe('reduced-motion smoke', () => {
     });
     // See the library-card test for the 0.01ms global-rule rationale.
     expect(paletteRowSeconds, 'palette row transition must be near-zero under reduced-motion').toBeLessThan(0.001);
-    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Close command palette' }).click();
     await expect(dialog).toHaveCount(0);
     expect(capture.errors, `Reduced-motion palette errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });

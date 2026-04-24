@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/layout/AppShell';
@@ -138,6 +138,39 @@ describe('AppShell (integration)', () => {
     rectSpy.mockRestore();
   });
 
+  it('opens library with sidebar quick-filter intent', async () => {
+    const user = userEvent.setup();
+    setInnerWidth(1920);
+    setInnerHeight(1080);
+    const rectSpy = mockAppShellRect(1920, 1080);
+    try {
+      renderWithMocks(<AppShellInAppProviders />);
+
+      const sidebar = await screen.findByTestId('sidebar');
+      const sidebarNav = within(sidebar);
+
+      await user.click(await sidebarNav.findByRole('button', { name: 'Favorites' }));
+      await waitFor(() => {
+        expect(sidebarNav.getByRole('button', { name: 'Favorites' })).toHaveAttribute('aria-pressed', 'true');
+      });
+
+      await user.click(screen.getByRole('button', { name: 'All' }));
+      expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+
+      await user.click(sidebarNav.getByRole('button', { name: 'Favorites' }));
+      await waitFor(() => {
+        expect(sidebarNav.getByRole('button', { name: 'Favorites' })).toHaveAttribute('aria-pressed', 'true');
+      });
+
+      await user.click(sidebarNav.getByRole('button', { name: 'Currently Playing' }));
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Running' })).toHaveAttribute('aria-pressed', 'true');
+      });
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
   it('exposes sidebar and inspector test ids at desk width', async () => {
     setInnerWidth(1920);
     setInnerHeight(1080);
@@ -263,7 +296,9 @@ describe('AppShell (integration)', () => {
 
       await user.keyboard('{Control>}k{/Control}');
       const search = await screen.findByRole('searchbox', { name: 'Search commands' });
-      expect(search).toHaveFocus();
+      await waitFor(() => {
+        expect(search).toHaveFocus();
+      });
     } finally {
       rectSpy.mockRestore();
     }
@@ -304,7 +339,9 @@ describe('AppShell (integration)', () => {
       await user.click(trigger);
 
       const search = await screen.findByRole('searchbox', { name: 'Search commands' });
-      expect(search).toHaveFocus();
+      await waitFor(() => {
+        expect(search).toHaveFocus();
+      });
 
       await user.keyboard('{Escape}');
       await waitFor(() => {
