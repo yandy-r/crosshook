@@ -443,13 +443,18 @@ test.describe('reduced-motion smoke', () => {
     const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
     await libraryTab.click();
     await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+    await expect(
+      page.locator('.crosshook-library-card__hover-reveal').first(),
+      'library hover-reveal element must be present to validate reduced-motion transition'
+    ).toBeAttached();
     const transitionDuration = await page.evaluate(() => {
       const el = document.querySelector('.crosshook-library-card__hover-reveal');
-      return el ? window.getComputedStyle(el).transitionDuration : null;
+      if (!el) {
+        throw new Error('hover-reveal element missing after attach check');
+      }
+      return window.getComputedStyle(el).transitionDuration;
     });
-    if (transitionDuration !== null) {
-      expect(transitionDuration, 'hover-reveal transition must be 0s under reduced-motion').toBe('0s');
-    }
+    expect(transitionDuration, 'hover-reveal transition must be 0s under reduced-motion').toBe('0s');
     expect(capture.errors, `Reduced-motion library errors:\n${capture.errors.join('\n')}`).toEqual([]);
   });
 
@@ -460,13 +465,18 @@ test.describe('reduced-motion smoke', () => {
     await page.keyboard.press('Control+k');
     const dialog = page.locator('[role="dialog"]');
     await expect(dialog).toBeVisible({ timeout: 3000 });
+    await expect(
+      page.locator('.crosshook-palette__row').first(),
+      'palette row must be present to validate reduced-motion transition'
+    ).toBeAttached();
     const rowTransition = await page.evaluate(() => {
       const el = document.querySelector('.crosshook-palette__row');
-      return el ? window.getComputedStyle(el).transitionDuration : null;
+      if (!el) {
+        throw new Error('palette row element missing after attach check');
+      }
+      return window.getComputedStyle(el).transitionDuration;
     });
-    if (rowTransition !== null) {
-      expect(rowTransition, 'palette row transition must be 0s under reduced-motion').toBe('0s');
-    }
+    expect(rowTransition, 'palette row transition must be 0s under reduced-motion').toBe('0s');
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
     expect(capture.errors, `Reduced-motion palette errors:\n${capture.errors.join('\n')}`).toEqual([]);

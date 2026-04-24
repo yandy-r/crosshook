@@ -1,8 +1,16 @@
 import '@testing-library/jest-dom/vitest';
 import { webcrypto } from 'node:crypto';
 import { cleanup } from '@testing-library/react';
-import { afterEach, vi } from 'vitest';
+import { configureAxe, toHaveNoViolations } from 'jest-axe';
+import { afterEach, expect, vi } from 'vitest';
 import { resetMockHandlers } from './render';
+
+expect.extend(toHaveNoViolations);
+
+// Color contrast requires real CSS rendering; not meaningful in happy-dom.
+export const axe = configureAxe({
+  rules: { 'color-contrast': { enabled: false } },
+});
 
 type MatchMediaResult = {
   matches: boolean;
@@ -262,13 +270,3 @@ export function resetMockResizeObserver(): void {
 }
 
 export { MockResizeObserver };
-
-import { configureAxe, toHaveNoViolations } from 'jest-axe';
-import { expect } from 'vitest';
-
-expect.extend(toHaveNoViolations);
-
-// Color contrast requires real CSS rendering; not meaningful in happy-dom.
-configureAxe({
-  rules: { 'color-contrast': { enabled: false } },
-});

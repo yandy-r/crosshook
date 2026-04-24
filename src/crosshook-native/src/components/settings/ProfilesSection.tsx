@@ -41,7 +41,7 @@ export function ProfilesSection({
             placeholder="Empty = default (~/.config/crosshook/profiles)"
             onBlur={(event) => {
               const v = event.target.value.trim();
-              if (v !== settings.profiles_directory.trim()) {
+              if (v !== (settings.profiles_directory ?? '').trim()) {
                 void onPersistSettings({ profiles_directory: v });
               }
             }}

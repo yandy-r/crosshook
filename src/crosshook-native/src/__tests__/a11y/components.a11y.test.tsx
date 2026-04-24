@@ -1,5 +1,4 @@
 import { TooltipProvider } from '@radix-ui/react-tooltip';
-import { axe } from 'jest-axe';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ContextRail } from '@/components/layout/ContextRail';
@@ -16,6 +15,7 @@ import { ProfileProvider } from '@/context/ProfileContext';
 import type { UseGameMetadataResult } from '@/hooks/useGameMetadata';
 import { makeLibraryCardData } from '@/test/fixtures';
 import { renderWithMocks } from '@/test/render';
+import { axe } from '@/test/setup';
 
 vi.mock('@/lib/ipc', async () => {
   const { mockCallCommand } = await import('@/test/render');

@@ -271,7 +271,16 @@ export function useFocusManagement({
     const navigationRoot = getNavigationRoot(rootRef);
     if (!isModalNavigationRoot(navigationRoot)) {
       const root = getRootElement(rootRef);
-      const currentZone = getCurrentZone();
+      const currentZone: FocusZone | null = getCurrentZone();
+
+      if (currentZone === 'inspector') {
+        if (getFocusZoneRoot(root, 'content') && switchZone('content')) {
+          return;
+        }
+        if (getFocusZoneRoot(root, 'sidebar') && switchZone('sidebar')) {
+          return;
+        }
+      }
 
       if (currentZone === 'content' && getFocusZoneRoot(root, 'sidebar') && switchZone('sidebar')) {
         return;

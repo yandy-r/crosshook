@@ -1,5 +1,4 @@
 import { TooltipProvider } from '@radix-ui/react-tooltip';
-import { axe } from 'jest-axe';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CommunityPage } from '@/components/pages/CommunityPage';
@@ -21,6 +20,7 @@ import { PreferencesProvider } from '@/context/PreferencesContext';
 import { ProfileProvider } from '@/context/ProfileContext';
 import { ProfileHealthProvider } from '@/context/ProfileHealthContext';
 import { renderWithMocks } from '@/test/render';
+import { axe } from '@/test/setup';
 
 vi.mock('@/lib/ipc', async () => {
   const { mockCallCommand } = await import('@/test/render');
