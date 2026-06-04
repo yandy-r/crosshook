@@ -487,6 +487,136 @@ test.describe('responsive breakpoint sweep', () => {
   }
 });
 
+/**
+ * Viewports to sweep for the hero detail overflow assertions.
+ * Extends SWEEP_VIEWPORTS with the 1024×800 Steam Deck / narrow-portrait case.
+ */
+const HERO_DETAIL_OVERFLOW_VIEWPORTS = [
+  ...SWEEP_VIEWPORTS,
+  { width: 1024, height: 800 }, // deck / narrow-portrait
+] as const;
+
+test.describe('hero detail responsive no-horizontal-overflow', () => {
+  for (const { width, height } of HERO_DETAIL_OVERFLOW_VIEWPORTS) {
+    test.describe(`${width}x${height}`, () => {
+      /**
+       * Helper: navigate to library, open hero detail for Test Game Alpha,
+       * then click the given tab trigger and wait for it to be visible.
+       */
+      async function openHeroDetailTab(
+        page: import('@playwright/test').Page,
+        tabLabel: string
+      ): Promise<void> {
+        const devChip = page.getByRole('status', { name: /Browser dev mode active/i });
+        await expect(devChip).toBeVisible();
+
+        const libraryTab = page.getByRole('tab', { name: 'Library', exact: true });
+        await libraryTab.click();
+        await expect(libraryTab).toHaveAttribute('aria-current', 'page');
+
+        await page.getByRole('button', { name: 'View details for Test Game Alpha' }).click();
+        await expect(page.getByTestId('game-detail')).toBeVisible();
+
+        await page.getByRole('tab', { name: tabLabel, exact: true }).click();
+
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {
+          /* expected: no network in mock mode */
+        });
+      }
+
+      test('launch-options tab: no horizontal overflow', async ({ page }) => {
+        const capture = attachConsoleCapture(page);
+        await page.setViewportSize({ width, height });
+        await page.goto('/?fixture=populated');
+
+        await openHeroDetailTab(page, 'Launch options');
+
+        // The launch tab container must exist
+        await expect(
+          page.locator('.crosshook-hero-detail__launch-tab').first()
+        ).toBeAttached();
+
+        // Assert no horizontal overflow on document root
+        const rootOverflowing = await page.evaluate(() => {
+          return document.documentElement.scrollWidth > document.documentElement.clientWidth;
+        });
+        expect(
+          rootOverflowing,
+          `[${width}x${height}] launch-options: document root must not overflow horizontally`
+        ).toBe(false);
+
+        // Assert no horizontal overflow on the launch tab container
+        const launchTabOverflowing = await page.evaluate(() => {
+          const el = document.querySelector('.crosshook-hero-detail__launch-tab');
+          if (!el) {
+            throw new Error('crosshook-hero-detail__launch-tab not found');
+          }
+          return el.scrollWidth > el.clientWidth;
+        });
+        expect(
+          launchTabOverflowing,
+          `[${width}x${height}] launch-options: .crosshook-hero-detail__launch-tab must not overflow horizontally`
+        ).toBe(false);
+
+        await page.screenshot({
+          path: `test-results/hero-detail-launch-options-overflow-${width}x${height}.png`,
+          fullPage: true,
+        });
+
+        expect(
+          capture.errors,
+          `[${width}x${height}] hero-detail launch-options console errors:\n${capture.errors.join('\n')}`
+        ).toEqual([]);
+      });
+
+      test('profiles tab: no horizontal overflow', async ({ page }) => {
+        const capture = attachConsoleCapture(page);
+        await page.setViewportSize({ width, height });
+        await page.goto('/?fixture=populated');
+
+        await openHeroDetailTab(page, 'Profiles');
+
+        // The profiles editor must exist (it is always rendered once the tab is active)
+        await expect(
+          page.locator('.crosshook-hero-detail__profiles-editor').first()
+        ).toBeAttached();
+
+        // Assert no horizontal overflow on document root
+        const rootOverflowing = await page.evaluate(() => {
+          return document.documentElement.scrollWidth > document.documentElement.clientWidth;
+        });
+        expect(
+          rootOverflowing,
+          `[${width}x${height}] profiles: document root must not overflow horizontally`
+        ).toBe(false);
+
+        // Assert no horizontal overflow on the profiles editor container
+        const editorOverflowing = await page.evaluate(() => {
+          const el = document.querySelector('.crosshook-hero-detail__profiles-editor');
+          if (!el) {
+            throw new Error('crosshook-hero-detail__profiles-editor not found');
+          }
+          return el.scrollWidth > el.clientWidth;
+        });
+        expect(
+          editorOverflowing,
+          `[${width}x${height}] profiles: .crosshook-hero-detail__profiles-editor must not overflow horizontally`
+        ).toBe(false);
+
+        await page.screenshot({
+          path: `test-results/hero-detail-profiles-overflow-${width}x${height}.png`,
+          fullPage: true,
+        });
+
+        expect(
+          capture.errors,
+          `[${width}x${height}] hero-detail profiles console errors:\n${capture.errors.join('\n')}`
+        ).toEqual([]);
+      });
+    });
+  }
+});
+
 test.describe('reduced-motion smoke', () => {
   test.beforeEach(async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
