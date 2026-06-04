@@ -1,22 +1,18 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { callCommand } from '@/lib/ipc';
+import { useMemo, useRef, useState } from 'react';
 
 import { usePreferencesContext } from '../../../context/PreferencesContext';
 import { useProfileContext } from '../../../context/ProfileContext';
 import { useProfileHealthContext } from '../../../context/ProfileHealthContext';
+import { useProfileActions } from '../../../hooks/profile/useProfileActions';
 import { useCollectionMembers } from '../../../hooks/useCollectionMembers';
 import { useCollections } from '../../../hooks/useCollections';
-import type { CommunityExportResult } from '../../../hooks/useCommunityProfiles';
 import { useLaunchPlatformStatus } from '../../../hooks/useLaunchPlatformStatus';
 import { useOfflineReadiness } from '../../../hooks/useOfflineReadiness';
 import { useProfileSummaries } from '../../../hooks/useProfileSummaries';
 import { useTrainerTypeCatalog } from '../../../hooks/useTrainerTypeCatalog';
-import { chooseSaveFile } from '../../../utils/dialog';
 import { deriveTargetHomePath } from '../../../utils/steam';
 import { useProfilesCollectionState } from './useProfilesCollectionState';
-import { useProfilesPageNotifications } from './useProfilesPageNotifications';
 import { useProfilesPageProton } from './useProfilesPageProton';
-import { suggestedCommunityExportFilename } from './utils';
 
 export function useProfilesPageState() {
   const { defaultSteamClientInstallPath } = usePreferencesContext();
@@ -81,18 +77,11 @@ export function useProfilesPageState() {
   });
 
   const [pendingLauncherReExport, setPendingLauncherReExport] = useState(false);
-  const notifications = useProfilesPageNotifications({
-    canRename: profileExists && !saving && !deleting && !loading && !duplicating && !renaming,
-    hasPendingDelete: pendingDelete !== null,
-    profiles,
-    renaming,
-    renameProfile,
-    selectedProfile,
-    setPendingLauncherReExport,
-  });
+
+  const actions = useProfileActions({ setPendingLauncherReExport });
 
   const {
-    batchValidate,
+    batchValidate: _batchValidate,
     revalidateSingle,
     healthByName,
     summary,
@@ -118,122 +107,7 @@ export function useProfilesPageState() {
     selectedProfile,
   });
 
-  const canSave =
-    profileName.trim().length > 0 && profile.game.executable_path.trim().length > 0 && !saving && !deleting && !loading;
-  const canDelete = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
-  const canDuplicate = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
-  const canRename = profileExists && !saving && !deleting && !loading && !duplicating && !renaming;
-  const canPreview = profileName.trim().length > 0 && !loading;
-  const [previewing, setPreviewing] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const [showProfilePreview, setShowProfilePreview] = useState(false);
-  const [profilePreviewContent, setProfilePreviewContent] = useState('');
-  const [exportingCommunity, setExportingCommunity] = useState(false);
-  const [communityExportError, setCommunityExportError] = useState<string | null>(null);
-  const [communityExportSuccess, setCommunityExportSuccess] = useState<string | null>(null);
-  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
-  const [showWizard, setShowWizard] = useState(false);
-  const [wizardMode, setWizardMode] = useState<'create' | 'edit'>('create');
   const healthIssuesRef = useRef<HTMLDivElement>(null);
-
-  const canExportCommunity =
-    profileExists && !saving && !deleting && !loading && !duplicating && !renaming && !exportingCommunity;
-  const canViewHistory =
-    Boolean(selectedProfile.trim()) &&
-    profiles.includes(selectedProfile.trim()) &&
-    !saving &&
-    !deleting &&
-    !loading &&
-    !duplicating &&
-    !renaming &&
-    !exportingCommunity;
-
-  const handleSave = useCallback(async () => {
-    await saveProfile();
-    if (profileName.trim()) {
-      void revalidateSingle(profileName.trim());
-    }
-  }, [profileName, revalidateSingle, saveProfile]);
-
-  const handleAfterRollback = useCallback(
-    (name: string) => {
-      void revalidateSingle(name);
-    },
-    [revalidateSingle]
-  );
-
-  const handleExportCommunityProfile = useCallback(async () => {
-    const nameOnDisk = selectedProfile.trim();
-    if (!nameOnDisk || !profiles.includes(nameOnDisk)) {
-      setCommunityExportError('Save the profile before exporting as a community manifest.');
-      setCommunityExportSuccess(null);
-      return;
-    }
-
-    setCommunityExportError(null);
-    setCommunityExportSuccess(null);
-
-    const outputPath = await chooseSaveFile('Export community profile', {
-      defaultPath: suggestedCommunityExportFilename(nameOnDisk),
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    });
-
-    if (outputPath === null) {
-      return;
-    }
-
-    setExportingCommunity(true);
-    try {
-      const result = await callCommand<CommunityExportResult>('community_export_profile', {
-        profile_name: nameOnDisk,
-        output_path: outputPath,
-      });
-      setCommunityExportSuccess(`Community profile saved to ${result.output_path}`);
-      setCommunityExportError(null);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('Community profile export failed:', err);
-      setCommunityExportError(message);
-      setCommunityExportSuccess(null);
-    } finally {
-      setExportingCommunity(false);
-    }
-  }, [profiles, selectedProfile]);
-
-  const handlePreviewProfile = useCallback(async () => {
-    setPreviewing(true);
-    setPreviewError(null);
-    try {
-      const toml = await callCommand<string>('profile_export_toml', {
-        name: profileName,
-        data: profile,
-      });
-      setProfilePreviewContent(toml);
-      setPreviewError(null);
-      setShowProfilePreview(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('Profile preview failed:', err);
-      setPreviewError(message);
-    } finally {
-      setPreviewing(false);
-    }
-  }, [profile, profileName]);
-
-  const handleCloseProfilePreview = useCallback(() => {
-    setShowProfilePreview(false);
-    setPreviewError(null);
-  }, []);
-
-  const handleRefreshStatus = useCallback(async () => {
-    await refreshProfiles();
-    await batchValidate();
-  }, [batchValidate, refreshProfiles]);
-
-  const openWizard = useCallback((mode: 'create' | 'edit') => {
-    setWizardMode(mode);
-    setShowWizard(true);
-  }, []);
 
   const selectedReport = selectedProfile ? healthByName[selectedProfile] : undefined;
   const selectedCachedSnapshot = selectedProfile ? cachedSnapshots[selectedProfile] : undefined;
@@ -245,24 +119,15 @@ export function useProfilesPageState() {
   const selectedOfflineReport = selectedProfile ? offlineReadiness.reportForProfile(selectedProfile) : undefined;
 
   const trainerTypeDisplayName = useMemo(() => {
-    const id = profile.trainer.trainer_type?.trim() || 'unknown';
+    const id = profile.trainer?.trainer_type?.trim() || 'unknown';
     return trainerTypeLabels[id] ?? id;
-  }, [profile.trainer.trainer_type, trainerTypeLabels]);
+  }, [profile.trainer?.trainer_type, trainerTypeLabels]);
 
   return {
     ...collectionState,
-    ...notifications,
+    ...actions,
     ...protonState,
-    canDelete,
-    canDuplicate,
-    canExportCommunity,
-    canPreview,
-    canRename,
-    canSave,
-    canViewHistory,
     cancelDelete,
-    communityExportError,
-    communityExportSuccess,
     confirmDelete,
     deleting,
     dirty,
@@ -271,15 +136,8 @@ export function useProfilesPageState() {
     effectiveSteamClientInstallPath,
     error,
     executeDelete,
-    exportingCommunity,
     fetchConfigDiff,
     fetchConfigHistory,
-    handleAfterRollback,
-    handleCloseProfilePreview,
-    handleExportCommunityProfile,
-    handlePreviewProfile,
-    handleRefreshStatus,
-    handleSave,
     hasSelectedProfile,
     healthIssuesRef,
     healthLoading,
@@ -288,12 +146,9 @@ export function useProfilesPageState() {
     markKnownGood,
     pendingDelete,
     pendingLauncherReExport,
-    previewError,
-    previewing,
     profile,
     profileExists,
     profileName,
-    profilePreviewContent,
     profiles,
     renaming,
     revalidateSingle,
@@ -311,16 +166,9 @@ export function useProfilesPageState() {
     setActiveCollectionId,
     setPendingLauncherReExport,
     setProfileName,
-    setShowHistoryPanel,
-    setShowWizard,
-    showHistoryPanel,
-    showProfilePreview,
-    showWizard,
     summary,
     targetHomePath,
     trainerTypeDisplayName,
     updateProfile,
-    wizardMode,
-    openWizard,
   };
 }
