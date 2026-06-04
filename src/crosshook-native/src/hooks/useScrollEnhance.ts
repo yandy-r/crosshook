@@ -38,6 +38,31 @@ function isInteractiveTarget(el: Element | null): boolean {
   return false;
 }
 
+function canScrollAxis(position: number, viewportSize: number, contentSize: number, delta: number): boolean {
+  const maxScroll = contentSize - viewportSize;
+  if (maxScroll <= 0) return false;
+  if (delta > 0) return position < maxScroll;
+  if (delta < 0) return position > 0;
+  return false;
+}
+
+export function findEnhancedScrollContainer(target: Element, deltaX: number, deltaY: number): HTMLElement | null {
+  let container = target.closest(SCROLLABLE) as HTMLElement | null;
+
+  while (container) {
+    const canScrollY = canScrollAxis(container.scrollTop, container.clientHeight, container.scrollHeight, deltaY);
+    const canScrollX = canScrollAxis(container.scrollLeft, container.clientWidth, container.scrollWidth, deltaX);
+
+    if (canScrollY || canScrollX) {
+      return container;
+    }
+
+    container = container.parentElement?.closest(SCROLLABLE) as HTMLElement | null;
+  }
+
+  return null;
+}
+
 export function useScrollEnhance(): void {
   useEffect(() => {
     // Accumulated velocity that gets smoothly drained each frame.
@@ -79,7 +104,7 @@ export function useScrollEnhance(): void {
 
     function onWheel(e: WheelEvent) {
       if (!(e.target instanceof Element)) return;
-      const container = e.target.closest(SCROLLABLE) as HTMLElement | null;
+      const container = findEnhancedScrollContainer(e.target, e.deltaX, e.deltaY);
       if (!container) return;
 
       if (activeContainer && activeContainer !== container) {
@@ -120,8 +145,9 @@ export function useScrollEnhance(): void {
       }
 
       const container =
-        ((document.activeElement as Element | null)?.closest(SCROLLABLE) as HTMLElement | null) ??
-        (document.querySelector('.crosshook-content-area') as HTMLElement | null);
+        ((document.activeElement instanceof Element
+          ? findEnhancedScrollContainer(document.activeElement, dx, dy)
+          : null) as HTMLElement | null) ?? (document.querySelector('.crosshook-content-area') as HTMLElement | null);
       if (!container) return;
 
       e.preventDefault();

@@ -32,11 +32,11 @@ export function HeroDetailTabs({ activeTab, onActiveTabChange, panelProps }: Her
           <Tabs.Content
             key={tab.id}
             value={tab.id}
-            className="crosshook-subtab-content crosshook-hero-detail__tab-content"
+            className="crosshook-subtab-content crosshook-subtab-content--fill crosshook-hero-detail__tab-content"
             style={{ display: activeTab === tab.id ? undefined : 'none' }}
             {...(testId ? { 'data-testid': testId } : {})}
           >
-            <div className="crosshook-subtab-content__inner crosshook-hero-detail__panel-inner">
+            <div className="crosshook-subtab-content__inner crosshook-subtab-content__inner--scroll crosshook-hero-detail__panel-inner">
               <HeroDetailPanels mode={tab.id} {...panelProps} />
             </div>
           </Tabs.Content>
